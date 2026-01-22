@@ -714,9 +714,8 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
 impl<'a> LookupList<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> LookupList<'a, T> {
-        let TableRef { data, shape } = self;
         TableRef {
-            data,
+            data: self.data,
             shape: LookupListMarker {
                 offset_type: std::marker::PhantomData,
             },
@@ -728,9 +727,8 @@ impl<'a, T> LookupList<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> LookupList<'a, ()> {
-        let TableRef { data, shape } = self;
         TableRef {
-            data: *data,
+            data: self.data,
             shape: LookupListMarker {
                 offset_type: std::marker::PhantomData,
             },
@@ -855,9 +853,8 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
 impl<'a> Lookup<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> Lookup<'a, T> {
-        let TableRef { data, shape } = self;
         TableRef {
-            data,
+            data: self.data,
             shape: LookupMarker {
                 offset_type: std::marker::PhantomData,
             },
@@ -869,9 +866,8 @@ impl<'a, T> Lookup<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> Lookup<'a, ()> {
-        let TableRef { data, shape } = self;
         TableRef {
-            data: *data,
+            data: self.data,
             shape: LookupMarker {
                 offset_type: std::marker::PhantomData,
             },
@@ -912,16 +908,12 @@ impl<'a, T> Lookup<'a, T> {
     }
 
     pub fn mark_filtering_set_byte_range(&self) -> Range<usize> {
-        let lookup_flag = self.lookup_flag();
         let start = self.subtable_offsets_byte_range().end;
-        let end = if self
+        let end = (self
             .lookup_flag()
-            .contains(LookupFlag::USE_MARK_FILTERING_SET)
-        {
-            start + u16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+            .contains(LookupFlag::USE_MARK_FILTERING_SET))
+        .then(|| start + u16::RAW_BYTE_LEN)
+        .unwrap_or(start);
         start..end
     }
 

@@ -69,11 +69,9 @@ impl<'a> Gsub<'a> {
 
     pub fn feature_variations_offset_byte_range(&self) -> Range<usize> {
         let start = self.lookup_list_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
@@ -1381,9 +1379,8 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
 impl<'a> ExtensionSubstFormat1<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> ExtensionSubstFormat1<'a, T> {
-        let TableRef { data, shape } = self;
         TableRef {
-            data,
+            data: self.data,
             shape: ExtensionSubstFormat1Marker {
                 offset_type: std::marker::PhantomData,
             },
@@ -1395,9 +1392,8 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> ExtensionSubstFormat1<'a, ()> {
-        let TableRef { data, shape } = self;
         TableRef {
-            data: *data,
+            data: self.data,
             shape: ExtensionSubstFormat1Marker {
                 offset_type: std::marker::PhantomData,
             },

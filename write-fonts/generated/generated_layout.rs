@@ -577,12 +577,16 @@ impl<T: Validate> Validate for Lookup<T> {
                 self.subtables.validate_impl(ctx);
             });
             ctx.in_field("mark_filtering_set", |ctx| {
-                if !(lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET))
+                if !(self
+                    .lookup_flag
+                    .contains(LookupFlag::USE_MARK_FILTERING_SET))
                     && self.mark_filtering_set.is_some()
                 {
                     ctx.report("'mark_filtering_set' is present but USE_MARK_FILTERING_SET not set")
                 }
-                if (lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET))
+                if (self
+                    .lookup_flag
+                    .contains(LookupFlag::USE_MARK_FILTERING_SET))
                     && self.mark_filtering_set.is_none()
                 {
                     ctx.report("USE_MARK_FILTERING_SET is set but 'mark_filtering_set' is None")

@@ -83,31 +83,25 @@ impl<'a> Cpal<'a> {
 
     pub fn palette_types_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.color_record_indices_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn palette_labels_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.palette_types_array_offset_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn palette_entry_labels_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.palette_labels_array_offset_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 

@@ -76,31 +76,25 @@ impl<'a> KindsOfOffsets<'a> {
 
     pub fn versioned_nullable_record_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.record_array_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + Offset16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn versioned_nonnullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.versioned_nullable_record_array_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + Offset16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn versioned_nullable_offset_byte_range(&self) -> Range<usize> {
         let start = self.versioned_nonnullable_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
@@ -328,22 +322,18 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     pub fn versioned_nonnullable_offsets_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.nullable_offsets_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + (count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + (count as usize).saturating_mul(Offset16::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 
     pub fn versioned_nullable_offsets_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.versioned_nonnullable_offsets_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + (count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + (count as usize).saturating_mul(Offset16::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 
@@ -547,22 +537,18 @@ impl<'a> KindsOfArrays<'a> {
     pub fn versioned_scalars_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.records_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + (count as usize).saturating_mul(u16::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + (count as usize).saturating_mul(u16::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 
     pub fn versioned_records_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.versioned_scalars_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + (count as usize).saturating_mul(Shmecord::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + (count as usize).saturating_mul(Shmecord::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 
