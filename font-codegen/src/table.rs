@@ -56,9 +56,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                impl<'a> #raw_name<'a, ()> {
                    #[allow(dead_code)]
                    pub(crate) fn into_concrete<T>(self) -> #raw_name<'a, #t> {
-                       let TableRef { data, shape } = self;
                        TableRef {
-                           data,
+                           data: self.data,
                            shape: #marker_name {
                                offset_type: std::marker::PhantomData,
                            }
@@ -72,9 +71,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                    #[allow(dead_code)]
                    #[doc = #of_unit_docs]
                    pub(crate) fn of_unit_type(&self) -> #raw_name<'a, ()> {
-                       let TableRef { data, shape} = self;
                        TableRef {
-                           data: *data,
+                           data: self.data,
                            shape: #marker_name {
                                offset_type: std::marker::PhantomData,
                            }
@@ -938,11 +936,8 @@ impl Table {
 
             let end_expr = if let Some(condition) = condition {
                 quote! {
-                    if #condition {
-                        start + #len_expr
-                    } else {
-                        start
-                    }
+                    (#condition).then(|| start + #len_expr)
+                        .unwrap_or(start)
                 }
             } else {
                 quote!( start + #len_expr)

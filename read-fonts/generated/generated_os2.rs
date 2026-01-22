@@ -603,91 +603,73 @@ impl<'a> Os2<'a> {
 
     pub fn ul_code_page_range_1_byte_range(&self) -> Range<usize> {
         let start = self.us_win_descent_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + u32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + u32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn ul_code_page_range_2_byte_range(&self) -> Range<usize> {
         let start = self.ul_code_page_range_1_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + u32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + u32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn sx_height_byte_range(&self) -> Range<usize> {
         let start = self.ul_code_page_range_2_byte_range().end;
-        let end = if self.version().compatible(2u16) {
-            start + i16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(2u16))
+            .then(|| start + i16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn s_cap_height_byte_range(&self) -> Range<usize> {
         let start = self.sx_height_byte_range().end;
-        let end = if self.version().compatible(2u16) {
-            start + i16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(2u16))
+            .then(|| start + i16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn us_default_char_byte_range(&self) -> Range<usize> {
         let start = self.s_cap_height_byte_range().end;
-        let end = if self.version().compatible(2u16) {
-            start + u16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(2u16))
+            .then(|| start + u16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn us_break_char_byte_range(&self) -> Range<usize> {
         let start = self.us_default_char_byte_range().end;
-        let end = if self.version().compatible(2u16) {
-            start + u16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(2u16))
+            .then(|| start + u16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn us_max_context_byte_range(&self) -> Range<usize> {
         let start = self.us_break_char_byte_range().end;
-        let end = if self.version().compatible(2u16) {
-            start + u16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(2u16))
+            .then(|| start + u16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn us_lower_optical_point_size_byte_range(&self) -> Range<usize> {
         let start = self.us_max_context_byte_range().end;
-        let end = if self.version().compatible(5u16) {
-            start + u16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(5u16))
+            .then(|| start + u16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn us_upper_optical_point_size_byte_range(&self) -> Range<usize> {
         let start = self.us_lower_optical_point_size_byte_range().end;
-        let end = if self.version().compatible(5u16) {
-            start + u16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(5u16))
+            .then(|| start + u16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 

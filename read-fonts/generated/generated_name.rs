@@ -67,22 +67,18 @@ impl<'a> Name<'a> {
 
     pub fn lang_tag_count_byte_range(&self) -> Range<usize> {
         let start = self.name_record_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + u16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + u16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn lang_tag_record_byte_range(&self) -> Range<usize> {
         let lang_tag_count = self.lang_tag_count().unwrap_or_default();
         let start = self.lang_tag_count_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + (lang_tag_count as usize).saturating_mul(LangTagRecord::RAW_BYTE_LEN)
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + (lang_tag_count as usize).saturating_mul(LangTagRecord::RAW_BYTE_LEN))
+            .unwrap_or(start);
         start..end
     }
 

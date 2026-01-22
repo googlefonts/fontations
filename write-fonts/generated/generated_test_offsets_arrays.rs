@@ -86,7 +86,7 @@ impl Validate for KindsOfOffsets {
                 self.versioned_nullable_record_array.validate_impl(ctx);
             });
             ctx.in_field("versioned_nonnullable", |ctx| {
-                if self.version().compatible((1u16, 1u16)) && self.versioned_nonnullable.is_none() {
+                if version.compatible((1u16, 1u16)) && self.versioned_nonnullable.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 self.versioned_nonnullable.validate_impl(ctx);
@@ -190,8 +190,7 @@ impl Validate for KindsOfArraysOfOffsets {
                 self.nullables.validate_impl(ctx);
             });
             ctx.in_field("versioned_nonnullables", |ctx| {
-                if self.version().compatible((1u16, 1u16)) && self.versioned_nonnullables.is_none()
-                {
+                if version.compatible((1u16, 1u16)) && self.versioned_nonnullables.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_nonnullables.is_some()
@@ -202,7 +201,7 @@ impl Validate for KindsOfArraysOfOffsets {
                 self.versioned_nonnullables.validate_impl(ctx);
             });
             ctx.in_field("versioned_nullables", |ctx| {
-                if self.version().compatible((1u16, 1u16)) && self.versioned_nullables.is_none() {
+                if version.compatible((1u16, 1u16)) && self.versioned_nullables.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_nullables.is_some()
@@ -313,7 +312,7 @@ impl Validate for KindsOfArrays {
                 self.records.validate_impl(ctx);
             });
             ctx.in_field("versioned_scalars", |ctx| {
-                if self.version().compatible(1u16) && self.versioned_scalars.is_none() {
+                if version.compatible(1u16) && self.versioned_scalars.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_scalars.is_some()
@@ -323,7 +322,7 @@ impl Validate for KindsOfArrays {
                 }
             });
             ctx.in_field("versioned_records", |ctx| {
-                if self.version().compatible(1u16) && self.versioned_records.is_none() {
+                if version.compatible(1u16) && self.versioned_records.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_records.is_some()

@@ -76,21 +76,17 @@ impl<'a> Gdef<'a> {
 
     pub fn mark_glyph_sets_def_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_attach_class_def_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 2u16)) {
-            start + Offset16::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 2u16)))
+            .then(|| start + Offset16::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn item_var_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_glyph_sets_def_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 3u16)) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 3u16)))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 

@@ -83,11 +83,9 @@ impl<'a> Stat<'a> {
 
     pub fn elided_fallback_name_id_byte_range(&self) -> Range<usize> {
         let start = self.offset_to_axis_value_offsets_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + NameId::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + NameId::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 

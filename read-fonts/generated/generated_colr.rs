@@ -76,51 +76,41 @@ impl<'a> Colr<'a> {
 
     pub fn base_glyph_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.num_layer_records_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn layer_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.base_glyph_list_offset_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn clip_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.layer_list_offset_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn var_index_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.clip_list_offset_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.var_index_map_offset_byte_range().end;
-        let end = if self.version().compatible(1u16) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible(1u16))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 

@@ -259,31 +259,25 @@ impl<'a> TTCHeader<'a> {
 
     pub fn dsig_tag_byte_range(&self) -> Range<usize> {
         let start = self.table_directory_offsets_byte_range().end;
-        let end = if self.version().compatible((2u16, 0u16)) {
-            start + u32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((2u16, 0u16)))
+            .then(|| start + u32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn dsig_length_byte_range(&self) -> Range<usize> {
         let start = self.dsig_tag_byte_range().end;
-        let end = if self.version().compatible((2u16, 0u16)) {
-            start + u32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((2u16, 0u16)))
+            .then(|| start + u32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
     pub fn dsig_offset_byte_range(&self) -> Range<usize> {
         let start = self.dsig_length_byte_range().end;
-        let end = if self.version().compatible((2u16, 0u16)) {
-            start + u32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((2u16, 0u16)))
+            .then(|| start + u32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 

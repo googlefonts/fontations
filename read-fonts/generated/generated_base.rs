@@ -61,11 +61,9 @@ impl<'a> Base<'a> {
 
     pub fn item_var_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.vert_axis_offset_byte_range().end;
-        let end = if self.version().compatible((1u16, 1u16)) {
-            start + Offset32::RAW_BYTE_LEN
-        } else {
-            start
-        };
+        let end = (self.version().compatible((1u16, 1u16)))
+            .then(|| start + Offset32::RAW_BYTE_LEN)
+            .unwrap_or(start);
         start..end
     }
 
