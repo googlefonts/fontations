@@ -8,33 +8,9 @@ use crate::codegen_prelude::*;
 /// The [Color Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/cblc) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CblcMarker {
-    bitmap_sizes_byte_len: usize,
-}
+pub struct CblcMarker {}
 
-impl CblcMarker {
-    pub fn major_version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn minor_version_byte_range(&self) -> Range<usize> {
-        let start = self.major_version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn num_sizes_byte_range(&self) -> Range<usize> {
-        let start = self.minor_version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
-        let start = self.num_sizes_byte_range().end;
-        start..start + self.bitmap_sizes_byte_len
-    }
-}
-
-impl MinByteRange for CblcMarker {
+impl<'a> MinByteRange for Cblc<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.bitmap_sizes_byte_range().end
     }
@@ -47,16 +23,12 @@ impl TopLevelTable for Cblc<'_> {
 
 impl<'a> FontRead<'a> for Cblc<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        let num_sizes: u32 = cursor.read()?;
-        let bitmap_sizes_byte_len = (num_sizes as usize)
-            .checked_mul(BitmapSize::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(bitmap_sizes_byte_len);
-        cursor.finish(CblcMarker {
-            bitmap_sizes_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: CblcMarker {},
         })
     }
 }
@@ -66,27 +38,54 @@ pub type Cblc<'a> = TableRef<'a, CblcMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cblc<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+
+    pub fn major_version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn minor_version_byte_range(&self) -> Range<usize> {
+        let start = self.major_version_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn num_sizes_byte_range(&self) -> Range<usize> {
+        let start = self.minor_version_byte_range().end;
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
+        let num_sizes = self.num_sizes();
+        let start = self.num_sizes_byte_range().end;
+        let end = start + (num_sizes as usize).saturating_mul(BitmapSize::RAW_BYTE_LEN);
+        start..end
+    }
+
     /// Major version of the CBLC table, = 3.
     pub fn major_version(&self) -> u16 {
-        let range = self.shape.major_version_byte_range();
+        let range = self.major_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Minor version of CBLC table, = 0.
     pub fn minor_version(&self) -> u16 {
-        let range = self.shape.minor_version_byte_range();
+        let range = self.minor_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Number of BitmapSize records.
     pub fn num_sizes(&self) -> u32 {
-        let range = self.shape.num_sizes_byte_range();
+        let range = self.num_sizes_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// BitmapSize records array.
     pub fn bitmap_sizes(&self) -> &'a [BitmapSize] {
-        let range = self.shape.bitmap_sizes_byte_range();
+        let range = self.bitmap_sizes_byte_range();
         self.data.read_array(range).unwrap()
     }
 }

@@ -10,24 +10,7 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct SvgMarker {}
 
-impl SvgMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn _reserved_byte_range(&self) -> Range<usize> {
-        let start = self.svg_document_list_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for SvgMarker {
+impl<'a> MinByteRange for Svg<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self._reserved_byte_range().end
     }
@@ -40,11 +23,13 @@ impl TopLevelTable for Svg<'_> {
 
 impl<'a> FontRead<'a> for Svg<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u16>();
-        cursor.finish(SvgMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: SvgMarker {},
+        })
     }
 }
 
@@ -53,16 +38,36 @@ pub type Svg<'a> = TableRef<'a, SvgMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Svg<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
+        let start = self.svg_document_list_offset_byte_range().end;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Table version (starting at 0). Set to 0.
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to the SVGDocumentList, from the start of the SVG table.
     /// Must be non-zero.
     pub fn svg_document_list_offset(&self) -> Offset32 {
-        let range = self.shape.svg_document_list_offset_byte_range();
+        let range = self.svg_document_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -101,23 +106,9 @@ impl<'a> std::fmt::Debug for Svg<'a> {
 /// [SVGDocumentList](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SVGDocumentListMarker {
-    document_records_byte_len: usize,
-}
+pub struct SVGDocumentListMarker {}
 
-impl SVGDocumentListMarker {
-    pub fn num_entries_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn document_records_byte_range(&self) -> Range<usize> {
-        let start = self.num_entries_byte_range().end;
-        start..start + self.document_records_byte_len
-    }
-}
-
-impl MinByteRange for SVGDocumentListMarker {
+impl<'a> MinByteRange for SVGDocumentList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.document_records_byte_range().end
     }
@@ -125,14 +116,12 @@ impl MinByteRange for SVGDocumentListMarker {
 
 impl<'a> FontRead<'a> for SVGDocumentList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let num_entries: u16 = cursor.read()?;
-        let document_records_byte_len = (num_entries as usize)
-            .checked_mul(SVGDocumentRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(document_records_byte_len);
-        cursor.finish(SVGDocumentListMarker {
-            document_records_byte_len,
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: SVGDocumentListMarker {},
         })
     }
 }
@@ -142,15 +131,30 @@ pub type SVGDocumentList<'a> = TableRef<'a, SVGDocumentListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SVGDocumentList<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+
+    pub fn num_entries_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn document_records_byte_range(&self) -> Range<usize> {
+        let num_entries = self.num_entries();
+        let start = self.num_entries_byte_range().end;
+        let end = start + (num_entries as usize).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN);
+        start..end
+    }
+
     /// Number of SVGDocumentRecords. Must be non-zero.
     pub fn num_entries(&self) -> u16 {
-        let range = self.shape.num_entries_byte_range();
+        let range = self.num_entries_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SVGDocumentRecords.
     pub fn document_records(&self) -> &'a [SVGDocumentRecord] {
-        let range = self.shape.document_records_byte_range();
+        let range = self.document_records_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
