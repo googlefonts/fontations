@@ -45,12 +45,12 @@ pub type CountAll16<'a> = TableRef<'a, CountAll16Marker>;
 impl<'a> CountAll16<'a> {
     pub fn some_field(&self) -> u16 {
         let range = self.shape.some_field_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn remainder(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.remainder_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -116,12 +116,12 @@ pub type CountAll32<'a> = TableRef<'a, CountAll32Marker>;
 impl<'a> CountAll32<'a> {
     pub fn some_field(&self) -> u16 {
         let range = self.shape.some_field_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn remainder(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.remainder_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
