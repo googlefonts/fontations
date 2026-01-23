@@ -259,8 +259,7 @@ pub enum Entry {
     UnderlineThickness(Fixed),
     PaintType(i32),
     CharstringType(i32),
-    /// Affine matrix and scaling factor.
-    FontMatrix([Fixed; 6], i32),
+    FontMatrix(ScaledFontMatrix),
     StrokeWidth(Fixed),
     FdArrayOffset(usize),
     FdSelectOffset(usize),
@@ -381,8 +380,8 @@ pub fn entries<'a>(
                     // Now reparse with dynamic scaling
                     let mut cursor = crate::FontData::new(dict_data).cursor();
                     cursor.advance_by(cursor_pos);
-                    if let Some((matrix, upem)) = parse_font_matrix(&mut cursor) {
-                        return Some(Ok(Entry::FontMatrix(matrix, upem)));
+                    if let Some(matrix) = ScaledFontMatrix::parse(&mut cursor) {
+                        return Some(Ok(Entry::FontMatrix(matrix)));
                     }
                     continue;
                 }
@@ -490,101 +489,167 @@ fn parse_entry(op: Operator, stack: &mut Stack) -> Result<Entry, Error> {
     })
 }
 
-/// Parses a font matrix using dynamic scaling factors.
+/// An affine matrix defining a font transform.
 ///
-/// Returns the matrix and an adjusted upem factor.
-fn parse_font_matrix(cursor: &mut Cursor) -> Option<([Fixed; 6], i32)> {
-    let mut values = [Fixed::ZERO; 6];
-    let mut scalings = [0i32; 6];
-    let mut max_scaling = i32::MIN;
-    let mut min_scaling = i32::MAX;
-    for (value, scaling) in values.iter_mut().zip(&mut scalings) {
-        let (v, s) = parse_fixed_dynamic(cursor).ok()?;
-        if v != Fixed::ZERO {
-            max_scaling = max_scaling.max(s);
-            min_scaling = min_scaling.min(s);
-        }
-        *value = v;
-        *scaling = s;
+/// Components are in the order `[sx, ky, kx, sy, dx, dy]`.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct FontMatrix(pub [Fixed; 6]);
+
+impl FontMatrix {
+    /// The identity matrix.
+    pub const IDENTITY: Self = Self([
+        Fixed::ONE,
+        Fixed::ZERO,
+        Fixed::ZERO,
+        Fixed::ONE,
+        Fixed::ZERO,
+        Fixed::ZERO,
+    ]);
+
+    /// Applies the matrix to the given point.
+    pub fn transform(&self, x: Fixed, y: Fixed) -> (Fixed, Fixed) {
+        let matrix = &self.0;
+        (
+            matrix[0] * x + matrix[2] * y + matrix[4],
+            matrix[1] * x + matrix[3] * y + matrix[5],
+        )
     }
-    if !(-9..=0).contains(&max_scaling)
-        || (max_scaling - min_scaling < 0)
-        || (max_scaling - min_scaling) > 9
-    {
-        return None;
+
+    /// Simple fixed point matrix multiplication with a scaling factor.
+    ///
+    /// Note: this transforms the translation component of `other` by the upper 2x2 of
+    /// `self`. This matches the offset transform FreeType uses when concatenating
+    /// the matrices from the top and font dicts.
+    pub fn combine_scaled(&self, other: &Self, scale: i32) -> Self {
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/base/ftcalc.c#L719>
+        let a = &self.0;
+        let b = &other.0;
+        let val = Fixed::from_i32(scale);
+        let xx = a[0].mul_div(b[0], val) + a[2].mul_div(b[1], val);
+        let yx = a[1].mul_div(b[0], val) + a[3].mul_div(b[1], val);
+        let xy = a[0].mul_div(b[2], val) + a[2].mul_div(b[3], val);
+        let yy = a[1].mul_div(b[2], val) + a[3].mul_div(b[3], val);
+        let x = b[4];
+        let y = b[5];
+        let dx = x.mul_div(a[0], val) + y.mul_div(a[2], val);
+        let dy = x.mul_div(a[1], val) + y.mul_div(a[3], val);
+        Self([xx, yx, xy, yy, dx, dy])
     }
-    for (value, scaling) in values.iter_mut().zip(scalings) {
-        if *value == Fixed::ZERO {
-            continue;
+
+    /// Check for a degenerate matrix.
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/base/ftcalc.c#L725>
+    fn is_degenerate(&self) -> bool {
+        let [mut xx, mut yx, mut xy, mut yy, ..] = self.0.map(|x| x.to_bits() as i64);
+        let val = xx.abs() | yx.abs() | xy.abs() | yy.abs();
+        if val == 0 || val > 0x7FFFFFFF {
+            return true;
         }
-        let divisor = BCD_POWER_TENS[(max_scaling - scaling) as usize];
-        let half_divisor = divisor >> 1;
-        if *value < Fixed::ZERO {
-            if i32::MIN + half_divisor < value.to_bits() {
-                *value = Fixed::from_bits((value.to_bits() - half_divisor) / divisor);
-            } else {
-                *value = Fixed::from_bits(i32::MIN / divisor);
+        // Scale the matrix to avoid temp1 overflow
+        let msb = 32 - (val as i32).leading_zeros() - 1;
+        let shift = msb as i32 - 12;
+        if shift > 0 {
+            xx >>= shift;
+            xy >>= shift;
+            yx >>= shift;
+            yy >>= shift;
+        }
+        let temp1 = 32 * (xx * yy - xy * yx).abs();
+        let temp2 = (xx * xx) + (xy * xy) + (yx * yx) + (yy * yy);
+        if temp1 <= temp2 {
+            return true;
+        }
+        false
+    }
+}
+
+/// An affine matrix with a scaling factor.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct ScaledFontMatrix {
+    /// The matrix.
+    pub matrix: FontMatrix,
+    /// The dynamic scale factor used when parsing this matrix.
+    pub scale: i32,
+}
+
+impl ScaledFontMatrix {
+    /// Parses a font matrix using dynamic scaling factors.
+    ///
+    /// Returns the matrix and an adjusted upem factor.
+    fn parse(cursor: &mut Cursor) -> Option<Self> {
+        let mut values = [Fixed::ZERO; 6];
+        let mut scalings = [0i32; 6];
+        let mut max_scaling = i32::MIN;
+        let mut min_scaling = i32::MAX;
+        for (value, scaling) in values.iter_mut().zip(&mut scalings) {
+            let (v, s) = parse_fixed_dynamic(cursor).ok()?;
+            if v != Fixed::ZERO {
+                max_scaling = max_scaling.max(s);
+                min_scaling = min_scaling.min(s);
             }
-        } else if i32::MAX - half_divisor > value.to_bits() {
-            *value = Fixed::from_bits((value.to_bits() + half_divisor) / divisor);
+            *value = v;
+            *scaling = s;
+        }
+        if !(-9..=0).contains(&max_scaling)
+            || (max_scaling - min_scaling < 0)
+            || (max_scaling - min_scaling) > 9
+        {
+            return None;
+        }
+        for (value, scaling) in values.iter_mut().zip(scalings) {
+            if *value == Fixed::ZERO {
+                continue;
+            }
+            let divisor = BCD_POWER_TENS[(max_scaling - scaling) as usize];
+            let half_divisor = divisor >> 1;
+            if *value < Fixed::ZERO {
+                if i32::MIN + half_divisor < value.to_bits() {
+                    *value = Fixed::from_bits((value.to_bits() - half_divisor) / divisor);
+                } else {
+                    *value = Fixed::from_bits(i32::MIN / divisor);
+                }
+            } else if i32::MAX - half_divisor > value.to_bits() {
+                *value = Fixed::from_bits((value.to_bits() + half_divisor) / divisor);
+            } else {
+                *value = Fixed::from_bits(i32::MAX / divisor);
+            }
+        }
+        let matrix = FontMatrix(values);
+        // Check for a degenerate matrix
+        if matrix.is_degenerate() {
+            return None;
+        }
+        let scale = BCD_POWER_TENS[(-max_scaling) as usize];
+        Some(Self { matrix, scale })
+    }
+
+    /// Compute a new font matrix and UPEM scale factor where the Y scale of
+    /// the matrix is 1.0.    
+    #[must_use]
+    pub fn normalize(&self) -> Self {
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L727>
+        let mut matrix = self.matrix.0;
+        let mut scaled_upem = self.scale;
+        let factor = if matrix[3] != Fixed::ZERO {
+            matrix[3].abs()
         } else {
-            *value = Fixed::from_bits(i32::MAX / divisor);
+            // Use yx if yy is zero
+            matrix[1].abs()
+        };
+        if factor != Fixed::ONE {
+            scaled_upem = (Fixed::from_bits(scaled_upem) / factor).to_bits();
+            for value in &mut matrix {
+                *value /= factor;
+            }
+        }
+        // FT shifts off the fractional parts of the translation?
+        for offset in matrix[4..6].iter_mut() {
+            *offset = Fixed::from_bits(offset.to_bits() >> 16);
+        }
+        Self {
+            matrix: FontMatrix(matrix),
+            scale: scaled_upem,
         }
     }
-    // Check for a degenerate matrix
-    if is_degenerate(&values) {
-        return None;
-    }
-    let upem = BCD_POWER_TENS[(-max_scaling) as usize];
-    Some((values, upem))
-}
-
-/// Given a font matrix and a scaled UPEM, compute a new font matrix and UPEM
-/// scale factor where the Y scale of the matrix is 1.0.
-pub fn normalize_font_matrix(mut matrix: [Fixed; 6], mut scaled_upem: i32) -> ([Fixed; 6], i32) {
-    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L727>
-    let factor = if matrix[3] != Fixed::ZERO {
-        matrix[3].abs()
-    } else {
-        // Use yx if yy is zero
-        matrix[1].abs()
-    };
-    if factor != Fixed::ONE {
-        scaled_upem = (Fixed::from_bits(scaled_upem) / factor).to_bits();
-        for value in &mut matrix {
-            *value /= factor;
-        }
-    }
-    // FT shifts off the fractional parts of the translation?
-    for offset in matrix[4..6].iter_mut() {
-        *offset = Fixed::from_bits(offset.to_bits() >> 16);
-    }
-    (matrix, scaled_upem)
-}
-
-/// Check for a degenerate matrix.
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/base/ftcalc.c#L725>
-fn is_degenerate(matrix: &[Fixed; 6]) -> bool {
-    let [mut xx, mut yx, mut xy, mut yy, ..] = matrix.map(|x| x.to_bits() as i64);
-    let val = xx.abs() | yx.abs() | xy.abs() | yy.abs();
-    if val == 0 || val > 0x7FFFFFFF {
-        return true;
-    }
-    // Scale the matrix to avoid temp1 overflow
-    let msb = 32 - (val as i32).leading_zeros() - 1;
-    let shift = msb as i32 - 12;
-    if shift > 0 {
-        xx >>= shift;
-        xy >>= shift;
-        yx >>= shift;
-        yy >>= shift;
-    }
-    let temp1 = 32 * (xx * yy - xy * yx).abs();
-    let temp2 = (xx * xx) + (xy * xy) + (yx * yx) + (yy * yy);
-    if temp1 <= temp2 {
-        return true;
-    }
-    false
 }
 
 /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.h#L141>
@@ -1184,14 +1249,13 @@ mod tests {
         let dict_data = [
             30u8, 10, 0, 31, 139, 30, 10, 0, 1, 103, 255, 30, 10, 0, 31, 139, 139, 12, 7,
         ];
-        let Entry::FontMatrix(matrix, _) = entries(&dict_data, None).next().unwrap().unwrap()
-        else {
+        let Entry::FontMatrix(matrix) = entries(&dict_data, None).next().unwrap().unwrap() else {
             panic!("This was totally a font matrix");
         };
         // From ttx: <FontMatrix value="0.001 0 0.000167 0.001 0 0"/>
         // But scaled by 1000 because that's how FreeType does it
         assert_eq!(
-            matrix,
+            matrix.matrix.0,
             [
                 Fixed::ONE,
                 Fixed::ZERO,
@@ -1216,30 +1280,42 @@ mod tests {
     #[test]
     fn degenerate_matrix_check_doesnt_overflow() {
         // Values taken from font in the above issue
-        let matrix = [
+        let matrix = FontMatrix([
             Fixed::from_bits(639999672),
             Fixed::ZERO,
             Fixed::ZERO,
             Fixed::from_bits(639999672),
             Fixed::ZERO,
             Fixed::ZERO,
-        ];
+        ]);
         // Just don't panic with overflow
-        is_degenerate(&matrix);
+        matrix.is_degenerate();
         // Try again with all max values
-        is_degenerate(&[Fixed::MAX; 6]);
+        FontMatrix([Fixed::MAX; 6]).is_degenerate();
         // And all min values
-        is_degenerate(&[Fixed::MIN; 6]);
+        FontMatrix([Fixed::MIN; 6]).is_degenerate();
     }
 
     #[test]
     fn normalize_matrix() {
         // This matrix has a y scale of 0.5 so we should produce a new matrix
         // with a y scale of 1.0 and a scale factor of 2
-        let matrix = [65536, 0, 0, 32768, 0, 0].map(Fixed::from_bits);
-        let (normalized, scale) = normalize_font_matrix(matrix, 1);
+        let matrix = ScaledFontMatrix {
+            matrix: FontMatrix([65536, 0, 0, 32768, 0, 0].map(Fixed::from_bits)),
+            scale: 1,
+        };
+        let normalized = matrix.normalize();
         let expected_normalized = [131072, 0, 0, 65536, 0, 0].map(Fixed::from_bits);
-        assert_eq!(normalized, expected_normalized);
-        assert_eq!(scale, 2);
+        assert_eq!(normalized.matrix.0, expected_normalized);
+        assert_eq!(normalized.scale, 2);
+    }
+
+    #[test]
+    fn combine_matrix() {
+        let a = [0.5, 0.75, -1.0, 2.0, 0.0, 0.0].map(Fixed::from_f64);
+        let b = [1.5, -1.0, 0.25, -1.0, 1.0, 2.0].map(Fixed::from_f64);
+        let expected = [1.75, -0.875, 1.125, -1.8125, -1.5, 4.75].map(Fixed::from_f64);
+        let result = FontMatrix(a).combine_scaled(&FontMatrix(b), 1);
+        assert_eq!(result.0, expected);
     }
 }
