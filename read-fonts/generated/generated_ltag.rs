@@ -123,7 +123,9 @@ impl<'a> std::fmt::Debug for Ltag<'a> {
 }
 
 /// Offset and length of string in `ltag` table.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FTStringRange {

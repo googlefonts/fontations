@@ -17,12 +17,13 @@ all-features = true
 
 [features]
 std = []
-bytemuck = ["dep:bytemuck"]
+bytemuck = ["dep:bytemuck", "dep:bytemuck_derive"]
 serde = ["dep:serde"]
 
 [dependencies]
 # note: bytemuck version must be available in all deployment environments
-bytemuck = { workspace = true,  features = ["derive", "min_const_generics"], optional = true }
+bytemuck = { workspace = true,  features = ["min_const_generics"], optional = true }
+bytemuck_derive = { workspace = true, optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
