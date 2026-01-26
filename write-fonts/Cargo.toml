@@ -17,7 +17,7 @@ all-features = true
 
 [features]
 default = []
-read = []
+read = ["read-fonts/experimental_traverse"]
 dot2 = ["dep:dot2"]
 serde = ["dep:serde", "font-types/serde", "read-fonts/serde"]
 ift = ["read-fonts/ift"]
