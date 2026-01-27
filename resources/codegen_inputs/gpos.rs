@@ -1,5 +1,6 @@
 // path (from compile crate) to the generated parse module for this table.
 #![parse_module(read_fonts::tables::gpos)]
+#![sanitize]
 
 extern record ValueRecord;
 
@@ -150,6 +151,7 @@ table SinglePosFormat1 {
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
     #[read_with($value_format)]
+    #[skip_sanitize]
     value_record: ValueRecord,
 }
 
@@ -170,6 +172,7 @@ table SinglePosFormat2 {
     /// Array of ValueRecords — positioning values applied to glyphs.
     #[count($value_count)]
     #[read_with($value_format)]
+    #[skip_sanitize]
     value_records: ComputedArray<ValueRecord>,
 }
 
@@ -215,11 +218,13 @@ table PairSet {
     /// glyph.
     #[count($pair_value_count)]
     #[read_with($value_format1, $value_format2)]
+    #[skip_sanitize]
     pair_value_records: ComputedArray<PairValueRecord>,
 }
 
 /// Part of [PairSet]
 #[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
+#[skip_sanitize]
 record PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
@@ -272,11 +277,13 @@ record Class1Record<'a> {
     /// Array of Class2 records, ordered by classes in classDef2.
     #[count($class2_count)]
     #[read_with($value_format1, $value_format2)]
+    #[skip_sanitize]
     class2_records: ComputedArray<Class2Record>,
 }
 
 /// Part of [PairPosFormat2]
 #[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
+#[skip_sanitize]
 record Class2Record {
     /// Positioning for first glyph — empty if valueFormat1 = 0.
     #[read_with($value_format1)]

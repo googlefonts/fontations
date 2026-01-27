@@ -70,6 +70,20 @@ impl<'a> FontRead<'a> for Gsub<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for Gsub<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.script_list()?.sanitize_impl()?;
+        self.feature_list()?.sanitize_impl()?;
+        self.lookup_list()?.sanitize_impl()?;
+        if let Some(thing) = self.feature_variations() {
+            thing?.sanitize_impl()?;
+        };
+        Ok(())
+    }
+}
+
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
 pub type Gsub<'a> = TableRef<'a, GsubMarker>;
 
@@ -201,6 +215,21 @@ impl<'a> FontRead<'a> for SubstitutionLookup<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for SubstitutionLookup<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            SubstitutionLookup::Single(table) => table.sanitize_impl(),
+            SubstitutionLookup::Multiple(table) => table.sanitize_impl(),
+            SubstitutionLookup::Alternate(table) => table.sanitize_impl(),
+            SubstitutionLookup::Ligature(table) => table.sanitize_impl(),
+            SubstitutionLookup::Contextual(table) => table.sanitize_impl(),
+            SubstitutionLookup::ChainContextual(table) => table.sanitize_impl(),
+            SubstitutionLookup::Extension(table) => table.sanitize_impl(),
+            SubstitutionLookup::Reverse(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 impl<'a> SubstitutionLookup<'a> {
     #[allow(dead_code)]
     /// Return the inner table, removing the specific generics.
@@ -307,6 +336,15 @@ impl MinByteRange for SingleSubst<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for SingleSubst<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.sanitize_impl(),
+            Self::Format2(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SingleSubst<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -373,6 +411,15 @@ impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<i16>();
         cursor.finish(SingleSubstFormat1Marker {})
+    }
+}
+
+impl<'a> Sanitize<'a> for SingleSubstFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -485,6 +532,15 @@ impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
         cursor.finish(SingleSubstFormat2Marker {
             substitute_glyph_ids_byte_len,
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for SingleSubstFormat2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -607,6 +663,16 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
         cursor.finish(MultipleSubstFormat1Marker {
             sequence_offsets_byte_len,
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for MultipleSubstFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.sequences().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -734,6 +800,14 @@ impl<'a> FontRead<'a> for Sequence<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for Sequence<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
+    }
+}
+
 /// Part of [MultipleSubstFormat1]
 pub type Sequence<'a> = TableRef<'a, SequenceMarker>;
 
@@ -830,6 +904,16 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
         cursor.finish(AlternateSubstFormat1Marker {
             alternate_set_offsets_byte_len,
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for AlternateSubstFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.alternate_sets().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -960,6 +1044,14 @@ impl<'a> FontRead<'a> for AlternateSet<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for AlternateSet<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
+    }
+}
+
 /// Part of [AlternateSubstFormat1]
 pub type AlternateSet<'a> = TableRef<'a, AlternateSetMarker>;
 
@@ -1055,6 +1147,16 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
         cursor.finish(LigatureSubstFormat1Marker {
             ligature_set_offsets_byte_len,
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for LigatureSubstFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.ligature_sets().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -1182,6 +1284,15 @@ impl<'a> FontRead<'a> for LigatureSet<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for LigatureSet<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.ligatures().sanitize_impl()?;
+        Ok(())
+    }
+}
+
 /// Part of [LigatureSubstFormat1]
 pub type LigatureSet<'a> = TableRef<'a, LigatureSetMarker>;
 
@@ -1288,6 +1399,14 @@ impl<'a> FontRead<'a> for Ligature<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for Ligature<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
+    }
+}
+
 /// Part of [LigatureSubstFormat1]
 pub type Ligature<'a> = TableRef<'a, LigatureMarker>;
 
@@ -1390,6 +1509,15 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
         cursor.finish(ExtensionSubstFormat1Marker {
             offset_type: std::marker::PhantomData,
         })
+    }
+}
+
+impl<'a, T: FontRead<'a> + Sanitize<'a>> Sanitize<'a> for ExtensionSubstFormat1<'a, T> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.extension()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -1508,6 +1636,20 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
             6 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
             8 => Ok(ExtensionSubtable::Reverse(untyped.into_concrete())),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for ExtensionSubtable<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            ExtensionSubtable::Single(table) => table.sanitize_impl(),
+            ExtensionSubtable::Multiple(table) => table.sanitize_impl(),
+            ExtensionSubtable::Alternate(table) => table.sanitize_impl(),
+            ExtensionSubtable::Ligature(table) => table.sanitize_impl(),
+            ExtensionSubtable::Contextual(table) => table.sanitize_impl(),
+            ExtensionSubtable::ChainContextual(table) => table.sanitize_impl(),
+            ExtensionSubtable::Reverse(table) => table.sanitize_impl(),
         }
     }
 }
@@ -1648,6 +1790,17 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
             lookahead_coverage_offsets_byte_len,
             substitute_glyph_ids_byte_len,
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ReverseChainSingleSubstFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.backtrack_coverages().sanitize_impl()?;
+        self.lookahead_coverages().sanitize_impl()?;
+        Ok(())
     }
 }
 

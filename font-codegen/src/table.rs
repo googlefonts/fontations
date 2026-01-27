@@ -7,11 +7,11 @@ use indexmap::IndexMap;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::parsing::{Attr, GenericGroup, Item, Items, Phase};
+use crate::parsing::{Attr, GenericGroup, Item, Module, Phase};
 
 use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
 
-pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
+pub(crate) fn generate(item: &Table, items: &Module) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
         return Ok(Default::default());
     }
@@ -102,6 +102,12 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         }
     });
 
+    let sanitize = items
+        .generate_sanitize
+        .is_some()
+        .then(|| generate_sanitize(item, items))
+        .transpose()?;
+
     Ok(quote! {
         #optional_format_trait_impl
 
@@ -124,6 +130,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         #impl_clone_copy
 
         #font_read
+
+        #sanitize
 
         #impl_into_generic
 
@@ -207,7 +215,28 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     }
 }
 
-pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
+fn generate_sanitize(table: &Table, items: &Module) -> syn::Result<TokenStream> {
+    let name = table.raw_name();
+    let generic = table.attrs.generic_offset.as_ref();
+    let sanitize_stmts = table.sanitize_stmts(items);
+    let generic_bound = generic
+        .is_some()
+        .then(|| quote!(: FontRead<'a> + Sanitize<'a>));
+
+    Ok(quote! {
+        impl<'a, #generic #generic_bound> Sanitize<'a> for #name<'a, #generic> {
+
+            #[allow(unused_variables)]
+            fn sanitize_impl(&self) -> Result<(), ReadError> {
+                let offset_data = self.offset_data();
+                #( #sanitize_stmts; )*
+                Ok(())
+            }
+        }
+    })
+}
+
+pub(crate) fn generate_group(item: &GenericGroup, items: &Module) -> syn::Result<TokenStream> {
     let docs = &item.attrs.docs;
     let name = &item.name;
     let inner = &item.inner_type;
@@ -217,6 +246,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
     let mut read_match_arms = Vec::new();
     let mut dyn_inner_arms = Vec::new();
     let mut of_unit_arms = Vec::new();
+    let mut sanitize_arms = Vec::new();
     for var in &item.variants {
         let var_name = &var.name;
         let type_id = &var.type_id;
@@ -226,6 +256,9 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
             .push(quote! { #type_id => Ok(#name :: #var_name (untyped.into_concrete())) });
         dyn_inner_arms.push(quote! { #name :: #var_name(table) => table });
         of_unit_arms.push(quote! { #name :: #var_name(inner) => inner.of_unit_type()  });
+        if items.generate_sanitize.is_some() {
+            sanitize_arms.push(quote!( #name :: #var_name(table) => table.sanitize_impl() ));
+        }
     }
 
     let of_unit_docs = &[
@@ -233,6 +266,18 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
         "",
         " This lets us return a single concrete type we can call methods on.",
     ];
+
+    let sanitize_impl = (!sanitize_arms.is_empty()).then(|| {
+        quote! {
+            impl<'a> Sanitize<'a> for #name <'a> {
+                fn sanitize_impl(&self) -> Result<(), ReadError> {
+                    match self {
+                        #( #sanitize_arms, )*
+                    }
+                }
+            }
+        }
+    });
 
     Ok(quote! {
         #( #docs)*
@@ -249,6 +294,8 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
                 }
             }
         }
+
+        #sanitize_impl
 
         impl<'a> #name <'a> {
             #[allow(dead_code)]
@@ -517,7 +564,7 @@ pub(crate) fn generate_group_compile(
 
 pub(crate) fn generate_format_compile(
     item: &TableFormat,
-    items: &Items,
+    items: &Module,
 ) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
@@ -609,7 +656,7 @@ pub(crate) fn generate_format_compile(
     })
 }
 
-fn generate_format_constructors(item: &TableFormat, items: &Items) -> syn::Result<TokenStream> {
+fn generate_format_constructors(item: &TableFormat, items: &Module) -> syn::Result<TokenStream> {
     let mut constructors = Vec::new();
     let name = &item.name;
 
@@ -655,7 +702,7 @@ fn generate_format_constructors(item: &TableFormat, items: &Items) -> syn::Resul
     })
 }
 
-fn generate_format_shared_getters(item: &TableFormat, items: &Items) -> syn::Result<TokenStream> {
+fn generate_format_shared_getters(item: &TableFormat, items: &Module) -> syn::Result<TokenStream> {
     // okay so we want to identify the getters that exist on all variants.
     let all_variants = item
         .variants
@@ -774,7 +821,10 @@ fn generate_format_from_obj(
     })
 }
 
-pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::Result<TokenStream> {
+pub(crate) fn generate_format_group(
+    item: &TableFormat,
+    items: &Module,
+) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
     let variants = item
@@ -839,6 +889,9 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
         }
     });
 
+    let do_sanitize = items.generate_sanitize.is_some() && item.attrs.skip_sanitize.is_none();
+    let maybe_sanitize_impl = do_sanitize.then(|| generate_format_sanitize(item));
+
     let min_byte_arms = item
         .variants
         .iter()
@@ -876,6 +929,8 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
             }
         }
 
+        #maybe_sanitize_impl
+
         #[cfg(feature = "experimental_traverse")]
         impl<'a> #name<'a> {
             fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -903,6 +958,28 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
             }
         }
     })
+}
+
+fn generate_format_sanitize(item: &TableFormat) -> TokenStream {
+    let name = &item.name;
+    let match_arms = item
+        .variants
+        .iter()
+        .filter(|variant| variant.attrs.write_only.is_none())
+        .map(|variant| {
+            let name = &variant.name;
+            quote!(Self::#name(table) => table.sanitize_impl())
+        });
+
+    quote! {
+        impl<'a> Sanitize<'a> for #name <'a> {
+            fn sanitize_impl(&self) -> Result<(), ReadError> {
+                match self {
+                    #( #match_arms, )*
+                }
+            }
+        }
+    }
 }
 
 impl Table {
@@ -999,6 +1076,12 @@ impl Table {
 
     fn iter_field_validation_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.fields.iter().map(Field::field_parse_validation_stmts)
+    }
+
+    fn sanitize_stmts<'a>(&'a self, items: &'a Module) -> impl Iterator<Item = TokenStream> + 'a {
+        self.fields
+            .iter()
+            .flat_map(|fld| fld.sanitize_stmt(false, items))
     }
 
     fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {

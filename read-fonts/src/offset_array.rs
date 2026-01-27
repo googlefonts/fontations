@@ -3,7 +3,7 @@
 //! This module provides a number of types that wrap arrays of offsets, dynamically
 //! resolving individual offsets as they are accessed.
 
-use crate::offset::ResolveNullableOffset;
+use crate::{offset::ResolveNullableOffset, read::Sanitize};
 use font_types::{BigEndian, Nullable, Offset16, Scalar};
 
 use crate::{FontData, FontReadWithArgs, Offset, ReadArgs, ReadError, ResolveOffset};
@@ -144,5 +144,30 @@ where
             iter.next()
                 .map(|off| off.get().resolve_with_args(data, &args))
         })
+    }
+}
+
+impl<'a, T, O> Sanitize<'a> for ArrayOfOffsets<'a, T, O>
+where
+    O: Scalar + Offset,
+    T: ReadArgs + FontReadWithArgs<'a> + Sanitize<'a>,
+    T::Args: Copy + 'static,
+{
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        self.iter()
+            .try_for_each(|x| x.and_then(|x| x.sanitize_impl()))
+    }
+}
+
+impl<'a, T, O> Sanitize<'a> for ArrayOfNullableOffsets<'a, T, O>
+where
+    O: Scalar + Offset,
+    T: ReadArgs + FontReadWithArgs<'a> + Sanitize<'a>,
+    T::Args: Copy + 'static,
+{
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        self.iter()
+            .filter_map(|x| x)
+            .try_for_each(|x| x.and_then(|x| x.sanitize_impl()))
     }
 }
