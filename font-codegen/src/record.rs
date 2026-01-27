@@ -6,12 +6,12 @@ use quote::{quote, ToTokens};
 use crate::{
     fields::FieldConstructorInfo,
     parsing::{
-        logged_syn_error, CustomCompile, Field, FieldType, Fields, Item, Items, Phase, Record,
+        logged_syn_error, CustomCompile, Field, FieldType, Fields, Item, Module, Phase, Record,
         TableAttrs,
     },
 };
 
-pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStream> {
+pub(crate) fn generate(item: &Record, all_items: &Module) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
     let field_names = item.fields.iter().map(|fld| &fld.name).collect::<Vec<_>>();
@@ -47,6 +47,9 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
 
         }
     });
+    let do_sanitize = all_items.generate_sanitize.is_some() && item.attrs.skip_sanitize.is_none();
+    let maybe_sanitize_method =
+        do_sanitize.then(|| generate_sanitize_struct_method(item, all_items));
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
     let maybe_extra_traits = item
         .gets_extra_traits(all_items)
@@ -60,6 +63,7 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
     }
 
     impl #lifetime #name #lifetime {
+        #maybe_sanitize_method
         #( #getters )*
     }
 
@@ -155,6 +159,25 @@ fn generate_traversal(item: &Record) -> syn::Result<TokenStream> {
             }
         }
     })
+}
+
+fn generate_sanitize_struct_method(item: &Record, items: &Module) -> Option<TokenStream> {
+    let sanitize_stmts = item
+        .fields
+        .iter()
+        .flat_map(|fld| fld.sanitize_stmt(true, items))
+        .collect::<Vec<_>>();
+
+    if sanitize_stmts.is_empty() {
+        None
+    } else {
+        Some(quote! {
+            fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+                #( #sanitize_stmts; )*
+                Ok(())
+            }
+        })
+    }
 }
 
 pub(crate) fn generate_compile(
@@ -395,11 +418,15 @@ impl Record {
         }
     }
 
+    pub(crate) fn contains_offset(&self) -> bool {
+        self.fields.iter().any(Field::is_offset_or_array_of_offsets)
+    }
+
     fn is_zerocopy(&self) -> bool {
         self.fields.iter().all(Field::is_zerocopy_compatible)
     }
 
-    fn gets_extra_traits(&self, all_items: &Items) -> bool {
+    fn gets_extra_traits(&self, all_items: &Module) -> bool {
         self.fields
             .iter()
             .all(|fld| can_derive_extra_traits(&fld.typ, all_items))
@@ -414,7 +441,7 @@ impl Record {
 /// we do not generate these traits if a record contains an offset,
 /// because the semantics are unclear: we would be comparing the raw bytes
 /// in the offset, instead of the thing that the offset points to.
-fn can_derive_extra_traits(field_type: &FieldType, all_items: &Items) -> bool {
+fn can_derive_extra_traits(field_type: &FieldType, all_items: &Module) -> bool {
     match field_type {
         FieldType::Scalar { .. } => true,
         FieldType::Struct { typ } => match all_items.get(typ) {

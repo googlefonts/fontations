@@ -34,6 +34,20 @@ impl<'a> FontRead<'a> for Gpos<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for Gpos<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.script_list()?.sanitize_impl()?;
+        self.feature_list()?.sanitize_impl()?;
+        self.lookup_list()?.sanitize_impl()?;
+        if let Some(thing) = self.feature_variations() {
+            thing?.sanitize_impl()?;
+        };
+        Ok(())
+    }
+}
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 pub type Gpos<'a> = TableRef<'a, GposMarker>;
@@ -198,6 +212,22 @@ impl<'a> FontRead<'a> for PositionLookup<'a> {
             8 => Ok(PositionLookup::ChainContextual(untyped.into_concrete())),
             9 => Ok(PositionLookup::Extension(untyped.into_concrete())),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for PositionLookup<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            PositionLookup::Single(table) => table.sanitize_impl(),
+            PositionLookup::Pair(table) => table.sanitize_impl(),
+            PositionLookup::Cursive(table) => table.sanitize_impl(),
+            PositionLookup::MarkToBase(table) => table.sanitize_impl(),
+            PositionLookup::MarkToLig(table) => table.sanitize_impl(),
+            PositionLookup::MarkToMark(table) => table.sanitize_impl(),
+            PositionLookup::Contextual(table) => table.sanitize_impl(),
+            PositionLookup::ChainContextual(table) => table.sanitize_impl(),
+            PositionLookup::Extension(table) => table.sanitize_impl(),
         }
     }
 }
@@ -668,6 +698,16 @@ impl MinByteRange for AnchorTable<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for AnchorTable<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.sanitize_impl(),
+            Self::Format2(table) => table.sanitize_impl(),
+            Self::Format3(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> AnchorTable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -720,6 +760,14 @@ impl<'a> FontRead<'a> for AnchorFormat1<'a> {
             data,
             shape: AnchorFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for AnchorFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -814,6 +862,14 @@ impl<'a> FontRead<'a> for AnchorFormat2<'a> {
             data,
             shape: AnchorFormat2Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for AnchorFormat2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -922,6 +978,20 @@ impl<'a> FontRead<'a> for AnchorFormat3<'a> {
             data,
             shape: AnchorFormat3Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for AnchorFormat3<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        if let Some(thing) = self.x_device() {
+            thing?.sanitize_impl()?;
+        };
+        if let Some(thing) = self.y_device() {
+            thing?.sanitize_impl()?;
+        };
+        Ok(())
     }
 }
 
@@ -1067,6 +1137,17 @@ impl<'a> FontRead<'a> for MarkArray<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for MarkArray<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.mark_records()
+            .iter()
+            .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
+        Ok(())
+    }
+}
+
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 pub type MarkArray<'a> = TableRef<'a, MarkArrayMarker>;
 
@@ -1142,6 +1223,11 @@ pub struct MarkRecord {
 }
 
 impl MarkRecord {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        self.mark_anchor(offset_data)?.sanitize_impl()?;
+        Ok(())
+    }
+
     /// Class defined for the associated mark.
     pub fn mark_class(&self) -> u16 {
         self.mark_class.get()
@@ -1244,6 +1330,15 @@ impl MinByteRange for SinglePos<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for SinglePos<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.sanitize_impl(),
+            Self::Format2(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SinglePos<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1295,6 +1390,15 @@ impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
             data,
             shape: SinglePosFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for SinglePosFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -1419,6 +1523,15 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
             data,
             shape: SinglePosFormat2Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for SinglePosFormat2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -1612,6 +1725,15 @@ impl MinByteRange for PairPos<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for PairPos<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.sanitize_impl(),
+            Self::Format2(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> PairPos<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1663,6 +1785,16 @@ impl<'a> FontRead<'a> for PairPosFormat1<'a> {
             data,
             shape: PairPosFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for PairPosFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.pair_sets().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -1860,6 +1992,14 @@ impl<'a> PairSet<'a> {
     ) -> Result<Self, ReadError> {
         let args = (value_format1, value_format2);
         Self::read_with_args(data, &args)
+    }
+}
+
+impl<'a> Sanitize<'a> for PairSet<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -2072,6 +2212,17 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
             data,
             shape: PairPosFormat2Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for PairPosFormat2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.class_def1()?.sanitize_impl()?;
+        self.class_def2()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -2482,6 +2633,18 @@ impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for CursivePosFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.entry_exit_record()
+            .iter()
+            .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
+        Ok(())
+    }
+}
+
 /// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
 pub type CursivePosFormat1<'a> = TableRef<'a, CursivePosFormat1Marker>;
 
@@ -2593,6 +2756,16 @@ pub struct EntryExitRecord {
 }
 
 impl EntryExitRecord {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        if let Some(thing) = self.entry_anchor(offset_data) {
+            thing?.sanitize_impl()?;
+        };
+        if let Some(thing) = self.exit_anchor(offset_data) {
+            thing?.sanitize_impl()?;
+        };
+        Ok(())
+    }
+
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
     pub fn entry_anchor_offset(&self) -> Nullable<Offset16> {
@@ -2679,6 +2852,18 @@ impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
             data,
             shape: MarkBasePosFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for MarkBasePosFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.mark_coverage()?.sanitize_impl()?;
+        self.base_coverage()?.sanitize_impl()?;
+        self.mark_array()?.sanitize_impl()?;
+        self.base_array()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -2875,6 +3060,17 @@ impl<'a> BaseArray<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for BaseArray<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.base_records()
+            .iter()
+            .try_for_each(|rec| rec.and_then(|r| r.sanitize_struct(offset_data)))?;
+        Ok(())
+    }
+}
+
 /// Part of [MarkBasePosFormat1]
 pub type BaseArray<'a> = TableRef<'a, BaseArrayMarker>;
 
@@ -2956,6 +3152,11 @@ pub struct BaseRecord<'a> {
 }
 
 impl<'a> BaseRecord<'a> {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        self.base_anchors(offset_data).sanitize_impl()?;
+        Ok(())
+    }
+
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
@@ -3062,6 +3263,18 @@ impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
             data,
             shape: MarkLigPosFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for MarkLigPosFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.mark_coverage()?.sanitize_impl()?;
+        self.ligature_coverage()?.sanitize_impl()?;
+        self.mark_array()?.sanitize_impl()?;
+        self.ligature_array()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -3258,6 +3471,15 @@ impl<'a> LigatureArray<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for LigatureArray<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.ligature_attaches().sanitize_impl()?;
+        Ok(())
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 pub type LigatureArray<'a> = TableRef<'a, LigatureArrayMarker>;
 
@@ -3382,6 +3604,17 @@ impl<'a> LigatureAttach<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for LigatureAttach<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.component_records()
+            .iter()
+            .try_for_each(|rec| rec.and_then(|r| r.sanitize_struct(offset_data)))?;
+        Ok(())
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 pub type LigatureAttach<'a> = TableRef<'a, LigatureAttachMarker>;
 
@@ -3464,6 +3697,11 @@ pub struct ComponentRecord<'a> {
 }
 
 impl<'a> ComponentRecord<'a> {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        self.ligature_anchors(offset_data).sanitize_impl()?;
+        Ok(())
+    }
+
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
@@ -3570,6 +3808,18 @@ impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
             data,
             shape: MarkMarkPosFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for MarkMarkPosFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.mark1_coverage()?.sanitize_impl()?;
+        self.mark2_coverage()?.sanitize_impl()?;
+        self.mark1_array()?.sanitize_impl()?;
+        self.mark2_array()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -3766,6 +4016,17 @@ impl<'a> Mark2Array<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for Mark2Array<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.mark2_records()
+            .iter()
+            .try_for_each(|rec| rec.and_then(|r| r.sanitize_struct(offset_data)))?;
+        Ok(())
+    }
+}
+
 /// Part of [MarkMarkPosFormat1]Class2Record
 pub type Mark2Array<'a> = TableRef<'a, Mark2ArrayMarker>;
 
@@ -3847,6 +4108,11 @@ pub struct Mark2Record<'a> {
 }
 
 impl<'a> Mark2Record<'a> {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        self.mark2_anchors(offset_data).sanitize_impl()?;
+        Ok(())
+    }
+
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
@@ -3965,6 +4231,15 @@ impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
                 offset_type: std::marker::PhantomData,
             },
         })
+    }
+}
+
+impl<'a, T: FontRead<'a> + Sanitize<'a>> Sanitize<'a> for ExtensionPosFormat1<'a, T> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.extension()?.sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -4103,6 +4378,21 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
             7 => Ok(ExtensionSubtable::Contextual(untyped.into_concrete())),
             8 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for ExtensionSubtable<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            ExtensionSubtable::Single(table) => table.sanitize_impl(),
+            ExtensionSubtable::Pair(table) => table.sanitize_impl(),
+            ExtensionSubtable::Cursive(table) => table.sanitize_impl(),
+            ExtensionSubtable::MarkToBase(table) => table.sanitize_impl(),
+            ExtensionSubtable::MarkToLig(table) => table.sanitize_impl(),
+            ExtensionSubtable::MarkToMark(table) => table.sanitize_impl(),
+            ExtensionSubtable::Contextual(table) => table.sanitize_impl(),
+            ExtensionSubtable::ChainContextual(table) => table.sanitize_impl(),
         }
     }
 }

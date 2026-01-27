@@ -5,6 +5,7 @@ use types::{BigEndian, F2Dot14, FixedSize, Offset16};
 
 use super::ValueFormat;
 use crate::{
+    read::Sanitize,
     tables::{
         layout::DeviceOrVariationIndex,
         variations::{DeltaSetIndex, ItemVariationStore},
@@ -211,6 +212,10 @@ impl ValueRecord {
         }
         Ok(this)
     }
+
+    //pub(crate) fn sanitize_struct(&self, data: FontData) -> Result<(), ReadError> {
+    //[self.x_placement_device(data), self.x_advance_device(data)]
+    //}
 
     pub fn x_placement(&self) -> Option<i16> {
         self.x_placement.map(|val| val.get())

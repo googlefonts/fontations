@@ -14,7 +14,7 @@ mod parsing;
 mod record;
 mod table;
 
-use parsing::{Item, Items, Phase};
+use parsing::{Item, Module, Phase};
 
 pub use error::ErrorReport;
 
@@ -33,7 +33,7 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     // 1. Parse
     debug!("Parse (mode {:?})", mode);
     // This is the one step where we can't readily intercept the error with logged_syn_error
-    let mut items: Items = syn::parse_str(code_str).inspect_err(|_| {
+    let mut items: Module = syn::parse_str(code_str).inspect_err(|_| {
         debug!("{}", Backtrace::capture());
     })?;
     items.sanity_check(Phase::Parse)?;
@@ -63,13 +63,15 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     ))
 }
 
-pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenStream, syn::Error> {
+pub(crate) fn generate_parse_module(
+    items: &Module,
+) -> Result<proc_macro2::TokenStream, syn::Error> {
     let mut code = Vec::new();
     for item in items.iter() {
         let item_code = match item {
             Item::Record(item) => record::generate(item, items)?,
-            Item::Table(item) => table::generate(item)?,
-            Item::GenericGroup(item) => table::generate_group(item)?,
+            Item::Table(item) => table::generate(item, items)?,
+            Item::GenericGroup(item) => table::generate_group(item, items)?,
             Item::Format(item) => table::generate_format_group(item, items)?,
             Item::RawEnum(item) => flags_enums::generate_raw_enum(item),
             Item::Flags(item) => flags_enums::generate_flags(item),
@@ -86,7 +88,7 @@ pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenS
 }
 
 pub(crate) fn generate_compile_module(
-    items: &Items,
+    items: &Module,
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let code = items
         .iter()

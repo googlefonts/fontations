@@ -6,9 +6,11 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
+use crate::parsing::Module;
+
 use super::parsing::{
     logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
-    FieldType, FieldValidation, Fields, IfTransform, NeededWhen, OffsetTarget, Phase, Record,
+    FieldType, FieldValidation, Fields, IfTransform, Item, NeededWhen, OffsetTarget, Phase, Record,
     ReferencedFields,
 };
 
@@ -986,7 +988,7 @@ impl Field {
         self.attrs.count.is_some()
     }
 
-    fn is_offset_or_array_of_offsets(&self) -> bool {
+    pub(crate) fn is_offset_or_array_of_offsets(&self) -> bool {
         match &self.typ {
             FieldType::Offset { .. } => true,
             FieldType::Array { inner_typ }
@@ -1036,6 +1038,73 @@ impl Field {
             quote!( #typ::RAW_BYTE_LEN )
         });
         len_expr
+    }
+
+    pub(crate) fn sanitize_stmt(&self, in_record: bool, items: &Module) -> Option<TokenStream> {
+        if self.attrs.skip_sanitize.is_some() {
+            return None;
+        }
+        let pass_offset_data = in_record.then(|| quote!(offset_data));
+        let name = self.name_for_compile();
+        if let Some(offset_getter) = self.offset_getter_name() {
+            let get_stmt = quote!(self.#offset_getter(#pass_offset_data));
+            let maybe_q = matches!(&self.typ, FieldType::Offset { .. }).then(|| quote!(?));
+            return if self.is_conditional() || !self.is_array() && self.is_nullable() {
+                Some(quote! {
+                    if let Some(thing) = #get_stmt {
+                        thing #maybe_q.sanitize_impl()?;
+                    }
+                })
+            } else {
+                Some(quote!( #get_stmt #maybe_q.sanitize_impl()? ))
+            };
+        };
+        match &self.typ {
+            FieldType::Offset { .. } => None, // handled above
+            FieldType::Scalar { .. } => None,
+            FieldType::Struct { typ } => {
+                // we only care about records that contain offsets
+                if let Some(Item::Record(item)) = items.get(&typ) {
+                    if !item.contains_offset() {
+                        return None;
+                    }
+                }
+
+                Some(quote!(self.#name().sanitize_struct(offset_data)?))
+            }
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Struct { typ } => {
+                    if let Some(Item::Record(item)) = items.get(&typ) {
+                        if !item.contains_offset() {
+                            return None;
+                        }
+                    }
+                    Some(quote! {
+                        self.#name().iter().try_for_each(|rec| rec.sanitize_struct(offset_data))?
+                    })
+                }
+                _ => None,
+            },
+            FieldType::ComputedArray(array) => {
+                let raw_inner = array.raw_inner_type();
+                match items.get(raw_inner) {
+                    Some(Item::Record(item)) if item.contains_offset() => Some(
+                        quote!(self.#name().iter().try_for_each(|rec| rec.and_then(|r| r.sanitize_struct(offset_data)))?
+                        ),
+                    ),
+                    Some(Item::Record(_)) => None,
+                    Some(_thing_else) => Some(quote!(compile_error!(
+                        "unknown type in array, needs annotation?"
+                    ))),
+                    None => Some(quote!(compile_error!("unknown type, needs annotation"))),
+                }
+                //if let Some()
+            }
+            FieldType::VarLenArray(_array) => {
+                Some(quote!(compile_error!("maybe these need annotations?")))
+            }
+            FieldType::PendingResolution { .. } => panic!("resolved before now"),
+        }
     }
 
     /// The computed length of this field, if it is not a scalar/offset

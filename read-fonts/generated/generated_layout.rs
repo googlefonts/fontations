@@ -28,6 +28,17 @@ impl<'a> FontRead<'a> for ScriptList<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for ScriptList<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.script_records()
+            .iter()
+            .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
+        Ok(())
+    }
+}
+
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 pub type ScriptList<'a> = TableRef<'a, ScriptListMarker>;
 
@@ -102,6 +113,11 @@ pub struct ScriptRecord {
 }
 
 impl ScriptRecord {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        self.script(offset_data)?.sanitize_impl()?;
+        Ok(())
+    }
+
     /// 4-byte script tag identifier
     pub fn script_tag(&self) -> Tag {
         self.script_tag.get()
@@ -163,6 +179,20 @@ impl<'a> FontRead<'a> for Script<'a> {
             data,
             shape: ScriptMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for Script<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        if let Some(thing) = self.default_lang_sys() {
+            thing?.sanitize_impl()?;
+        };
+        self.lang_sys_records()
+            .iter()
+            .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
+        Ok(())
     }
 }
 
@@ -263,6 +293,11 @@ pub struct LangSysRecord {
 }
 
 impl LangSysRecord {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        self.lang_sys(offset_data)?.sanitize_impl()?;
+        Ok(())
+    }
+
     /// 4-byte LangSysTag identifier
     pub fn lang_sys_tag(&self) -> Tag {
         self.lang_sys_tag.get()
@@ -324,6 +359,14 @@ impl<'a> FontRead<'a> for LangSys<'a> {
             data,
             shape: LangSysMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for LangSys<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -432,6 +475,17 @@ impl<'a> FontRead<'a> for FeatureList<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for FeatureList<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.feature_records()
+            .iter()
+            .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
+        Ok(())
+    }
+}
+
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 pub type FeatureList<'a> = TableRef<'a, FeatureListMarker>;
 
@@ -507,6 +561,11 @@ pub struct FeatureRecord {
 }
 
 impl FeatureRecord {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        self.feature(offset_data)?.sanitize_impl()?;
+        Ok(())
+    }
+
     /// 4-byte feature identification tag
     pub fn feature_tag(&self) -> Tag {
         self.feature_tag.get()
@@ -587,6 +646,17 @@ impl<'a> Feature<'a> {
     pub fn read(data: FontData<'a>, feature_tag: Tag) -> Result<Self, ReadError> {
         let args = feature_tag;
         Self::read_with_args(data, &args)
+    }
+}
+
+impl<'a> Sanitize<'a> for Feature<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        if let Some(thing) = self.feature_params() {
+            thing?.sanitize_impl()?;
+        };
+        Ok(())
     }
 }
 
@@ -708,6 +778,15 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
                 offset_type: std::marker::PhantomData,
             },
         })
+    }
+}
+
+impl<'a, T: FontRead<'a> + Sanitize<'a>> Sanitize<'a> for LookupList<'a, T> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.lookups().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -847,6 +926,15 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
                 offset_type: std::marker::PhantomData,
             },
         })
+    }
+}
+
+impl<'a, T: FontRead<'a> + Sanitize<'a>> Sanitize<'a> for Lookup<'a, T> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.subtables().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -1035,6 +1123,14 @@ impl<'a> FontRead<'a> for CoverageFormat1<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for CoverageFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
+    }
+}
+
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
 pub type CoverageFormat1<'a> = TableRef<'a, CoverageFormat1Marker>;
 
@@ -1127,6 +1223,14 @@ impl<'a> FontRead<'a> for CoverageFormat2<'a> {
             data,
             shape: CoverageFormat2Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for CoverageFormat2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -1304,6 +1408,15 @@ impl MinByteRange for CoverageTable<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for CoverageTable<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.sanitize_impl(),
+            Self::Format2(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> CoverageTable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1355,6 +1468,14 @@ impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
             data,
             shape: ClassDefFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ClassDefFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -1463,6 +1584,14 @@ impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
             data,
             shape: ClassDefFormat2Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ClassDefFormat2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -1638,6 +1767,15 @@ impl MinByteRange for ClassDef<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for ClassDef<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.sanitize_impl(),
+            Self::Format2(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> ClassDef<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1731,6 +1869,16 @@ impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
             data,
             shape: SequenceContextFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceContextFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.seq_rule_sets().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -1869,6 +2017,15 @@ impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for SequenceRuleSet<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.seq_rules().sanitize_impl()?;
+        Ok(())
+    }
+}
+
 /// Part of [SequenceContextFormat1]
 pub type SequenceRuleSet<'a> = TableRef<'a, SequenceRuleSetMarker>;
 
@@ -1965,6 +2122,14 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
             data,
             shape: SequenceRuleMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceRule<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -2083,6 +2248,17 @@ impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
             data,
             shape: SequenceContextFormat2Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceContextFormat2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.class_def()?.sanitize_impl()?;
+        self.class_seq_rule_sets().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -2251,6 +2427,15 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for ClassSequenceRuleSet<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.class_seq_rules().sanitize_impl()?;
+        Ok(())
+    }
+}
+
 /// Part of [SequenceContextFormat2]
 pub type ClassSequenceRuleSet<'a> = TableRef<'a, ClassSequenceRuleSetMarker>;
 
@@ -2350,6 +2535,14 @@ impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
             data,
             shape: ClassSequenceRuleMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ClassSequenceRule<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -2469,6 +2662,15 @@ impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
             data,
             shape: SequenceContextFormat3Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceContextFormat3<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverages().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -2645,6 +2847,16 @@ impl MinByteRange for SequenceContext<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for SequenceContext<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.sanitize_impl(),
+            Self::Format2(table) => table.sanitize_impl(),
+            Self::Format3(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SequenceContext<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -2697,6 +2909,16 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
             data,
             shape: ChainedSequenceContextFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceContextFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.chained_seq_rule_sets().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -2841,6 +3063,15 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for ChainedSequenceRuleSet<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.chained_seq_rules().sanitize_impl()?;
+        Ok(())
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat1]
 pub type ChainedSequenceRuleSet<'a> = TableRef<'a, ChainedSequenceRuleSetMarker>;
 
@@ -2940,6 +3171,14 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
             data,
             shape: ChainedSequenceRuleMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceRule<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -3120,6 +3359,19 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
             data,
             shape: ChainedSequenceContextFormat2Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceContextFormat2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.coverage()?.sanitize_impl()?;
+        self.backtrack_class_def()?.sanitize_impl()?;
+        self.input_class_def()?.sanitize_impl()?;
+        self.lookahead_class_def()?.sanitize_impl()?;
+        self.chained_class_seq_rule_sets().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -3344,6 +3596,15 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for ChainedClassSequenceRuleSet<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.chained_class_seq_rules().sanitize_impl()?;
+        Ok(())
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat2]
 pub type ChainedClassSequenceRuleSet<'a> = TableRef<'a, ChainedClassSequenceRuleSetMarker>;
 
@@ -3446,6 +3707,14 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
             data,
             shape: ChainedClassSequenceRuleMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedClassSequenceRule<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -3626,6 +3895,17 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
             data,
             shape: ChainedSequenceContextFormat3Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceContextFormat3<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.backtrack_coverages().sanitize_impl()?;
+        self.input_coverages().sanitize_impl()?;
+        self.lookahead_coverages().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -3905,6 +4185,16 @@ impl MinByteRange for ChainedSequenceContext<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for ChainedSequenceContext<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.sanitize_impl(),
+            Self::Format2(table) => table.sanitize_impl(),
+            Self::Format3(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> ChainedSequenceContext<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -4007,6 +4297,14 @@ impl<'a> FontRead<'a> for Device<'a> {
             data,
             shape: DeviceMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for Device<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -4115,6 +4413,14 @@ impl<'a> FontRead<'a> for VariationIndex<'a> {
             data,
             shape: VariationIndexMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for VariationIndex<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -4236,6 +4542,15 @@ impl MinByteRange for DeviceOrVariationIndex<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for DeviceOrVariationIndex<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Device(table) => table.sanitize_impl(),
+            Self::VariationIndex(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> DeviceOrVariationIndex<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -4283,6 +4598,17 @@ impl<'a> FontRead<'a> for FeatureVariations<'a> {
             data,
             shape: FeatureVariationsMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for FeatureVariations<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.feature_variation_records()
+            .iter()
+            .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
+        Ok(())
     }
 }
 
@@ -4379,6 +4705,16 @@ pub struct FeatureVariationRecord {
 }
 
 impl FeatureVariationRecord {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        if let Some(thing) = self.condition_set(offset_data) {
+            thing?.sanitize_impl()?;
+        };
+        if let Some(thing) = self.feature_table_substitution(offset_data) {
+            thing?.sanitize_impl()?;
+        };
+        Ok(())
+    }
+
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
     pub fn condition_set_offset(&self) -> Nullable<Offset32> {
@@ -4464,6 +4800,15 @@ impl<'a> FontRead<'a> for ConditionSet<'a> {
             data,
             shape: ConditionSetMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ConditionSet<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.conditions().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -4606,6 +4951,18 @@ impl MinByteRange for Condition<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for Condition<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1AxisRange(table) => table.sanitize_impl(),
+            Self::Format2VariableValue(table) => table.sanitize_impl(),
+            Self::Format3And(table) => table.sanitize_impl(),
+            Self::Format4Or(table) => table.sanitize_impl(),
+            Self::Format5Negate(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> Condition<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -4660,6 +5017,14 @@ impl<'a> FontRead<'a> for ConditionFormat1<'a> {
             data,
             shape: ConditionFormat1Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ConditionFormat1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -4780,6 +5145,14 @@ impl<'a> FontRead<'a> for ConditionFormat2<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for ConditionFormat2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
+    }
+}
+
 /// [Condition Table Format 2](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3237-L3255): Variation index
 pub type ConditionFormat2<'a> = TableRef<'a, ConditionFormat2Marker>;
 
@@ -4871,6 +5244,15 @@ impl<'a> FontRead<'a> for ConditionFormat3<'a> {
             data,
             shape: ConditionFormat3Marker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for ConditionFormat3<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.conditions().sanitize_impl()?;
+        Ok(())
     }
 }
 
@@ -4989,6 +5371,15 @@ impl<'a> FontRead<'a> for ConditionFormat4<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for ConditionFormat4<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.conditions().sanitize_impl()?;
+        Ok(())
+    }
+}
+
 /// [Condition Table Format 4](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3276-L3295): OR
 pub type ConditionFormat4<'a> = TableRef<'a, ConditionFormat4Marker>;
 
@@ -5104,6 +5495,15 @@ impl<'a> FontRead<'a> for ConditionFormat5<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for ConditionFormat5<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.condition()?.sanitize_impl()?;
+        Ok(())
+    }
+}
+
 /// [Condition Table Format 5](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3296-L3308): NOT
 pub type ConditionFormat5<'a> = TableRef<'a, ConditionFormat5Marker>;
 
@@ -5187,6 +5587,17 @@ impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
             data,
             shape: FeatureTableSubstitutionMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for FeatureTableSubstitution<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.substitutions()
+            .iter()
+            .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
+        Ok(())
     }
 }
 
@@ -5280,6 +5691,11 @@ pub struct FeatureTableSubstitutionRecord {
 }
 
 impl FeatureTableSubstitutionRecord {
+    fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
+        self.alternate_feature(offset_data)?.sanitize_impl()?;
+        Ok(())
+    }
+
     /// The feature table index to match.
     pub fn feature_index(&self) -> u16 {
         self.feature_index.get()
@@ -5336,6 +5752,14 @@ impl<'a> FontRead<'a> for SizeParams<'a> {
             data,
             shape: SizeParamsMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for SizeParams<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
@@ -5477,6 +5901,14 @@ impl<'a> FontRead<'a> for StylisticSetParams<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for StylisticSetParams<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
+    }
+}
+
 pub type StylisticSetParams<'a> = TableRef<'a, StylisticSetParamsMarker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -5561,6 +5993,14 @@ impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
             data,
             shape: CharacterVariantParamsMarker {},
         })
+    }
+}
+
+impl<'a> Sanitize<'a> for CharacterVariantParams<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
     }
 }
 
