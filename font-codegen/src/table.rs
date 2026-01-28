@@ -219,6 +219,7 @@ fn generate_sanitize(table: &Table, items: &Module) -> syn::Result<TokenStream> 
     let name = table.raw_name();
     let generic = table.attrs.generic_offset.as_ref();
     let sanitize_stmts = table.sanitize_stmts(items);
+    let sanitize_getters = table.sanitize_getters();
     let generic_bound = generic
         .is_some()
         .then(|| quote!(: FontRead<'a> + Sanitize<'a>));
@@ -232,6 +233,10 @@ fn generate_sanitize(table: &Table, items: &Module) -> syn::Result<TokenStream> 
                 #( #sanitize_stmts; )*
                 Ok(())
             }
+        }
+
+        impl<'a, #generic #generic_bound> Sanitized<#name<'a, #generic>> {
+            #( #sanitize_getters )*
         }
     })
 }
@@ -1037,6 +1042,13 @@ impl Table {
         self.fields
             .iter()
             .flat_map(|fld| fld.sanitize_stmt(false, items))
+    }
+
+    fn sanitize_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        let generic = self.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
+        self.fields
+            .iter()
+            .filter_map(move |fld| fld.sanitize_getter(generic))
     }
 
     fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {

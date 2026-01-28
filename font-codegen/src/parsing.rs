@@ -1774,13 +1774,21 @@ impl ReferencedFields {
 }
 
 impl OffsetTarget {
-    pub(crate) fn getter_return_type(&self, is_generic: bool) -> TokenStream {
+    pub(crate) fn getter_return_type(&self, is_generic: bool, in_sanitize: bool) -> TokenStream {
         match self {
-            OffsetTarget::Table(ident) if !is_generic => quote!(Result<#ident <'a>, ReadError>),
-            OffsetTarget::Table(ident) => quote!(Result<#ident, ReadError>),
+            OffsetTarget::Table(ident) => {
+                let lifetime = (!is_generic).then(|| quote!( <'a> ));
+                let inner_type = if in_sanitize {
+                    quote!(Sanitized<#ident #lifetime>)
+                } else {
+                    quote!(#ident #lifetime)
+                };
+                quote!(Result<#inner_type, ReadError>)
+            }
             OffsetTarget::Array(inner) => {
                 let elem_type = match inner.deref() {
                     FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
+                    FieldType::Struct { typ } if in_sanitize => quote!( Sanitized<#typ> ),
                     FieldType::Struct { typ } => typ.to_token_stream(),
                     _ => panic!("we should have returned a humane error before now"),
                 };

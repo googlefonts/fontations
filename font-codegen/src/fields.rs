@@ -721,8 +721,13 @@ impl Field {
 
     /// 'raw' as in this does not include handling offset resolution
     pub(crate) fn raw_getter_return_type(&self) -> TokenStream {
+        self.raw_getter_return_type_maybe_sanitized(false)
+    }
+
+    fn raw_getter_return_type_maybe_sanitized(&self, sanitized: bool) -> TokenStream {
         match &self.typ {
             FieldType::Offset { typ, .. } if self.is_nullable() => quote!(Nullable<#typ>),
+            FieldType::Struct { typ } if sanitized => quote!(Sanitized<#typ>),
             FieldType::Offset { typ, .. }
             | FieldType::Scalar { typ }
             | FieldType::Struct { typ } => typ.to_token_stream(),
@@ -734,6 +739,7 @@ impl Field {
                     let be = big_endian(typ);
                     quote!(&'a [#be])
                 }
+                FieldType::Struct { typ } if sanitized => quote!(&'a [Sanitized<#typ>]),
                 FieldType::Struct { typ } => quote!(&'a [#typ]),
                 FieldType::PendingResolution { typ } => quote!( &'a [#typ] ),
                 _ => unreachable!("An array should never contain {:#?}", inner_typ),
@@ -768,10 +774,17 @@ impl Field {
     }
 
     pub(crate) fn table_getter_return_type(&self) -> Option<TokenStream> {
+        self.table_getter_return_type_maybe_sanitized(false)
+    }
+
+    pub(crate) fn table_getter_return_type_maybe_sanitized(
+        &self,
+        sanitized: bool,
+    ) -> Option<TokenStream> {
         if !self.has_getter() {
             return None;
         }
-        let return_type = self.raw_getter_return_type();
+        let return_type = self.raw_getter_return_type_maybe_sanitized(sanitized);
         if self.is_conditional() {
             Some(quote!(Option<#return_type>))
         } else {
@@ -785,7 +798,7 @@ impl Field {
         let is_var_array = self.is_var_array();
         let is_versioned = self.is_conditional();
 
-        let range_stmt = self.getter_range_stmt();
+        let range_stmt = self.getter_range_stmt(false);
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
             quote!( self.data.read_with_args(range, &#get_args).unwrap() )
@@ -801,7 +814,43 @@ impl Field {
         }
 
         let docs = &self.attrs.docs;
-        let offset_getter = self.typed_offset_field_getter(generic, None);
+        let offset_getter = self.typed_offset_field_getter(generic, None, false);
+
+        Some(quote! {
+            #( #docs )*
+            pub fn #name(&self) -> #return_type {
+                let range = #range_stmt;
+                #read_stmt
+            }
+
+            #offset_getter
+        })
+    }
+
+    pub(crate) fn sanitize_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
+        let return_type = self.table_getter_return_type_maybe_sanitized(true)?;
+        let name = &self.name;
+        let is_array = self.is_array();
+        let is_var_array = self.is_var_array();
+        let is_versioned = self.is_conditional();
+
+        let range_stmt = self.getter_range_stmt(true);
+        let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
+            let get_args = args.to_tokens_for_table_getter();
+            quote!( self.0.data.read_with_args(range, &#get_args).unwrap() )
+        } else if is_var_array {
+            quote!(VarLenArray::read(self.0.data.split_off(range.start).unwrap()).unwrap())
+        } else if is_array {
+            quote!(unsafe { self.0.data.read_array_unchecked(range) })
+        } else {
+            quote!(unsafe { self.0.data.read_at_unchecked(range.start) })
+        };
+        if is_versioned {
+            read_stmt = quote!(Some(#read_stmt));
+        }
+
+        let docs = &self.attrs.docs;
+        let offset_getter = self.typed_offset_field_getter(generic, None, true);
 
         Some(quote! {
             #( #docs )*
@@ -847,7 +896,7 @@ impl Field {
             }
         };
 
-        let offset_getter = self.typed_offset_field_getter(None, Some(record));
+        let offset_getter = self.typed_offset_field_getter(None, Some(record), false);
         Some(quote! {
             #(#docs)*
             pub fn #name(&self) -> #add_borrow_just_for_record #return_type {
@@ -858,9 +907,10 @@ impl Field {
         })
     }
 
-    fn getter_range_stmt(&self) -> TokenStream {
+    fn getter_range_stmt(&self, for_sanitize: bool) -> TokenStream {
         let shape_range_fn_name = self.shape_byte_range_fn_name();
-        quote!( self.#shape_range_fn_name()  )
+        let inner_table = for_sanitize.then(|| quote!(.0));
+        quote!( self #inner_table . #shape_range_fn_name() )
     }
 
     fn typed_offset_getter_docs(&self, has_data_arg: bool) -> TokenStream {
@@ -890,6 +940,7 @@ impl Field {
         &self,
         generic: Option<&syn::Ident>,
         record: Option<&Record>,
+        in_sanitize: bool,
     ) -> Option<TokenStream> {
         let (offset_type, target) = match &self.typ {
             _ if self.attrs.offset_getter.is_some() => return None,
@@ -930,6 +981,10 @@ impl Field {
                 quote!(ArrayOfOffsets)
             };
 
+            let target_type = in_sanitize
+                .then(|| quote!(Sanitized<#target_ident>))
+                .unwrap_or_else(|| target_ident.into_token_stream());
+
             let target_lifetime = (!target_is_generic).then(|| quote!(<'a>));
 
             let args_token = if self.attrs.read_offset_args.is_some() {
@@ -938,7 +993,7 @@ impl Field {
                 quote!(())
             };
             let mut return_type =
-                quote!( #array_type<'a, #target_ident #target_lifetime, #offset_type> );
+                quote!( #array_type<'a, #target_type #target_lifetime, #offset_type> );
             let mut body = quote!(#array_type::new(offsets, data, #args_token));
             if self.is_conditional() {
                 return_type = quote!( Option< #return_type > );
@@ -957,7 +1012,7 @@ impl Field {
                 }
             })
         } else {
-            let mut return_type = target.getter_return_type(target_is_generic);
+            let mut return_type = target.getter_return_type(target_is_generic, in_sanitize);
             if self.is_nullable() || self.attrs.conditional.is_some() {
                 return_type = quote!(Option<#return_type>);
             }
@@ -1098,7 +1153,6 @@ impl Field {
                     ))),
                     None => Some(quote!(compile_error!("unknown type, needs annotation"))),
                 }
-                //if let Some()
             }
             FieldType::VarLenArray(_array) => {
                 Some(quote!(compile_error!("maybe these need annotations?")))
