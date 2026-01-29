@@ -2,8 +2,6 @@
 
 #![deny(clippy::arithmetic_side_effects)]
 
-use core::arch;
-
 use types::{FixedSize, Scalar, Tag};
 
 use crate::{font_data::FontData, TableRef};

@@ -1,10 +1,9 @@
 //! Typed font tables
 
-use super::read::{FontRead, Format, ReadError};
 use crate::{
     font_data::FontData,
     offset::{Offset, ResolveOffset},
-    FontReadWithArgs,
+    FontReadWithArgs, Format, ReadError,
 };
 use std::ops::Range;
 /// Return the minimum range of the table bytes
