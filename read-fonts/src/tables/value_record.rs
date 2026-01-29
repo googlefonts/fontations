@@ -5,7 +5,6 @@ use types::{BigEndian, F2Dot14, FixedSize, Offset16};
 
 use super::ValueFormat;
 use crate::{
-    read::Sanitize,
     tables::{
         layout::DeviceOrVariationIndex,
         variations::{DeltaSetIndex, ItemVariationStore},
