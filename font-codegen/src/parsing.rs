@@ -19,8 +19,9 @@ use syn::{
 };
 
 #[derive(Debug)]
-pub(crate) struct Items {
+pub(crate) struct Module {
     pub(crate) parse_module_path: syn::Path,
+    pub(crate) generate_sanitize: Option<syn::Path>,
     // we use an IndexMap so that we generate code in the same order as items
     // are declared in the input file.
     items: IndexMap<syn::Ident, Item>,
@@ -63,6 +64,7 @@ pub(crate) struct TableAttrs {
     pub(crate) skip_font_write: Option<syn::Path>,
     pub(crate) skip_from_obj: Option<syn::Path>,
     pub(crate) skip_constructor: Option<syn::Path>,
+    pub(crate) skip_sanitize: Option<syn::Path>,
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
     pub(crate) generic_offset: Option<Attr<syn::Ident>>,
     pub(crate) tag: Option<Attr<syn::LitStr>>,
@@ -183,6 +185,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) nullable: Option<syn::Path>,
     pub(crate) conditional: Option<Attr<Condition>>,
     pub(crate) skip_getter: Option<syn::Path>,
+    pub(crate) skip_sanitize: Option<syn::Path>,
     /// specify that an offset getter has a custom impl
     pub(crate) offset_getter: Option<Attr<syn::Ident>>,
     /// optionally a method on the parent type used to generate the offset data
@@ -497,35 +500,47 @@ mod kw {
     syn::custom_keyword!(scalar);
 }
 
-impl Parse for Items {
+impl Parse for Module {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let mut items = IndexMap::new();
-        let parse_module_path = get_parse_module_path(input)?;
+        let mut this = parse_top_level_attrs(input)?;
         while !input.is_empty() {
             let item = input.parse::<Item>()?;
-            items.insert(item.name().clone(), item);
+            this.items.insert(item.name().clone(), item);
         }
-        Ok(Self {
-            items,
-            parse_module_path,
-        })
+        Ok(this)
     }
 }
 
-fn get_parse_module_path(input: ParseStream) -> syn::Result<syn::Path> {
+fn parse_top_level_attrs(input: ParseStream) -> syn::Result<Module> {
     let attrs = input.call(Attribute::parse_inner)?;
-    match attrs.as_slice() {
-        [one] if one.path().is_ident("parse_module") => one.parse_args(),
-        [one] => Err(logged_syn_error(one.span(), "unexpected attribute")),
-        [_, two, ..] => Err(logged_syn_error(
-            two.span(),
-            "expected at most one top-level attribute",
-        )),
-        [] => Err(logged_syn_error(
+    let mut parse_mod_path = None;
+    let mut sanitize = None;
+    for attr in attrs {
+        let ident = attr
+            .path()
+            .get_ident()
+            .ok_or_else(|| logged_syn_error(attr.span(), "expected ident"))?;
+        if ident == "parse_module" {
+            parse_mod_path = Some(attr.parse_args()?);
+        } else if ident == "sanitize" {
+            sanitize = Some(attr.path().clone())
+        } else {
+            return Err(logged_syn_error(attr.span(), "unknown attribute"));
+        }
+    }
+
+    let Some(parse_module_path) = parse_mod_path else {
+        return Err(logged_syn_error(
             Span::call_site(),
             "expected #![parse_module(..)] attribute",
-        )),
-    }
+        ));
+    };
+
+    Ok(Module {
+        parse_module_path,
+        generate_sanitize: sanitize,
+        items: Default::default(),
+    })
 }
 
 impl Parse for Item {
@@ -1058,6 +1073,7 @@ static READ_OFFSET_WITH: &str = "read_offset_with";
 static TRAVERSE_WITH: &str = "traverse_with";
 static TO_OWNED: &str = "to_owned";
 static VALIDATE: &str = "validate";
+static SKIP_SANITIZE: &str = "skip_sanitize";
 
 impl Parse for FieldAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -1078,6 +1094,8 @@ impl Parse for FieldAttrs {
                 this.nullable = Some(attr.path().clone());
             } else if ident == SKIP_GETTER {
                 this.skip_getter = Some(attr.path().clone());
+            } else if ident == SKIP_SANITIZE {
+                this.skip_sanitize = Some(attr.path().clone());
             } else if ident == OFFSET_GETTER {
                 this.offset_getter = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == OFFSET_DATA {
@@ -1156,6 +1174,8 @@ impl Parse for TableAttrs {
                 this.skip_font_write = Some(attr.path().clone());
             } else if ident == SKIP_CONSTRUCTOR {
                 this.skip_constructor = Some(attr.path().clone());
+            } else if ident == SKIP_SANITIZE {
+                this.skip_sanitize = Some(attr.path().clone());
             } else if ident == WRITE_FONTS_ONLY {
                 this.write_only = Some(attr.path().clone());
             } else if ident == READ_ARGS {
@@ -1286,7 +1306,7 @@ fn resolve_field(
     Ok(())
 }
 
-impl Items {
+impl Module {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         for item in self.iter() {
             item.sanity_check(phase)?;

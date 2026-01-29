@@ -92,14 +92,14 @@ impl<'a> Fvar<'a> {
     /// Minor version number of the font variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array. The
     /// InstanceRecord array directly follows.
     pub fn axis_instance_arrays_offset(&self) -> Offset16 {
         let range = self.axis_instance_arrays_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`axis_instance_arrays_offset`][Self::axis_instance_arrays_offset].
@@ -117,25 +117,25 @@ impl<'a> Fvar<'a> {
     /// The number of variation axes in the font (the number of records in the axes array).
     pub fn axis_count(&self) -> u16 {
         let range = self.axis_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The size in bytes of each VariationAxisRecord — set to 20 (0x0014) for this version.
     pub fn axis_size(&self) -> u16 {
         let range = self.axis_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of named instances defined in the font (the number of records in the instances array).
     pub fn instance_count(&self) -> u16 {
         let range = self.instance_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The size in bytes of each InstanceRecord — set to either axisCount * sizeof(Fixed) + 4, or to axisCount * sizeof(Fixed) + 6.
     pub fn instance_size(&self) -> u16 {
         let range = self.instance_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -254,7 +254,7 @@ impl<'a> AxisInstanceArrays<'a> {
     /// Variation axis record array.
     pub fn axes(&self) -> &'a [VariationAxisRecord] {
         let range = self.axes_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Instance record array.

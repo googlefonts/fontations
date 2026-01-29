@@ -20,6 +20,24 @@ pub trait FontRead<'a>: Sized {
     /// present as required by the version, and that any array lengths are not
     /// out-of-bounds.
     fn read(data: FontData<'a>) -> Result<Self, ReadError>;
+
+    /// only to be called on sanitized tables
+    unsafe fn read_unchecked(data: FontData<'a>) -> Self {
+        Self::read(data).unwrap()
+    }
+}
+
+// we hide this type so it cannot be constructed outside of this module
+mod sealed {
+    pub struct Sanitized<T>(pub(super) T);
+}
+
+pub trait Sanitize<'a>: Sized {
+    fn sanitize(self) -> Result<sealed::Sanitized<Self>, ReadError> {
+        self.sanitize_impl().map(|_| sealed::Sanitized(self))
+    }
+
+    fn sanitize_impl(&self) -> Result<(), ReadError>;
 }
 
 //NOTE: this is separate so that it can be a super trait of FontReadWithArgs and

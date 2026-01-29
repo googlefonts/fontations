@@ -66,25 +66,25 @@ impl<'a> Index1<'a> {
     /// Number of objects stored in INDEX.
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Object array element size.
     pub fn off_size(&self) -> u8 {
         let range = self.off_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
     pub fn offsets(&self) -> &'a [u8] {
         let range = self.offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Array containing the object data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -173,25 +173,25 @@ impl<'a> Index2<'a> {
     /// Number of objects stored in INDEX.
     pub fn count(&self) -> u32 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Object array element size.
     pub fn off_size(&self) -> u8 {
         let range = self.off_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
     pub fn offsets(&self) -> &'a [u8] {
         let range = self.offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Array containing the object data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -347,13 +347,13 @@ impl<'a> FdSelectFormat0<'a> {
     /// Format = 0.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// FD selector array (one entry for each glyph).
     pub fn fds(&self) -> &'a [u8] {
         let range = self.fds_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -441,25 +441,25 @@ impl<'a> FdSelectFormat3<'a> {
     /// Format = 3.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of ranges.
     pub fn n_ranges(&self) -> u16 {
         let range = self.n_ranges_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Range3 array.
     pub fn ranges(&self) -> &'a [FdSelectRange3] {
         let range = self.ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
     pub fn sentinel(&self) -> u16 {
         let range = self.sentinel_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -598,25 +598,25 @@ impl<'a> FdSelectFormat4<'a> {
     /// Format = 4.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of ranges.
     pub fn n_ranges(&self) -> u32 {
         let range = self.n_ranges_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Range4 array.
     pub fn ranges(&self) -> &'a [FdSelectRange4] {
         let range = self.ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
     pub fn sentinel(&self) -> u32 {
         let range = self.sentinel_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -821,13 +821,13 @@ impl<'a> CharsetFormat0<'a> {
     /// Format; =0
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Glyph name array.
     pub fn glyph(&self) -> &'a [BigEndian<u16>] {
         let range = self.glyph_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -904,13 +904,13 @@ impl<'a> CharsetFormat1<'a> {
     /// Format; =1
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Range1 array.
     pub fn ranges(&self) -> &'a [CharsetRange1] {
         let range = self.ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -1036,13 +1036,13 @@ impl<'a> CharsetFormat2<'a> {
     /// Format; =2
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Range2 array.
     pub fn ranges(&self) -> &'a [CharsetRange2] {
         let range = self.ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

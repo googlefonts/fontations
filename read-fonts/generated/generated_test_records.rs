@@ -71,22 +71,22 @@ impl<'a> BasicTable<'a> {
 
     pub fn simple_count(&self) -> u16 {
         let range = self.simple_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn simple_records(&self) -> &'a [SimpleRecord] {
         let range = self.simple_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     pub fn arrays_inner_count(&self) -> u16 {
         let range = self.arrays_inner_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn array_records_count(&self) -> u32 {
         let range = self.array_records_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
@@ -368,12 +368,12 @@ impl<'a> VarLenItem<'a> {
 
     pub fn length(&self) -> u32 {
         let range = self.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

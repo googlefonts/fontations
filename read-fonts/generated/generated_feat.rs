@@ -76,19 +76,19 @@ impl<'a> Feat<'a> {
     /// version).
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of entries in the feature name array.
     pub fn feature_name_count(&self) -> u16 {
         let range = self.feature_name_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The feature name array, sorted by feature type.
     pub fn names(&self) -> &'a [FeatureName] {
         let range = self.names_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -266,7 +266,7 @@ impl<'a> SettingNameArray<'a> {
     /// List of setting names for a feature.
     pub fn settings(&self) -> &'a [SettingName] {
         let range = self.settings_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     pub(crate) fn n_settings(&self) -> u16 {

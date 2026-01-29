@@ -134,6 +134,16 @@ impl<'a> FontReadWithArgs<'a> for FeatureParams<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for FeatureParams<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            FeatureParams::StylisticSet(table) => table.sanitize_impl(),
+            FeatureParams::Size(table) => table.sanitize_impl(),
+            FeatureParams::CharacterVariant(table) => table.sanitize_impl(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FeatureParams<'a> {
     fn type_name(&self) -> &str {

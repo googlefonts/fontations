@@ -1,5 +1,6 @@
 // path (from compile crate) to the generated parse module for this table.
 #![parse_module(read_fonts::tables::layout)]
+#![sanitize]
 
 extern scalar LookupFlag;
 
