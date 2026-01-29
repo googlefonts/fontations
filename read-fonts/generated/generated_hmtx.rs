@@ -40,6 +40,15 @@ impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
             },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let number_of_h_metrics = *args;
+        Self {
+            data,
+            shape: HmtxMarker {
+                number_of_h_metrics,
+            },
+        }
+    }
 }
 
 impl<'a> Hmtx<'a> {

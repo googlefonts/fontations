@@ -394,6 +394,12 @@ impl<'a> FontReadWithArgs<'a> for Os2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Os2Marker {},
+        }
+    }
 }
 
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)

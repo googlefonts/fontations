@@ -42,6 +42,12 @@ impl<'a> FontReadWithArgs<'a> for Gpos<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GposMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for Gpos<'a> {
@@ -292,6 +298,21 @@ impl ReadArgs for PositionLookup<'_> {
 impl<'a> FontReadWithArgs<'a> for PositionLookup<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let untyped = Lookup::read_with_args_unchecked(data, args);
+        match untyped.lookup_type() {
+            1 => PositionLookup::Single(untyped.into_concrete()),
+            2 => PositionLookup::Pair(untyped.into_concrete()),
+            3 => PositionLookup::Cursive(untyped.into_concrete()),
+            4 => PositionLookup::MarkToBase(untyped.into_concrete()),
+            5 => PositionLookup::MarkToLig(untyped.into_concrete()),
+            6 => PositionLookup::MarkToMark(untyped.into_concrete()),
+            7 => PositionLookup::Contextual(untyped.into_concrete()),
+            8 => PositionLookup::ChainContextual(untyped.into_concrete()),
+            9 => PositionLookup::Extension(untyped.into_concrete()),
+            _ => unreachable!("sanitized"),
+        }
     }
 }
 
@@ -860,6 +881,12 @@ impl<'a> FontReadWithArgs<'a> for AnchorFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AnchorFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for AnchorFormat1<'a> {
@@ -991,6 +1018,12 @@ impl ReadArgs for AnchorFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for AnchorFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AnchorFormat2Marker {},
+        }
     }
 }
 
@@ -1143,6 +1176,12 @@ impl ReadArgs for AnchorFormat3<'_> {
 impl<'a> FontReadWithArgs<'a> for AnchorFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AnchorFormat3Marker {},
+        }
     }
 }
 
@@ -1357,6 +1396,12 @@ impl ReadArgs for MarkArray<'_> {
 impl<'a> FontReadWithArgs<'a> for MarkArray<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MarkArrayMarker {},
+        }
     }
 }
 
@@ -1649,6 +1694,12 @@ impl<'a> FontReadWithArgs<'a> for SinglePosFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SinglePosFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for SinglePosFormat1<'a> {
@@ -1827,6 +1878,12 @@ impl ReadArgs for SinglePosFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for SinglePosFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SinglePosFormat2Marker {},
+        }
     }
 }
 
@@ -2152,6 +2209,12 @@ impl<'a> FontReadWithArgs<'a> for PairPosFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PairPosFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for PairPosFormat1<'a> {
@@ -2398,6 +2461,16 @@ impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
                 value_format2,
             },
         })
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let (value_format1, value_format2) = *args;
+        Self {
+            data,
+            shape: PairSetMarker {
+                value_format1,
+                value_format2,
+            },
+        }
     }
 }
 
@@ -2669,6 +2742,12 @@ impl ReadArgs for PairPosFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for PairPosFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PairPosFormat2Marker {},
+        }
     }
 }
 
@@ -3186,6 +3265,12 @@ impl<'a> FontReadWithArgs<'a> for CursivePosFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CursivePosFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for CursivePosFormat1<'a> {
@@ -3450,6 +3535,12 @@ impl<'a> FontReadWithArgs<'a> for MarkBasePosFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MarkBasePosFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for MarkBasePosFormat1<'a> {
@@ -3711,6 +3802,13 @@ impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
             shape: BaseArrayMarker { mark_class_count },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            data,
+            shape: BaseArrayMarker { mark_class_count },
+        }
+    }
 }
 
 impl<'a> BaseArray<'a> {
@@ -3958,6 +4056,12 @@ impl ReadArgs for MarkLigPosFormat1<'_> {
 impl<'a> FontReadWithArgs<'a> for MarkLigPosFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MarkLigPosFormat1Marker {},
+        }
     }
 }
 
@@ -4220,6 +4324,13 @@ impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
             shape: LigatureArrayMarker { mark_class_count },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            data,
+            shape: LigatureArrayMarker { mark_class_count },
+        }
+    }
 }
 
 impl<'a> LigatureArray<'a> {
@@ -4380,6 +4491,13 @@ impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
             data,
             shape: LigatureAttachMarker { mark_class_count },
         })
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            data,
+            shape: LigatureAttachMarker { mark_class_count },
+        }
     }
 }
 
@@ -4629,6 +4747,12 @@ impl ReadArgs for MarkMarkPosFormat1<'_> {
 impl<'a> FontReadWithArgs<'a> for MarkMarkPosFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MarkMarkPosFormat1Marker {},
+        }
     }
 }
 
@@ -4891,6 +5015,13 @@ impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
             shape: Mark2ArrayMarker { mark_class_count },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            data,
+            shape: Mark2ArrayMarker { mark_class_count },
+        }
+    }
 }
 
 impl<'a> Mark2Array<'a> {
@@ -5151,6 +5282,14 @@ impl<'a, T> FontReadWithArgs<'a> for ExtensionPosFormat1<'a, T> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ExtensionPosFormat1Marker {
+                offset_type: std::marker::PhantomData,
+            },
+        }
+    }
 }
 
 impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitize<'a>
@@ -5346,6 +5485,20 @@ impl ReadArgs for ExtensionSubtable<'_> {
 impl<'a> FontReadWithArgs<'a> for ExtensionSubtable<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let untyped = ExtensionPosFormat1::read_with_args_unchecked(data, args);
+        match untyped.extension_lookup_type() {
+            1 => ExtensionSubtable::Single(untyped.into_concrete()),
+            2 => ExtensionSubtable::Pair(untyped.into_concrete()),
+            3 => ExtensionSubtable::Cursive(untyped.into_concrete()),
+            4 => ExtensionSubtable::MarkToBase(untyped.into_concrete()),
+            5 => ExtensionSubtable::MarkToLig(untyped.into_concrete()),
+            6 => ExtensionSubtable::MarkToMark(untyped.into_concrete()),
+            7 => ExtensionSubtable::Contextual(untyped.into_concrete()),
+            8 => ExtensionSubtable::ChainContextual(untyped.into_concrete()),
+            _ => unreachable!("sanitized"),
+        }
     }
 }
 

@@ -148,6 +148,12 @@ impl<'a> FontReadWithArgs<'a> for Lookup0<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Lookup0Marker {},
+        }
+    }
 }
 
 /// Simple array format. The lookup data is an array of lookup values, indexed
@@ -242,6 +248,12 @@ impl ReadArgs for Lookup2<'_> {
 impl<'a> FontReadWithArgs<'a> for Lookup2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Lookup2Marker {},
+        }
     }
 }
 
@@ -411,6 +423,12 @@ impl ReadArgs for Lookup4<'_> {
 impl<'a> FontReadWithArgs<'a> for Lookup4<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Lookup4Marker {},
+        }
     }
 }
 
@@ -634,6 +652,12 @@ impl<'a> FontReadWithArgs<'a> for Lookup6<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Lookup6Marker {},
+        }
+    }
 }
 
 /// Single table format. The lookup data is a sorted list of
@@ -801,6 +825,12 @@ impl<'a> FontReadWithArgs<'a> for Lookup8<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Lookup8Marker {},
+        }
+    }
 }
 
 /// Trimmed array format. The lookup data is a simple trimmed array
@@ -922,6 +952,12 @@ impl ReadArgs for Lookup10<'_> {
 impl<'a> FontReadWithArgs<'a> for Lookup10<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Lookup10Marker {},
+        }
     }
 }
 
@@ -1057,6 +1093,12 @@ impl ReadArgs for StateHeader<'_> {
 impl<'a> FontReadWithArgs<'a> for StateHeader<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: StateHeaderMarker {},
+        }
     }
 }
 
@@ -1202,6 +1244,12 @@ impl<'a> FontReadWithArgs<'a> for ClassSubtable<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ClassSubtableMarker {},
+        }
+    }
 }
 
 /// Maps the glyph indexes of your font into classes.
@@ -1304,6 +1352,12 @@ impl<'a> FontReadWithArgs<'a> for RawBytes<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: RawBytesMarker {},
+        }
+    }
 }
 
 /// Used for the `state_array` and `entry_table` fields in [`StateHeader`].
@@ -1377,6 +1431,12 @@ impl ReadArgs for StxHeader<'_> {
 impl<'a> FontReadWithArgs<'a> for StxHeader<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: StxHeaderMarker {},
+        }
     }
 }
 
@@ -1520,6 +1580,12 @@ impl ReadArgs for RawWords<'_> {
 impl<'a> FontReadWithArgs<'a> for RawWords<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: RawWordsMarker {},
+        }
     }
 }
 

@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Cmap<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CmapMarker {},
+        }
+    }
 }
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
@@ -392,6 +398,12 @@ impl<'a> FontReadWithArgs<'a> for Cmap0<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cmap0Marker {},
+        }
+    }
 }
 
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
@@ -509,6 +521,12 @@ impl ReadArgs for Cmap2<'_> {
 impl<'a> FontReadWithArgs<'a> for Cmap2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cmap2Marker {},
+        }
     }
 }
 
@@ -687,6 +705,12 @@ impl ReadArgs for Cmap4<'_> {
 impl<'a> FontReadWithArgs<'a> for Cmap4<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cmap4Marker {},
+        }
     }
 }
 
@@ -932,6 +956,12 @@ impl<'a> FontReadWithArgs<'a> for Cmap6<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cmap6Marker {},
+        }
+    }
 }
 
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
@@ -1080,6 +1110,12 @@ impl ReadArgs for Cmap8<'_> {
 impl<'a> FontReadWithArgs<'a> for Cmap8<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cmap8Marker {},
+        }
     }
 }
 
@@ -1303,6 +1339,12 @@ impl<'a> FontReadWithArgs<'a> for Cmap10<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cmap10Marker {},
+        }
+    }
 }
 
 /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
@@ -1459,6 +1501,12 @@ impl<'a> FontReadWithArgs<'a> for Cmap12<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cmap12Marker {},
+        }
+    }
 }
 
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
@@ -1607,6 +1655,12 @@ impl ReadArgs for Cmap13<'_> {
 impl<'a> FontReadWithArgs<'a> for Cmap13<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cmap13Marker {},
+        }
     }
 }
 
@@ -1808,6 +1862,12 @@ impl ReadArgs for Cmap14<'_> {
 impl<'a> FontReadWithArgs<'a> for Cmap14<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cmap14Marker {},
+        }
     }
 }
 
@@ -2016,6 +2076,12 @@ impl<'a> FontReadWithArgs<'a> for DefaultUvs<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: DefaultUvsMarker {},
+        }
+    }
 }
 
 /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
@@ -2114,6 +2180,12 @@ impl ReadArgs for NonDefaultUvs<'_> {
 impl<'a> FontReadWithArgs<'a> for NonDefaultUvs<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: NonDefaultUvsMarker {},
+        }
     }
 }
 

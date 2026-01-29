@@ -36,6 +36,12 @@ impl<'a> FontReadWithArgs<'a> for Index1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Index1Marker {},
+        }
+    }
 }
 
 /// An array of variable-sized objects in a `CFF` table.
@@ -152,6 +158,12 @@ impl ReadArgs for Index2<'_> {
 impl<'a> FontReadWithArgs<'a> for Index2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Index2Marker {},
+        }
     }
 }
 
@@ -362,6 +374,12 @@ impl<'a> FontReadWithArgs<'a> for FdSelectFormat0<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FdSelectFormat0Marker {},
+        }
+    }
 }
 
 /// FdSelect format 0.
@@ -453,6 +471,12 @@ impl ReadArgs for FdSelectFormat3<'_> {
 impl<'a> FontReadWithArgs<'a> for FdSelectFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FdSelectFormat3Marker {},
+        }
     }
 }
 
@@ -620,6 +644,12 @@ impl ReadArgs for FdSelectFormat4<'_> {
 impl<'a> FontReadWithArgs<'a> for FdSelectFormat4<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FdSelectFormat4Marker {},
+        }
     }
 }
 
@@ -876,6 +906,12 @@ impl<'a> FontReadWithArgs<'a> for CharsetFormat0<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CharsetFormat0Marker {},
+        }
+    }
 }
 
 /// Charset format 0.
@@ -967,6 +1003,12 @@ impl ReadArgs for CharsetFormat1<'_> {
 impl<'a> FontReadWithArgs<'a> for CharsetFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CharsetFormat1Marker {},
+        }
     }
 }
 
@@ -1109,6 +1151,12 @@ impl ReadArgs for CharsetFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for CharsetFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CharsetFormat2Marker {},
+        }
     }
 }
 

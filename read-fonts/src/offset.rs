@@ -40,6 +40,12 @@ pub trait ResolveOffset {
         data: FontData<'a>,
         args: &T::Args,
     ) -> Result<T, ReadError>;
+
+    unsafe fn unchecked_resolve_with_args<'a, T: FontReadWithArgs<'a>>(
+        &self,
+        data: FontData<'a>,
+        args: &T::Args,
+    ) -> Result<T, ReadError>;
 }
 
 /// A helper trait providing a 'resolve' method for nullable offset types
@@ -47,6 +53,12 @@ pub trait ResolveNullableOffset {
     fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Option<Result<T, ReadError>>;
 
     fn resolve_with_args<'a, T: FontReadWithArgs<'a>>(
+        &self,
+        data: FontData<'a>,
+        args: &T::Args,
+    ) -> Option<Result<T, ReadError>>;
+
+    unsafe fn unchecked_resolve_with_args<'a, T: FontReadWithArgs<'a>>(
         &self,
         data: FontData<'a>,
         args: &T::Args,
@@ -73,6 +85,15 @@ impl<O: Offset> ResolveNullableOffset for Nullable<O> {
             Err(e) => Some(Err(e)),
         }
     }
+
+    unsafe fn unchecked_resolve_with_args<'a, T: FontReadWithArgs<'a>>(
+        &self,
+        data: FontData<'a>,
+        args: &T::Args,
+    ) -> Option<Result<T, ReadError>> {
+        let _offset = self.offset().non_null()?;
+        Some(self.offset().unchecked_resolve_with_args(data, args))
+    }
 }
 
 impl<O: Offset> ResolveOffset for O {
@@ -92,5 +113,14 @@ impl<O: Offset> ResolveOffset for O {
             .ok_or(ReadError::NullOffset)
             .and_then(|off| data.split_off(off).ok_or(ReadError::OutOfBounds))
             .and_then(|data| T::read_with_args(data, args))
+    }
+
+    unsafe fn unchecked_resolve_with_args<'a, T: FontReadWithArgs<'a>>(
+        &self,
+        data: FontData<'a>,
+        args: &T::Args,
+    ) -> Result<T, ReadError> {
+        let data = data.split_off_unchecked(self.to_usize());
+        Ok(T::read_with_args_unchecked(data, args))
     }
 }

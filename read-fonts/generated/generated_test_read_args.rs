@@ -32,6 +32,13 @@ impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
             shape: BaseArrayMarker { mark_class_count },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            data,
+            shape: BaseArrayMarker { mark_class_count },
+        }
+    }
 }
 
 impl<'a> BaseArray<'a> {

@@ -469,6 +469,12 @@ impl<'a> FontReadWithArgs<'a> for PatchMapFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PatchMapFormat1Marker {},
+        }
+    }
 }
 
 /// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
@@ -796,6 +802,16 @@ impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
             },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let (glyph_count, max_entry_index) = *args;
+        Self {
+            data,
+            shape: GlyphMapMarker {
+                glyph_count,
+                max_entry_index,
+            },
+        }
+    }
 }
 
 impl<'a> GlyphMap<'a> {
@@ -905,6 +921,13 @@ impl<'a> FontReadWithArgs<'a> for FeatureMap<'a> {
             data,
             shape: FeatureMapMarker { max_entry_index },
         })
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let max_entry_index = *args;
+        Self {
+            data,
+            shape: FeatureMapMarker { max_entry_index },
+        }
     }
 }
 
@@ -1193,6 +1216,12 @@ impl<'a> FontReadWithArgs<'a> for PatchMapFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PatchMapFormat2Marker {},
+        }
+    }
 }
 
 /// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
@@ -1474,6 +1503,12 @@ impl<'a> FontReadWithArgs<'a> for MappingEntries<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MappingEntriesMarker {},
+        }
+    }
 }
 
 pub type MappingEntries<'a> = TableRef<'a, MappingEntriesMarker>;
@@ -1545,6 +1580,12 @@ impl ReadArgs for EntryData<'_> {
 impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: EntryDataMarker {},
+        }
     }
 }
 
@@ -2157,6 +2198,12 @@ impl<'a> FontReadWithArgs<'a> for IdStringData<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: IdStringDataMarker {},
+        }
+    }
 }
 
 pub type IdStringData<'a> = TableRef<'a, IdStringDataMarker>;
@@ -2229,6 +2276,12 @@ impl ReadArgs for TableKeyedPatch<'_> {
 impl<'a> FontReadWithArgs<'a> for TableKeyedPatch<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: TableKeyedPatchMarker {},
+        }
     }
 }
 
@@ -2371,6 +2424,12 @@ impl ReadArgs for TablePatch<'_> {
 impl<'a> FontReadWithArgs<'a> for TablePatch<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: TablePatchMarker {},
+        }
     }
 }
 
@@ -2790,6 +2849,12 @@ impl ReadArgs for GlyphKeyedPatch<'_> {
 impl<'a> FontReadWithArgs<'a> for GlyphKeyedPatch<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GlyphKeyedPatchMarker {},
+        }
     }
 }
 
@@ -3231,6 +3296,13 @@ impl<'a> FontReadWithArgs<'a> for GlyphPatches<'a> {
             shape: GlyphPatchesMarker { flags },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let flags = *args;
+        Self {
+            data,
+            shape: GlyphPatchesMarker { flags },
+        }
+    }
 }
 
 impl<'a> GlyphPatches<'a> {
@@ -3393,6 +3465,12 @@ impl ReadArgs for GlyphData<'_> {
 impl<'a> FontReadWithArgs<'a> for GlyphData<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GlyphDataMarker {},
+        }
     }
 }
 

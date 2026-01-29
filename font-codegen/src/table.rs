@@ -161,7 +161,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         let destructure_pattern = read_args.destructure_pattern();
         let constructor_args = read_args.constructor_args();
         let args_from_constructor_args = read_args.read_args_from_constructor_args();
-        let arg_idents = read_args.idents();
+        let arg_idents = read_args.idents().collect::<Vec<_>>();
         Ok(quote! {
             #error_if_phantom_and_read_args
             impl ReadArgs for #name<'_> {
@@ -182,6 +182,11 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                              }
                          }
                      )
+                }
+
+                unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+                    let #destructure_pattern = *args;
+                    Self { data, shape: #marker_name { #( #arg_idents, )* } }
                 }
             }
 
@@ -218,6 +223,10 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             impl<'a, #generic> FontReadWithArgs<'a> for #name<'a, #generic> {
                 fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
                     Self::read(data)
+                }
+
+                unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+                    Self { data, shape: #marker_name { #phantom } }
                 }
             }
         })
@@ -258,6 +267,7 @@ pub(crate) fn generate_group(item: &GenericGroup, items: &Module) -> syn::Result
 
     let mut variant_decls = Vec::new();
     let mut read_match_arms = Vec::new();
+    let mut unsafe_read_match_arms = Vec::new();
     let mut dyn_inner_arms = Vec::new();
     let mut of_unit_arms = Vec::new();
     let mut sanitize_arms = Vec::new();
@@ -268,6 +278,8 @@ pub(crate) fn generate_group(item: &GenericGroup, items: &Module) -> syn::Result
         variant_decls.push(quote! { #var_name ( #inner <'a, #typ<'a>> ) });
         read_match_arms
             .push(quote! { #type_id => Ok(#name :: #var_name (untyped.into_concrete())) });
+        unsafe_read_match_arms
+            .push(quote! { #type_id => #name :: #var_name(untyped.into_concrete()) });
         dyn_inner_arms.push(quote! { #name :: #var_name(table) => table });
         of_unit_arms.push(quote! { #name :: #var_name(inner) => inner.of_unit_type()  });
         if items.generate_sanitize.is_some() {
@@ -316,6 +328,14 @@ pub(crate) fn generate_group(item: &GenericGroup, items: &Module) -> syn::Result
         impl<'a> FontReadWithArgs<'a> for #name<'a> {
             fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
                 Self::read(data)
+            }
+
+            unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+                let untyped = #inner::read_with_args_unchecked(data, args);
+                match untyped.#type_field() {
+                    #( #unsafe_read_match_arms, )*
+                    _ => unreachable!("sanitized"),
+                }
             }
         }
 

@@ -2,9 +2,11 @@
 
 #![deny(clippy::arithmetic_side_effects)]
 
+use core::arch;
+
 use types::{FixedSize, Scalar, Tag};
 
-use crate::font_data::FontData;
+use crate::{font_data::FontData, TableRef};
 
 /// A type that can be read from raw table data.
 ///
@@ -20,11 +22,6 @@ pub trait FontRead<'a>: Sized {
     /// present as required by the version, and that any array lengths are not
     /// out-of-bounds.
     fn read(data: FontData<'a>) -> Result<Self, ReadError>;
-
-    /// only to be called on sanitized tables
-    unsafe fn read_unchecked(data: FontData<'a>) -> Self {
-        Self::read(data).unwrap()
-    }
 }
 
 // we hide this type so it cannot be constructed outside of this module
@@ -37,6 +34,12 @@ mod sealed {
 
 pub use sealed::Sanitized;
 
+impl<'a, T> Sanitized<TableRef<'a, T>> {
+    pub fn offset_data(&self) -> FontData<'a> {
+        self.0.offset_data()
+    }
+}
+
 pub trait Sanitize<'a>: Sized {
     fn sanitize(self) -> Result<sealed::Sanitized<Self>, ReadError> {
         self.sanitize_impl().map(|_| sealed::Sanitized(self))
@@ -45,24 +48,25 @@ pub trait Sanitize<'a>: Sized {
     fn sanitize_impl(&self) -> Result<(), ReadError>;
 }
 
-impl<'a, T> FontRead<'a> for Sanitized<T>
+impl<'a, T> FontReadWithArgs<'a> for Sanitized<T>
 where
-    T: FontRead<'a>,
+    T: FontReadWithArgs<'a>,
 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        Ok(unsafe { Sanitized(T::read_unchecked(data)) })
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        unsafe { Sanitized(T::read_with_args_unchecked(data, args)) }
+    }
+
+    /// Safety:
+    ///
+    /// - Sanitize types are only instantiated via generated code which has
+    ///   ensured that all offsets are in bounds.
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+        Ok(unsafe { Self::read_with_args_unchecked(data, args) })
     }
 }
 
 impl<T: ReadArgs> ReadArgs for Sanitized<T> {
     type Args = T::Args;
-}
-
-impl<'a, T: FontReadWithArgs<'a>> FontReadWithArgs<'a> for Sanitized<T> {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
-        // fixme: make this fast, if we care?
-        T::read_with_args(data, args).map(Sanitized)
-    }
 }
 
 impl<T: FixedSize> FixedSize for Sanitized<T> {
@@ -92,6 +96,11 @@ pub trait FontReadWithArgs<'a>: Sized + ReadArgs {
     ///
     /// If a type requires multiple arguments, they will be passed as a tuple.
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError>;
+
+    /// only to be called on sanitized tables
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        Self::read_with_args(data, args).unwrap()
+    }
 }
 
 // a blanket impl of ReadArgs/FontReadWithArgs for general FontRead types.

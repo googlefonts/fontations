@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Trak<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: TrakMarker {},
+        }
+    }
 }
 
 /// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
@@ -181,6 +187,12 @@ impl ReadArgs for TrackData<'_> {
 impl<'a> FontReadWithArgs<'a> for TrackData<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: TrackDataMarker {},
+        }
     }
 }
 

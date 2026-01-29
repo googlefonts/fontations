@@ -60,6 +60,12 @@ impl<'a> FontData<'a> {
         self.bytes.get(pos..).map(|bytes| FontData { bytes })
     }
 
+    pub(crate) unsafe fn split_off_unchecked(&self, pos: usize) -> FontData<'a> {
+        FontData {
+            bytes: self.bytes.get_unchecked(pos..),
+        }
+    }
+
     /// returns self[..pos], and updates self to = self[pos..];
     pub fn take_up_to(&mut self, pos: usize) -> Option<FontData<'a>> {
         if pos > self.len() {

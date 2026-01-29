@@ -36,6 +36,12 @@ impl<'a> FontReadWithArgs<'a> for ScriptList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ScriptListMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ScriptList<'a> {
@@ -213,6 +219,12 @@ impl ReadArgs for Script<'_> {
 impl<'a> FontReadWithArgs<'a> for Script<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ScriptMarker {},
+        }
     }
 }
 
@@ -432,6 +444,12 @@ impl<'a> FontReadWithArgs<'a> for LangSys<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: LangSysMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for LangSys<'a> {
@@ -576,6 +594,12 @@ impl ReadArgs for FeatureList<'_> {
 impl<'a> FontReadWithArgs<'a> for FeatureList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FeatureListMarker {},
+        }
     }
 }
 
@@ -754,6 +778,13 @@ impl<'a> FontReadWithArgs<'a> for Feature<'a> {
             data,
             shape: FeatureMarker { feature_tag },
         })
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let feature_tag = *args;
+        Self {
+            data,
+            shape: FeatureMarker { feature_tag },
+        }
     }
 }
 
@@ -939,6 +970,14 @@ impl<T> ReadArgs for LookupList<'_, T> {
 impl<'a, T> FontReadWithArgs<'a> for LookupList<'a, T> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: LookupListMarker {
+                offset_type: std::marker::PhantomData,
+            },
+        }
     }
 }
 
@@ -1126,6 +1165,14 @@ impl<T> ReadArgs for Lookup<'_, T> {
 impl<'a, T> FontReadWithArgs<'a> for Lookup<'a, T> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: LookupMarker {
+                offset_type: std::marker::PhantomData,
+            },
+        }
     }
 }
 
@@ -1378,6 +1425,12 @@ impl<'a> FontReadWithArgs<'a> for CoverageFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CoverageFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for CoverageFormat1<'a> {
@@ -1510,6 +1563,12 @@ impl ReadArgs for CoverageFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for CoverageFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CoverageFormat2Marker {},
+        }
     }
 }
 
@@ -1796,6 +1855,12 @@ impl<'a> FontReadWithArgs<'a> for ClassDefFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ClassDefFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ClassDefFormat1<'a> {
@@ -1947,6 +2012,12 @@ impl ReadArgs for ClassDefFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for ClassDefFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ClassDefFormat2Marker {},
+        }
     }
 }
 
@@ -2273,6 +2344,12 @@ impl<'a> FontReadWithArgs<'a> for SequenceContextFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SequenceContextFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for SequenceContextFormat1<'a> {
@@ -2471,6 +2548,12 @@ impl<'a> FontReadWithArgs<'a> for SequenceRuleSet<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SequenceRuleSetMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for SequenceRuleSet<'a> {
@@ -2610,6 +2693,12 @@ impl ReadArgs for SequenceRule<'_> {
 impl<'a> FontReadWithArgs<'a> for SequenceRule<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SequenceRuleMarker {},
+        }
     }
 }
 
@@ -2772,6 +2861,12 @@ impl ReadArgs for SequenceContextFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for SequenceContextFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SequenceContextFormat2Marker {},
+        }
     }
 }
 
@@ -3017,6 +3112,12 @@ impl<'a> FontReadWithArgs<'a> for ClassSequenceRuleSet<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ClassSequenceRuleSetMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ClassSequenceRuleSet<'a> {
@@ -3162,6 +3263,12 @@ impl ReadArgs for ClassSequenceRule<'_> {
 impl<'a> FontReadWithArgs<'a> for ClassSequenceRule<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ClassSequenceRuleMarker {},
+        }
     }
 }
 
@@ -3326,6 +3433,12 @@ impl ReadArgs for SequenceContextFormat3<'_> {
 impl<'a> FontReadWithArgs<'a> for SequenceContextFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SequenceContextFormat3Marker {},
+        }
     }
 }
 
@@ -3634,6 +3747,12 @@ impl<'a> FontReadWithArgs<'a> for ChainedSequenceContextFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ChainedSequenceContextFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ChainedSequenceContextFormat1<'a> {
@@ -3840,6 +3959,12 @@ impl<'a> FontReadWithArgs<'a> for ChainedSequenceRuleSet<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ChainedSequenceRuleSetMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ChainedSequenceRuleSet<'a> {
@@ -3986,6 +4111,12 @@ impl ReadArgs for ChainedSequenceRule<'_> {
 impl<'a> FontReadWithArgs<'a> for ChainedSequenceRule<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ChainedSequenceRuleMarker {},
+        }
     }
 }
 
@@ -4234,6 +4365,12 @@ impl ReadArgs for ChainedSequenceContextFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for ChainedSequenceContextFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ChainedSequenceContextFormat2Marker {},
+        }
     }
 }
 
@@ -4567,6 +4704,12 @@ impl<'a> FontReadWithArgs<'a> for ChainedClassSequenceRuleSet<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ChainedClassSequenceRuleSetMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ChainedClassSequenceRuleSet<'a> {
@@ -4716,6 +4859,12 @@ impl ReadArgs for ChainedClassSequenceRule<'_> {
 impl<'a> FontReadWithArgs<'a> for ChainedClassSequenceRule<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ChainedClassSequenceRuleMarker {},
+        }
     }
 }
 
@@ -4965,6 +5114,12 @@ impl ReadArgs for ChainedSequenceContextFormat3<'_> {
 impl<'a> FontReadWithArgs<'a> for ChainedSequenceContextFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ChainedSequenceContextFormat3Marker {},
+        }
     }
 }
 
@@ -5469,6 +5624,12 @@ impl<'a> FontReadWithArgs<'a> for Device<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: DeviceMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for Device<'a> {
@@ -5620,6 +5781,12 @@ impl ReadArgs for VariationIndex<'_> {
 impl<'a> FontReadWithArgs<'a> for VariationIndex<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: VariationIndexMarker {},
+        }
     }
 }
 
@@ -5847,6 +6014,12 @@ impl ReadArgs for FeatureVariations<'_> {
 impl<'a> FontReadWithArgs<'a> for FeatureVariations<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FeatureVariationsMarker {},
+        }
     }
 }
 
@@ -6079,6 +6252,12 @@ impl ReadArgs for ConditionSet<'_> {
 impl<'a> FontReadWithArgs<'a> for ConditionSet<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ConditionSetMarker {},
+        }
     }
 }
 
@@ -6339,6 +6518,12 @@ impl<'a> FontReadWithArgs<'a> for ConditionFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ConditionFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ConditionFormat1<'a> {
@@ -6503,6 +6688,12 @@ impl<'a> FontReadWithArgs<'a> for ConditionFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ConditionFormat2Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ConditionFormat2<'a> {
@@ -6634,6 +6825,12 @@ impl ReadArgs for ConditionFormat3<'_> {
 impl<'a> FontReadWithArgs<'a> for ConditionFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ConditionFormat3Marker {},
+        }
     }
 }
 
@@ -6796,6 +6993,12 @@ impl<'a> FontReadWithArgs<'a> for ConditionFormat4<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ConditionFormat4Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ConditionFormat4<'a> {
@@ -6957,6 +7160,12 @@ impl<'a> FontReadWithArgs<'a> for ConditionFormat5<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ConditionFormat5Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ConditionFormat5<'a> {
@@ -7081,6 +7290,12 @@ impl ReadArgs for FeatureTableSubstitution<'_> {
 impl<'a> FontReadWithArgs<'a> for FeatureTableSubstitution<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FeatureTableSubstitutionMarker {},
+        }
     }
 }
 
@@ -7276,6 +7491,12 @@ impl ReadArgs for SizeParams<'_> {
 impl<'a> FontReadWithArgs<'a> for SizeParams<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SizeParamsMarker {},
+        }
     }
 }
 
@@ -7485,6 +7706,12 @@ impl<'a> FontReadWithArgs<'a> for StylisticSetParams<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: StylisticSetParamsMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for StylisticSetParams<'a> {
@@ -7610,6 +7837,12 @@ impl ReadArgs for CharacterVariantParams<'_> {
 impl<'a> FontReadWithArgs<'a> for CharacterVariantParams<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CharacterVariantParamsMarker {},
+        }
     }
 }
 

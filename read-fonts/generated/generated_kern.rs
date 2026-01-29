@@ -36,6 +36,12 @@ impl<'a> FontReadWithArgs<'a> for OtKern<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: OtKernMarker {},
+        }
+    }
 }
 
 /// The OpenType [kerning](https://learn.microsoft.com/en-us/typography/opentype/spec/kern) table.
@@ -137,6 +143,12 @@ impl<'a> FontReadWithArgs<'a> for AatKern<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AatKernMarker {},
+        }
+    }
 }
 
 /// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
@@ -237,6 +249,12 @@ impl ReadArgs for OtSubtable<'_> {
 impl<'a> FontReadWithArgs<'a> for OtSubtable<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: OtSubtableMarker {},
+        }
     }
 }
 
@@ -352,6 +370,12 @@ impl<'a> FontReadWithArgs<'a> for AatSubtable<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AatSubtableMarker {},
+        }
+    }
 }
 
 /// A subtable in an AAT `kern` table.
@@ -465,6 +489,12 @@ impl ReadArgs for Subtable0<'_> {
 impl<'a> FontReadWithArgs<'a> for Subtable0<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Subtable0Marker {},
+        }
     }
 }
 
@@ -601,6 +631,12 @@ impl<'a> FontReadWithArgs<'a> for Subtable2ClassTable<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Subtable2ClassTableMarker {},
+        }
+    }
 }
 
 /// Class table for the type 2 `kern` subtable.
@@ -701,6 +737,12 @@ impl ReadArgs for Subtable3<'_> {
 impl<'a> FontReadWithArgs<'a> for Subtable3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Subtable3Marker {},
+        }
     }
 }
 

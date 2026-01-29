@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Kerx<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: KerxMarker {},
+        }
+    }
 }
 
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
@@ -152,6 +158,12 @@ impl ReadArgs for Subtable<'_> {
 impl<'a> FontReadWithArgs<'a> for Subtable<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SubtableMarker {},
+        }
     }
 }
 
@@ -266,6 +278,12 @@ impl ReadArgs for Subtable0<'_> {
 impl<'a> FontReadWithArgs<'a> for Subtable0<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Subtable0Marker {},
+        }
     }
 }
 

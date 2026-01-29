@@ -769,6 +769,15 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
             },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let number_of_index_subtables = *args;
+        Self {
+            data,
+            shape: IndexSubtableListMarker {
+                number_of_index_subtables,
+            },
+        }
+    }
 }
 
 impl<'a> IndexSubtableList<'a> {
@@ -938,6 +947,16 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
             },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let (last_glyph_index, first_glyph_index) = *args;
+        Self {
+            data,
+            shape: IndexSubtable1Marker {
+                last_glyph_index,
+                first_glyph_index,
+            },
+        }
+    }
 }
 
 impl<'a> IndexSubtable1<'a> {
@@ -1081,6 +1100,12 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: IndexSubtable2Marker {},
+        }
+    }
 }
 
 /// [IndexSubTable2](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable2-all-glyphs-have-identical-metrics): all glyphs have identical metrics.
@@ -1222,6 +1247,16 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
                 first_glyph_index,
             },
         })
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let (last_glyph_index, first_glyph_index) = *args;
+        Self {
+            data,
+            shape: IndexSubtable3Marker {
+                last_glyph_index,
+                first_glyph_index,
+            },
+        }
     }
 }
 
@@ -1365,6 +1400,12 @@ impl ReadArgs for IndexSubtable4<'_> {
 impl<'a> FontReadWithArgs<'a> for IndexSubtable4<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: IndexSubtable4Marker {},
+        }
     }
 }
 
@@ -1548,6 +1589,12 @@ impl ReadArgs for IndexSubtable5<'_> {
 impl<'a> FontReadWithArgs<'a> for IndexSubtable5<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: IndexSubtable5Marker {},
+        }
     }
 }
 

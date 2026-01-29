@@ -88,7 +88,9 @@ pub mod codegen_test;
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
-pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize};
+pub use read::{
+    ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, Sanitize, Sanitized, VarSize,
+};
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::{MinByteRange, TableRef};
 

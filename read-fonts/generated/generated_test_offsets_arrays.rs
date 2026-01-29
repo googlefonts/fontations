@@ -35,6 +35,12 @@ impl<'a> FontReadWithArgs<'a> for KindsOfOffsets<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: KindsOfOffsetsMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for KindsOfOffsets<'a> {
@@ -431,6 +437,12 @@ impl<'a> FontReadWithArgs<'a> for KindsOfArraysOfOffsets<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: KindsOfArraysOfOffsetsMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for KindsOfArraysOfOffsets<'a> {
@@ -742,6 +754,12 @@ impl<'a> FontReadWithArgs<'a> for KindsOfArrays<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: KindsOfArraysMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for KindsOfArrays<'a> {
@@ -948,6 +966,12 @@ impl<'a> FontReadWithArgs<'a> for VarLenHaver<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: VarLenHaverMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for VarLenHaver<'a> {
@@ -1072,6 +1096,12 @@ impl ReadArgs for Dummy<'_> {
 impl<'a> FontReadWithArgs<'a> for Dummy<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: DummyMarker {},
+        }
     }
 }
 

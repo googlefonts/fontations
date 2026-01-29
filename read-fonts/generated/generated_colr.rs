@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Colr<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ColrMarker {},
+        }
+    }
 }
 
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
@@ -428,6 +434,12 @@ impl<'a> FontReadWithArgs<'a> for BaseGlyphList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: BaseGlyphListMarker {},
+        }
+    }
 }
 
 /// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
@@ -578,6 +590,12 @@ impl<'a> FontReadWithArgs<'a> for LayerList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: LayerListMarker {},
+        }
+    }
 }
 
 /// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
@@ -684,6 +702,12 @@ impl ReadArgs for ClipList<'_> {
 impl<'a> FontReadWithArgs<'a> for ClipList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ClipListMarker {},
+        }
     }
 }
 
@@ -973,6 +997,12 @@ impl<'a> FontReadWithArgs<'a> for ClipBoxFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ClipBoxFormat1Marker {},
+        }
+    }
 }
 
 /// [ClipBoxFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
@@ -1106,6 +1136,12 @@ impl ReadArgs for ClipBoxFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for ClipBoxFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ClipBoxFormat2Marker {},
+        }
     }
 }
 
@@ -1452,6 +1488,12 @@ impl<'a> FontReadWithArgs<'a> for ColorLine<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ColorLineMarker {},
+        }
+    }
 }
 
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
@@ -1558,6 +1600,12 @@ impl ReadArgs for VarColorLine<'_> {
 impl<'a> FontReadWithArgs<'a> for VarColorLine<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: VarColorLineMarker {},
+        }
     }
 }
 
@@ -2002,6 +2050,12 @@ impl<'a> FontReadWithArgs<'a> for PaintColrLayers<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintColrLayersMarker {},
+        }
+    }
 }
 
 /// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
@@ -2106,6 +2160,12 @@ impl<'a> FontReadWithArgs<'a> for PaintSolid<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintSolidMarker {},
+        }
+    }
 }
 
 /// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
@@ -2209,6 +2269,12 @@ impl ReadArgs for PaintVarSolid<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarSolid<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarSolidMarker {},
+        }
     }
 }
 
@@ -2327,6 +2393,12 @@ impl ReadArgs for PaintLinearGradient<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintLinearGradient<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintLinearGradientMarker {},
+        }
     }
 }
 
@@ -2512,6 +2584,12 @@ impl ReadArgs for PaintVarLinearGradient<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarLinearGradient<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarLinearGradientMarker {},
+        }
     }
 }
 
@@ -2718,6 +2796,12 @@ impl<'a> FontReadWithArgs<'a> for PaintRadialGradient<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintRadialGradientMarker {},
+        }
+    }
 }
 
 /// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
@@ -2902,6 +2986,12 @@ impl ReadArgs for PaintVarRadialGradient<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarRadialGradient<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarRadialGradientMarker {},
+        }
     }
 }
 
@@ -3106,6 +3196,12 @@ impl<'a> FontReadWithArgs<'a> for PaintSweepGradient<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintSweepGradientMarker {},
+        }
+    }
 }
 
 /// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
@@ -3264,6 +3360,12 @@ impl ReadArgs for PaintVarSweepGradient<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarSweepGradient<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarSweepGradientMarker {},
+        }
     }
 }
 
@@ -3440,6 +3542,12 @@ impl<'a> FontReadWithArgs<'a> for PaintGlyph<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintGlyphMarker {},
+        }
+    }
 }
 
 /// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
@@ -3554,6 +3662,12 @@ impl<'a> FontReadWithArgs<'a> for PaintColrGlyph<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintColrGlyphMarker {},
+        }
+    }
 }
 
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
@@ -3644,6 +3758,12 @@ impl ReadArgs for PaintTransform<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintTransform<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintTransformMarker {},
+        }
     }
 }
 
@@ -3768,6 +3888,12 @@ impl<'a> FontReadWithArgs<'a> for PaintVarTransform<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarTransformMarker {},
+        }
+    }
 }
 
 /// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
@@ -3886,6 +4012,12 @@ impl ReadArgs for Affine2x3<'_> {
 impl<'a> FontReadWithArgs<'a> for Affine2x3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Affine2x3Marker {},
+        }
     }
 }
 
@@ -4030,6 +4162,12 @@ impl ReadArgs for VarAffine2x3<'_> {
 impl<'a> FontReadWithArgs<'a> for VarAffine2x3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: VarAffine2x3Marker {},
+        }
     }
 }
 
@@ -4197,6 +4335,12 @@ impl<'a> FontReadWithArgs<'a> for PaintTranslate<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintTranslateMarker {},
+        }
+    }
 }
 
 /// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
@@ -4323,6 +4467,12 @@ impl ReadArgs for PaintVarTranslate<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarTranslate<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarTranslateMarker {},
+        }
     }
 }
 
@@ -4467,6 +4617,12 @@ impl<'a> FontReadWithArgs<'a> for PaintScale<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintScaleMarker {},
+        }
+    }
 }
 
 /// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
@@ -4593,6 +4749,12 @@ impl ReadArgs for PaintVarScale<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarScale<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarScaleMarker {},
+        }
     }
 }
 
@@ -4738,6 +4900,12 @@ impl ReadArgs for PaintScaleAroundCenter<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintScaleAroundCenter<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintScaleAroundCenterMarker {},
+        }
     }
 }
 
@@ -4895,6 +5063,12 @@ impl ReadArgs for PaintVarScaleAroundCenter<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarScaleAroundCenter<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarScaleAroundCenterMarker {},
+        }
     }
 }
 
@@ -5071,6 +5245,12 @@ impl<'a> FontReadWithArgs<'a> for PaintScaleUniform<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintScaleUniformMarker {},
+        }
+    }
 }
 
 /// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
@@ -5183,6 +5363,12 @@ impl ReadArgs for PaintVarScaleUniform<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarScaleUniform<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarScaleUniformMarker {},
+        }
     }
 }
 
@@ -5311,6 +5497,12 @@ impl ReadArgs for PaintScaleUniformAroundCenter<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintScaleUniformAroundCenter<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintScaleUniformAroundCenterMarker {},
+        }
     }
 }
 
@@ -5454,6 +5646,12 @@ impl ReadArgs for PaintVarScaleUniformAroundCenter<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarScaleUniformAroundCenter<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarScaleUniformAroundCenterMarker {},
+        }
     }
 }
 
@@ -5616,6 +5814,12 @@ impl<'a> FontReadWithArgs<'a> for PaintRotate<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintRotateMarker {},
+        }
+    }
 }
 
 /// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
@@ -5729,6 +5933,12 @@ impl ReadArgs for PaintVarRotate<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarRotate<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarRotateMarker {},
+        }
     }
 }
 
@@ -5857,6 +6067,12 @@ impl ReadArgs for PaintRotateAroundCenter<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintRotateAroundCenter<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintRotateAroundCenterMarker {},
+        }
     }
 }
 
@@ -6001,6 +6217,12 @@ impl ReadArgs for PaintVarRotateAroundCenter<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarRotateAroundCenter<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarRotateAroundCenterMarker {},
+        }
     }
 }
 
@@ -6162,6 +6384,12 @@ impl<'a> FontReadWithArgs<'a> for PaintSkew<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintSkewMarker {},
+        }
+    }
 }
 
 /// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
@@ -6290,6 +6518,12 @@ impl ReadArgs for PaintVarSkew<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarSkew<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarSkewMarker {},
+        }
     }
 }
 
@@ -6437,6 +6671,12 @@ impl ReadArgs for PaintSkewAroundCenter<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintSkewAroundCenter<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintSkewAroundCenterMarker {},
+        }
     }
 }
 
@@ -6596,6 +6836,12 @@ impl ReadArgs for PaintVarSkewAroundCenter<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintVarSkewAroundCenter<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintVarSkewAroundCenterMarker {},
+        }
     }
 }
 
@@ -6773,6 +7019,12 @@ impl ReadArgs for PaintComposite<'_> {
 impl<'a> FontReadWithArgs<'a> for PaintComposite<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: PaintCompositeMarker {},
+        }
     }
 }
 

@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Gvar<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GvarMarker {},
+        }
+    }
 }
 
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
@@ -542,6 +548,16 @@ impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
             },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let (shared_tuple_count, axis_count) = *args;
+        Self {
+            data,
+            shape: SharedTuplesMarker {
+                shared_tuple_count,
+                axis_count,
+            },
+        }
+    }
 }
 
 impl<'a> SharedTuples<'a> {
@@ -644,6 +660,12 @@ impl ReadArgs for GlyphVariationDataHeader<'_> {
 impl<'a> FontReadWithArgs<'a> for GlyphVariationDataHeader<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GlyphVariationDataHeaderMarker {},
+        }
     }
 }
 

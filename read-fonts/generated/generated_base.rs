@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Base<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: BaseMarker {},
+        }
+    }
 }
 
 /// The [BASE](https://learn.microsoft.com/en-us/typography/opentype/spec/base) (Baseline) table
@@ -185,6 +191,12 @@ impl<'a> FontReadWithArgs<'a> for Axis<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AxisMarker {},
+        }
+    }
 }
 
 /// [Axis Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#axis-tables-horizaxis-and-vertaxis)
@@ -291,6 +303,12 @@ impl<'a> FontReadWithArgs<'a> for BaseTagList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: BaseTagListMarker {},
+        }
+    }
 }
 
 /// [BaseTagList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basetaglist-table)
@@ -380,6 +398,12 @@ impl ReadArgs for BaseScriptList<'_> {
 impl<'a> FontReadWithArgs<'a> for BaseScriptList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: BaseScriptListMarker {},
+        }
     }
 }
 
@@ -530,6 +554,12 @@ impl ReadArgs for BaseScript<'_> {
 impl<'a> FontReadWithArgs<'a> for BaseScript<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: BaseScriptMarker {},
+        }
     }
 }
 
@@ -729,6 +759,12 @@ impl<'a> FontReadWithArgs<'a> for BaseValues<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: BaseValuesMarker {},
+        }
+    }
 }
 
 /// [BaseValues](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basevalues-table) table
@@ -857,6 +893,12 @@ impl ReadArgs for MinMax<'_> {
 impl<'a> FontReadWithArgs<'a> for MinMax<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MinMaxMarker {},
+        }
     }
 }
 
@@ -1182,6 +1224,12 @@ impl<'a> FontReadWithArgs<'a> for BaseCoordFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: BaseCoordFormat1Marker {},
+        }
+    }
 }
 
 /// [BaseCoordFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-1)
@@ -1272,6 +1320,12 @@ impl ReadArgs for BaseCoordFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for BaseCoordFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: BaseCoordFormat2Marker {},
+        }
     }
 }
 
@@ -1390,6 +1444,12 @@ impl ReadArgs for BaseCoordFormat3<'_> {
 impl<'a> FontReadWithArgs<'a> for BaseCoordFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: BaseCoordFormat3Marker {},
+        }
     }
 }
 

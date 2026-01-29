@@ -35,6 +35,12 @@ impl<'a> FontReadWithArgs<'a> for MajorMinorVersion<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MajorMinorVersionMarker {},
+        }
+    }
 }
 
 pub type MajorMinorVersion<'a> = TableRef<'a, MajorMinorVersionMarker>;
@@ -455,6 +461,12 @@ impl<'a> FontReadWithArgs<'a> for FlagDay<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FlagDayMarker {},
+        }
+    }
 }
 
 pub type FlagDay<'a> = TableRef<'a, FlagDayMarker>;
@@ -585,6 +597,12 @@ impl ReadArgs for FieldsAfterConditionals<'_> {
 impl<'a> FontReadWithArgs<'a> for FieldsAfterConditionals<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FieldsAfterConditionalsMarker {},
+        }
     }
 }
 

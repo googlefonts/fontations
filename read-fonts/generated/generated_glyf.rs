@@ -35,6 +35,12 @@ impl<'a> FontReadWithArgs<'a> for Glyf<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GlyfMarker {},
+        }
+    }
 }
 
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
@@ -98,6 +104,12 @@ impl ReadArgs for SimpleGlyph<'_> {
 impl<'a> FontReadWithArgs<'a> for SimpleGlyph<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SimpleGlyphMarker {},
+        }
     }
 }
 
@@ -690,6 +702,12 @@ impl ReadArgs for CompositeGlyph<'_> {
 impl<'a> FontReadWithArgs<'a> for CompositeGlyph<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CompositeGlyphMarker {},
+        }
     }
 }
 

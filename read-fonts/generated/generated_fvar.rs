@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Fvar<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FvarMarker {},
+        }
+    }
 }
 
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
@@ -214,6 +220,17 @@ impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
                 instance_size,
             },
         })
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let (axis_count, instance_count, instance_size) = *args;
+        Self {
+            data,
+            shape: AxisInstanceArraysMarker {
+                axis_count,
+                instance_count,
+                instance_size,
+            },
+        }
     }
 }
 
