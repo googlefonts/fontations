@@ -809,9 +809,15 @@ impl<'a> FontRead<'a> for CaretValue<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            CaretValueFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            CaretValueFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            CaretValueFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            CaretValueFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            CaretValueFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            CaretValueFormat3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

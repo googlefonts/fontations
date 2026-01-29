@@ -283,9 +283,15 @@ impl<'a> FontRead<'a> for FdSelect<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
-            FdSelectFormat0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
-            FdSelectFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            FdSelectFormat4Marker::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
+            FdSelectFormat0Marker::FORMAT => {
+                Ok(Self::Format0(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            FdSelectFormat3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            FdSelectFormat4Marker::FORMAT => {
+                Ok(Self::Format4(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -815,9 +821,15 @@ impl<'a> FontRead<'a> for CustomCharset<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
-            CharsetFormat0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
-            CharsetFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            CharsetFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            CharsetFormat0Marker::FORMAT => {
+                Ok(Self::Format0(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            CharsetFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            CharsetFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

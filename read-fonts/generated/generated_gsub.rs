@@ -420,8 +420,12 @@ impl<'a> FontRead<'a> for SingleSubst<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            SingleSubstFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            SingleSubstFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            SingleSubstFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            SingleSubstFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -474,6 +478,101 @@ impl std::fmt::Debug for SingleSubst<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SingleSubst<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+/// LookupType 1: [Single Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#lookuptype-1-single-substitution-subtable) Subtable
+#[derive(Clone)]
+pub enum SanitizedSingleSubst<'a> {
+    Format1(Sanitized<SingleSubstFormat1<'a>>),
+    Format2(Sanitized<SingleSubstFormat2<'a>>),
+}
+
+impl<'a> SanitizedSingleSubst<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.subst_format(),
+            Self::Format2(item) => item.subst_format(),
+        }
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset16 {
+        match self {
+            Self::Format1(item) => item.coverage_offset(),
+            Self::Format2(item) => item.coverage_offset(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedSingleSubst<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            SingleSubstFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            SingleSubstFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedSingleSubst<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedSingleSubst<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedSingleSubst<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.0.min_byte_range(),
+            Self::Format2(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedSingleSubst<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedSingleSubst<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedSingleSubst<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }

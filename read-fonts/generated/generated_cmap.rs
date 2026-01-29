@@ -289,15 +289,23 @@ impl<'a> FontRead<'a> for CmapSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            Cmap0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
-            Cmap2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            Cmap4Marker::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
-            Cmap6Marker::FORMAT => Ok(Self::Format6(FontRead::read(data)?)),
-            Cmap8Marker::FORMAT => Ok(Self::Format8(FontRead::read(data)?)),
-            Cmap10Marker::FORMAT => Ok(Self::Format10(FontRead::read(data)?)),
-            Cmap12Marker::FORMAT => Ok(Self::Format12(FontRead::read(data)?)),
-            Cmap13Marker::FORMAT => Ok(Self::Format13(FontRead::read(data)?)),
-            Cmap14Marker::FORMAT => Ok(Self::Format14(FontRead::read(data)?)),
+            Cmap0Marker::FORMAT => Ok(Self::Format0(FontReadWithArgs::read_with_args(data, &())?)),
+            Cmap2Marker::FORMAT => Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?)),
+            Cmap4Marker::FORMAT => Ok(Self::Format4(FontReadWithArgs::read_with_args(data, &())?)),
+            Cmap6Marker::FORMAT => Ok(Self::Format6(FontReadWithArgs::read_with_args(data, &())?)),
+            Cmap8Marker::FORMAT => Ok(Self::Format8(FontReadWithArgs::read_with_args(data, &())?)),
+            Cmap10Marker::FORMAT => {
+                Ok(Self::Format10(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            Cmap12Marker::FORMAT => {
+                Ok(Self::Format12(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            Cmap13Marker::FORMAT => {
+                Ok(Self::Format13(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            Cmap14Marker::FORMAT => {
+                Ok(Self::Format14(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

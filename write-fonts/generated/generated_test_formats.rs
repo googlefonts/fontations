@@ -239,3 +239,55 @@ impl From<Table3> for MyTable {
         MyTable::Format3(src)
     }
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HostTable {
+    pub child: OffsetMarker<MyTable>,
+}
+
+impl HostTable {
+    /// Construct a new `HostTable`
+    pub fn new(child: MyTable) -> Self {
+        Self {
+            child: child.into(),
+        }
+    }
+}
+
+impl FontWrite for HostTable {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.child.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("HostTable")
+    }
+}
+
+impl Validate for HostTable {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("HostTable", |ctx| {
+            ctx.in_field("child", |ctx| {
+                self.child.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::formats::HostTable<'a>> for HostTable {
+    fn from_obj_ref(obj: &read_fonts::codegen_test::formats::HostTable<'a>, _: FontData) -> Self {
+        HostTable {
+            child: obj.child().to_owned_table(),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::codegen_test::formats::HostTable<'a>> for HostTable {}
+
+impl<'a> FontRead<'a> for HostTable {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::codegen_test::formats::HostTable as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}

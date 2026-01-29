@@ -47,12 +47,24 @@ impl<'a> FontRead<'a> for Lookup<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            Lookup0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
-            Lookup2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            Lookup4Marker::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
-            Lookup6Marker::FORMAT => Ok(Self::Format6(FontRead::read(data)?)),
-            Lookup8Marker::FORMAT => Ok(Self::Format8(FontRead::read(data)?)),
-            Lookup10Marker::FORMAT => Ok(Self::Format10(FontRead::read(data)?)),
+            Lookup0Marker::FORMAT => {
+                Ok(Self::Format0(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            Lookup2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            Lookup4Marker::FORMAT => {
+                Ok(Self::Format4(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            Lookup6Marker::FORMAT => {
+                Ok(Self::Format6(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            Lookup8Marker::FORMAT => {
+                Ok(Self::Format8(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            Lookup10Marker::FORMAT => {
+                Ok(Self::Format10(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

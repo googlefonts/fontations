@@ -14,6 +14,28 @@ pub mod records {
 
 pub mod formats {
     include!("../generated/generated_test_formats.rs");
+
+    #[cfg(test)]
+    use font_test_data::bebuffer::BeBuffer;
+
+    #[test]
+    fn sanitize_api() {
+        let builder = BeBuffer::new()
+            .push(2u16) // offset
+            .push(2u16) // format2
+            .push(6u16) // value_count
+            .extend([1u16, 2, 3, 4, 5, 6]); // values
+
+        let thingie = HostTable::read(builder.data().into())
+            .unwrap()
+            .sanitize()
+            .unwrap();
+
+        assert!(matches!(
+            thingie.child().unwrap(),
+            SanitizedMyTable::MyFormat22(_)
+        ));
+    }
 }
 
 pub mod read_args {

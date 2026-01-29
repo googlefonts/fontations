@@ -1836,8 +1836,12 @@ impl<'a> FontRead<'a> for CoverageTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            CoverageFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            CoverageFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            CoverageFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            CoverageFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1890,6 +1894,92 @@ impl std::fmt::Debug for CoverageTable<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CoverageTable<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+/// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
+#[derive(Clone)]
+pub enum SanitizedCoverageTable<'a> {
+    Format1(Sanitized<CoverageFormat1<'a>>),
+    Format2(Sanitized<CoverageFormat2<'a>>),
+}
+
+impl<'a> SanitizedCoverageTable<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier — format = 1
+    pub fn coverage_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.coverage_format(),
+            Self::Format2(item) => item.coverage_format(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedCoverageTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            CoverageFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            CoverageFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedCoverageTable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedCoverageTable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedCoverageTable<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.0.min_byte_range(),
+            Self::Format2(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedCoverageTable<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedCoverageTable<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedCoverageTable<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }
@@ -2300,8 +2390,12 @@ impl<'a> FontRead<'a> for ClassDef<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            ClassDefFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            ClassDefFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            ClassDefFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            ClassDefFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -2354,6 +2448,92 @@ impl std::fmt::Debug for ClassDef<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClassDef<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+/// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
+#[derive(Clone)]
+pub enum SanitizedClassDef<'a> {
+    Format1(Sanitized<ClassDefFormat1<'a>>),
+    Format2(Sanitized<ClassDefFormat2<'a>>),
+}
+
+impl<'a> SanitizedClassDef<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier — format = 1
+    pub fn class_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.class_format(),
+            Self::Format2(item) => item.class_format(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedClassDef<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            ClassDefFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            ClassDefFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedClassDef<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedClassDef<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedClassDef<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.0.min_byte_range(),
+            Self::Format2(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedClassDef<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedClassDef<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedClassDef<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }
@@ -2484,7 +2664,7 @@ impl<'a> Sanitized<SequenceContextFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -3003,7 +3183,7 @@ impl<'a> Sanitized<SequenceContextFormat2<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -3016,7 +3196,7 @@ impl<'a> Sanitized<SequenceContextFormat2<'a>> {
     }
 
     /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
-    pub fn class_def(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+    pub fn class_def(&self) -> Result<SanitizedClassDef<'a>, ReadError> {
         let data = self.0.data;
         self.class_def_offset().resolve_with_args(data, &())
     }
@@ -3585,7 +3765,7 @@ impl<'a> Sanitized<SequenceContextFormat3<'a>> {
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
-    pub fn coverages(&self) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+    pub fn coverages(&self) -> ArrayOfOffsets<'a, SanitizedCoverageTable<'a>, Offset16> {
         let data = self.0.data;
         let offsets = self.coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -3753,9 +3933,15 @@ impl<'a> FontRead<'a> for SequenceContext<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            SequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            SequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            SequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            SequenceContextFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            SequenceContextFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            SequenceContextFormat3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -3811,6 +3997,99 @@ impl std::fmt::Debug for SequenceContext<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SequenceContext<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+#[derive(Clone)]
+pub enum SanitizedSequenceContext<'a> {
+    Format1(Sanitized<SequenceContextFormat1<'a>>),
+    Format2(Sanitized<SequenceContextFormat2<'a>>),
+    Format3(Sanitized<SequenceContextFormat3<'a>>),
+}
+
+impl<'a> SanitizedSequenceContext<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::Format2(item) => item.format(),
+            Self::Format3(item) => item.format(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedSequenceContext<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            SequenceContextFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            SequenceContextFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            SequenceContextFormat3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedSequenceContext<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedSequenceContext<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedSequenceContext<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.0.min_byte_range(),
+            Self::Format2(item) => item.0.min_byte_range(),
+            Self::Format3(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedSequenceContext<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+            Self::Format3(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedSequenceContext<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedSequenceContext<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }
@@ -3887,7 +4166,7 @@ impl<'a> Sanitized<ChainedSequenceContextFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -4509,7 +4788,7 @@ impl<'a> Sanitized<ChainedSequenceContextFormat2<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -4522,7 +4801,7 @@ impl<'a> Sanitized<ChainedSequenceContextFormat2<'a>> {
     }
 
     /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
-    pub fn backtrack_class_def(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+    pub fn backtrack_class_def(&self) -> Result<SanitizedClassDef<'a>, ReadError> {
         let data = self.0.data;
         self.backtrack_class_def_offset()
             .resolve_with_args(data, &())
@@ -4536,7 +4815,7 @@ impl<'a> Sanitized<ChainedSequenceContextFormat2<'a>> {
     }
 
     /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
-    pub fn input_class_def(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+    pub fn input_class_def(&self) -> Result<SanitizedClassDef<'a>, ReadError> {
         let data = self.0.data;
         self.input_class_def_offset().resolve_with_args(data, &())
     }
@@ -4549,7 +4828,7 @@ impl<'a> Sanitized<ChainedSequenceContextFormat2<'a>> {
     }
 
     /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
-    pub fn lookahead_class_def(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+    pub fn lookahead_class_def(&self) -> Result<SanitizedClassDef<'a>, ReadError> {
         let data = self.0.data;
         self.lookahead_class_def_offset()
             .resolve_with_args(data, &())
@@ -5261,9 +5540,7 @@ impl<'a> Sanitized<ChainedSequenceContextFormat3<'a>> {
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverages(
-        &self,
-    ) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, SanitizedCoverageTable<'a>, Offset16> {
         let data = self.0.data;
         let offsets = self.backtrack_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -5282,7 +5559,7 @@ impl<'a> Sanitized<ChainedSequenceContextFormat3<'a>> {
     }
 
     /// A dynamically resolving wrapper for [`input_coverage_offsets`][Self::input_coverage_offsets].
-    pub fn input_coverages(&self) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+    pub fn input_coverages(&self) -> ArrayOfOffsets<'a, SanitizedCoverageTable<'a>, Offset16> {
         let data = self.0.data;
         let offsets = self.input_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -5301,9 +5578,7 @@ impl<'a> Sanitized<ChainedSequenceContextFormat3<'a>> {
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverages(
-        &self,
-    ) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, SanitizedCoverageTable<'a>, Offset16> {
         let data = self.0.data;
         let offsets = self.lookahead_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -5580,9 +5855,15 @@ impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            ChainedSequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            ChainedSequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            ChainedSequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            ChainedSequenceContextFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            ChainedSequenceContextFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            ChainedSequenceContextFormat3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -5638,6 +5919,99 @@ impl std::fmt::Debug for ChainedSequenceContext<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ChainedSequenceContext<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+#[derive(Clone)]
+pub enum SanitizedChainedSequenceContext<'a> {
+    Format1(Sanitized<ChainedSequenceContextFormat1<'a>>),
+    Format2(Sanitized<ChainedSequenceContextFormat2<'a>>),
+    Format3(Sanitized<ChainedSequenceContextFormat3<'a>>),
+}
+
+impl<'a> SanitizedChainedSequenceContext<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::Format2(item) => item.format(),
+            Self::Format3(item) => item.format(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedChainedSequenceContext<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            ChainedSequenceContextFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            ChainedSequenceContextFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            ChainedSequenceContextFormat3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedChainedSequenceContext<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedChainedSequenceContext<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedChainedSequenceContext<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.0.min_byte_range(),
+            Self::Format2(item) => item.0.min_byte_range(),
+            Self::Format3(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedChainedSequenceContext<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+            Self::Format3(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedChainedSequenceContext<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedChainedSequenceContext<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }
@@ -6026,11 +6400,11 @@ impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
         #[allow(clippy::redundant_guards)]
         match format {
             format if format != DeltaFormat::VariationIndex => {
-                Ok(Self::Device(FontRead::read(data)?))
+                Ok(Self::Device(FontReadWithArgs::read_with_args(data, &())?))
             }
-            format if format == DeltaFormat::VariationIndex => {
-                Ok(Self::VariationIndex(FontRead::read(data)?))
-            }
+            format if format == DeltaFormat::VariationIndex => Ok(Self::VariationIndex(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -6083,6 +6457,86 @@ impl std::fmt::Debug for DeviceOrVariationIndex<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DeviceOrVariationIndex<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+/// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
+#[derive(Clone)]
+pub enum SanitizedDeviceOrVariationIndex<'a> {
+    Device(Sanitized<Device<'a>>),
+    VariationIndex(Sanitized<VariationIndex<'a>>),
+}
+
+impl<'a> SanitizedDeviceOrVariationIndex<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Device(item) => item.offset_data(),
+            Self::VariationIndex(item) => item.offset_data(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedDeviceOrVariationIndex<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: DeltaFormat = data.read_at(4usize)?;
+
+        #[allow(clippy::redundant_guards)]
+        match format {
+            format if format != DeltaFormat::VariationIndex => {
+                Ok(Self::Device(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            format if format == DeltaFormat::VariationIndex => Ok(Self::VariationIndex(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedDeviceOrVariationIndex<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedDeviceOrVariationIndex<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedDeviceOrVariationIndex<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Device(item) => item.0.min_byte_range(),
+            Self::VariationIndex(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedDeviceOrVariationIndex<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Device(table) => table,
+            Self::VariationIndex(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedDeviceOrVariationIndex<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedDeviceOrVariationIndex<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }
@@ -6431,7 +6885,7 @@ impl<'a> Sanitized<ConditionSet<'a>> {
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> ArrayOfOffsets<'a, Sanitized<Condition<'a>>, Offset32> {
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, SanitizedCondition<'a>, Offset32> {
         let data = self.0.data;
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -6555,11 +7009,21 @@ impl<'a> FontRead<'a> for Condition<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            ConditionFormat1Marker::FORMAT => Ok(Self::Format1AxisRange(FontRead::read(data)?)),
-            ConditionFormat2Marker::FORMAT => Ok(Self::Format2VariableValue(FontRead::read(data)?)),
-            ConditionFormat3Marker::FORMAT => Ok(Self::Format3And(FontRead::read(data)?)),
-            ConditionFormat4Marker::FORMAT => Ok(Self::Format4Or(FontRead::read(data)?)),
-            ConditionFormat5Marker::FORMAT => Ok(Self::Format5Negate(FontRead::read(data)?)),
+            ConditionFormat1Marker::FORMAT => Ok(Self::Format1AxisRange(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            ConditionFormat2Marker::FORMAT => Ok(Self::Format2VariableValue(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            ConditionFormat3Marker::FORMAT => Ok(Self::Format3And(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            ConditionFormat4Marker::FORMAT => Ok(Self::Format4Or(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            ConditionFormat5Marker::FORMAT => Ok(Self::Format5Negate(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -6621,6 +7085,119 @@ impl std::fmt::Debug for Condition<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Condition<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+/// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
+///
+/// Formats 2..5 are implementations of specification changes currently under debate at ISO for an OFF
+/// update. For the time being the specification is <https://github.com/harfbuzz/boring-expansion-spec/blob/main/ConditionTree.md>.
+#[derive(Clone)]
+pub enum SanitizedCondition<'a> {
+    Format1AxisRange(Sanitized<ConditionFormat1<'a>>),
+    Format2VariableValue(Sanitized<ConditionFormat2<'a>>),
+    Format3And(Sanitized<ConditionFormat3<'a>>),
+    Format4Or(Sanitized<ConditionFormat4<'a>>),
+    Format5Negate(Sanitized<ConditionFormat5<'a>>),
+}
+
+impl<'a> SanitizedCondition<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1AxisRange(item) => item.offset_data(),
+            Self::Format2VariableValue(item) => item.offset_data(),
+            Self::Format3And(item) => item.offset_data(),
+            Self::Format4Or(item) => item.offset_data(),
+            Self::Format5Negate(item) => item.offset_data(),
+        }
+    }
+
+    /// Format, = 1
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1AxisRange(item) => item.format(),
+            Self::Format2VariableValue(item) => item.format(),
+            Self::Format3And(item) => item.format(),
+            Self::Format4Or(item) => item.format(),
+            Self::Format5Negate(item) => item.format(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedCondition<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            ConditionFormat1Marker::FORMAT => Ok(Self::Format1AxisRange(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            ConditionFormat2Marker::FORMAT => Ok(Self::Format2VariableValue(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            ConditionFormat3Marker::FORMAT => Ok(Self::Format3And(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            ConditionFormat4Marker::FORMAT => Ok(Self::Format4Or(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            ConditionFormat5Marker::FORMAT => Ok(Self::Format5Negate(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedCondition<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedCondition<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedCondition<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1AxisRange(item) => item.0.min_byte_range(),
+            Self::Format2VariableValue(item) => item.0.min_byte_range(),
+            Self::Format3And(item) => item.0.min_byte_range(),
+            Self::Format4Or(item) => item.0.min_byte_range(),
+            Self::Format5Negate(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedCondition<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1AxisRange(table) => table,
+            Self::Format2VariableValue(table) => table,
+            Self::Format3And(table) => table,
+            Self::Format4Or(table) => table,
+            Self::Format5Negate(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedCondition<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedCondition<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }
@@ -7009,7 +7586,7 @@ impl<'a> Sanitized<ConditionFormat3<'a>> {
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> ArrayOfOffsets<'a, Sanitized<Condition<'a>>, Offset24> {
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, SanitizedCondition<'a>, Offset24> {
         let data = self.0.data;
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -7176,7 +7753,7 @@ impl<'a> Sanitized<ConditionFormat4<'a>> {
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> ArrayOfOffsets<'a, Sanitized<Condition<'a>>, Offset24> {
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, SanitizedCondition<'a>, Offset24> {
         let data = self.0.data;
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -7337,7 +7914,7 @@ impl<'a> Sanitized<ConditionFormat5<'a>> {
     }
 
     /// Attempt to resolve [`condition_offset`][Self::condition_offset].
-    pub fn condition(&self) -> Result<Sanitized<Condition<'a>>, ReadError> {
+    pub fn condition(&self) -> Result<SanitizedCondition<'a>, ReadError> {
         let data = self.0.data;
         self.condition_offset().resolve_with_args(data, &())
     }

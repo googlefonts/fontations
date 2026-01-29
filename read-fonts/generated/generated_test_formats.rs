@@ -47,6 +47,31 @@ impl<'a> FontReadWithArgs<'a> for Table1<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for Table1<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
+    }
+}
+
+impl<'a> Sanitized<Table1<'a>> {
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    pub fn heft(&self) -> u32 {
+        let range = self.0.heft_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    pub fn flex(&self) -> u16 {
+        let range = self.0.flex_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+}
+
 pub type Table1<'a> = TableRef<'a, Table1Marker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -149,6 +174,31 @@ impl<'a> FontReadWithArgs<'a> for Table2<'a> {
             data,
             shape: Table2Marker {},
         }
+    }
+}
+
+impl<'a> Sanitize<'a> for Table2<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
+    }
+}
+
+impl<'a> Sanitized<Table2<'a>> {
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    pub fn value_count(&self) -> u16 {
+        let range = self.0.value_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    pub fn values(&self) -> &'a [BigEndian<u16>] {
+        let range = self.0.values_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -258,6 +308,26 @@ impl<'a> FontReadWithArgs<'a> for Table3<'a> {
     }
 }
 
+impl<'a> Sanitize<'a> for Table3<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        Ok(())
+    }
+}
+
+impl<'a> Sanitized<Table3<'a>> {
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    pub fn something(&self) -> u16 {
+        let range = self.0.something_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+}
+
 pub type Table3<'a> = TableRef<'a, Table3Marker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -339,9 +409,12 @@ impl<'a> FontRead<'a> for MyTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            Table1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            Table2Marker::FORMAT => Ok(Self::MyFormat22(FontRead::read(data)?)),
-            Table3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            Table1Marker::FORMAT => Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?)),
+            Table2Marker::FORMAT => Ok(Self::MyFormat22(FontReadWithArgs::read_with_args(
+                data,
+                &(),
+            )?)),
+            Table3Marker::FORMAT => Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -363,6 +436,16 @@ impl MinByteRange for MyTable<'_> {
             Self::Format1(item) => item.min_byte_range(),
             Self::MyFormat22(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for MyTable<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        match self {
+            Self::Format1(table) => table.sanitize_impl(),
+            Self::MyFormat22(table) => table.sanitize_impl(),
+            Self::Format3(table) => table.sanitize_impl(),
         }
     }
 }
@@ -392,5 +475,202 @@ impl<'a> SomeTable<'a> for MyTable<'a> {
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         self.dyn_inner().get_field(idx)
+    }
+}
+
+#[derive(Clone)]
+pub enum SanitizedMyTable<'a> {
+    Format1(Sanitized<Table1<'a>>),
+    MyFormat22(Sanitized<Table2<'a>>),
+    Format3(Sanitized<Table3<'a>>),
+}
+
+impl<'a> SanitizedMyTable<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::MyFormat22(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::MyFormat22(item) => item.format(),
+            Self::Format3(item) => item.format(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedMyTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            Table1Marker::FORMAT => Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?)),
+            Table2Marker::FORMAT => Ok(Self::MyFormat22(FontReadWithArgs::read_with_args(
+                data,
+                &(),
+            )?)),
+            Table3Marker::FORMAT => Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedMyTable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedMyTable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedMyTable<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.0.min_byte_range(),
+            Self::MyFormat22(item) => item.0.min_byte_range(),
+            Self::Format3(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedMyTable<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::MyFormat22(table) => table,
+            Self::Format3(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedMyTable<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedMyTable<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct HostTableMarker {}
+
+impl<'a> MinByteRange for HostTable<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.child_offset_byte_range().end
+    }
+}
+
+impl<'a> FontRead<'a> for HostTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: HostTableMarker {},
+        })
+    }
+}
+
+impl ReadArgs for HostTable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for HostTable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: HostTableMarker {},
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for HostTable<'a> {
+    #[allow(unused_variables)]
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        let offset_data = self.offset_data();
+        self.child()?.sanitize_impl()?;
+        Ok(())
+    }
+}
+
+impl<'a> Sanitized<HostTable<'a>> {
+    pub fn child_offset(&self) -> Offset16 {
+        let range = self.0.child_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`child_offset`][Self::child_offset].
+    pub fn child(&self) -> Result<SanitizedMyTable<'a>, ReadError> {
+        let data = self.0.data;
+        self.child_offset().resolve_with_args(data, &())
+    }
+}
+
+pub type HostTable<'a> = TableRef<'a, HostTableMarker>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> HostTable<'a> {
+    pub const MIN_SIZE: usize = Offset16::RAW_BYTE_LEN;
+
+    pub fn child_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn child_offset(&self) -> Offset16 {
+        let range = self.child_offset_byte_range();
+        unsafe { self.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`child_offset`][Self::child_offset].
+    pub fn child(&self) -> Result<MyTable<'a>, ReadError> {
+        let data = self.data;
+        self.child_offset().resolve_with_args(data, &())
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for HostTable<'a> {
+    fn type_name(&self) -> &str {
+        "HostTable"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "child_offset",
+                FieldType::offset(self.child_offset(), self.child()),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for HostTable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

@@ -8,7 +8,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 
 use crate::parsing::{Attr, GenericGroup, Item, Module, Phase};
 
@@ -100,9 +100,8 @@ pub(crate) fn generate(item: &Table, items: &Module) -> syn::Result<TokenStream>
         }
     });
 
-    let sanitize = items
-        .generate_sanitize
-        .is_some()
+    let do_sanitize = items.generate_sanitize.is_some() && item.attrs.skip_sanitize.is_none();
+    let sanitize = do_sanitize
         .then(|| generate_sanitize(item, items))
         .transpose()?;
 
@@ -237,7 +236,7 @@ fn generate_sanitize(table: &Table, items: &Module) -> syn::Result<TokenStream> 
     let name = table.raw_name();
     let generic = table.attrs.generic_offset.as_ref();
     let sanitize_stmts = table.sanitize_stmts(items);
-    let sanitize_getters = table.sanitize_getters();
+    let sanitize_getters = table.sanitize_getters(items);
     let generic_bound = generic
         .is_some()
         .then(|| quote!(: FontReadWithArgs<'a, Args=()> + Sanitize<'a>));
@@ -859,7 +858,25 @@ pub(crate) fn generate_format_group(
     item: &TableFormat,
     items: &Module,
 ) -> syn::Result<TokenStream> {
-    let name = &item.name;
+    let mut normal = generate_format_group_impl(item, items, false)?;
+    let do_sanitize = items.generate_sanitize.is_some() && item.attrs.skip_sanitize.is_none();
+    let sani = do_sanitize
+        .then(|| generate_format_group_impl(item, items, true))
+        .transpose()?;
+    normal.extend(sani);
+    Ok(normal)
+}
+
+pub(crate) fn generate_format_group_impl(
+    item: &TableFormat,
+    items: &Module,
+    for_sanitize: bool,
+) -> syn::Result<TokenStream> {
+    let name = if for_sanitize {
+        item.ident_for_sanitize()
+    } else {
+        item.name.clone()
+    };
     let docs = &item.attrs.docs;
 
     // if we have any fancy match statement we disable a clippy lint
@@ -877,9 +894,17 @@ pub(crate) fn generate_format_group(
         let name = &variant.name;
         let typ = variant.type_name();
         let docs = &variant.attrs.docs;
-        variants.push(quote! ( #( #docs )* #name(#typ<'a>) ));
+        if for_sanitize {
+            variants.push(quote! ( #( #docs )* #name(Sanitized<#typ<'a>>) ));
+        } else {
+            variants.push(quote! ( #( #docs )* #name(#typ<'a>) ));
+        }
         traversal_arms.push(quote!(Self::#name(table) => table));
-        min_byte_arms.push(quote!(Self::#name(item) => item.min_byte_range(), ));
+        if !for_sanitize {
+            min_byte_arms.push(quote!(Self::#name(item) => item.min_byte_range(), ));
+        } else {
+            min_byte_arms.push(quote!(Self::#name(item) => item.0.min_byte_range(), ));
+        }
         // match arms:
         let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
             has_any_match_stmt = true;
@@ -891,7 +916,7 @@ pub(crate) fn generate_format_group(
         };
         match_arms.push(quote! {
             #lhs => {
-                Ok(Self::#name(FontRead::read(data)?))
+                Ok(Self::#name(FontReadWithArgs::read_with_args(data, &())?))
             }
         });
     }
@@ -915,7 +940,8 @@ pub(crate) fn generate_format_group(
         }
     });
 
-    let do_sanitize = items.generate_sanitize.is_some() && item.attrs.skip_sanitize.is_none();
+    let do_sanitize =
+        (!for_sanitize) && items.generate_sanitize.is_some() && item.attrs.skip_sanitize.is_none();
     let maybe_sanitize_impl = do_sanitize.then(|| generate_format_sanitize(item));
 
     Ok(quote! {
@@ -1078,11 +1104,11 @@ impl Table {
             .flat_map(|fld| fld.sanitize_stmt(false, items))
     }
 
-    fn sanitize_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
+    fn sanitize_getters<'a>(&'a self, items: &'a Module) -> impl Iterator<Item = TokenStream> + 'a {
         let generic = self.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
         self.fields
             .iter()
-            .filter_map(move |fld| fld.sanitize_getter(generic))
+            .filter_map(move |fld| fld.sanitize_getter(generic, items))
             .chain(
                 self.attrs.read_args.as_ref().into_iter().flat_map(|args| {
                     args.iter_table_ref_getters(&self.fields.referenced_fields, true)
@@ -1143,6 +1169,12 @@ impl Table {
             [one] => one.to_owned(),
             more => quote!( (#(#more)+*) ),
         }
+    }
+}
+
+impl TableFormat {
+    pub(crate) fn ident_for_sanitize(&self) -> syn::Ident {
+        format_ident!("Sanitized{}", self.name)
     }
 }
 

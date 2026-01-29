@@ -24,7 +24,10 @@ pub(crate) fn generate(item: &Record, all_items: &Module) -> syn::Result<TokenSt
         let docs = &fld.attrs.docs;
         quote!( #( #docs )* )
     });
-    let getters = item.fields.iter().map(|fld| fld.record_getter(item, false));
+    let getters = item
+        .fields
+        .iter()
+        .map(|fld| fld.record_getter(item, false, Some(all_items)));
     let traversal_impl = generate_traversal(item)?;
 
     let lifetime = &item.lifetime;
@@ -190,7 +193,7 @@ fn generate_sanitized_getters(item: &Record, items: &Module) -> Option<TokenStre
     let getters = item
         .fields
         .iter()
-        .map(|fld| fld.record_getter(item, true))
+        .map(|fld| fld.record_getter(item, true, Some(items)))
         .collect::<Vec<_>>();
 
     if getters.is_empty() {

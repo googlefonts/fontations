@@ -814,7 +814,7 @@ impl Field {
         }
 
         let docs = &self.attrs.docs;
-        let offset_getter = self.typed_offset_field_getter(generic, None, false);
+        let offset_getter = self.typed_offset_field_getter(generic, None, false, None);
 
         Some(quote! {
             #( #docs )*
@@ -827,7 +827,11 @@ impl Field {
         })
     }
 
-    pub(crate) fn sanitize_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
+    pub(crate) fn sanitize_getter(
+        &self,
+        generic: Option<&syn::Ident>,
+        items: &Module,
+    ) -> Option<TokenStream> {
         let return_type = self.table_getter_return_type_maybe_sanitized(true)?;
         let name = &self.name;
         let is_array = self.is_array();
@@ -850,7 +854,7 @@ impl Field {
         }
 
         let docs = &self.attrs.docs;
-        let offset_getter = self.typed_offset_field_getter(generic, None, true);
+        let offset_getter = self.typed_offset_field_getter(generic, None, true, Some(items));
 
         Some(quote! {
             #( #docs )*
@@ -863,7 +867,12 @@ impl Field {
         })
     }
 
-    pub(crate) fn record_getter(&self, record: &Record, for_sanitize: bool) -> Option<TokenStream> {
+    pub(crate) fn record_getter(
+        &self,
+        record: &Record,
+        for_sanitize: bool,
+        items: Option<&Module>,
+    ) -> Option<TokenStream> {
         if !self.has_getter() {
             return None;
         }
@@ -898,7 +907,7 @@ impl Field {
             }
         };
 
-        let offset_getter = self.typed_offset_field_getter(None, Some(record), for_sanitize);
+        let offset_getter = self.typed_offset_field_getter(None, Some(record), for_sanitize, items);
         Some(quote! {
             #(#docs)*
             pub fn #name(&self) -> #add_borrow_just_for_record #return_type {
@@ -943,6 +952,7 @@ impl Field {
         generic: Option<&syn::Ident>,
         record: Option<&Record>,
         in_sanitize: bool,
+        items: Option<&Module>, // only if sanitize
     ) -> Option<TokenStream> {
         let (offset_type, target) = match &self.typ {
             _ if self.attrs.offset_getter.is_some() => return None,
@@ -991,9 +1001,16 @@ impl Field {
             };
 
             let target_lifetime = (!target_is_generic).then(|| quote!(<'a>));
-            let target_type = in_sanitize
-                .then(|| quote!(Sanitized<#target_ident #target_lifetime>))
-                .unwrap_or_else(|| quote!( #target_ident #target_lifetime ));
+            let target_type = if in_sanitize {
+                if let Some(Item::Format(group)) = items.unwrap().get(target_ident) {
+                    let ident = group.ident_for_sanitize();
+                    quote!( #ident #target_lifetime )
+                } else {
+                    quote!(Sanitized<#target_ident #target_lifetime>)
+                }
+            } else {
+                quote!( #target_ident #target_lifetime )
+            };
 
             let args_token = if self.attrs.read_offset_args.is_some() {
                 quote!(args)
@@ -1019,7 +1036,7 @@ impl Field {
                 }
             })
         } else {
-            let mut return_type = target.getter_return_type(target_is_generic, in_sanitize);
+            let mut return_type = target.getter_return_type(target_is_generic, in_sanitize, items);
             if self.is_nullable() || self.attrs.conditional.is_some() {
                 return_type = quote!(Option<#return_type>);
             }

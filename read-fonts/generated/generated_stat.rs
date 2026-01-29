@@ -445,10 +445,18 @@ impl<'a> FontRead<'a> for AxisValue<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            AxisValueFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            AxisValueFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            AxisValueFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            AxisValueFormat4Marker::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
+            AxisValueFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            AxisValueFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            AxisValueFormat3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            AxisValueFormat4Marker::FORMAT => {
+                Ok(Self::Format4(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

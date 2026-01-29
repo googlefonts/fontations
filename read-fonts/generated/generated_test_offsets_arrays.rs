@@ -974,32 +974,6 @@ impl<'a> FontReadWithArgs<'a> for VarLenHaver<'a> {
     }
 }
 
-impl<'a> Sanitize<'a> for VarLenHaver<'a> {
-    #[allow(unused_variables)]
-    fn sanitize_impl(&self) -> Result<(), ReadError> {
-        let offset_data = self.offset_data();
-        compile_error!("maybe these need annotations?");
-        Ok(())
-    }
-}
-
-impl<'a> Sanitized<VarLenHaver<'a>> {
-    pub fn count(&self) -> u16 {
-        let range = self.0.count_byte_range();
-        unsafe { self.0.data.read_at_unchecked(range.start) }
-    }
-
-    pub fn var_len(&self) -> VarLenArray<'a, VarSizeDummy> {
-        let range = self.0.var_len_byte_range();
-        VarLenArray::read(self.0.data.split_off(range.start).unwrap()).unwrap()
-    }
-
-    pub fn other_field(&self) -> u32 {
-        let range = self.0.other_field_byte_range();
-        unsafe { self.0.data.read_at_unchecked(range.start) }
-    }
-}
-
 pub type VarLenHaver<'a> = TableRef<'a, VarLenHaverMarker>;
 
 #[allow(clippy::needless_lifetimes)]
