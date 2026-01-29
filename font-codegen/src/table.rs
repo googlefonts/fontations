@@ -861,52 +861,44 @@ pub(crate) fn generate_format_group(
 ) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
-    let variants = item
-        .variants
-        .iter()
-        .filter(|variant| variant.attrs.write_only.is_none())
-        .map(|variant| {
-            let name = &variant.name;
-            let typ = variant.type_name();
-            let docs = &variant.attrs.docs;
-            quote! ( #( #docs )* #name(#typ<'a>) )
-        });
 
-    let format = &item.format;
     // if we have any fancy match statement we disable a clippy lint
     let mut has_any_match_stmt = false;
-    let match_arms = item
+    let mut variants = Vec::new();
+    let mut match_arms = Vec::new();
+    let mut traversal_arms = Vec::new();
+    let mut min_byte_arms = Vec::new();
+
+    for variant in item
         .variants
         .iter()
-        .filter(|variant| variant.attrs.write_only.is_none())
-        .map(|variant| {
-            let name = &variant.name;
-            let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
-                has_any_match_stmt = true;
-                let expr = &expr.expr;
-                quote!(format if #expr)
-            } else {
-                let typ = variant.marker_name();
-                quote!(#typ::FORMAT)
-            };
-            Some(quote! {
-                #lhs => {
-                    Ok(Self::#name(FontRead::read(data)?))
-                }
-            })
-        })
-        .collect::<Vec<_>>();
+        .filter(|x| x.attrs.write_only.is_none())
+    {
+        let name = &variant.name;
+        let typ = variant.type_name();
+        let docs = &variant.attrs.docs;
+        variants.push(quote! ( #( #docs )* #name(#typ<'a>) ));
+        traversal_arms.push(quote!(Self::#name(table) => table));
+        min_byte_arms.push(quote!(Self::#name(item) => item.min_byte_range(), ));
+        // match arms:
+        let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
+            has_any_match_stmt = true;
+            let expr = &expr.expr;
+            quote!(format if #expr)
+        } else {
+            let typ = variant.marker_name();
+            quote!(#typ::FORMAT)
+        };
+        match_arms.push(quote! {
+            #lhs => {
+                Ok(Self::#name(FontRead::read(data)?))
+            }
+        });
+    }
+
+    let format = &item.format;
 
     let maybe_allow_lint = has_any_match_stmt.then(|| quote!(#[allow(clippy::redundant_guards)]));
-
-    let traversal_arms = item
-        .variants
-        .iter()
-        .filter(|variant| variant.attrs.write_only.is_none())
-        .map(|variant| {
-            let name = &variant.name;
-            quote!(Self::#name(table) => table)
-        });
 
     let format_offset = item
         .format_offset
@@ -925,15 +917,6 @@ pub(crate) fn generate_format_group(
 
     let do_sanitize = items.generate_sanitize.is_some() && item.attrs.skip_sanitize.is_none();
     let maybe_sanitize_impl = do_sanitize.then(|| generate_format_sanitize(item));
-
-    let min_byte_arms = item
-        .variants
-        .iter()
-        .filter(|variant| variant.attrs.write_only.is_none())
-        .map(|variant| {
-            let var_name: &syn::Ident = &variant.name;
-            quote!(Self::#var_name(item) => item.min_byte_range(), )
-        });
 
     Ok(quote! {
         #( #docs )*
