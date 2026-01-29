@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Feat<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: FeatMarker {},
+        }
+    }
 }
 
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
@@ -246,6 +252,13 @@ impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
             data,
             shape: SettingNameArrayMarker { n_settings },
         })
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let n_settings = *args;
+        Self {
+            data,
+            shape: SettingNameArrayMarker { n_settings },
+        }
     }
 }
 

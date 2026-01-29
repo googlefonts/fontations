@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Ankr<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AnkrMarker {},
+        }
+    }
 }
 
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
@@ -167,6 +173,12 @@ impl ReadArgs for GlyphDataEntry<'_> {
 impl<'a> FontReadWithArgs<'a> for GlyphDataEntry<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GlyphDataEntryMarker {},
+        }
     }
 }
 

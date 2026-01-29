@@ -36,6 +36,12 @@ impl<'a> FontReadWithArgs<'a> for Cff2Header<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Cff2HeaderMarker {},
+        }
+    }
 }
 
 /// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header

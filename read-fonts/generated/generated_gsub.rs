@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Gsub<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GsubMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for Gsub<'a> {
@@ -293,6 +299,20 @@ impl<'a> FontReadWithArgs<'a> for SubstitutionLookup<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let untyped = Lookup::read_with_args_unchecked(data, args);
+        match untyped.lookup_type() {
+            1 => SubstitutionLookup::Single(untyped.into_concrete()),
+            2 => SubstitutionLookup::Multiple(untyped.into_concrete()),
+            3 => SubstitutionLookup::Alternate(untyped.into_concrete()),
+            4 => SubstitutionLookup::Ligature(untyped.into_concrete()),
+            5 => SubstitutionLookup::Contextual(untyped.into_concrete()),
+            6 => SubstitutionLookup::ChainContextual(untyped.into_concrete()),
+            7 => SubstitutionLookup::Extension(untyped.into_concrete()),
+            8 => SubstitutionLookup::Reverse(untyped.into_concrete()),
+            _ => unreachable!("sanitized"),
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for SubstitutionLookup<'a> {
@@ -497,6 +517,12 @@ impl<'a> FontReadWithArgs<'a> for SingleSubstFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SingleSubstFormat1Marker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for SingleSubstFormat1<'a> {
@@ -646,6 +672,12 @@ impl ReadArgs for SingleSubstFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for SingleSubstFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SingleSubstFormat2Marker {},
+        }
     }
 }
 
@@ -819,6 +851,12 @@ impl ReadArgs for MultipleSubstFormat1<'_> {
 impl<'a> FontReadWithArgs<'a> for MultipleSubstFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MultipleSubstFormat1Marker {},
+        }
     }
 }
 
@@ -1016,6 +1054,12 @@ impl<'a> FontReadWithArgs<'a> for Sequence<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SequenceMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for Sequence<'a> {
@@ -1134,6 +1178,12 @@ impl ReadArgs for AlternateSubstFormat1<'_> {
 impl<'a> FontReadWithArgs<'a> for AlternateSubstFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AlternateSubstFormat1Marker {},
+        }
     }
 }
 
@@ -1334,6 +1384,12 @@ impl<'a> FontReadWithArgs<'a> for AlternateSet<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AlternateSetMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for AlternateSet<'a> {
@@ -1450,6 +1506,12 @@ impl ReadArgs for LigatureSubstFormat1<'_> {
 impl<'a> FontReadWithArgs<'a> for LigatureSubstFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: LigatureSubstFormat1Marker {},
+        }
     }
 }
 
@@ -1647,6 +1709,12 @@ impl<'a> FontReadWithArgs<'a> for LigatureSet<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: LigatureSetMarker {},
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for LigatureSet<'a> {
@@ -1786,6 +1854,12 @@ impl ReadArgs for Ligature<'_> {
 impl<'a> FontReadWithArgs<'a> for Ligature<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: LigatureMarker {},
+        }
     }
 }
 
@@ -1938,6 +2012,14 @@ impl<T> ReadArgs for ExtensionSubstFormat1<'_, T> {
 impl<'a, T> FontReadWithArgs<'a> for ExtensionSubstFormat1<'a, T> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ExtensionSubstFormat1Marker {
+                offset_type: std::marker::PhantomData,
+            },
+        }
     }
 }
 
@@ -2135,6 +2217,19 @@ impl<'a> FontReadWithArgs<'a> for ExtensionSubtable<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let untyped = ExtensionSubstFormat1::read_with_args_unchecked(data, args);
+        match untyped.extension_lookup_type() {
+            1 => ExtensionSubtable::Single(untyped.into_concrete()),
+            2 => ExtensionSubtable::Multiple(untyped.into_concrete()),
+            3 => ExtensionSubtable::Alternate(untyped.into_concrete()),
+            4 => ExtensionSubtable::Ligature(untyped.into_concrete()),
+            5 => ExtensionSubtable::Contextual(untyped.into_concrete()),
+            6 => ExtensionSubtable::ChainContextual(untyped.into_concrete()),
+            8 => ExtensionSubtable::Reverse(untyped.into_concrete()),
+            _ => unreachable!("sanitized"),
+        }
+    }
 }
 
 impl<'a> Sanitize<'a> for ExtensionSubtable<'a> {
@@ -2235,6 +2330,12 @@ impl ReadArgs for ReverseChainSingleSubstFormat1<'_> {
 impl<'a> FontReadWithArgs<'a> for ReverseChainSingleSubstFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ReverseChainSingleSubstFormat1Marker {},
+        }
     }
 }
 

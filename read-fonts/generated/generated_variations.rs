@@ -33,6 +33,13 @@ impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
             shape: TupleVariationHeaderMarker { axis_count },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let axis_count = *args;
+        Self {
+            data,
+            shape: TupleVariationHeaderMarker { axis_count },
+        }
+    }
 }
 
 impl<'a> TupleVariationHeader<'a> {
@@ -246,6 +253,12 @@ impl<'a> FontReadWithArgs<'a> for DeltaSetIndexMapFormat0<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: DeltaSetIndexMapFormat0Marker {},
+        }
+    }
 }
 
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0
@@ -366,6 +379,12 @@ impl ReadArgs for DeltaSetIndexMapFormat1<'_> {
 impl<'a> FontReadWithArgs<'a> for DeltaSetIndexMapFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: DeltaSetIndexMapFormat1Marker {},
+        }
     }
 }
 
@@ -894,6 +913,12 @@ impl<'a> FontReadWithArgs<'a> for VariationRegionList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: VariationRegionListMarker {},
+        }
+    }
 }
 
 /// The [VariationRegionList](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) table
@@ -1129,6 +1154,12 @@ impl<'a> FontReadWithArgs<'a> for ItemVariationStore<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ItemVariationStoreMarker {},
+        }
+    }
 }
 
 /// The [ItemVariationStore](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) table
@@ -1284,6 +1315,12 @@ impl ReadArgs for ItemVariationData<'_> {
 impl<'a> FontReadWithArgs<'a> for ItemVariationData<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ItemVariationDataMarker {},
+        }
     }
 }
 

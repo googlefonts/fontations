@@ -38,6 +38,13 @@ impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
             shape: HdmxMarker { num_glyphs },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let num_glyphs = *args;
+        Self {
+            data,
+            shape: HdmxMarker { num_glyphs },
+        }
+    }
 }
 
 impl<'a> Hdmx<'a> {

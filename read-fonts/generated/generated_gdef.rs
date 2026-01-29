@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Gdef<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GdefMarker {},
+        }
+    }
 }
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
@@ -319,6 +325,12 @@ impl<'a> FontReadWithArgs<'a> for AttachList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AttachListMarker {},
+        }
+    }
 }
 
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
@@ -450,6 +462,12 @@ impl<'a> FontReadWithArgs<'a> for AttachPoint<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AttachPointMarker {},
+        }
+    }
 }
 
 /// Part of [AttachList]
@@ -537,6 +555,12 @@ impl ReadArgs for LigCaretList<'_> {
 impl<'a> FontReadWithArgs<'a> for LigCaretList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: LigCaretListMarker {},
+        }
     }
 }
 
@@ -668,6 +692,12 @@ impl ReadArgs for LigGlyph<'_> {
 impl<'a> FontReadWithArgs<'a> for LigGlyph<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: LigGlyphMarker {},
+        }
     }
 }
 
@@ -870,6 +900,12 @@ impl<'a> FontReadWithArgs<'a> for CaretValueFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CaretValueFormat1Marker {},
+        }
+    }
 }
 
 /// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
@@ -960,6 +996,12 @@ impl ReadArgs for CaretValueFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for CaretValueFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CaretValueFormat2Marker {},
+        }
     }
 }
 
@@ -1054,6 +1096,12 @@ impl ReadArgs for CaretValueFormat3<'_> {
 impl<'a> FontReadWithArgs<'a> for CaretValueFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CaretValueFormat3Marker {},
+        }
     }
 }
 
@@ -1169,6 +1217,12 @@ impl ReadArgs for MarkGlyphSets<'_> {
 impl<'a> FontReadWithArgs<'a> for MarkGlyphSets<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MarkGlyphSetsMarker {},
+        }
     }
 }
 

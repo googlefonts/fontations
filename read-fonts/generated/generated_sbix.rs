@@ -346,6 +346,13 @@ impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
             shape: SbixMarker { num_glyphs },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let num_glyphs = *args;
+        Self {
+            data,
+            shape: SbixMarker { num_glyphs },
+        }
+    }
 }
 
 impl<'a> Sbix<'a> {
@@ -496,6 +503,13 @@ impl<'a> FontReadWithArgs<'a> for Strike<'a> {
             shape: StrikeMarker { num_glyphs },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let num_glyphs = *args;
+        Self {
+            data,
+            shape: StrikeMarker { num_glyphs },
+        }
+    }
 }
 
 impl<'a> Strike<'a> {
@@ -611,6 +625,12 @@ impl ReadArgs for GlyphData<'_> {
 impl<'a> FontReadWithArgs<'a> for GlyphData<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: GlyphDataMarker {},
+        }
     }
 }
 

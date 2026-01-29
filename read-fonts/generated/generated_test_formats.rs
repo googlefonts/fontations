@@ -39,6 +39,12 @@ impl<'a> FontReadWithArgs<'a> for Table1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Table1Marker {},
+        }
+    }
 }
 
 pub type Table1<'a> = TableRef<'a, Table1Marker>;
@@ -137,6 +143,12 @@ impl ReadArgs for Table2<'_> {
 impl<'a> FontReadWithArgs<'a> for Table2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Table2Marker {},
+        }
     }
 }
 
@@ -237,6 +249,12 @@ impl ReadArgs for Table3<'_> {
 impl<'a> FontReadWithArgs<'a> for Table3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: Table3Marker {},
+        }
     }
 }
 

@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Stat<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: StatMarker {},
+        }
+    }
 }
 
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
@@ -296,6 +302,13 @@ impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
             shape: AxisValueArrayMarker { axis_value_count },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let axis_value_count = *args;
+        Self {
+            data,
+            shape: AxisValueArrayMarker { axis_value_count },
+        }
+    }
 }
 
 impl<'a> AxisValueArray<'a> {
@@ -526,6 +539,12 @@ impl<'a> FontReadWithArgs<'a> for AxisValueFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AxisValueFormat1Marker {},
+        }
+    }
 }
 
 /// [Axis value table format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-1)
@@ -662,6 +681,12 @@ impl ReadArgs for AxisValueFormat2<'_> {
 impl<'a> FontReadWithArgs<'a> for AxisValueFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AxisValueFormat2Marker {},
+        }
     }
 }
 
@@ -830,6 +855,12 @@ impl<'a> FontReadWithArgs<'a> for AxisValueFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AxisValueFormat3Marker {},
+        }
+    }
 }
 
 /// [Axis value table format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-3)
@@ -980,6 +1011,12 @@ impl ReadArgs for AxisValueFormat4<'_> {
 impl<'a> FontReadWithArgs<'a> for AxisValueFormat4<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: AxisValueFormat4Marker {},
+        }
     }
 }
 

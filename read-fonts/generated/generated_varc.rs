@@ -43,6 +43,12 @@ impl<'a> FontReadWithArgs<'a> for Varc<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: VarcMarker {},
+        }
+    }
 }
 
 /// [VARC](https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md) (Variable Composites / Components Table)
@@ -238,6 +244,12 @@ impl<'a> FontReadWithArgs<'a> for MultiItemVariationStore<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MultiItemVariationStoreMarker {},
+        }
+    }
 }
 
 /// * <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3451-L3457>
@@ -382,6 +394,12 @@ impl<'a> FontReadWithArgs<'a> for SparseVariationRegionList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SparseVariationRegionListMarker {},
+        }
+    }
 }
 
 pub type SparseVariationRegionList<'a> = TableRef<'a, SparseVariationRegionListMarker>;
@@ -487,6 +505,12 @@ impl ReadArgs for SparseVariationRegion<'_> {
 impl<'a> FontReadWithArgs<'a> for SparseVariationRegion<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SparseVariationRegionMarker {},
+        }
     }
 }
 
@@ -635,6 +659,12 @@ impl<'a> FontReadWithArgs<'a> for MultiItemVariationData<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: MultiItemVariationDataMarker {},
+        }
+    }
 }
 
 pub type MultiItemVariationData<'a> = TableRef<'a, MultiItemVariationDataMarker>;
@@ -743,6 +773,12 @@ impl ReadArgs for ConditionList<'_> {
 impl<'a> FontReadWithArgs<'a> for ConditionList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: ConditionListMarker {},
+        }
     }
 }
 

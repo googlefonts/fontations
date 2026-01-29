@@ -35,6 +35,12 @@ impl<'a> FontReadWithArgs<'a> for CountAll16<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CountAll16Marker {},
+        }
+    }
 }
 
 pub type CountAll16<'a> = TableRef<'a, CountAll16Marker>;
@@ -118,6 +124,12 @@ impl ReadArgs for CountAll32<'_> {
 impl<'a> FontReadWithArgs<'a> for CountAll32<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: CountAll32Marker {},
+        }
     }
 }
 

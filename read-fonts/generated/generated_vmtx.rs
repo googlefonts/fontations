@@ -40,6 +40,15 @@ impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
             },
         })
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let number_of_long_ver_metrics = *args;
+        Self {
+            data,
+            shape: VmtxMarker {
+                number_of_long_ver_metrics,
+            },
+        }
+    }
 }
 
 impl<'a> Vmtx<'a> {

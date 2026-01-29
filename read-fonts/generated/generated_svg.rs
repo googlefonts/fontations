@@ -41,6 +41,12 @@ impl<'a> FontReadWithArgs<'a> for Svg<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
     }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SvgMarker {},
+        }
+    }
 }
 
 /// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
@@ -143,6 +149,12 @@ impl ReadArgs for SVGDocumentList<'_> {
 impl<'a> FontReadWithArgs<'a> for SVGDocumentList<'a> {
     fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
         Self::read(data)
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, _args: &Self::Args) -> Self {
+        Self {
+            data,
+            shape: SVGDocumentListMarker {},
+        }
     }
 }
 
