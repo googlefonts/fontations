@@ -167,6 +167,26 @@ impl ScriptRecord {
     }
 }
 
+impl Sanitized<ScriptRecord> {
+    /// 4-byte script tag identifier
+    pub fn script_tag(&self) -> Tag {
+        self.0.script_tag.get()
+    }
+
+    /// Offset to Script table, from beginning of ScriptList
+    pub fn script_offset(&self) -> Offset16 {
+        self.0.script_offset.get()
+    }
+
+    /// Offset to Script table, from beginning of ScriptList
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn script<'a>(&self, data: FontData<'a>) -> Result<Sanitized<Script<'a>>, ReadError> {
+        self.script_offset().resolve_with_args(data, &())
+    }
+}
+
 impl FixedSize for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
@@ -387,6 +407,26 @@ impl LangSysRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn lang_sys<'a>(&self, data: FontData<'a>) -> Result<LangSys<'a>, ReadError> {
+        self.lang_sys_offset().resolve_with_args(data, &())
+    }
+}
+
+impl Sanitized<LangSysRecord> {
+    /// 4-byte LangSysTag identifier
+    pub fn lang_sys_tag(&self) -> Tag {
+        self.0.lang_sys_tag.get()
+    }
+
+    /// Offset to LangSys table, from beginning of Script table
+    pub fn lang_sys_offset(&self) -> Offset16 {
+        self.0.lang_sys_offset.get()
+    }
+
+    /// Offset to LangSys table, from beginning of Script table
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn lang_sys<'a>(&self, data: FontData<'a>) -> Result<Sanitized<LangSys<'a>>, ReadError> {
         self.lang_sys_offset().resolve_with_args(data, &())
     }
 }
@@ -724,6 +764,27 @@ impl FeatureRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
+        let args = self.feature_tag();
+        self.feature_offset().resolve_with_args(data, &args)
+    }
+}
+
+impl Sanitized<FeatureRecord> {
+    /// 4-byte feature identification tag
+    pub fn feature_tag(&self) -> Tag {
+        self.0.feature_tag.get()
+    }
+
+    /// Offset to Feature table, from beginning of FeatureList
+    pub fn feature_offset(&self) -> Offset16 {
+        self.0.feature_offset.get()
+    }
+
+    /// Offset to Feature table, from beginning of FeatureList
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn feature<'a>(&self, data: FontData<'a>) -> Result<Sanitized<Feature<'a>>, ReadError> {
         let args = self.feature_tag();
         self.feature_offset().resolve_with_args(data, &args)
     }
@@ -1705,6 +1766,23 @@ impl RangeRecord {
     }
 }
 
+impl Sanitized<RangeRecord> {
+    /// First glyph ID in the range
+    pub fn start_glyph_id(&self) -> GlyphId16 {
+        self.0.start_glyph_id.get()
+    }
+
+    /// Last glyph ID in the range
+    pub fn end_glyph_id(&self) -> GlyphId16 {
+        self.0.end_glyph_id.get()
+    }
+
+    /// Coverage Index of first glyph ID in range
+    pub fn start_coverage_index(&self) -> u16 {
+        self.0.start_coverage_index.get()
+    }
+}
+
 impl FixedSize for RangeRecord {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
@@ -2155,6 +2233,23 @@ impl ClassRangeRecord {
     }
 }
 
+impl Sanitized<ClassRangeRecord> {
+    /// First glyph ID in the range
+    pub fn start_glyph_id(&self) -> GlyphId16 {
+        self.0.start_glyph_id.get()
+    }
+
+    /// Last glyph ID in the range
+    pub fn end_glyph_id(&self) -> GlyphId16 {
+        self.0.end_glyph_id.get()
+    }
+
+    /// Applied to all glyphs in the range
+    pub fn class(&self) -> u16 {
+        self.0.class.get()
+    }
+}
+
 impl FixedSize for ClassRangeRecord {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
@@ -2287,6 +2382,18 @@ impl SequenceLookupRecord {
     /// Index (zero-based) into the LookupList
     pub fn lookup_list_index(&self) -> u16 {
         self.lookup_list_index.get()
+    }
+}
+
+impl Sanitized<SequenceLookupRecord> {
+    /// Index (zero-based) into the input glyph sequence
+    pub fn sequence_index(&self) -> u16 {
+        self.0.sequence_index.get()
+    }
+
+    /// Index (zero-based) into the LookupList
+    pub fn lookup_list_index(&self) -> u16 {
+        self.0.lookup_list_index.get()
     }
 }
 
@@ -6194,6 +6301,45 @@ impl FeatureVariationRecord {
     }
 }
 
+impl Sanitized<FeatureVariationRecord> {
+    /// Offset to a condition set table, from beginning of
+    /// FeatureVariations table.
+    pub fn condition_set_offset(&self) -> Nullable<Offset32> {
+        self.0.condition_set_offset.get()
+    }
+
+    /// Offset to a condition set table, from beginning of
+    /// FeatureVariations table.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn condition_set<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<Sanitized<ConditionSet<'a>>, ReadError>> {
+        self.condition_set_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to a feature table substitution table, from beginning of
+    /// the FeatureVariations table.
+    pub fn feature_table_substitution_offset(&self) -> Nullable<Offset32> {
+        self.0.feature_table_substitution_offset.get()
+    }
+
+    /// Offset to a feature table substitution table, from beginning of
+    /// the FeatureVariations table.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn feature_table_substitution<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<Sanitized<FeatureTableSubstitution<'a>>, ReadError>> {
+        self.feature_table_substitution_offset()
+            .resolve_with_args(data, &())
+    }
+}
+
 impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
@@ -7434,6 +7580,19 @@ impl FeatureTableSubstitutionRecord {
     /// FeatureTableSubstitution table.
     pub fn alternate_feature_offset(&self) -> Offset32 {
         self.alternate_feature_offset.get()
+    }
+}
+
+impl Sanitized<FeatureTableSubstitutionRecord> {
+    /// The feature table index to match.
+    pub fn feature_index(&self) -> u16 {
+        self.0.feature_index.get()
+    }
+
+    /// Offset to an alternate feature table, from start of the
+    /// FeatureTableSubstitution table.
+    pub fn alternate_feature_offset(&self) -> Offset32 {
+        self.0.alternate_feature_offset.get()
     }
 }
 
