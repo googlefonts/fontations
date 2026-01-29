@@ -238,6 +238,16 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
     }
 }
 
+impl ReadArgs for DeltaSetIndexMapFormat0<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for DeltaSetIndexMapFormat0<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0
 pub type DeltaSetIndexMapFormat0<'a> = TableRef<'a, DeltaSetIndexMapFormat0Marker>;
 
@@ -346,6 +356,16 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
             data,
             shape: DeltaSetIndexMapFormat1Marker {},
         })
+    }
+}
+
+impl ReadArgs for DeltaSetIndexMapFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for DeltaSetIndexMapFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -483,6 +503,16 @@ impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
             DeltaSetIndexMapFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for DeltaSetIndexMap<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for DeltaSetIndexMap<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -856,6 +886,16 @@ impl<'a> FontRead<'a> for VariationRegionList<'a> {
     }
 }
 
+impl ReadArgs for VariationRegionList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for VariationRegionList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [VariationRegionList](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) table
 pub type VariationRegionList<'a> = TableRef<'a, VariationRegionListMarker>;
 
@@ -1081,6 +1121,16 @@ impl<'a> FontRead<'a> for ItemVariationStore<'a> {
     }
 }
 
+impl ReadArgs for ItemVariationStore<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ItemVariationStore<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [ItemVariationStore](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) table
 pub type ItemVariationStore<'a> = TableRef<'a, ItemVariationStoreMarker>;
 
@@ -1130,7 +1180,8 @@ impl<'a> ItemVariationStore<'a> {
     /// Attempt to resolve [`variation_region_list_offset`][Self::variation_region_list_offset].
     pub fn variation_region_list(&self) -> Result<VariationRegionList<'a>, ReadError> {
         let data = self.data;
-        self.variation_region_list_offset().resolve(data)
+        self.variation_region_list_offset()
+            .resolve_with_args(data, &())
     }
 
     /// The number of item variation data subtables.
@@ -1183,7 +1234,8 @@ impl<'a> SomeTable<'a> for ItemVariationStore<'a> {
                         better_type_name::<ItemVariationData>(),
                         self.item_variation_data_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<ItemVariationData>(data);
+                            let target =
+                                off.get().resolve_with_args::<ItemVariationData>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -1222,6 +1274,16 @@ impl<'a> FontRead<'a> for ItemVariationData<'a> {
             data,
             shape: ItemVariationDataMarker {},
         })
+    }
+}
+
+impl ReadArgs for ItemVariationData<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ItemVariationData<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

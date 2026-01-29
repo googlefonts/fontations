@@ -27,6 +27,16 @@ impl<'a> FontRead<'a> for Glyf<'a> {
     }
 }
 
+impl ReadArgs for Glyf<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Glyf<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 pub type Glyf<'a> = TableRef<'a, GlyfMarker>;
 
@@ -78,6 +88,16 @@ impl<'a> FontRead<'a> for SimpleGlyph<'a> {
             data,
             shape: SimpleGlyphMarker {},
         })
+    }
+}
+
+impl ReadArgs for SimpleGlyph<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SimpleGlyph<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -663,6 +683,16 @@ impl<'a> FontRead<'a> for CompositeGlyph<'a> {
     }
 }
 
+impl ReadArgs for CompositeGlyph<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CompositeGlyph<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
 pub type CompositeGlyph<'a> = TableRef<'a, CompositeGlyphMarker>;
 
@@ -1224,6 +1254,16 @@ impl<'a> FontRead<'a> for Glyph<'a> {
             format if format < 0 => Ok(Self::Composite(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for Glyph<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Glyph<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

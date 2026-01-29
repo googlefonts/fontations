@@ -7,7 +7,7 @@ use font_types::GlyphId;
 use crate::{
     collections::IntSet,
     tables::layout::{ExtensionLookup, Subtables},
-    FontRead, ReadError, Tag,
+    FontReadWithArgs, ReadError, Tag,
 };
 
 use super::{
@@ -332,8 +332,11 @@ impl GlyphClosure for SubstitutionSubtables<'_> {
     }
 }
 
-impl<'a, T: FontRead<'a> + GlyphClosure + 'a, Ext: ExtensionLookup<'a, T> + 'a> GlyphClosure
-    for Subtables<'a, T, Ext>
+impl<
+        'a,
+        T: FontReadWithArgs<'a, Args = ()> + GlyphClosure + 'a,
+        Ext: ExtensionLookup<'a, T> + 'a,
+    > GlyphClosure for Subtables<'a, T, Ext>
 {
     fn closure_glyphs(
         &self,

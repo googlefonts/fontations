@@ -29,8 +29,13 @@ pub trait FontRead<'a>: Sized {
 
 // we hide this type so it cannot be constructed outside of this module
 mod sealed {
-    pub struct Sanitized<T>(pub(super) T);
+    //FIXME this should not be pub(crate), but i'm just getting things working
+    #[derive(Clone, Copy, Debug, bytemuck::AnyBitPattern)]
+    #[repr(transparent)]
+    pub struct Sanitized<T>(pub(crate) T);
 }
+
+pub use sealed::Sanitized;
 
 pub trait Sanitize<'a>: Sized {
     fn sanitize(self) -> Result<sealed::Sanitized<Self>, ReadError> {
@@ -38,6 +43,30 @@ pub trait Sanitize<'a>: Sized {
     }
 
     fn sanitize_impl(&self) -> Result<(), ReadError>;
+}
+
+impl<'a, T> FontRead<'a> for Sanitized<T>
+where
+    T: FontRead<'a>,
+{
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(unsafe { Sanitized(T::read_unchecked(data)) })
+    }
+}
+
+impl<T: ReadArgs> ReadArgs for Sanitized<T> {
+    type Args = T::Args;
+}
+
+impl<'a, T: FontReadWithArgs<'a>> FontReadWithArgs<'a> for Sanitized<T> {
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+        // fixme: make this fast, if we care?
+        T::read_with_args(data, args).map(Sanitized)
+    }
+}
+
+impl<T: FixedSize> FixedSize for Sanitized<T> {
+    const RAW_BYTE_LEN: usize = T::RAW_BYTE_LEN;
 }
 
 //NOTE: this is separate so that it can be a super trait of FontReadWithArgs and
@@ -69,15 +98,15 @@ pub trait FontReadWithArgs<'a>: Sized + ReadArgs {
 //
 // This is used by ArrayOfOffsets/ArrayOfNullableOffsets to provide a common
 // interface for regardless of whether a type has args.
-impl<'a, T: FontRead<'a>> ReadArgs for T {
-    type Args = ();
-}
+//impl<'a, T: FontRead<'a>> ReadArgs for T {
+//type Args = ();
+//}
 
-impl<'a, T: FontRead<'a>> FontReadWithArgs<'a> for T {
-    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
-        Self::read(data)
-    }
-}
+//impl<'a, T: FontRead<'a>> FontReadWithArgs<'a> for T {
+//fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+//Self::read(data)
+//}
+//}
 
 /// A trait for tables that have multiple possible formats.
 pub trait Format<T> {

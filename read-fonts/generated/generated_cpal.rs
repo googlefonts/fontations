@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Cpal<'a> {
     }
 }
 
+impl ReadArgs for Cpal<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cpal<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
 pub type Cpal<'a> = TableRef<'a, CpalMarker>;
 

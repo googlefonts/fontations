@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Morx<'a> {
     }
 }
 
+impl ReadArgs for Morx<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Morx<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [morx (Extended Glyph Metamorphosis)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 pub type Morx<'a> = TableRef<'a, MorxMarker>;
 
@@ -132,6 +142,16 @@ impl<'a> FontRead<'a> for Chain<'a> {
             data,
             shape: ChainMarker {},
         })
+    }
+}
+
+impl ReadArgs for Chain<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Chain<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -336,6 +356,16 @@ impl<'a> FontRead<'a> for Subtable<'a> {
             data,
             shape: SubtableMarker {},
         })
+    }
+}
+
+impl ReadArgs for Subtable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Subtable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

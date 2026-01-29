@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Vvar<'a> {
     }
 }
 
+impl ReadArgs for Vvar<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Vvar<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [VVAR (Vertical Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
 pub type Vvar<'a> = TableRef<'a, VvarMarker>;
 
@@ -97,7 +107,8 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
     pub fn item_variation_store(&self) -> Result<ItemVariationStore<'a>, ReadError> {
         let data = self.data;
-        self.item_variation_store_offset().resolve(data)
+        self.item_variation_store_offset()
+            .resolve_with_args(data, &())
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance heights (may be NULL).
@@ -109,7 +120,8 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`advance_height_mapping_offset`][Self::advance_height_mapping_offset].
     pub fn advance_height_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
-        self.advance_height_mapping_offset().resolve(data)
+        self.advance_height_mapping_offset()
+            .resolve_with_args(data, &())
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for top side bearings (may be NULL).
@@ -121,7 +133,7 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`tsb_mapping_offset`][Self::tsb_mapping_offset].
     pub fn tsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
-        self.tsb_mapping_offset().resolve(data)
+        self.tsb_mapping_offset().resolve_with_args(data, &())
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for bottom side bearings (may be NULL).
@@ -133,7 +145,7 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`bsb_mapping_offset`][Self::bsb_mapping_offset].
     pub fn bsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
-        self.bsb_mapping_offset().resolve(data)
+        self.bsb_mapping_offset().resolve_with_args(data, &())
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for Y coordinates of vertical origins (may be NULL).
@@ -145,7 +157,7 @@ impl<'a> Vvar<'a> {
     /// Attempt to resolve [`v_org_mapping_offset`][Self::v_org_mapping_offset].
     pub fn v_org_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
-        self.v_org_mapping_offset().resolve(data)
+        self.v_org_mapping_offset().resolve_with_args(data, &())
     }
 }
 

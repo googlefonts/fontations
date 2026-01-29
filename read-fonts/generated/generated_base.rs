@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Base<'a> {
     }
 }
 
+impl ReadArgs for Base<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Base<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [BASE](https://learn.microsoft.com/en-us/typography/opentype/spec/base) (Baseline) table
 pub type Base<'a> = TableRef<'a, BaseMarker>;
 
@@ -82,7 +92,7 @@ impl<'a> Base<'a> {
     /// Attempt to resolve [`horiz_axis_offset`][Self::horiz_axis_offset].
     pub fn horiz_axis(&self) -> Option<Result<Axis<'a>, ReadError>> {
         let data = self.data;
-        self.horiz_axis_offset().resolve(data)
+        self.horiz_axis_offset().resolve_with_args(data, &())
     }
 
     /// Offset to vertical Axis table, from beginning of BASE table (may be NULL)
@@ -94,7 +104,7 @@ impl<'a> Base<'a> {
     /// Attempt to resolve [`vert_axis_offset`][Self::vert_axis_offset].
     pub fn vert_axis(&self) -> Option<Result<Axis<'a>, ReadError>> {
         let data = self.data;
-        self.vert_axis_offset().resolve(data)
+        self.vert_axis_offset().resolve_with_args(data, &())
     }
 
     /// Offset to Item Variation Store table, from beginning of BASE table (may be null)
@@ -106,7 +116,8 @@ impl<'a> Base<'a> {
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
     pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
-        self.item_var_store_offset().map(|x| x.resolve(data))?
+        self.item_var_store_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 }
 
@@ -166,6 +177,16 @@ impl<'a> FontRead<'a> for Axis<'a> {
     }
 }
 
+impl ReadArgs for Axis<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Axis<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [Axis Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#axis-tables-horizaxis-and-vertaxis)
 pub type Axis<'a> = TableRef<'a, AxisMarker>;
 
@@ -195,7 +216,7 @@ impl<'a> Axis<'a> {
     /// Attempt to resolve [`base_tag_list_offset`][Self::base_tag_list_offset].
     pub fn base_tag_list(&self) -> Option<Result<BaseTagList<'a>, ReadError>> {
         let data = self.data;
-        self.base_tag_list_offset().resolve(data)
+        self.base_tag_list_offset().resolve_with_args(data, &())
     }
 
     /// Offset to BaseScriptList table, from beginning of Axis table
@@ -207,7 +228,7 @@ impl<'a> Axis<'a> {
     /// Attempt to resolve [`base_script_list_offset`][Self::base_script_list_offset].
     pub fn base_script_list(&self) -> Result<BaseScriptList<'a>, ReadError> {
         let data = self.data;
-        self.base_script_list_offset().resolve(data)
+        self.base_script_list_offset().resolve_with_args(data, &())
     }
 }
 
@@ -259,6 +280,16 @@ impl<'a> FontRead<'a> for BaseTagList<'a> {
             data,
             shape: BaseTagListMarker {},
         })
+    }
+}
+
+impl ReadArgs for BaseTagList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseTagList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -339,6 +370,16 @@ impl<'a> FontRead<'a> for BaseScriptList<'a> {
             data,
             shape: BaseScriptListMarker {},
         })
+    }
+}
+
+impl ReadArgs for BaseScriptList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseScriptList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -433,7 +474,7 @@ impl BaseScriptRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn base_script<'a>(&self, data: FontData<'a>) -> Result<BaseScript<'a>, ReadError> {
-        self.base_script_offset().resolve(data)
+        self.base_script_offset().resolve_with_args(data, &())
     }
 }
 
@@ -482,6 +523,16 @@ impl<'a> FontRead<'a> for BaseScript<'a> {
     }
 }
 
+impl ReadArgs for BaseScript<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseScript<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [BaseScript Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescript-table)
 pub type BaseScript<'a> = TableRef<'a, BaseScriptMarker>;
 
@@ -525,7 +576,7 @@ impl<'a> BaseScript<'a> {
     /// Attempt to resolve [`base_values_offset`][Self::base_values_offset].
     pub fn base_values(&self) -> Option<Result<BaseValues<'a>, ReadError>> {
         let data = self.data;
-        self.base_values_offset().resolve(data)
+        self.base_values_offset().resolve_with_args(data, &())
     }
 
     /// Offset to MinMax table, from beginning of BaseScript table (may be NULL)
@@ -537,7 +588,7 @@ impl<'a> BaseScript<'a> {
     /// Attempt to resolve [`default_min_max_offset`][Self::default_min_max_offset].
     pub fn default_min_max(&self) -> Option<Result<MinMax<'a>, ReadError>> {
         let data = self.data;
-        self.default_min_max_offset().resolve(data)
+        self.default_min_max_offset().resolve_with_args(data, &())
     }
 
     /// Number of BaseLangSysRecords defined — may be zero (0)
@@ -621,7 +672,7 @@ impl BaseLangSysRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn min_max<'a>(&self, data: FontData<'a>) -> Result<MinMax<'a>, ReadError> {
-        self.min_max_offset().resolve(data)
+        self.min_max_offset().resolve_with_args(data, &())
     }
 }
 
@@ -667,6 +718,16 @@ impl<'a> FontRead<'a> for BaseValues<'a> {
             data,
             shape: BaseValuesMarker {},
         })
+    }
+}
+
+impl ReadArgs for BaseValues<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseValues<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -747,7 +808,7 @@ impl<'a> SomeTable<'a> for BaseValues<'a> {
                         better_type_name::<BaseCoord>(),
                         self.base_coord_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<BaseCoord>(data);
+                            let target = off.get().resolve_with_args::<BaseCoord>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -786,6 +847,16 @@ impl<'a> FontRead<'a> for MinMax<'a> {
             data,
             shape: MinMaxMarker {},
         })
+    }
+}
+
+impl ReadArgs for MinMax<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MinMax<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -833,7 +904,7 @@ impl<'a> MinMax<'a> {
     /// Attempt to resolve [`min_coord_offset`][Self::min_coord_offset].
     pub fn min_coord(&self) -> Option<Result<BaseCoord<'a>, ReadError>> {
         let data = self.data;
-        self.min_coord_offset().resolve(data)
+        self.min_coord_offset().resolve_with_args(data, &())
     }
 
     /// Offset to BaseCoord table that defines maximum extent value,
@@ -846,7 +917,7 @@ impl<'a> MinMax<'a> {
     /// Attempt to resolve [`max_coord_offset`][Self::max_coord_offset].
     pub fn max_coord(&self) -> Option<Result<BaseCoord<'a>, ReadError>> {
         let data = self.data;
-        self.max_coord_offset().resolve(data)
+        self.max_coord_offset().resolve_with_args(data, &())
     }
 
     /// Number of FeatMinMaxRecords — may be zero (0)
@@ -935,7 +1006,7 @@ impl FeatMinMaxRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn min_coord<'a>(&self, data: FontData<'a>) -> Option<Result<BaseCoord<'a>, ReadError>> {
-        self.min_coord_offset().resolve(data)
+        self.min_coord_offset().resolve_with_args(data, &())
     }
 
     /// Offset to BaseCoord table that defines the maximum extent
@@ -950,7 +1021,7 @@ impl FeatMinMaxRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn max_coord<'a>(&self, data: FontData<'a>) -> Option<Result<BaseCoord<'a>, ReadError>> {
-        self.max_coord_offset().resolve(data)
+        self.max_coord_offset().resolve_with_args(data, &())
     }
 }
 
@@ -1028,6 +1099,16 @@ impl<'a> FontRead<'a> for BaseCoord<'a> {
     }
 }
 
+impl ReadArgs for BaseCoord<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseCoord<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for BaseCoord<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -1090,6 +1171,16 @@ impl<'a> FontRead<'a> for BaseCoordFormat1<'a> {
             data,
             shape: BaseCoordFormat1Marker {},
         })
+    }
+}
+
+impl ReadArgs for BaseCoordFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseCoordFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1171,6 +1262,16 @@ impl<'a> FontRead<'a> for BaseCoordFormat2<'a> {
             data,
             shape: BaseCoordFormat2Marker {},
         })
+    }
+}
+
+impl ReadArgs for BaseCoordFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseCoordFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1282,6 +1383,16 @@ impl<'a> FontRead<'a> for BaseCoordFormat3<'a> {
     }
 }
 
+impl ReadArgs for BaseCoordFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseCoordFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [BaseCoordFormat3](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-3)
 pub type BaseCoordFormat3<'a> = TableRef<'a, BaseCoordFormat3Marker>;
 
@@ -1330,7 +1441,7 @@ impl<'a> BaseCoordFormat3<'a> {
     /// Attempt to resolve [`device_offset`][Self::device_offset].
     pub fn device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         let data = self.data;
-        self.device_offset().resolve(data)
+        self.device_offset().resolve_with_args(data, &())
     }
 }
 

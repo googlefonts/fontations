@@ -103,6 +103,16 @@ pub struct ContextualSubtable<'a> {
 
 impl<'a> FontRead<'a> for ContextualSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Self::read_with_args(data, &())
+    }
+}
+
+impl ReadArgs for ContextualSubtable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ContextualSubtable<'a> {
+    fn read_with_args(data: FontData<'a>, _args: &Self::Args) -> Result<Self, ReadError> {
         let state_table = ExtendedStateTable::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);

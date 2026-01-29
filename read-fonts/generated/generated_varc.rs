@@ -35,6 +35,16 @@ impl<'a> FontRead<'a> for Varc<'a> {
     }
 }
 
+impl ReadArgs for Varc<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Varc<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [VARC](https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md) (Variable Composites / Components Table)
 ///
 /// [FontTools VARC](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3459-L3476)
@@ -99,7 +109,7 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     pub fn multi_var_store_offset(&self) -> Nullable<Offset32> {
@@ -110,7 +120,7 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`multi_var_store_offset`][Self::multi_var_store_offset].
     pub fn multi_var_store(&self) -> Option<Result<MultiItemVariationStore<'a>, ReadError>> {
         let data = self.data;
-        self.multi_var_store_offset().resolve(data)
+        self.multi_var_store_offset().resolve_with_args(data, &())
     }
 
     pub fn condition_list_offset(&self) -> Nullable<Offset32> {
@@ -121,7 +131,7 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`condition_list_offset`][Self::condition_list_offset].
     pub fn condition_list(&self) -> Option<Result<ConditionList<'a>, ReadError>> {
         let data = self.data;
-        self.condition_list_offset().resolve(data)
+        self.condition_list_offset().resolve_with_args(data, &())
     }
 
     pub fn axis_indices_list_offset(&self) -> Nullable<Offset32> {
@@ -132,7 +142,7 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`axis_indices_list_offset`][Self::axis_indices_list_offset].
     pub fn axis_indices_list(&self) -> Option<Result<Index2<'a>, ReadError>> {
         let data = self.data;
-        self.axis_indices_list_offset().resolve(data)
+        self.axis_indices_list_offset().resolve_with_args(data, &())
     }
 
     pub fn var_composite_glyphs_offset(&self) -> Offset32 {
@@ -143,7 +153,8 @@ impl<'a> Varc<'a> {
     /// Attempt to resolve [`var_composite_glyphs_offset`][Self::var_composite_glyphs_offset].
     pub fn var_composite_glyphs(&self) -> Result<Index2<'a>, ReadError> {
         let data = self.data;
-        self.var_composite_glyphs_offset().resolve(data)
+        self.var_composite_glyphs_offset()
+            .resolve_with_args(data, &())
     }
 }
 
@@ -219,6 +230,16 @@ impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
     }
 }
 
+impl ReadArgs for MultiItemVariationStore<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MultiItemVariationStore<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// * <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3451-L3457>
 /// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
 pub type MultiItemVariationStore<'a> = TableRef<'a, MultiItemVariationStoreMarker>;
@@ -265,7 +286,7 @@ impl<'a> MultiItemVariationStore<'a> {
     /// Attempt to resolve [`region_list_offset`][Self::region_list_offset].
     pub fn region_list(&self) -> Result<SparseVariationRegionList<'a>, ReadError> {
         let data = self.data;
-        self.region_list_offset().resolve(data)
+        self.region_list_offset().resolve_with_args(data, &())
     }
 
     pub fn variation_data_count(&self) -> u16 {
@@ -310,7 +331,9 @@ impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
                         better_type_name::<MultiItemVariationData>(),
                         self.variation_data_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<MultiItemVariationData>(data);
+                            let target = off
+                                .get()
+                                .resolve_with_args::<MultiItemVariationData>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -348,6 +371,16 @@ impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
             data,
             shape: SparseVariationRegionListMarker {},
         })
+    }
+}
+
+impl ReadArgs for SparseVariationRegionList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SparseVariationRegionList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -404,7 +437,9 @@ impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
                         better_type_name::<SparseVariationRegion>(),
                         self.region_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<SparseVariationRegion>(data);
+                            let target = off
+                                .get()
+                                .resolve_with_args::<SparseVariationRegion>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -442,6 +477,16 @@ impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
             data,
             shape: SparseVariationRegionMarker {},
         })
+    }
+}
+
+impl ReadArgs for SparseVariationRegion<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SparseVariationRegion<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -582,6 +627,16 @@ impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
     }
 }
 
+impl ReadArgs for MultiItemVariationData<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MultiItemVariationData<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type MultiItemVariationData<'a> = TableRef<'a, MultiItemVariationDataMarker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -681,6 +736,16 @@ impl<'a> FontRead<'a> for ConditionList<'a> {
     }
 }
 
+impl ReadArgs for ConditionList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ConditionList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type ConditionList<'a> = TableRef<'a, ConditionListMarker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -734,7 +799,7 @@ impl<'a> SomeTable<'a> for ConditionList<'a> {
                         better_type_name::<Condition>(),
                         self.condition_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<Condition>(data);
+                            let target = off.get().resolve_with_args::<Condition>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),

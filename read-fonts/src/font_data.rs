@@ -9,7 +9,7 @@ use types::{BigEndian, FixedSize, Scalar};
 use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
 use crate::table_ref::TableRef;
-use crate::FontRead;
+use crate::{FontRead, ReadArgs};
 
 /// A reference to raw binary font data.
 ///
@@ -344,6 +344,16 @@ impl<'a> Cursor<'a> {
 // useful so we can have offsets that are just to data
 impl<'a> FontRead<'a> for FontData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(data)
+    }
+}
+
+impl ReadArgs for FontData<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FontData<'a> {
+    fn read_with_args(data: FontData<'a>, _args: &Self::Args) -> Result<Self, ReadError> {
         Ok(data)
     }
 }

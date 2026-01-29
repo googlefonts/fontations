@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Gvar<'a> {
     }
 }
 
+impl ReadArgs for Gvar<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Gvar<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
 pub type Gvar<'a> = TableRef<'a, GvarMarker>;
 
@@ -627,6 +637,16 @@ impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
     }
 }
 
+impl ReadArgs for GlyphVariationDataHeader<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for GlyphVariationDataHeader<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
 pub type GlyphVariationDataHeader<'a> = TableRef<'a, GlyphVariationDataHeaderMarker>;
 
@@ -671,7 +691,7 @@ impl<'a> GlyphVariationDataHeader<'a> {
     /// Attempt to resolve [`serialized_data_offset`][Self::serialized_data_offset].
     pub fn serialized_data(&self) -> Result<FontData<'a>, ReadError> {
         let data = self.data;
-        self.serialized_data_offset().resolve(data)
+        self.serialized_data_offset().resolve_with_args(data, &())
     }
 
     /// Array of tuple variation headers.

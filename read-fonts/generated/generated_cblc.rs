@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Cblc<'a> {
     }
 }
 
+impl ReadArgs for Cblc<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cblc<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [Color Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/cblc) table
 pub type Cblc<'a> = TableRef<'a, CblcMarker>;
 

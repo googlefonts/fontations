@@ -721,6 +721,16 @@ impl<'a> FontRead<'a> for Head<'a> {
     }
 }
 
+impl ReadArgs for Head<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Head<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
 /// (font header) table.
 pub type Head<'a> = TableRef<'a, HeadMarker>;

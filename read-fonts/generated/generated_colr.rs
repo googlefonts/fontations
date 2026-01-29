@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Colr<'a> {
     }
 }
 
+impl ReadArgs for Colr<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Colr<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
 pub type Colr<'a> = TableRef<'a, ColrMarker>;
 
@@ -168,7 +178,8 @@ impl<'a> Colr<'a> {
     /// Attempt to resolve [`base_glyph_list_offset`][Self::base_glyph_list_offset].
     pub fn base_glyph_list(&self) -> Option<Result<BaseGlyphList<'a>, ReadError>> {
         let data = self.data;
-        self.base_glyph_list_offset().map(|x| x.resolve(data))?
+        self.base_glyph_list_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 
     /// Offset to LayerList table (may be NULL).
@@ -180,7 +191,8 @@ impl<'a> Colr<'a> {
     /// Attempt to resolve [`layer_list_offset`][Self::layer_list_offset].
     pub fn layer_list(&self) -> Option<Result<LayerList<'a>, ReadError>> {
         let data = self.data;
-        self.layer_list_offset().map(|x| x.resolve(data))?
+        self.layer_list_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 
     /// Offset to ClipList table (may be NULL).
@@ -192,7 +204,8 @@ impl<'a> Colr<'a> {
     /// Attempt to resolve [`clip_list_offset`][Self::clip_list_offset].
     pub fn clip_list(&self) -> Option<Result<ClipList<'a>, ReadError>> {
         let data = self.data;
-        self.clip_list_offset().map(|x| x.resolve(data))?
+        self.clip_list_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 
     /// Offset to DeltaSetIndexMap table (may be NULL).
@@ -204,7 +217,8 @@ impl<'a> Colr<'a> {
     /// Attempt to resolve [`var_index_map_offset`][Self::var_index_map_offset].
     pub fn var_index_map(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
-        self.var_index_map_offset().map(|x| x.resolve(data))?
+        self.var_index_map_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 
     /// Offset to ItemVariationStore (may be NULL).
@@ -217,7 +231,7 @@ impl<'a> Colr<'a> {
     pub fn item_variation_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
         self.item_variation_store_offset()
-            .map(|x| x.resolve(data))?
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 }
 
@@ -406,6 +420,16 @@ impl<'a> FontRead<'a> for BaseGlyphList<'a> {
     }
 }
 
+impl ReadArgs for BaseGlyphList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseGlyphList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
 pub type BaseGlyphList<'a> = TableRef<'a, BaseGlyphListMarker>;
 
@@ -497,7 +521,7 @@ impl BaseGlyphPaint {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn paint<'a>(&self, data: FontData<'a>) -> Result<Paint<'a>, ReadError> {
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 }
 
@@ -543,6 +567,16 @@ impl<'a> FontRead<'a> for LayerList<'a> {
             data,
             shape: LayerListMarker {},
         })
+    }
+}
+
+impl ReadArgs for LayerList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for LayerList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -601,7 +635,7 @@ impl<'a> SomeTable<'a> for LayerList<'a> {
                         better_type_name::<Paint>(),
                         self.paint_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<Paint>(data);
+                            let target = off.get().resolve_with_args::<Paint>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -640,6 +674,16 @@ impl<'a> FontRead<'a> for ClipList<'a> {
             data,
             shape: ClipListMarker {},
         })
+    }
+}
+
+impl ReadArgs for ClipList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClipList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -752,7 +796,7 @@ impl Clip {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn clip_box<'a>(&self, data: FontData<'a>) -> Result<ClipBox<'a>, ReadError> {
-        self.clip_box_offset().resolve(data)
+        self.clip_box_offset().resolve_with_args(data, &())
     }
 }
 
@@ -848,6 +892,16 @@ impl<'a> FontRead<'a> for ClipBox<'a> {
     }
 }
 
+impl ReadArgs for ClipBox<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClipBox<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for ClipBox<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -908,6 +962,16 @@ impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
             data,
             shape: ClipBoxFormat1Marker {},
         })
+    }
+}
+
+impl ReadArgs for ClipBoxFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClipBoxFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1032,6 +1096,16 @@ impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
             data,
             shape: ClipBoxFormat2Marker {},
         })
+    }
+}
+
+impl ReadArgs for ClipBoxFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClipBoxFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1370,6 +1444,16 @@ impl<'a> FontRead<'a> for ColorLine<'a> {
     }
 }
 
+impl ReadArgs for ColorLine<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ColorLine<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
 pub type ColorLine<'a> = TableRef<'a, ColorLineMarker>;
 
@@ -1464,6 +1548,16 @@ impl<'a> FontRead<'a> for VarColorLine<'a> {
             data,
             shape: VarColorLineMarker {},
         })
+    }
+}
+
+impl ReadArgs for VarColorLine<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for VarColorLine<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1767,6 +1861,16 @@ impl<'a> FontRead<'a> for Paint<'a> {
     }
 }
 
+impl ReadArgs for Paint<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Paint<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for Paint<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -1890,6 +1994,16 @@ impl<'a> FontRead<'a> for PaintColrLayers<'a> {
     }
 }
 
+impl ReadArgs for PaintColrLayers<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintColrLayers<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
 pub type PaintColrLayers<'a> = TableRef<'a, PaintColrLayersMarker>;
 
@@ -1984,6 +2098,16 @@ impl<'a> FontRead<'a> for PaintSolid<'a> {
     }
 }
 
+impl ReadArgs for PaintSolid<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintSolid<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
 pub type PaintSolid<'a> = TableRef<'a, PaintSolidMarker>;
 
@@ -2075,6 +2199,16 @@ impl<'a> FontRead<'a> for PaintVarSolid<'a> {
             data,
             shape: PaintVarSolidMarker {},
         })
+    }
+}
+
+impl ReadArgs for PaintVarSolid<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarSolid<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -2186,6 +2320,16 @@ impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintLinearGradient<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintLinearGradient<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
 pub type PaintLinearGradient<'a> = TableRef<'a, PaintLinearGradientMarker>;
 
@@ -2263,7 +2407,7 @@ impl<'a> PaintLinearGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     pub fn color_line(&self) -> Result<ColorLine<'a>, ReadError> {
         let data = self.data;
-        self.color_line_offset().resolve(data)
+        self.color_line_offset().resolve_with_args(data, &())
     }
 
     /// Start point (p₀) x coordinate.
@@ -2361,6 +2505,16 @@ impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintVarLinearGradient<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarLinearGradient<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
 pub type PaintVarLinearGradient<'a> = TableRef<'a, PaintVarLinearGradientMarker>;
 
@@ -2445,7 +2599,7 @@ impl<'a> PaintVarLinearGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     pub fn color_line(&self) -> Result<VarColorLine<'a>, ReadError> {
         let data = self.data;
-        self.color_line_offset().resolve(data)
+        self.color_line_offset().resolve_with_args(data, &())
     }
 
     /// Start point (p₀) x coordinate. For variation, use
@@ -2556,6 +2710,16 @@ impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintRadialGradient<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintRadialGradient<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
 pub type PaintRadialGradient<'a> = TableRef<'a, PaintRadialGradientMarker>;
 
@@ -2633,7 +2797,7 @@ impl<'a> PaintRadialGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     pub fn color_line(&self) -> Result<ColorLine<'a>, ReadError> {
         let data = self.data;
-        self.color_line_offset().resolve(data)
+        self.color_line_offset().resolve_with_args(data, &())
     }
 
     /// Start circle center x coordinate.
@@ -2731,6 +2895,16 @@ impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintVarRadialGradient<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarRadialGradient<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
 pub type PaintVarRadialGradient<'a> = TableRef<'a, PaintVarRadialGradientMarker>;
 
@@ -2815,7 +2989,7 @@ impl<'a> PaintVarRadialGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     pub fn color_line(&self) -> Result<VarColorLine<'a>, ReadError> {
         let data = self.data;
-        self.color_line_offset().resolve(data)
+        self.color_line_offset().resolve_with_args(data, &())
     }
 
     /// Start circle center x coordinate. For variation, use
@@ -2924,6 +3098,16 @@ impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintSweepGradient<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintSweepGradient<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
 pub type PaintSweepGradient<'a> = TableRef<'a, PaintSweepGradientMarker>;
 
@@ -2987,7 +3171,7 @@ impl<'a> PaintSweepGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     pub fn color_line(&self) -> Result<ColorLine<'a>, ReadError> {
         let data = self.data;
-        self.color_line_offset().resolve(data)
+        self.color_line_offset().resolve_with_args(data, &())
     }
 
     /// Center x coordinate.
@@ -3073,6 +3257,16 @@ impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintVarSweepGradient<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarSweepGradient<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
 pub type PaintVarSweepGradient<'a> = TableRef<'a, PaintVarSweepGradientMarker>;
 
@@ -3143,7 +3337,7 @@ impl<'a> PaintVarSweepGradient<'a> {
     /// Attempt to resolve [`color_line_offset`][Self::color_line_offset].
     pub fn color_line(&self) -> Result<VarColorLine<'a>, ReadError> {
         let data = self.data;
-        self.color_line_offset().resolve(data)
+        self.color_line_offset().resolve_with_args(data, &())
     }
 
     /// Center x coordinate. For variation, use varIndexBase + 0.
@@ -3238,6 +3432,16 @@ impl<'a> FontRead<'a> for PaintGlyph<'a> {
     }
 }
 
+impl ReadArgs for PaintGlyph<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintGlyph<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
 pub type PaintGlyph<'a> = TableRef<'a, PaintGlyphMarker>;
 
@@ -3279,7 +3483,7 @@ impl<'a> PaintGlyph<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Glyph ID for the source outline.
@@ -3339,6 +3543,16 @@ impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
             data,
             shape: PaintColrGlyphMarker {},
         })
+    }
+}
+
+impl ReadArgs for PaintColrGlyph<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintColrGlyph<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -3423,6 +3637,16 @@ impl<'a> FontRead<'a> for PaintTransform<'a> {
     }
 }
 
+impl ReadArgs for PaintTransform<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintTransform<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
 pub type PaintTransform<'a> = TableRef<'a, PaintTransformMarker>;
 
@@ -3464,7 +3688,7 @@ impl<'a> PaintTransform<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Offset to an Affine2x3 table.
@@ -3476,7 +3700,7 @@ impl<'a> PaintTransform<'a> {
     /// Attempt to resolve [`transform_offset`][Self::transform_offset].
     pub fn transform(&self) -> Result<Affine2x3<'a>, ReadError> {
         let data = self.data;
-        self.transform_offset().resolve(data)
+        self.transform_offset().resolve_with_args(data, &())
     }
 }
 
@@ -3536,6 +3760,16 @@ impl<'a> FontRead<'a> for PaintVarTransform<'a> {
     }
 }
 
+impl ReadArgs for PaintVarTransform<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarTransform<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
 pub type PaintVarTransform<'a> = TableRef<'a, PaintVarTransformMarker>;
 
@@ -3577,7 +3811,7 @@ impl<'a> PaintVarTransform<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Offset to a VarAffine2x3 table.
@@ -3589,7 +3823,7 @@ impl<'a> PaintVarTransform<'a> {
     /// Attempt to resolve [`transform_offset`][Self::transform_offset].
     pub fn transform(&self) -> Result<VarAffine2x3<'a>, ReadError> {
         let data = self.data;
-        self.transform_offset().resolve(data)
+        self.transform_offset().resolve_with_args(data, &())
     }
 }
 
@@ -3642,6 +3876,16 @@ impl<'a> FontRead<'a> for Affine2x3<'a> {
             data,
             shape: Affine2x3Marker {},
         })
+    }
+}
+
+impl ReadArgs for Affine2x3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Affine2x3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -3776,6 +4020,16 @@ impl<'a> FontRead<'a> for VarAffine2x3<'a> {
             data,
             shape: VarAffine2x3Marker {},
         })
+    }
+}
+
+impl ReadArgs for VarAffine2x3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for VarAffine2x3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -3935,6 +4189,16 @@ impl<'a> FontRead<'a> for PaintTranslate<'a> {
     }
 }
 
+impl ReadArgs for PaintTranslate<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintTranslate<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
 pub type PaintTranslate<'a> = TableRef<'a, PaintTranslateMarker>;
 
@@ -3982,7 +4246,7 @@ impl<'a> PaintTranslate<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Translation in x direction.
@@ -4052,6 +4316,16 @@ impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
     }
 }
 
+impl ReadArgs for PaintVarTranslate<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarTranslate<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
 pub type PaintVarTranslate<'a> = TableRef<'a, PaintVarTranslateMarker>;
 
@@ -4108,7 +4382,7 @@ impl<'a> PaintVarTranslate<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Translation in x direction. For variation, use varIndexBase + 0.
@@ -4185,6 +4459,16 @@ impl<'a> FontRead<'a> for PaintScale<'a> {
     }
 }
 
+impl ReadArgs for PaintScale<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintScale<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintScale<'a> = TableRef<'a, PaintScaleMarker>;
 
@@ -4232,7 +4516,7 @@ impl<'a> PaintScale<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Scale factor in x direction.
@@ -4302,6 +4586,16 @@ impl<'a> FontRead<'a> for PaintVarScale<'a> {
     }
 }
 
+impl ReadArgs for PaintVarScale<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarScale<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintVarScale<'a> = TableRef<'a, PaintVarScaleMarker>;
 
@@ -4358,7 +4652,7 @@ impl<'a> PaintVarScale<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Scale factor in x direction. For variation, use varIndexBase +
@@ -4437,6 +4731,16 @@ impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintScaleAroundCenter<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintScaleAroundCenter<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintScaleAroundCenter<'a> = TableRef<'a, PaintScaleAroundCenterMarker>;
 
@@ -4500,7 +4804,7 @@ impl<'a> PaintScaleAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Scale factor in x direction.
@@ -4584,6 +4888,16 @@ impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintVarScaleAroundCenter<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarScaleAroundCenter<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintVarScaleAroundCenter<'a> = TableRef<'a, PaintVarScaleAroundCenterMarker>;
 
@@ -4654,7 +4968,7 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Scale factor in x direction. For variation, use varIndexBase +
@@ -4749,6 +5063,16 @@ impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
     }
 }
 
+impl ReadArgs for PaintScaleUniform<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintScaleUniform<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintScaleUniform<'a> = TableRef<'a, PaintScaleUniformMarker>;
 
@@ -4789,7 +5113,7 @@ impl<'a> PaintScaleUniform<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Scale factor in x and y directions.
@@ -4852,6 +5176,16 @@ impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
     }
 }
 
+impl ReadArgs for PaintVarScaleUniform<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarScaleUniform<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintVarScaleUniform<'a> = TableRef<'a, PaintVarScaleUniformMarker>;
 
@@ -4899,7 +5233,7 @@ impl<'a> PaintVarScaleUniform<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Scale factor in x and y directions. For variation, use
@@ -4970,6 +5304,16 @@ impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintScaleUniformAroundCenter<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintScaleUniformAroundCenter<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintScaleUniformAroundCenter<'a> = TableRef<'a, PaintScaleUniformAroundCenterMarker>;
 
@@ -5026,7 +5370,7 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Scale factor in x and y directions.
@@ -5103,6 +5447,16 @@ impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintVarScaleUniformAroundCenter<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarScaleUniformAroundCenter<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
 pub type PaintVarScaleUniformAroundCenter<'a> =
     TableRef<'a, PaintVarScaleUniformAroundCenterMarker>;
@@ -5167,7 +5521,7 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Scale factor in x and y directions. For variation, use
@@ -5254,6 +5608,16 @@ impl<'a> FontRead<'a> for PaintRotate<'a> {
     }
 }
 
+impl ReadArgs for PaintRotate<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintRotate<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 pub type PaintRotate<'a> = TableRef<'a, PaintRotateMarker>;
 
@@ -5294,7 +5658,7 @@ impl<'a> PaintRotate<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
@@ -5358,6 +5722,16 @@ impl<'a> FontRead<'a> for PaintVarRotate<'a> {
     }
 }
 
+impl ReadArgs for PaintVarRotate<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarRotate<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 pub type PaintVarRotate<'a> = TableRef<'a, PaintVarRotateMarker>;
 
@@ -5405,7 +5779,7 @@ impl<'a> PaintVarRotate<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
@@ -5476,6 +5850,16 @@ impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintRotateAroundCenter<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintRotateAroundCenter<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 pub type PaintRotateAroundCenter<'a> = TableRef<'a, PaintRotateAroundCenterMarker>;
 
@@ -5532,7 +5916,7 @@ impl<'a> PaintRotateAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
@@ -5610,6 +5994,16 @@ impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintVarRotateAroundCenter<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarRotateAroundCenter<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
 pub type PaintVarRotateAroundCenter<'a> = TableRef<'a, PaintVarRotateAroundCenterMarker>;
 
@@ -5673,7 +6067,7 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
@@ -5760,6 +6154,16 @@ impl<'a> FontRead<'a> for PaintSkew<'a> {
     }
 }
 
+impl ReadArgs for PaintSkew<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintSkew<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 pub type PaintSkew<'a> = TableRef<'a, PaintSkewMarker>;
 
@@ -5807,7 +6211,7 @@ impl<'a> PaintSkew<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Angle of skew in the direction of the x-axis, 180° in
@@ -5879,6 +6283,16 @@ impl<'a> FontRead<'a> for PaintVarSkew<'a> {
     }
 }
 
+impl ReadArgs for PaintVarSkew<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarSkew<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 pub type PaintVarSkew<'a> = TableRef<'a, PaintVarSkewMarker>;
 
@@ -5935,7 +6349,7 @@ impl<'a> PaintVarSkew<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Angle of skew in the direction of the x-axis, 180° ┬░ in
@@ -6016,6 +6430,16 @@ impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintSkewAroundCenter<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintSkewAroundCenter<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 pub type PaintSkewAroundCenter<'a> = TableRef<'a, PaintSkewAroundCenterMarker>;
 
@@ -6079,7 +6503,7 @@ impl<'a> PaintSkewAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Angle of skew in the direction of the x-axis, 180° in
@@ -6165,6 +6589,16 @@ impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintVarSkewAroundCenter<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintVarSkewAroundCenter<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintVarSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
 pub type PaintVarSkewAroundCenter<'a> = TableRef<'a, PaintVarSkewAroundCenterMarker>;
 
@@ -6235,7 +6669,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     /// Attempt to resolve [`paint_offset`][Self::paint_offset].
     pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.paint_offset().resolve(data)
+        self.paint_offset().resolve_with_args(data, &())
     }
 
     /// Angle of skew in the direction of the x-axis, 180° in
@@ -6332,6 +6766,16 @@ impl<'a> FontRead<'a> for PaintComposite<'a> {
     }
 }
 
+impl ReadArgs for PaintComposite<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PaintComposite<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
 pub type PaintComposite<'a> = TableRef<'a, PaintCompositeMarker>;
 
@@ -6381,7 +6825,7 @@ impl<'a> PaintComposite<'a> {
     /// Attempt to resolve [`source_paint_offset`][Self::source_paint_offset].
     pub fn source_paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.source_paint_offset().resolve(data)
+        self.source_paint_offset().resolve_with_args(data, &())
     }
 
     /// A CompositeMode enumeration value.
@@ -6399,7 +6843,7 @@ impl<'a> PaintComposite<'a> {
     /// Attempt to resolve [`backdrop_paint_offset`][Self::backdrop_paint_offset].
     pub fn backdrop_paint(&self) -> Result<Paint<'a>, ReadError> {
         let data = self.data;
-        self.backdrop_paint_offset().resolve(data)
+        self.backdrop_paint_offset().resolve_with_args(data, &())
     }
 }
 

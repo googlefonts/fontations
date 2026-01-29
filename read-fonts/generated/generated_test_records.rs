@@ -27,6 +27,16 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
     }
 }
 
+impl ReadArgs for BasicTable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for BasicTable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -290,7 +300,7 @@ impl ContainsOffsets {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn other<'a>(&self, data: FontData<'a>) -> Result<BasicTable<'a>, ReadError> {
-        self.other_offset().resolve(data)
+        self.other_offset().resolve_with_args(data, &())
     }
 }
 
@@ -344,6 +354,16 @@ impl<'a> FontRead<'a> for VarLenItem<'a> {
             data,
             shape: VarLenItemMarker {},
         })
+    }
+}
+
+impl ReadArgs for VarLenItem<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for VarLenItem<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

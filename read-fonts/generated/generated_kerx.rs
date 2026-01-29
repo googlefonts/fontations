@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Kerx<'a> {
     }
 }
 
+impl ReadArgs for Kerx<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Kerx<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
 pub type Kerx<'a> = TableRef<'a, KerxMarker>;
 
@@ -132,6 +142,16 @@ impl<'a> FontRead<'a> for Subtable<'a> {
             data,
             shape: SubtableMarker {},
         })
+    }
+}
+
+impl ReadArgs for Subtable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Subtable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -236,6 +256,16 @@ impl<'a> FontRead<'a> for Subtable0<'a> {
             data,
             shape: Subtable0Marker {},
         })
+    }
+}
+
+impl ReadArgs for Subtable0<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Subtable0<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

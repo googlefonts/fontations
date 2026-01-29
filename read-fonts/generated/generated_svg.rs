@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Svg<'a> {
     }
 }
 
+impl ReadArgs for Svg<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Svg<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
 pub type Svg<'a> = TableRef<'a, SvgMarker>;
 
@@ -74,7 +84,7 @@ impl<'a> Svg<'a> {
     /// Attempt to resolve [`svg_document_list_offset`][Self::svg_document_list_offset].
     pub fn svg_document_list(&self) -> Result<SVGDocumentList<'a>, ReadError> {
         let data = self.data;
-        self.svg_document_list_offset().resolve(data)
+        self.svg_document_list_offset().resolve_with_args(data, &())
     }
 }
 
@@ -123,6 +133,16 @@ impl<'a> FontRead<'a> for SVGDocumentList<'a> {
             data,
             shape: SVGDocumentListMarker {},
         })
+    }
+}
+
+impl ReadArgs for SVGDocumentList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SVGDocumentList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

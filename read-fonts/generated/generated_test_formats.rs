@@ -31,6 +31,16 @@ impl<'a> FontRead<'a> for Table1<'a> {
     }
 }
 
+impl ReadArgs for Table1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Table1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type Table1<'a> = TableRef<'a, Table1Marker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -117,6 +127,16 @@ impl<'a> FontRead<'a> for Table2<'a> {
             data,
             shape: Table2Marker {},
         })
+    }
+}
+
+impl ReadArgs for Table2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Table2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -210,6 +230,16 @@ impl<'a> FontRead<'a> for Table3<'a> {
     }
 }
 
+impl ReadArgs for Table3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Table3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type Table3<'a> = TableRef<'a, Table3Marker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -296,6 +326,16 @@ impl<'a> FontRead<'a> for MyTable<'a> {
             Table3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for MyTable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MyTable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

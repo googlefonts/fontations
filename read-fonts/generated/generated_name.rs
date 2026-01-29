@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Name<'a> {
     }
 }
 
+impl ReadArgs for Name<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Name<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
 pub type Name<'a> = TableRef<'a, NameMarker>;
 

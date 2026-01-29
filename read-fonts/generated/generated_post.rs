@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Post<'a> {
     }
 }
 
+impl ReadArgs for Post<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Post<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
 pub type Post<'a> = TableRef<'a, PostMarker>;
 

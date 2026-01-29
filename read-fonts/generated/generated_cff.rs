@@ -28,6 +28,16 @@ impl<'a> FontRead<'a> for CffHeader<'a> {
     }
 }
 
+impl ReadArgs for CffHeader<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CffHeader<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
 pub type CffHeader<'a> = TableRef<'a, CffHeaderMarker>;
 

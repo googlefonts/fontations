@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Avar<'a> {
     }
 }
 
+impl ReadArgs for Avar<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Avar<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 pub type Avar<'a> = TableRef<'a, AvarMarker>;
 
@@ -112,7 +122,8 @@ impl<'a> Avar<'a> {
     /// Attempt to resolve [`axis_index_map_offset`][Self::axis_index_map_offset].
     pub fn axis_index_map(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
-        self.axis_index_map_offset().map(|x| x.resolve(data))?
+        self.axis_index_map_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 
     /// Offset to ItemVariationStore (may be NULL).
@@ -124,7 +135,8 @@ impl<'a> Avar<'a> {
     /// Attempt to resolve [`var_store_offset`][Self::var_store_offset].
     pub fn var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
-        self.var_store_offset().map(|x| x.resolve(data))?
+        self.var_store_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 }
 

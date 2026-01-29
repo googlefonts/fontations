@@ -53,7 +53,7 @@ impl<'a> AnchorTable<'a> {
     }
 }
 
-impl<'a, T: FontRead<'a>> ExtensionLookup<'a, T> for ExtensionPosFormat1<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()>> ExtensionLookup<'a, T> for ExtensionPosFormat1<'a, T> {
     fn extension(&self) -> Result<T, ReadError> {
         self.extension()
     }

@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Ebdt<'a> {
     }
 }
 
+impl ReadArgs for Ebdt<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Ebdt<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [Embedded Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt) table
 pub type Ebdt<'a> = TableRef<'a, EbdtMarker>;
 

@@ -34,6 +34,16 @@ impl<'a> FontRead<'a> for Gpos<'a> {
     }
 }
 
+impl ReadArgs for Gpos<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Gpos<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for Gpos<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -45,6 +55,64 @@ impl<'a> Sanitize<'a> for Gpos<'a> {
             thing?.sanitize_impl()?;
         };
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<Gpos<'a>> {
+    /// The major and minor version of the GPOS table, as a tuple (u16, u16)
+    pub fn version(&self) -> MajorMinor {
+        let range = self.0.version_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to ScriptList table, from beginning of GPOS table
+    pub fn script_list_offset(&self) -> Offset16 {
+        let range = self.0.script_list_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
+    pub fn script_list(&self) -> Result<Sanitized<ScriptList<'a>>, ReadError> {
+        let data = self.0.data;
+        self.script_list_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to FeatureList table, from beginning of GPOS table
+    pub fn feature_list_offset(&self) -> Offset16 {
+        let range = self.0.feature_list_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
+    pub fn feature_list(&self) -> Result<Sanitized<FeatureList<'a>>, ReadError> {
+        let data = self.0.data;
+        self.feature_list_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to LookupList table, from beginning of GPOS table
+    pub fn lookup_list_offset(&self) -> Offset16 {
+        let range = self.0.lookup_list_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
+    pub fn lookup_list(&self) -> Result<Sanitized<PositionLookupList<'a>>, ReadError> {
+        let data = self.0.data;
+        self.lookup_list_offset().resolve_with_args(data, &())
+    }
+
+    pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.0.feature_variations_offset_byte_range();
+        Some(unsafe { self.0.data.read_at_unchecked(range.start) })
+    }
+
+    /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
+    pub fn feature_variations(
+        &self,
+    ) -> Option<Result<Sanitized<FeatureVariations<'a>>, ReadError>> {
+        let data = self.0.data;
+        self.feature_variations_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 }
 
@@ -106,7 +174,7 @@ impl<'a> Gpos<'a> {
     /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
     pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
         let data = self.data;
-        self.script_list_offset().resolve(data)
+        self.script_list_offset().resolve_with_args(data, &())
     }
 
     /// Offset to FeatureList table, from beginning of GPOS table
@@ -118,7 +186,7 @@ impl<'a> Gpos<'a> {
     /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
     pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
         let data = self.data;
-        self.feature_list_offset().resolve(data)
+        self.feature_list_offset().resolve_with_args(data, &())
     }
 
     /// Offset to LookupList table, from beginning of GPOS table
@@ -130,7 +198,7 @@ impl<'a> Gpos<'a> {
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
     pub fn lookup_list(&self) -> Result<PositionLookupList<'a>, ReadError> {
         let data = self.data;
-        self.lookup_list_offset().resolve(data)
+        self.lookup_list_offset().resolve_with_args(data, &())
     }
 
     pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
@@ -141,7 +209,8 @@ impl<'a> Gpos<'a> {
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
         let data = self.data;
-        self.feature_variations_offset().map(|x| x.resolve(data))?
+        self.feature_variations_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 }
 
@@ -213,6 +282,16 @@ impl<'a> FontRead<'a> for PositionLookup<'a> {
             9 => Ok(PositionLookup::Extension(untyped.into_concrete())),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for PositionLookup<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PositionLookup<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -688,6 +767,16 @@ impl<'a> FontRead<'a> for AnchorTable<'a> {
     }
 }
 
+impl ReadArgs for AnchorTable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AnchorTable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for AnchorTable<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -763,11 +852,41 @@ impl<'a> FontRead<'a> for AnchorFormat1<'a> {
     }
 }
 
+impl ReadArgs for AnchorFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AnchorFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for AnchorFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<AnchorFormat1<'a>> {
+    /// Format identifier, = 1
+    pub fn anchor_format(&self) -> u16 {
+        let range = self.0.anchor_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Horizontal value, in design units
+    pub fn x_coordinate(&self) -> i16 {
+        let range = self.0.x_coordinate_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Vertical value, in design units
+    pub fn y_coordinate(&self) -> i16 {
+        let range = self.0.y_coordinate_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -865,11 +984,47 @@ impl<'a> FontRead<'a> for AnchorFormat2<'a> {
     }
 }
 
+impl ReadArgs for AnchorFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AnchorFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for AnchorFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<AnchorFormat2<'a>> {
+    /// Format identifier, = 2
+    pub fn anchor_format(&self) -> u16 {
+        let range = self.0.anchor_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Horizontal value, in design units
+    pub fn x_coordinate(&self) -> i16 {
+        let range = self.0.x_coordinate_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Vertical value, in design units
+    pub fn y_coordinate(&self) -> i16 {
+        let range = self.0.y_coordinate_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Index to glyph contour point
+    pub fn anchor_point(&self) -> u16 {
+        let range = self.0.anchor_point_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -981,6 +1136,16 @@ impl<'a> FontRead<'a> for AnchorFormat3<'a> {
     }
 }
 
+impl ReadArgs for AnchorFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AnchorFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for AnchorFormat3<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -992,6 +1157,54 @@ impl<'a> Sanitize<'a> for AnchorFormat3<'a> {
             thing?.sanitize_impl()?;
         };
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<AnchorFormat3<'a>> {
+    /// Format identifier, = 3
+    pub fn anchor_format(&self) -> u16 {
+        let range = self.0.anchor_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Horizontal value, in design units
+    pub fn x_coordinate(&self) -> i16 {
+        let range = self.0.x_coordinate_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Vertical value, in design units
+    pub fn y_coordinate(&self) -> i16 {
+        let range = self.0.y_coordinate_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Device table (non-variable font) / VariationIndex
+    /// table (variable font) for X coordinate, from beginning of
+    /// Anchor table (may be NULL)
+    pub fn x_device_offset(&self) -> Nullable<Offset16> {
+        let range = self.0.x_device_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
+    pub fn x_device(&self) -> Option<Result<Sanitized<DeviceOrVariationIndex<'a>>, ReadError>> {
+        let data = self.0.data;
+        self.x_device_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to Device table (non-variable font) / VariationIndex
+    /// table (variable font) for Y coordinate, from beginning of
+    /// Anchor table (may be NULL)
+    pub fn y_device_offset(&self) -> Nullable<Offset16> {
+        let range = self.0.y_device_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
+    pub fn y_device(&self) -> Option<Result<Sanitized<DeviceOrVariationIndex<'a>>, ReadError>> {
+        let data = self.0.data;
+        self.y_device_offset().resolve_with_args(data, &())
     }
 }
 
@@ -1065,7 +1278,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
     pub fn x_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         let data = self.data;
-        self.x_device_offset().resolve(data)
+        self.x_device_offset().resolve_with_args(data, &())
     }
 
     /// Offset to Device table (non-variable font) / VariationIndex
@@ -1079,7 +1292,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
     pub fn y_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         let data = self.data;
-        self.y_device_offset().resolve(data)
+        self.y_device_offset().resolve_with_args(data, &())
     }
 }
 
@@ -1137,6 +1350,16 @@ impl<'a> FontRead<'a> for MarkArray<'a> {
     }
 }
 
+impl ReadArgs for MarkArray<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MarkArray<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for MarkArray<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -1145,6 +1368,21 @@ impl<'a> Sanitize<'a> for MarkArray<'a> {
             .iter()
             .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<MarkArray<'a>> {
+    /// Number of MarkRecords
+    pub fn mark_count(&self) -> u16 {
+        let range = self.0.mark_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of MarkRecords, ordered by corresponding glyphs in the
+    /// associated mark Coverage table.
+    pub fn mark_records(&self) -> &'a [Sanitized<MarkRecord>] {
+        let range = self.0.mark_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -1243,7 +1481,7 @@ impl MarkRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn mark_anchor<'a>(&self, data: FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
-        self.mark_anchor_offset().resolve(data)
+        self.mark_anchor_offset().resolve_with_args(data, &())
     }
 }
 
@@ -1321,6 +1559,16 @@ impl<'a> FontRead<'a> for SinglePos<'a> {
     }
 }
 
+impl ReadArgs for SinglePos<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SinglePos<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for SinglePos<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -1393,12 +1641,58 @@ impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
     }
 }
 
+impl ReadArgs for SinglePosFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SinglePosFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SinglePosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.coverage()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SinglePosFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        let range = self.0.pos_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of SinglePos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Defines the types of data in the ValueRecord.
+    pub fn value_format(&self) -> ValueFormat {
+        let range = self.0.value_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Defines positioning value(s) — applied to all glyphs in the
+    /// Coverage table.
+    pub fn value_record(&self) -> Sanitized<ValueRecord> {
+        let range = self.0.value_record_byte_range();
+        self.0
+            .data
+            .read_with_args(range, &self.value_format())
+            .unwrap()
     }
 }
 
@@ -1450,7 +1744,7 @@ impl<'a> SinglePosFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Defines the types of data in the ValueRecord.
@@ -1526,12 +1820,64 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
     }
 }
 
+impl ReadArgs for SinglePosFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SinglePosFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SinglePosFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.coverage()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SinglePosFormat2<'a>> {
+    /// Format identifier: format = 2
+    pub fn pos_format(&self) -> u16 {
+        let range = self.0.pos_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of SinglePos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Defines the types of data in the ValueRecords.
+    pub fn value_format(&self) -> ValueFormat {
+        let range = self.0.value_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of ValueRecords — must equal glyphCount in the
+    /// Coverage table.
+    pub fn value_count(&self) -> u16 {
+        let range = self.0.value_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of ValueRecords — positioning values applied to glyphs.
+    pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
+        let range = self.0.value_records_byte_range();
+        self.0
+            .data
+            .read_with_args(range, &self.value_format())
+            .unwrap()
     }
 }
 
@@ -1594,7 +1940,7 @@ impl<'a> SinglePosFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Defines the types of data in the ValueRecords.
@@ -1716,6 +2062,16 @@ impl<'a> FontRead<'a> for PairPos<'a> {
     }
 }
 
+impl ReadArgs for PairPos<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PairPos<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for PairPos<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -1788,6 +2144,16 @@ impl<'a> FontRead<'a> for PairPosFormat1<'a> {
     }
 }
 
+impl ReadArgs for PairPosFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PairPosFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for PairPosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -1795,6 +2161,61 @@ impl<'a> Sanitize<'a> for PairPosFormat1<'a> {
         self.coverage()?.sanitize_impl()?;
         self.pair_sets().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<PairPosFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        let range = self.0.pos_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of PairPos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Defines the types of data in valueRecord1 — for the first
+    /// glyph in the pair (may be zero).
+    pub fn value_format1(&self) -> ValueFormat {
+        let range = self.0.value_format1_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Defines the types of data in valueRecord2 — for the second
+    /// glyph in the pair (may be zero).
+    pub fn value_format2(&self) -> ValueFormat {
+        let range = self.0.value_format2_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of PairSet tables
+    pub fn pair_set_count(&self) -> u16 {
+        let range = self.0.pair_set_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to PairSet tables. Offsets are from beginning
+    /// of PairPos subtable, ordered by Coverage Index.
+    pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.pair_set_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`pair_set_offsets`][Self::pair_set_offsets].
+    pub fn pair_sets(&self) -> ArrayOfOffsets<'a, Sanitized<PairSet<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.pair_set_offsets();
+        let args = (self.value_format1(), self.value_format2());
+        ArrayOfOffsets::new(offsets, data, args)
     }
 }
 
@@ -1861,7 +2282,7 @@ impl<'a> PairPosFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Defines the types of data in valueRecord1 — for the first
@@ -2000,6 +2421,32 @@ impl<'a> Sanitize<'a> for PairSet<'a> {
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<PairSet<'a>> {
+    /// Number of PairValueRecords
+    pub fn pair_value_count(&self) -> u16 {
+        let range = self.0.pair_value_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of PairValueRecords, ordered by glyph ID of the second
+    /// glyph.
+    pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
+        let range = self.0.pair_value_records_byte_range();
+        self.0
+            .data
+            .read_with_args(range, &(self.value_format1(), self.value_format2()))
+            .unwrap()
+    }
+
+    pub(crate) fn value_format1(&self) -> ValueFormat {
+        self.0.shape.value_format1
+    }
+
+    pub(crate) fn value_format2(&self) -> ValueFormat {
+        self.0.shape.value_format2
     }
 }
 
@@ -2215,6 +2662,16 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
     }
 }
 
+impl ReadArgs for PairPosFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PairPosFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for PairPosFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -2223,6 +2680,94 @@ impl<'a> Sanitize<'a> for PairPosFormat2<'a> {
         self.class_def1()?.sanitize_impl()?;
         self.class_def2()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<PairPosFormat2<'a>> {
+    /// Format identifier: format = 2
+    pub fn pos_format(&self) -> u16 {
+        let range = self.0.pos_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of PairPos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// ValueRecord definition — for the first glyph of the pair (may
+    /// be zero).
+    pub fn value_format1(&self) -> ValueFormat {
+        let range = self.0.value_format1_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// ValueRecord definition — for the second glyph of the pair
+    /// (may be zero).
+    pub fn value_format2(&self) -> ValueFormat {
+        let range = self.0.value_format2_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to ClassDef table, from beginning of PairPos subtable
+    /// — for the first glyph of the pair.
+    pub fn class_def1_offset(&self) -> Offset16 {
+        let range = self.0.class_def1_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
+    pub fn class_def1(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+        let data = self.0.data;
+        self.class_def1_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to ClassDef table, from beginning of PairPos subtable
+    /// — for the second glyph of the pair.
+    pub fn class_def2_offset(&self) -> Offset16 {
+        let range = self.0.class_def2_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
+    pub fn class_def2(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+        let data = self.0.data;
+        self.class_def2_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of classes in classDef1 table — includes Class 0.
+    pub fn class1_count(&self) -> u16 {
+        let range = self.0.class1_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of classes in classDef2 table — includes Class 0.
+    pub fn class2_count(&self) -> u16 {
+        let range = self.0.class2_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of Class1 records, ordered by classes in classDef1.
+    pub fn class1_records(&self) -> ComputedArray<'a, Class1Record<'a>> {
+        let range = self.0.class1_records_byte_range();
+        self.0
+            .data
+            .read_with_args(
+                range,
+                &(
+                    self.class2_count(),
+                    self.value_format1(),
+                    self.value_format2(),
+                ),
+            )
+            .unwrap()
     }
 }
 
@@ -2318,7 +2863,7 @@ impl<'a> PairPosFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// ValueRecord definition — for the first glyph of the pair (may
@@ -2345,7 +2890,7 @@ impl<'a> PairPosFormat2<'a> {
     /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
     pub fn class_def1(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.class_def1_offset().resolve(data)
+        self.class_def1_offset().resolve_with_args(data, &())
     }
 
     /// Offset to ClassDef table, from beginning of PairPos subtable
@@ -2358,7 +2903,7 @@ impl<'a> PairPosFormat2<'a> {
     /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
     pub fn class_def2(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.class_def2_offset().resolve(data)
+        self.class_def2_offset().resolve_with_args(data, &())
     }
 
     /// Number of classes in classDef1 table — includes Class 0.
@@ -2633,6 +3178,16 @@ impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
     }
 }
 
+impl ReadArgs for CursivePosFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CursivePosFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for CursivePosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -2642,6 +3197,38 @@ impl<'a> Sanitize<'a> for CursivePosFormat1<'a> {
             .iter()
             .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<CursivePosFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        let range = self.0.pos_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of CursivePos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of EntryExit records
+    pub fn entry_exit_count(&self) -> u16 {
+        let range = self.0.entry_exit_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of EntryExit records, in Coverage index order.
+    pub fn entry_exit_record(&self) -> &'a [Sanitized<EntryExitRecord>] {
+        let range = self.0.entry_exit_record_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -2692,7 +3279,7 @@ impl<'a> CursivePosFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of EntryExit records
@@ -2781,7 +3368,7 @@ impl EntryExitRecord {
         &self,
         data: FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
-        self.entry_anchor_offset().resolve(data)
+        self.entry_anchor_offset().resolve_with_args(data, &())
     }
 
     /// Offset to exitAnchor table, from beginning of CursivePos
@@ -2799,7 +3386,7 @@ impl EntryExitRecord {
         &self,
         data: FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
-        self.exit_anchor_offset().resolve(data)
+        self.exit_anchor_offset().resolve_with_args(data, &())
     }
 }
 
@@ -2855,6 +3442,16 @@ impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
     }
 }
 
+impl ReadArgs for MarkBasePosFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MarkBasePosFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for MarkBasePosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -2864,6 +3461,73 @@ impl<'a> Sanitize<'a> for MarkBasePosFormat1<'a> {
         self.mark_array()?.sanitize_impl()?;
         self.base_array()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<MarkBasePosFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        let range = self.0.pos_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to markCoverage table, from beginning of MarkBasePos
+    /// subtable.
+    pub fn mark_coverage_offset(&self) -> Offset16 {
+        let range = self.0.mark_coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
+    pub fn mark_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.mark_coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to baseCoverage table, from beginning of MarkBasePos
+    /// subtable.
+    pub fn base_coverage_offset(&self) -> Offset16 {
+        let range = self.0.base_coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
+    pub fn base_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.base_coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of classes defined for marks
+    pub fn mark_class_count(&self) -> u16 {
+        let range = self.0.mark_class_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to MarkArray table, from beginning of MarkBasePos
+    /// subtable.
+    pub fn mark_array_offset(&self) -> Offset16 {
+        let range = self.0.mark_array_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
+    pub fn mark_array(&self) -> Result<Sanitized<MarkArray<'a>>, ReadError> {
+        let data = self.0.data;
+        self.mark_array_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to BaseArray table, from beginning of MarkBasePos
+    /// subtable.
+    pub fn base_array_offset(&self) -> Offset16 {
+        let range = self.0.base_array_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`base_array_offset`][Self::base_array_offset].
+    pub fn base_array(&self) -> Result<Sanitized<BaseArray<'a>>, ReadError> {
+        let data = self.0.data;
+        let args = self.mark_class_count();
+        self.base_array_offset().resolve_with_args(data, &args)
     }
 }
 
@@ -2931,7 +3595,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
     pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.mark_coverage_offset().resolve(data)
+        self.mark_coverage_offset().resolve_with_args(data, &())
     }
 
     /// Offset to baseCoverage table, from beginning of MarkBasePos
@@ -2944,7 +3608,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
     pub fn base_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.base_coverage_offset().resolve(data)
+        self.base_coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of classes defined for marks
@@ -2963,7 +3627,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
         let data = self.data;
-        self.mark_array_offset().resolve(data)
+        self.mark_array_offset().resolve_with_args(data, &())
     }
 
     /// Offset to BaseArray table, from beginning of MarkBasePos
@@ -3068,6 +3732,27 @@ impl<'a> Sanitize<'a> for BaseArray<'a> {
             .iter()
             .try_for_each(|rec| rec.and_then(|r| r.sanitize_struct(offset_data)))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<BaseArray<'a>> {
+    /// Number of BaseRecords
+    pub fn base_count(&self) -> u16 {
+        let range = self.0.base_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of BaseRecords, in order of baseCoverage Index.
+    pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
+        let range = self.0.base_records_byte_range();
+        self.0
+            .data
+            .read_with_args(range, &self.mark_class_count())
+            .unwrap()
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.0.shape.mark_class_count
     }
 }
 
@@ -3226,7 +3911,7 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
                             better_type_name::<AnchorTable>(),
                             self.base_anchor_offsets(),
                             move |off| {
-                                let target = off.get().resolve::<AnchorTable>(data);
+                                let target = off.get().resolve_with_args::<AnchorTable>(data, &());
                                 FieldType::offset(off.get(), target)
                             },
                         ),
@@ -3266,6 +3951,16 @@ impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
     }
 }
 
+impl ReadArgs for MarkLigPosFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MarkLigPosFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for MarkLigPosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -3275,6 +3970,73 @@ impl<'a> Sanitize<'a> for MarkLigPosFormat1<'a> {
         self.mark_array()?.sanitize_impl()?;
         self.ligature_array()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<MarkLigPosFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        let range = self.0.pos_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to markCoverage table, from beginning of MarkLigPos
+    /// subtable.
+    pub fn mark_coverage_offset(&self) -> Offset16 {
+        let range = self.0.mark_coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
+    pub fn mark_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.mark_coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to ligatureCoverage table, from beginning of MarkLigPos
+    /// subtable.
+    pub fn ligature_coverage_offset(&self) -> Offset16 {
+        let range = self.0.ligature_coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
+    pub fn ligature_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.ligature_coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of defined mark classes
+    pub fn mark_class_count(&self) -> u16 {
+        let range = self.0.mark_class_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to MarkArray table, from beginning of MarkLigPos
+    /// subtable.
+    pub fn mark_array_offset(&self) -> Offset16 {
+        let range = self.0.mark_array_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
+    pub fn mark_array(&self) -> Result<Sanitized<MarkArray<'a>>, ReadError> {
+        let data = self.0.data;
+        self.mark_array_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to LigatureArray table, from beginning of MarkLigPos
+    /// subtable.
+    pub fn ligature_array_offset(&self) -> Offset16 {
+        let range = self.0.ligature_array_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
+    pub fn ligature_array(&self) -> Result<Sanitized<LigatureArray<'a>>, ReadError> {
+        let data = self.0.data;
+        let args = self.mark_class_count();
+        self.ligature_array_offset().resolve_with_args(data, &args)
     }
 }
 
@@ -3342,7 +4104,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
     pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.mark_coverage_offset().resolve(data)
+        self.mark_coverage_offset().resolve_with_args(data, &())
     }
 
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
@@ -3355,7 +4117,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
     pub fn ligature_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.ligature_coverage_offset().resolve(data)
+        self.ligature_coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of defined mark classes
@@ -3374,7 +4136,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
         let data = self.data;
-        self.mark_array_offset().resolve(data)
+        self.mark_array_offset().resolve_with_args(data, &())
     }
 
     /// Offset to LigatureArray table, from beginning of MarkLigPos
@@ -3477,6 +4239,34 @@ impl<'a> Sanitize<'a> for LigatureArray<'a> {
         let offset_data = self.offset_data();
         self.ligature_attaches().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<LigatureArray<'a>> {
+    /// Number of LigatureAttach table offsets
+    pub fn ligature_count(&self) -> u16 {
+        let range = self.0.ligature_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to LigatureAttach tables. Offsets are from
+    /// beginning of LigatureArray table, ordered by ligatureCoverage
+    /// index.
+    pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.ligature_attach_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`ligature_attach_offsets`][Self::ligature_attach_offsets].
+    pub fn ligature_attaches(&self) -> ArrayOfOffsets<'a, Sanitized<LigatureAttach<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.ligature_attach_offsets();
+        let args = self.mark_class_count();
+        ArrayOfOffsets::new(offsets, data, args)
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.0.shape.mark_class_count
     }
 }
 
@@ -3612,6 +4402,27 @@ impl<'a> Sanitize<'a> for LigatureAttach<'a> {
             .iter()
             .try_for_each(|rec| rec.and_then(|r| r.sanitize_struct(offset_data)))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<LigatureAttach<'a>> {
+    /// Number of ComponentRecords in this ligature
+    pub fn component_count(&self) -> u16 {
+        let range = self.0.component_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of Component records, ordered in writing direction.
+    pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
+        let range = self.0.component_records_byte_range();
+        self.0
+            .data
+            .read_with_args(range, &self.mark_class_count())
+            .unwrap()
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.0.shape.mark_class_count
     }
 }
 
@@ -3771,7 +4582,7 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
                             better_type_name::<AnchorTable>(),
                             self.ligature_anchor_offsets(),
                             move |off| {
-                                let target = off.get().resolve::<AnchorTable>(data);
+                                let target = off.get().resolve_with_args::<AnchorTable>(data, &());
                                 FieldType::offset(off.get(), target)
                             },
                         ),
@@ -3811,6 +4622,16 @@ impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
     }
 }
 
+impl ReadArgs for MarkMarkPosFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MarkMarkPosFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for MarkMarkPosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -3820,6 +4641,73 @@ impl<'a> Sanitize<'a> for MarkMarkPosFormat1<'a> {
         self.mark1_array()?.sanitize_impl()?;
         self.mark2_array()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<MarkMarkPosFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        let range = self.0.pos_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Combining Mark Coverage table, from beginning of
+    /// MarkMarkPos subtable.
+    pub fn mark1_coverage_offset(&self) -> Offset16 {
+        let range = self.0.mark1_coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
+    pub fn mark1_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.mark1_coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to Base Mark Coverage table, from beginning of
+    /// MarkMarkPos subtable.
+    pub fn mark2_coverage_offset(&self) -> Offset16 {
+        let range = self.0.mark2_coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
+    pub fn mark2_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.mark2_coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of Combining Mark classes defined
+    pub fn mark_class_count(&self) -> u16 {
+        let range = self.0.mark_class_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to MarkArray table for mark1, from beginning of
+    /// MarkMarkPos subtable.
+    pub fn mark1_array_offset(&self) -> Offset16 {
+        let range = self.0.mark1_array_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`mark1_array_offset`][Self::mark1_array_offset].
+    pub fn mark1_array(&self) -> Result<Sanitized<MarkArray<'a>>, ReadError> {
+        let data = self.0.data;
+        self.mark1_array_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to Mark2Array table for mark2, from beginning of
+    /// MarkMarkPos subtable.
+    pub fn mark2_array_offset(&self) -> Offset16 {
+        let range = self.0.mark2_array_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`mark2_array_offset`][Self::mark2_array_offset].
+    pub fn mark2_array(&self) -> Result<Sanitized<Mark2Array<'a>>, ReadError> {
+        let data = self.0.data;
+        let args = self.mark_class_count();
+        self.mark2_array_offset().resolve_with_args(data, &args)
     }
 }
 
@@ -3887,7 +4775,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
     pub fn mark1_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.mark1_coverage_offset().resolve(data)
+        self.mark1_coverage_offset().resolve_with_args(data, &())
     }
 
     /// Offset to Base Mark Coverage table, from beginning of
@@ -3900,7 +4788,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
     pub fn mark2_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.mark2_coverage_offset().resolve(data)
+        self.mark2_coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of Combining Mark classes defined
@@ -3919,7 +4807,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Attempt to resolve [`mark1_array_offset`][Self::mark1_array_offset].
     pub fn mark1_array(&self) -> Result<MarkArray<'a>, ReadError> {
         let data = self.data;
-        self.mark1_array_offset().resolve(data)
+        self.mark1_array_offset().resolve_with_args(data, &())
     }
 
     /// Offset to Mark2Array table for mark2, from beginning of
@@ -4024,6 +4912,27 @@ impl<'a> Sanitize<'a> for Mark2Array<'a> {
             .iter()
             .try_for_each(|rec| rec.and_then(|r| r.sanitize_struct(offset_data)))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<Mark2Array<'a>> {
+    /// Number of Mark2 records
+    pub fn mark2_count(&self) -> u16 {
+        let range = self.0.mark2_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of Mark2Records, in Coverage order.
+    pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
+        let range = self.0.mark2_records_byte_range();
+        self.0
+            .data
+            .read_with_args(range, &self.mark_class_count())
+            .unwrap()
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.0.shape.mark_class_count
     }
 }
 
@@ -4182,7 +5091,7 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
                             better_type_name::<AnchorTable>(),
                             self.mark2_anchor_offsets(),
                             move |off| {
-                                let target = off.get().resolve::<AnchorTable>(data);
+                                let target = off.get().resolve_with_args::<AnchorTable>(data, &());
                                 FieldType::offset(off.get(), target)
                             },
                         ),
@@ -4234,12 +5143,56 @@ impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
     }
 }
 
-impl<'a, T: FontRead<'a> + Sanitize<'a>> Sanitize<'a> for ExtensionPosFormat1<'a, T> {
+impl<T> ReadArgs for ExtensionPosFormat1<'_, T> {
+    type Args = ();
+}
+
+impl<'a, T> FontReadWithArgs<'a> for ExtensionPosFormat1<'a, T> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitize<'a>
+    for ExtensionPosFormat1<'a, T>
+{
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.extension()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitized<ExtensionPosFormat1<'a, T>> {
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        let range = self.0.pos_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Lookup type of subtable referenced by extensionOffset (i.e. the
+    /// extension subtable).
+    pub fn extension_lookup_type(&self) -> u16 {
+        let range = self.0.extension_lookup_type_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to the extension subtable, of lookup type
+    /// extensionLookupType, relative to the start of the
+    /// ExtensionPosFormat1 subtable.
+    pub fn extension_offset(&self) -> Offset32 {
+        let range = self.0.extension_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`extension_offset`][Self::extension_offset].
+    pub fn extension(&self) -> Result<Sanitized<T>, ReadError>
+    where
+        T: FontReadWithArgs<'a, Args = ()>,
+    {
+        let data = self.0.data;
+        self.extension_offset().resolve_with_args(data, &())
     }
 }
 
@@ -4317,15 +5270,17 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     /// Attempt to resolve [`extension_offset`][Self::extension_offset].
     pub fn extension(&self) -> Result<T, ReadError>
     where
-        T: FontRead<'a>,
+        T: FontReadWithArgs<'a, Args = ()>,
     {
         let data = self.data;
-        self.extension_offset().resolve(data)
+        self.extension_offset().resolve_with_args(data, &())
     }
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionPosFormat1<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a>
+    for ExtensionPosFormat1<'a, T>
+{
     fn type_name(&self) -> &str {
         "ExtensionPosFormat1"
     }
@@ -4347,7 +5302,9 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionPosFor
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionPosFormat1<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug
+    for ExtensionPosFormat1<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -4379,6 +5336,16 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
             8 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for ExtensionSubtable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ExtensionSubtable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

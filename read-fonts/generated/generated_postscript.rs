@@ -28,6 +28,16 @@ impl<'a> FontRead<'a> for Index1<'a> {
     }
 }
 
+impl ReadArgs for Index1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Index1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// An array of variable-sized objects in a `CFF` table.
 pub type Index1<'a> = TableRef<'a, Index1Marker>;
 
@@ -132,6 +142,16 @@ impl<'a> FontRead<'a> for Index2<'a> {
             data,
             shape: Index2Marker {},
         })
+    }
+}
+
+impl ReadArgs for Index2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Index2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -259,6 +279,16 @@ impl<'a> FontRead<'a> for FdSelect<'a> {
     }
 }
 
+impl ReadArgs for FdSelect<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FdSelect<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for FdSelect<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -321,6 +351,16 @@ impl<'a> FontRead<'a> for FdSelectFormat0<'a> {
             data,
             shape: FdSelectFormat0Marker {},
         })
+    }
+}
+
+impl ReadArgs for FdSelectFormat0<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FdSelectFormat0<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -403,6 +443,16 @@ impl<'a> FontRead<'a> for FdSelectFormat3<'a> {
             data,
             shape: FdSelectFormat3Marker {},
         })
+    }
+}
+
+impl ReadArgs for FdSelectFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FdSelectFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -560,6 +610,16 @@ impl<'a> FontRead<'a> for FdSelectFormat4<'a> {
             data,
             shape: FdSelectFormat4Marker {},
         })
+    }
+}
+
+impl ReadArgs for FdSelectFormat4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FdSelectFormat4<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -733,6 +793,16 @@ impl<'a> FontRead<'a> for CustomCharset<'a> {
     }
 }
 
+impl ReadArgs for CustomCharset<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CustomCharset<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for CustomCharset<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -795,6 +865,16 @@ impl<'a> FontRead<'a> for CharsetFormat0<'a> {
             data,
             shape: CharsetFormat0Marker {},
         })
+    }
+}
+
+impl ReadArgs for CharsetFormat0<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CharsetFormat0<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -877,6 +957,16 @@ impl<'a> FontRead<'a> for CharsetFormat1<'a> {
             data,
             shape: CharsetFormat1Marker {},
         })
+    }
+}
+
+impl ReadArgs for CharsetFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CharsetFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1009,6 +1099,16 @@ impl<'a> FontRead<'a> for CharsetFormat2<'a> {
             data,
             shape: CharsetFormat2Marker {},
         })
+    }
+}
+
+impl ReadArgs for CharsetFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CharsetFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

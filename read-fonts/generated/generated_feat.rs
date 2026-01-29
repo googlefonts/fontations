@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Feat<'a> {
     }
 }
 
+impl ReadArgs for Feat<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Feat<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
 pub type Feat<'a> = TableRef<'a, FeatMarker>;
 

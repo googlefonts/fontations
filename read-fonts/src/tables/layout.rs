@@ -31,7 +31,7 @@ mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
 
-impl<'a, T: FontRead<'a>> Lookup<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
         self.resolve_offset(offset)
     }
@@ -46,7 +46,9 @@ impl<'a, T: FontRead<'a>> Lookup<'a, T> {
 ///
 /// This is necessary because GPOS and GSUB have different concrete types
 /// for their extension lookups.
-pub trait ExtensionLookup<'a, T: FontRead<'a>>: FontRead<'a> {
+pub trait ExtensionLookup<'a, T: FontReadWithArgs<'a, Args = ()>>:
+    FontReadWithArgs<'a, Args = ()>
+{
     fn extension(&self) -> Result<T, ReadError>;
 }
 
@@ -54,12 +56,14 @@ pub trait ExtensionLookup<'a, T: FontRead<'a>>: FontRead<'a> {
 ///
 /// This is used to implement more ergonomic access to lookup subtables for
 /// GPOS & GSUB lookup tables.
-pub enum Subtables<'a, T: FontRead<'a>, Ext: ExtensionLookup<'a, T>> {
+pub enum Subtables<'a, T: FontReadWithArgs<'a, Args = ()>, Ext: ExtensionLookup<'a, T>> {
     Subtable(ArrayOfOffsets<'a, T>),
     Extension(ArrayOfOffsets<'a, Ext>),
 }
 
-impl<'a, T: FontRead<'a> + 'a, Ext: ExtensionLookup<'a, T> + 'a> Subtables<'a, T, Ext> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + 'a, Ext: ExtensionLookup<'a, T> + 'a>
+    Subtables<'a, T, Ext>
+{
     /// create a new subtables array given offsets to non-extension subtables
     pub(crate) fn new(offsets: &'a [BigEndian<Offset16>], data: FontData<'a>) -> Self {
         Subtables::Subtable(ArrayOfOffsets::new(offsets, data, ()))

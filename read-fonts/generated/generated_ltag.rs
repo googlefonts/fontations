@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Ltag<'a> {
     }
 }
 
+impl ReadArgs for Ltag<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Ltag<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
 pub type Ltag<'a> = TableRef<'a, LtagMarker>;
 

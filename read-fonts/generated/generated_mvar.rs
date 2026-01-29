@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Mvar<'a> {
     }
 }
 
+impl ReadArgs for Mvar<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Mvar<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [MVAR (Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
 pub type Mvar<'a> = TableRef<'a, MvarMarker>;
 
@@ -109,7 +119,8 @@ impl<'a> Mvar<'a> {
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
     pub fn item_variation_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
-        self.item_variation_store_offset().resolve(data)
+        self.item_variation_store_offset()
+            .resolve_with_args(data, &())
     }
 
     /// Array of value records that identify target items and the associated delta-set index for each. The valueTag records must be in binary order of their valueTag field.

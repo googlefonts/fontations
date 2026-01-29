@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Cbdt<'a> {
     }
 }
 
+impl ReadArgs for Cbdt<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cbdt<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [Color Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt) table
 pub type Cbdt<'a> = TableRef<'a, CbdtMarker>;
 
