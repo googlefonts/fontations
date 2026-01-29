@@ -174,6 +174,16 @@ impl FeatureTableSubstitutionRecord {
     }
 }
 
+impl Sanitized<FeatureTableSubstitutionRecord> {
+    pub fn alternate_feature<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Result<Sanitized<Feature<'a>>, ReadError> {
+        self.alternate_feature_offset()
+            .resolve_with_args(data, &Tag::new(b"NULL"))
+    }
+}
+
 fn bit_storage(v: u32) -> u32 {
     u32::BITS - v.leading_zeros()
 }
