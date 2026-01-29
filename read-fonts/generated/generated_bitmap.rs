@@ -1073,6 +1073,16 @@ impl<'a> FontRead<'a> for IndexSubtable2<'a> {
     }
 }
 
+impl ReadArgs for IndexSubtable2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for IndexSubtable2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [IndexSubTable2](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable2-all-glyphs-have-identical-metrics): all glyphs have identical metrics.
 pub type IndexSubtable2<'a> = TableRef<'a, IndexSubtable2Marker>;
 
@@ -1348,6 +1358,16 @@ impl<'a> FontRead<'a> for IndexSubtable4<'a> {
     }
 }
 
+impl ReadArgs for IndexSubtable4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for IndexSubtable4<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [IndexSubTable4](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with sparse glyph codes.
 pub type IndexSubtable4<'a> = TableRef<'a, IndexSubtable4Marker>;
 
@@ -1518,6 +1538,16 @@ impl<'a> FontRead<'a> for IndexSubtable5<'a> {
             data,
             shape: IndexSubtable5Marker {},
         })
+    }
+}
+
+impl ReadArgs for IndexSubtable5<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for IndexSubtable5<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

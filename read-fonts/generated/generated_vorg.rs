@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Vorg<'a> {
     }
 }
 
+impl ReadArgs for Vorg<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Vorg<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
 pub type Vorg<'a> = TableRef<'a, VorgMarker>;
 

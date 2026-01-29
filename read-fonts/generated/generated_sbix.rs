@@ -604,6 +604,16 @@ impl<'a> FontRead<'a> for GlyphData<'a> {
     }
 }
 
+impl ReadArgs for GlyphData<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for GlyphData<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
 pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
 

@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Hvar<'a> {
     }
 }
 
+impl ReadArgs for Hvar<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Hvar<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [HVAR (Horizontal Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
 pub type Hvar<'a> = TableRef<'a, HvarMarker>;
 
@@ -90,7 +100,8 @@ impl<'a> Hvar<'a> {
     /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
     pub fn item_variation_store(&self) -> Result<ItemVariationStore<'a>, ReadError> {
         let data = self.data;
-        self.item_variation_store_offset().resolve(data)
+        self.item_variation_store_offset()
+            .resolve_with_args(data, &())
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance widths (may be NULL).
@@ -102,7 +113,8 @@ impl<'a> Hvar<'a> {
     /// Attempt to resolve [`advance_width_mapping_offset`][Self::advance_width_mapping_offset].
     pub fn advance_width_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
-        self.advance_width_mapping_offset().resolve(data)
+        self.advance_width_mapping_offset()
+            .resolve_with_args(data, &())
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for left side bearings (may be NULL).
@@ -114,7 +126,7 @@ impl<'a> Hvar<'a> {
     /// Attempt to resolve [`lsb_mapping_offset`][Self::lsb_mapping_offset].
     pub fn lsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
-        self.lsb_mapping_offset().resolve(data)
+        self.lsb_mapping_offset().resolve_with_args(data, &())
     }
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for right side bearings (may be NULL).
@@ -126,7 +138,7 @@ impl<'a> Hvar<'a> {
     /// Attempt to resolve [`rsb_mapping_offset`][Self::rsb_mapping_offset].
     pub fn rsb_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
-        self.rsb_mapping_offset().resolve(data)
+        self.rsb_mapping_offset().resolve_with_args(data, &())
     }
 }
 

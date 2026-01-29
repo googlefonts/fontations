@@ -4,6 +4,7 @@ use super::read::{FontRead, Format, ReadError};
 use crate::{
     font_data::FontData,
     offset::{Offset, ResolveOffset},
+    FontReadWithArgs,
 };
 use std::ops::Range;
 /// Return the minimum range of the table bytes
@@ -22,8 +23,11 @@ pub struct TableRef<'a, T> {
 
 impl<'a, T> TableRef<'a, T> {
     /// Resolve the provided offset from the start of this table.
-    pub fn resolve_offset<O: Offset, R: FontRead<'a>>(&self, offset: O) -> Result<R, ReadError> {
-        offset.resolve(self.data)
+    pub fn resolve_offset<O: Offset, R: FontReadWithArgs<'a, Args = ()>>(
+        &self,
+        offset: O,
+    ) -> Result<R, ReadError> {
+        offset.resolve_with_args(self.data, &())
     }
 
     /// Return a reference to this table's raw data.

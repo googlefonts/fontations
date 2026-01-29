@@ -28,6 +28,16 @@ impl<'a> FontRead<'a> for OtKern<'a> {
     }
 }
 
+impl ReadArgs for OtKern<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for OtKern<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The OpenType [kerning](https://learn.microsoft.com/en-us/typography/opentype/spec/kern) table.
 pub type OtKern<'a> = TableRef<'a, OtKernMarker>;
 
@@ -119,6 +129,16 @@ impl<'a> FontRead<'a> for AatKern<'a> {
     }
 }
 
+impl ReadArgs for AatKern<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AatKern<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
 pub type AatKern<'a> = TableRef<'a, AatKernMarker>;
 
@@ -207,6 +227,16 @@ impl<'a> FontRead<'a> for OtSubtable<'a> {
             data,
             shape: OtSubtableMarker {},
         })
+    }
+}
+
+impl ReadArgs for OtSubtable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for OtSubtable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -314,6 +344,16 @@ impl<'a> FontRead<'a> for AatSubtable<'a> {
     }
 }
 
+impl ReadArgs for AatSubtable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AatSubtable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// A subtable in an AAT `kern` table.
 pub type AatSubtable<'a> = TableRef<'a, AatSubtableMarker>;
 
@@ -415,6 +455,16 @@ impl<'a> FontRead<'a> for Subtable0<'a> {
             data,
             shape: Subtable0Marker {},
         })
+    }
+}
+
+impl ReadArgs for Subtable0<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Subtable0<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -543,6 +593,16 @@ impl<'a> FontRead<'a> for Subtable2ClassTable<'a> {
     }
 }
 
+impl ReadArgs for Subtable2ClassTable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Subtable2ClassTable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// Class table for the type 2 `kern` subtable.
 pub type Subtable2ClassTable<'a> = TableRef<'a, Subtable2ClassTableMarker>;
 
@@ -631,6 +691,16 @@ impl<'a> FontRead<'a> for Subtable3<'a> {
             data,
             shape: Subtable3Marker {},
         })
+    }
+}
+
+impl ReadArgs for Subtable3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Subtable3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

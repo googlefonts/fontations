@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Meta<'a> {
     }
 }
 
+impl ReadArgs for Meta<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Meta<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
 pub type Meta<'a> = TableRef<'a, MetaMarker>;
 

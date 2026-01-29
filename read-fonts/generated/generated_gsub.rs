@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Gsub<'a> {
     }
 }
 
+impl ReadArgs for Gsub<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Gsub<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for Gsub<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -44,6 +54,66 @@ impl<'a> Sanitize<'a> for Gsub<'a> {
             thing?.sanitize_impl()?;
         };
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<Gsub<'a>> {
+    /// The major and minor version of the GSUB table, as a tuple (u16, u16)
+    pub fn version(&self) -> MajorMinor {
+        let range = self.0.version_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to ScriptList table, from beginning of GSUB table
+    pub fn script_list_offset(&self) -> Offset16 {
+        let range = self.0.script_list_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
+    pub fn script_list(&self) -> Result<Sanitized<ScriptList<'a>>, ReadError> {
+        let data = self.0.data;
+        self.script_list_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to FeatureList table, from beginning of GSUB table
+    pub fn feature_list_offset(&self) -> Offset16 {
+        let range = self.0.feature_list_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
+    pub fn feature_list(&self) -> Result<Sanitized<FeatureList<'a>>, ReadError> {
+        let data = self.0.data;
+        self.feature_list_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to LookupList table, from beginning of GSUB table
+    pub fn lookup_list_offset(&self) -> Offset16 {
+        let range = self.0.lookup_list_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
+    pub fn lookup_list(&self) -> Result<Sanitized<SubstitutionLookupList<'a>>, ReadError> {
+        let data = self.0.data;
+        self.lookup_list_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to FeatureVariations table, from beginning of the GSUB
+    /// table (may be NULL)
+    pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.0.feature_variations_offset_byte_range();
+        Some(unsafe { self.0.data.read_at_unchecked(range.start) })
+    }
+
+    /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
+    pub fn feature_variations(
+        &self,
+    ) -> Option<Result<Sanitized<FeatureVariations<'a>>, ReadError>> {
+        let data = self.0.data;
+        self.feature_variations_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 }
 
@@ -104,7 +174,7 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
     pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
         let data = self.data;
-        self.script_list_offset().resolve(data)
+        self.script_list_offset().resolve_with_args(data, &())
     }
 
     /// Offset to FeatureList table, from beginning of GSUB table
@@ -116,7 +186,7 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
     pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
         let data = self.data;
-        self.feature_list_offset().resolve(data)
+        self.feature_list_offset().resolve_with_args(data, &())
     }
 
     /// Offset to LookupList table, from beginning of GSUB table
@@ -128,7 +198,7 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
     pub fn lookup_list(&self) -> Result<SubstitutionLookupList<'a>, ReadError> {
         let data = self.data;
-        self.lookup_list_offset().resolve(data)
+        self.lookup_list_offset().resolve_with_args(data, &())
     }
 
     /// Offset to FeatureVariations table, from beginning of the GSUB
@@ -141,7 +211,8 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
         let data = self.data;
-        self.feature_variations_offset().map(|x| x.resolve(data))?
+        self.feature_variations_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 }
 
@@ -211,6 +282,16 @@ impl<'a> FontRead<'a> for SubstitutionLookup<'a> {
             8 => Ok(SubstitutionLookup::Reverse(untyped.into_concrete())),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for SubstitutionLookup<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SubstitutionLookup<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -326,6 +407,16 @@ impl<'a> FontRead<'a> for SingleSubst<'a> {
     }
 }
 
+impl ReadArgs for SingleSubst<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SingleSubst<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for SingleSubst<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -398,12 +489,49 @@ impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for SingleSubstFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SingleSubstFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SingleSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.coverage()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SingleSubstFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        let range = self.0.subst_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Add to original glyph ID to get substitute glyph ID
+    pub fn delta_glyph_id(&self) -> i16 {
+        let range = self.0.delta_glyph_id_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -448,7 +576,7 @@ impl<'a> SingleSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Add to original glyph ID to get substitute glyph ID
@@ -511,12 +639,55 @@ impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
     }
 }
 
+impl ReadArgs for SingleSubstFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SingleSubstFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SingleSubstFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.coverage()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SingleSubstFormat2<'a>> {
+    /// Format identifier: format = 2
+    pub fn subst_format(&self) -> u16 {
+        let range = self.0.subst_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of glyph IDs in the substituteGlyphIDs array
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.0.glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of substitute glyph IDs — ordered by Coverage index
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.substitute_glyph_ids_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -568,7 +739,7 @@ impl<'a> SingleSubstFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of glyph IDs in the substituteGlyphIDs array
@@ -641,6 +812,16 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for MultipleSubstFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MultipleSubstFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for MultipleSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -648,6 +829,47 @@ impl<'a> Sanitize<'a> for MultipleSubstFormat1<'a> {
         self.coverage()?.sanitize_impl()?;
         self.sequences().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<MultipleSubstFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        let range = self.0.subst_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of Sequence table offsets in the sequenceOffsets array
+    pub fn sequence_count(&self) -> u16 {
+        let range = self.0.sequence_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to Sequence tables. Offsets are from beginning
+    /// of substitution subtable, ordered by Coverage index
+    pub fn sequence_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.sequence_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`sequence_offsets`][Self::sequence_offsets].
+    pub fn sequences(&self) -> ArrayOfOffsets<'a, Sanitized<Sequence<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.sequence_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -699,7 +921,7 @@ impl<'a> MultipleSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of Sequence table offsets in the sequenceOffsets array
@@ -744,7 +966,7 @@ impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
                         better_type_name::<Sequence>(),
                         self.sequence_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<Sequence>(data);
+                            let target = off.get().resolve_with_args::<Sequence>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -786,11 +1008,36 @@ impl<'a> FontRead<'a> for Sequence<'a> {
     }
 }
 
+impl ReadArgs for Sequence<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Sequence<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for Sequence<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<Sequence<'a>> {
+    /// Number of glyph IDs in the substituteGlyphIDs array. This must
+    /// always be greater than 0.
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.0.glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// String of glyph IDs to substitute
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.substitute_glyph_ids_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -880,6 +1127,16 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for AlternateSubstFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AlternateSubstFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for AlternateSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -887,6 +1144,47 @@ impl<'a> Sanitize<'a> for AlternateSubstFormat1<'a> {
         self.coverage()?.sanitize_impl()?;
         self.alternate_sets().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<AlternateSubstFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        let range = self.0.subst_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of AlternateSet tables
+    pub fn alternate_set_count(&self) -> u16 {
+        let range = self.0.alternate_set_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to AlternateSet tables. Offsets are from
+    /// beginning of substitution subtable, ordered by Coverage index
+    pub fn alternate_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.alternate_set_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`alternate_set_offsets`][Self::alternate_set_offsets].
+    pub fn alternate_sets(&self) -> ArrayOfOffsets<'a, Sanitized<AlternateSet<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.alternate_set_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -938,7 +1236,7 @@ impl<'a> AlternateSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of AlternateSet tables
@@ -986,7 +1284,7 @@ impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
                         better_type_name::<AlternateSet>(),
                         self.alternate_set_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<AlternateSet>(data);
+                            let target = off.get().resolve_with_args::<AlternateSet>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -1028,11 +1326,35 @@ impl<'a> FontRead<'a> for AlternateSet<'a> {
     }
 }
 
+impl ReadArgs for AlternateSet<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AlternateSet<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for AlternateSet<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<AlternateSet<'a>> {
+    /// Number of glyph IDs in the alternateGlyphIDs array
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.0.glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of alternate glyph IDs, in arbitrary order
+    pub fn alternate_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.alternate_glyph_ids_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -1121,6 +1443,16 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for LigatureSubstFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for LigatureSubstFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for LigatureSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -1128,6 +1460,47 @@ impl<'a> Sanitize<'a> for LigatureSubstFormat1<'a> {
         self.coverage()?.sanitize_impl()?;
         self.ligature_sets().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<LigatureSubstFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        let range = self.0.subst_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of LigatureSet tables
+    pub fn ligature_set_count(&self) -> u16 {
+        let range = self.0.ligature_set_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to LigatureSet tables. Offsets are from
+    /// beginning of substitution subtable, ordered by Coverage index
+    pub fn ligature_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.ligature_set_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`ligature_set_offsets`][Self::ligature_set_offsets].
+    pub fn ligature_sets(&self) -> ArrayOfOffsets<'a, Sanitized<LigatureSet<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.ligature_set_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -1179,7 +1552,7 @@ impl<'a> LigatureSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of LigatureSet tables
@@ -1224,7 +1597,7 @@ impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
                         better_type_name::<LigatureSet>(),
                         self.ligature_set_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<LigatureSet>(data);
+                            let target = off.get().resolve_with_args::<LigatureSet>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -1266,12 +1639,44 @@ impl<'a> FontRead<'a> for LigatureSet<'a> {
     }
 }
 
+impl ReadArgs for LigatureSet<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for LigatureSet<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for LigatureSet<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.ligatures().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<LigatureSet<'a>> {
+    /// Number of Ligature tables
+    pub fn ligature_count(&self) -> u16 {
+        let range = self.0.ligature_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to Ligature tables. Offsets are from beginning
+    /// of LigatureSet table, ordered by preference.
+    pub fn ligature_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.ligature_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`ligature_offsets`][Self::ligature_offsets].
+    pub fn ligatures(&self) -> ArrayOfOffsets<'a, Sanitized<Ligature<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.ligature_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -1332,7 +1737,7 @@ impl<'a> SomeTable<'a> for LigatureSet<'a> {
                         better_type_name::<Ligature>(),
                         self.ligature_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<Ligature>(data);
+                            let target = off.get().resolve_with_args::<Ligature>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -1374,11 +1779,42 @@ impl<'a> FontRead<'a> for Ligature<'a> {
     }
 }
 
+impl ReadArgs for Ligature<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Ligature<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for Ligature<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<Ligature<'a>> {
+    /// glyph ID of ligature to substitute
+    pub fn ligature_glyph(&self) -> GlyphId16 {
+        let range = self.0.ligature_glyph_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of components in the ligature
+    pub fn component_count(&self) -> u16 {
+        let range = self.0.component_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of component glyph IDs — start with the second
+    /// component, ordered in writing direction
+    pub fn component_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.component_glyph_ids_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -1495,12 +1931,58 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
     }
 }
 
-impl<'a, T: FontRead<'a> + Sanitize<'a>> Sanitize<'a> for ExtensionSubstFormat1<'a, T> {
+impl<T> ReadArgs for ExtensionSubstFormat1<'_, T> {
+    type Args = ();
+}
+
+impl<'a, T> FontReadWithArgs<'a> for ExtensionSubstFormat1<'a, T> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitize<'a>
+    for ExtensionSubstFormat1<'a, T>
+{
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.extension()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>>
+    Sanitized<ExtensionSubstFormat1<'a, T>>
+{
+    /// Format identifier. Set to 1.
+    pub fn subst_format(&self) -> u16 {
+        let range = self.0.subst_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Lookup type of subtable referenced by extensionOffset (that is,
+    /// the extension subtable).
+    pub fn extension_lookup_type(&self) -> u16 {
+        let range = self.0.extension_lookup_type_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to the extension subtable, of lookup type
+    /// extensionLookupType, relative to the start of the
+    /// ExtensionSubstFormat1 subtable.
+    pub fn extension_offset(&self) -> Offset32 {
+        let range = self.0.extension_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`extension_offset`][Self::extension_offset].
+    pub fn extension(&self) -> Result<Sanitized<T>, ReadError>
+    where
+        T: FontReadWithArgs<'a, Args = ()>,
+    {
+        let data = self.0.data;
+        self.extension_offset().resolve_with_args(data, &())
     }
 }
 
@@ -1578,15 +2060,17 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     /// Attempt to resolve [`extension_offset`][Self::extension_offset].
     pub fn extension(&self) -> Result<T, ReadError>
     where
-        T: FontRead<'a>,
+        T: FontReadWithArgs<'a, Args = ()>,
     {
         let data = self.data;
-        self.extension_offset().resolve(data)
+        self.extension_offset().resolve_with_args(data, &())
     }
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstFormat1<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a>
+    for ExtensionSubstFormat1<'a, T>
+{
     fn type_name(&self) -> &str {
         "ExtensionSubstFormat1"
     }
@@ -1608,7 +2092,9 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstF
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionSubstFormat1<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug
+    for ExtensionSubstFormat1<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -1638,6 +2124,16 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
             8 => Ok(ExtensionSubtable::Reverse(untyped.into_concrete())),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for ExtensionSubtable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ExtensionSubtable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1732,6 +2228,16 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for ReverseChainSingleSubstFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ReverseChainSingleSubstFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ReverseChainSingleSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -1740,6 +2246,83 @@ impl<'a> Sanitize<'a> for ReverseChainSingleSubstFormat1<'a> {
         self.backtrack_coverages().sanitize_impl()?;
         self.lookahead_coverages().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ReverseChainSingleSubstFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        let range = self.0.subst_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of glyphs in the backtrack sequence.
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        let range = self.0.backtrack_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to coverage tables in backtrack sequence, in
+    /// glyph sequence order.
+    pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.backtrack_coverage_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
+    pub fn backtrack_coverages(
+        &self,
+    ) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.backtrack_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Number of glyphs in lookahead sequence.
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        let range = self.0.lookahead_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to coverage tables in lookahead sequence, in
+    /// glyph sequence order.
+    pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.lookahead_coverage_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
+    pub fn lookahead_coverages(
+        &self,
+    ) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.lookahead_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Number of glyph IDs in the substituteGlyphIDs array.
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.0.glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of substitute glyph IDs — ordered by Coverage index.
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.substitute_glyph_ids_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -1821,7 +2404,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of glyphs in the backtrack sequence.
@@ -1901,7 +2484,7 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                         better_type_name::<CoverageTable>(),
                         self.backtrack_coverage_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
+                            let target = off.get().resolve_with_args::<CoverageTable>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -1919,7 +2502,7 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                         better_type_name::<CoverageTable>(),
                         self.lookahead_coverage_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
+                            let target = off.get().resolve_with_args::<CoverageTable>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),

@@ -27,6 +27,16 @@ impl<'a> FontRead<'a> for CountAll16<'a> {
     }
 }
 
+impl ReadArgs for CountAll16<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CountAll16<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type CountAll16<'a> = TableRef<'a, CountAll16Marker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -98,6 +108,16 @@ impl<'a> FontRead<'a> for CountAll32<'a> {
             data,
             shape: CountAll32Marker {},
         })
+    }
+}
+
+impl ReadArgs for CountAll32<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CountAll32<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

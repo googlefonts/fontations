@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Trak<'a> {
     }
 }
 
+impl ReadArgs for Trak<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Trak<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
 pub type Trak<'a> = TableRef<'a, TrakMarker>;
 
@@ -95,7 +105,7 @@ impl<'a> Trak<'a> {
     /// Attempt to resolve [`horiz_offset`][Self::horiz_offset].
     pub fn horiz(&self) -> Option<Result<TrackData<'a>, ReadError>> {
         let data = self.data;
-        self.horiz_offset().resolve(data)
+        self.horiz_offset().resolve_with_args(data, &())
     }
 
     /// Offset from start of tracking table to TrackData for vertical text (or 0 if none).
@@ -107,7 +117,7 @@ impl<'a> Trak<'a> {
     /// Attempt to resolve [`vert_offset`][Self::vert_offset].
     pub fn vert(&self) -> Option<Result<TrackData<'a>, ReadError>> {
         let data = self.data;
-        self.vert_offset().resolve(data)
+        self.vert_offset().resolve_with_args(data, &())
     }
 }
 
@@ -161,6 +171,16 @@ impl<'a> FontRead<'a> for TrackData<'a> {
             data,
             shape: TrackDataMarker {},
         })
+    }
+}
+
+impl ReadArgs for TrackData<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for TrackData<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

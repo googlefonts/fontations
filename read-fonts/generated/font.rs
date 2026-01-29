@@ -28,6 +28,16 @@ impl<'a> FontRead<'a> for TableDirectory<'a> {
     }
 }
 
+impl ReadArgs for TableDirectory<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for TableDirectory<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 pub type TableDirectory<'a> = TableRef<'a, TableDirectoryMarker>;
 
@@ -222,6 +232,16 @@ impl<'a> FontRead<'a> for TTCHeader<'a> {
             data,
             shape: TTCHeaderMarker {},
         })
+    }
+}
+
+impl ReadArgs for TTCHeader<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for TTCHeader<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

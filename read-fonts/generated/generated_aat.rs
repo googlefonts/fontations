@@ -58,6 +58,16 @@ impl<'a> FontRead<'a> for Lookup<'a> {
     }
 }
 
+impl ReadArgs for Lookup<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Lookup<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for Lookup<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -127,6 +137,16 @@ impl<'a> FontRead<'a> for Lookup0<'a> {
             data,
             shape: Lookup0Marker {},
         })
+    }
+}
+
+impl ReadArgs for Lookup0<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Lookup0<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -212,6 +232,16 @@ impl<'a> FontRead<'a> for Lookup2<'a> {
             data,
             shape: Lookup2Marker {},
         })
+    }
+}
+
+impl ReadArgs for Lookup2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Lookup2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -371,6 +401,16 @@ impl<'a> FontRead<'a> for Lookup4<'a> {
             data,
             shape: Lookup4Marker {},
         })
+    }
+}
+
+impl ReadArgs for Lookup4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Lookup4<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -586,6 +626,16 @@ impl<'a> FontRead<'a> for Lookup6<'a> {
     }
 }
 
+impl ReadArgs for Lookup6<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Lookup6<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// Single table format. The lookup data is a sorted list of
 /// <glyph index,lookup value> pairs.
 pub type Lookup6<'a> = TableRef<'a, Lookup6Marker>;
@@ -743,6 +793,16 @@ impl<'a> FontRead<'a> for Lookup8<'a> {
     }
 }
 
+impl ReadArgs for Lookup8<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Lookup8<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// Trimmed array format. The lookup data is a simple trimmed array
 /// indexed by glyph index.
 pub type Lookup8<'a> = TableRef<'a, Lookup8Marker>;
@@ -852,6 +912,16 @@ impl<'a> FontRead<'a> for Lookup10<'a> {
             data,
             shape: Lookup10Marker {},
         })
+    }
+}
+
+impl ReadArgs for Lookup10<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Lookup10<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -980,6 +1050,16 @@ impl<'a> FontRead<'a> for StateHeader<'a> {
     }
 }
 
+impl ReadArgs for StateHeader<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for StateHeader<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// Header for a state table.
 pub type StateHeader<'a> = TableRef<'a, StateHeaderMarker>;
 
@@ -1030,7 +1110,7 @@ impl<'a> StateHeader<'a> {
     /// Attempt to resolve [`class_table_offset`][Self::class_table_offset].
     pub fn class_table(&self) -> Result<ClassSubtable<'a>, ReadError> {
         let data = self.data;
-        self.class_table_offset().resolve(data)
+        self.class_table_offset().resolve_with_args(data, &())
     }
 
     /// Byte offset from the beginning of the state table to the state array.
@@ -1042,7 +1122,7 @@ impl<'a> StateHeader<'a> {
     /// Attempt to resolve [`state_array_offset`][Self::state_array_offset].
     pub fn state_array(&self) -> Result<RawBytes<'a>, ReadError> {
         let data = self.data;
-        self.state_array_offset().resolve(data)
+        self.state_array_offset().resolve_with_args(data, &())
     }
 
     /// Byte offset from the beginning of the state table to the entry subtable.
@@ -1054,7 +1134,7 @@ impl<'a> StateHeader<'a> {
     /// Attempt to resolve [`entry_table_offset`][Self::entry_table_offset].
     pub fn entry_table(&self) -> Result<RawBytes<'a>, ReadError> {
         let data = self.data;
-        self.entry_table_offset().resolve(data)
+        self.entry_table_offset().resolve_with_args(data, &())
     }
 }
 
@@ -1111,6 +1191,16 @@ impl<'a> FontRead<'a> for ClassSubtable<'a> {
             data,
             shape: ClassSubtableMarker {},
         })
+    }
+}
+
+impl ReadArgs for ClassSubtable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClassSubtable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1206,6 +1296,16 @@ impl<'a> FontRead<'a> for RawBytes<'a> {
     }
 }
 
+impl ReadArgs for RawBytes<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for RawBytes<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// Used for the `state_array` and `entry_table` fields in [`StateHeader`].
 pub type RawBytes<'a> = TableRef<'a, RawBytesMarker>;
 
@@ -1270,6 +1370,16 @@ impl<'a> FontRead<'a> for StxHeader<'a> {
     }
 }
 
+impl ReadArgs for StxHeader<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for StxHeader<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// Header for an extended state table.
 pub type StxHeader<'a> = TableRef<'a, StxHeaderMarker>;
 
@@ -1319,7 +1429,7 @@ impl<'a> StxHeader<'a> {
     /// Attempt to resolve [`class_table_offset`][Self::class_table_offset].
     pub fn class_table(&self) -> Result<LookupU16<'a>, ReadError> {
         let data = self.data;
-        self.class_table_offset().resolve(data)
+        self.class_table_offset().resolve_with_args(data, &())
     }
 
     /// Byte offset from the beginning of the state table to the state array.
@@ -1331,7 +1441,7 @@ impl<'a> StxHeader<'a> {
     /// Attempt to resolve [`state_array_offset`][Self::state_array_offset].
     pub fn state_array(&self) -> Result<RawWords<'a>, ReadError> {
         let data = self.data;
-        self.state_array_offset().resolve(data)
+        self.state_array_offset().resolve_with_args(data, &())
     }
 
     /// Byte offset from the beginning of the state table to the entry subtable.
@@ -1343,7 +1453,7 @@ impl<'a> StxHeader<'a> {
     /// Attempt to resolve [`entry_table_offset`][Self::entry_table_offset].
     pub fn entry_table(&self) -> Result<RawBytes<'a>, ReadError> {
         let data = self.data;
-        self.entry_table_offset().resolve(data)
+        self.entry_table_offset().resolve_with_args(data, &())
     }
 }
 
@@ -1400,6 +1510,16 @@ impl<'a> FontRead<'a> for RawWords<'a> {
             data,
             shape: RawWordsMarker {},
         })
+    }
+}
+
+impl ReadArgs for RawWords<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for RawWords<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

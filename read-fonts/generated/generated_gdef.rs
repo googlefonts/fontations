@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Gdef<'a> {
     }
 }
 
+impl ReadArgs for Gdef<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Gdef<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 pub type Gdef<'a> = TableRef<'a, GdefMarker>;
 
@@ -106,7 +116,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`glyph_class_def_offset`][Self::glyph_class_def_offset].
     pub fn glyph_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
         let data = self.data;
-        self.glyph_class_def_offset().resolve(data)
+        self.glyph_class_def_offset().resolve_with_args(data, &())
     }
 
     /// Offset to attachment point list table, from beginning of GDEF
@@ -119,7 +129,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`attach_list_offset`][Self::attach_list_offset].
     pub fn attach_list(&self) -> Option<Result<AttachList<'a>, ReadError>> {
         let data = self.data;
-        self.attach_list_offset().resolve(data)
+        self.attach_list_offset().resolve_with_args(data, &())
     }
 
     /// Offset to ligature caret list table, from beginning of GDEF
@@ -132,7 +142,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`lig_caret_list_offset`][Self::lig_caret_list_offset].
     pub fn lig_caret_list(&self) -> Option<Result<LigCaretList<'a>, ReadError>> {
         let data = self.data;
-        self.lig_caret_list_offset().resolve(data)
+        self.lig_caret_list_offset().resolve_with_args(data, &())
     }
 
     /// Offset to class definition table for mark attachment type, from
@@ -145,7 +155,8 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`mark_attach_class_def_offset`][Self::mark_attach_class_def_offset].
     pub fn mark_attach_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
         let data = self.data;
-        self.mark_attach_class_def_offset().resolve(data)
+        self.mark_attach_class_def_offset()
+            .resolve_with_args(data, &())
     }
 
     /// Offset to the table of mark glyph set definitions, from
@@ -158,7 +169,8 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`mark_glyph_sets_def_offset`][Self::mark_glyph_sets_def_offset].
     pub fn mark_glyph_sets_def(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
         let data = self.data;
-        self.mark_glyph_sets_def_offset().map(|x| x.resolve(data))?
+        self.mark_glyph_sets_def_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 
     /// Offset to the Item Variation Store table, from beginning of
@@ -171,7 +183,8 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
     pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
-        self.item_var_store_offset().map(|x| x.resolve(data))?
+        self.item_var_store_offset()
+            .map(|x| x.resolve_with_args(data, &()))?
     }
 }
 
@@ -298,6 +311,16 @@ impl<'a> FontRead<'a> for AttachList<'a> {
     }
 }
 
+impl ReadArgs for AttachList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AttachList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
 pub type AttachList<'a> = TableRef<'a, AttachListMarker>;
 
@@ -333,7 +356,7 @@ impl<'a> AttachList<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of glyphs with attachment points
@@ -377,7 +400,7 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
                         better_type_name::<AttachPoint>(),
                         self.attach_point_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<AttachPoint>(data);
+                            let target = off.get().resolve_with_args::<AttachPoint>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -416,6 +439,16 @@ impl<'a> FontRead<'a> for AttachPoint<'a> {
             data,
             shape: AttachPointMarker {},
         })
+    }
+}
+
+impl ReadArgs for AttachPoint<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for AttachPoint<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -497,6 +530,16 @@ impl<'a> FontRead<'a> for LigCaretList<'a> {
     }
 }
 
+impl ReadArgs for LigCaretList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for LigCaretList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
 pub type LigCaretList<'a> = TableRef<'a, LigCaretListMarker>;
 
@@ -532,7 +575,7 @@ impl<'a> LigCaretList<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of ligature glyphs
@@ -576,7 +619,7 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
                         better_type_name::<LigGlyph>(),
                         self.lig_glyph_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<LigGlyph>(data);
+                            let target = off.get().resolve_with_args::<LigGlyph>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -615,6 +658,16 @@ impl<'a> FontRead<'a> for LigGlyph<'a> {
             data,
             shape: LigGlyphMarker {},
         })
+    }
+}
+
+impl ReadArgs for LigGlyph<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for LigGlyph<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -675,7 +728,7 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
                         better_type_name::<CaretValue>(),
                         self.caret_value_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<CaretValue>(data);
+                            let target = off.get().resolve_with_args::<CaretValue>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -731,6 +784,16 @@ impl<'a> FontRead<'a> for CaretValue<'a> {
             CaretValueFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for CaretValue<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CaretValue<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -796,6 +859,16 @@ impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
             data,
             shape: CaretValueFormat1Marker {},
         })
+    }
+}
+
+impl ReadArgs for CaretValueFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CaretValueFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -877,6 +950,16 @@ impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
             data,
             shape: CaretValueFormat2Marker {},
         })
+    }
+}
+
+impl ReadArgs for CaretValueFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CaretValueFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -964,6 +1047,16 @@ impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
     }
 }
 
+impl ReadArgs for CaretValueFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CaretValueFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
 pub type CaretValueFormat3<'a> = TableRef<'a, CaretValueFormat3Marker>;
 
@@ -1012,7 +1105,7 @@ impl<'a> CaretValueFormat3<'a> {
     /// Attempt to resolve [`device_offset`][Self::device_offset].
     pub fn device(&self) -> Result<DeviceOrVariationIndex<'a>, ReadError> {
         let data = self.data;
-        self.device_offset().resolve(data)
+        self.device_offset().resolve_with_args(data, &())
     }
 }
 
@@ -1066,6 +1159,16 @@ impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
             data,
             shape: MarkGlyphSetsMarker {},
         })
+    }
+}
+
+impl ReadArgs for MarkGlyphSets<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MarkGlyphSets<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1142,7 +1245,7 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
                         better_type_name::<CoverageTable>(),
                         self.coverage_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
+                            let target = off.get().resolve_with_args::<CoverageTable>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),

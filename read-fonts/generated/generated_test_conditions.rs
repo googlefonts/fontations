@@ -27,6 +27,16 @@ impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     }
 }
 
+impl ReadArgs for MajorMinorVersion<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MajorMinorVersion<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type MajorMinorVersion<'a> = TableRef<'a, MajorMinorVersionMarker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -437,6 +447,16 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
     }
 }
 
+impl ReadArgs for FlagDay<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FlagDay<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type FlagDay<'a> = TableRef<'a, FlagDayMarker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -555,6 +575,16 @@ impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
             data,
             shape: FieldsAfterConditionalsMarker {},
         })
+    }
+}
+
+impl ReadArgs for FieldsAfterConditionals<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FieldsAfterConditionals<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

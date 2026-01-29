@@ -83,6 +83,16 @@ impl<'a> FontRead<'a> for Ift<'a> {
     }
 }
 
+impl ReadArgs for Ift<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Ift<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for Ift<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -448,6 +458,16 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
             data,
             shape: PatchMapFormat1Marker {},
         })
+    }
+}
+
+impl ReadArgs for PatchMapFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PatchMapFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1165,6 +1185,16 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
     }
 }
 
+impl ReadArgs for PatchMapFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for PatchMapFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
 pub type PatchMapFormat2<'a> = TableRef<'a, PatchMapFormat2Marker>;
 
@@ -1311,7 +1341,7 @@ impl<'a> PatchMapFormat2<'a> {
     /// Attempt to resolve [`entries_offset`][Self::entries_offset].
     pub fn entries(&self) -> Result<MappingEntries<'a>, ReadError> {
         let data = self.data;
-        self.entries_offset().resolve(data)
+        self.entries_offset().resolve_with_args(data, &())
     }
 
     pub fn entry_id_string_data_offset(&self) -> Nullable<Offset32> {
@@ -1322,7 +1352,8 @@ impl<'a> PatchMapFormat2<'a> {
     /// Attempt to resolve [`entry_id_string_data_offset`][Self::entry_id_string_data_offset].
     pub fn entry_id_string_data(&self) -> Option<Result<IdStringData<'a>, ReadError>> {
         let data = self.data;
-        self.entry_id_string_data_offset().resolve(data)
+        self.entry_id_string_data_offset()
+            .resolve_with_args(data, &())
     }
 
     pub fn url_template_length(&self) -> u16 {
@@ -1435,6 +1466,16 @@ impl<'a> FontRead<'a> for MappingEntries<'a> {
     }
 }
 
+impl ReadArgs for MappingEntries<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for MappingEntries<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type MappingEntries<'a> = TableRef<'a, MappingEntriesMarker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -1494,6 +1535,16 @@ impl<'a> FontRead<'a> for EntryData<'a> {
             data,
             shape: EntryDataMarker {},
         })
+    }
+}
+
+impl ReadArgs for EntryData<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for EntryData<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -2098,6 +2149,16 @@ impl<'a> FontRead<'a> for IdStringData<'a> {
     }
 }
 
+impl ReadArgs for IdStringData<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for IdStringData<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 pub type IdStringData<'a> = TableRef<'a, IdStringDataMarker>;
 
 #[allow(clippy::needless_lifetimes)]
@@ -2158,6 +2219,16 @@ impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
             data,
             shape: TableKeyedPatchMarker {},
         })
+    }
+}
+
+impl ReadArgs for TableKeyedPatch<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for TableKeyedPatch<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -2251,7 +2322,7 @@ impl<'a> SomeTable<'a> for TableKeyedPatch<'a> {
                         better_type_name::<TablePatch>(),
                         self.patch_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<TablePatch>(data);
+                            let target = off.get().resolve_with_args::<TablePatch>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -2290,6 +2361,16 @@ impl<'a> FontRead<'a> for TablePatch<'a> {
             data,
             shape: TablePatchMarker {},
         })
+    }
+}
+
+impl ReadArgs for TablePatch<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for TablePatch<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -2699,6 +2780,16 @@ impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
             data,
             shape: GlyphKeyedPatchMarker {},
         })
+    }
+}
+
+impl ReadArgs for GlyphKeyedPatch<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for GlyphKeyedPatch<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -3254,7 +3345,7 @@ impl<'a> SomeTable<'a> for GlyphPatches<'a> {
                         better_type_name::<GlyphData>(),
                         self.glyph_data_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<GlyphData>(data);
+                            let target = off.get().resolve_with_args::<GlyphData>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -3292,6 +3383,16 @@ impl<'a> FontRead<'a> for GlyphData<'a> {
             data,
             shape: GlyphDataMarker {},
         })
+    }
+}
+
+impl ReadArgs for GlyphData<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for GlyphData<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

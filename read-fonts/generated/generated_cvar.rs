@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Cvar<'a> {
     }
 }
 
+impl ReadArgs for Cvar<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cvar<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
 pub type Cvar<'a> = TableRef<'a, CvarMarker>;
 
@@ -89,7 +99,7 @@ impl<'a> Cvar<'a> {
     /// Attempt to resolve [`data_offset`][Self::data_offset].
     pub fn data(&self) -> Result<FontData<'a>, ReadError> {
         let data = self.data;
-        self.data_offset().resolve(data)
+        self.data_offset().resolve_with_args(data, &())
     }
 
     /// Array of tuple variation headers.

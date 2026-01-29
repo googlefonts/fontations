@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Maxp<'a> {
     }
 }
 
+impl ReadArgs for Maxp<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Maxp<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
 pub type Maxp<'a> = TableRef<'a, MaxpMarker>;
 

@@ -28,6 +28,16 @@ impl<'a> FontRead<'a> for ScriptList<'a> {
     }
 }
 
+impl ReadArgs for ScriptList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ScriptList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ScriptList<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -36,6 +46,20 @@ impl<'a> Sanitize<'a> for ScriptList<'a> {
             .iter()
             .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ScriptList<'a>> {
+    /// Number of ScriptRecords
+    pub fn script_count(&self) -> u16 {
+        let range = self.0.script_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of ScriptRecords, listed alphabetically by script tag
+    pub fn script_records(&self) -> &'a [Sanitized<ScriptRecord>] {
+        let range = self.0.script_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -133,7 +157,7 @@ impl ScriptRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn script<'a>(&self, data: FontData<'a>) -> Result<Script<'a>, ReadError> {
-        self.script_offset().resolve(data)
+        self.script_offset().resolve_with_args(data, &())
     }
 }
 
@@ -182,6 +206,16 @@ impl<'a> FontRead<'a> for Script<'a> {
     }
 }
 
+impl ReadArgs for Script<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Script<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for Script<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -193,6 +227,34 @@ impl<'a> Sanitize<'a> for Script<'a> {
             .iter()
             .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<Script<'a>> {
+    /// Offset to default LangSys table, from beginning of Script table
+    /// — may be NULL
+    pub fn default_lang_sys_offset(&self) -> Nullable<Offset16> {
+        let range = self.0.default_lang_sys_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`default_lang_sys_offset`][Self::default_lang_sys_offset].
+    pub fn default_lang_sys(&self) -> Option<Result<Sanitized<LangSys<'a>>, ReadError>> {
+        let data = self.0.data;
+        self.default_lang_sys_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of LangSysRecords for this script — excluding the
+    /// default LangSys
+    pub fn lang_sys_count(&self) -> u16 {
+        let range = self.0.lang_sys_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of LangSysRecords, listed alphabetically by LangSys tag
+    pub fn lang_sys_records(&self) -> &'a [Sanitized<LangSysRecord>] {
+        let range = self.0.lang_sys_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -232,7 +294,7 @@ impl<'a> Script<'a> {
     /// Attempt to resolve [`default_lang_sys_offset`][Self::default_lang_sys_offset].
     pub fn default_lang_sys(&self) -> Option<Result<LangSys<'a>, ReadError>> {
         let data = self.data;
-        self.default_lang_sys_offset().resolve(data)
+        self.default_lang_sys_offset().resolve_with_args(data, &())
     }
 
     /// Number of LangSysRecords for this script — excluding the
@@ -313,7 +375,7 @@ impl LangSysRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn lang_sys<'a>(&self, data: FontData<'a>) -> Result<LangSys<'a>, ReadError> {
-        self.lang_sys_offset().resolve(data)
+        self.lang_sys_offset().resolve_with_args(data, &())
     }
 }
 
@@ -362,11 +424,43 @@ impl<'a> FontRead<'a> for LangSys<'a> {
     }
 }
 
+impl ReadArgs for LangSys<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for LangSys<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for LangSys<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<LangSys<'a>> {
+    /// Index of a feature required for this language system; if no
+    /// required features = 0xFFFF
+    pub fn required_feature_index(&self) -> u16 {
+        let range = self.0.required_feature_index_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of feature index values for this language system —
+    /// excludes the required feature
+    pub fn feature_index_count(&self) -> u16 {
+        let range = self.0.feature_index_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of indices into the FeatureList, in arbitrary order
+    pub fn feature_indices(&self) -> &'a [BigEndian<u16>] {
+        let range = self.0.feature_indices_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -475,6 +569,16 @@ impl<'a> FontRead<'a> for FeatureList<'a> {
     }
 }
 
+impl ReadArgs for FeatureList<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FeatureList<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for FeatureList<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -483,6 +587,21 @@ impl<'a> Sanitize<'a> for FeatureList<'a> {
             .iter()
             .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<FeatureList<'a>> {
+    /// Number of FeatureRecords in this table
+    pub fn feature_count(&self) -> u16 {
+        let range = self.0.feature_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of FeatureRecords — zero-based (first feature has
+    /// FeatureIndex = 0), listed alphabetically by feature tag
+    pub fn feature_records(&self) -> &'a [Sanitized<FeatureRecord>] {
+        let range = self.0.feature_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -660,6 +779,38 @@ impl<'a> Sanitize<'a> for Feature<'a> {
     }
 }
 
+impl<'a> Sanitized<Feature<'a>> {
+    /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
+    pub fn feature_params_offset(&self) -> Nullable<Offset16> {
+        let range = self.0.feature_params_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`feature_params_offset`][Self::feature_params_offset].
+    pub fn feature_params(&self) -> Option<Result<Sanitized<FeatureParams<'a>>, ReadError>> {
+        let data = self.0.data;
+        let args = self.feature_tag();
+        self.feature_params_offset().resolve_with_args(data, &args)
+    }
+
+    /// Number of LookupList indices for this feature
+    pub fn lookup_index_count(&self) -> u16 {
+        let range = self.0.lookup_index_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of indices into the LookupList — zero-based (first
+    /// lookup is LookupListIndex = 0)
+    pub fn lookup_list_indices(&self) -> &'a [BigEndian<u16>] {
+        let range = self.0.lookup_list_indices_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    pub(crate) fn feature_tag(&self) -> Tag {
+        self.0.shape.feature_tag
+    }
+}
+
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
 pub type Feature<'a> = TableRef<'a, FeatureMarker>;
 
@@ -781,12 +932,47 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
     }
 }
 
-impl<'a, T: FontRead<'a> + Sanitize<'a>> Sanitize<'a> for LookupList<'a, T> {
+impl<T> ReadArgs for LookupList<'_, T> {
+    type Args = ();
+}
+
+impl<'a, T> FontReadWithArgs<'a> for LookupList<'a, T> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitize<'a> for LookupList<'a, T> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.lookups().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitized<LookupList<'a, T>> {
+    /// Number of lookups in this table
+    pub fn lookup_count(&self) -> u16 {
+        let range = self.0.lookup_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to Lookup tables, from beginning of LookupList
+    /// — zero based (first lookup is Lookup index = 0)
+    pub fn lookup_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.lookup_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`lookup_offsets`][Self::lookup_offsets].
+    pub fn lookups(&self) -> ArrayOfOffsets<'a, Sanitized<T>, Offset16>
+    where
+        T: FontReadWithArgs<'a, Args = ()>,
+    {
+        let data = self.0.data;
+        let offsets = self.lookup_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -851,7 +1037,7 @@ impl<'a, T> LookupList<'a, T> {
     /// A dynamically resolving wrapper for [`lookup_offsets`][Self::lookup_offsets].
     pub fn lookups(&self) -> ArrayOfOffsets<'a, T, Offset16>
     where
-        T: FontRead<'a>,
+        T: FontReadWithArgs<'a, Args = ()>,
     {
         let data = self.data;
         let offsets = self.lookup_offsets();
@@ -860,7 +1046,9 @@ impl<'a, T> LookupList<'a, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a>
+    for LookupList<'a, T>
+{
     fn type_name(&self) -> &str {
         "LookupList"
     }
@@ -875,7 +1063,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, 
                         better_type_name::<T>(),
                         self.lookup_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<T>(data);
+                            let target = off.get().resolve_with_args::<T>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -888,7 +1076,9 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, 
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug
+    for LookupList<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -929,12 +1119,67 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
     }
 }
 
-impl<'a, T: FontRead<'a> + Sanitize<'a>> Sanitize<'a> for Lookup<'a, T> {
+impl<T> ReadArgs for Lookup<'_, T> {
+    type Args = ();
+}
+
+impl<'a, T> FontReadWithArgs<'a> for Lookup<'a, T> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitize<'a> for Lookup<'a, T> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.subtables().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitized<Lookup<'a, T>> {
+    /// Different enumerations for GSUB and GPOS
+    pub fn lookup_type(&self) -> u16 {
+        let range = self.0.lookup_type_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Lookup qualifiers
+    pub fn lookup_flag(&self) -> LookupFlag {
+        let range = self.0.lookup_flag_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of subtables for this lookup
+    pub fn sub_table_count(&self) -> u16 {
+        let range = self.0.sub_table_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to lookup subtables, from beginning of Lookup
+    /// table
+    pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.subtable_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
+    pub fn subtables(&self) -> ArrayOfOffsets<'a, Sanitized<T>, Offset16>
+    where
+        T: FontReadWithArgs<'a, Args = ()>,
+    {
+        let data = self.0.data;
+        let offsets = self.subtable_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Index (base 0) into GDEF mark glyph sets structure. This field
+    /// is only present if the USE_MARK_FILTERING_SET lookup flag is
+    /// set.
+    pub fn mark_filtering_set(&self) -> Option<u16> {
+        let range = self.0.mark_filtering_set_byte_range();
+        Some(unsafe { self.0.data.read_at_unchecked(range.start) })
     }
 }
 
@@ -1033,7 +1278,7 @@ impl<'a, T> Lookup<'a, T> {
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
     pub fn subtables(&self) -> ArrayOfOffsets<'a, T, Offset16>
     where
-        T: FontRead<'a>,
+        T: FontReadWithArgs<'a, Args = ()>,
     {
         let data = self.data;
         let offsets = self.subtable_offsets();
@@ -1050,7 +1295,7 @@ impl<'a, T> Lookup<'a, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
     fn type_name(&self) -> &str {
         "Lookup"
     }
@@ -1067,7 +1312,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
                         better_type_name::<T>(),
                         self.subtable_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<T>(data);
+                            let target = off.get().resolve_with_args::<T>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -1090,7 +1335,9 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for Lookup<'a, T> {
+impl<'a, T: FontReadWithArgs<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug
+    for Lookup<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -1123,11 +1370,41 @@ impl<'a> FontRead<'a> for CoverageFormat1<'a> {
     }
 }
 
+impl ReadArgs for CoverageFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CoverageFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for CoverageFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<CoverageFormat1<'a>> {
+    /// Format identifier — format = 1
+    pub fn coverage_format(&self) -> u16 {
+        let range = self.0.coverage_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of glyphs in the glyph array
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.0.glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of glyph IDs — in numerical order
+    pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.glyph_array_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -1226,11 +1503,41 @@ impl<'a> FontRead<'a> for CoverageFormat2<'a> {
     }
 }
 
+impl ReadArgs for CoverageFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CoverageFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for CoverageFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<CoverageFormat2<'a>> {
+    /// Format identifier — format = 2
+    pub fn coverage_format(&self) -> u16 {
+        let range = self.0.coverage_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of RangeRecords
+    pub fn range_count(&self) -> u16 {
+        let range = self.0.range_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of glyph ranges — ordered by startGlyphID.
+    pub fn range_records(&self) -> &'a [Sanitized<RangeRecord>] {
+        let range = self.0.range_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -1399,6 +1706,16 @@ impl<'a> FontRead<'a> for CoverageTable<'a> {
     }
 }
 
+impl ReadArgs for CoverageTable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CoverageTable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for CoverageTable<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -1471,11 +1788,47 @@ impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
     }
 }
 
+impl ReadArgs for ClassDefFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClassDefFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ClassDefFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ClassDefFormat1<'a>> {
+    /// Format identifier — format = 1
+    pub fn class_format(&self) -> u16 {
+        let range = self.0.class_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// First glyph ID of the classValueArray
+    pub fn start_glyph_id(&self) -> GlyphId16 {
+        let range = self.0.start_glyph_id_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Size of the classValueArray
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.0.glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of Class Values — one per glyph ID
+    pub fn class_value_array(&self) -> &'a [BigEndian<u16>] {
+        let range = self.0.class_value_array_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -1587,11 +1940,41 @@ impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
     }
 }
 
+impl ReadArgs for ClassDefFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClassDefFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ClassDefFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ClassDefFormat2<'a>> {
+    /// Format identifier — format = 2
+    pub fn class_format(&self) -> u16 {
+        let range = self.0.class_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of ClassRangeRecords
+    pub fn class_range_count(&self) -> u16 {
+        let range = self.0.class_range_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of ClassRangeRecords — ordered by startGlyphID
+    pub fn class_range_records(&self) -> &'a [Sanitized<ClassRangeRecord>] {
+        let range = self.0.class_range_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -1758,6 +2141,16 @@ impl<'a> FontRead<'a> for ClassDef<'a> {
     }
 }
 
+impl ReadArgs for ClassDef<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClassDef<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for ClassDef<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -1872,6 +2265,16 @@ impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
     }
 }
 
+impl ReadArgs for SequenceContextFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SequenceContextFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SequenceContextFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -1879,6 +2282,49 @@ impl<'a> Sanitize<'a> for SequenceContextFormat1<'a> {
         self.coverage()?.sanitize_impl()?;
         self.seq_rule_sets().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SequenceContextFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat1 table
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of SequenceRuleSet tables
+    pub fn seq_rule_set_count(&self) -> u16 {
+        let range = self.0.seq_rule_set_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to SequenceRuleSet tables, from beginning of
+    /// SequenceContextFormat1 table (offsets may be NULL)
+    pub fn seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        let range = self.0.seq_rule_set_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
+    pub fn seq_rule_sets(
+        &self,
+    ) -> ArrayOfNullableOffsets<'a, Sanitized<SequenceRuleSet<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -1930,7 +2376,7 @@ impl<'a> SequenceContextFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of SequenceRuleSet tables
@@ -1975,7 +2421,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
                         better_type_name::<SequenceRuleSet>(),
                         self.seq_rule_set_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<SequenceRuleSet>(data);
+                            let target = off.get().resolve_with_args::<SequenceRuleSet>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -2017,12 +2463,44 @@ impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
     }
 }
 
+impl ReadArgs for SequenceRuleSet<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SequenceRuleSet<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SequenceRuleSet<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.seq_rules().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SequenceRuleSet<'a>> {
+    /// Number of SequenceRule tables
+    pub fn seq_rule_count(&self) -> u16 {
+        let range = self.0.seq_rule_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to SequenceRule tables, from beginning of the
+    /// SequenceRuleSet table
+    pub fn seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.seq_rule_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`seq_rule_offsets`][Self::seq_rule_offsets].
+    pub fn seq_rules(&self) -> ArrayOfOffsets<'a, Sanitized<SequenceRule<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -2083,7 +2561,7 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
                         better_type_name::<SequenceRule>(),
                         self.seq_rule_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<SequenceRule>(data);
+                            let target = off.get().resolve_with_args::<SequenceRule>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -2125,11 +2603,47 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
     }
 }
 
+impl ReadArgs for SequenceRule<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SequenceRule<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SequenceRule<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SequenceRule<'a>> {
+    /// Number of glyphs in the input glyph sequence
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.0.glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of SequenceLookupRecords
+    pub fn seq_lookup_count(&self) -> u16 {
+        let range = self.0.seq_lookup_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of input glyph IDs—starting with the second glyph
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.input_sequence_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// Array of Sequence lookup records
+    pub fn seq_lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
+        let range = self.0.seq_lookup_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -2251,6 +2765,16 @@ impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
     }
 }
 
+impl ReadArgs for SequenceContextFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SequenceContextFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SequenceContextFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -2259,6 +2783,62 @@ impl<'a> Sanitize<'a> for SequenceContextFormat2<'a> {
         self.class_def()?.sanitize_impl()?;
         self.class_seq_rule_sets().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SequenceContextFormat2<'a>> {
+    /// Format identifier: format = 2
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat2 table
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to ClassDef table, from beginning of
+    /// SequenceContextFormat2 table
+    pub fn class_def_offset(&self) -> Offset16 {
+        let range = self.0.class_def_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
+    pub fn class_def(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+        let data = self.0.data;
+        self.class_def_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of ClassSequenceRuleSet tables
+    pub fn class_seq_rule_set_count(&self) -> u16 {
+        let range = self.0.class_seq_rule_set_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to ClassSequenceRuleSet tables, from beginning
+    /// of SequenceContextFormat2 table (may be NULL)
+    pub fn class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        let range = self.0.class_seq_rule_set_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
+    pub fn class_seq_rule_sets(
+        &self,
+    ) -> ArrayOfNullableOffsets<'a, Sanitized<ClassSequenceRuleSet<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.class_seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -2318,7 +2898,7 @@ impl<'a> SequenceContextFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Offset to ClassDef table, from beginning of
@@ -2331,7 +2911,7 @@ impl<'a> SequenceContextFormat2<'a> {
     /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
     pub fn class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.class_def_offset().resolve(data)
+        self.class_def_offset().resolve_with_args(data, &())
     }
 
     /// Number of ClassSequenceRuleSet tables
@@ -2385,7 +2965,9 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
                         better_type_name::<ClassSequenceRuleSet>(),
                         self.class_seq_rule_set_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<ClassSequenceRuleSet>(data);
+                            let target = off
+                                .get()
+                                .resolve_with_args::<ClassSequenceRuleSet>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -2427,12 +3009,46 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
     }
 }
 
+impl ReadArgs for ClassSequenceRuleSet<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClassSequenceRuleSet<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ClassSequenceRuleSet<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.class_seq_rules().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ClassSequenceRuleSet<'a>> {
+    /// Number of ClassSequenceRule tables
+    pub fn class_seq_rule_count(&self) -> u16 {
+        let range = self.0.class_seq_rule_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to ClassSequenceRule tables, from beginning of
+    /// ClassSequenceRuleSet table
+    pub fn class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.class_seq_rule_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
+    pub fn class_seq_rules(
+        &self,
+    ) -> ArrayOfOffsets<'a, Sanitized<ClassSequenceRule<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.class_seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -2496,7 +3112,8 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
                         better_type_name::<ClassSequenceRule>(),
                         self.class_seq_rule_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<ClassSequenceRule>(data);
+                            let target =
+                                off.get().resolve_with_args::<ClassSequenceRule>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -2538,11 +3155,48 @@ impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
     }
 }
 
+impl ReadArgs for ClassSequenceRule<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ClassSequenceRule<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ClassSequenceRule<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ClassSequenceRule<'a>> {
+    /// Number of glyphs to be matched
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.0.glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of SequenceLookupRecords
+    pub fn seq_lookup_count(&self) -> u16 {
+        let range = self.0.seq_lookup_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Sequence of classes to be matched to the input glyph sequence,
+    /// beginning with the second glyph position
+    pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
+        let range = self.0.input_sequence_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// Array of SequenceLookupRecords
+    pub fn seq_lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
+        let range = self.0.seq_lookup_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -2665,12 +3319,62 @@ impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
     }
 }
 
+impl ReadArgs for SequenceContextFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SequenceContextFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SequenceContextFormat3<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.coverages().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SequenceContextFormat3<'a>> {
+    /// Format identifier: format = 3
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of glyphs in the input sequence
+    pub fn glyph_count(&self) -> u16 {
+        let range = self.0.glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of SequenceLookupRecords
+    pub fn seq_lookup_count(&self) -> u16 {
+        let range = self.0.seq_lookup_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to Coverage tables, from beginning of
+    /// SequenceContextFormat3 subtable
+    pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.coverage_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
+    pub fn coverages(&self) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Array of SequenceLookupRecords
+    pub fn seq_lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
+        let range = self.0.seq_lookup_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -2771,7 +3475,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
                         better_type_name::<CoverageTable>(),
                         self.coverage_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
+                            let target = off.get().resolve_with_args::<CoverageTable>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -2834,6 +3538,16 @@ impl<'a> FontRead<'a> for SequenceContext<'a> {
             SequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for SequenceContext<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SequenceContext<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -2912,6 +3626,16 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
     }
 }
 
+impl ReadArgs for ChainedSequenceContextFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ChainedSequenceContextFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ChainedSequenceContextFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -2919,6 +3643,49 @@ impl<'a> Sanitize<'a> for ChainedSequenceContextFormat1<'a> {
         self.coverage()?.sanitize_impl()?;
         self.chained_seq_rule_sets().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ChainedSequenceContextFormat1<'a>> {
+    /// Format identifier: format = 1
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of
+    /// ChainSequenceContextFormat1 table
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Number of ChainedSequenceRuleSet tables
+    pub fn chained_seq_rule_set_count(&self) -> u16 {
+        let range = self.0.chained_seq_rule_set_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
+    /// ChainedSequenceContextFormat1 table (may be NULL)
+    pub fn chained_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        let range = self.0.chained_seq_rule_set_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
+    pub fn chained_seq_rule_sets(
+        &self,
+    ) -> ArrayOfNullableOffsets<'a, Sanitized<ChainedSequenceRuleSet<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.chained_seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -2971,7 +3738,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Number of ChainedSequenceRuleSet tables
@@ -3021,7 +3788,9 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
                         better_type_name::<ChainedSequenceRuleSet>(),
                         self.chained_seq_rule_set_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<ChainedSequenceRuleSet>(data);
+                            let target = off
+                                .get()
+                                .resolve_with_args::<ChainedSequenceRuleSet>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -3063,12 +3832,46 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
     }
 }
 
+impl ReadArgs for ChainedSequenceRuleSet<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ChainedSequenceRuleSet<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ChainedSequenceRuleSet<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.chained_seq_rules().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ChainedSequenceRuleSet<'a>> {
+    /// Number of ChainedSequenceRule tables
+    pub fn chained_seq_rule_count(&self) -> u16 {
+        let range = self.0.chained_seq_rule_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to ChainedSequenceRule tables, from beginning
+    /// of ChainedSequenceRuleSet table
+    pub fn chained_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.chained_seq_rule_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
+    pub fn chained_seq_rules(
+        &self,
+    ) -> ArrayOfOffsets<'a, Sanitized<ChainedSequenceRule<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.chained_seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -3132,7 +3935,9 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
                         better_type_name::<ChainedSequenceRule>(),
                         self.chained_seq_rule_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<ChainedSequenceRule>(data);
+                            let target = off
+                                .get()
+                                .resolve_with_args::<ChainedSequenceRule>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -3174,11 +3979,71 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
     }
 }
 
+impl ReadArgs for ChainedSequenceRule<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ChainedSequenceRule<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ChainedSequenceRule<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ChainedSequenceRule<'a>> {
+    /// Number of glyphs in the backtrack sequence
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        let range = self.0.backtrack_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of backtrack glyph IDs
+    pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.backtrack_sequence_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// Number of glyphs in the input sequence
+    pub fn input_glyph_count(&self) -> u16 {
+        let range = self.0.input_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of input glyph IDs—start with second glyph
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.input_sequence_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// Number of glyphs in the lookahead sequence
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        let range = self.0.lookahead_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of lookahead glyph IDs
+    pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
+        let range = self.0.lookahead_sequence_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// Number of SequenceLookupRecords
+    pub fn seq_lookup_count(&self) -> u16 {
+        let range = self.0.seq_lookup_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of SequenceLookupRecords
+    pub fn seq_lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
+        let range = self.0.seq_lookup_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -3362,6 +4227,16 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
     }
 }
 
+impl ReadArgs for ChainedSequenceContextFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ChainedSequenceContextFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ChainedSequenceContextFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -3372,6 +4247,90 @@ impl<'a> Sanitize<'a> for ChainedSequenceContextFormat2<'a> {
         self.lookahead_class_def()?.sanitize_impl()?;
         self.chained_class_seq_rule_sets().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ChainedSequenceContextFormat2<'a>> {
+    /// Format identifier: format = 2
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Offset to Coverage table, from beginning of
+    /// ChainedSequenceContextFormat2 table
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.0.coverage_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+        let data = self.0.data;
+        self.coverage_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to ClassDef table containing backtrack sequence context,
+    /// from beginning of ChainedSequenceContextFormat2 table
+    pub fn backtrack_class_def_offset(&self) -> Offset16 {
+        let range = self.0.backtrack_class_def_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
+    pub fn backtrack_class_def(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+        let data = self.0.data;
+        self.backtrack_class_def_offset()
+            .resolve_with_args(data, &())
+    }
+
+    /// Offset to ClassDef table containing input sequence context,
+    /// from beginning of ChainedSequenceContextFormat2 table
+    pub fn input_class_def_offset(&self) -> Offset16 {
+        let range = self.0.input_class_def_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
+    pub fn input_class_def(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+        let data = self.0.data;
+        self.input_class_def_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to ClassDef table containing lookahead sequence context,
+    /// from beginning of ChainedSequenceContextFormat2 table
+    pub fn lookahead_class_def_offset(&self) -> Offset16 {
+        let range = self.0.lookahead_class_def_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
+    pub fn lookahead_class_def(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+        let data = self.0.data;
+        self.lookahead_class_def_offset()
+            .resolve_with_args(data, &())
+    }
+
+    /// Number of ChainedClassSequenceRuleSet tables
+    pub fn chained_class_seq_rule_set_count(&self) -> u16 {
+        let range = self.0.chained_class_seq_rule_set_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to ChainedClassSequenceRuleSet tables, from
+    /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
+    pub fn chained_class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        let range = self.0.chained_class_seq_rule_set_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
+    pub fn chained_class_seq_rule_sets(
+        &self,
+    ) -> ArrayOfNullableOffsets<'a, Sanitized<ChainedClassSequenceRuleSet<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.chained_class_seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -3447,7 +4406,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().resolve_with_args(data, &())
     }
 
     /// Offset to ClassDef table containing backtrack sequence context,
@@ -3460,7 +4419,8 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
     pub fn backtrack_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.backtrack_class_def_offset().resolve(data)
+        self.backtrack_class_def_offset()
+            .resolve_with_args(data, &())
     }
 
     /// Offset to ClassDef table containing input sequence context,
@@ -3473,7 +4433,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
     pub fn input_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.input_class_def_offset().resolve(data)
+        self.input_class_def_offset().resolve_with_args(data, &())
     }
 
     /// Offset to ClassDef table containing lookahead sequence context,
@@ -3486,7 +4446,8 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
     pub fn lookahead_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.lookahead_class_def_offset().resolve(data)
+        self.lookahead_class_def_offset()
+            .resolve_with_args(data, &())
     }
 
     /// Number of ChainedClassSequenceRuleSet tables
@@ -3554,7 +4515,9 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
                         better_type_name::<ChainedClassSequenceRuleSet>(),
                         self.chained_class_seq_rule_set_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<ChainedClassSequenceRuleSet>(data);
+                            let target = off
+                                .get()
+                                .resolve_with_args::<ChainedClassSequenceRuleSet>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -3596,12 +4559,46 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
     }
 }
 
+impl ReadArgs for ChainedClassSequenceRuleSet<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ChainedClassSequenceRuleSet<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ChainedClassSequenceRuleSet<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.chained_class_seq_rules().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ChainedClassSequenceRuleSet<'a>> {
+    /// Number of ChainedClassSequenceRule tables
+    pub fn chained_class_seq_rule_count(&self) -> u16 {
+        let range = self.0.chained_class_seq_rule_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to ChainedClassSequenceRule tables, from
+    /// beginning of ChainedClassSequenceRuleSet
+    pub fn chained_class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.chained_class_seq_rule_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
+    pub fn chained_class_seq_rules(
+        &self,
+    ) -> ArrayOfOffsets<'a, Sanitized<ChainedClassSequenceRule<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.chained_class_seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -3668,7 +4665,9 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
                         better_type_name::<ChainedClassSequenceRule>(),
                         self.chained_class_seq_rule_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<ChainedClassSequenceRule>(data);
+                            let target = off
+                                .get()
+                                .resolve_with_args::<ChainedClassSequenceRule>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -3710,11 +4709,72 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
     }
 }
 
+impl ReadArgs for ChainedClassSequenceRule<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ChainedClassSequenceRule<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ChainedClassSequenceRule<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ChainedClassSequenceRule<'a>> {
+    /// Number of glyphs in the backtrack sequence
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        let range = self.0.backtrack_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of backtrack-sequence classes
+    pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
+        let range = self.0.backtrack_sequence_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// Total number of glyphs in the input sequence
+    pub fn input_glyph_count(&self) -> u16 {
+        let range = self.0.input_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of input sequence classes, beginning with the second
+    /// glyph position
+    pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
+        let range = self.0.input_sequence_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// Number of glyphs in the lookahead sequence
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        let range = self.0.lookahead_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of lookahead-sequence classes
+    pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
+        let range = self.0.lookahead_sequence_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// Number of SequenceLookupRecords
+    pub fn seq_lookup_count(&self) -> u16 {
+        let range = self.0.seq_lookup_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of SequenceLookupRecords
+    pub fn seq_lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
+        let range = self.0.seq_lookup_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -3898,6 +4958,16 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
     }
 }
 
+impl ReadArgs for ChainedSequenceContextFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ChainedSequenceContextFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ChainedSequenceContextFormat3<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -3906,6 +4976,87 @@ impl<'a> Sanitize<'a> for ChainedSequenceContextFormat3<'a> {
         self.input_coverages().sanitize_impl()?;
         self.lookahead_coverages().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ChainedSequenceContextFormat3<'a>> {
+    /// Format identifier: format = 3
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of glyphs in the backtrack sequence
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        let range = self.0.backtrack_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to coverage tables for the backtrack sequence
+    pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.backtrack_coverage_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
+    pub fn backtrack_coverages(
+        &self,
+    ) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.backtrack_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Number of glyphs in the input sequence
+    pub fn input_glyph_count(&self) -> u16 {
+        let range = self.0.input_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to coverage tables for the input sequence
+    pub fn input_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.input_coverage_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`input_coverage_offsets`][Self::input_coverage_offsets].
+    pub fn input_coverages(&self) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.input_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Number of glyphs in the lookahead sequence
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        let range = self.0.lookahead_glyph_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to coverage tables for the lookahead sequence
+    pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
+        let range = self.0.lookahead_coverage_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
+    pub fn lookahead_coverages(
+        &self,
+    ) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+        let data = self.0.data;
+        let offsets = self.lookahead_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    /// Number of SequenceLookupRecords
+    pub fn seq_lookup_count(&self) -> u16 {
+        let range = self.0.seq_lookup_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of SequenceLookupRecords
+    pub fn seq_lookup_records(&self) -> &'a [Sanitized<SequenceLookupRecord>] {
+        let range = self.0.seq_lookup_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -4075,7 +5226,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                         better_type_name::<CoverageTable>(),
                         self.backtrack_coverage_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
+                            let target = off.get().resolve_with_args::<CoverageTable>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -4090,7 +5241,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                         better_type_name::<CoverageTable>(),
                         self.input_coverage_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
+                            let target = off.get().resolve_with_args::<CoverageTable>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -4108,7 +5259,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                         better_type_name::<CoverageTable>(),
                         self.lookahead_coverage_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
+                            let target = off.get().resolve_with_args::<CoverageTable>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -4172,6 +5323,16 @@ impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
             ChainedSequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for ChainedSequenceContext<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ChainedSequenceContext<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -4300,11 +5461,47 @@ impl<'a> FontRead<'a> for Device<'a> {
     }
 }
 
+impl ReadArgs for Device<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Device<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for Device<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<Device<'a>> {
+    /// Smallest size to correct, in ppem
+    pub fn start_size(&self) -> u16 {
+        let range = self.0.start_size_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Largest size to correct, in ppem
+    pub fn end_size(&self) -> u16 {
+        let range = self.0.end_size_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
+    pub fn delta_format(&self) -> DeltaFormat {
+        let range = self.0.delta_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of compressed data
+    pub fn delta_value(&self) -> &'a [BigEndian<u16>] {
+        let range = self.0.delta_value_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -4416,11 +5613,43 @@ impl<'a> FontRead<'a> for VariationIndex<'a> {
     }
 }
 
+impl ReadArgs for VariationIndex<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for VariationIndex<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for VariationIndex<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<VariationIndex<'a>> {
+    /// A delta-set outer index — used to select an item variation
+    /// data subtable within the item variation store.
+    pub fn delta_set_outer_index(&self) -> u16 {
+        let range = self.0.delta_set_outer_index_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// A delta-set inner index — used to select a delta-set row
+    /// within an item variation data subtable.
+    pub fn delta_set_inner_index(&self) -> u16 {
+        let range = self.0.delta_set_inner_index_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Format, = 0x8000
+    pub fn delta_format(&self) -> DeltaFormat {
+        let range = self.0.delta_format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -4533,6 +5762,16 @@ impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
     }
 }
 
+impl ReadArgs for DeviceOrVariationIndex<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for DeviceOrVariationIndex<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for DeviceOrVariationIndex<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -4601,6 +5840,16 @@ impl<'a> FontRead<'a> for FeatureVariations<'a> {
     }
 }
 
+impl ReadArgs for FeatureVariations<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FeatureVariations<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for FeatureVariations<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -4609,6 +5858,25 @@ impl<'a> Sanitize<'a> for FeatureVariations<'a> {
             .iter()
             .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<FeatureVariations<'a>> {
+    pub fn version(&self) -> MajorMinor {
+        let range = self.0.version_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of feature variation records.
+    pub fn feature_variation_record_count(&self) -> u32 {
+        let range = self.0.feature_variation_record_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of feature variation records.
+    pub fn feature_variation_records(&self) -> &'a [Sanitized<FeatureVariationRecord>] {
+        let range = self.0.feature_variation_records_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -4730,7 +5998,7 @@ impl FeatureVariationRecord {
         &self,
         data: FontData<'a>,
     ) -> Option<Result<ConditionSet<'a>, ReadError>> {
-        self.condition_set_offset().resolve(data)
+        self.condition_set_offset().resolve_with_args(data, &())
     }
 
     /// Offset to a feature table substitution table, from beginning of
@@ -4748,7 +6016,8 @@ impl FeatureVariationRecord {
         &self,
         data: FontData<'a>,
     ) -> Option<Result<FeatureTableSubstitution<'a>, ReadError>> {
-        self.feature_table_substitution_offset().resolve(data)
+        self.feature_table_substitution_offset()
+            .resolve_with_args(data, &())
     }
 }
 
@@ -4803,12 +6072,44 @@ impl<'a> FontRead<'a> for ConditionSet<'a> {
     }
 }
 
+impl ReadArgs for ConditionSet<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ConditionSet<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ConditionSet<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.conditions().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ConditionSet<'a>> {
+    /// Number of conditions for this condition set.
+    pub fn condition_count(&self) -> u16 {
+        let range = self.0.condition_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of offsets to condition tables, from beginning of the
+    /// ConditionSet table.
+    pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
+        let range = self.0.condition_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, Sanitized<Condition<'a>>, Offset32> {
+        let data = self.0.data;
+        let offsets = self.condition_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -4869,7 +6170,7 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
                         better_type_name::<Condition>(),
                         self.condition_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<Condition>(data);
+                            let target = off.get().resolve_with_args::<Condition>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -4936,6 +6237,16 @@ impl<'a> FontRead<'a> for Condition<'a> {
             ConditionFormat5Marker::FORMAT => Ok(Self::Format5Negate(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+impl ReadArgs for Condition<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Condition<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -5020,11 +6331,50 @@ impl<'a> FontRead<'a> for ConditionFormat1<'a> {
     }
 }
 
+impl ReadArgs for ConditionFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ConditionFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ConditionFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ConditionFormat1<'a>> {
+    /// Format, = 1
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Index (zero-based) for the variation axis within the 'fvar'
+    /// table.
+    pub fn axis_index(&self) -> u16 {
+        let range = self.0.axis_index_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Minimum value of the font variation instances that satisfy this
+    /// condition.
+    pub fn filter_range_min_value(&self) -> F2Dot14 {
+        let range = self.0.filter_range_min_value_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Maximum value of the font variation instances that satisfy this
+    /// condition.
+    pub fn filter_range_max_value(&self) -> F2Dot14 {
+        let range = self.0.filter_range_max_value_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -5145,11 +6495,41 @@ impl<'a> FontRead<'a> for ConditionFormat2<'a> {
     }
 }
 
+impl ReadArgs for ConditionFormat2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ConditionFormat2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ConditionFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ConditionFormat2<'a>> {
+    /// Format, = 2
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Value at default instance.
+    pub fn default_value(&self) -> i16 {
+        let range = self.0.default_value_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Variation index to vary the value based on current designspace location.
+    pub fn var_index(&self) -> u32 {
+        let range = self.0.var_index_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -5247,12 +6627,49 @@ impl<'a> FontRead<'a> for ConditionFormat3<'a> {
     }
 }
 
+impl ReadArgs for ConditionFormat3<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ConditionFormat3<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ConditionFormat3<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.conditions().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ConditionFormat3<'a>> {
+    /// Format, = 3
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of conditions.
+    pub fn condition_count(&self) -> u8 {
+        let range = self.0.condition_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of condition tables for this conjunction (AND) expression.
+    pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.0.condition_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, Sanitized<Condition<'a>>, Offset24> {
+        let data = self.0.data;
+        let offsets = self.condition_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -5325,7 +6742,7 @@ impl<'a> SomeTable<'a> for ConditionFormat3<'a> {
                         better_type_name::<Condition>(),
                         self.condition_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<Condition>(data);
+                            let target = off.get().resolve_with_args::<Condition>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -5371,12 +6788,49 @@ impl<'a> FontRead<'a> for ConditionFormat4<'a> {
     }
 }
 
+impl ReadArgs for ConditionFormat4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ConditionFormat4<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ConditionFormat4<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.conditions().sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ConditionFormat4<'a>> {
+    /// Format, = 4
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of conditions.
+    pub fn condition_count(&self) -> u8 {
+        let range = self.0.condition_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of condition tables for this disjunction (OR) expression.
+    pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.0.condition_offsets_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
+    }
+
+    /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, Sanitized<Condition<'a>>, Offset24> {
+        let data = self.0.data;
+        let offsets = self.condition_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -5449,7 +6903,7 @@ impl<'a> SomeTable<'a> for ConditionFormat4<'a> {
                         better_type_name::<Condition>(),
                         self.condition_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<Condition>(data);
+                            let target = off.get().resolve_with_args::<Condition>(data, &());
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -5495,12 +6949,42 @@ impl<'a> FontRead<'a> for ConditionFormat5<'a> {
     }
 }
 
+impl ReadArgs for ConditionFormat5<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for ConditionFormat5<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for ConditionFormat5<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         self.condition()?.sanitize_impl()?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<ConditionFormat5<'a>> {
+    /// Format, = 5
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Condition to negate.
+    pub fn condition_offset(&self) -> Offset24 {
+        let range = self.0.condition_offset_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Attempt to resolve [`condition_offset`][Self::condition_offset].
+    pub fn condition(&self) -> Result<Sanitized<Condition<'a>>, ReadError> {
+        let data = self.0.data;
+        self.condition_offset().resolve_with_args(data, &())
     }
 }
 
@@ -5538,7 +7022,7 @@ impl<'a> ConditionFormat5<'a> {
     /// Attempt to resolve [`condition_offset`][Self::condition_offset].
     pub fn condition(&self) -> Result<Condition<'a>, ReadError> {
         let data = self.data;
-        self.condition_offset().resolve(data)
+        self.condition_offset().resolve_with_args(data, &())
     }
 }
 
@@ -5590,6 +7074,16 @@ impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
     }
 }
 
+impl ReadArgs for FeatureTableSubstitution<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for FeatureTableSubstitution<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for FeatureTableSubstitution<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
@@ -5598,6 +7092,26 @@ impl<'a> Sanitize<'a> for FeatureTableSubstitution<'a> {
             .iter()
             .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<FeatureTableSubstitution<'a>> {
+    /// Major & minor version of the table: (1, 0)
+    pub fn version(&self) -> MajorMinor {
+        let range = self.0.version_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of feature table substitution records.
+    pub fn substitution_count(&self) -> u16 {
+        let range = self.0.substitution_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Array of feature table substitution records.
+    pub fn substitutions(&self) -> &'a [Sanitized<FeatureTableSubstitutionRecord>] {
+        let range = self.0.substitutions_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 
@@ -5755,11 +7269,73 @@ impl<'a> FontRead<'a> for SizeParams<'a> {
     }
 }
 
+impl ReadArgs for SizeParams<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SizeParams<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for SizeParams<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<SizeParams<'a>> {
+    /// The first value represents the design size in 720/inch units (decipoints).
+    ///
+    /// The design size entry must be non-zero. When there is a design size but
+    /// no recommended size range, the rest of the array will consist of zeros.
+    pub fn design_size(&self) -> u16 {
+        let range = self.0.design_size_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The second value has no independent meaning, but serves as an identifier that associates fonts in a subfamily.
+    ///
+    /// All fonts which share a Typographic or Font Family name and which differ
+    /// only by size range shall have the same subfamily value, and no fonts
+    /// which differ in weight or style shall have the same subfamily value.
+    /// If this value is zero, the remaining fields in the array will be ignored.
+    pub fn identifier(&self) -> u16 {
+        let range = self.0.identifier_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The third value enables applications to use a single name for the subfamily identified by the second value.
+    ///
+    /// If the preceding value is non-zero, this value must be set in the range
+    /// 256 – 32767 (inclusive). It records the value of a field in the 'name'
+    /// table, which must contain English-language strings encoded in Windows
+    /// Unicode and Macintosh Roman, and may contain additional strings localized
+    /// to other scripts and languages. Each of these strings is the name
+    /// an application should use, in combination with the family name, to
+    /// represent the subfamily in a menu. Applications will choose the
+    /// appropriate version based on their selection criteria.
+    pub fn name_entry(&self) -> u16 {
+        let range = self.0.name_entry_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The fourth and fifth values represent the small end of the recommended
+    /// usage range (exclusive) and the large end of the recommended usage range
+    /// (inclusive), stored in 720/inch units (decipoints).
+    ///
+    /// Ranges must not overlap, and should generally be contiguous.
+    pub fn range_start(&self) -> u16 {
+        let range = self.0.range_start_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    pub fn range_end(&self) -> u16 {
+        let range = self.0.range_end_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -5901,11 +7477,42 @@ impl<'a> FontRead<'a> for StylisticSetParams<'a> {
     }
 }
 
+impl ReadArgs for StylisticSetParams<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for StylisticSetParams<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for StylisticSetParams<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<StylisticSetParams<'a>> {
+    pub fn version(&self) -> u16 {
+        let range = self.0.version_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The 'name' table name ID that specifies a string (or strings, for
+    /// multiple languages) for a user-interface label for this feature.
+    ///
+    /// The value of uiLabelNameId is expected to be in the font-specific name
+    /// ID range (256-32767), though that is not a requirement in this Feature
+    /// Parameters specification. The user-interface label for the feature can
+    /// be provided in multiple languages. An English string should be included
+    /// as a fallback. The string should be kept to a minimal length to fit
+    /// comfortably with different application interfaces.
+    pub fn ui_name_id(&self) -> NameId {
+        let range = self.0.ui_name_id_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -5996,11 +7603,80 @@ impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
     }
 }
 
+impl ReadArgs for CharacterVariantParams<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CharacterVariantParams<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl<'a> Sanitize<'a> for CharacterVariantParams<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
         Ok(())
+    }
+}
+
+impl<'a> Sanitized<CharacterVariantParams<'a>> {
+    /// Format number is set to 0.
+    pub fn format(&self) -> u16 {
+        let range = self.0.format_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) for a user-interface label for this
+    /// feature. (May be NULL.)
+    pub fn feat_ui_label_name_id(&self) -> NameId {
+        let range = self.0.feat_ui_label_name_id_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) that an application can use for tooltip
+    /// text for this feature. (May be NULL.)
+    pub fn feat_ui_tooltip_text_name_id(&self) -> NameId {
+        let range = self.0.feat_ui_tooltip_text_name_id_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The 'name' table name ID that specifies sample text that
+    /// illustrates the effect of this feature. (May be NULL.)
+    pub fn sample_text_name_id(&self) -> NameId {
+        let range = self.0.sample_text_name_id_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// Number of named parameters. (May be zero.)
+    pub fn num_named_parameters(&self) -> u16 {
+        let range = self.0.num_named_parameters_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The first 'name' table name ID used to specify strings for
+    /// user-interface labels for the feature parameters. (Must be zero
+    /// if numParameters is zero.)
+    pub fn first_param_ui_label_name_id(&self) -> NameId {
+        let range = self.0.first_param_ui_label_name_id_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The count of characters for which this feature provides glyph
+    /// variants. (May be zero.)
+    pub fn char_count(&self) -> u16 {
+        let range = self.0.char_count_byte_range();
+        unsafe { self.0.data.read_at_unchecked(range.start) }
+    }
+
+    /// The Unicode Scalar Value of the characters for which this
+    /// feature provides glyph variants.
+    pub fn character(&self) -> &'a [BigEndian<Uint24>] {
+        let range = self.0.character_byte_range();
+        unsafe { self.0.data.read_array_unchecked(range) }
     }
 }
 

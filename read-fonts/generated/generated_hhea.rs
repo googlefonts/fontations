@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Hhea<'a> {
     }
 }
 
+impl ReadArgs for Hhea<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Hhea<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
 pub type Hhea<'a> = TableRef<'a, HheaMarker>;
 

@@ -209,12 +209,22 @@ impl<T: LookupValue> TypedLookup<'_, T> {
     }
 }
 
-impl<'a, T> FontRead<'a> for TypedLookup<'a, T> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+impl<T> ReadArgs for TypedLookup<'_, T> {
+    type Args = ();
+}
+
+impl<'a, T> FontReadWithArgs<'a> for TypedLookup<'a, T> {
+    fn read_with_args(data: FontData<'a>, _args: &()) -> Result<Self, ReadError> {
         Ok(Self {
             lookup: Lookup::read(data)?,
             _marker: std::marker::PhantomData,
         })
+    }
+}
+
+impl<'a, T> FontRead<'a> for TypedLookup<'a, T> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Self::read_with_args(data, &())
     }
 }
 

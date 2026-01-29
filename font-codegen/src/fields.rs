@@ -435,7 +435,7 @@ fn traversal_arm_for_field(
                     quote!(let args = #args;)
                 });
                 let resolve = match fld.attrs.read_offset_args.as_deref() {
-                    None => quote!(resolve::<#target>(data)),
+                    None => quote!(resolve_with_args::<#target>(data, &())),
                     Some(_) => quote!(resolve_with_args::<#target>(data, &args)),
                 };
 
@@ -956,14 +956,21 @@ impl Field {
         let getter_name = self.offset_getter_name().unwrap();
         let target_is_generic =
             matches!(target, OffsetTarget::Table(ident) if Some(ident) == generic);
-        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
+        let where_read_clause =
+            target_is_generic.then(|| quote!(where T: FontReadWithArgs<'a, Args=()>));
         // if a record, data is passed in
         let input_data_if_needed = record.is_some().then(|| quote!(, data: FontData<'a>));
         let decl_lifetime_if_needed =
             record.and_then(|x| x.lifetime.is_none().then(|| quote!(<'a>)));
 
         // if a table, data is self.data, else it is passed as an argument
-        let data_alias_if_needed = record.is_none().then(|| quote!(let data = self.data;));
+        let data_alias_if_needed = record.is_none().then(|| {
+            if in_sanitize {
+                quote!(let data = self.0.data;)
+            } else {
+                quote!(let data = self.data;)
+            }
+        });
 
         let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
             let args = args.to_tokens_for_table_getter();
@@ -981,19 +988,17 @@ impl Field {
                 quote!(ArrayOfOffsets)
             };
 
-            let target_type = in_sanitize
-                .then(|| quote!(Sanitized<#target_ident>))
-                .unwrap_or_else(|| target_ident.into_token_stream());
-
             let target_lifetime = (!target_is_generic).then(|| quote!(<'a>));
+            let target_type = in_sanitize
+                .then(|| quote!(Sanitized<#target_ident #target_lifetime>))
+                .unwrap_or_else(|| quote!( #target_ident #target_lifetime ));
 
             let args_token = if self.attrs.read_offset_args.is_some() {
                 quote!(args)
             } else {
                 quote!(())
             };
-            let mut return_type =
-                quote!( #array_type<'a, #target_type #target_lifetime, #offset_type> );
+            let mut return_type = quote!( #array_type<'a, #target_type , #offset_type> );
             let mut body = quote!(#array_type::new(offsets, data, #args_token));
             if self.is_conditional() {
                 return_type = quote!( Option< #return_type > );
@@ -1017,7 +1022,7 @@ impl Field {
                 return_type = quote!(Option<#return_type>);
             }
             let resolve = match self.attrs.read_offset_args.as_deref() {
-                None => quote!(resolve(data)),
+                None => quote!(resolve_with_args(data, &())),
                 Some(_) => quote!(resolve_with_args(data, &args)),
             };
             let getter_impl = if self.is_conditional() {
@@ -1096,7 +1101,7 @@ impl Field {
     }
 
     pub(crate) fn sanitize_stmt(&self, in_record: bool, items: &Module) -> Option<TokenStream> {
-        if self.attrs.skip_sanitize.is_some() {
+        if self.attrs.skip_sanitize.is_some() || self.can_skip_sanitize_for_offset(items) {
             return None;
         }
         let pass_offset_data = in_record.then(|| quote!(offset_data));
@@ -1104,7 +1109,7 @@ impl Field {
         if let Some(offset_getter) = self.offset_getter_name() {
             let get_stmt = quote!(self.#offset_getter(#pass_offset_data));
             let maybe_q = matches!(&self.typ, FieldType::Offset { .. }).then(|| quote!(?));
-            return if self.is_conditional() || !self.is_array() && self.is_nullable() {
+            return if self.is_conditional() || (!self.is_array() && self.is_nullable()) {
                 Some(quote! {
                     if let Some(thing) = #get_stmt {
                         thing #maybe_q.sanitize_impl()?;
@@ -1158,6 +1163,32 @@ impl Field {
                 Some(quote!(compile_error!("maybe these need annotations?")))
             }
             FieldType::PendingResolution { .. } => panic!("resolved before now"),
+        }
+    }
+
+    fn can_skip_sanitize_for_offset(&self, items: &Module) -> bool {
+        let FieldType::Offset { target, .. } = &self.typ else {
+            return false;
+        };
+
+        match target {
+            OffsetTarget::Table(_) => false,
+            OffsetTarget::Array(field_type) => match field_type.as_ref() {
+                FieldType::Offset { .. } => false,
+                FieldType::Scalar { .. } => true,
+                FieldType::Struct { typ } => {
+                    if let Some(Item::Record(record)) = items.get(typ) {
+                        return !record.contains_offset();
+                    }
+                    false
+                }
+                FieldType::Array { .. }
+                | FieldType::ComputedArray(_)
+                | FieldType::VarLenArray(_) => {
+                    panic!("we need to sanitize array of offsets to arrays?")
+                }
+                FieldType::PendingResolution { .. } => unreachable!("resolved already"),
+            },
         }
     }
 

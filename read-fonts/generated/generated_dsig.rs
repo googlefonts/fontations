@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Dsig<'a> {
     }
 }
 
+impl ReadArgs for Dsig<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Dsig<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [DSIG (Digital Signature Table)](https://docs.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure) table
 pub type Dsig<'a> = TableRef<'a, DsigMarker>;
 
@@ -499,6 +509,16 @@ impl<'a> FontRead<'a> for SignatureBlockFormat1<'a> {
             data,
             shape: SignatureBlockFormat1Marker {},
         })
+    }
+}
+
+impl ReadArgs for SignatureBlockFormat1<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SignatureBlockFormat1<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

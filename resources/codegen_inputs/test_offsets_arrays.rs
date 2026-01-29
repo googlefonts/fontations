@@ -5,6 +5,7 @@
 // to only rebuild the test outputs.
 
 #![parse_module(read_fonts::codegen_test::offsets_arrays)]
+#![sanitize]
 
 #[skip_constructor]
 table KindsOfOffsets {

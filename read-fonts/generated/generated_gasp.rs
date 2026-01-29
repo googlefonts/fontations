@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Gasp<'a> {
     }
 }
 
+impl ReadArgs for Gasp<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Gasp<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
 pub type Gasp<'a> = TableRef<'a, GaspMarker>;
 

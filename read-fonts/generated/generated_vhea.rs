@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Vhea<'a> {
     }
 }
 
+impl ReadArgs for Vhea<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Vhea<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 pub type Vhea<'a> = TableRef<'a, VheaMarker>;
 

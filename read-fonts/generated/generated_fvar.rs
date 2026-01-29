@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Fvar<'a> {
     }
 }
 
+impl ReadArgs for Fvar<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Fvar<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
 pub type Fvar<'a> = TableRef<'a, FvarMarker>;
 

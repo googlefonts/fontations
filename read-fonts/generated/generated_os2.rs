@@ -386,6 +386,16 @@ impl<'a> FontRead<'a> for Os2<'a> {
     }
 }
 
+impl ReadArgs for Os2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Os2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 pub type Os2<'a> = TableRef<'a, Os2Marker>;
 

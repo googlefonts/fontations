@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Eblc<'a> {
     }
 }
 
+impl ReadArgs for Eblc<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Eblc<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
 pub type Eblc<'a> = TableRef<'a, EblcMarker>;
 

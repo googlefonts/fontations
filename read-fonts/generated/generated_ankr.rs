@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Ankr<'a> {
     }
 }
 
+impl ReadArgs for Ankr<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Ankr<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
 pub type Ankr<'a> = TableRef<'a, AnkrMarker>;
 
@@ -88,7 +98,7 @@ impl<'a> Ankr<'a> {
     /// Attempt to resolve [`lookup_table_offset`][Self::lookup_table_offset].
     pub fn lookup_table(&self) -> Result<LookupU16<'a>, ReadError> {
         let data = self.data;
-        self.lookup_table_offset().resolve(data)
+        self.lookup_table_offset().resolve_with_args(data, &())
     }
 
     /// Offset to the glyph data table.
@@ -147,6 +157,16 @@ impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
             data,
             shape: GlyphDataEntryMarker {},
         })
+    }
+}
+
+impl ReadArgs for GlyphDataEntry<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for GlyphDataEntry<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

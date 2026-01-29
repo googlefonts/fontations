@@ -33,6 +33,16 @@ impl<'a> FontRead<'a> for Cmap<'a> {
     }
 }
 
+impl ReadArgs for Cmap<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
 pub type Cmap<'a> = TableRef<'a, CmapMarker>;
 
@@ -144,7 +154,7 @@ impl EncodingRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn subtable<'a>(&self, data: FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
-        self.subtable_offset().resolve(data)
+        self.subtable_offset().resolve_with_args(data, &())
     }
 }
 
@@ -287,6 +297,16 @@ impl<'a> FontRead<'a> for CmapSubtable<'a> {
     }
 }
 
+impl ReadArgs for CmapSubtable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for CmapSubtable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 impl MinByteRange for CmapSubtable<'_> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
@@ -361,6 +381,16 @@ impl<'a> FontRead<'a> for Cmap0<'a> {
             data,
             shape: Cmap0Marker {},
         })
+    }
+}
+
+impl ReadArgs for Cmap0<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap0<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -469,6 +499,16 @@ impl<'a> FontRead<'a> for Cmap2<'a> {
             data,
             shape: Cmap2Marker {},
         })
+    }
+}
+
+impl ReadArgs for Cmap2<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap2<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -637,6 +677,16 @@ impl<'a> FontRead<'a> for Cmap4<'a> {
             data,
             shape: Cmap4Marker {},
         })
+    }
+}
+
+impl ReadArgs for Cmap4<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap4<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -874,6 +924,16 @@ impl<'a> FontRead<'a> for Cmap6<'a> {
     }
 }
 
+impl ReadArgs for Cmap6<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap6<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
 pub type Cmap6<'a> = TableRef<'a, Cmap6Marker>;
 
@@ -1010,6 +1070,16 @@ impl<'a> FontRead<'a> for Cmap8<'a> {
             data,
             shape: Cmap8Marker {},
         })
+    }
+}
+
+impl ReadArgs for Cmap8<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap8<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1225,6 +1295,16 @@ impl<'a> FontRead<'a> for Cmap10<'a> {
     }
 }
 
+impl ReadArgs for Cmap10<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap10<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
 pub type Cmap10<'a> = TableRef<'a, Cmap10Marker>;
 
@@ -1371,6 +1451,16 @@ impl<'a> FontRead<'a> for Cmap12<'a> {
     }
 }
 
+impl ReadArgs for Cmap12<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap12<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
 pub type Cmap12<'a> = TableRef<'a, Cmap12Marker>;
 
@@ -1507,6 +1597,16 @@ impl<'a> FontRead<'a> for Cmap13<'a> {
             data,
             shape: Cmap13Marker {},
         })
+    }
+}
+
+impl ReadArgs for Cmap13<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap13<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1701,6 +1801,16 @@ impl<'a> FontRead<'a> for Cmap14<'a> {
     }
 }
 
+impl ReadArgs for Cmap14<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for Cmap14<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
 pub type Cmap14<'a> = TableRef<'a, Cmap14Marker>;
 
@@ -1826,7 +1936,7 @@ impl VariationSelector {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn default_uvs<'a>(&self, data: FontData<'a>) -> Option<Result<DefaultUvs<'a>, ReadError>> {
-        self.default_uvs_offset().resolve(data)
+        self.default_uvs_offset().resolve_with_args(data, &())
     }
 
     /// Offset from the start of the [`Cmap14`] subtable to Non-Default
@@ -1844,7 +1954,7 @@ impl VariationSelector {
         &self,
         data: FontData<'a>,
     ) -> Option<Result<NonDefaultUvs<'a>, ReadError>> {
-        self.non_default_uvs_offset().resolve(data)
+        self.non_default_uvs_offset().resolve_with_args(data, &())
     }
 }
 
@@ -1895,6 +2005,16 @@ impl<'a> FontRead<'a> for DefaultUvs<'a> {
             data,
             shape: DefaultUvsMarker {},
         })
+    }
+}
+
+impl ReadArgs for DefaultUvs<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for DefaultUvs<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 
@@ -1984,6 +2104,16 @@ impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
             data,
             shape: NonDefaultUvsMarker {},
         })
+    }
+}
+
+impl ReadArgs for NonDefaultUvs<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for NonDefaultUvs<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
     }
 }
 

@@ -211,6 +211,15 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                     })
                 }
             }
+            impl<#generic> ReadArgs for #name<'_, #generic> {
+                type Args = ();
+            }
+
+            impl<'a, #generic> FontReadWithArgs<'a> for #name<'a, #generic> {
+                fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+                    Self::read(data)
+                }
+            }
         })
     }
 }
@@ -222,7 +231,7 @@ fn generate_sanitize(table: &Table, items: &Module) -> syn::Result<TokenStream> 
     let sanitize_getters = table.sanitize_getters();
     let generic_bound = generic
         .is_some()
-        .then(|| quote!(: FontRead<'a> + Sanitize<'a>));
+        .then(|| quote!(: FontReadWithArgs<'a, Args=()> + Sanitize<'a>));
 
     Ok(quote! {
         impl<'a, #generic #generic_bound> Sanitize<'a> for #name<'a, #generic> {
@@ -300,6 +309,17 @@ pub(crate) fn generate_group(item: &GenericGroup, items: &Module) -> syn::Result
             }
         }
 
+        impl ReadArgs for #name<'_> {
+            type Args = ();
+        }
+
+        impl<'a> FontReadWithArgs<'a> for #name<'a> {
+            fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+                Self::read(data)
+            }
+        }
+
+
         #sanitize_impl
 
         impl<'a> #name <'a> {
@@ -348,7 +368,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
     let generic = item.attrs.generic_offset.as_ref();
     let generic_bounds = generic
         .is_some()
-        .then(|| quote!(: FontRead<'a> + SomeTable<'a> + 'a));
+        .then(|| quote!(: FontReadWithArgs<'a, Args=()> + SomeTable<'a> + 'a));
     let field_arms = item.fields.iter_field_traversal_match_arms(false);
     let attrs = item.fields.fields.is_empty().then(|| {
         quote! {
@@ -915,6 +935,17 @@ pub(crate) fn generate_format_group(
             }
         }
 
+        impl ReadArgs for #name<'_> {
+            type Args = ();
+        }
+
+        impl<'a> FontReadWithArgs<'a> for #name<'a> {
+            fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+                Self::read(data)
+            }
+        }
+
+
         impl MinByteRange for #name<'_> {
             fn min_byte_range(&self) -> Range<usize> {
                 match self {
@@ -1049,6 +1080,11 @@ impl Table {
         self.fields
             .iter()
             .filter_map(move |fld| fld.sanitize_getter(generic))
+            .chain(
+                self.attrs.read_args.as_ref().into_iter().flat_map(|args| {
+                    args.iter_table_ref_getters(&self.fields.referenced_fields, true)
+                }),
+            )
     }
 
     fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
@@ -1056,13 +1092,9 @@ impl Table {
         self.fields
             .iter()
             .filter_map(move |fld| fld.table_getter(generic))
-            .chain(
-                self.attrs
-                    .read_args
-                    .as_ref()
-                    .into_iter()
-                    .flat_map(|args| args.iter_table_ref_getters(&self.fields.referenced_fields)),
-            )
+            .chain(self.attrs.read_args.as_ref().into_iter().flat_map(|args| {
+                args.iter_table_ref_getters(&self.fields.referenced_fields, false)
+            }))
     }
 
     pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {
@@ -1156,17 +1188,16 @@ impl TableReadArgs {
     fn iter_table_ref_getters<'a>(
         &'a self,
         _referenced_fields: &'a ReferencedFields,
+        in_sanitize: bool,
     ) -> impl Iterator<Item = TokenStream> + 'a {
-        self.args
-            .iter()
-            //.filter(|arg| referenced_fields.needs_at_runtime(&arg.ident))
-            .map(|TableReadArg { ident, typ }| {
-                quote! {
-                    pub(crate) fn #ident(&self) -> #typ {
-                        self.shape.#ident
-                    }
+        self.args.iter().map(move |TableReadArg { ident, typ }| {
+            let inner_type = in_sanitize.then(|| quote!(0.));
+            quote! {
+                pub(crate) fn #ident(&self) -> #typ {
+                    self. #inner_type shape.#ident
                 }
-            })
+            }
+        })
     }
 }
 
