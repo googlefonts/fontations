@@ -1183,6 +1183,16 @@ impl Shmecord {
     }
 }
 
+impl Sanitized<Shmecord> {
+    pub fn length(&self) -> u16 {
+        self.0.length.get()
+    }
+
+    pub fn breadth(&self) -> u32 {
+        self.0.breadth.get()
+    }
+}
+
 impl FixedSize for Shmecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }

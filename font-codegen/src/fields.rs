@@ -863,7 +863,7 @@ impl Field {
         })
     }
 
-    pub(crate) fn record_getter(&self, record: &Record) -> Option<TokenStream> {
+    pub(crate) fn record_getter(&self, record: &Record, for_sanitize: bool) -> Option<TokenStream> {
         if !self.has_getter() {
             return None;
         }
@@ -879,24 +879,26 @@ impl Field {
         )
         .then(|| quote!(&));
 
+        let inner_type = for_sanitize.then(|| quote!(.0));
+
         let getter_expr = match &self.typ {
             FieldType::Scalar { typ } | FieldType::Offset { typ, .. } => {
                 if typ == "u8" {
-                    quote!(self.#name)
+                    quote!(self #inner_type .#name)
                 } else {
-                    quote!(self.#name.get())
+                    quote!(self #inner_type .#name.get())
                 }
             }
             FieldType::Struct { .. }
             | FieldType::ComputedArray { .. }
-            | FieldType::VarLenArray(_) => quote!(&self.#name),
-            FieldType::Array { .. } => quote!(self.#name),
+            | FieldType::VarLenArray(_) => quote!(&self #inner_type .#name),
+            FieldType::Array { .. } => quote!(self #inner_type .#name),
             FieldType::PendingResolution { .. } => {
                 panic!("Should have resolved {self:?}")
             }
         };
 
-        let offset_getter = self.typed_offset_field_getter(None, Some(record), false);
+        let offset_getter = self.typed_offset_field_getter(None, Some(record), for_sanitize);
         Some(quote! {
             #(#docs)*
             pub fn #name(&self) -> #add_borrow_just_for_record #return_type {

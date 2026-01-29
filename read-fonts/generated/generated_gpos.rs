@@ -1530,6 +1530,29 @@ impl MarkRecord {
     }
 }
 
+impl Sanitized<MarkRecord> {
+    /// Class defined for the associated mark.
+    pub fn mark_class(&self) -> u16 {
+        self.0.mark_class.get()
+    }
+
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    pub fn mark_anchor_offset(&self) -> Offset16 {
+        self.0.mark_anchor_offset.get()
+    }
+
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn mark_anchor<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Result<Sanitized<AnchorTable<'a>>, ReadError> {
+        self.mark_anchor_offset().resolve_with_args(data, &())
+    }
+}
+
 impl FixedSize for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
@@ -3072,6 +3095,13 @@ impl<'a> Class1Record<'a> {
     }
 }
 
+impl<'a> Sanitized<Class1Record<'a>> {
+    /// Array of Class2 records, ordered by classes in classDef2.
+    pub fn class2_records(&self) -> &ComputedArray<'a, Class2Record> {
+        &self.0.class2_records
+    }
+}
+
 impl ReadArgs for Class1Record<'_> {
     type Args = (u16, ValueFormat, ValueFormat);
 }
@@ -3471,6 +3501,44 @@ impl EntryExitRecord {
         &self,
         data: FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        self.exit_anchor_offset().resolve_with_args(data, &())
+    }
+}
+
+impl Sanitized<EntryExitRecord> {
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub fn entry_anchor_offset(&self) -> Nullable<Offset16> {
+        self.0.entry_anchor_offset.get()
+    }
+
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn entry_anchor<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<Sanitized<AnchorTable<'a>>, ReadError>> {
+        self.entry_anchor_offset().resolve_with_args(data, &())
+    }
+
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub fn exit_anchor_offset(&self) -> Nullable<Offset16> {
+        self.0.exit_anchor_offset.get()
+    }
+
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn exit_anchor<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<Sanitized<AnchorTable<'a>>, ReadError>> {
         self.exit_anchor_offset().resolve_with_args(data, &())
     }
 }
@@ -3957,6 +4025,29 @@ impl<'a> BaseRecord<'a> {
         &self,
         data: FontData<'a>,
     ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let offsets = self.base_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+}
+
+impl<'a> Sanitized<BaseRecord<'a>> {
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    pub fn base_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        self.0.base_anchor_offsets
+    }
+
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn base_anchors(
+        &self,
+        data: FontData<'a>,
+    ) -> ArrayOfNullableOffsets<'a, Sanitized<AnchorTable<'a>>, Offset16> {
         let offsets = self.base_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -4653,6 +4744,29 @@ impl<'a> ComponentRecord<'a> {
     }
 }
 
+impl<'a> Sanitized<ComponentRecord<'a>> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    pub fn ligature_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        self.0.ligature_anchor_offsets
+    }
+
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn ligature_anchors(
+        &self,
+        data: FontData<'a>,
+    ) -> ArrayOfNullableOffsets<'a, Sanitized<AnchorTable<'a>>, Offset16> {
+        let offsets = self.ligature_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+}
+
 impl ReadArgs for ComponentRecord<'_> {
     type Args = u16;
 }
@@ -5170,6 +5284,29 @@ impl<'a> Mark2Record<'a> {
         &self,
         data: FontData<'a>,
     ) -> ArrayOfNullableOffsets<'a, AnchorTable<'a>, Offset16> {
+        let offsets = self.mark2_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+}
+
+impl<'a> Sanitized<Mark2Record<'a>> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    pub fn mark2_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        self.0.mark2_anchor_offsets
+    }
+
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn mark2_anchors(
+        &self,
+        data: FontData<'a>,
+    ) -> ArrayOfNullableOffsets<'a, Sanitized<AnchorTable<'a>>, Offset16> {
         let offsets = self.mark2_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }

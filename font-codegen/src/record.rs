@@ -24,7 +24,7 @@ pub(crate) fn generate(item: &Record, all_items: &Module) -> syn::Result<TokenSt
         let docs = &fld.attrs.docs;
         quote!( #( #docs )* )
     });
-    let getters = item.fields.iter().map(|fld| fld.record_getter(item));
+    let getters = item.fields.iter().map(|fld| fld.record_getter(item, false));
     let traversal_impl = generate_traversal(item)?;
 
     let lifetime = &item.lifetime;
@@ -51,6 +51,8 @@ pub(crate) fn generate(item: &Record, all_items: &Module) -> syn::Result<TokenSt
     let maybe_sanitize_method =
         do_sanitize.then(|| generate_sanitize_struct_method(item, all_items));
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
+
+    let maybe_sanitized_getters = do_sanitize.then(|| generate_sanitized_getters(item, all_items));
     let maybe_extra_traits = item
         .gets_extra_traits(all_items)
         .then(|| quote!(PartialEq, Eq, PartialOrd, Ord, Hash,));
@@ -66,6 +68,8 @@ pub(crate) fn generate(item: &Record, all_items: &Module) -> syn::Result<TokenSt
         #maybe_sanitize_method
         #( #getters )*
     }
+
+    #maybe_sanitized_getters
 
     #maybe_impl_fixed_size
     #maybe_impl_read_with_args
@@ -178,6 +182,25 @@ fn generate_sanitize_struct_method(item: &Record, items: &Module) -> Option<Toke
             }
         })
     }
+}
+
+fn generate_sanitized_getters(item: &Record, items: &Module) -> Option<TokenStream> {
+    let lifetime = &item.lifetime;
+    let name = &item.name;
+    let getters = item
+        .fields
+        .iter()
+        .map(|fld| fld.record_getter(item, true))
+        .collect::<Vec<_>>();
+
+    if getters.is_empty() {
+        return None;
+    }
+    Some(quote! {
+        impl #lifetime Sanitized<#name #lifetime> {
+            #( #getters )*
+        }
+    })
 }
 
 pub(crate) fn generate_compile(
