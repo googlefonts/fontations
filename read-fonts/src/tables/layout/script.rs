@@ -1,6 +1,6 @@
 //! Additional support for working with OpenType scripts and language systems.
 
-use super::{FeatureList, LangSys, ReadError, Script, ScriptList, Tag, TaggedElement};
+use super::{FeatureList, LangSys, ReadError, Sanitized, Script, ScriptList, Tag, TaggedElement};
 use std::ops::Deref;
 
 /// A script chosen from a set of candidate tags.
@@ -80,6 +80,29 @@ impl<'a> ScriptList<'a> {
     }
 }
 
+impl<'a> Sanitized<ScriptList<'a>> {
+    pub fn index_for_tag(&self, tag: Tag) -> Option<u16> {
+        self.0.index_for_tag(tag)
+    }
+
+    /// Returns the tag and script at the given index.
+    pub fn get(&self, index: u16) -> Result<TaggedElement<Sanitized<Script<'a>>>, ReadError> {
+        self.script_records()
+            .get(index as usize)
+            .ok_or(ReadError::OutOfBounds)
+            .and_then(|rec| {
+                Ok(TaggedElement::new(
+                    rec.script_tag(),
+                    rec.script(self.offset_data())?,
+                ))
+            })
+    }
+
+    pub fn select(&self, tags: &[Tag]) -> Option<SelectedScript> {
+        self.0.select(tags)
+    }
+}
+
 impl<'a> Script<'a> {
     /// If the script contains a language system with the given tag, returns
     /// the index.
@@ -92,6 +115,25 @@ impl<'a> Script<'a> {
 
     /// Returns the language system with the given index.
     pub fn lang_sys(&self, index: u16) -> Result<TaggedElement<LangSys<'a>>, ReadError> {
+        self.lang_sys_records()
+            .get(index as usize)
+            .ok_or(ReadError::OutOfBounds)
+            .and_then(|rec| {
+                Ok(TaggedElement::new(
+                    rec.lang_sys_tag(),
+                    rec.lang_sys(self.offset_data())?,
+                ))
+            })
+    }
+}
+
+impl<'a> Sanitized<Script<'a>> {
+    pub fn lang_sys_index_for_tag(&self, tag: Tag) -> Option<u16> {
+        self.0.lang_sys_index_for_tag(tag)
+    }
+
+    /// Returns the language system with the given index.
+    pub fn lang_sys(&self, index: u16) -> Result<TaggedElement<Sanitized<LangSys<'a>>>, ReadError> {
         self.lang_sys_records()
             .get(index as usize)
             .ok_or(ReadError::OutOfBounds)
@@ -122,6 +164,12 @@ impl LangSys<'_> {
                     .map(|rec| rec.feature_tag())
                     == Some(tag)
             })
+    }
+}
+
+impl Sanitized<LangSys<'_>> {
+    pub fn feature_index_for_tag(&self, list: &Sanitized<FeatureList>, tag: Tag) -> Option<u16> {
+        self.0.feature_index_for_tag(&list.0, tag)
     }
 }
 
@@ -234,12 +282,17 @@ fn new_tag_from_unicode(unicode_script: Tag) -> Option<Tag> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FontRef, TableProvider};
+    use crate::{FontRef, Sanitize, TableProvider};
 
     #[test]
     fn script_index_for_tag() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let gsub_scripts = font.gsub().unwrap().script_list().unwrap();
+        let gsub_scripts = font
+            .gsub()
+            .and_then(Sanitize::sanitize)
+            .unwrap()
+            .script_list()
+            .unwrap();
         let ordered_scripts = [b"DFLT", b"cyrl", b"grek", b"hebr", b"latn"];
         for (index, tag) in ordered_scripts.into_iter().enumerate() {
             let tag = Tag::new(tag);
@@ -303,7 +356,12 @@ mod tests {
     #[test]
     fn select_scripts_from_unicode() {
         let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
-        let gsub_scripts = font.gsub().unwrap().script_list().unwrap();
+        let gsub_scripts = font
+            .gsub()
+            .and_then(Sanitize::sanitize)
+            .unwrap()
+            .script_list()
+            .unwrap();
         // We know Hebrew is available
         let hebr = gsub_scripts
             .select(&ScriptTags::from_unicode(Tag::new(b"Hebr")))
@@ -335,7 +393,7 @@ mod tests {
     fn script_list_get() {
         const LATN: Tag = Tag::new(b"latn");
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let gsub = font.gsub().unwrap();
+        let gsub = font.gsub().and_then(Sanitize::sanitize).unwrap();
         let script_list = gsub.script_list().unwrap();
         let latn_script_index = script_list.index_for_tag(LATN).unwrap();
         assert_eq!(latn_script_index, 1);
@@ -347,7 +405,7 @@ mod tests {
     fn script_lang_sys_helpers() {
         const TRK: Tag = Tag::new(b"TRK ");
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let gsub = font.gsub().unwrap();
+        let gsub = font.gsub().and_then(Sanitize::sanitize).unwrap();
         let script_list = gsub.script_list().unwrap();
         let script = script_list.get(1).unwrap();
         let lang_sys_index = script.lang_sys_index_for_tag(TRK).unwrap();
@@ -358,7 +416,7 @@ mod tests {
     #[test]
     fn feature_index_for_tag() {
         let font = FontRef::new(font_test_data::MATERIAL_SYMBOLS_SUBSET).unwrap();
-        let gsub = font.gsub().unwrap();
+        let gsub = font.gsub().and_then(Sanitize::sanitize).unwrap();
         let script_list = gsub.script_list().unwrap();
         let feature_list = gsub.feature_list().unwrap();
         let lang_sys = script_list

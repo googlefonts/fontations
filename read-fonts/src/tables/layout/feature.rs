@@ -1,10 +1,25 @@
 //! Additional support for working with OpenType features.
 
-use super::{Feature, FeatureList, ReadError, TaggedElement};
+use super::{Feature, FeatureList, ReadError, Sanitized, TaggedElement};
 
 impl<'a> FeatureList<'a> {
     /// Returns the tag and feature at the given index.
     pub fn get(&self, index: u16) -> Result<TaggedElement<Feature<'a>>, ReadError> {
+        self.feature_records()
+            .get(index as usize)
+            .ok_or(ReadError::OutOfBounds)
+            .and_then(|rec| {
+                Ok(TaggedElement::new(
+                    rec.feature_tag(),
+                    rec.feature(self.offset_data())?,
+                ))
+            })
+    }
+}
+
+impl<'a> Sanitized<FeatureList<'a>> {
+    /// Returns the tag and feature at the given index.
+    pub fn get(&self, index: u16) -> Result<TaggedElement<Sanitized<Feature<'a>>>, ReadError> {
         self.feature_records()
             .get(index as usize)
             .ok_or(ReadError::OutOfBounds)
