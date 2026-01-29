@@ -76,8 +76,12 @@ impl<'a> FontRead<'a> for Ift<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
-            PatchMapFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            PatchMapFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            PatchMapFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            PatchMapFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

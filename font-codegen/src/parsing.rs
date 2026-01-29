@@ -1774,12 +1774,22 @@ impl ReferencedFields {
 }
 
 impl OffsetTarget {
-    pub(crate) fn getter_return_type(&self, is_generic: bool, in_sanitize: bool) -> TokenStream {
+    pub(crate) fn getter_return_type(
+        &self,
+        is_generic: bool,
+        in_sanitize: bool,
+        items: Option<&Module>,
+    ) -> TokenStream {
         match self {
             OffsetTarget::Table(ident) => {
                 let lifetime = (!is_generic).then(|| quote!( <'a> ));
                 let inner_type = if in_sanitize {
-                    quote!(Sanitized<#ident #lifetime>)
+                    if let Some(Item::Format(group)) = items.unwrap().get(ident) {
+                        let ident = group.ident_for_sanitize();
+                        quote!( #ident #lifetime )
+                    } else {
+                        quote!(Sanitized<#ident #lifetime>)
+                    }
                 } else {
                     quote!(#ident #lifetime)
                 };

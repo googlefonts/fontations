@@ -780,9 +780,15 @@ impl<'a> FontRead<'a> for AnchorTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            AnchorFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            AnchorFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            AnchorFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            AnchorFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            AnchorFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            AnchorFormat3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -838,6 +844,119 @@ impl std::fmt::Debug for AnchorTable<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AnchorTable<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+/// [Anchor Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-tables)
+/// position one glyph with respect to another.
+#[derive(Clone)]
+pub enum SanitizedAnchorTable<'a> {
+    Format1(Sanitized<AnchorFormat1<'a>>),
+    Format2(Sanitized<AnchorFormat2<'a>>),
+    Format3(Sanitized<AnchorFormat3<'a>>),
+}
+
+impl<'a> SanitizedAnchorTable<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier, = 1
+    pub fn anchor_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.anchor_format(),
+            Self::Format2(item) => item.anchor_format(),
+            Self::Format3(item) => item.anchor_format(),
+        }
+    }
+
+    /// Horizontal value, in design units
+    pub fn x_coordinate(&self) -> i16 {
+        match self {
+            Self::Format1(item) => item.x_coordinate(),
+            Self::Format2(item) => item.x_coordinate(),
+            Self::Format3(item) => item.x_coordinate(),
+        }
+    }
+
+    /// Vertical value, in design units
+    pub fn y_coordinate(&self) -> i16 {
+        match self {
+            Self::Format1(item) => item.y_coordinate(),
+            Self::Format2(item) => item.y_coordinate(),
+            Self::Format3(item) => item.y_coordinate(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedAnchorTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            AnchorFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            AnchorFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            AnchorFormat3Marker::FORMAT => {
+                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedAnchorTable<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedAnchorTable<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedAnchorTable<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.0.min_byte_range(),
+            Self::Format2(item) => item.0.min_byte_range(),
+            Self::Format3(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedAnchorTable<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+            Self::Format3(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedAnchorTable<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedAnchorTable<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }
@@ -1548,7 +1667,7 @@ impl Sanitized<MarkRecord> {
     pub fn mark_anchor<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Result<Sanitized<AnchorTable<'a>>, ReadError> {
+    ) -> Result<SanitizedAnchorTable<'a>, ReadError> {
         self.mark_anchor_offset().resolve_with_args(data, &())
     }
 }
@@ -1620,8 +1739,12 @@ impl<'a> FontRead<'a> for SinglePos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            SinglePosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            SinglePosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            SinglePosFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            SinglePosFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1674,6 +1797,108 @@ impl std::fmt::Debug for SinglePos<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SinglePos<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+/// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
+#[derive(Clone)]
+pub enum SanitizedSinglePos<'a> {
+    Format1(Sanitized<SinglePosFormat1<'a>>),
+    Format2(Sanitized<SinglePosFormat2<'a>>),
+}
+
+impl<'a> SanitizedSinglePos<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+
+    /// Offset to Coverage table, from beginning of SinglePos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        match self {
+            Self::Format1(item) => item.coverage_offset(),
+            Self::Format2(item) => item.coverage_offset(),
+        }
+    }
+
+    /// Defines the types of data in the ValueRecord.
+    pub fn value_format(&self) -> ValueFormat {
+        match self {
+            Self::Format1(item) => item.value_format(),
+            Self::Format2(item) => item.value_format(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedSinglePos<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            SinglePosFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            SinglePosFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedSinglePos<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedSinglePos<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedSinglePos<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.0.min_byte_range(),
+            Self::Format2(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedSinglePos<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedSinglePos<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedSinglePos<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }
@@ -2135,8 +2360,12 @@ impl<'a> FontRead<'a> for PairPos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            PairPosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            PairPosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            PairPosFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            PairPosFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -2189,6 +2418,118 @@ impl std::fmt::Debug for PairPos<'_> {
 
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PairPos<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
+    }
+}
+
+/// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
+#[derive(Clone)]
+pub enum SanitizedPairPos<'a> {
+    Format1(Sanitized<PairPosFormat1<'a>>),
+    Format2(Sanitized<PairPosFormat2<'a>>),
+}
+
+impl<'a> SanitizedPairPos<'a> {
+    ///Return the `FontData` used to resolve offsets for this table.
+    pub fn offset_data(&self) -> FontData<'a> {
+        match self {
+            Self::Format1(item) => item.offset_data(),
+            Self::Format2(item) => item.offset_data(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+
+    /// Offset to Coverage table, from beginning of PairPos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        match self {
+            Self::Format1(item) => item.coverage_offset(),
+            Self::Format2(item) => item.coverage_offset(),
+        }
+    }
+
+    /// Defines the types of data in valueRecord1 — for the first
+    /// glyph in the pair (may be zero).
+    pub fn value_format1(&self) -> ValueFormat {
+        match self {
+            Self::Format1(item) => item.value_format1(),
+            Self::Format2(item) => item.value_format1(),
+        }
+    }
+
+    /// Defines the types of data in valueRecord2 — for the second
+    /// glyph in the pair (may be zero).
+    pub fn value_format2(&self) -> ValueFormat {
+        match self {
+            Self::Format1(item) => item.value_format2(),
+            Self::Format2(item) => item.value_format2(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for SanitizedPairPos<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            PairPosFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            PairPosFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl ReadArgs for SanitizedPairPos<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedPairPos<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
+impl MinByteRange for SanitizedPairPos<'_> {
+    fn min_byte_range(&self) -> Range<usize> {
+        match self {
+            Self::Format1(item) => item.0.min_byte_range(),
+            Self::Format2(item) => item.0.min_byte_range(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SanitizedPairPos<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl std::fmt::Debug for SanitizedPairPos<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for SanitizedPairPos<'a> {
     fn type_name(&self) -> &str {
         self.dyn_inner().type_name()
     }
@@ -3520,7 +3861,7 @@ impl Sanitized<EntryExitRecord> {
     pub fn entry_anchor<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Sanitized<AnchorTable<'a>>, ReadError>> {
+    ) -> Option<Result<SanitizedAnchorTable<'a>, ReadError>> {
         self.entry_anchor_offset().resolve_with_args(data, &())
     }
 
@@ -3538,7 +3879,7 @@ impl Sanitized<EntryExitRecord> {
     pub fn exit_anchor<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Sanitized<AnchorTable<'a>>, ReadError>> {
+    ) -> Option<Result<SanitizedAnchorTable<'a>, ReadError>> {
         self.exit_anchor_offset().resolve_with_args(data, &())
     }
 }
@@ -4047,7 +4388,7 @@ impl<'a> Sanitized<BaseRecord<'a>> {
     pub fn base_anchors(
         &self,
         data: FontData<'a>,
-    ) -> ArrayOfNullableOffsets<'a, Sanitized<AnchorTable<'a>>, Offset16> {
+    ) -> ArrayOfNullableOffsets<'a, SanitizedAnchorTable<'a>, Offset16> {
         let offsets = self.base_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -4761,7 +5102,7 @@ impl<'a> Sanitized<ComponentRecord<'a>> {
     pub fn ligature_anchors(
         &self,
         data: FontData<'a>,
-    ) -> ArrayOfNullableOffsets<'a, Sanitized<AnchorTable<'a>>, Offset16> {
+    ) -> ArrayOfNullableOffsets<'a, SanitizedAnchorTable<'a>, Offset16> {
         let offsets = self.ligature_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }
@@ -5306,7 +5647,7 @@ impl<'a> Sanitized<Mark2Record<'a>> {
     pub fn mark2_anchors(
         &self,
         data: FontData<'a>,
-    ) -> ArrayOfNullableOffsets<'a, Sanitized<AnchorTable<'a>>, Offset16> {
+    ) -> ArrayOfNullableOffsets<'a, SanitizedAnchorTable<'a>, Offset16> {
         let offsets = self.mark2_anchor_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
     }

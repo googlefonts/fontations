@@ -909,8 +909,12 @@ impl<'a> FontRead<'a> for ClipBox<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
-            ClipBoxFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            ClipBoxFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            ClipBoxFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            ClipBoxFormat2Marker::FORMAT => {
+                Ok(Self::Format2(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1850,60 +1854,105 @@ impl<'a> FontRead<'a> for Paint<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
-            PaintColrLayersMarker::FORMAT => Ok(Self::ColrLayers(FontRead::read(data)?)),
-            PaintSolidMarker::FORMAT => Ok(Self::Solid(FontRead::read(data)?)),
-            PaintVarSolidMarker::FORMAT => Ok(Self::VarSolid(FontRead::read(data)?)),
-            PaintLinearGradientMarker::FORMAT => Ok(Self::LinearGradient(FontRead::read(data)?)),
-            PaintVarLinearGradientMarker::FORMAT => {
-                Ok(Self::VarLinearGradient(FontRead::read(data)?))
+            PaintColrLayersMarker::FORMAT => Ok(Self::ColrLayers(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintSolidMarker::FORMAT => {
+                Ok(Self::Solid(FontReadWithArgs::read_with_args(data, &())?))
             }
-            PaintRadialGradientMarker::FORMAT => Ok(Self::RadialGradient(FontRead::read(data)?)),
-            PaintVarRadialGradientMarker::FORMAT => {
-                Ok(Self::VarRadialGradient(FontRead::read(data)?))
+            PaintVarSolidMarker::FORMAT => {
+                Ok(Self::VarSolid(FontReadWithArgs::read_with_args(data, &())?))
             }
-            PaintSweepGradientMarker::FORMAT => Ok(Self::SweepGradient(FontRead::read(data)?)),
-            PaintVarSweepGradientMarker::FORMAT => {
-                Ok(Self::VarSweepGradient(FontRead::read(data)?))
+            PaintLinearGradientMarker::FORMAT => Ok(Self::LinearGradient(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintVarLinearGradientMarker::FORMAT => Ok(Self::VarLinearGradient(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintRadialGradientMarker::FORMAT => Ok(Self::RadialGradient(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintVarRadialGradientMarker::FORMAT => Ok(Self::VarRadialGradient(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintSweepGradientMarker::FORMAT => Ok(Self::SweepGradient(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintVarSweepGradientMarker::FORMAT => Ok(Self::VarSweepGradient(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintGlyphMarker::FORMAT => {
+                Ok(Self::Glyph(FontReadWithArgs::read_with_args(data, &())?))
             }
-            PaintGlyphMarker::FORMAT => Ok(Self::Glyph(FontRead::read(data)?)),
-            PaintColrGlyphMarker::FORMAT => Ok(Self::ColrGlyph(FontRead::read(data)?)),
-            PaintTransformMarker::FORMAT => Ok(Self::Transform(FontRead::read(data)?)),
-            PaintVarTransformMarker::FORMAT => Ok(Self::VarTransform(FontRead::read(data)?)),
-            PaintTranslateMarker::FORMAT => Ok(Self::Translate(FontRead::read(data)?)),
-            PaintVarTranslateMarker::FORMAT => Ok(Self::VarTranslate(FontRead::read(data)?)),
-            PaintScaleMarker::FORMAT => Ok(Self::Scale(FontRead::read(data)?)),
-            PaintVarScaleMarker::FORMAT => Ok(Self::VarScale(FontRead::read(data)?)),
-            PaintScaleAroundCenterMarker::FORMAT => {
-                Ok(Self::ScaleAroundCenter(FontRead::read(data)?))
+            PaintColrGlyphMarker::FORMAT => Ok(Self::ColrGlyph(FontReadWithArgs::read_with_args(
+                data,
+                &(),
+            )?)),
+            PaintTransformMarker::FORMAT => Ok(Self::Transform(FontReadWithArgs::read_with_args(
+                data,
+                &(),
+            )?)),
+            PaintVarTransformMarker::FORMAT => Ok(Self::VarTransform(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintTranslateMarker::FORMAT => Ok(Self::Translate(FontReadWithArgs::read_with_args(
+                data,
+                &(),
+            )?)),
+            PaintVarTranslateMarker::FORMAT => Ok(Self::VarTranslate(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintScaleMarker::FORMAT => {
+                Ok(Self::Scale(FontReadWithArgs::read_with_args(data, &())?))
             }
-            PaintVarScaleAroundCenterMarker::FORMAT => {
-                Ok(Self::VarScaleAroundCenter(FontRead::read(data)?))
+            PaintVarScaleMarker::FORMAT => {
+                Ok(Self::VarScale(FontReadWithArgs::read_with_args(data, &())?))
             }
-            PaintScaleUniformMarker::FORMAT => Ok(Self::ScaleUniform(FontRead::read(data)?)),
-            PaintVarScaleUniformMarker::FORMAT => Ok(Self::VarScaleUniform(FontRead::read(data)?)),
-            PaintScaleUniformAroundCenterMarker::FORMAT => {
-                Ok(Self::ScaleUniformAroundCenter(FontRead::read(data)?))
+            PaintScaleAroundCenterMarker::FORMAT => Ok(Self::ScaleAroundCenter(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintVarScaleAroundCenterMarker::FORMAT => Ok(Self::VarScaleAroundCenter(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintScaleUniformMarker::FORMAT => Ok(Self::ScaleUniform(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintVarScaleUniformMarker::FORMAT => Ok(Self::VarScaleUniform(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintScaleUniformAroundCenterMarker::FORMAT => Ok(Self::ScaleUniformAroundCenter(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintVarScaleUniformAroundCenterMarker::FORMAT => Ok(
+                Self::VarScaleUniformAroundCenter(FontReadWithArgs::read_with_args(data, &())?),
+            ),
+            PaintRotateMarker::FORMAT => {
+                Ok(Self::Rotate(FontReadWithArgs::read_with_args(data, &())?))
             }
-            PaintVarScaleUniformAroundCenterMarker::FORMAT => {
-                Ok(Self::VarScaleUniformAroundCenter(FontRead::read(data)?))
+            PaintVarRotateMarker::FORMAT => Ok(Self::VarRotate(FontReadWithArgs::read_with_args(
+                data,
+                &(),
+            )?)),
+            PaintRotateAroundCenterMarker::FORMAT => Ok(Self::RotateAroundCenter(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintVarRotateAroundCenterMarker::FORMAT => Ok(Self::VarRotateAroundCenter(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintSkewMarker::FORMAT => Ok(Self::Skew(FontReadWithArgs::read_with_args(data, &())?)),
+            PaintVarSkewMarker::FORMAT => {
+                Ok(Self::VarSkew(FontReadWithArgs::read_with_args(data, &())?))
             }
-            PaintRotateMarker::FORMAT => Ok(Self::Rotate(FontRead::read(data)?)),
-            PaintVarRotateMarker::FORMAT => Ok(Self::VarRotate(FontRead::read(data)?)),
-            PaintRotateAroundCenterMarker::FORMAT => {
-                Ok(Self::RotateAroundCenter(FontRead::read(data)?))
-            }
-            PaintVarRotateAroundCenterMarker::FORMAT => {
-                Ok(Self::VarRotateAroundCenter(FontRead::read(data)?))
-            }
-            PaintSkewMarker::FORMAT => Ok(Self::Skew(FontRead::read(data)?)),
-            PaintVarSkewMarker::FORMAT => Ok(Self::VarSkew(FontRead::read(data)?)),
-            PaintSkewAroundCenterMarker::FORMAT => {
-                Ok(Self::SkewAroundCenter(FontRead::read(data)?))
-            }
-            PaintVarSkewAroundCenterMarker::FORMAT => {
-                Ok(Self::VarSkewAroundCenter(FontRead::read(data)?))
-            }
-            PaintCompositeMarker::FORMAT => Ok(Self::Composite(FontRead::read(data)?)),
+            PaintSkewAroundCenterMarker::FORMAT => Ok(Self::SkewAroundCenter(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintVarSkewAroundCenterMarker::FORMAT => Ok(Self::VarSkewAroundCenter(
+                FontReadWithArgs::read_with_args(data, &())?,
+            )),
+            PaintCompositeMarker::FORMAT => Ok(Self::Composite(FontReadWithArgs::read_with_args(
+                data,
+                &(),
+            )?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

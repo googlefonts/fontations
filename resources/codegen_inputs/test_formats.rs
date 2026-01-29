@@ -5,6 +5,7 @@
 // to only rebuild the test outputs.
 
 #![parse_module(read_fonts::codegen_test::formats)]
+#![sanitize]
 
 table Table1 {
     #[format = 1]
@@ -35,4 +36,8 @@ format u16 MyTable {
     MyFormat22(Table2),
     // I should get no constructor
     Format3(Table3),
+}
+
+table HostTable {
+    child_offset: Offset16<MyTable>,
 }

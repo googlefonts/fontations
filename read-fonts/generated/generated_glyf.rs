@@ -1268,8 +1268,11 @@ impl<'a> FontRead<'a> for Glyph<'a> {
 
         #[allow(clippy::redundant_guards)]
         match format {
-            format if format >= 0 => Ok(Self::Simple(FontRead::read(data)?)),
-            format if format < 0 => Ok(Self::Composite(FontRead::read(data)?)),
+            format if format >= 0 => Ok(Self::Simple(FontReadWithArgs::read_with_args(data, &())?)),
+            format if format < 0 => Ok(Self::Composite(FontReadWithArgs::read_with_args(
+                data,
+                &(),
+            )?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

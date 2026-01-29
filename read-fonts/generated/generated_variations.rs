@@ -518,8 +518,12 @@ impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
-            DeltaSetIndexMapFormat0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
-            DeltaSetIndexMapFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            DeltaSetIndexMapFormat0Marker::FORMAT => {
+                Ok(Self::Format0(FontReadWithArgs::read_with_args(data, &())?))
+            }
+            DeltaSetIndexMapFormat1Marker::FORMAT => {
+                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, &())?))
+            }
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

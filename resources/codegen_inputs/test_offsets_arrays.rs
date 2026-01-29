@@ -93,6 +93,7 @@ table KindsOfArrays {
 }
 
 #[skip_constructor]
+#[skip_sanitize]
 table VarLenHaver {
     count: u16,
     #[count($count)]
