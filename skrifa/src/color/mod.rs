@@ -100,8 +100,8 @@ impl std::fmt::Display for PaintError {
     }
 }
 
-impl std::error::Error for PaintError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for PaintError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             PaintError::ParseError(read_error) => Some(read_error),
             _ => None,

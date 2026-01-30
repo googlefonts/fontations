@@ -1,6 +1,6 @@
 //! PostScript (CFF and CFF2) common tables.
 
-use std::fmt;
+use core::fmt;
 
 mod blend;
 mod charset;
@@ -123,6 +123,15 @@ impl fmt::Display for Error {
                 write!(f, "seac code {code} is not valid")
             }
             Self::Read(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::Read(err) => Some(err),
+            _ => None,
         }
     }
 }
