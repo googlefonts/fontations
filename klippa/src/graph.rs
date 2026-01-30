@@ -6,11 +6,13 @@ use crate::{
     serialize::{Link, LinkWidth, ObjIdx, Object, OffsetWhence, SerializeErrorFlags, Serializer},
 };
 use fnv::FnvHashMap;
+use std::collections::BTreeMap;
 use write_fonts::{read::collections::IntSet, types::Uint24};
 
 mod coverage_graph;
 pub(crate) mod layout;
 pub(crate) mod ligature_graph;
+pub(crate) mod markbasepos_graph;
 
 #[derive(Debug)]
 pub(crate) enum RepackError {
@@ -44,7 +46,7 @@ pub(crate) struct Vertex {
     tail: usize,
     // real_links: link position-> Link mapping
     // real links are associated with actual offsets
-    real_links: FnvHashMap<u32, Link>,
+    real_links: BTreeMap<u32, Link>,
     // virtual links not associated with actual offsets,
     // they exist merely to enforce an ordering constraint.
     virtual_links: Vec<Link>,
@@ -234,6 +236,10 @@ impl Vertex {
         self.real_links
             .entry(pos)
             .and_modify(|l| l.update_obj_idx(new_child_idx));
+    }
+
+    fn real_links(&self) -> &BTreeMap<u32, Link> {
+        &self.real_links
     }
 }
 
@@ -1323,7 +1329,7 @@ impl Graph {
     }
 
     // Moves the child of old_parent_idx pointed to by old_offset to a new vertex at the new_offset.
-    // Returns the idx of the child that was moved.
+    // Returns the idx of the child that was moved
     fn move_child(
         &mut self,
         old_parent_idx: ObjIdx,
@@ -1331,7 +1337,7 @@ impl Graph {
         new_parent_idx: ObjIdx,
         new_offset: u32,
         link_width: usize,
-    ) -> Result<ObjIdx, RepackError> {
+    ) -> Result<Option<ObjIdx>, RepackError> {
         self.distance_invalid = true;
         self.positions_invalid = true;
 
@@ -1341,10 +1347,9 @@ impl Graph {
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
         // remove from old parent
-        let (_, link) = old_parent_v
-            .real_links
-            .remove_entry(&old_offset)
-            .ok_or(RepackError::GraphErrorInvalidLinkPosition)?;
+        let Some((_, link)) = old_parent_v.real_links.remove_entry(&old_offset) else {
+            return Ok(None);
+        };
 
         let child_idx = link.obj_idx();
         let width = LinkWidth::new_checked(link_width).ok_or(RepackError::ErrorSplitSubtable)?;
@@ -1361,7 +1366,7 @@ impl Graph {
 
         child_v.remove_parent(old_parent_idx, false);
         child_v.add_parent(new_parent_idx, false);
-        Ok(child_idx)
+        Ok(Some(child_idx))
     }
 
     // Move all outgoing links in old parent that have a link position between [old_offset_start, old_offset_start + num_child * link_width)
@@ -1387,10 +1392,9 @@ impl Graph {
 
         for i in 0..num_child {
             let pos = old_offset_start + i * link_width as u32;
-            let (_, l) = old_parent_v
-                .real_links
-                .remove_entry(&pos)
-                .ok_or(RepackError::GraphErrorInvalidLinkPosition)?;
+            let Some((_, l)) = old_parent_v.real_links.remove_entry(&pos) else {
+                continue;
+            };
 
             child_idxes.push(l.obj_idx());
         }

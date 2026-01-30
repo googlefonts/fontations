@@ -7,6 +7,7 @@ use crate::{
     graph::{
         layout::{ExtensionSubtable, Lookup, EXTENSION_TABLE_SIZE},
         ligature_graph::split_ligature_subst,
+        markbasepos_graph::split_markbase_pos,
         Graph, RepackError,
     },
     serialize::{ObjIdx, Serializer},
@@ -152,7 +153,11 @@ fn split_lookup_subtables_if_needed(
         }
 
         // TODO: support more lookup types
-        let mut new_subtables = split_ligature_subst(graph, non_ext_subtable_idx)?;
+        let mut new_subtables = match table_tag {
+            Gpos::TAG => split_markbase_pos(graph, non_ext_subtable_idx)?,
+            Gsub::TAG => split_ligature_subst(graph, non_ext_subtable_idx)?,
+            _ => return Err(RepackError::ErrorReadTable),
+        };
         if new_subtables.is_empty() {
             visited.insert(non_ext_subtable_idx, new_subtables);
             continue;
@@ -174,7 +179,7 @@ fn split_lookup_subtables_if_needed(
 //TODO: support more lookup types
 fn splitting_supported_lookup_type(lookup_type: u16, table_tag: Tag) -> bool {
     match table_tag {
-        Gpos::TAG => false,
+        Gpos::TAG => lookup_type == 4,
         // GSUB: currently only support ligature subst
         Gsub::TAG => lookup_type == 4,
         _ => false,
@@ -317,10 +322,16 @@ fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, Vec<ObjIdx>), RepackErr
 
 #[cfg(test)]
 pub(crate) mod test {
+    use write_fonts::{read::tables::layout::CoverageTable, types::GlyphId};
+
     use super::*;
-    use crate::graph::test::{
-        add_24_offset, add_object, add_offset, add_virtual_offset, add_wide_offset,
-        populate_serializer_with_dedup_overflow, populate_serializer_with_overflow, start_object,
+    use crate::{
+        graph::test::{
+            add_24_offset, add_object, add_offset, add_virtual_offset, add_wide_offset,
+            populate_serializer_with_dedup_overflow, populate_serializer_with_overflow,
+            start_object,
+        },
+        Serialize,
     };
 
     fn populate_serializer_spaces(s: &mut Serializer, with_overflow: bool) {
@@ -1002,6 +1013,12 @@ pub(crate) mod test {
         }
     }
 
+    fn add_coverage_from_glyphs(s: &mut Serializer, glyphs: &[GlyphId]) -> ObjIdx {
+        s.push().unwrap();
+        CoverageTable::serialize(s, glyphs).unwrap();
+        s.pop_pack(false).unwrap()
+    }
+
     fn add_liga_set_header(s: &mut Serializer, liga_count: u16) {
         let liga_count_bytes = liga_count.to_be_bytes();
         start_object(s, &liga_count_bytes, 2);
@@ -1061,6 +1078,134 @@ pub(crate) mod test {
         }
 
         let lookup_list_idx = add_lookup_list(s, NUM_LOOKUPS, &lookups);
+        add_gsub_gpos_header(s, lookup_list_idx);
+        s.end_serialize();
+    }
+
+    fn populate_serializer_with_large_mark_base_pos_1(
+        s: &mut Serializer,
+        mark_count: usize,
+        class_count: usize,
+        base_count: usize,
+        table_count: usize,
+    ) {
+        fn populate_mark_base_pos_buffers(
+            mark_count: usize,
+            class_count: usize,
+            base_count: usize,
+            s: &mut Serializer,
+        ) -> (Vec<ObjIdx>, Vec<ObjIdx>) {
+            let num_base_anchors = base_count * class_count;
+            let mut base_anchors = Vec::with_capacity(num_base_anchors);
+            let mut mark_anchors = Vec::with_capacity(mark_count);
+            let mut anchor_buffers = Vec::with_capacity(num_base_anchors + 100);
+
+            for i in 0..(num_base_anchors / 2 + 50) as u16 {
+                anchor_buffers.extend_from_slice(&i.to_be_bytes());
+            }
+
+            for i in 0..num_base_anchors {
+                let anchor_idx = add_object(s, &anchor_buffers[i..], 100, false);
+                base_anchors.push(anchor_idx);
+            }
+
+            for i in 0..mark_count {
+                let anchor_idx = add_object(s, &anchor_buffers[i..], 4, false);
+                mark_anchors.push(anchor_idx);
+            }
+            (base_anchors, mark_anchors)
+        }
+
+        fn create_mark_base_pos_1(
+            s: &mut Serializer,
+            table_index: usize,
+            base_anchors: &[ObjIdx],
+            mark_anchors: &[ObjIdx],
+            class_per_table: usize,
+            class_count: usize,
+        ) -> ObjIdx {
+            let mark_count = mark_anchors.len();
+            let base_count = base_anchors.len() / class_count;
+
+            let mark_per_class = mark_count / class_count;
+            let start_class = class_per_table * table_index;
+            let end_class = class_per_table * (table_index + 1) - 1;
+
+            // baseArray
+            start_object(s, &(base_count as u16).to_be_bytes(), 2);
+
+            for base in 0..base_count {
+                for class in start_class..=end_class {
+                    let i = base * class_count + class;
+                    add_offset(s, base_anchors[i]);
+                }
+            }
+
+            let base_array = s.pop_pack(false).unwrap();
+
+            //markArray
+            let num_marks = class_per_table * mark_per_class;
+            start_object(s, &(num_marks as u16).to_be_bytes(), 2);
+
+            let mut mark_cov_glyphs = Vec::with_capacity(mark_count);
+            for (mark, anchor_idx) in mark_anchors.iter().enumerate() {
+                let mut class = mark % class_count;
+                if class < start_class || class > end_class {
+                    continue;
+                }
+                class -= start_class;
+                s.embed(class as u16).unwrap();
+                add_offset(s, *anchor_idx);
+                mark_cov_glyphs.push(GlyphId::from(mark as u32));
+            }
+            let mark_array = s.pop_pack(false).unwrap();
+
+            // mark Coverage
+            let mark_coverage = add_coverage_from_glyphs(s, &mark_cov_glyphs);
+
+            // base Coverage
+            let base_coverage = add_coverage(s, 10, 10 + base_count as u16 - 1, false);
+
+            // header: format
+            start_object(s, &1_u16.to_be_bytes(), 2);
+
+            add_offset(s, mark_coverage);
+            add_offset(s, base_coverage);
+
+            s.embed(class_per_table as u16).unwrap();
+            add_offset(s, mark_array);
+            add_offset(s, base_array);
+            s.pop_pack(false).unwrap()
+        }
+
+        s.start_serialize().unwrap();
+        let (base_anchors, mark_anchnors) =
+            populate_mark_base_pos_buffers(mark_count, class_count, base_count, s);
+        let mut mark_base_pos_idxes = vec![0; table_count];
+        let class_per_table = class_count / table_count;
+        for (i, idx) in mark_base_pos_idxes.iter_mut().enumerate() {
+            *idx = create_mark_base_pos_1(
+                s,
+                i,
+                &base_anchors,
+                &mark_anchnors,
+                class_per_table,
+                class_count,
+            );
+        }
+
+        for idx in mark_base_pos_idxes.iter_mut() {
+            *idx = add_extension(s, *idx, 4, false);
+        }
+
+        start_lookup(s, 9, table_count as u8);
+        for idx in mark_base_pos_idxes {
+            add_offset(s, idx);
+        }
+
+        let lookup_idx = finish_lookup(s);
+        let lookups = [lookup_idx; 1];
+        let lookup_list_idx = add_lookup_list(s, 1, &lookups);
         add_gsub_gpos_header(s, lookup_list_idx);
         s.end_serialize();
     }
@@ -1382,6 +1527,7 @@ pub(crate) mod test {
         num_iterations: u8,
         recalculate_extensions: bool,
         check_binary_equivalence: bool,
+        table_tag: Tag,
     ) {
         let mut graph = Graph::from_serializer(overflowing).unwrap();
         let mut expected_graph = Graph::from_serializer(expected).unwrap();
@@ -1400,7 +1546,7 @@ pub(crate) mod test {
         assert!(graph.has_overflows());
         resolve_graph_overflows(
             &mut graph,
-            Tag::new(b"GSUB"),
+            table_tag,
             num_iterations,
             recalculate_extensions,
         )
@@ -1458,7 +1604,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_spaces(&mut e, false);
 
-        run_resolve_overflow_test(&c, &e, 0, false, false);
+        run_resolve_overflow_test(&c, &e, 0, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -1469,7 +1615,7 @@ pub(crate) mod test {
 
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_priority_overflow_expected(&mut e);
-        run_resolve_overflow_test(&s, &e, 3, false, false);
+        run_resolve_overflow_test(&s, &e, 3, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -1493,7 +1639,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_isolation_overflow_complex_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 0, false, false);
+        run_resolve_overflow_test(&s, &e, 0, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -1521,7 +1667,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_spaces_16bit_connection_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 0, false, false);
+        run_resolve_overflow_test(&s, &e, 0, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -1533,7 +1679,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_short_and_wide_subgraph_root_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 0, false, false);
+        run_resolve_overflow_test(&s, &e, 0, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -1545,7 +1691,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_split_spaces_expected(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 1, false, false);
+        run_resolve_overflow_test(&s, &e, 1, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -1557,7 +1703,7 @@ pub(crate) mod test {
         let mut e = Serializer::new(buf_size);
         populate_serializer_with_split_spaces_expected_2(&mut e);
 
-        run_resolve_overflow_test(&s, &e, 1, false, false);
+        run_resolve_overflow_test(&s, &e, 1, false, false, Gsub::TAG);
     }
 
     #[test]
@@ -1604,7 +1750,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_extension_promotion(&mut expected, 3, false);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -1616,7 +1762,19 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_extension_promotion(&mut expected, 3, true);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
+    }
+
+    #[test]
+    fn test_resolve_with_basic_mark_base_pos_1_split() {
+        let buf_size = 200000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_large_mark_base_pos_1(&mut overflowing, 40, 10, 110, 1);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_large_mark_base_pos_1(&mut expected, 40, 10, 110, 2);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
     }
 
     #[test]
@@ -1628,7 +1786,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_liga(&mut expected, 2, 1, 1, 40000, false);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -1640,7 +1798,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_liga(&mut expected, 3, 2, 2, 16000, true);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -1652,7 +1810,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_large_liga_overlapping_clone_result(&mut expected);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -1664,7 +1822,7 @@ pub(crate) mod test {
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_shared_large_liga(&mut expected, 3, 2, 2, 16000);
 
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
     }
 
     #[test]
@@ -1675,6 +1833,6 @@ pub(crate) mod test {
 
         let mut expected = Serializer::new(buf_size);
         populate_serializer_with_liga_shared_coverage(&mut expected, 3, 2, 2, 16000);
-        run_resolve_overflow_test(&overflowing, &expected, 20, true, false);
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
     }
 }
