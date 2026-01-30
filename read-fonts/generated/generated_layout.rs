@@ -144,7 +144,7 @@ pub struct ScriptRecord {
 
 impl ScriptRecord {
     fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
-        self.script(offset_data)?.sanitize_impl()?;
+        crate::sanitize_offset!(self.script(offset_data));
         Ok(())
     }
 
@@ -252,9 +252,7 @@ impl<'a> Sanitize<'a> for Script<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        if let Some(thing) = self.default_lang_sys() {
-            thing?.sanitize_impl()?;
-        };
+        crate::sanitize_offset!(self.default_lang_sys(), nullable);
         self.lang_sys_records()
             .iter()
             .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
@@ -388,7 +386,7 @@ pub struct LangSysRecord {
 
 impl LangSysRecord {
     fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
-        self.lang_sys(offset_data)?.sanitize_impl()?;
+        crate::sanitize_offset!(self.lang_sys(offset_data));
         Ok(())
     }
 
@@ -745,7 +743,7 @@ pub struct FeatureRecord {
 
 impl FeatureRecord {
     fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
-        self.feature(offset_data)?.sanitize_impl()?;
+        crate::sanitize_offset!(self.feature(offset_data));
         Ok(())
     }
 
@@ -864,9 +862,7 @@ impl<'a> Sanitize<'a> for Feature<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        if let Some(thing) = self.feature_params() {
-            thing?.sanitize_impl()?;
-        };
+        crate::sanitize_offset!(self.feature_params(), nullable);
         Ok(())
     }
 }
@@ -2643,7 +2639,7 @@ impl<'a> Sanitize<'a> for SequenceContextFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         self.seq_rule_sets().sanitize_impl()?;
         Ok(())
     }
@@ -3161,8 +3157,8 @@ impl<'a> Sanitize<'a> for SequenceContextFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
-        self.class_def()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
+        crate::sanitize_offset!(self.class_def());
         self.class_seq_rule_sets().sanitize_impl()?;
         Ok(())
     }
@@ -4145,7 +4141,7 @@ impl<'a> Sanitize<'a> for ChainedSequenceContextFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         self.chained_seq_rule_sets().sanitize_impl()?;
         Ok(())
     }
@@ -4764,10 +4760,10 @@ impl<'a> Sanitize<'a> for ChainedSequenceContextFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
-        self.backtrack_class_def()?.sanitize_impl()?;
-        self.input_class_def()?.sanitize_impl()?;
-        self.lookahead_class_def()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
+        crate::sanitize_offset!(self.backtrack_class_def());
+        crate::sanitize_offset!(self.input_class_def());
+        crate::sanitize_offset!(self.lookahead_class_def());
         self.chained_class_seq_rule_sets().sanitize_impl()?;
         Ok(())
     }
@@ -6708,12 +6704,8 @@ pub struct FeatureVariationRecord {
 
 impl FeatureVariationRecord {
     fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
-        if let Some(thing) = self.condition_set(offset_data) {
-            thing?.sanitize_impl()?;
-        };
-        if let Some(thing) = self.feature_table_substitution(offset_data) {
-            thing?.sanitize_impl()?;
-        };
+        crate::sanitize_offset!(self.condition_set(offset_data), nullable);
+        crate::sanitize_offset!(self.feature_table_substitution(offset_data), nullable);
         Ok(())
     }
 
@@ -7895,7 +7887,7 @@ impl<'a> Sanitize<'a> for ConditionFormat5<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.condition()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.condition());
         Ok(())
     }
 }
@@ -8144,7 +8136,7 @@ pub struct FeatureTableSubstitutionRecord {
 
 impl FeatureTableSubstitutionRecord {
     fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
-        self.alternate_feature(offset_data)?.sanitize_impl()?;
+        crate::sanitize_offset!(self.alternate_feature(offset_data));
         Ok(())
     }
 

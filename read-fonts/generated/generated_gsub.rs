@@ -53,12 +53,10 @@ impl<'a> Sanitize<'a> for Gsub<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.script_list()?.sanitize_impl()?;
-        self.feature_list()?.sanitize_impl()?;
-        self.lookup_list()?.sanitize_impl()?;
-        if let Some(thing) = self.feature_variations() {
-            thing?.sanitize_impl()?;
-        };
+        crate::sanitize_offset!(self.script_list());
+        crate::sanitize_offset!(self.feature_list());
+        crate::sanitize_offset!(self.lookup_list());
+        crate::sanitize_offset!(self.feature_variations(), nullable);
         Ok(())
     }
 }
@@ -628,7 +626,7 @@ impl<'a> Sanitize<'a> for SingleSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         Ok(())
     }
 }
@@ -784,7 +782,7 @@ impl<'a> Sanitize<'a> for SingleSubstFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         Ok(())
     }
 }
@@ -963,7 +961,7 @@ impl<'a> Sanitize<'a> for MultipleSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         self.sequences().sanitize_impl()?;
         Ok(())
     }
@@ -1290,7 +1288,7 @@ impl<'a> Sanitize<'a> for AlternateSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         self.alternate_sets().sanitize_impl()?;
         Ok(())
     }
@@ -1618,7 +1616,7 @@ impl<'a> Sanitize<'a> for LigatureSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         self.ligature_sets().sanitize_impl()?;
         Ok(())
     }
@@ -2128,7 +2126,7 @@ impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitize<'a>
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.extension()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.extension());
         Ok(())
     }
 }
@@ -2442,7 +2440,7 @@ impl<'a> Sanitize<'a> for ReverseChainSingleSubstFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         self.backtrack_coverages().sanitize_impl()?;
         self.lookahead_coverages().sanitize_impl()?;
         Ok(())

@@ -609,7 +609,7 @@ impl<'a> Sanitize<'a> for HostTable<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.child()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.child());
         Ok(())
     }
 }

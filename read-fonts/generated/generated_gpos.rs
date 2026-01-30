@@ -54,12 +54,10 @@ impl<'a> Sanitize<'a> for Gpos<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.script_list()?.sanitize_impl()?;
-        self.feature_list()?.sanitize_impl()?;
-        self.lookup_list()?.sanitize_impl()?;
-        if let Some(thing) = self.feature_variations() {
-            thing?.sanitize_impl()?;
-        };
+        crate::sanitize_offset!(self.script_list());
+        crate::sanitize_offset!(self.feature_list());
+        crate::sanitize_offset!(self.lookup_list());
+        crate::sanitize_offset!(self.feature_variations(), nullable);
         Ok(())
     }
 }
@@ -1308,12 +1306,8 @@ impl<'a> Sanitize<'a> for AnchorFormat3<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        if let Some(thing) = self.x_device() {
-            thing?.sanitize_impl()?;
-        };
-        if let Some(thing) = self.y_device() {
-            thing?.sanitize_impl()?;
-        };
+        crate::sanitize_offset!(self.x_device(), nullable);
+        crate::sanitize_offset!(self.y_device(), nullable);
         Ok(())
     }
 }
@@ -1626,7 +1620,7 @@ pub struct MarkRecord {
 
 impl MarkRecord {
     fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
-        self.mark_anchor(offset_data)?.sanitize_impl()?;
+        crate::sanitize_offset!(self.mark_anchor(offset_data));
         Ok(())
     }
 
@@ -1954,7 +1948,7 @@ impl<'a> Sanitize<'a> for SinglePosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         Ok(())
     }
 }
@@ -2139,7 +2133,7 @@ impl<'a> Sanitize<'a> for SinglePosFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         Ok(())
     }
 }
@@ -2585,7 +2579,7 @@ impl<'a> Sanitize<'a> for PairPosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         self.pair_sets().sanitize_impl()?;
         Ok(())
     }
@@ -3119,9 +3113,9 @@ impl<'a> Sanitize<'a> for PairPosFormat2<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
-        self.class_def1()?.sanitize_impl()?;
-        self.class_def2()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
+        crate::sanitize_offset!(self.class_def1());
+        crate::sanitize_offset!(self.class_def2());
         Ok(())
     }
 }
@@ -3648,7 +3642,7 @@ impl<'a> Sanitize<'a> for CursivePosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.coverage()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.coverage());
         self.entry_exit_record()
             .iter()
             .try_for_each(|rec| rec.sanitize_struct(offset_data))?;
@@ -3800,12 +3794,8 @@ pub struct EntryExitRecord {
 
 impl EntryExitRecord {
     fn sanitize_struct(&self, offset_data: FontData) -> Result<(), ReadError> {
-        if let Some(thing) = self.entry_anchor(offset_data) {
-            thing?.sanitize_impl()?;
-        };
-        if let Some(thing) = self.exit_anchor(offset_data) {
-            thing?.sanitize_impl()?;
-        };
+        crate::sanitize_offset!(self.entry_anchor(offset_data), nullable);
+        crate::sanitize_offset!(self.exit_anchor(offset_data), nullable);
         Ok(())
     }
 
@@ -3956,10 +3946,10 @@ impl<'a> Sanitize<'a> for MarkBasePosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.mark_coverage()?.sanitize_impl()?;
-        self.base_coverage()?.sanitize_impl()?;
-        self.mark_array()?.sanitize_impl()?;
-        self.base_array()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.mark_coverage());
+        crate::sanitize_offset!(self.base_coverage());
+        crate::sanitize_offset!(self.mark_array());
+        crate::sanitize_offset!(self.base_array());
         Ok(())
     }
 }
@@ -4501,10 +4491,10 @@ impl<'a> Sanitize<'a> for MarkLigPosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.mark_coverage()?.sanitize_impl()?;
-        self.ligature_coverage()?.sanitize_impl()?;
-        self.mark_array()?.sanitize_impl()?;
-        self.ligature_array()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.mark_coverage());
+        crate::sanitize_offset!(self.ligature_coverage());
+        crate::sanitize_offset!(self.mark_array());
+        crate::sanitize_offset!(self.ligature_array());
         Ok(())
     }
 }
@@ -5215,10 +5205,10 @@ impl<'a> Sanitize<'a> for MarkMarkPosFormat1<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.mark1_coverage()?.sanitize_impl()?;
-        self.mark2_coverage()?.sanitize_impl()?;
-        self.mark1_array()?.sanitize_impl()?;
-        self.mark2_array()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.mark1_coverage());
+        crate::sanitize_offset!(self.mark2_coverage());
+        crate::sanitize_offset!(self.mark1_array());
+        crate::sanitize_offset!(self.mark2_array());
         Ok(())
     }
 }
@@ -5776,7 +5766,7 @@ impl<'a, T: FontReadWithArgs<'a, Args = ()> + Sanitize<'a>> Sanitize<'a>
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.extension()?.sanitize_impl()?;
+        crate::sanitize_offset!(self.extension());
         Ok(())
     }
 }
