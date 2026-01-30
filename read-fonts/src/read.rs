@@ -153,8 +153,7 @@ impl std::fmt::Display for ReadError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for ReadError {}
+impl core::error::Error for ReadError {}
 
 #[cfg(test)]
 mod tests {
