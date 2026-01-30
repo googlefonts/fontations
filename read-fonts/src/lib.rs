@@ -186,6 +186,25 @@ pub(crate) mod codegen_prelude {
                 .saturating_add(2)
         }
     }
+
+    #[macro_export]
+    macro_rules! sanitize_offset {
+        ($getter:expr) => {
+            match $getter {
+                Ok(x) => x.sanitize_impl()?,
+                Err(ReadError::NullOffset) => (),
+                Err(other) => return Err(other),
+            }
+        };
+        ($getter:expr, nullable) => {
+            //if let Some(thing) = $gette
+            match $getter {
+                Some(Ok(x)) => x.sanitize_impl()?,
+                Some(Err(other)) => return Err(other),
+                None => (),
+            }
+        };
+    }
 }
 
 include!("../generated/font.rs");

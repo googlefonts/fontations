@@ -47,16 +47,10 @@ impl<'a> Sanitize<'a> for KindsOfOffsets<'a> {
     #[allow(unused_variables)]
     fn sanitize_impl(&self) -> Result<(), ReadError> {
         let offset_data = self.offset_data();
-        self.nonnullable()?.sanitize_impl()?;
-        if let Some(thing) = self.nullable() {
-            thing?.sanitize_impl()?;
-        };
-        if let Some(thing) = self.versioned_nonnullable() {
-            thing?.sanitize_impl()?;
-        };
-        if let Some(thing) = self.versioned_nullable() {
-            thing?.sanitize_impl()?;
-        };
+        crate::sanitize_offset!(self.nonnullable());
+        crate::sanitize_offset!(self.nullable(), nullable);
+        crate::sanitize_offset!(self.versioned_nonnullable(), nullable);
+        crate::sanitize_offset!(self.versioned_nullable(), nullable);
         Ok(())
     }
 }

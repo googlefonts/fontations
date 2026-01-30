@@ -1127,15 +1127,19 @@ impl Field {
         let name = self.name_for_compile();
         if let Some(offset_getter) = self.offset_getter_name() {
             let get_stmt = quote!(self.#offset_getter(#pass_offset_data));
-            let maybe_q = matches!(&self.typ, FieldType::Offset { .. }).then(|| quote!(?));
-            return if self.is_conditional() || (!self.is_array() && self.is_nullable()) {
+            if matches!(&self.typ, FieldType::Offset { .. }) {
+                let conditional =
+                    (self.is_conditional() || self.is_nullable()).then(|| quote!(, nullable));
+                return Some(quote!(crate::sanitize_offset!( #get_stmt #conditional)));
+            }
+            return if self.is_conditional() {
                 Some(quote! {
                     if let Some(thing) = #get_stmt {
-                        thing #maybe_q.sanitize_impl()?;
+                        thing.sanitize_impl()?;
                     }
                 })
             } else {
-                Some(quote!( #get_stmt #maybe_q.sanitize_impl()? ))
+                Some(quote!( #get_stmt .sanitize_impl()? ))
             };
         };
         match &self.typ {
