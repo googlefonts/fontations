@@ -5,8 +5,8 @@ use libfuzzer_sys::fuzz_target;
 use skrifa::{
     instance::{Location, Size},
     outline::{
-        pen::PathStyle, DrawError, DrawSettings, HintingInstance, HintingMode, LcdLayout,
-        OutlinePen,
+        pen::PathStyle, DrawError, DrawSettings, HintingInstance, HintingMode, InterpreterVersion,
+        LcdLayout, OutlinePen,
     },
     FontRef, MetadataProvider,
 };
@@ -52,6 +52,7 @@ struct OutlineRequest {
     hinted: bool,
     hinted_pedantic: bool,
     hinting_mode: HintingMode,
+    interpreter_version: InterpreterVersion,
     with_memory: bool, // ~half tests should be with memory, half not
     memory_size: u16, // if we do test with_memory, how much of it? u16 to avoid asking for huge chunks.
     harfbuzz_pathstyle: bool,
@@ -65,6 +66,7 @@ impl Default for OutlineRequest {
             hinted: Default::default(),
             hinted_pedantic: Default::default(),
             hinting_mode: Default::default(),
+            interpreter_version: Default::default(),
             with_memory: Default::default(),
             memory_size: Default::default(),
             harfbuzz_pathstyle: Default::default(),
@@ -98,6 +100,7 @@ fn do_glyf_things(outline_request: OutlineRequest, font: &FontRef) -> Result<(),
                 size,
                 &outline_request.location,
                 outline_request.hinting_mode,
+                outline_request.interpreter_version,
             )
             .map_err(DrawErrorWrapper)?,
         )
@@ -161,6 +164,13 @@ fn hinting_modes(hinted: bool) -> Vec<HintingMode> {
     ]
 }
 
+fn interpreter_versions(hinted: bool) -> Vec<InterpreterVersion> {
+    if !hinted {
+        return vec![InterpreterVersion::_40];
+    }
+    vec![InterpreterVersion::_35, InterpreterVersion::_40]
+}
+
 // To avoid consuming corpus data that is likely a font just build the cross product of likely values
 // for various options
 fn create_request_scenarios(font: &FontRef) -> Vec<OutlineRequest> {
@@ -189,6 +199,14 @@ fn create_request_scenarios(font: &FontRef) -> Vec<OutlineRequest> {
                 .into_iter()
                 .map(move |hinting_mode| OutlineRequest {
                     hinting_mode,
+                    ..r.clone()
+                })
+        })
+        .flat_map(|r| {
+            interpreter_versions(r.hinted)
+                .into_iter()
+                .map(move |interpreter_version| OutlineRequest {
+                    interpreter_version,
                     ..r.clone()
                 })
         })
