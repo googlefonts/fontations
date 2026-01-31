@@ -60,6 +60,19 @@ impl<'a> FontData<'a> {
         self.bytes.get(pos..).map(|bytes| FontData { bytes })
     }
 
+    /// Returns `self[pos..]` without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// `pos` must be within `self.bytes`.
+    #[allow(clippy::arithmetic_side_effects)]
+    pub(crate) unsafe fn split_off_unchecked(&self, pos: usize) -> FontData<'a> {
+        let len = self.bytes.len() - pos;
+        let ptr = self.bytes.as_ptr().add(pos);
+        let bytes = std::slice::from_raw_parts(ptr, len);
+        FontData { bytes }
+    }
+
     /// returns self[..pos], and updates self to = self[pos..];
     pub fn take_up_to(&mut self, pos: usize) -> Option<FontData<'a>> {
         if pos > self.len() {
@@ -75,6 +88,19 @@ impl<'a> FontData<'a> {
         self.bytes.get(bounds).map(|bytes| FontData { bytes })
     }
 
+    /// Return a subslice without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// `range` must be within `self.bytes`.
+    #[allow(clippy::arithmetic_side_effects)]
+    pub(crate) unsafe fn slice_unchecked(&self, range: Range<usize>) -> FontData<'a> {
+        let len = range.end - range.start;
+        let ptr = self.bytes.as_ptr().add(range.start);
+        let bytes = std::slice::from_raw_parts(ptr, len);
+        FontData { bytes }
+    }
+
     /// Read a scalar at the provided location in the data.
     pub fn read_at<T: Scalar>(&self, offset: usize) -> Result<T, ReadError> {
         let end = offset
@@ -84,6 +110,17 @@ impl<'a> FontData<'a> {
             .get(offset..end)
             .and_then(T::read)
             .ok_or(ReadError::OutOfBounds)
+    }
+
+    /// Read a scalar at the provided location in the data, without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// `offset..offset + T::RAW_BYTE_LEN` must be within `self.bytes`.
+    pub(crate) unsafe fn read_at_unchecked<T: Scalar>(&self, offset: usize) -> T {
+        let ptr = self.bytes.as_ptr().add(offset) as *const T::Raw;
+        let raw = ptr.read_unaligned();
+        T::from_raw(raw)
     }
 
     /// Read a big-endian value at the provided location in the data.
@@ -97,6 +134,17 @@ impl<'a> FontData<'a> {
             .ok_or(ReadError::OutOfBounds)
     }
 
+    /// Read a big-endian value at the provided location in the data, without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// `offset..offset + T::RAW_BYTE_LEN` must be within `self.bytes`.
+    pub(crate) unsafe fn read_be_at_unchecked<T: Scalar>(&self, offset: usize) -> BigEndian<T> {
+        let ptr = self.bytes.as_ptr().add(offset) as *const T::Raw;
+        let raw = ptr.read_unaligned();
+        BigEndian::new(raw)
+    }
+
     pub fn read_with_args<T>(&self, range: Range<usize>, args: &T::Args) -> Result<T, ReadError>
     where
         T: FontReadWithArgs<'a>,
@@ -104,6 +152,23 @@ impl<'a> FontData<'a> {
         self.slice(range)
             .ok_or(ReadError::OutOfBounds)
             .and_then(|data| T::read_with_args(data, args))
+    }
+
+    /// Read a value with args at the provided range, without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// `range` must be within `self.bytes`.
+    pub(crate) unsafe fn read_with_args_unchecked<T>(
+        &self,
+        range: Range<usize>,
+        args: &T::Args,
+    ) -> Result<T, ReadError>
+    where
+        T: FontReadWithArgs<'a>,
+    {
+        let data = self.slice_unchecked(range);
+        T::read_with_args(data, args)
     }
 
     fn check_in_bounds(&self, offset: usize) -> Result<(), ReadError> {
@@ -139,6 +204,20 @@ impl<'a> FontData<'a> {
             .map(bytemuck::from_bytes)
     }
 
+    /// Interpret the bytes at the provided offset as a reference to `T`, without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// `offset..offset + T::RAW_BYTE_LEN` must be within `self.bytes`, and the
+    /// type must have alignment 1 and no padding.
+    pub(crate) unsafe fn read_ref_unchecked<T: AnyBitPattern + FixedSize>(
+        &self,
+        offset: usize,
+    ) -> &'a T {
+        let ptr = self.bytes.as_ptr().add(offset) as *const T;
+        &*ptr
+    }
+
     /// Interpret the bytes at the provided offset as a slice of `T`.
     ///
     /// Returns an error if `range` is out of bounds for the underlying data,
@@ -170,6 +249,24 @@ impl<'a> FontData<'a> {
             return Err(ReadError::InvalidArrayLen);
         };
         Ok(bytemuck::cast_slice(bytes))
+    }
+
+    /// Interpret the bytes at the provided range as a slice of `T`, without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// `range` must be within `self.bytes`, must be a multiple of `T::RAW_BYTE_LEN`,
+    /// and the type must have alignment 1 and no padding.
+    #[allow(clippy::arithmetic_side_effects)]
+    pub(crate) unsafe fn read_array_unchecked<T: AnyBitPattern + FixedSize>(
+        &self,
+        range: Range<usize>,
+    ) -> &'a [T] {
+        let len = range.end - range.start;
+        debug_assert!(len % T::RAW_BYTE_LEN == 0);
+        let count = len / T::RAW_BYTE_LEN;
+        let ptr = self.bytes.as_ptr().add(range.start) as *const T;
+        std::slice::from_raw_parts(ptr, count)
     }
 
     pub(crate) fn cursor(&self) -> Cursor<'a> {
@@ -292,7 +389,12 @@ impl<'a> Cursor<'a> {
     pub(crate) fn finish<T>(self, shape: T) -> Result<TableRef<'a, T>, ReadError> {
         let data = self.data;
         data.check_in_bounds(self.pos)?;
-        Ok(TableRef { data, shape })
+        let _ = shape;
+        Ok(TableRef {
+            data,
+            args: (),
+            _marker: std::marker::PhantomData,
+        })
     }
 }
 
@@ -312,6 +414,70 @@ impl AsRef<[u8]> for FontData<'_> {
 impl<'a> From<&'a [u8]> for FontData<'a> {
     fn from(src: &'a [u8]) -> FontData<'a> {
         FontData::new(src)
+    }
+}
+
+pub(crate) mod unchecked {
+    use super::FontData;
+    use bytemuck::AnyBitPattern;
+    use std::ops::Range;
+    use types::{BigEndian, FixedSize, Scalar};
+
+    use crate::read::FontReadWithArgs;
+
+    #[inline]
+    pub(crate) fn split_off<'a>(data: FontData<'a>, pos: usize) -> FontData<'a> {
+        // SAFETY: callers ensure the range is within bounds.
+        unsafe { data.split_off_unchecked(pos) }
+    }
+
+    #[inline]
+    pub(crate) fn slice<'a>(data: FontData<'a>, range: Range<usize>) -> FontData<'a> {
+        // SAFETY: callers ensure the range is within bounds.
+        unsafe { data.slice_unchecked(range) }
+    }
+
+    #[inline]
+    pub(crate) fn read_at<'a, T: Scalar>(data: FontData<'a>, offset: usize) -> T {
+        // SAFETY: callers ensure the range is within bounds.
+        unsafe { data.read_at_unchecked(offset) }
+    }
+
+    #[inline]
+    pub(crate) fn read_be_at<'a, T: Scalar>(data: FontData<'a>, offset: usize) -> BigEndian<T> {
+        // SAFETY: callers ensure the range is within bounds.
+        unsafe { data.read_be_at_unchecked(offset) }
+    }
+
+    #[inline]
+    pub(crate) fn read_with_args<'a, T>(
+        data: FontData<'a>,
+        range: Range<usize>,
+        args: &T::Args,
+    ) -> T
+    where
+        T: FontReadWithArgs<'a>,
+    {
+        // SAFETY: callers ensure the range is within bounds.
+        unsafe { data.read_with_args_unchecked(range, args).unwrap() }
+    }
+
+    #[inline]
+    pub(crate) fn read_ref<'a, T: AnyBitPattern + FixedSize>(
+        data: FontData<'a>,
+        offset: usize,
+    ) -> &'a T {
+        // SAFETY: callers ensure the range is within bounds and type invariants hold.
+        unsafe { data.read_ref_unchecked(offset) }
+    }
+
+    #[inline]
+    pub(crate) fn read_array<'a, T: AnyBitPattern + FixedSize>(
+        data: FontData<'a>,
+        range: Range<usize>,
+    ) -> &'a [T] {
+        // SAFETY: callers ensure the range is within bounds and aligned to item size.
+        unsafe { data.read_array_unchecked(range) }
     }
 }
 
