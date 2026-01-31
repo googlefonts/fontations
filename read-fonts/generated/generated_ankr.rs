@@ -62,13 +62,13 @@ impl<'a> Ankr<'a> {
     /// Version number (set to zero).
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Flags (currently unused; set to zero).
     pub fn flags(&self) -> u16 {
         let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to the table's lookup table; currently this is always `0x0000000C`.
@@ -76,7 +76,7 @@ impl<'a> Ankr<'a> {
     /// Lookup values are two byte offsets into the glyph data table.
     pub fn lookup_table_offset(&self) -> Offset32 {
         let range = self.shape.lookup_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`lookup_table_offset`][Self::lookup_table_offset].
@@ -88,7 +88,7 @@ impl<'a> Ankr<'a> {
     /// Offset to the glyph data table.
     pub fn glyph_data_table_offset(&self) -> u32 {
         let range = self.shape.glyph_data_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -167,13 +167,13 @@ impl<'a> GlyphDataEntry<'a> {
     /// Number of anchor points for this glyph.
     pub fn num_points(&self) -> u32 {
         let range = self.shape.num_points_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Individual anchor points.
     pub fn anchor_points(&self) -> &'a [AnchorPoint] {
         let range = self.shape.anchor_points_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

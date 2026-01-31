@@ -90,43 +90,43 @@ impl<'a> Cff2Header<'a> {
     /// Format major version (set to 2).
     pub fn major_version(&self) -> u8 {
         let range = self.shape.major_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Format minor version (set to 0).
     pub fn minor_version(&self) -> u8 {
         let range = self.shape.minor_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Header size (bytes).
     pub fn header_size(&self) -> u8 {
         let range = self.shape.header_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Length of Top DICT structure in bytes.
     pub fn top_dict_length(&self) -> u16 {
         let range = self.shape.top_dict_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Padding bytes before the start of the Top DICT.
     pub fn _padding(&self) -> &'a [u8] {
         let range = self.shape._padding_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Data containing the Top DICT.
     pub fn top_dict_data(&self) -> &'a [u8] {
         let range = self.shape.top_dict_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Remaining table data.
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.shape.trailing_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

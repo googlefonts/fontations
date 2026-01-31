@@ -63,19 +63,19 @@ impl<'a> Gasp<'a> {
     /// Version number (set to 1)
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of records to follow
     pub fn num_ranges(&self) -> u16 {
         let range = self.shape.num_ranges_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Sorted by ppem
     pub fn gasp_ranges(&self) -> &'a [GaspRange] {
         let range = self.shape.gasp_ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

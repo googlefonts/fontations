@@ -69,25 +69,25 @@ impl<'a> Dsig<'a> {
     /// Version number of the DSIG table (0x00000001)
     pub fn version(&self) -> u32 {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of signatures in the table
     pub fn num_signatures(&self) -> u16 {
         let range = self.shape.num_signatures_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Permission flags
     pub fn flags(&self) -> PermissionFlags {
         let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of signature records
     pub fn signature_records(&self) -> &'a [SignatureRecord] {
         let range = self.shape.signature_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -536,13 +536,13 @@ impl<'a> SignatureBlockFormat1<'a> {
     /// Length (in bytes) of the PKCS#7 packet in the signature field.
     pub fn signature_length(&self) -> u32 {
         let range = self.shape.signature_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// PKCS#7 packet
     pub fn signature(&self) -> &'a [u8] {
         let range = self.shape.signature_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

@@ -152,38 +152,38 @@ impl<'a> SimpleGlyph<'a> {
     /// — the value -1 should be used for composite glyphs.
     pub fn number_of_contours(&self) -> i16 {
         let range = self.shape.number_of_contours_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minimum x for coordinate data.
     pub fn x_min(&self) -> i16 {
         let range = self.shape.x_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minimum y for coordinate data.
     pub fn y_min(&self) -> i16 {
         let range = self.shape.y_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Maximum x for coordinate data.
     pub fn x_max(&self) -> i16 {
         let range = self.shape.x_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Maximum y for coordinate data.
     pub fn y_max(&self) -> i16 {
         let range = self.shape.y_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of point indices for the last point of each contour,
     /// in increasing numeric order
     pub fn end_pts_of_contours(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.end_pts_of_contours_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Total number of bytes for instructions. If instructionLength is
@@ -191,19 +191,19 @@ impl<'a> SimpleGlyph<'a> {
     /// field is followed directly by the flags field.
     pub fn instruction_length(&self) -> u16 {
         let range = self.shape.instruction_length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of instruction byte code for the glyph.
     pub fn instructions(&self) -> &'a [u8] {
         let range = self.shape.instructions_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// the raw data for flags & x/y coordinates
     pub fn glyph_data(&self) -> &'a [u8] {
         let range = self.shape.glyph_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -709,38 +709,38 @@ impl<'a> CompositeGlyph<'a> {
     /// — the value -1 should be used for composite glyphs.
     pub fn number_of_contours(&self) -> i16 {
         let range = self.shape.number_of_contours_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minimum x for coordinate data.
     pub fn x_min(&self) -> i16 {
         let range = self.shape.x_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minimum y for coordinate data.
     pub fn y_min(&self) -> i16 {
         let range = self.shape.y_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Maximum x for coordinate data.
     pub fn x_max(&self) -> i16 {
         let range = self.shape.x_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Maximum y for coordinate data.
     pub fn y_max(&self) -> i16 {
         let range = self.shape.y_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// component flag
     /// glyph index of component
     pub fn component_data(&self) -> &'a [u8] {
         let range = self.shape.component_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

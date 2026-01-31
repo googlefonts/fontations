@@ -76,34 +76,34 @@ impl<'a> TableDirectory<'a> {
     /// 0x00010000 or 0x4F54544F
     pub fn sfnt_version(&self) -> u32 {
         let range = self.shape.sfnt_version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of tables.
     pub fn num_tables(&self) -> u16 {
         let range = self.shape.num_tables_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn search_range(&self) -> u16 {
         let range = self.shape.search_range_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn entry_selector(&self) -> u16 {
         let range = self.shape.entry_selector_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn range_shift(&self) -> u16 {
         let range = self.shape.range_shift_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Table records array—one for each top-level table in the font
     pub fn table_records(&self) -> &'a [TableRecord] {
         let range = self.shape.table_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -300,43 +300,43 @@ impl<'a> TTCHeader<'a> {
     /// Font Collection ID string: \"ttcf\"
     pub fn ttc_tag(&self) -> Tag {
         let range = self.shape.ttc_tag_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Major/minor version of the TTC Header
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of fonts in TTC
     pub fn num_fonts(&self) -> u32 {
         let range = self.shape.num_fonts_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to the TableDirectory for each font from the beginning of the file
     pub fn table_directory_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.table_directory_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Tag indicating that a DSIG table exists, 0x44534947 ('DSIG') (null if no signature)
     pub fn dsig_tag(&self) -> Option<u32> {
         let range = self.shape.dsig_tag_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// The length (in bytes) of the DSIG table (null if no signature)
     pub fn dsig_length(&self) -> Option<u32> {
         let range = self.shape.dsig_length_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// The offset (in bytes) of the DSIG table from the beginning of the TTC file (null if no signature)
     pub fn dsig_offset(&self) -> Option<u32> {
         let range = self.shape.dsig_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 }
 
