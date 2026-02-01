@@ -10,34 +10,7 @@ use crate::codegen_prelude::*;
 #[doc(hidden)]
 pub struct HvarMarker {}
 
-impl HvarMarker {
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn advance_width_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.item_variation_store_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn lsb_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.advance_width_mapping_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn rsb_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.lsb_mapping_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for HvarMarker {
+impl<'a> MinByteRange for Hvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.rsb_mapping_offset_byte_range().end
     }
@@ -50,13 +23,13 @@ impl TopLevelTable for Hvar<'_> {
 
 impl<'a> FontRead<'a> for Hvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<Offset32>();
-        cursor.finish(HvarMarker {})
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self {
+            data,
+            shape: HvarMarker {},
+        })
     }
 }
 
@@ -65,16 +38,52 @@ pub type Hvar<'a> = TableRef<'a, HvarMarker>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hvar<'a> {
+    pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN
+        + Offset32::RAW_BYTE_LEN);
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn advance_width_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.item_variation_store_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn lsb_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.advance_width_mapping_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn rsb_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.lsb_mapping_offset_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
+        let range = self.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Offset in bytes from the start of this table to the item variation store table.
     pub fn item_variation_store_offset(&self) -> Offset32 {
-        let range = self.shape.item_variation_store_offset_byte_range();
+        let range = self.item_variation_store_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -86,7 +95,7 @@ impl<'a> Hvar<'a> {
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for advance widths (may be NULL).
     pub fn advance_width_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.advance_width_mapping_offset_byte_range();
+        let range = self.advance_width_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -98,7 +107,7 @@ impl<'a> Hvar<'a> {
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for left side bearings (may be NULL).
     pub fn lsb_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.lsb_mapping_offset_byte_range();
+        let range = self.lsb_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -110,7 +119,7 @@ impl<'a> Hvar<'a> {
 
     /// Offset in bytes from the start of this table to the delta-set index mapping for right side bearings (may be NULL).
     pub fn rsb_mapping_offset(&self) -> Nullable<Offset32> {
-        let range = self.shape.rsb_mapping_offset_byte_range();
+        let range = self.rsb_mapping_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 

@@ -16,6 +16,10 @@ pub mod formats {
     include!("../generated/generated_test_formats.rs");
 }
 
+pub mod read_args {
+    include!("../generated/generated_test_read_args.rs");
+}
+
 pub mod offsets_arrays {
 
     include!("../generated/generated_test_offsets_arrays.rs");
@@ -301,6 +305,7 @@ pub mod conditions {
 
     #[test]
     #[should_panic(expected = "OutOfBounds")]
+    //NOTE: after my refactor this is broken, need to figure out how this should work
     fn fields_after_conditions_wrong_len() {
         let data = BeBuffer::new().push(GotFlags::FOO).extend([1u16, 2, 3]);
 
