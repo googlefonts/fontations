@@ -194,7 +194,7 @@ impl<'a> CffFontRef<'a> {
         }
     }
 
-    /// Evalutes the charstring for the requested glyph and sends the results
+    /// Evaluates the charstring for the requested glyph and sends the results
     /// to the given sink.
     pub fn evaluate_charstring(
         &self,
@@ -660,7 +660,7 @@ mod tests {
     }
 
     fn make_blues<const N: usize>(values: [i32; N]) -> Blues {
-        Blues::new(values.map(|x| Fixed::from_i32(x)).into_iter())
+        Blues::new(values.map(Fixed::from_i32).into_iter())
     }
 
     #[test]
