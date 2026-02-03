@@ -263,6 +263,16 @@ enum CffFontKind<'a> {
 }
 
 /// Metadata for a CFF subfont.
+///
+/// A subfont is the collection of data read from both the
+/// [Font DICT](https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=28)
+/// and [Private Dict](https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=24)
+/// structures. These determine the set of subroutines, metrics and hinting
+/// parameters for some group of glyphs.
+///
+/// Use [CffFontRef::subfont_index] to determine the subfont index for a
+/// particular glyph and then [CffFontRef::subfont] (or
+/// [CffFontRef::subfont_hinted]) to retrieve the associated subfont.
 #[derive(Copy, Clone, Default, Debug)]
 pub struct CffSubfont {
     subrs_offset: u32,
