@@ -1957,6 +1957,12 @@ impl MinByteRange for SanitizedCoverageTable<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for SanitizedCoverageTable<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SanitizedCoverageTable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -2508,6 +2514,12 @@ impl MinByteRange for SanitizedClassDef<'_> {
             Self::Format1(item) => item.0.min_byte_range(),
             Self::Format2(item) => item.0.min_byte_range(),
         }
+    }
+}
+
+impl<'a> Sanitize<'a> for SanitizedClassDef<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
     }
 }
 
@@ -4063,6 +4075,12 @@ impl MinByteRange for SanitizedSequenceContext<'_> {
             Self::Format2(item) => item.0.min_byte_range(),
             Self::Format3(item) => item.0.min_byte_range(),
         }
+    }
+}
+
+impl<'a> Sanitize<'a> for SanitizedSequenceContext<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
     }
 }
 
@@ -5988,6 +6006,12 @@ impl MinByteRange for SanitizedChainedSequenceContext<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for SanitizedChainedSequenceContext<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SanitizedChainedSequenceContext<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -6511,6 +6535,12 @@ impl MinByteRange for SanitizedDeviceOrVariationIndex<'_> {
             Self::Device(item) => item.0.min_byte_range(),
             Self::VariationIndex(item) => item.0.min_byte_range(),
         }
+    }
+}
+
+impl<'a> Sanitize<'a> for SanitizedDeviceOrVariationIndex<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
     }
 }
 
@@ -7165,6 +7195,12 @@ impl MinByteRange for SanitizedCondition<'_> {
             Self::Format4Or(item) => item.0.min_byte_range(),
             Self::Format5Negate(item) => item.0.min_byte_range(),
         }
+    }
+}
+
+impl<'a> Sanitize<'a> for SanitizedCondition<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
     }
 }
 

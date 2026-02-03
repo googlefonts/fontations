@@ -539,6 +539,12 @@ impl MinByteRange for SanitizedMyTable<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for SanitizedMyTable<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SanitizedMyTable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {

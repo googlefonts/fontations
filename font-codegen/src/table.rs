@@ -940,9 +940,8 @@ pub(crate) fn generate_format_group_impl(
         }
     });
 
-    let do_sanitize =
-        (!for_sanitize) && items.generate_sanitize.is_some() && item.attrs.skip_sanitize.is_none();
-    let maybe_sanitize_impl = do_sanitize.then(|| generate_format_sanitize(item));
+    let do_sanitize = items.generate_sanitize.is_some() && item.attrs.skip_sanitize.is_none();
+    let maybe_sanitize_impl = do_sanitize.then(|| generate_format_sanitize(item, for_sanitize));
 
     Ok(quote! {
         #( #docs )*
@@ -1014,8 +1013,10 @@ pub(crate) fn generate_format_group_impl(
     })
 }
 
-fn generate_format_sanitize(item: &TableFormat) -> TokenStream {
-    let name = &item.name;
+fn generate_format_sanitize(item: &TableFormat, for_sanitize: bool) -> TokenStream {
+    let name = for_sanitize
+        .then(|| item.ident_for_sanitize())
+        .unwrap_or_else(|| item.name.clone());
     let match_arms = item
         .variants
         .iter()
@@ -1025,11 +1026,23 @@ fn generate_format_sanitize(item: &TableFormat) -> TokenStream {
             quote!(Self::#name(table) => table.sanitize_impl())
         });
 
-    quote! {
-        impl<'a> Sanitize<'a> for #name <'a> {
-            fn sanitize_impl(&self) -> Result<(), ReadError> {
-                match self {
-                    #( #match_arms, )*
+    if for_sanitize {
+        quote! {
+
+            impl<'a> Sanitize<'a> for #name <'a> {
+                fn sanitize_impl(&self) -> Result<(), ReadError> {
+                    Ok(())
+                }
+            }
+
+        }
+    } else {
+        quote! {
+            impl<'a> Sanitize<'a> for #name <'a> {
+                fn sanitize_impl(&self) -> Result<(), ReadError> {
+                    match self {
+                        #( #match_arms, )*
+                    }
                 }
             }
         }

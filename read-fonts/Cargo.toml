@@ -45,9 +45,13 @@ rand = "0.8.5"
 serde_json = { workspace = true }
 
 [[bench]]
-name = "int_set_benchmark"
+name = "sanitize"
 harness = false
 
-[[bench]]
-name = "sparse_bit_set_benchmark"
-harness = false
+#[[bench]]
+#name = "int_set_benchmark"
+#harness = false
+
+#[[bench]]
+#name = "sparse_bit_set_benchmark"
+#harness = false

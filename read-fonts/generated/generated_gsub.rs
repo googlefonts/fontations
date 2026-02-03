@@ -99,7 +99,7 @@ impl<'a> Sanitized<Gsub<'a>> {
     }
 
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
-    pub fn lookup_list(&self) -> Result<Sanitized<SubstitutionLookupList<'a>>, ReadError> {
+    pub fn lookup_list(&self) -> Result<SanitizedSubstitutionLookupList<'a>, ReadError> {
         let data = self.0.data;
         self.lookup_list_offset().resolve_with_args(data, &())
     }
@@ -552,6 +552,12 @@ impl MinByteRange for SanitizedSingleSubst<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for SanitizedSingleSubst<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SanitizedSingleSubst<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -646,7 +652,7 @@ impl<'a> Sanitized<SingleSubstFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -802,7 +808,7 @@ impl<'a> Sanitized<SingleSubstFormat2<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -982,7 +988,7 @@ impl<'a> Sanitized<MultipleSubstFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -1309,7 +1315,7 @@ impl<'a> Sanitized<AlternateSubstFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -1637,7 +1643,7 @@ impl<'a> Sanitized<LigatureSubstFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -2462,7 +2468,7 @@ impl<'a> Sanitized<ReverseChainSingleSubstFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -2481,9 +2487,7 @@ impl<'a> Sanitized<ReverseChainSingleSubstFormat1<'a>> {
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverages(
-        &self,
-    ) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, SanitizedCoverageTable<'a>, Offset16> {
         let data = self.0.data;
         let offsets = self.backtrack_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -2503,9 +2507,7 @@ impl<'a> Sanitized<ReverseChainSingleSubstFormat1<'a>> {
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverages(
-        &self,
-    ) -> ArrayOfOffsets<'a, Sanitized<CoverageTable<'a>>, Offset16> {
+    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, SanitizedCoverageTable<'a>, Offset16> {
         let data = self.0.data;
         let offsets = self.lookahead_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())

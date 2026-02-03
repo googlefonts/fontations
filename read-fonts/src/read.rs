@@ -27,7 +27,7 @@ mod sealed {
     //FIXME this should not be pub(crate), but i'm just getting things working
     #[derive(Clone, Copy, Debug, bytemuck::AnyBitPattern)]
     #[repr(transparent)]
-    pub struct Sanitized<T>(pub(crate) T);
+    pub struct Sanitized<T>(pub T);
 }
 
 pub use sealed::Sanitized;
@@ -35,6 +35,10 @@ pub use sealed::Sanitized;
 impl<'a, T> Sanitized<TableRef<'a, T>> {
     pub fn offset_data(&self) -> FontData<'a> {
         self.0.offset_data()
+    }
+
+    pub fn shape(&self) -> &TableRef<'a, T> {
+        &self.0
     }
 }
 

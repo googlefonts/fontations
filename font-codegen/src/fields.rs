@@ -964,6 +964,10 @@ impl Field {
             _ => return None,
         };
 
+        //if generic.is_some() && in_sanitize {
+        //return None;
+        //}
+
         let raw_name = &self.name;
         let getter_name = self.offset_getter_name().unwrap();
         let target_is_generic =
@@ -1005,6 +1009,13 @@ impl Field {
                 if let Some(Item::Format(group)) = items.unwrap().get(target_ident) {
                     let ident = group.ident_for_sanitize();
                     quote!( #ident #target_lifetime )
+                } else if target_ident == "ClassDef" {
+                    quote!( SanitizedClassDef #target_lifetime )
+                } else if target_ident == "CoverageTable" {
+                    quote!(SanitizedCoverageTable #target_lifetime)
+                } else if target_ident == "Lookup" {
+                    // this has a generic param, we don't need to wrap
+                    quote!( #target_ident #target_lifetime )
                 } else {
                     quote!(Sanitized<#target_ident #target_lifetime>)
                 }

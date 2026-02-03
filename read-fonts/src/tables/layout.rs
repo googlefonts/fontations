@@ -249,6 +249,35 @@ impl<'a> CoverageTable<'a> {
     }
 }
 
+impl<'a> SanitizedCoverageTable<'a> {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + 'a {
+        // all one expression so that we have a single return type
+        let (iter1, iter2) = match self {
+            SanitizedCoverageTable::Format1(t) => {
+                (Some(t.glyph_array().iter().map(|g| g.get())), None)
+            }
+            SanitizedCoverageTable::Format2(t) => {
+                let iter = t.range_records().iter().flat_map(|r| r.0.iter());
+                (None, Some(iter))
+            }
+        };
+
+        iter1
+            .into_iter()
+            .flatten()
+            .chain(iter2.into_iter().flatten())
+    }
+
+    /// If this glyph is in the coverage table, returns its index
+    #[inline]
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+        match self {
+            Self::Format1(sub) => sub.0.get(gid),
+            Self::Format2(sub) => sub.0.get(gid),
+        }
+    }
+}
+
 impl CoverageFormat1<'_> {
     /// If this glyph is in the coverage table, returns its index
     #[inline]
@@ -770,6 +799,25 @@ impl ClassDef<'_> {
         match self {
             ClassDef::Format1(table) => table.intersected_class_glyphs(glyphs, class),
             ClassDef::Format2(table) => table.intersected_class_glyphs(glyphs, class),
+        }
+    }
+}
+
+impl SanitizedClassDef<'_> {
+    /// Get the class for this glyph id
+    #[inline]
+    pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
+        match self {
+            SanitizedClassDef::Format1(table) => table.0.get(gid),
+            SanitizedClassDef::Format2(table) => table.0.get(gid),
+        }
+    }
+
+    /// Return the cost of looking up a glyph in this table
+    pub fn cost(&self) -> u32 {
+        match self {
+            SanitizedClassDef::Format1(sub) => sub.0.cost(),
+            SanitizedClassDef::Format2(sub) => sub.0.cost(),
         }
     }
 }

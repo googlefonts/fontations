@@ -4,7 +4,7 @@
 
 pub use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
-    Lookup, LookupList, ScriptList, SequenceContext,
+    Lookup, LookupList, SanitizedCoverageTable, ScriptList, SequenceContext,
 };
 use super::layout::{ExtensionLookup, LookupFlag, Subtables};
 
@@ -18,6 +18,8 @@ include!("../../generated/generated_gsub.rs");
 
 /// A typed GSUB [LookupList] table
 pub type SubstitutionLookupList<'a> = LookupList<'a, SubstitutionLookup<'a>>;
+
+pub type SanitizedSubstitutionLookupList<'a> = LookupList<'a, SanitizedSubstitutionLookup<'a>>;
 
 /// A GSUB [SequenceContext]
 pub type SubstitutionSequenceContext<'a> = super::layout::SequenceContext<'a>;
@@ -124,3 +126,53 @@ impl<'a> SubstitutionLookup<'a> {
         }
     }
 }
+
+/// A [GSUB Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsubLookupTypeEnum) subtable.
+pub enum SanitizedSubstitutionLookup<'a> {
+    Single(Sanitized<Lookup<'a, SanitizedSingleSubst<'a>>>),
+    Multiple(Sanitized<Lookup<'a, Sanitized<MultipleSubstFormat1<'a>>>>),
+    Alternate(Sanitized<Lookup<'a, Sanitized<AlternateSubstFormat1<'a>>>>),
+    Ligature(Sanitized<Lookup<'a, Sanitized<LigatureSubstFormat1<'a>>>>),
+    Contextual(Sanitized<Lookup<'a, Sanitized<SubstitutionSequenceContext<'a>>>>),
+    ChainContextual(Sanitized<Lookup<'a, Sanitized<SubstitutionChainContext<'a>>>>),
+    Extension(Sanitized<Lookup<'a, Sanitized<ExtensionSubtable<'a>>>>),
+    Reverse(Sanitized<Lookup<'a, Sanitized<ReverseChainSingleSubstFormat1<'a>>>>),
+}
+
+impl ReadArgs for SanitizedSubstitutionLookup<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedSubstitutionLookup<'a> {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        unsafe { Ok(Self::read_with_args_unchecked(data, &())) }
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let untyped = Lookup::read_with_args_unchecked(data, args);
+        match untyped.lookup_type() {
+            1 => SanitizedSubstitutionLookup::Single(Sanitized(untyped.into_concrete())),
+            2 => SanitizedSubstitutionLookup::Multiple(Sanitized(untyped.into_concrete())),
+            3 => SanitizedSubstitutionLookup::Alternate(Sanitized(untyped.into_concrete())),
+            4 => SanitizedSubstitutionLookup::Ligature(Sanitized(untyped.into_concrete())),
+            5 => SanitizedSubstitutionLookup::Contextual(Sanitized(untyped.into_concrete())),
+            6 => SanitizedSubstitutionLookup::ChainContextual(Sanitized(untyped.into_concrete())),
+            7 => SanitizedSubstitutionLookup::Extension(Sanitized(untyped.into_concrete())),
+            8 => SanitizedSubstitutionLookup::Reverse(Sanitized(untyped.into_concrete())),
+            _ => unreachable!("sanitized"),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for SanitizedSubstitutionLookup<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
+//impl<'a> Sanitized<Gsub<'a>> {
+///// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
+//pub fn lookup_list(&self) -> Result<Sanitized<SanitizedSubstitutionLookupList<'a>>, ReadError> {
+//let data = self.0.data;
+//self.lookup_list_offset().resolve_with_args(data, &())
+//}
+//}

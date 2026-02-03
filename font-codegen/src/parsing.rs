@@ -8,7 +8,7 @@ use font_types::Tag;
 use indexmap::IndexMap;
 use log::{debug, trace};
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use regex::Captures;
 use syn::{
     braced, parenthesized,
@@ -1786,6 +1786,16 @@ impl OffsetTarget {
                 let inner_type = if in_sanitize {
                     if let Some(Item::Format(group)) = items.unwrap().get(ident) {
                         let ident = group.ident_for_sanitize();
+                        quote!( #ident #lifetime )
+                    } else if [
+                        "ClassDef",
+                        "CoverageTable",
+                        "SubstitutionLookupList",
+                        "PositionLookupList",
+                    ]
+                    .contains(&ident.to_string().as_str())
+                    {
+                        let ident = format_ident!("Sanitized{ident}");
                         quote!( #ident #lifetime )
                     } else {
                         quote!(Sanitized<#ident #lifetime>)

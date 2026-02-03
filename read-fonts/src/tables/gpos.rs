@@ -13,7 +13,8 @@ use crate::array::ComputedArray;
 /// reexport stuff from layout that we use
 pub use super::layout::{
     ClassDef, CoverageTable, Device, DeviceOrVariationIndex, FeatureList, FeatureVariations,
-    Lookup, ScriptList,
+    Lookup, SanitizedChainedSequenceContext, SanitizedClassDef, SanitizedCoverageTable,
+    SanitizedSequenceContext, ScriptList,
 };
 use super::layout::{ExtensionLookup, LookupFlag, Subtables};
 pub use value_record::{Value, ValueContext, ValueRecord};
@@ -27,8 +28,13 @@ include!("../../generated/generated_gpos.rs");
 /// A typed GPOS [LookupList](super::layout::LookupList) table
 pub type PositionLookupList<'a> = super::layout::LookupList<'a, PositionLookup<'a>>;
 
+pub type SanitizedPositionLookupList<'a> =
+    super::layout::LookupList<'a, SanitizedPositionLookup<'a>>;
+
 /// A GPOS [SequenceContext](super::layout::SequenceContext)
 pub type PositionSequenceContext<'a> = super::layout::SequenceContext<'a>;
+
+//pub type SanitizedPositionSequenceContext<'a> = super::layout::SanitizedSequenceContext
 
 /// A GPOS [ChainedSequenceContext](super::layout::ChainedSequenceContext)
 pub type PositionChainContext<'a> = super::layout::ChainedSequenceContext<'a>;
@@ -48,6 +54,26 @@ impl<'a> AnchorTable<'a> {
     pub fn y_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         match self {
             AnchorTable::Format3(inner) => inner.y_device(),
+            _ => None,
+        }
+    }
+}
+
+impl<'a> SanitizedAnchorTable<'a> {
+    /// Attempt to resolve the `Device` or `VariationIndex` table for the
+    /// x_coordinate, if present
+    pub fn x_device(&self) -> Option<Result<Sanitized<DeviceOrVariationIndex<'a>>, ReadError>> {
+        match self {
+            Self::Format3(inner) => inner.x_device(),
+            _ => None,
+        }
+    }
+
+    /// Attempt to resolve the `Device` or `VariationIndex` table for the
+    /// y_coordinate, if present
+    pub fn y_device(&self) -> Option<Result<Sanitized<DeviceOrVariationIndex<'a>>, ReadError>> {
+        match self {
+            SanitizedAnchorTable::Format3(inner) => inner.y_device(),
             _ => None,
         }
     }
@@ -171,6 +197,59 @@ impl PairPosFormat2<'_> {
         ])
     }
 }
+
+// COPIED FROM CODEGEN TO TEST SANITIZE:
+/// A [GPOS Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#gsubLookupTypeEnum) subtable.
+pub enum SanitizedPositionLookup<'a> {
+    Single(Sanitized<Lookup<'a, SanitizedSinglePos<'a>>>),
+    Pair(Sanitized<Lookup<'a, SanitizedPairPos<'a>>>),
+    Cursive(Sanitized<Lookup<'a, Sanitized<CursivePosFormat1<'a>>>>),
+    MarkToBase(Sanitized<Lookup<'a, Sanitized<MarkBasePosFormat1<'a>>>>),
+    MarkToLig(Sanitized<Lookup<'a, Sanitized<MarkLigPosFormat1<'a>>>>),
+    MarkToMark(Sanitized<Lookup<'a, Sanitized<MarkMarkPosFormat1<'a>>>>),
+    Contextual(Sanitized<Lookup<'a, SanitizedSequenceContext<'a>>>),
+    ChainContextual(Sanitized<Lookup<'a, SanitizedChainedSequenceContext<'a>>>),
+    Extension(Sanitized<Lookup<'a, Sanitized<ExtensionSubtable<'a>>>>),
+}
+
+impl ReadArgs for SanitizedPositionLookup<'_> {
+    type Args = ();
+}
+
+impl<'a> FontReadWithArgs<'a> for SanitizedPositionLookup<'a> {
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+        unsafe { Ok(Self::read_with_args_unchecked(data, args)) }
+    }
+    unsafe fn read_with_args_unchecked(data: FontData<'a>, args: &Self::Args) -> Self {
+        let untyped = Lookup::read_with_args_unchecked(data, args);
+        match untyped.lookup_type() {
+            1 => SanitizedPositionLookup::Single(Sanitized(untyped.into_concrete())),
+            2 => SanitizedPositionLookup::Pair(Sanitized(untyped.into_concrete())),
+            3 => SanitizedPositionLookup::Cursive(Sanitized(untyped.into_concrete())),
+            4 => SanitizedPositionLookup::MarkToBase(Sanitized(untyped.into_concrete())),
+            5 => SanitizedPositionLookup::MarkToLig(Sanitized(untyped.into_concrete())),
+            6 => SanitizedPositionLookup::MarkToMark(Sanitized(untyped.into_concrete())),
+            7 => SanitizedPositionLookup::Contextual(Sanitized(untyped.into_concrete())),
+            8 => SanitizedPositionLookup::ChainContextual(Sanitized(untyped.into_concrete())),
+            9 => SanitizedPositionLookup::Extension(Sanitized(untyped.into_concrete())),
+            _ => unreachable!("sanitized"),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for SanitizedPositionLookup<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
+//impl<'a> Sanitized<Gpos<'a>> {
+///// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
+//pub fn lookup_list(&self) -> Result<Sanitized<SanitizedPositionLookupList<'a>>, ReadError> {
+//let data = self.0.data;
+//self.lookup_list_offset().resolve_with_args(data, &())
+//}
+//}
 
 #[cfg(test)]
 mod tests {

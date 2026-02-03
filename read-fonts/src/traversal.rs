@@ -23,7 +23,7 @@ use types::{
 use crate::{
     array::{ComputedArray, VarLenArray},
     read::{ComputeSize, ReadArgs},
-    FontData, FontRead, FontReadWithArgs, ReadError, VarSize,
+    FontData, FontRead, FontReadWithArgs, ReadError, Sanitized, VarSize,
 };
 
 /// Types of fields in font tables.
@@ -282,6 +282,16 @@ impl<'a> dyn SomeTable<'a> + 'a {
             table: self,
             idx: 0,
         }
+    }
+}
+
+impl<'a, T: SomeTable<'a>> SomeTable<'a> for Sanitized<T> {
+    fn type_name(&self) -> &str {
+        self.0.type_name()
+    }
+
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.0.get_field(idx)
     }
 }
 

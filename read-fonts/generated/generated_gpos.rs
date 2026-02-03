@@ -100,7 +100,7 @@ impl<'a> Sanitized<Gpos<'a>> {
     }
 
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
-    pub fn lookup_list(&self) -> Result<Sanitized<PositionLookupList<'a>>, ReadError> {
+    pub fn lookup_list(&self) -> Result<SanitizedPositionLookupList<'a>, ReadError> {
         let data = self.0.data;
         self.lookup_list_offset().resolve_with_args(data, &())
     }
@@ -932,6 +932,12 @@ impl MinByteRange for SanitizedAnchorTable<'_> {
             Self::Format2(item) => item.0.min_byte_range(),
             Self::Format3(item) => item.0.min_byte_range(),
         }
+    }
+}
+
+impl<'a> Sanitize<'a> for SanitizedAnchorTable<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
     }
 }
 
@@ -1874,6 +1880,12 @@ impl MinByteRange for SanitizedSinglePos<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for SanitizedSinglePos<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SanitizedSinglePos<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1967,7 +1979,7 @@ impl<'a> Sanitized<SinglePosFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -2152,7 +2164,7 @@ impl<'a> Sanitized<SinglePosFormat2<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -2505,6 +2517,12 @@ impl MinByteRange for SanitizedPairPos<'_> {
     }
 }
 
+impl<'a> Sanitize<'a> for SanitizedPairPos<'a> {
+    fn sanitize_impl(&self) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SanitizedPairPos<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -2599,7 +2617,7 @@ impl<'a> Sanitized<PairPosFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -3134,7 +3152,7 @@ impl<'a> Sanitized<PairPosFormat2<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -3161,7 +3179,7 @@ impl<'a> Sanitized<PairPosFormat2<'a>> {
     }
 
     /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
-    pub fn class_def1(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+    pub fn class_def1(&self) -> Result<SanitizedClassDef<'a>, ReadError> {
         let data = self.0.data;
         self.class_def1_offset().resolve_with_args(data, &())
     }
@@ -3174,7 +3192,7 @@ impl<'a> Sanitized<PairPosFormat2<'a>> {
     }
 
     /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
-    pub fn class_def2(&self) -> Result<Sanitized<ClassDef<'a>>, ReadError> {
+    pub fn class_def2(&self) -> Result<SanitizedClassDef<'a>, ReadError> {
         let data = self.0.data;
         self.class_def2_offset().resolve_with_args(data, &())
     }
@@ -3664,7 +3682,7 @@ impl<'a> Sanitized<CursivePosFormat1<'a>> {
     }
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
-    pub fn coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.coverage_offset().resolve_with_args(data, &())
     }
@@ -3969,7 +3987,7 @@ impl<'a> Sanitized<MarkBasePosFormat1<'a>> {
     }
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
-    pub fn mark_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn mark_coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.mark_coverage_offset().resolve_with_args(data, &())
     }
@@ -3982,7 +4000,7 @@ impl<'a> Sanitized<MarkBasePosFormat1<'a>> {
     }
 
     /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
-    pub fn base_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn base_coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.base_coverage_offset().resolve_with_args(data, &())
     }
@@ -4514,7 +4532,7 @@ impl<'a> Sanitized<MarkLigPosFormat1<'a>> {
     }
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
-    pub fn mark_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn mark_coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.mark_coverage_offset().resolve_with_args(data, &())
     }
@@ -4527,7 +4545,7 @@ impl<'a> Sanitized<MarkLigPosFormat1<'a>> {
     }
 
     /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
-    pub fn ligature_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn ligature_coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.ligature_coverage_offset().resolve_with_args(data, &())
     }
@@ -5228,7 +5246,7 @@ impl<'a> Sanitized<MarkMarkPosFormat1<'a>> {
     }
 
     /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
-    pub fn mark1_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn mark1_coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.mark1_coverage_offset().resolve_with_args(data, &())
     }
@@ -5241,7 +5259,7 @@ impl<'a> Sanitized<MarkMarkPosFormat1<'a>> {
     }
 
     /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
-    pub fn mark2_coverage(&self) -> Result<Sanitized<CoverageTable<'a>>, ReadError> {
+    pub fn mark2_coverage(&self) -> Result<SanitizedCoverageTable<'a>, ReadError> {
         let data = self.0.data;
         self.mark2_coverage_offset().resolve_with_args(data, &())
     }
