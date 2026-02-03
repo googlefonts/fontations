@@ -732,10 +732,16 @@ impl SubsetTable<'_> for PaintColrLayers<'_> {
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
 
         let old_layer_idx = self.first_layer_index();
-        let Some(new_layer_idx) = plan.colrv1_layers.get(&old_layer_idx) else {
-            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        let new_layer_idx = if self.num_layers() == 0 {
+            0
+        } else {
+            let new_idx = plan
+                .colrv1_layers
+                .get(&old_layer_idx)
+                .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
+            *new_idx
         };
-        s.copy_assign(start_pos + 2, *new_layer_idx);
+        s.copy_assign(start_pos + 2, new_layer_idx);
         Ok(())
     }
 }
