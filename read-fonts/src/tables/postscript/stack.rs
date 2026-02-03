@@ -84,6 +84,19 @@ impl Stack {
         self.value_is_fixed[..self.top].reverse();
     }
 
+    /// Swaps the top two elements.
+    #[allow(unused)]
+    pub(crate) fn exch(&mut self) -> Result<(), Error> {
+        if self.top < 2 {
+            return Err(Error::StackUnderflow);
+        }
+        let a = self.top - 1;
+        let b = a - 1;
+        self.values.swap(a, b);
+        self.value_is_fixed.swap(a, b);
+        Ok(())
+    }
+
     pub fn push(&mut self, number: impl Into<Number>) -> Result<(), Error> {
         match number.into() {
             Number::I32(value) => self.push_impl(value, false),
@@ -298,6 +311,30 @@ impl Stack {
         Ok(())
     }
 
+    /// Pops the top two elements from the stack and pushes the quotient.
+    ///
+    /// Implements special behavior for Type1 fonts to handle the case of
+    /// integers greater than 32k per FreeType.
+    #[allow(unused)]
+    pub(crate) fn div(&mut self, is_type1: bool) -> Result<(), Error> {
+        let b_idx = self.pop()?;
+        let a_idx = self.pop()?;
+        let (a, b) = if self.value_is_fixed[a_idx] {
+            (self.get_fixed(a_idx)?, self.get_fixed(b_idx)?)
+        } else {
+            // In type1 fonts, we can end up with an integer greater than
+            // 32k. In this case, FT just reinterprets both as fixed point
+            // and divides: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1594>
+            let a = self.get_i32(a_idx)?;
+            if is_type1 && (a > 32000 || a < -32000) {
+                (Fixed::from_bits(a), Fixed::from_bits(self.get_i32(b_idx)?))
+            } else {
+                (self.get_fixed(a_idx)?, self.get_fixed(b_idx)?)
+            }
+        };
+        self.push(a / b)
+    }
+
     fn push_impl(&mut self, value: i32, is_fixed: bool) -> Result<(), Error> {
         if self.top == MAX_STACK {
             return Err(Error::StackOverflow);
@@ -472,5 +509,42 @@ mod tests {
             stack.fixed_array::<3>(0).unwrap(),
             [Fixed::from_i32(5), Fixed::ZERO, Fixed::ZERO]
         );
+    }
+
+    #[test]
+    fn exch() {
+        let mut stack = Stack::new();
+        stack.push(4).unwrap();
+        stack.push(Fixed::from_f64(2.5)).unwrap();
+        stack.exch().unwrap();
+        assert_eq!(stack.pop_i32().unwrap(), 4);
+        assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_f64(2.5));
+        // Error when we don't have at least two elements
+        stack.clear();
+        stack.push(1).unwrap();
+        assert!(stack.exch().is_err());
+    }
+
+    #[test]
+    fn div() {
+        let mut stack = Stack::new();
+        // Simple division
+        stack.push(200).unwrap();
+        stack.push(50).unwrap();
+        stack.div(false).unwrap();
+        assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_i32(4));
+        stack.push(Fixed::from_f64(151.0)).unwrap();
+        stack.push(2).unwrap();
+        stack.div(false).unwrap();
+        assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_f64(75.5));
+        // Handle large numbers (magnitude greater than 32k)
+        stack.push(40000).unwrap();
+        stack.push(20).unwrap();
+        stack.div(true).unwrap();
+        assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_i32(2000));
+        stack.push(-40000).unwrap();
+        stack.push(20).unwrap();
+        stack.div(true).unwrap();
+        assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_i32(-2000));
     }
 }
