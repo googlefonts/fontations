@@ -13,6 +13,50 @@ use crate::{
 /// <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=33>
 pub const NESTING_DEPTH_LIMIT: u32 = 10;
 
+/// Trait that provides access to resources for charstring evaluation.
+pub trait CharstringContext {
+    /// Returns the base and accent charstrings for the `seac` (standard
+    /// encoded accented character) operator.
+    fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error>;
+
+    /// Returns the charstring for the global subroutine at the given index as
+    /// encoded in the calling charstring.
+    fn global_subr(&self, index: i32) -> Result<&[u8], Error>;
+
+    /// Returns the charstring for the local subroutine at the given index as
+    /// encoded in the calling charstring.
+    fn subr(&self, index: i32) -> Result<&[u8], Error>;
+}
+
+// Ugly temporary impl to support existing skrifa code until it is replaced
+// with CffFontRef.
+//
+// Types are (cff_blob, charstrings, global_subrs, subrs)
+impl<'a> CharstringContext for (&'a [u8], &'a Index<'a>, &'a Index<'a>, &'a Index<'a>) {
+    fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error> {
+        let cff = Cff::read(FontData::new(self.0))?;
+        let charset = cff.charset(0)?.ok_or(Error::MissingCharset)?;
+        let seac_to_gid = |code: i32| {
+            let code: u8 = code.try_into().ok()?;
+            let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
+            charset.glyph_id(StringId::new(sid as u16)).ok()
+        };
+        let accent_gid = seac_to_gid(accent_code).ok_or(Error::InvalidSeacCode(accent_code))?;
+        let base_gid = seac_to_gid(base_code).ok_or(Error::InvalidSeacCode(base_code))?;
+        let accent_charstring = self.1.get(accent_gid.to_u32() as usize)?;
+        let base_charstring = self.1.get(base_gid.to_u32() as usize)?;
+        Ok([base_charstring, accent_charstring])
+    }
+
+    fn global_subr(&self, index: i32) -> Result<&[u8], Error> {
+        self.2.get((index + self.2.subr_bias()) as usize)
+    }
+
+    fn subr(&self, index: i32) -> Result<&[u8], Error> {
+        self.3.get((index + self.3.subr_bias()) as usize)
+    }
+}
+
 /// Trait for processing commands resulting from charstring evaluation.
 ///
 /// During processing, the path construction operators (see "4.1 Path
@@ -57,22 +101,12 @@ pub trait CommandSink {
 /// `Error::MissingBlendState` will be returned if a blend operator is
 /// present.
 pub fn evaluate(
-    cff_data: &[u8],
-    charstrings: Index,
-    global_subrs: Index,
-    subrs: Option<Index>,
+    context: &impl CharstringContext,
     blend_state: Option<BlendState>,
     charstring_data: &[u8],
     sink: &mut impl CommandSink,
 ) -> Result<(), Error> {
-    let mut evaluator = Evaluator::new(
-        cff_data,
-        charstrings,
-        global_subrs,
-        subrs,
-        blend_state,
-        sink,
-    );
+    let mut evaluator = Evaluator::new(context, blend_state, sink);
     evaluator.evaluate(charstring_data, 0)?;
     Ok(())
 }
@@ -80,10 +114,7 @@ pub fn evaluate(
 /// Transient state for evaluating a charstring and handling recursive
 /// subroutine calls.
 struct Evaluator<'a, S> {
-    cff_data: &'a [u8],
-    charstrings: Index<'a>,
-    global_subrs: Index<'a>,
-    subrs: Option<Index<'a>>,
+    context: &'a dyn CharstringContext,
     blend_state: Option<BlendState<'a>>,
     sink: &'a mut S,
     is_open: bool,
@@ -100,18 +131,12 @@ where
     S: CommandSink,
 {
     fn new(
-        cff_data: &'a [u8],
-        charstrings: Index<'a>,
-        global_subrs: Index<'a>,
-        subrs: Option<Index<'a>>,
+        context: &'a dyn CharstringContext,
         blend_state: Option<BlendState<'a>>,
         sink: &'a mut S,
     ) -> Self {
         Self {
-            cff_data,
-            charstrings,
-            global_subrs,
-            subrs,
+            context,
             blend_state,
             sink,
             is_open: false,
@@ -458,14 +483,13 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=29>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L972>
             CallSubr | CallGsubr => {
-                let subrs_index = if operator == CallSubr {
-                    self.subrs.as_ref().ok_or(Error::MissingSubroutines)?
+                let index = self.stack.pop_i32()?;
+                let subr_charstring = if operator == CallSubr {
+                    self.context.subr(index)?
                 } else {
-                    &self.global_subrs
+                    self.context.global_subr(index)?
                 };
-                let biased_index = (self.stack.pop_i32()? + subrs_index.subr_bias()) as usize;
-                let subr_charstring_data = subrs_index.get(biased_index)?;
-                self.evaluate(subr_charstring_data, nesting_depth + 1)?;
+                self.evaluate(subr_charstring, nesting_depth + 1)?;
             }
         }
         Ok(true)
@@ -473,18 +497,11 @@ where
 
     /// See `endchar` in Appendix C at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=35>
     fn handle_seac(&mut self, nesting_depth: u32) -> Result<(), Error> {
-        // handle implied seac operator
-        let cff = Cff::read(FontData::new(self.cff_data))?;
-        let charset = cff.charset(0)?.ok_or(Error::MissingCharset)?;
-        let seac_to_gid = |code: i32| {
-            let code: u8 = code.try_into().ok()?;
-            let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
-            charset.glyph_id(StringId::new(sid as u16)).ok()
-        };
+        // handle seac operator
         let accent_code = self.stack.pop_i32()?;
-        let accent_gid = seac_to_gid(accent_code).ok_or(Error::InvalidSeacCode(accent_code))?;
         let base_code = self.stack.pop_i32()?;
-        let base_gid = seac_to_gid(base_code).ok_or(Error::InvalidSeacCode(base_code))?;
+        let [base_charstring, accent_charstring] =
+            self.context.seac_components(base_code, accent_code)?;
         let dy = self.stack.pop_fixed()?;
         let dx = self.stack.pop_fixed()?;
         if !self.stack.is_empty() && !self.have_read_width {
@@ -497,7 +514,6 @@ where
         let y = self.y;
         self.x = dx;
         self.y = dy;
-        let accent_charstring = self.charstrings.get(accent_gid.to_u32() as usize)?;
         // FreeType calls cf2_interpT2CharString for each component
         // which uses a fresh set of stem hints. Since our hinter is in
         // a separate crate, we signal this through the sink. Also
@@ -510,7 +526,6 @@ where
         self.evaluate(accent_charstring, nesting_depth + 1)?;
         self.x = x;
         self.y = y;
-        let base_charstring = self.charstrings.get(base_gid.to_u32() as usize)?;
         self.sink.clear_hints();
         self.stem_count = 0;
         self.evaluate(base_charstring, nesting_depth + 1)
@@ -768,23 +783,12 @@ mod tests {
     fn cff2_example_subr() {
         use Command::*;
         let charstring = &font_test_data::cff2::EXAMPLE[0xc8..=0xe1];
-        let empty_index_bytes = [0u8; 8];
         let store =
             ItemVariationStore::read(FontData::new(&font_test_data::cff2::EXAMPLE[18..])).unwrap();
-        let global_subrs = Index::new(&empty_index_bytes, true).unwrap();
         let coords = &[F2Dot14::from_f32(0.0)];
         let blend_state = BlendState::new(store, coords, 0).unwrap();
         let mut commands = CaptureCommandSink::default();
-        evaluate(
-            &[],
-            Index::Empty,
-            global_subrs,
-            None,
-            Some(blend_state),
-            charstring,
-            &mut commands,
-        )
-        .unwrap();
+        evaluate(&NullContext, Some(blend_state), charstring, &mut commands).unwrap();
         // 50 50 100 1 blend 0 rmoveto
         // 500 -100 -200 1 blend hlineto
         // 500 vlineto
@@ -852,20 +856,9 @@ mod tests {
             114, 120, 125, 97, 12, 36, 154, 180, 181, 119, 153, 115, 114, 120, 125, 97, 147, 12,
             37, 14,
         ];
-        let empty_index_bytes = [0u8; 8];
-        let global_subrs = Index::new(&empty_index_bytes, false).unwrap();
         use Command::*;
         let mut commands = CaptureCommandSink::default();
-        evaluate(
-            &[],
-            Index::Empty,
-            global_subrs,
-            None,
-            None,
-            charstring,
-            &mut commands,
-        )
-        .unwrap();
+        evaluate(&NullContext, None, charstring, &mut commands).unwrap();
         // Expected results from extracted glyph data in
         // font-test-data/test_data/extracted/charstring_path_ops-glyphs.txt
         // --------------------------------------------------------------------
@@ -1102,8 +1095,7 @@ mod tests {
         // Test case:
         // Evaluate HHCURVETO operator with 2 elements on the stack
         let mut commands = CaptureCommandSink::default();
-        let mut evaluator =
-            Evaluator::new(&[], Index::Empty, Index::Empty, None, None, &mut commands);
+        let mut evaluator = Evaluator::new(&NullContext, None, &mut commands);
         evaluator.stack.push(0).unwrap();
         evaluator.stack.push(0).unwrap();
         let mut cursor = FontData::new(&[]).cursor();
@@ -1119,22 +1111,27 @@ mod tests {
             22,  // hmoveto
             2,   // reserved
         ];
-        let empty_index_bytes = [0u8; 8];
-        let global_subrs = Index::new(&empty_index_bytes, false).unwrap();
         let mut commands = CaptureCommandSink::default();
-        evaluate(
-            &[],
-            Index::Empty,
-            global_subrs,
-            None,
-            None,
-            charstring,
-            &mut commands,
-        )
-        .unwrap();
+        evaluate(&NullContext, None, charstring, &mut commands).unwrap();
         assert_eq!(
             commands.0,
             [Command::MoveTo(Fixed::from_i32(-107), Fixed::ZERO)]
         );
+    }
+
+    struct NullContext;
+
+    impl CharstringContext for NullContext {
+        fn seac_components(&self, base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
+            Err(Error::InvalidSeacCode(base_code))
+        }
+
+        fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
+            Err(Error::MissingSubroutines)
+        }
+
+        fn subr(&self, _index: i32) -> Result<&[u8], Error> {
+            Err(Error::MissingSubroutines)
+        }
     }
 }
