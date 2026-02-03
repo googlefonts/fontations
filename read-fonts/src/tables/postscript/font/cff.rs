@@ -210,20 +210,13 @@ impl<'a> CffFontRef<'a> {
                 .data
                 .get(subfont.subrs_offset as usize..)
                 .ok_or(ReadError::OutOfBounds)?;
-            Some(Index::new(data, self.is_cff2)?)
+            Index::new(data, self.is_cff2)?
         } else {
-            None
+            Index::Empty
         };
         let charstring_data = charstrings.get(gid.to_u32() as usize)?;
-        super::super::charstring::evaluate(
-            self.data,
-            charstrings,
-            self.global_subrs.clone(),
-            subrs,
-            blend,
-            charstring_data,
-            sink,
-        )
+        let ctx = (self.data, &charstrings, &self.global_subrs, &subrs);
+        super::super::charstring::evaluate(&ctx, blend, charstring_data, sink)
     }
 
     /// Returns a blend state for the given variation store index and
