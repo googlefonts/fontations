@@ -2,12 +2,14 @@
 
 use super::super::{
     super::{cff, cff2},
+    charstring::CommandSink,
     dict::{self, ScaledFontMatrix},
-    Charset, Error, FdSelect, Index,
+    BlendState, Charset, Error, FdSelect, Index,
 };
+use super::HintingParams;
 use crate::{tables::variations::ItemVariationStore, FontRead, ReadError};
 use core::ops::Range;
-use types::GlyphId;
+use types::{F2Dot14, Fixed, GlyphId};
 
 /// A CFF or CFF2 font.
 ///
@@ -141,6 +143,97 @@ impl<'a> CffFontRef<'a> {
                 .map_or(Some(0), |fds| fds.font_index(gid)),
         }
     }
+
+    /// Returns the subfont with the given index and normalized variation
+    /// coordinates.
+    pub fn subfont(&self, index: u16, coords: &[F2Dot14]) -> Result<CffSubfont, Error> {
+        let blend = self.blend_state(0, coords);
+        match &self.top_dict.kind {
+            CffFontKind::Sid { private_dict, .. } => CffSubfont::new(
+                self.data,
+                private_dict.start as usize..private_dict.end as usize,
+                blend,
+                None,
+            ),
+            CffFontKind::Cid { fd_array, .. } | CffFontKind::Cff2 { fd_array, .. } => {
+                let font_dict = FontDict::new(fd_array.get(index as usize)?)?;
+                CffSubfont::new(
+                    self.data,
+                    font_dict.private_dict_range,
+                    blend,
+                    font_dict.matrix,
+                )
+            }
+        }
+    }
+
+    /// Returns the subfont and hinting parameters for the given index and
+    /// normalized variation coordinates.
+    pub fn subfont_hinted(
+        &self,
+        index: u16,
+        coords: &[F2Dot14],
+    ) -> Result<(CffSubfont, HintingParams), Error> {
+        let blend = self.blend_state(0, coords);
+        match &self.top_dict.kind {
+            CffFontKind::Sid { private_dict, .. } => CffSubfont::new_hinted(
+                self.data,
+                private_dict.start as usize..private_dict.end as usize,
+                blend,
+                None,
+            ),
+            CffFontKind::Cid { fd_array, .. } | CffFontKind::Cff2 { fd_array, .. } => {
+                let font_dict = FontDict::new(fd_array.get(index as usize)?)?;
+                CffSubfont::new_hinted(
+                    self.data,
+                    font_dict.private_dict_range,
+                    blend,
+                    font_dict.matrix,
+                )
+            }
+        }
+    }
+
+    /// Evaluates the charstring for the requested glyph and sends the results
+    /// to the given sink.
+    pub fn evaluate_charstring(
+        &self,
+        subfont: &CffSubfont,
+        coords: &[F2Dot14],
+        gid: GlyphId,
+        sink: &mut impl CommandSink,
+    ) -> Result<(), Error> {
+        let charstrings = self.top_dict.charstrings.clone();
+        let blend = self.blend_state(subfont.vs_index, coords);
+        let subrs = if subfont.subrs_offset != 0 {
+            let data = self
+                .data
+                .get(subfont.subrs_offset as usize..)
+                .ok_or(ReadError::OutOfBounds)?;
+            Some(Index::new(data, self.is_cff2)?)
+        } else {
+            None
+        };
+        let charstring_data = charstrings.get(gid.to_u32() as usize)?;
+        super::super::charstring::evaluate(
+            self.data,
+            charstrings,
+            self.global_subrs.clone(),
+            subrs,
+            blend,
+            charstring_data,
+            sink,
+        )
+    }
+
+    /// Returns a blend state for the given variation store index and
+    /// normalized coordinates.
+    fn blend_state(&self, vs_index: u16, coords: &'a [F2Dot14]) -> Option<BlendState<'a>> {
+        self.top_dict
+            .var_store
+            .as_ref()
+            .and_then(|store| BlendState::new(store.clone(), coords, vs_index).ok())
+    }
 }
 
 /// An SID or CID font.
@@ -151,7 +244,7 @@ enum CffFontKind<'a> {
         /// Index for resolving glyph names.
         _strings: Index<'a>,
         /// Byte range of the private dict from the base of the font data.
-        _private_dict: Range<u32>,
+        private_dict: Range<u32>,
     },
     /// A CFF font with an externally defined encoding.
     Cid {
@@ -167,6 +260,126 @@ enum CffFontKind<'a> {
         /// Index containing font dicts.
         fd_array: Index<'a>,
     },
+}
+
+/// Metadata for a CFF subfont.
+///
+/// A subfont is the collection of data read from both the
+/// [Font DICT](https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=28)
+/// and [Private Dict](https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=24)
+/// structures. These determine the set of subroutines, metrics and hinting
+/// parameters for some group of glyphs.
+///
+/// Use [CffFontRef::subfont_index] to determine the subfont index for a
+/// particular glyph and then [CffFontRef::subfont] (or
+/// [CffFontRef::subfont_hinted]) to retrieve the associated subfont.
+#[derive(Copy, Clone, Default, Debug)]
+pub struct CffSubfont {
+    subrs_offset: u32,
+    default_width: Fixed,
+    nominal_width: Fixed,
+    matrix: Option<ScaledFontMatrix>,
+    vs_index: u16,
+}
+
+impl CffSubfont {
+    fn new(
+        data: &[u8],
+        range: Range<usize>,
+        blend: Option<BlendState>,
+        matrix: Option<ScaledFontMatrix>,
+    ) -> Result<Self, Error> {
+        let mut subfont = Self {
+            matrix,
+            ..Default::default()
+        };
+        let data = data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
+        for entry in dict::entries(data, blend) {
+            match entry? {
+                dict::Entry::SubrsOffset(offset) => {
+                    subfont.subrs_offset = range
+                        .start
+                        .checked_add(offset)
+                        .ok_or(ReadError::OutOfBounds)?
+                        as u32;
+                }
+                dict::Entry::VariationStoreIndex(index) => subfont.vs_index = index,
+                dict::Entry::DefaultWidthX(width) => subfont.default_width = width,
+                dict::Entry::NominalWidthX(width) => subfont.nominal_width = width,
+                _ => {}
+            }
+        }
+        Ok(subfont)
+    }
+
+    fn new_hinted(
+        data: &[u8],
+        range: Range<usize>,
+        blend: Option<BlendState>,
+        matrix: Option<ScaledFontMatrix>,
+    ) -> Result<(Self, HintingParams), Error> {
+        let mut subfont = Self {
+            matrix,
+            ..Default::default()
+        };
+        let mut params = HintingParams::default();
+        let data = data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
+        for entry in dict::entries(data, blend) {
+            match entry? {
+                dict::Entry::SubrsOffset(offset) => {
+                    subfont.subrs_offset = range
+                        .start
+                        .checked_add(offset)
+                        .ok_or(ReadError::OutOfBounds)?
+                        as u32;
+                }
+                dict::Entry::VariationStoreIndex(index) => subfont.vs_index = index,
+                dict::Entry::DefaultWidthX(width) => subfont.default_width = width,
+                dict::Entry::NominalWidthX(width) => subfont.nominal_width = width,
+                dict::Entry::BlueValues(values) => params.blues = values,
+                dict::Entry::FamilyBlues(values) => params.family_blues = values,
+                dict::Entry::OtherBlues(values) => params.other_blues = values,
+                dict::Entry::FamilyOtherBlues(values) => params.family_other_blues = values,
+                dict::Entry::BlueScale(value) => params.blue_scale = value,
+                dict::Entry::BlueShift(value) => params.blue_shift = value,
+                dict::Entry::BlueFuzz(value) => params.blue_fuzz = value,
+                dict::Entry::LanguageGroup(group) => params.language_group = group,
+                _ => {}
+            }
+        }
+        Ok((subfont, params))
+    }
+
+    /// Returns the offset to the local subroutine index from the start of the
+    /// CFF blob.
+    pub fn subrs_offset(&self) -> u32 {
+        self.subrs_offset
+    }
+
+    /// Returns the default advance width.
+    ///
+    /// The advance value for charstrings that do not contain a width.
+    pub fn default_width(&self) -> Fixed {
+        self.default_width
+    }
+
+    /// Returns the nominal advance width.
+    ///
+    /// The base advance value for charstrings that do contain a width. This
+    /// should be added to the width in the charstring.
+    pub fn nominal_width(&self) -> Fixed {
+        self.nominal_width
+    }
+
+    /// Returns the font matrix.
+    pub fn matrix(&self) -> Option<&ScaledFontMatrix> {
+        self.matrix.as_ref()
+    }
+
+    /// Returns the default variation store index.
+    pub fn vs_index(&self) -> u16 {
+        self.vs_index
+    }
 }
 
 /// Use in-band signaling for missing offsets to keep the struct size small.
@@ -269,7 +482,7 @@ impl<'a> TopDict<'a> {
             }
             CffFontKind::Sid {
                 _strings: strings,
-                _private_dict: private_dict_range.start as u32..private_dict_range.end as u32,
+                private_dict: private_dict_range.start as u32..private_dict_range.end as u32,
             }
         };
         Ok(Self {
@@ -283,10 +496,38 @@ impl<'a> TopDict<'a> {
     }
 }
 
+#[derive(Default)]
+struct FontDict {
+    private_dict_range: Range<usize>,
+    matrix: Option<ScaledFontMatrix>,
+}
+
+impl FontDict {
+    fn new(dict_data: &[u8]) -> Result<Self, Error> {
+        let mut range = None;
+        let mut matrix = None;
+        for entry in dict::entries(dict_data, None) {
+            match entry? {
+                dict::Entry::PrivateDictRange(dict_range) => {
+                    range = Some(dict_range);
+                }
+                dict::Entry::FontMatrix(font_matrix) => {
+                    matrix = Some(font_matrix);
+                }
+                _ => {}
+            }
+        }
+        Ok(Self {
+            private_dict_range: range.ok_or(Error::MissingPrivateDict)?,
+            matrix,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{FontRef, TableProvider};
+    use super::{super::Blues, *};
+    use crate::{tables::postscript::dict::FontMatrix, FontData, FontRef, TableProvider};
     use font_test_data::bebuffer::BeBuffer;
 
     #[test]
@@ -295,11 +536,7 @@ mod tests {
         let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
         assert_eq!(cff.version(), 1);
         assert!(cff.var_store().is_none());
-        let CffFontKind::Sid {
-            _private_dict: private_dict,
-            ..
-        } = &cff.top_dict.kind
-        else {
+        let CffFontKind::Sid { private_dict, .. } = &cff.top_dict.kind else {
             panic!("this is an SID font");
         };
         assert!(!private_dict.is_empty());
@@ -374,18 +611,201 @@ mod tests {
         assert!(TopDict::new(&[], &top_dict, Index::Empty, true).is_err());
     }
 
+    /// Fuzzer caught add with overflow when computing subrs offset.
+    /// See <https://issues.oss-fuzz.com/issues/377965575>
+    #[test]
+    fn subrs_offset_overflow() {
+        // A private DICT with an overflowing subrs offset
+        let private_dict = BeBuffer::new()
+            .push(0u32) // pad so that range doesn't start with 0 and we overflow
+            .push(29u8) // integer operator
+            .push(-1i32) // integer value
+            .push(19u8) // subrs offset operator
+            .to_vec();
+        // Just don't panic with overflow
+        assert!(CffSubfont::new(&private_dict, 4..private_dict.len(), None, None).is_err());
+    }
+
     /// Ensure we don't reject an empty Private DICT
     #[test]
     fn empty_private_dict() {
         let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET).unwrap();
         let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
-        let CffFontKind::Sid {
-            _private_dict: private_dict,
-            ..
-        } = &cff.top_dict.kind
-        else {
+        let CffFontKind::Sid { private_dict, .. } = &cff.top_dict.kind else {
             panic!("this is an SID font");
         };
         assert!(private_dict.is_empty());
+    }
+
+    // We were overwriting family_other_blues with family_blues.
+    #[test]
+    fn capture_family_other_blues() {
+        let private_dict_data = &font_test_data::cff2::EXAMPLE[0x4f..=0xc0];
+        let store =
+            ItemVariationStore::read(FontData::new(&font_test_data::cff2::EXAMPLE[18..])).unwrap();
+        let coords = &[F2Dot14::from_f32(0.0)];
+        let blend_state = BlendState::new(store, coords, 0).unwrap();
+        let (_subfont, hint_params) = CffSubfont::new_hinted(
+            private_dict_data,
+            0..private_dict_data.len(),
+            Some(blend_state),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            hint_params.family_other_blues,
+            Blues::new([-249.0, -239.0].map(Fixed::from_f64).into_iter())
+        )
+    }
+
+    #[test]
+    fn subfont_cff() {
+        let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let subfont = cff.subfont(0, &[]).unwrap();
+        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.nominal_width, Fixed::from_i32(598));
+        assert_eq!(subfont.vs_index, 0);
+        assert_eq!(subfont.matrix, None);
+    }
+
+    fn make_blues<const N: usize>(values: [i32; N]) -> Blues {
+        Blues::new(values.map(Fixed::from_i32).into_iter())
+    }
+
+    #[test]
+    fn hinted_subfont_cff() {
+        let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let (subfont, hinting) = cff.subfont_hinted(0, &[]).unwrap();
+        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.nominal_width, Fixed::from_i32(598));
+        assert_eq!(subfont.vs_index, 0);
+        assert_eq!(subfont.matrix, None);
+        let expected_hinting = HintingParams {
+            blues: make_blues([-15, 0, 536, 547, 571, 582, 714, 726, 760, 772]),
+            family_blues: Blues::default(),
+            other_blues: make_blues([-255, -240]),
+            family_other_blues: Blues::default(),
+            blue_scale: Fixed::from_f64(0.0500030517578125),
+            blue_shift: Fixed::from_f64(7.0),
+            blue_fuzz: Fixed::ZERO,
+            language_group: 0,
+        };
+        assert_eq!(hinting, expected_hinting);
+    }
+
+    #[test]
+    fn subfont_cff2() {
+        let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
+        let cff = CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let subfont = cff.subfont(0, &[]).unwrap();
+        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.nominal_width, Fixed::ZERO);
+        assert_eq!(subfont.vs_index, 0);
+        assert_eq!(subfont.matrix, None);
+    }
+
+    #[test]
+    fn hinted_subfont_cff2() {
+        let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
+        let cff = CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let (subfont, hinting) = cff.subfont_hinted(0, &[]).unwrap();
+        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.nominal_width, Fixed::ZERO);
+        assert_eq!(subfont.vs_index, 0);
+        assert_eq!(subfont.matrix, None);
+        let expected_hinting = HintingParams {
+            blues: make_blues([-10, 0, 482, 492, 694, 704, 739, 749]),
+            family_blues: Blues::default(),
+            other_blues: make_blues([-227, -217]),
+            family_other_blues: Blues::default(),
+            blue_scale: Fixed::from_f64(0.0625),
+            blue_shift: Fixed::from_f64(7.0),
+            blue_fuzz: Fixed::ONE,
+            language_group: 0,
+        };
+        assert_eq!(hinting, expected_hinting);
+    }
+
+    #[test]
+    fn subfont_matrix() {
+        let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET_MATRIX).unwrap();
+        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let subfont = cff.subfont(0, &[]).unwrap();
+        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.nominal_width, Fixed::ZERO);
+        assert_eq!(subfont.vs_index, 0);
+        let expected_matrix = FontMatrix([
+            Fixed::from_i32(5),
+            Fixed::ZERO,
+            Fixed::ZERO,
+            Fixed::from_i32(5),
+            Fixed::ZERO,
+            Fixed::ZERO,
+        ]);
+        let expected_scale = 10;
+        assert_eq!(
+            subfont.matrix,
+            Some(ScaledFontMatrix {
+                matrix: expected_matrix,
+                scale: expected_scale
+            })
+        );
+    }
+
+    #[derive(Default)]
+    struct CharstringCommandCounter(usize);
+
+    impl CommandSink for CharstringCommandCounter {
+        fn move_to(&mut self, _x: Fixed, _y: Fixed) {
+            self.0 += 1;
+        }
+
+        fn line_to(&mut self, _x: Fixed, _y: Fixed) {
+            self.0 += 1;
+        }
+
+        fn curve_to(
+            &mut self,
+            _cx0: Fixed,
+            _cy0: Fixed,
+            _cx1: Fixed,
+            _cy1: Fixed,
+            _x: Fixed,
+            _y: Fixed,
+        ) {
+            self.0 += 1;
+        }
+
+        fn close(&mut self) {
+            self.0 += 1;
+        }
+    }
+
+    #[test]
+    fn eval_charstring_cff() {
+        let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let mut sink = CharstringCommandCounter::default();
+        let subfont = cff.subfont(0, &[]).unwrap();
+        cff.evaluate_charstring(&subfont, &[], GlyphId::new(2), &mut sink)
+            .unwrap();
+        // Charstring eval is tested elsewhere so just make sure we're processing the
+        // *correct* charstring.
+        assert_eq!(sink.0, 18);
+    }
+
+    #[test]
+    fn eval_charstring_cff2() {
+        let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
+        let cff = CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let mut sink = CharstringCommandCounter::default();
+        let subfont = cff.subfont(0, &[]).unwrap();
+        cff.evaluate_charstring(&subfont, &[], GlyphId::new(2), &mut sink)
+            .unwrap();
+        // Charstring eval is tested elsewhere so just make sure we're processing the
+        // *correct* charstring.
+        assert_eq!(sink.0, 10);
     }
 }
