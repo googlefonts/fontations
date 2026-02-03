@@ -326,7 +326,7 @@ impl Stack {
             // 32k. In this case, FT just reinterprets both as fixed point
             // and divides: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1594>
             let a = self.get_i32(a_idx)?;
-            if is_type1 && (a > 32000 || a < -32000) {
+            if is_type1 && !(-32000..=32000).contains(&a) {
                 (Fixed::from_bits(a), Fixed::from_bits(self.get_i32(b_idx)?))
             } else {
                 (self.get_fixed(a_idx)?, self.get_fixed(b_idx)?)
