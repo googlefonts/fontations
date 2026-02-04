@@ -307,8 +307,15 @@ impl<'a> Outlines<'a> {
                 scalar_cache.as_mut(),
                 &mut deltas,
             )?;
-            let matrix = matrix_with_scale(&transform, size, self.units_per_em);
-            let matrix = mul_matrix(parent_matrix, matrix);
+            let matrix = if is_translation_only(component.flags()) {
+                let scale = size.linear_scale(self.units_per_em);
+                let tx = transform.translate_x() * scale;
+                let ty = transform.translate_y() * scale;
+                apply_translation(parent_matrix, tx, ty)
+            } else {
+                let matrix = matrix_with_scale(&transform, size, self.units_per_em);
+                mul_matrix(parent_matrix, matrix)
+            };
             if component_gid != glyph_id {
                 if let Some(component_outline) = self.outline(component_gid)? {
                     if !stack.contains(&component_gid) {
@@ -774,6 +781,30 @@ fn mul_matrix(a: [f32; 6], b: [f32; 6]) -> [f32; 6] {
         a[0] * b[4] + a[2] * b[5] + a[4],
         a[1] * b[4] + a[3] * b[5] + a[5],
     ]
+}
+
+#[inline(always)]
+fn apply_translation(matrix: [f32; 6], tx: f32, ty: f32) -> [f32; 6] {
+    [
+        matrix[0],
+        matrix[1],
+        matrix[2],
+        matrix[3],
+        matrix[0] * tx + matrix[2] * ty + matrix[4],
+        matrix[1] * tx + matrix[3] * ty + matrix[5],
+    ]
+}
+
+#[inline(always)]
+fn is_translation_only(flags: VarcFlags) -> bool {
+    let other = VarcFlags::HAVE_ROTATION
+        | VarcFlags::HAVE_SCALE_X
+        | VarcFlags::HAVE_SCALE_Y
+        | VarcFlags::HAVE_SKEW_X
+        | VarcFlags::HAVE_SKEW_Y
+        | VarcFlags::HAVE_TCENTER_X
+        | VarcFlags::HAVE_TCENTER_Y;
+    !flags.intersects(other)
 }
 
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
