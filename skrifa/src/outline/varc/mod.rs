@@ -281,7 +281,7 @@ impl<'a> Outlines<'a> {
                 current_coords,
                 scalar_cache.as_mut(),
             )?;
-            let mut transform = component.transform().clone();
+            let mut transform = *component.transform();
             self.apply_transform_variations(
                 &component,
                 current_coords,
@@ -559,7 +559,7 @@ impl<'a> Outlines<'a> {
                     .and_then(|store| {
                         compute_tuple_deltas(&store, var_idx, coords, 1, scalar_cache)
                     })?
-                    .get(0)
+                    .first()
                     .copied()
                     .unwrap_or(0);
                 Ok(default_value + delta > 0)
@@ -584,13 +584,13 @@ impl<'a> Outlines<'a> {
             }
             Condition::Format5Negate(condition) => {
                 let nested = condition.condition()?;
-                Ok(!self.eval_condition(&nested, coords, scalar_cache.as_deref_mut())?)
+                Ok(!self.eval_condition(&nested, coords, scalar_cache)?)
             }
         }
     }
 
     fn var_store(&self) -> Result<Option<MultiItemVariationStore<'a>>, ReadError> {
-        Ok(self.varc.multi_var_store().transpose()?)
+        self.varc.multi_var_store().transpose()
     }
 
     fn scalar_cache(&self) -> Result<Option<ScalarCache>, DrawError> {
@@ -602,8 +602,9 @@ impl<'a> Outlines<'a> {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 enum TransformField {
+    #[default]
     TranslateX,
     TranslateY,
     Rotation,
@@ -613,12 +614,6 @@ enum TransformField {
     SkewY,
     CenterX,
     CenterY,
-}
-
-impl Default for TransformField {
-    fn default() -> Self {
-        Self::TranslateX
-    }
 }
 
 struct ScalarCache {
@@ -708,7 +703,7 @@ fn compute_tuple_deltas<'a>(
             }
             let delta = deltas_iter.next().ok_or(ReadError::OutOfBounds)?;
             if scalar == 1.0 {
-                out[0] += delta as i32;
+                out[0] += delta;
             } else {
                 out[0] += (delta as f32 * scalar) as i32;
             }
@@ -736,7 +731,7 @@ fn compute_tuple_deltas<'a>(
         if scalar == 1.0 {
             for value in out.iter_mut() {
                 let delta = deltas_iter.next().ok_or(ReadError::OutOfBounds)?;
-                *value += delta as i32;
+                *value += delta;
             }
             continue;
         }
