@@ -369,9 +369,9 @@ impl<'a> Outlines<'a> {
         let axis_indices_index = component
             .axis_indices_index()
             .ok_or(ReadError::MalformedData("Missing axisIndicesIndex"))?;
-        let mut axis_indices = SmallVec::<u16, 64>::new();
+        let mut axis_indices = SmallVec::<u16, 16>::new();
         self.axis_indices(axis_indices_index as usize, &mut axis_indices)?;
-        let mut axis_values = SmallVec::<f32, 64>::new();
+        let mut axis_values = SmallVec::<f32, 16>::new();
         self.axis_values(component, axis_indices.len(), &mut axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
             let deltas = self
@@ -400,7 +400,7 @@ impl<'a> Outlines<'a> {
         Ok(())
     }
 
-    fn axis_indices(&self, nth: usize, out: &mut SmallVec<u16, 64>) -> Result<(), DrawError> {
+    fn axis_indices(&self, nth: usize, out: &mut SmallVec<u16, 16>) -> Result<(), DrawError> {
         let packed = self.varc.axis_indices(nth)?;
         out.clear();
         for value in packed.iter() {
@@ -418,7 +418,7 @@ impl<'a> Outlines<'a> {
         &self,
         component: &VarcComponent<'a>,
         count: usize,
-        out: &mut SmallVec<f32, 64>,
+        out: &mut SmallVec<f32, 16>,
     ) -> Result<(), DrawError> {
         let Some(packed) = component.axis_values() else {
             out.clear();
