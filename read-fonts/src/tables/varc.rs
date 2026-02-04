@@ -93,7 +93,6 @@ impl<'a> VarcComponent<'a> {
     /// Requires access to VARC fields to fully parse.
     ///
     ///  * HarfBuzz [VarComponent::get_path_at](https://github.com/harfbuzz/harfbuzz/blob/0c2f5ecd51d11e32836ee136a1bc765d650a4ec0/src/OT/Var/VARC/VARC.cc#L132)
-    // TODO: do we want to be able to parse into an existing glyph to avoid allocation?
     fn parse(table: &Varc, cursor: &mut Cursor<'a>) -> Result<Self, ReadError> {
         let raw_flags = cursor.read_u32_var()?;
         let flags = VarcFlags::from_bits_truncate(raw_flags);
