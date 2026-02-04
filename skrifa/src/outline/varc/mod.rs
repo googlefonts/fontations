@@ -631,7 +631,7 @@ impl<'a> Outlines<'a> {
 }
 
 struct ScalarCache {
-    values: SmallVec<f32, 64>,
+    values: SmallVec<f32, 128>,
 }
 
 impl ScalarCache {
