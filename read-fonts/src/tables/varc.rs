@@ -78,7 +78,6 @@ impl<'a> Iterator for VarcComponentIter<'a> {
     }
 }
 
-#[allow(dead_code)] // TEMPORARY
 pub struct VarcComponent<'a> {
     flags: VarcFlags,
     gid: GlyphId,
