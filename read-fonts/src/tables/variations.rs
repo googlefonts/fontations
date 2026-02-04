@@ -755,16 +755,12 @@ impl Iterator for DeltaRunIter<'_> {
             self.read_next_control()?;
         }
         self.remaining_in_run -= 1;
-        if self.value_type == DeltaRunType::Zero {
-            return Some(0);
+        match self.value_type {
+            DeltaRunType::Zero => Some(0),
+            DeltaRunType::I8 => self.cursor.read::<i8>().ok().map(|v| v as i32),
+            DeltaRunType::I16 => self.cursor.read::<i16>().ok().map(|v| v as i32),
+            DeltaRunType::I32 => self.cursor.read::<i32>().ok(),
         }
-        if self.value_type == DeltaRunType::I8 {
-            return self.cursor.read::<i8>().ok().map(|v| v as i32);
-        }
-        if self.value_type == DeltaRunType::I16 {
-            return self.cursor.read::<i16>().ok().map(|v| v as i32);
-        }
-        self.cursor.read().ok()
     }
 }
 
