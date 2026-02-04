@@ -210,14 +210,23 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        s.embed(self.lookup_type())?;
-        let lookup_flag = self.lookup_flag();
-        let lookup_flag_pos = s.embed(lookup_flag)?;
-        let lookup_count_pos = s.embed(0_u16)?;
-
         let subtables = self
             .subtables()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        let lookup_type: u16 = match subtables {
+            SubstitutionSubtables::Single(_) => 1,
+            SubstitutionSubtables::Multiple(_) => 2,
+            SubstitutionSubtables::Alternate(_) => 3,
+            SubstitutionSubtables::Ligature(_) => 4,
+            SubstitutionSubtables::Contextual(_) => 5,
+            SubstitutionSubtables::ChainContextual(_) => 6,
+            SubstitutionSubtables::Reverse(_) => 8,
+        };
+        s.embed(lookup_type)?;
+
+        let lookup_flag = self.lookup_flag();
+        let lookup_flag_pos = s.embed(lookup_flag)?;
+        let lookup_count_pos = s.embed(0_u16)?;
         let lookup_count = subtables.subset(plan, s, args)?;
         s.copy_assign(lookup_count_pos, lookup_count);
 
