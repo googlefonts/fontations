@@ -7,8 +7,9 @@ table Index1 {
     /// Object array element size.
     off_size: u8,
     /// Bytes containing `count + 1` offsets each of `off_size`.
-    #[count(add_multiply($count, 1, $off_size))]
-    offsets: [u8],
+    #[count(add($count, 1))]
+    #[read_with($off_size)]
+    offsets: ComputedArray<VarOffset>,
     /// Array containing the object data.
     #[count(..)]
     data: [u8],
@@ -21,8 +22,9 @@ table Index2 {
     /// Object array element size.
     off_size: u8,
     /// Bytes containing `count + 1` offsets each of `off_size`.
-    #[count(add_multiply($count, 1, $off_size))]
-    offsets: [u8],
+    #[count(add($count, 1))]
+    #[read_with($off_size)]
+    offsets: ComputedArray<VarOffset>,
     /// Array containing the object data.
     #[count(..)]
     data: [u8],

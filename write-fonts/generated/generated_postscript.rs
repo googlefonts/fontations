@@ -14,14 +14,14 @@ pub struct Index1 {
     /// Object array element size.
     pub off_size: u8,
     /// Bytes containing `count + 1` offsets each of `off_size`.
-    pub offsets: Vec<u8>,
+    pub offsets: Vec<VarOffset>,
     /// Array containing the object data.
     pub data: Vec<u8>,
 }
 
 impl Index1 {
     /// Construct a new `Index1`
-    pub fn new(count: u16, off_size: u8, offsets: Vec<u8>, data: Vec<u8>) -> Self {
+    pub fn new(count: u16, off_size: u8, offsets: Vec<VarOffset>, data: Vec<u8>) -> Self {
         Self {
             count,
             off_size,
@@ -44,7 +44,13 @@ impl FontWrite for Index1 {
 }
 
 impl Validate for Index1 {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Index1", |ctx| {
+            ctx.in_field("offsets", |ctx| {
+                self.offsets.validate_impl(ctx);
+            });
+        })
+    }
 }
 
 impl<'a> FromObjRef<read_fonts::tables::postscript::Index1<'a>> for Index1 {
@@ -53,7 +59,11 @@ impl<'a> FromObjRef<read_fonts::tables::postscript::Index1<'a>> for Index1 {
         Index1 {
             count: obj.count(),
             off_size: obj.off_size(),
-            offsets: obj.offsets().to_owned_obj(offset_data),
+            offsets: obj
+                .offsets()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
             data: obj.data().to_owned_obj(offset_data),
         }
     }
@@ -77,14 +87,14 @@ pub struct Index2 {
     /// Object array element size.
     pub off_size: u8,
     /// Bytes containing `count + 1` offsets each of `off_size`.
-    pub offsets: Vec<u8>,
+    pub offsets: Vec<VarOffset>,
     /// Array containing the object data.
     pub data: Vec<u8>,
 }
 
 impl Index2 {
     /// Construct a new `Index2`
-    pub fn new(count: u32, off_size: u8, offsets: Vec<u8>, data: Vec<u8>) -> Self {
+    pub fn new(count: u32, off_size: u8, offsets: Vec<VarOffset>, data: Vec<u8>) -> Self {
         Self {
             count,
             off_size,
@@ -107,7 +117,13 @@ impl FontWrite for Index2 {
 }
 
 impl Validate for Index2 {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Index2", |ctx| {
+            ctx.in_field("offsets", |ctx| {
+                self.offsets.validate_impl(ctx);
+            });
+        })
+    }
 }
 
 impl<'a> FromObjRef<read_fonts::tables::postscript::Index2<'a>> for Index2 {
@@ -116,7 +132,11 @@ impl<'a> FromObjRef<read_fonts::tables::postscript::Index2<'a>> for Index2 {
         Index2 {
             count: obj.count(),
             off_size: obj.off_size(),
-            offsets: obj.offsets().to_owned_obj(offset_data),
+            offsets: obj
+                .offsets()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
             data: obj.data().to_owned_obj(offset_data),
         }
     }
