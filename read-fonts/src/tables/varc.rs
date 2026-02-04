@@ -174,9 +174,12 @@ impl<'a> VarcComponent<'a> {
         }
 
         // Optional, process and discard one uint32var per each set bit in RESERVED_MASK.
-        let num_reserved = (raw_flags & VarcFlags::RESERVED_MASK.bits).count_ones();
-        for _ in 0..num_reserved {
-            cursor.read_u32_var()?;
+        let reserved = raw_flags & VarcFlags::RESERVED_MASK.bits;
+        if reserved != 0 {
+            let num_reserved = reserved.count_ones();
+            for _ in 0..num_reserved {
+                cursor.read_u32_var()?;
+            }
         }
         Ok(VarcComponent {
             flags,
