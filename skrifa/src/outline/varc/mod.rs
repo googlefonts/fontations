@@ -423,8 +423,9 @@ impl<'a> Outlines<'a> {
                 cache,
                 deltas,
             )?;
+            const SCALE: f32 = 1.0 / 16384.0;
             for (value, delta) in axis_values.iter_mut().zip(deltas.iter()) {
-                *value += *delta / 16384.0;
+                *value += *delta * SCALE;
             }
         }
 
@@ -461,10 +462,11 @@ impl<'a> Outlines<'a> {
             out.clear();
             return Ok(());
         };
+        const SCALE: f32 = 1.0 / 16384.0;
         *out = SmallVec::with_len(count, 0.0);
         let mut iter = packed.iter();
         for (slot, value) in out.iter_mut().zip(iter.by_ref().take(count)) {
-            *slot = value as f32 / 16384.0;
+            *slot = value as f32 * SCALE;
         }
         Ok(())
     }
