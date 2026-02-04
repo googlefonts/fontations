@@ -25,9 +25,9 @@ use super::OutlineKind;
 
 type GlyphStack = SmallVec<GlyphId, 8>;
 type CoordVec = SmallVec<F2Dot14, 64>;
-type AxisIndexVec = SmallVec<u16, 16>;
-type AxisValueVec = SmallVec<f32, 16>;
-type DeltaVec = SmallVec<f32, 16>;
+type AxisIndexVec = SmallVec<u16, 32>;
+type AxisValueVec = SmallVec<f32, 32>;
+type DeltaVec = SmallVec<f32, 32>;
 type ScalarCacheVec = SmallVec<f32, 128>;
 type Affine = [f32; 6];
 
@@ -247,7 +247,7 @@ impl<'a> Outlines<'a> {
         path_style: PathStyle,
         pen: &mut impl OutlinePen,
     ) -> Result<(), DrawError> {
-        let mut font_coords = SmallVec::<F2Dot14, 64>::new();
+        let mut font_coords = CoordVec::new();
         expand_coords(&mut font_coords, self.axis_count, coords);
         let mut stack = GlyphStack::new();
         let pen: &mut dyn OutlinePen = pen;
