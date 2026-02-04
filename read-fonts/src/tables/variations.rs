@@ -523,22 +523,28 @@ impl<'a> DeltaRunIter<'a> {
     #[inline(always)]
     pub fn skip_fast(mut self, n: usize) -> Self {
         let mut wanted = n;
+        let mut remaining = self.remaining_in_run as usize;
+        let mut value_type = self.value_type;
         loop {
-            let remaining = self.remaining_in_run as usize;
             if wanted > remaining {
-                // Haven't seen enough deltas yet; consume the remaining
-                // data bytes and move to the next run
-                self.cursor.advance_by(remaining * self.value_type as usize);
+                // Consume the rest of this run and move to the next.
+                if value_type != DeltaRunType::Zero {
+                    self.cursor.advance_by(remaining * value_type as usize);
+                }
                 wanted -= remaining;
                 if self.read_next_control().is_none() {
                     self.limit = Some(0);
                     break;
                 }
+                remaining = self.remaining_in_run as usize;
+                value_type = self.value_type;
                 continue;
             }
-            let consumed = wanted.min(remaining);
+            let consumed = wanted;
             self.remaining_in_run -= consumed as u8;
-            self.cursor.advance_by(consumed * self.value_type as usize);
+            if value_type != DeltaRunType::Zero {
+                self.cursor.advance_by(consumed * value_type as usize);
+            }
             if let Some(limit) = self.limit.as_mut() {
                 *limit = limit.saturating_sub(n);
             }
