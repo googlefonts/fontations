@@ -295,6 +295,7 @@ impl<'a> Outlines<'a> {
         let mut deltas = DeltaVec::new();
         let mut axis_indices = AxisIndexVec::new();
         let mut axis_values = AxisValueVec::new();
+        let mut child_scalar_cache = None;
         for component in glyph.components() {
             let component = component?;
             if !self.component_condition_met(
@@ -358,8 +359,13 @@ impl<'a> Outlines<'a> {
                                 scalar_cache.as_deref_mut(),
                             )?;
                         } else {
-                            let mut new_scalar_cache =
-                                self.scalar_cache_from_store(var_store)?;
+                            if child_scalar_cache.is_none() {
+                                child_scalar_cache = self.scalar_cache_from_store(var_store)?;
+                            }
+                            let mut child_scalar_cache = child_scalar_cache.as_mut();
+                            if let Some(cache) = child_scalar_cache.as_deref_mut() {
+                                cache.reset();
+                            }
                             self.draw_glyph(
                                 component_gid,
                                 coverage_index,
@@ -373,7 +379,7 @@ impl<'a> Outlines<'a> {
                                 matrix,
                                 var_store,
                                 coverage,
-                                new_scalar_cache.as_mut(),
+                                child_scalar_cache.as_deref_mut(),
                             )?;
                         }
                         continue;
@@ -698,6 +704,10 @@ impl ScalarCache {
         if let Some(slot) = self.values.get_mut(index) {
             *slot = value;
         }
+    }
+
+    fn reset(&mut self) {
+        self.values.fill(Self::INVALID);
     }
 }
 
