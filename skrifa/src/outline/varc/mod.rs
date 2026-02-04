@@ -329,9 +329,8 @@ impl<'a> Outlines<'a> {
             let flags = component.flags();
             let has_axes_or_variations =
                 flags.contains(VarcFlags::HAVE_AXES) || component.axis_values_var_index().is_some();
-            let reset_axes = flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES);
 
-            let (component_coords, coords_the_same) = if !has_axes_or_variations && !reset_axes {
+            let (component_coords, coords_the_same) = if !has_axes_or_variations {
                 (current_coords, true)
             } else {
                 self.component_coords(
@@ -391,10 +390,12 @@ impl<'a> Outlines<'a> {
                         } else {
                             if child_scalar_cache.is_none() {
                                 child_scalar_cache = self.scalar_cache_from_store(var_store)?;
-                            }
-                            let mut child_scalar_cache = child_scalar_cache.as_mut();
-                            if let Some(cache) = child_scalar_cache.as_deref_mut() {
-                                cache.reset();
+                            } else {
+                                child_scalar_cache
+                                    .as_mut()
+                                    .unwrap()
+                                    .values
+                                    .fill(ScalarCache::INVALID);
                             }
                             self.draw_glyph(
                                 component_gid,
@@ -410,7 +411,7 @@ impl<'a> Outlines<'a> {
                                 var_store,
                                 regions,
                                 coverage,
-                                child_scalar_cache.unwrap(),
+                                child_scalar_cache.as_mut().unwrap(),
                                 scratch,
                             )?;
                         }
@@ -542,8 +543,7 @@ impl<'a> Outlines<'a> {
         };
         const SCALE: f32 = 1.0 / 16384.0;
         out.resize_and_fill(count, 0.0);
-        let mut iter = packed.iter();
-        for (slot, value) in out.iter_mut().zip(iter.by_ref().take(count)) {
+        for (slot, value) in out.iter_mut().zip(packed.iter().by_ref().take(count)) {
             *slot = value as f32 * SCALE;
         }
         Ok(())
@@ -780,10 +780,6 @@ impl ScalarCache {
         if let Some(slot) = self.values.get_mut(index) {
             *slot = value;
         }
-    }
-
-    fn reset(&mut self) {
-        self.values.fill(Self::INVALID);
     }
 }
 
