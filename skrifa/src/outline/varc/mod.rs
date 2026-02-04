@@ -248,6 +248,7 @@ impl<'a> Outlines<'a> {
         Ok(self.glyph_metrics.advance_width(outline.glyph_id, coords))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_glyph(
         &self,
         glyph_id: GlyphId,
