@@ -454,36 +454,18 @@ impl<'a> Outlines<'a> {
 
         let flags = component.flags();
 
-        // Count transform fields directly from flags
-        let mut field_count = 0usize;
-        if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
-            field_count += 1;
-        }
-        if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
-            field_count += 1;
-        }
-        if flags.contains(VarcFlags::HAVE_ROTATION) {
-            field_count += 1;
-        }
-        if flags.contains(VarcFlags::HAVE_SCALE_X) {
-            field_count += 1;
-        }
+        // Count transform fields using a mask + count_ones
+        let transform_mask = VarcFlags::HAVE_TRANSLATE_X.bits()
+            | VarcFlags::HAVE_TRANSLATE_Y.bits()
+            | VarcFlags::HAVE_ROTATION.bits()
+            | VarcFlags::HAVE_SCALE_X.bits()
+            | VarcFlags::HAVE_SCALE_Y.bits()
+            | VarcFlags::HAVE_SKEW_X.bits()
+            | VarcFlags::HAVE_SKEW_Y.bits()
+            | VarcFlags::HAVE_TCENTER_X.bits()
+            | VarcFlags::HAVE_TCENTER_Y.bits();
+        let field_count = (flags.bits() & transform_mask).count_ones() as usize;
         let scale_y_present = flags.contains(VarcFlags::HAVE_SCALE_Y);
-        if scale_y_present {
-            field_count += 1;
-        }
-        if flags.contains(VarcFlags::HAVE_SKEW_X) {
-            field_count += 1;
-        }
-        if flags.contains(VarcFlags::HAVE_SKEW_Y) {
-            field_count += 1;
-        }
-        if flags.contains(VarcFlags::HAVE_TCENTER_X) {
-            field_count += 1;
-        }
-        if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
-            field_count += 1;
-        }
 
         if field_count == 0 {
             return Ok(());
