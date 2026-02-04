@@ -331,8 +331,8 @@ impl<'a> Outlines<'a> {
                 flags.contains(VarcFlags::HAVE_AXES) || component.axis_values_var_index().is_some();
             let reset_axes = flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES);
 
-            let component_coords = if !has_axes_or_variations && !reset_axes {
-                current_coords
+            let (component_coords, coords_the_same) = if !has_axes_or_variations && !reset_axes {
+                (current_coords, true)
             } else {
                 self.component_coords(
                     &component,
@@ -344,7 +344,7 @@ impl<'a> Outlines<'a> {
                     &mut component_coords_buffer,
                     scratch,
                 )?;
-                component_coords_buffer.as_slice()
+                (component_coords_buffer.as_slice(), false)
             };
 
             let mut transform = *component.transform();
@@ -369,9 +369,8 @@ impl<'a> Outlines<'a> {
             if component_gid != glyph_id {
                 if let Some(coverage_index) = coverage.get(component_gid) {
                     if !stack.contains(&component_gid) {
-                        // Optimization: if coordinates haven't changed, we can reuse
-                        // the scalar cache.
-                        if component_coords == current_coords {
+                        // Optimization: if coordinates haven't changed, we can reuse the scalar cache.
+                        if coords_the_same {
                             self.draw_glyph(
                                 component_gid,
                                 coverage_index,
