@@ -651,6 +651,7 @@ impl ScalarCache {
         }
     }
 
+    #[inline]
     fn get(&self, index: usize) -> Option<f32> {
         let Some(value) = self.values.get(index).copied() else {
             return Some(0.0);
@@ -664,6 +665,7 @@ impl ScalarCache {
         Some(value)
     }
 
+    #[inline]
     fn set(&mut self, index: usize, value: f32) {
         let Some(slot) = self.values.get_mut(index) else {
             return;
