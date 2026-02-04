@@ -2,7 +2,7 @@
 
 use crate::{
     graph::{Graph, RepackError},
-    serialize::{ObjIdx, Serializer},
+    serialize::{LinkWidth, ObjIdx, Serializer},
     Serialize,
 };
 use write_fonts::{
@@ -46,4 +46,25 @@ pub(crate) fn make_coverage(
 
     let coverage_data = s.copy_bytes();
     graph.update_vertex_data(coverage_idx, &coverage_data)
+}
+
+// add a new coverage table covering specified glyphs, and link it to parent vertex
+pub(crate) fn add_new_coverage(
+    graph: &mut Graph,
+    glyphs: &[GlyphId],
+    parent_idx: ObjIdx,
+    link_width: LinkWidth,
+    position: u32,
+) -> Result<(), RepackError> {
+    let new_coverage_idx = graph.new_vertex(0);
+    let mut s = Serializer::new(glyphs.len() * 6 + 4);
+    s.start_serialize()
+        .map_err(|_| RepackError::ErrorRepackSerialize)?;
+
+    CoverageTable::serialize(&mut s, glyphs).map_err(|_| RepackError::ErrorRepackSerialize)?;
+    s.end_serialize();
+
+    let coverage_data = s.copy_bytes();
+    graph.update_vertex_data(new_coverage_idx, &coverage_data)?;
+    graph.add_parent_child_link(parent_idx, new_coverage_idx, link_width, position, false)
 }

@@ -6,8 +6,9 @@ use std::{
     mem,
 };
 
-use fnv::{FnvHashMap, FnvHasher};
+use fnv::FnvHasher;
 use hashbrown::HashTable;
+use std::collections::BTreeMap;
 use write_fonts::types::{FixedSize, Scalar, Uint24};
 
 /// An error which occurred during the serialization of a table using Serializer.
@@ -119,13 +120,8 @@ impl Object {
         self.tail
     }
 
-    pub(crate) fn real_links(&self) -> FnvHashMap<u32, Link> {
-        let mut links_map = FnvHashMap::default();
-        for l in &self.real_links {
-            let pos = l.position;
-            links_map.insert(pos, *l);
-        }
-        links_map
+    pub(crate) fn real_links(&self) -> BTreeMap<u32, Link> {
+        self.real_links.iter().map(|l| (l.position, *l)).collect()
     }
 
     pub(crate) fn virtual_links(&self) -> Vec<Link> {
