@@ -500,39 +500,39 @@ impl<'a> Outlines<'a> {
 
         if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
             let delta = delta_iter.next().unwrap_or(0);
-            transform.set_translate_x(transform.translate_x() + delta as f64);
+            transform.set_translate_x(transform.translate_x() + delta as f32);
         }
         if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
             let delta = delta_iter.next().unwrap_or(0);
-            transform.set_translate_y(transform.translate_y() + delta as f64);
+            transform.set_translate_y(transform.translate_y() + delta as f32);
         }
         if flags.contains(VarcFlags::HAVE_ROTATION) {
             let delta = delta_iter.next().unwrap_or(0);
-            transform.set_rotation(transform.rotation() + delta as f64 / 4096.0);
+            transform.set_rotation(transform.rotation() + delta as f32 / 4096.0);
         }
         if flags.contains(VarcFlags::HAVE_SCALE_X) {
             let delta = delta_iter.next().unwrap_or(0);
-            transform.set_scale_x(transform.scale_x() + delta as f64 / 1024.0);
+            transform.set_scale_x(transform.scale_x() + delta as f32 / 1024.0);
         }
         if scale_y_present {
             let delta = delta_iter.next().unwrap_or(0);
-            transform.set_scale_y(transform.scale_y() + delta as f64 / 1024.0);
+            transform.set_scale_y(transform.scale_y() + delta as f32 / 1024.0);
         }
         if flags.contains(VarcFlags::HAVE_SKEW_X) {
             let delta = delta_iter.next().unwrap_or(0);
-            transform.set_skew_x(transform.skew_x() + delta as f64 / 4096.0);
+            transform.set_skew_x(transform.skew_x() + delta as f32 / 4096.0);
         }
         if flags.contains(VarcFlags::HAVE_SKEW_Y) {
             let delta = delta_iter.next().unwrap_or(0);
-            transform.set_skew_y(transform.skew_y() + delta as f64 / 4096.0);
+            transform.set_skew_y(transform.skew_y() + delta as f32 / 4096.0);
         }
         if flags.contains(VarcFlags::HAVE_TCENTER_X) {
             let delta = delta_iter.next().unwrap_or(0);
-            transform.set_center_x(transform.center_x() + delta as f64);
+            transform.set_center_x(transform.center_x() + delta as f32);
         }
         if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
             let delta = delta_iter.next().unwrap_or(0);
-            transform.set_center_y(transform.center_y() + delta as f64);
+            transform.set_center_y(transform.center_y() + delta as f32);
         }
 
         if !scale_y_present {
@@ -793,17 +793,10 @@ fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2
 
 fn matrix_with_scale(transform: &DecomposedTransform, size: Size, units_per_em: u16) -> [f32; 6] {
     let mut matrix = transform.matrix();
-    let scale = size.linear_scale(units_per_em) as f64;
+    let scale = size.linear_scale(units_per_em);
     matrix[4] *= scale;
     matrix[5] *= scale;
-    [
-        matrix[0] as f32,
-        matrix[1] as f32,
-        matrix[2] as f32,
-        matrix[3] as f32,
-        matrix[4] as f32,
-        matrix[5] as f32,
-    ]
+    matrix
 }
 
 struct TransformPen<'a, P: OutlinePen + ?Sized> {

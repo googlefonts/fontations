@@ -99,19 +99,19 @@ impl<'a> VarcComponent<'a> {
         // Ref https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md#variable-component-record
 
         // This is a GlyphID16 if GID_IS_24BIT bit of flags is clear, else GlyphID24.
-        let gid = if flags.contains(VarcFlags::GID_IS_24BIT) {
+        let gid = if raw_flags & VarcFlags::GID_IS_24BIT.bits != 0 {
             GlyphId::new(cursor.read::<Uint24>()?.to_u32())
         } else {
             GlyphId::from(cursor.read::<u16>()?)
         };
 
-        let condition_index = if flags.contains(VarcFlags::HAVE_CONDITION) {
+        let condition_index = if raw_flags & VarcFlags::HAVE_CONDITION.bits != 0 {
             Some(cursor.read_u32_var()?)
         } else {
             None
         };
 
-        let (axis_indices_index, axis_values) = if flags.contains(VarcFlags::HAVE_AXES) {
+        let (axis_indices_index, axis_values) = if raw_flags & VarcFlags::HAVE_AXES.bits != 0 {
             // <https://github.com/harfbuzz/harfbuzz/blob/0c2f5ecd51d11e32836ee136a1bc765d650a4ec0/src/OT/Var/VARC/VARC.cc#L195-L206>
             let axis_indices_index = cursor.read_u32_var()?;
             let num_axis_values = table.axis_indices(axis_indices_index as usize)?.count();
@@ -131,36 +131,38 @@ impl<'a> VarcComponent<'a> {
             (None, None)
         };
 
-        let axis_values_var_index = flags
-            .contains(VarcFlags::AXIS_VALUES_HAVE_VARIATION)
-            .then(|| cursor.read_u32_var())
-            .transpose()?;
+        let axis_values_var_index = if raw_flags & VarcFlags::AXIS_VALUES_HAVE_VARIATION.bits != 0 {
+            Some(cursor.read_u32_var()?)
+        } else {
+            None
+        };
 
-        let transform_var_index = flags
-            .contains(VarcFlags::TRANSFORM_HAS_VARIATION)
-            .then(|| cursor.read_u32_var())
-            .transpose()?;
+        let transform_var_index = if raw_flags & VarcFlags::TRANSFORM_HAS_VARIATION.bits != 0 {
+            Some(cursor.read_u32_var()?)
+        } else {
+            None
+        };
 
         let mut transform = DecomposedTransform::default();
         let translate_mask = VarcFlags::HAVE_TRANSLATE_X.bits | VarcFlags::HAVE_TRANSLATE_Y.bits;
         if raw_flags & translate_mask != 0 {
             if raw_flags & VarcFlags::HAVE_TRANSLATE_X.bits != 0 {
-                transform.translate_x = cursor.read::<FWord>()?.to_i16() as f64
+                transform.translate_x = cursor.read::<FWord>()?.to_i16() as f32
             }
             if raw_flags & VarcFlags::HAVE_TRANSLATE_Y.bits != 0 {
-                transform.translate_y = cursor.read::<FWord>()?.to_i16() as f64
+                transform.translate_y = cursor.read::<FWord>()?.to_i16() as f32
             }
         }
         if raw_flags & VarcFlags::HAVE_ROTATION.bits != 0 {
-            transform.rotation = cursor.read::<F4Dot12>()?.to_f32() as f64
+            transform.rotation = cursor.read::<F4Dot12>()?.to_f32()
         }
         let scale_mask = VarcFlags::HAVE_SCALE_X.bits | VarcFlags::HAVE_SCALE_Y.bits;
         if raw_flags & scale_mask != 0 {
             if raw_flags & VarcFlags::HAVE_SCALE_X.bits != 0 {
-                transform.scale_x = cursor.read::<F6Dot10>()?.to_f32() as f64
+                transform.scale_x = cursor.read::<F6Dot10>()?.to_f32()
             }
             transform.scale_y = if raw_flags & VarcFlags::HAVE_SCALE_Y.bits != 0 {
-                cursor.read::<F6Dot10>()?.to_f32() as f64
+                cursor.read::<F6Dot10>()?.to_f32()
             } else {
                 transform.scale_x
             };
@@ -168,19 +170,19 @@ impl<'a> VarcComponent<'a> {
         let skew_mask = VarcFlags::HAVE_SKEW_X.bits | VarcFlags::HAVE_SKEW_Y.bits;
         if raw_flags & skew_mask != 0 {
             if raw_flags & VarcFlags::HAVE_SKEW_X.bits != 0 {
-                transform.skew_x = cursor.read::<F4Dot12>()?.to_f32() as f64
+                transform.skew_x = cursor.read::<F4Dot12>()?.to_f32()
             }
             if raw_flags & VarcFlags::HAVE_SKEW_Y.bits != 0 {
-                transform.skew_y = cursor.read::<F4Dot12>()?.to_f32() as f64
+                transform.skew_y = cursor.read::<F4Dot12>()?.to_f32()
             }
         }
         let center_mask = VarcFlags::HAVE_TCENTER_X.bits | VarcFlags::HAVE_TCENTER_Y.bits;
         if raw_flags & center_mask != 0 {
             if raw_flags & VarcFlags::HAVE_TCENTER_X.bits != 0 {
-                transform.center_x = cursor.read::<FWord>()?.to_i16() as f64
+                transform.center_x = cursor.read::<FWord>()?.to_i16() as f32
             }
             if raw_flags & VarcFlags::HAVE_TCENTER_Y.bits != 0 {
-                transform.center_y = cursor.read::<FWord>()?.to_i16() as f64
+                transform.center_y = cursor.read::<FWord>()?.to_i16() as f32
             }
         }
 
@@ -233,15 +235,15 @@ impl<'a> VarcComponent<'a> {
 /// <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/misc/transform.py#L410>
 #[derive(Clone, Copy)]
 pub struct DecomposedTransform {
-    translate_x: f64,
-    translate_y: f64,
-    rotation: f64, // multiples of Pi, counter-clockwise
-    scale_x: f64,
-    scale_y: f64,
-    skew_x: f64, // multiples of Pi, clockwise
-    skew_y: f64, // multiples of Pi, counter-clockwise
-    center_x: f64,
-    center_y: f64,
+    translate_x: f32,
+    translate_y: f32,
+    rotation: f32, // multiples of Pi, counter-clockwise
+    scale_x: f32,
+    scale_y: f32,
+    skew_x: f32, // multiples of Pi, clockwise
+    skew_y: f32, // multiples of Pi, counter-clockwise
+    center_x: f32,
+    center_y: f32,
 }
 
 impl Default for DecomposedTransform {
@@ -261,75 +263,75 @@ impl Default for DecomposedTransform {
 }
 
 impl DecomposedTransform {
-    pub fn translate_x(&self) -> f64 {
+    pub fn translate_x(&self) -> f32 {
         self.translate_x
     }
 
-    pub fn translate_y(&self) -> f64 {
+    pub fn translate_y(&self) -> f32 {
         self.translate_y
     }
 
-    pub fn rotation(&self) -> f64 {
+    pub fn rotation(&self) -> f32 {
         self.rotation
     }
 
-    pub fn scale_x(&self) -> f64 {
+    pub fn scale_x(&self) -> f32 {
         self.scale_x
     }
 
-    pub fn scale_y(&self) -> f64 {
+    pub fn scale_y(&self) -> f32 {
         self.scale_y
     }
 
-    pub fn skew_x(&self) -> f64 {
+    pub fn skew_x(&self) -> f32 {
         self.skew_x
     }
 
-    pub fn skew_y(&self) -> f64 {
+    pub fn skew_y(&self) -> f32 {
         self.skew_y
     }
 
-    pub fn center_x(&self) -> f64 {
+    pub fn center_x(&self) -> f32 {
         self.center_x
     }
 
-    pub fn center_y(&self) -> f64 {
+    pub fn center_y(&self) -> f32 {
         self.center_y
     }
 
-    pub fn set_translate_x(&mut self, value: f64) {
+    pub fn set_translate_x(&mut self, value: f32) {
         self.translate_x = value;
     }
 
-    pub fn set_translate_y(&mut self, value: f64) {
+    pub fn set_translate_y(&mut self, value: f32) {
         self.translate_y = value;
     }
 
-    pub fn set_rotation(&mut self, value: f64) {
+    pub fn set_rotation(&mut self, value: f32) {
         self.rotation = value;
     }
 
-    pub fn set_scale_x(&mut self, value: f64) {
+    pub fn set_scale_x(&mut self, value: f32) {
         self.scale_x = value;
     }
 
-    pub fn set_scale_y(&mut self, value: f64) {
+    pub fn set_scale_y(&mut self, value: f32) {
         self.scale_y = value;
     }
 
-    pub fn set_skew_x(&mut self, value: f64) {
+    pub fn set_skew_x(&mut self, value: f32) {
         self.skew_x = value;
     }
 
-    pub fn set_skew_y(&mut self, value: f64) {
+    pub fn set_skew_y(&mut self, value: f32) {
         self.skew_y = value;
     }
 
-    pub fn set_center_x(&mut self, value: f64) {
+    pub fn set_center_x(&mut self, value: f32) {
         self.center_x = value;
     }
 
-    pub fn set_center_y(&mut self, value: f64) {
+    pub fn set_center_y(&mut self, value: f32) {
         self.center_y = value;
     }
 
@@ -350,7 +352,7 @@ impl DecomposedTransform {
     /// References:
     ///   FontTools Python implementation <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/misc/transform.py#L484-L500>
     /// * Wikipedia [affine transformation](https://en.wikipedia.org/wiki/Affine_transformation)
-    pub fn matrix(&self) -> [f64; 6] {
+    pub fn matrix(&self) -> [f32; 6] {
         // Python: t.translate(self.translateX + self.tCenterX, self.translateY + self.tCenterY)
         let mut transform = [
             1.0,
@@ -366,7 +368,7 @@ impl DecomposedTransform {
 
         // Python: t = t.rotate(self.rotation * math.pi)
         if self.rotation != 0.0 {
-            let (s, c) = (self.rotation * core::f64::consts::PI).sin_cos();
+            let (s, c) = (self.rotation * core::f32::consts::PI).sin_cos();
             transform = transform.transform([c, s, -s, c, 0.0, 0.0]);
         }
 
@@ -379,8 +381,8 @@ impl DecomposedTransform {
         if (self.skew_x, self.skew_y) != (0.0, 0.0) {
             transform = transform.transform([
                 1.0,
-                (self.skew_y * core::f64::consts::PI).tan(),
-                (-self.skew_x * core::f64::consts::PI).tan(),
+                (self.skew_y * core::f32::consts::PI).tan(),
+                (-self.skew_x * core::f32::consts::PI).tan(),
                 1.0,
                 0.0,
                 0.0,
@@ -400,7 +402,7 @@ trait Transform {
     fn transform(self, other: Self) -> Self;
 }
 
-impl Transform for [f64; 6] {
+impl Transform for [f32; 6] {
     fn transform(self, other: Self) -> Self {
         // Shamelessly copied from kurbo Affine Mul
         [
@@ -458,7 +460,7 @@ mod tests {
         }
     }
 
-    fn round6(v: f64) -> f64 {
+    fn round6(v: f32) -> f32 {
         (v * 1_000_000.0).round() / 1_000_000.0
     }
 
@@ -466,7 +468,7 @@ mod tests {
         fn round_for_test(self) -> Self;
     }
 
-    impl Round for [f64; 6] {
+    impl Round for [f32; 6] {
         fn round_for_test(self) -> Self {
             [
                 round6(self[0]),
@@ -649,13 +651,13 @@ mod tests {
     #[test]
     fn decomposed_skew_to_matrix() {
         // Skew is in multiples of Pi.
-        let skew_x: f64 = 1.0 / 6.0; // 30 degrees
-        let skew_y: f64 = -1.0 / 3.0; // -60 degrees
+        let skew_x: f32 = 1.0 / 6.0; // 30 degrees
+        let skew_y: f32 = -1.0 / 3.0; // -60 degrees
         assert_eq!(
             [
                 1.0,
-                round6((skew_y * core::f64::consts::PI).tan()),
-                round6((-skew_x * core::f64::consts::PI).tan()),
+                round6((skew_y * core::f32::consts::PI).tan()),
+                round6((-skew_x * core::f32::consts::PI).tan()),
                 1.0,
                 0.0,
                 0.0
@@ -711,7 +713,7 @@ mod tests {
     #[test]
     fn decomposed_scale_skew_translate_to_matrix() {
         assert_eq!(
-            [-0.866025, 5.5, -2.5, 2.020726, 10.0, 20.0],
+            [-0.866026, 5.5, -2.5, 2.020726, 10.0, 20.0],
             DecomposedTransform {
                 scale_x: 2.0,
                 scale_y: 3.0,
