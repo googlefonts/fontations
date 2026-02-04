@@ -520,6 +520,7 @@ impl<'a> DeltaRunIter<'a> {
 
     /// Skips `n` deltas without reading the actual delta values.
     /// Skips `n` deltas without reading the actual delta values.
+    #[inline(always)]
     pub fn skip_fast(mut self, n: usize) -> Self {
         let mut wanted = n;
         loop {
@@ -546,6 +547,7 @@ impl<'a> DeltaRunIter<'a> {
         self
     }
 
+    #[inline(always)]
     fn read_next_control(&mut self) -> Option<()> {
         self.remaining_in_run = 0;
         let control: u8 = self.cursor.read().ok()?;
@@ -558,6 +560,7 @@ impl<'a> DeltaRunIter<'a> {
 impl Iterator for DeltaRunIter<'_> {
     type Item = i32;
 
+    #[inline(always)]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(limit) = self.limit {
             if limit == 0 {
@@ -569,12 +572,16 @@ impl Iterator for DeltaRunIter<'_> {
             self.read_next_control()?;
         }
         self.remaining_in_run -= 1;
-        match self.value_type {
-            DeltaRunType::Zero => Some(0),
-            DeltaRunType::I8 => self.cursor.read::<i8>().ok().map(|v| v as i32),
-            DeltaRunType::I16 => self.cursor.read::<i16>().ok().map(|v| v as i32),
-            DeltaRunType::I32 => self.cursor.read().ok(),
+        if self.value_type == DeltaRunType::Zero {
+            return Some(0);
         }
+        if self.value_type == DeltaRunType::I8 {
+            return self.cursor.read::<i8>().ok().map(|v| v as i32);
+        }
+        if self.value_type == DeltaRunType::I16 {
+            return self.cursor.read::<i16>().ok().map(|v| v as i32);
+        }
+        self.cursor.read().ok()
     }
 }
 
