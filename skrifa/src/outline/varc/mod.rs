@@ -276,11 +276,13 @@ impl<'a> Outlines<'a> {
                 continue;
             }
             let component_gid = component.gid();
-            let component_coords = self.component_coords(
+            let mut component_coords = SmallVec::<F2Dot14, 64>::new();
+            self.component_coords(
                 &component,
                 font_coords,
                 current_coords,
                 scalar_cache.as_mut(),
+                &mut component_coords,
             )?;
             let mut transform = *component.transform();
             self.apply_transform_variations(
@@ -349,19 +351,19 @@ impl<'a> Outlines<'a> {
         font_coords: &[F2Dot14],
         current_coords: &[F2Dot14],
         scalar_cache: Option<&mut ScalarCache>,
-    ) -> Result<SmallVec<F2Dot14, 64>, DrawError> {
-        let mut coords = SmallVec::<F2Dot14, 64>::new();
+        coords: &mut SmallVec<F2Dot14, 64>,
+    ) -> Result<(), DrawError> {
         if component
             .flags()
             .contains(VarcFlags::RESET_UNSPECIFIED_AXES)
         {
-            expand_coords(&mut coords, font_coords.len(), font_coords);
+            expand_coords(coords, font_coords.len(), font_coords);
         } else {
-            expand_coords(&mut coords, current_coords.len(), current_coords);
+            expand_coords(coords, current_coords.len(), current_coords);
         }
 
         if !component.flags().contains(VarcFlags::HAVE_AXES) {
-            return Ok(coords);
+            return Ok(());
         }
 
         let axis_indices_index = component
@@ -393,7 +395,7 @@ impl<'a> Outlines<'a> {
             };
             *slot = F2Dot14::from_f32(value);
         }
-        Ok(coords)
+        Ok(())
     }
 
     fn axis_indices(&self, nth: usize) -> Result<SmallVec<u16, 64>, DrawError> {
