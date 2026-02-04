@@ -314,117 +314,117 @@ impl<'a> Outlines<'a> {
         let mut component_coords_buffer = CoordVec::new();
         let mut child_scalar_cache: Option<ScalarCache> = None;
         for component in glyph.components() {
-                let component = component?;
-                if !self.component_condition_met(
+            let component = component?;
+            if !self.component_condition_met(
+                &component,
+                current_coords,
+                var_store,
+                regions,
+                scalar_cache,
+                scratch,
+            )? {
+                continue;
+            }
+            let component_gid = component.gid();
+            let flags = component.flags();
+            let has_axes_or_variations =
+                flags.contains(VarcFlags::HAVE_AXES) || component.axis_values_var_index().is_some();
+
+            let (component_coords, coords_the_same) = if !has_axes_or_variations {
+                (current_coords, true)
+            } else {
+                self.component_coords(
                     &component,
+                    font_coords,
                     current_coords,
                     var_store,
                     regions,
                     scalar_cache,
+                    &mut component_coords_buffer,
                     scratch,
-                )? {
-                    continue;
-                }
-                let component_gid = component.gid();
-                let flags = component.flags();
-                let has_axes_or_variations = flags.contains(VarcFlags::HAVE_AXES)
-                    || component.axis_values_var_index().is_some();
-
-                let (component_coords, coords_the_same) = if !has_axes_or_variations {
-                    (current_coords, true)
-                } else {
-                    self.component_coords(
-                        &component,
-                        font_coords,
-                        current_coords,
-                        var_store,
-                        regions,
-                        scalar_cache,
-                        &mut component_coords_buffer,
-                        scratch,
-                    )?;
-                    (component_coords_buffer.as_slice(), false)
-                };
-
-                let mut transform = *component.transform();
-                self.apply_transform_variations(
-                    &component,
-                    current_coords,
-                    &mut transform,
-                    var_store,
-                    regions,
-                    scalar_cache,
-                    &mut scratch.deltas,
                 )?;
-                let matrix = if is_translation_only(flags) {
-                    let scale = size.linear_scale(self.units_per_em);
-                    let tx = transform.translate_x() * scale;
-                    let ty = transform.translate_y() * scale;
-                    apply_translation(parent_matrix, tx, ty)
-                } else {
-                    let matrix = matrix_with_scale(&transform, size, self.units_per_em);
-                    mul_matrix(parent_matrix, matrix)
-                };
-                if component_gid != glyph_id {
-                    if let Some(coverage_index) = coverage.get(component_gid) {
-                        if !stack.contains(&component_gid) {
-                            // Optimization: if coordinates haven't changed, we can reuse the scalar cache.
-                            if coords_the_same {
-                                self.draw_glyph(
-                                    component_gid,
-                                    coverage_index,
-                                    font_coords,
-                                    current_coords,
-                                    size,
-                                    path_style,
-                                    buf,
-                                    pen,
-                                    stack,
-                                    matrix,
-                                    var_store,
-                                    regions,
-                                    coverage,
-                                    scalar_cache,
-                                    scratch,
-                                )?;
+                (component_coords_buffer.as_slice(), false)
+            };
+
+            let mut transform = *component.transform();
+            self.apply_transform_variations(
+                &component,
+                current_coords,
+                &mut transform,
+                var_store,
+                regions,
+                scalar_cache,
+                &mut scratch.deltas,
+            )?;
+            let matrix = if is_translation_only(flags) {
+                let scale = size.linear_scale(self.units_per_em);
+                let tx = transform.translate_x() * scale;
+                let ty = transform.translate_y() * scale;
+                apply_translation(parent_matrix, tx, ty)
+            } else {
+                let matrix = matrix_with_scale(&transform, size, self.units_per_em);
+                mul_matrix(parent_matrix, matrix)
+            };
+            if component_gid != glyph_id {
+                if let Some(coverage_index) = coverage.get(component_gid) {
+                    if !stack.contains(&component_gid) {
+                        // Optimization: if coordinates haven't changed, we can reuse the scalar cache.
+                        if coords_the_same {
+                            self.draw_glyph(
+                                component_gid,
+                                coverage_index,
+                                font_coords,
+                                current_coords,
+                                size,
+                                path_style,
+                                buf,
+                                pen,
+                                stack,
+                                matrix,
+                                var_store,
+                                regions,
+                                coverage,
+                                scalar_cache,
+                                scratch,
+                            )?;
+                        } else {
+                            if let Some(ref mut cache) = child_scalar_cache {
+                                cache.values.fill(ScalarCache::INVALID);
                             } else {
-                                if let Some(ref mut cache) = child_scalar_cache {
-                                    cache.values.fill(ScalarCache::INVALID);
-                                } else {
-                                    child_scalar_cache = self.scalar_cache_from_store(var_store)?;
-                                }
-                                self.draw_glyph(
-                                    component_gid,
-                                    coverage_index,
-                                    font_coords,
-                                    component_coords,
-                                    size,
-                                    path_style,
-                                    buf,
-                                    pen,
-                                    stack,
-                                    matrix,
-                                    var_store,
-                                    regions,
-                                    coverage,
-                                    child_scalar_cache.as_mut().unwrap(),
-                                    scratch,
-                                )?;
+                                child_scalar_cache = self.scalar_cache_from_store(var_store)?;
                             }
-                            continue;
+                            self.draw_glyph(
+                                component_gid,
+                                coverage_index,
+                                font_coords,
+                                component_coords,
+                                size,
+                                path_style,
+                                buf,
+                                pen,
+                                stack,
+                                matrix,
+                                var_store,
+                                regions,
+                                coverage,
+                                child_scalar_cache.as_mut().unwrap(),
+                                scratch,
+                            )?;
                         }
+                        continue;
                     }
                 }
-                let mut transform_pen = TransformPen::new(pen, matrix);
-                self.draw_base_glyph(
-                    component_gid,
-                    component_coords,
-                    size,
-                    path_style,
-                    buf,
-                    &mut transform_pen,
-                )?;
             }
+            let mut transform_pen = TransformPen::new(pen, matrix);
+            self.draw_base_glyph(
+                component_gid,
+                component_coords,
+                size,
+                path_style,
+                buf,
+                &mut transform_pen,
+            )?;
+        }
         stack.pop();
         Ok(())
     }
