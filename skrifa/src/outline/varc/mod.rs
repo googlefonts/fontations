@@ -272,7 +272,7 @@ impl<'a> Outlines<'a> {
         let glyph = self.varc.glyph(coverage_index as usize)?;
         stack.push(glyph_id);
         let mut component_coords = SmallVec::<F2Dot14, 64>::new();
-        let mut deltas = SmallVec::<f32, 32>::new();
+        let mut deltas = SmallVec::<f32, 16>::new();
         let mut axis_indices = SmallVec::<u16, 16>::new();
         let mut axis_values = SmallVec::<f32, 16>::new();
         for component in glyph.components() {
@@ -372,7 +372,7 @@ impl<'a> Outlines<'a> {
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
         coords: &mut SmallVec<F2Dot14, 64>,
-        deltas: &mut SmallVec<f32, 32>,
+        deltas: &mut SmallVec<f32, 16>,
         axis_indices: &mut SmallVec<u16, 16>,
         axis_values: &mut SmallVec<f32, 16>,
     ) -> Result<(), DrawError> {
@@ -450,7 +450,7 @@ impl<'a> Outlines<'a> {
         transform: &mut DecomposedTransform,
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
-        deltas: &mut SmallVec<f32, 32>,
+        deltas: &mut SmallVec<f32, 16>,
     ) -> Result<(), DrawError> {
         let Some(var_idx) = component.transform_var_index() else {
             return Ok(());
@@ -536,7 +536,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
-        deltas: &mut SmallVec<f32, 32>,
+        deltas: &mut SmallVec<f32, 16>,
     ) -> Result<bool, DrawError> {
         let Some(condition_index) = component.condition_index() else {
             return Ok(true);
@@ -554,7 +554,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         mut scalar_cache: Option<&mut ScalarCache>,
-        deltas: &mut SmallVec<f32, 32>,
+        deltas: &mut SmallVec<f32, 16>,
     ) -> Result<bool, DrawError> {
         match condition {
             Condition::Format1AxisRange(condition) => {
@@ -677,7 +677,7 @@ fn compute_tuple_deltas(
     coords: &[F2Dot14],
     tuple_len: usize,
     mut scalar_cache: Option<&mut ScalarCache>,
-    out: &mut SmallVec<f32, 32>,
+    out: &mut SmallVec<f32, 16>,
 ) -> Result<(), ReadError> {
     *out = SmallVec::with_len(tuple_len, 0.0);
     if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
