@@ -662,7 +662,24 @@ impl<'a> DeltaRunIter<'a> {
     }
 
     pub(crate) fn end(mut self) -> Cursor<'a> {
-        while self.next().is_some() {}
+        if let Some(limit) = self.limit {
+            return self.skip_fast(limit).cursor;
+        }
+        // No limit: jump over runs without decoding values.
+        if self.remaining_in_run != 0 {
+            if self.value_type != DeltaRunType::Zero {
+                self.cursor
+                    .advance_by(self.remaining_in_run as usize * self.value_type as usize);
+            }
+            self.remaining_in_run = 0;
+        }
+        while self.read_next_control().is_some() {
+            if self.value_type != DeltaRunType::Zero {
+                self.cursor
+                    .advance_by(self.remaining_in_run as usize * self.value_type as usize);
+            }
+            self.remaining_in_run = 0;
+        }
         self.cursor
     }
 
