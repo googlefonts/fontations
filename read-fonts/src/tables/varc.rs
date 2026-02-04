@@ -136,11 +136,10 @@ impl<'a> VarcComponent<'a> {
             .then(|| cursor.read_u32_var())
             .transpose()?;
 
-        let transform_var_index = if flags.contains(VarcFlags::TRANSFORM_HAS_VARIATION) {
-            Some(cursor.read_u32_var()?)
-        } else {
-            None
-        };
+        let transform_var_index = flags
+            .contains(VarcFlags::TRANSFORM_HAS_VARIATION)
+            .then(|| cursor.read_u32_var())
+            .transpose()?;
 
         let mut transform = DecomposedTransform::default();
         if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
