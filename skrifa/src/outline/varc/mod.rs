@@ -218,7 +218,8 @@ impl<'a> Outlines<'a> {
         path_style: PathStyle,
         pen: &mut impl OutlinePen,
     ) -> Result<(), DrawError> {
-        let font_coords = expand_coords(self.axis_count, coords);
+        let mut font_coords = SmallVec::<F2Dot14, 64>::new();
+        expand_coords(&mut font_coords, self.axis_count, coords);
         let mut stack = GlyphStack::new();
         let pen: &mut dyn OutlinePen = pen;
         self.draw_glyph(
@@ -349,14 +350,15 @@ impl<'a> Outlines<'a> {
         current_coords: &[F2Dot14],
         scalar_cache: Option<&mut ScalarCache>,
     ) -> Result<SmallVec<F2Dot14, 64>, DrawError> {
-        let mut coords = if component
+        let mut coords = SmallVec::<F2Dot14, 64>::new();
+        if component
             .flags()
             .contains(VarcFlags::RESET_UNSPECIFIED_AXES)
         {
-            expand_coords(font_coords.len(), font_coords)
+            expand_coords(&mut coords, font_coords.len(), font_coords);
         } else {
-            expand_coords(current_coords.len(), current_coords)
-        };
+            expand_coords(&mut coords, current_coords.len(), current_coords);
+        }
 
         if !component.flags().contains(VarcFlags::HAVE_AXES) {
             return Ok(coords);
@@ -650,12 +652,11 @@ impl ScalarCache {
     }
 }
 
-fn expand_coords(axis_count: usize, coords: &[F2Dot14]) -> SmallVec<F2Dot14, 64> {
-    let mut out = SmallVec::with_len(axis_count, F2Dot14::ZERO);
+fn expand_coords(out: &mut SmallVec<F2Dot14, 64>, axis_count: usize, coords: &[F2Dot14]) {
+    *out = SmallVec::with_len(axis_count, F2Dot14::ZERO);
     for (slot, value) in out.iter_mut().zip(coords.iter().copied()) {
         *slot = value;
     }
-    out
 }
 
 fn compute_tuple_deltas<'a>(
