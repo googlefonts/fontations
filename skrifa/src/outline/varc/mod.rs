@@ -824,9 +824,9 @@ fn compute_tuple_deltas(
         }
         if scalar == 0.0 {
             deltas.skip(tuple_len)?;
-            continue;
+        } else {
+            deltas.add_to_f32_scaled(out_slice, scalar)?;
         }
-        deltas.add_to_f32_scaled(out_slice, scalar)?;
     }
 
     Ok(())
