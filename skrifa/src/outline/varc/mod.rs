@@ -411,7 +411,7 @@ impl<'a> Outlines<'a> {
                                 var_store,
                                 regions,
                                 coverage,
-                                child_scalar_cache.as_deref_mut(),
+                                child_scalar_cache,
                                 scratch,
                             )?;
                         }
@@ -445,9 +445,10 @@ impl<'a> Outlines<'a> {
         let Some(kind) = self.base.base_outline_kind(glyph_id) else {
             return Err(DrawError::GlyphNotFound(glyph_id));
         };
-        let settings = crate::outline::DrawSettings::unhinted(size, crate::instance::LocationRef::new(coords))
-            .with_path_style(path_style)
-            .with_memory(Some(buf));
+        let settings =
+            crate::outline::DrawSettings::unhinted(size, crate::instance::LocationRef::new(coords))
+                .with_path_style(path_style)
+                .with_memory(Some(buf));
         crate::outline::OutlineGlyph { kind }.draw(settings, pen)?;
         Ok(())
     }
@@ -701,8 +702,14 @@ impl<'a> Outlines<'a> {
             Condition::Format3And(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if !Self::eval_condition(&nested, coords, var_store, regions, scalar_cache, scratch)?
-                    {
+                    if !Self::eval_condition(
+                        &nested,
+                        coords,
+                        var_store,
+                        regions,
+                        scalar_cache,
+                        scratch,
+                    )? {
                         return Ok(false);
                     }
                 }
@@ -711,7 +718,14 @@ impl<'a> Outlines<'a> {
             Condition::Format4Or(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if Self::eval_condition(&nested, coords, var_store, regions, scalar_cache, scratch)? {
+                    if Self::eval_condition(
+                        &nested,
+                        coords,
+                        var_store,
+                        regions,
+                        scalar_cache,
+                        scratch,
+                    )? {
                         return Ok(true);
                     }
                 }
