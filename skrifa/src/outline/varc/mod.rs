@@ -265,9 +265,6 @@ impl<'a> Outlines<'a> {
         if depth > GLYF_COMPOSITE_RECURSION_LIMIT {
             return Err(DrawError::RecursionLimitExceeded(glyph_id));
         }
-        if stack.contains(&glyph_id) {
-            return Ok(());
-        }
         let var_store = self.var_store()?;
         let mut scalar_cache = self.scalar_cache_from_store(var_store.as_ref())?;
         let glyph = self.varc.glyph(coverage_index as usize)?;
