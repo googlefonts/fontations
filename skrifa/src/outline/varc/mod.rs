@@ -273,6 +273,8 @@ impl<'a> Outlines<'a> {
         stack.push(glyph_id);
         let mut component_coords = SmallVec::<F2Dot14, 64>::new();
         let mut deltas = SmallVec::<f32, 32>::new();
+        let mut axis_indices = SmallVec::<u16, 16>::new();
+        let mut axis_values = SmallVec::<f32, 16>::new();
         for component in glyph.components() {
             let component = component?;
             if !self.component_condition_met(
@@ -293,6 +295,8 @@ impl<'a> Outlines<'a> {
                 scalar_cache.as_mut(),
                 &mut component_coords,
                 &mut deltas,
+                &mut axis_indices,
+                &mut axis_values,
             )?;
             let mut transform = *component.transform();
             self.apply_transform_variations(
@@ -369,6 +373,8 @@ impl<'a> Outlines<'a> {
         scalar_cache: Option<&mut ScalarCache>,
         coords: &mut SmallVec<F2Dot14, 64>,
         deltas: &mut SmallVec<f32, 32>,
+        axis_indices: &mut SmallVec<u16, 16>,
+        axis_values: &mut SmallVec<f32, 16>,
     ) -> Result<(), DrawError> {
         let flags = component.flags();
         if flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) {
@@ -384,10 +390,8 @@ impl<'a> Outlines<'a> {
         let axis_indices_index = component
             .axis_indices_index()
             .ok_or(ReadError::MalformedData("Missing axisIndicesIndex"))?;
-        let mut axis_indices = SmallVec::<u16, 16>::new();
-        self.axis_indices(axis_indices_index as usize, &mut axis_indices)?;
-        let mut axis_values = SmallVec::<f32, 16>::new();
-        self.axis_values(component, axis_indices.len(), &mut axis_values)?;
+        self.axis_indices(axis_indices_index as usize, axis_indices)?;
+        self.axis_values(component, axis_indices.len(), axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
             let store = var_store.ok_or(ReadError::NullOffset)?;
             compute_tuple_deltas(
@@ -403,7 +407,7 @@ impl<'a> Outlines<'a> {
             }
         }
 
-        for (axis_index, value) in axis_indices.iter().zip(axis_values) {
+        for (axis_index, value) in axis_indices.iter().zip(axis_values.iter().copied()) {
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
                 return Err(DrawError::Read(ReadError::OutOfBounds));
             };
