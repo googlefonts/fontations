@@ -271,13 +271,13 @@ impl<'a> Outlines<'a> {
         let mut scalar_cache = self.scalar_cache()?;
         let glyph = self.varc.glyph(coverage_index as usize)?;
         stack.push(glyph_id);
+        let mut component_coords = SmallVec::<F2Dot14, 64>::new();
         for component in glyph.components() {
             let component = component?;
             if !self.component_condition_met(&component, current_coords, scalar_cache.as_mut())? {
                 continue;
             }
             let component_gid = component.gid();
-            let mut component_coords = SmallVec::<F2Dot14, 64>::new();
             self.component_coords(
                 &component,
                 font_coords,
