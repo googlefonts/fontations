@@ -142,34 +142,46 @@ impl<'a> VarcComponent<'a> {
             .transpose()?;
 
         let mut transform = DecomposedTransform::default();
-        if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
-            transform.translate_x = cursor.read::<FWord>()?.to_i16() as f64
+        let translate_mask = VarcFlags::HAVE_TRANSLATE_X.bits | VarcFlags::HAVE_TRANSLATE_Y.bits;
+        if raw_flags & translate_mask != 0 {
+            if raw_flags & VarcFlags::HAVE_TRANSLATE_X.bits != 0 {
+                transform.translate_x = cursor.read::<FWord>()?.to_i16() as f64
+            }
+            if raw_flags & VarcFlags::HAVE_TRANSLATE_Y.bits != 0 {
+                transform.translate_y = cursor.read::<FWord>()?.to_i16() as f64
+            }
         }
-        if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
-            transform.translate_y = cursor.read::<FWord>()?.to_i16() as f64
-        }
-        if flags.contains(VarcFlags::HAVE_ROTATION) {
+        if raw_flags & VarcFlags::HAVE_ROTATION.bits != 0 {
             transform.rotation = cursor.read::<F4Dot12>()?.to_f32() as f64
         }
-        if flags.contains(VarcFlags::HAVE_SCALE_X) {
-            transform.scale_x = cursor.read::<F6Dot10>()?.to_f32() as f64
+        let scale_mask = VarcFlags::HAVE_SCALE_X.bits | VarcFlags::HAVE_SCALE_Y.bits;
+        if raw_flags & scale_mask != 0 {
+            if raw_flags & VarcFlags::HAVE_SCALE_X.bits != 0 {
+                transform.scale_x = cursor.read::<F6Dot10>()?.to_f32() as f64
+            }
+            transform.scale_y = if raw_flags & VarcFlags::HAVE_SCALE_Y.bits != 0 {
+                cursor.read::<F6Dot10>()?.to_f32() as f64
+            } else {
+                transform.scale_x
+            };
         }
-        transform.scale_y = if flags.contains(VarcFlags::HAVE_SCALE_Y) {
-            cursor.read::<F6Dot10>()?.to_f32() as f64
-        } else {
-            transform.scale_x
-        };
-        if flags.contains(VarcFlags::HAVE_SKEW_X) {
-            transform.skew_x = cursor.read::<F4Dot12>()?.to_f32() as f64
+        let skew_mask = VarcFlags::HAVE_SKEW_X.bits | VarcFlags::HAVE_SKEW_Y.bits;
+        if raw_flags & skew_mask != 0 {
+            if raw_flags & VarcFlags::HAVE_SKEW_X.bits != 0 {
+                transform.skew_x = cursor.read::<F4Dot12>()?.to_f32() as f64
+            }
+            if raw_flags & VarcFlags::HAVE_SKEW_Y.bits != 0 {
+                transform.skew_y = cursor.read::<F4Dot12>()?.to_f32() as f64
+            }
         }
-        if flags.contains(VarcFlags::HAVE_SKEW_Y) {
-            transform.skew_y = cursor.read::<F4Dot12>()?.to_f32() as f64
-        }
-        if flags.contains(VarcFlags::HAVE_TCENTER_X) {
-            transform.center_x = cursor.read::<FWord>()?.to_i16() as f64
-        }
-        if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
-            transform.center_y = cursor.read::<FWord>()?.to_i16() as f64
+        let center_mask = VarcFlags::HAVE_TCENTER_X.bits | VarcFlags::HAVE_TCENTER_Y.bits;
+        if raw_flags & center_mask != 0 {
+            if raw_flags & VarcFlags::HAVE_TCENTER_X.bits != 0 {
+                transform.center_x = cursor.read::<FWord>()?.to_i16() as f64
+            }
+            if raw_flags & VarcFlags::HAVE_TCENTER_Y.bits != 0 {
+                transform.center_y = cursor.read::<FWord>()?.to_i16() as f64
+            }
         }
 
         // Optional, process and discard one uint32var per each set bit in RESERVED_MASK.
