@@ -345,15 +345,41 @@ impl<'a> Outlines<'a> {
                     }
                 }
             }
-            let mut transform_pen = TransformPen::new(pen, matrix);
-            self.draw_base_glyph(
-                component_gid,
-                &component_coords,
-                size,
-                path_style,
-                buf,
-                &mut transform_pen,
-            )?;
+            match classify_matrix(matrix) {
+                MatrixKind::Translate { tx, ty } => {
+                    let mut translate_pen = TranslatePen::new(pen, tx, ty);
+                    self.draw_base_glyph(
+                        component_gid,
+                        &component_coords,
+                        size,
+                        path_style,
+                        buf,
+                        &mut translate_pen,
+                    )?;
+                }
+                MatrixKind::ScaleTranslate { sx, sy, tx, ty } => {
+                    let mut scale_pen = ScaleTranslatePen::new(pen, sx, sy, tx, ty);
+                    self.draw_base_glyph(
+                        component_gid,
+                        &component_coords,
+                        size,
+                        path_style,
+                        buf,
+                        &mut scale_pen,
+                    )?;
+                }
+                MatrixKind::General(matrix) => {
+                    let mut transform_pen = TransformPen::new(pen, matrix);
+                    self.draw_base_glyph(
+                        component_gid,
+                        &component_coords,
+                        size,
+                        path_style,
+                        buf,
+                        &mut transform_pen,
+                    )?;
+                }
+            }
         }
         stack.pop();
         Ok(())
@@ -816,6 +842,31 @@ fn is_translation_only(flags: VarcFlags) -> bool {
     !flags.intersects(other)
 }
 
+enum MatrixKind {
+    Translate { tx: f32, ty: f32 },
+    ScaleTranslate { sx: f32, sy: f32, tx: f32, ty: f32 },
+    General([f32; 6]),
+}
+
+#[inline(always)]
+fn classify_matrix(matrix: [f32; 6]) -> MatrixKind {
+    if matrix[1] == 0.0 && matrix[2] == 0.0 {
+        if matrix[0] == 1.0 && matrix[3] == 1.0 {
+            return MatrixKind::Translate {
+                tx: matrix[4],
+                ty: matrix[5],
+            };
+        }
+        return MatrixKind::ScaleTranslate {
+            sx: matrix[0],
+            sy: matrix[3],
+            tx: matrix[4],
+            ty: matrix[5],
+        };
+    }
+    MatrixKind::General(matrix)
+}
+
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
     pen: &'a mut P,
     matrix: [f32; 6],
@@ -833,6 +884,106 @@ impl<'a, P: OutlinePen + ?Sized> TransformPen<'a, P> {
 }
 
 impl<P: OutlinePen + ?Sized> OutlinePen for TransformPen<'_, P> {
+    fn move_to(&mut self, x: f32, y: f32) {
+        let (x, y) = self.transform(x, y);
+        self.pen.move_to(x, y);
+    }
+
+    fn line_to(&mut self, x: f32, y: f32) {
+        let (x, y) = self.transform(x, y);
+        self.pen.line_to(x, y);
+    }
+
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        let (cx0, cy0) = self.transform(cx0, cy0);
+        let (x, y) = self.transform(x, y);
+        self.pen.quad_to(cx0, cy0, x, y);
+    }
+
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        let (cx0, cy0) = self.transform(cx0, cy0);
+        let (cx1, cy1) = self.transform(cx1, cy1);
+        let (x, y) = self.transform(x, y);
+        self.pen.curve_to(cx0, cy0, cx1, cy1, x, y);
+    }
+
+    fn close(&mut self) {
+        self.pen.close();
+    }
+}
+
+struct TranslatePen<'a, P: OutlinePen + ?Sized> {
+    pen: &'a mut P,
+    tx: f32,
+    ty: f32,
+}
+
+impl<'a, P: OutlinePen + ?Sized> TranslatePen<'a, P> {
+    fn new(pen: &'a mut P, tx: f32, ty: f32) -> Self {
+        Self { pen, tx, ty }
+    }
+}
+
+impl<P: OutlinePen + ?Sized> OutlinePen for TranslatePen<'_, P> {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.pen.move_to(x + self.tx, y + self.ty);
+    }
+
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.pen.line_to(x + self.tx, y + self.ty);
+    }
+
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        self.pen.quad_to(
+            cx0 + self.tx,
+            cy0 + self.ty,
+            x + self.tx,
+            y + self.ty,
+        );
+    }
+
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        self.pen.curve_to(
+            cx0 + self.tx,
+            cy0 + self.ty,
+            cx1 + self.tx,
+            cy1 + self.ty,
+            x + self.tx,
+            y + self.ty,
+        );
+    }
+
+    fn close(&mut self) {
+        self.pen.close();
+    }
+}
+
+struct ScaleTranslatePen<'a, P: OutlinePen + ?Sized> {
+    pen: &'a mut P,
+    sx: f32,
+    sy: f32,
+    tx: f32,
+    ty: f32,
+}
+
+impl<'a, P: OutlinePen + ?Sized> ScaleTranslatePen<'a, P> {
+    fn new(pen: &'a mut P, sx: f32, sy: f32, tx: f32, ty: f32) -> Self {
+        Self {
+            pen,
+            sx,
+            sy,
+            tx,
+            ty,
+        }
+    }
+
+    #[inline(always)]
+    fn transform(&self, x: f32, y: f32) -> (f32, f32) {
+        (x * self.sx + self.tx, y * self.sy + self.ty)
+    }
+}
+
+impl<P: OutlinePen + ?Sized> OutlinePen for ScaleTranslatePen<'_, P> {
     fn move_to(&mut self, x: f32, y: f32) {
         let (x, y) = self.transform(x, y);
         self.pen.move_to(x, y);
