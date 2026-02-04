@@ -29,7 +29,7 @@ impl Subset for Gvar<'_> {
         s.embed(num_glyphs)
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 
-        let subset_data_size: u32 = plan
+        let subset_data_size: usize = plan
             .new_to_old_gid_list
             .iter()
             .filter_map(|x| {
@@ -43,13 +43,13 @@ impl Subset for Gvar<'_> {
                 self.data_for_gid(x.0)
                     .ok()
                     .flatten()
-                    .map(|data| data.len() as u32)
+                    .map(|data| data.len() + data.len() % 2)
             })
             .sum();
 
         // According to the spec: If the short format (Offset16) is used for offsets, the value stored is the offset divided by 2.
         // So the maximum subset data size that could use short format should be 2 * 0xFFFFu, which is 0x1FFFE
-        let long_offset = if subset_data_size > 0x1FFFE_u32 {
+        let long_offset = if subset_data_size > 0x1FFFE_usize {
             1_u16
         } else {
             0_u16
@@ -100,9 +100,8 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
         .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 
     //pre-allocate glyphVariationDataOffsets array
-    let offsets_array_len = (num_glyphs as usize + 1) * off_size;
     let mut start_idx = s
-        .allocate_size(offsets_array_len, false)
+        .allocate_size(glyph_var_data_offset_array_size as usize, false)
         .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 
     // shared tuples array
@@ -112,12 +111,12 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
             .offset_data()
             .as_bytes()
             .get(offset..offset + shared_tuples_size as usize)
-            .unwrap();
+            .ok_or(SubsetError::SubsetTableError(Gvar::TAG))?;
         s.embed_bytes(shared_tuples_data)
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
     }
 
-    // GlyphVariationData table array, also update glyphVariationDatƒaOffsets
+    // GlyphVariationData table array, also update glyphVariationDataOffsets
     start_idx += off_size;
 
     let mut glyph_offset = 0_u32;
@@ -135,10 +134,21 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
             last += 1;
         }
 
-        if let Ok(Some(glyph_var_data)) = gvar.data_for_gid(*old_gid) {
+        if let Some(glyph_var_data) = gvar
+            .data_for_gid(*old_gid)
+            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
+        {
             s.embed_bytes(glyph_var_data.as_bytes())
                 .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
-            glyph_offset += glyph_var_data.len() as u32;
+
+            let len = glyph_var_data.len();
+            glyph_offset += len as u32;
+            // padding when short offset format is used
+            if off_size == 2 && len % 2 != 0 {
+                s.embed(1_u8)
+                    .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
+                glyph_offset += 1;
+            }
         };
 
         s.copy_assign(start_idx, OffsetType::stored_value(glyph_offset));
