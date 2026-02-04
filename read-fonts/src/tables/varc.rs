@@ -219,14 +219,15 @@ impl<'a> VarcComponent<'a> {
 }
 
 /// <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/misc/transform.py#L410>
+#[derive(Clone, Copy)]
 pub struct DecomposedTransform {
     translate_x: f64,
     translate_y: f64,
-    rotation: f64, // degrees, counter-clockwise
+    rotation: f64, // multiples of Pi, counter-clockwise
     scale_x: f64,
     scale_y: f64,
-    skew_x: f64,
-    skew_y: f64,
+    skew_x: f64, // multiples of Pi, clockwise
+    skew_y: f64, // multiples of Pi, counter-clockwise
     center_x: f64,
     center_y: f64,
 }
@@ -248,6 +249,78 @@ impl Default for DecomposedTransform {
 }
 
 impl DecomposedTransform {
+    pub fn translate_x(&self) -> f64 {
+        self.translate_x
+    }
+
+    pub fn translate_y(&self) -> f64 {
+        self.translate_y
+    }
+
+    pub fn rotation(&self) -> f64 {
+        self.rotation
+    }
+
+    pub fn scale_x(&self) -> f64 {
+        self.scale_x
+    }
+
+    pub fn scale_y(&self) -> f64 {
+        self.scale_y
+    }
+
+    pub fn skew_x(&self) -> f64 {
+        self.skew_x
+    }
+
+    pub fn skew_y(&self) -> f64 {
+        self.skew_y
+    }
+
+    pub fn center_x(&self) -> f64 {
+        self.center_x
+    }
+
+    pub fn center_y(&self) -> f64 {
+        self.center_y
+    }
+
+    pub fn set_translate_x(&mut self, value: f64) {
+        self.translate_x = value;
+    }
+
+    pub fn set_translate_y(&mut self, value: f64) {
+        self.translate_y = value;
+    }
+
+    pub fn set_rotation(&mut self, value: f64) {
+        self.rotation = value;
+    }
+
+    pub fn set_scale_x(&mut self, value: f64) {
+        self.scale_x = value;
+    }
+
+    pub fn set_scale_y(&mut self, value: f64) {
+        self.scale_y = value;
+    }
+
+    pub fn set_skew_x(&mut self, value: f64) {
+        self.skew_x = value;
+    }
+
+    pub fn set_skew_y(&mut self, value: f64) {
+        self.skew_y = value;
+    }
+
+    pub fn set_center_x(&mut self, value: f64) {
+        self.center_x = value;
+    }
+
+    pub fn set_center_y(&mut self, value: f64) {
+        self.center_y = value;
+    }
+
     /// Convert decomposed form to 2x3 matrix form.
     ///
     /// The first two values are x,y x-basis vector,
@@ -263,7 +336,7 @@ impl DecomposedTransform {
     /// ```
     ///
     /// References:
-    /// * FontTools Python implementation <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/misc/transform.py#L484-L500>
+    ///   FontTools Python implementation <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/misc/transform.py#L484-L500>
     /// * Wikipedia [affine transformation](https://en.wikipedia.org/wiki/Affine_transformation)
     pub fn matrix(&self) -> [f64; 6] {
         // Python: t.translate(self.translateX + self.tCenterX, self.translateY + self.tCenterY)
@@ -279,9 +352,9 @@ impl DecomposedTransform {
         // TODO: this produces very small floats for rotations, e.g. 90 degree rotation a basic scale
         // puts 1.2246467991473532e-16 into [0]. Should we special case? Round?
 
-        // Python: t = t.rotate(math.radians(self.rotation))
+        // Python: t = t.rotate(self.rotation * math.pi)
         if self.rotation != 0.0 {
-            let (s, c) = (self.rotation).to_radians().sin_cos();
+            let (s, c) = (self.rotation * core::f64::consts::PI).sin_cos();
             transform = transform.transform([c, s, -s, c, 0.0, 0.0]);
         }
 
@@ -290,12 +363,12 @@ impl DecomposedTransform {
             transform = transform.transform([self.scale_x, 0.0, 0.0, self.scale_y, 0.0, 0.0]);
         }
 
-        // Python: t = t.skew(math.radians(self.skewX), math.radians(self.skewY))
+        // Python: t = t.skew(-self.skewX * math.pi, self.skewY * math.pi)
         if (self.skew_x, self.skew_y) != (0.0, 0.0) {
             transform = transform.transform([
                 1.0,
-                self.skew_y.to_radians().tan(),
-                self.skew_x.to_radians().tan(),
+                (self.skew_y * core::f64::consts::PI).tan(),
+                (-self.skew_x * core::f64::consts::PI).tan(),
                 1.0,
                 0.0,
                 0.0,
@@ -551,7 +624,8 @@ mod tests {
         assert_eq!(
             [0.0, 1.0, -1.0, 0.0, 0.0, 0.0],
             DecomposedTransform {
-                rotation: 90.0,
+                // Rotation is in multiples of Pi (90 degrees = 0.5 * Pi).
+                rotation: 0.5,
                 ..Default::default()
             }
             .matrix()
@@ -562,13 +636,14 @@ mod tests {
     // Expected created using the Python DecomposedTransform
     #[test]
     fn decomposed_skew_to_matrix() {
-        let skew_x: f64 = 30.0;
-        let skew_y: f64 = -60.0;
+        // Skew is in multiples of Pi.
+        let skew_x: f64 = 1.0 / 6.0; // 30 degrees
+        let skew_y: f64 = -1.0 / 3.0; // -60 degrees
         assert_eq!(
             [
                 1.0,
-                round6(skew_y.to_radians().tan()),
-                round6(skew_x.to_radians().tan()),
+                round6((skew_y * core::f64::consts::PI).tan()),
+                round6((-skew_x * core::f64::consts::PI).tan()),
                 1.0,
                 0.0,
                 0.0
@@ -593,7 +668,8 @@ mod tests {
             DecomposedTransform {
                 scale_x,
                 scale_y,
-                rotation: 90.0,
+                // 90 degrees = 0.5 * Pi.
+                rotation: 0.5,
                 ..Default::default()
             }
             .matrix()
@@ -608,7 +684,8 @@ mod tests {
             [0.0, 2.0, -1.0, 0.0, 10.0, 20.0],
             DecomposedTransform {
                 scale_x: 2.0,
-                rotation: 90.0,
+                // 90 degrees = 0.5 * Pi.
+                rotation: 0.5,
                 translate_x: 10.0,
                 translate_y: 20.0,
                 ..Default::default()
@@ -622,13 +699,14 @@ mod tests {
     #[test]
     fn decomposed_scale_skew_translate_to_matrix() {
         assert_eq!(
-            [-0.866025, 5.5, -0.5, 3.175426, 10.0, 20.0],
+            [-0.866025, 5.5, -2.5, 2.020726, 10.0, 20.0],
             DecomposedTransform {
                 scale_x: 2.0,
                 scale_y: 3.0,
-                rotation: 30.0,
-                skew_x: 30.0,
-                skew_y: 60.0,
+                // Angles are in multiples of Pi.
+                rotation: 1.0 / 6.0, // 30 degrees
+                skew_x: 1.0 / 6.0,   // 30 degrees
+                skew_y: 1.0 / 3.0,   // 60 degrees
                 translate_x: 10.0,
                 translate_y: 20.0,
                 ..Default::default()
@@ -645,7 +723,8 @@ mod tests {
             [1.732051, 1.0, -0.5, 0.866025, 10.267949, 19.267949],
             DecomposedTransform {
                 scale_x: 2.0,
-                rotation: 30.0,
+                // 30 degrees = 1/6 * Pi.
+                rotation: 1.0 / 6.0,
                 translate_x: 10.0,
                 translate_y: 20.0,
                 center_x: 1.0,
