@@ -555,13 +555,9 @@ impl<'a> Outlines<'a> {
         match condition {
             Condition::Format1AxisRange(condition) => {
                 let axis_index = condition.axis_index() as usize;
-                let coord = coords
-                    .get(axis_index)
-                    .copied()
-                    .unwrap_or(F2Dot14::ZERO)
-                    .to_f32();
-                Ok(coord >= condition.filter_range_min_value().to_f32()
-                    && coord <= condition.filter_range_max_value().to_f32())
+                let coord = coords.get(axis_index).copied().unwrap_or(F2Dot14::ZERO);
+                Ok(coord >= condition.filter_range_min_value()
+                    && coord <= condition.filter_range_max_value())
             }
             Condition::Format2VariableValue(condition) => {
                 let default_value = condition.default_value() as f32;
