@@ -1,5 +1,0 @@
-error: type not in scope (#[generate_getters] requires all items in same macro block)
-  --> tests/enum-across-decls.rs:25:20
-   |
-25 |         Version0_5(Maxp05),
-   |                    ^^^^^^
