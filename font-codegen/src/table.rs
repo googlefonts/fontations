@@ -998,7 +998,40 @@ impl Table {
     }
 
     fn iter_field_validation_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.fields.iter().map(Field::field_parse_validation_stmts)
+        let table_name = self.raw_name().to_string();
+        let is_index = table_name == "Index1" || table_name == "Index2";
+        self.fields.iter().map(move |field| {
+            if is_index && field.name == "data" {
+                let len_field_name = field.shape_byte_len_field_name();
+                quote! {
+                    let #len_field_name = {
+                        let count: usize = count as usize;
+                        if count == 0 {
+                            0usize
+                        } else {
+                            let off_size: usize = off_size as usize;
+                            let offsets_end = cursor.position()?;
+                            let last_offset_pos = offsets_end
+                                .checked_sub(off_size)
+                                .ok_or(ReadError::OutOfBounds)?;
+                            let last_offset = match off_size {
+                                1 => data.read_at::<u8>(last_offset_pos)? as usize,
+                                2 => data.read_at::<u16>(last_offset_pos)? as usize,
+                                3 => data.read_at::<Uint24>(last_offset_pos)?.to_u32() as usize,
+                                4 => data.read_at::<u32>(last_offset_pos)? as usize,
+                                _ => return Err(ReadError::OutOfBounds),
+                            };
+                            last_offset
+                                .checked_sub(1)
+                                .ok_or(ReadError::OutOfBounds)?
+                        }
+                    };
+                    cursor.advance_by(#len_field_name);
+                }
+            } else {
+                field.field_parse_validation_stmts()
+            }
+        })
     }
 
     fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
