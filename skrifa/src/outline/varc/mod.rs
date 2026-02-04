@@ -759,8 +759,7 @@ fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2
         let axis_index = axis.axis_index() as usize;
         let coord = coords.get(axis_index).copied().unwrap_or(F2Dot14::ZERO);
         if coord == F2Dot14::ZERO {
-            scalar = 0.0;
-            break;
+            return 0.0;
         }
         let start = axis.start();
         let end = axis.end();
