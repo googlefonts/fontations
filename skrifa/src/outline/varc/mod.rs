@@ -579,8 +579,6 @@ impl<'a> Outlines<'a> {
                 | VarcFlags::HAVE_TCENTER_Y.bits(),
         );
         let field_count = (flags.bits() & TRANSFORM_MASK.bits()).count_ones() as usize;
-        let scale_y_present = flags.contains(VarcFlags::HAVE_SCALE_Y);
-
         if field_count == 0 {
             return Ok(());
         }
@@ -616,7 +614,7 @@ impl<'a> Outlines<'a> {
             let delta = delta_iter.next().unwrap_or(0.0);
             transform.set_scale_x(transform.scale_x() + delta / 1024.0);
         }
-        if scale_y_present {
+        if flags.contains(VarcFlags::HAVE_SCALE_Y) {
             let delta = delta_iter.next().unwrap_or(0.0);
             transform.set_scale_y(transform.scale_y() + delta / 1024.0);
         }
@@ -645,7 +643,7 @@ impl<'a> Outlines<'a> {
             }
         }
 
-        if !scale_y_present {
+        if !flags.contains(VarcFlags::HAVE_SCALE_Y) {
             transform.set_scale_y(transform.scale_x());
         }
         Ok(())
