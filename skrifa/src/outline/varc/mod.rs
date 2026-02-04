@@ -411,12 +411,13 @@ impl<'a> Outlines<'a> {
         self.axis_values(component, axis_indices.len(), axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
             let store = var_store.ok_or(ReadError::NullOffset)?;
+            let cache = scalar_cache.ok_or(ReadError::NullOffset)?;
             compute_tuple_deltas(
                 store,
                 var_idx,
                 current_coords,
                 axis_indices.len(),
-                scalar_cache,
+                cache,
                 deltas,
             )?;
             for (value, delta) in axis_values.iter_mut().zip(deltas.iter()) {
@@ -493,7 +494,8 @@ impl<'a> Outlines<'a> {
         }
 
         let store = var_store.ok_or(ReadError::NullOffset)?;
-        compute_tuple_deltas(store, var_idx, coords, field_count, scalar_cache, deltas)?;
+        let cache = scalar_cache.ok_or(ReadError::NullOffset)?;
+        compute_tuple_deltas(store, var_idx, coords, field_count, cache, deltas)?;
 
         // Apply deltas in flag order, consuming from iterator
         let mut delta_iter = deltas.iter().copied();
@@ -563,14 +565,16 @@ impl<'a> Outlines<'a> {
         };
         let condition_list = condition_list?;
         let condition = condition_list.conditions().get(condition_index as usize)?;
-        Self::eval_condition(&condition, coords, var_store, scalar_cache, deltas)
+        let store = var_store.ok_or(ReadError::NullOffset)?;
+        let cache = scalar_cache.ok_or(ReadError::NullOffset)?;
+        Self::eval_condition(&condition, coords, store, cache, deltas)
     }
 
     fn eval_condition(
         condition: &Condition<'a>,
         coords: &[F2Dot14],
-        var_store: Option<&MultiItemVariationStore<'a>>,
-        mut scalar_cache: Option<&mut ScalarCache>,
+        var_store: &MultiItemVariationStore<'a>,
+        scalar_cache: &mut ScalarCache,
         deltas: &mut DeltaVec,
     ) -> Result<bool, DrawError> {
         match condition {
@@ -583,21 +587,14 @@ impl<'a> Outlines<'a> {
             Condition::Format2VariableValue(condition) => {
                 let default_value = condition.default_value() as f32;
                 let var_idx = condition.var_index();
-                let store = var_store.ok_or(ReadError::NullOffset)?;
-                compute_tuple_deltas(store, var_idx, coords, 1, scalar_cache, deltas)?;
+                compute_tuple_deltas(var_store, var_idx, coords, 1, scalar_cache, deltas)?;
                 let delta = deltas.first().copied().unwrap_or(0.0);
                 Ok(default_value + delta > 0.0)
             }
             Condition::Format3And(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if !Self::eval_condition(
-                        &nested,
-                        coords,
-                        var_store,
-                        scalar_cache.as_deref_mut(),
-                        deltas,
-                    )? {
+                    if !Self::eval_condition(&nested, coords, var_store, scalar_cache, deltas)? {
                         return Ok(false);
                     }
                 }
@@ -606,13 +603,7 @@ impl<'a> Outlines<'a> {
             Condition::Format4Or(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if Self::eval_condition(
-                        &nested,
-                        coords,
-                        var_store,
-                        scalar_cache.as_deref_mut(),
-                        deltas,
-                    )? {
+                    if Self::eval_condition(&nested, coords, var_store, scalar_cache, deltas)? {
                         return Ok(true);
                     }
                 }
@@ -693,7 +684,7 @@ fn compute_tuple_deltas(
     var_idx: u32,
     coords: &[F2Dot14],
     tuple_len: usize,
-    mut scalar_cache: Option<&mut ScalarCache>,
+    cache: &mut ScalarCache,
     out: &mut DeltaVec,
 ) -> Result<(), ReadError> {
     *out = SmallVec::with_len(tuple_len, 0.0);
@@ -708,24 +699,16 @@ fn compute_tuple_deltas(
         .map_err(|_| ReadError::InvalidCollectionIndex(outer as _))?;
     let region_indices = data.region_indices();
     let mut deltas = data.delta_set(inner)?.fetcher();
+    let regions = store.region_list()?.regions();
 
-    let mut regions = None;
     for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
-        let scalar = if let Some(cache) = scalar_cache.as_deref_mut() {
-            if let Some(value) = cache.get(region_idx) {
-                value
-            } else {
-                let regions = regions.get_or_insert_with(|| store.region_list().map(|r| r.regions()));
-                let region = regions.as_ref().map_err(|e| e.clone())?.get(region_idx)?;
-                let value = compute_sparse_region_scalar(&region, coords);
-                cache.set(region_idx, value);
-                value
-            }
+        let scalar = if let Some(value) = cache.get(region_idx) {
+            value
         } else {
-            let regions = regions.get_or_insert_with(|| store.region_list().map(|r| r.regions()));
-            let region = regions.as_ref().map_err(|e| e.clone())?.get(region_idx)?;
-            compute_sparse_region_scalar(&region, coords)
+            let value = compute_sparse_region_scalar(&regions.get(region_idx)?, coords);
+            cache.set(region_idx, value);
+            value
         };
         if scalar == 0.0 {
             deltas.skip(tuple_len)?;
