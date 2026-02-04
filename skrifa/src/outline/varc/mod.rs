@@ -709,20 +709,22 @@ fn compute_tuple_deltas(
     let region_indices = data.region_indices();
     let mut deltas = data.delta_set(inner)?.fetcher();
 
-    let regions = store.region_list()?.regions();
+    let mut regions = None;
     for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
         let scalar = if let Some(cache) = scalar_cache.as_deref_mut() {
             if let Some(value) = cache.get(region_idx) {
                 value
             } else {
-                let region = regions.get(region_idx)?;
+                let regions = regions.get_or_insert_with(|| store.region_list().map(|r| r.regions()));
+                let region = regions.as_ref().map_err(|e| e.clone())?.get(region_idx)?;
                 let value = compute_sparse_region_scalar(&region, coords);
                 cache.set(region_idx, value);
                 value
             }
         } else {
-            let region = regions.get(region_idx)?;
+            let regions = regions.get_or_insert_with(|| store.region_list().map(|r| r.regions()));
+            let region = regions.as_ref().map_err(|e| e.clone())?.get(region_idx)?;
             compute_sparse_region_scalar(&region, coords)
         };
         if scalar == 0.0 {
