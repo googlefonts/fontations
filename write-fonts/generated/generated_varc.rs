@@ -254,18 +254,15 @@ impl<'a> FontRead<'a> for SparseVariationRegionList {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SparseVariationRegion {
     pub region_axis_count: u16,
-    pub region_axis_offsets: Vec<SparseRegionAxisCoordinates>,
+    pub region_axes: Vec<SparseRegionAxisCoordinates>,
 }
 
 impl SparseVariationRegion {
     /// Construct a new `SparseVariationRegion`
-    pub fn new(
-        region_axis_count: u16,
-        region_axis_offsets: Vec<SparseRegionAxisCoordinates>,
-    ) -> Self {
+    pub fn new(region_axis_count: u16, region_axes: Vec<SparseRegionAxisCoordinates>) -> Self {
         Self {
             region_axis_count,
-            region_axis_offsets,
+            region_axes,
         }
     }
 }
@@ -273,7 +270,7 @@ impl SparseVariationRegion {
 impl FontWrite for SparseVariationRegion {
     fn write_into(&self, writer: &mut TableWriter) {
         self.region_axis_count.write_into(writer);
-        self.region_axis_offsets.write_into(writer);
+        self.region_axes.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("SparseVariationRegion")
@@ -283,11 +280,11 @@ impl FontWrite for SparseVariationRegion {
 impl Validate for SparseVariationRegion {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SparseVariationRegion", |ctx| {
-            ctx.in_field("region_axis_offsets", |ctx| {
-                if self.region_axis_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("region_axes", |ctx| {
+                if self.region_axes.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");
                 }
-                self.region_axis_offsets.validate_impl(ctx);
+                self.region_axes.validate_impl(ctx);
             });
         })
     }
@@ -301,7 +298,7 @@ impl<'a> FromObjRef<read_fonts::tables::varc::SparseVariationRegion<'a>> for Spa
         let offset_data = obj.offset_data();
         SparseVariationRegion {
             region_axis_count: obj.region_axis_count(),
-            region_axis_offsets: obj.region_axis_offsets().to_owned_obj(offset_data),
+            region_axes: obj.region_axes().to_owned_obj(offset_data),
         }
     }
 }

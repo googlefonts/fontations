@@ -418,7 +418,7 @@ impl<'a> std::fmt::Debug for SparseVariationRegionList<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct SparseVariationRegionMarker {
-    region_axis_offsets_byte_len: usize,
+    region_axes_byte_len: usize,
 }
 
 impl SparseVariationRegionMarker {
@@ -427,15 +427,15 @@ impl SparseVariationRegionMarker {
         start..start + u16::RAW_BYTE_LEN
     }
 
-    pub fn region_axis_offsets_byte_range(&self) -> Range<usize> {
+    pub fn region_axes_byte_range(&self) -> Range<usize> {
         let start = self.region_axis_count_byte_range().end;
-        start..start + self.region_axis_offsets_byte_len
+        start..start + self.region_axes_byte_len
     }
 }
 
 impl MinByteRange for SparseVariationRegionMarker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.region_axis_offsets_byte_range().end
+        0..self.region_axes_byte_range().end
     }
 }
 
@@ -443,12 +443,12 @@ impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let region_axis_count: u16 = cursor.read()?;
-        let region_axis_offsets_byte_len = (region_axis_count as usize)
+        let region_axes_byte_len = (region_axis_count as usize)
             .checked_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(region_axis_offsets_byte_len);
+        cursor.advance_by(region_axes_byte_len);
         cursor.finish(SparseVariationRegionMarker {
-            region_axis_offsets_byte_len,
+            region_axes_byte_len,
         })
     }
 }
@@ -462,8 +462,8 @@ impl<'a> SparseVariationRegion<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn region_axis_offsets(&self) -> &'a [SparseRegionAxisCoordinates] {
-        let range = self.shape.region_axis_offsets_byte_range();
+    pub fn region_axes(&self) -> &'a [SparseRegionAxisCoordinates] {
+        let range = self.shape.region_axes_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
@@ -477,10 +477,10 @@ impl<'a> SomeTable<'a> for SparseVariationRegion<'a> {
         match idx {
             0usize => Some(Field::new("region_axis_count", self.region_axis_count())),
             1usize => Some(Field::new(
-                "region_axis_offsets",
+                "region_axes",
                 traversal::FieldType::array_of_records(
                     stringify!(SparseRegionAxisCoordinates),
-                    self.region_axis_offsets(),
+                    self.region_axes(),
                     self.offset_data(),
                 ),
             )),

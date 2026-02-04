@@ -775,7 +775,7 @@ mod tests {
             .iter()
             .map(|r| {
                 r.unwrap()
-                    .region_axis_offsets()
+                    .region_axes()
                     .iter()
                     .map(|a| {
                         (

@@ -42,7 +42,7 @@ table SparseVariationRegionList {
 table SparseVariationRegion {
     region_axis_count: u16,
     #[count($region_axis_count)]
-    region_axis_offsets: [SparseRegionAxisCoordinates],
+    region_axes: [SparseRegionAxisCoordinates],
 }
 
 record SparseRegionAxisCoordinates
