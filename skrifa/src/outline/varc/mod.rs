@@ -353,16 +353,14 @@ impl<'a> Outlines<'a> {
         scalar_cache: Option<&mut ScalarCache>,
         coords: &mut SmallVec<F2Dot14, 64>,
     ) -> Result<(), DrawError> {
-        if component
-            .flags()
-            .contains(VarcFlags::RESET_UNSPECIFIED_AXES)
-        {
+        let flags = component.flags();
+        if flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) {
             expand_coords(coords, font_coords.len(), font_coords);
         } else {
             expand_coords(coords, current_coords.len(), current_coords);
         }
 
-        if !component.flags().contains(VarcFlags::HAVE_AXES) {
+        if !flags.contains(VarcFlags::HAVE_AXES) {
             return Ok(());
         }
 
@@ -445,37 +443,39 @@ impl<'a> Outlines<'a> {
         };
 
         let flags = component.flags();
-        let mut fields = SmallVec::<TransformField, 9>::new();
+
+        // Count transform fields directly from flags
+        let mut field_count = 0usize;
         if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
-            fields.push(TransformField::TranslateX);
+            field_count += 1;
         }
         if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
-            fields.push(TransformField::TranslateY);
+            field_count += 1;
         }
         if flags.contains(VarcFlags::HAVE_ROTATION) {
-            fields.push(TransformField::Rotation);
+            field_count += 1;
         }
         if flags.contains(VarcFlags::HAVE_SCALE_X) {
-            fields.push(TransformField::ScaleX);
+            field_count += 1;
         }
         let scale_y_present = flags.contains(VarcFlags::HAVE_SCALE_Y);
         if scale_y_present {
-            fields.push(TransformField::ScaleY);
+            field_count += 1;
         }
         if flags.contains(VarcFlags::HAVE_SKEW_X) {
-            fields.push(TransformField::SkewX);
+            field_count += 1;
         }
         if flags.contains(VarcFlags::HAVE_SKEW_Y) {
-            fields.push(TransformField::SkewY);
+            field_count += 1;
         }
         if flags.contains(VarcFlags::HAVE_TCENTER_X) {
-            fields.push(TransformField::CenterX);
+            field_count += 1;
         }
         if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
-            fields.push(TransformField::CenterY);
+            field_count += 1;
         }
 
-        if fields.is_empty() {
+        if field_count == 0 {
             return Ok(());
         }
 
@@ -483,39 +483,47 @@ impl<'a> Outlines<'a> {
             .var_store()?
             .ok_or(ReadError::NullOffset)
             .and_then(|store| {
-                compute_tuple_deltas(&store, var_idx, coords, fields.len(), scalar_cache)
+                compute_tuple_deltas(&store, var_idx, coords, field_count, scalar_cache)
             })?;
 
-        for (field, delta) in fields.into_iter().zip(deltas) {
-            match field {
-                TransformField::TranslateX => {
-                    transform.set_translate_x(transform.translate_x() + delta as f64)
-                }
-                TransformField::TranslateY => {
-                    transform.set_translate_y(transform.translate_y() + delta as f64)
-                }
-                TransformField::Rotation => {
-                    transform.set_rotation(transform.rotation() + delta as f64 / 4096.0)
-                }
-                TransformField::ScaleX => {
-                    transform.set_scale_x(transform.scale_x() + delta as f64 / 1024.0)
-                }
-                TransformField::ScaleY => {
-                    transform.set_scale_y(transform.scale_y() + delta as f64 / 1024.0)
-                }
-                TransformField::SkewX => {
-                    transform.set_skew_x(transform.skew_x() + delta as f64 / 4096.0)
-                }
-                TransformField::SkewY => {
-                    transform.set_skew_y(transform.skew_y() + delta as f64 / 4096.0)
-                }
-                TransformField::CenterX => {
-                    transform.set_center_x(transform.center_x() + delta as f64)
-                }
-                TransformField::CenterY => {
-                    transform.set_center_y(transform.center_y() + delta as f64)
-                }
-            }
+        // Apply deltas in flag order, consuming from iterator
+        let mut delta_iter = deltas.into_iter();
+
+        if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
+            let delta = delta_iter.next().unwrap_or(0);
+            transform.set_translate_x(transform.translate_x() + delta as f64);
+        }
+        if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
+            let delta = delta_iter.next().unwrap_or(0);
+            transform.set_translate_y(transform.translate_y() + delta as f64);
+        }
+        if flags.contains(VarcFlags::HAVE_ROTATION) {
+            let delta = delta_iter.next().unwrap_or(0);
+            transform.set_rotation(transform.rotation() + delta as f64 / 4096.0);
+        }
+        if flags.contains(VarcFlags::HAVE_SCALE_X) {
+            let delta = delta_iter.next().unwrap_or(0);
+            transform.set_scale_x(transform.scale_x() + delta as f64 / 1024.0);
+        }
+        if scale_y_present {
+            let delta = delta_iter.next().unwrap_or(0);
+            transform.set_scale_y(transform.scale_y() + delta as f64 / 1024.0);
+        }
+        if flags.contains(VarcFlags::HAVE_SKEW_X) {
+            let delta = delta_iter.next().unwrap_or(0);
+            transform.set_skew_x(transform.skew_x() + delta as f64 / 4096.0);
+        }
+        if flags.contains(VarcFlags::HAVE_SKEW_Y) {
+            let delta = delta_iter.next().unwrap_or(0);
+            transform.set_skew_y(transform.skew_y() + delta as f64 / 4096.0);
+        }
+        if flags.contains(VarcFlags::HAVE_TCENTER_X) {
+            let delta = delta_iter.next().unwrap_or(0);
+            transform.set_center_x(transform.center_x() + delta as f64);
+        }
+        if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
+            let delta = delta_iter.next().unwrap_or(0);
+            transform.set_center_y(transform.center_y() + delta as f64);
         }
 
         if !scale_y_present {
@@ -608,20 +616,6 @@ impl<'a> Outlines<'a> {
         let region_count = store.region_list()?.regions().len();
         Ok(Some(ScalarCache::new(region_count)))
     }
-}
-
-#[derive(Copy, Clone, Default)]
-enum TransformField {
-    #[default]
-    TranslateX,
-    TranslateY,
-    Rotation,
-    ScaleX,
-    ScaleY,
-    SkewX,
-    SkewY,
-    CenterX,
-    CenterY,
 }
 
 struct ScalarCache {
