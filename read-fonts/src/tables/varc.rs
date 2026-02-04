@@ -32,6 +32,16 @@ impl Varc<'_> {
         Ok(PackedDeltas::consume_all(raw.into()))
     }
 
+    /// Like axis_indices but with a pre-known count to avoid re-counting packed deltas.
+    pub fn axis_indices_with_count(
+        &self,
+        nth: usize,
+        count: usize,
+    ) -> Result<PackedDeltas<'_>, ReadError> {
+        let raw = self.axis_indices_list().get(nth)?;
+        Ok(PackedDeltas::new(raw.into(), count))
+    }
+
     /// Friendlier accessor than directly using raw data via [Index2]
     ///
     /// nth would typically be obtained by looking up a [GlyphId] in [Self::coverage].
@@ -220,6 +230,10 @@ impl<'a> VarcComponent<'a> {
     }
     pub fn axis_indices_index(&self) -> Option<u32> {
         self.axis_indices_index
+    }
+    /// Returns the count of axis indices/values (same count for both).
+    pub fn num_axis_values(&self) -> usize {
+        self.axis_values.as_ref().map(|p| p.count()).unwrap_or(0)
     }
     pub fn axis_values(&self) -> Option<&PackedDeltas<'a>> {
         self.axis_values.as_ref()
