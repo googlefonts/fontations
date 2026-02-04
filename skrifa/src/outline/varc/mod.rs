@@ -712,16 +712,17 @@ fn compute_tuple_deltas(
     let regions = store.region_list()?.regions();
     for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
-        let region = regions.get(region_idx)?;
         let scalar = if let Some(cache) = scalar_cache.as_deref_mut() {
             if let Some(value) = cache.get(region_idx) {
                 value
             } else {
+                let region = regions.get(region_idx)?;
                 let value = compute_sparse_region_scalar(&region, coords);
                 cache.set(region_idx, value);
                 value
             }
         } else {
+            let region = regions.get(region_idx)?;
             compute_sparse_region_scalar(&region, coords)
         };
         if scalar == 0.0 {
