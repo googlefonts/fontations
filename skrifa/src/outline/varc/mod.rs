@@ -237,6 +237,9 @@ impl<'a> Outlines<'a> {
         expand_coords(&mut font_coords, self.axis_count, coords);
         let mut stack = GlyphStack::new();
         let pen: &mut dyn OutlinePen = pen;
+        let coverage = self.varc.coverage()?;
+        let var_store = self.varc.multi_var_store().transpose()?;
+        let mut scalar_cache = self.scalar_cache_from_store(var_store.as_ref())?;
         self.draw_glyph(
             outline.glyph_id,
             outline.coverage_index,
@@ -248,6 +251,9 @@ impl<'a> Outlines<'a> {
             pen,
             &mut stack,
             IDENTITY_MATRIX,
+            var_store.as_ref(),
+            &coverage,
+            scalar_cache.as_mut(),
         )
     }
 
@@ -276,12 +282,13 @@ impl<'a> Outlines<'a> {
         pen: &mut dyn OutlinePen,
         stack: &mut GlyphStack,
         parent_matrix: Affine,
+        var_store: Option<&MultiItemVariationStore<'a>>,
+        coverage: &read_fonts::tables::layout::CoverageTable<'a>,
+        mut scalar_cache: Option<&mut ScalarCache>,
     ) -> Result<(), DrawError> {
         if stack.len() >= GLYF_COMPOSITE_RECURSION_LIMIT {
             return Err(DrawError::RecursionLimitExceeded(glyph_id));
         }
-        let var_store = self.var_store()?;
-        let mut scalar_cache = self.scalar_cache_from_store(var_store.as_ref())?;
         let glyph = self.varc.glyph(coverage_index as usize)?;
         stack.push(glyph_id);
         let mut component_coords = CoordVec::new();
@@ -293,8 +300,8 @@ impl<'a> Outlines<'a> {
             if !self.component_condition_met(
                 &component,
                 current_coords,
-                var_store.as_ref(),
-                scalar_cache.as_mut(),
+                var_store,
+                scalar_cache.as_deref_mut(),
                 &mut deltas,
             )? {
                 continue;
@@ -304,8 +311,8 @@ impl<'a> Outlines<'a> {
                 &component,
                 font_coords,
                 current_coords,
-                var_store.as_ref(),
-                scalar_cache.as_mut(),
+                var_store,
+                scalar_cache.as_deref_mut(),
                 &mut component_coords,
                 &mut deltas,
                 &mut axis_indices,
@@ -316,8 +323,8 @@ impl<'a> Outlines<'a> {
                 &component,
                 current_coords,
                 &mut transform,
-                var_store.as_ref(),
-                scalar_cache.as_mut(),
+                var_store,
+                scalar_cache.as_deref_mut(),
                 &mut deltas,
             )?;
             let matrix = if is_translation_only(component.flags()) {
@@ -330,20 +337,45 @@ impl<'a> Outlines<'a> {
                 mul_matrix(parent_matrix, matrix)
             };
             if component_gid != glyph_id {
-                if let Some(coverage_index) = self.coverage_index(component_gid)? {
+                if let Some(coverage_index) = coverage.get(component_gid) {
                     if !stack.contains(&component_gid) {
-                        self.draw_glyph(
-                            component_gid,
-                            coverage_index,
-                            font_coords,
-                            &component_coords,
-                            size,
-                            path_style,
-                            buf,
-                            pen,
-                            stack,
-                            matrix,
-                        )?;
+                        // Optimization: if coordinates haven't changed, we can reuse
+                        // the scalar cache.
+                        if component_coords.as_slice() == current_coords {
+                            self.draw_glyph(
+                                component_gid,
+                                coverage_index,
+                                font_coords,
+                                current_coords,
+                                size,
+                                path_style,
+                                buf,
+                                pen,
+                                stack,
+                                matrix,
+                                var_store,
+                                coverage,
+                                scalar_cache.as_deref_mut(),
+                            )?;
+                        } else {
+                            let mut new_scalar_cache =
+                                self.scalar_cache_from_store(var_store)?;
+                            self.draw_glyph(
+                                component_gid,
+                                coverage_index,
+                                font_coords,
+                                &component_coords,
+                                size,
+                                path_style,
+                                buf,
+                                pen,
+                                stack,
+                                matrix,
+                                var_store,
+                                coverage,
+                                new_scalar_cache.as_mut(),
+                            )?;
+                        }
                         continue;
                     }
                 }
@@ -632,9 +664,6 @@ impl<'a> Outlines<'a> {
         }
     }
 
-    fn var_store(&self) -> Result<Option<MultiItemVariationStore<'a>>, ReadError> {
-        self.varc.multi_var_store().transpose()
-    }
 
     fn scalar_cache_from_store(
         &self,
