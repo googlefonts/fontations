@@ -678,7 +678,7 @@ fn compute_tuple_deltas<'a>(
         .get(outer)
         .map_err(|_| ReadError::InvalidCollectionIndex(outer as _))?;
     let region_indices = data.region_indices();
-    let mut deltas_iter = data.delta_set(inner)?.iter();
+    let mut deltas = data.delta_set(inner)?.fetcher();
 
     let regions = store.region_list()?.regions();
     let mut out = SmallVec::with_len(tuple_len, 0i32);
@@ -698,15 +698,10 @@ fn compute_tuple_deltas<'a>(
                 compute_sparse_region_scalar(&region, coords)
             };
             if scalar == 0.0 {
-                deltas_iter = deltas_iter.skip_fast(1);
+                deltas.skip(1)?;
                 continue;
             }
-            let delta = deltas_iter.next().ok_or(ReadError::OutOfBounds)?;
-            if scalar == 1.0 {
-                out[0] += delta;
-            } else {
-                out[0] += (delta as f32 * scalar) as i32;
-            }
+            deltas.add_to_i32_scaled(&mut out[..1], scalar)?;
         }
         return Ok(out);
     }
@@ -725,20 +720,10 @@ fn compute_tuple_deltas<'a>(
             compute_sparse_region_scalar(&region, coords)
         };
         if scalar == 0.0 {
-            deltas_iter = deltas_iter.skip_fast(tuple_len);
+            deltas.skip(tuple_len)?;
             continue;
         }
-        if scalar == 1.0 {
-            for value in out.iter_mut() {
-                let delta = deltas_iter.next().ok_or(ReadError::OutOfBounds)?;
-                *value += delta;
-            }
-            continue;
-        }
-        for value in out.iter_mut() {
-            let delta = deltas_iter.next().ok_or(ReadError::OutOfBounds)?;
-            *value += (delta as f32 * scalar) as i32;
-        }
+        deltas.add_to_i32_scaled(out.as_mut_slice(), scalar)?;
     }
 
     Ok(out)
