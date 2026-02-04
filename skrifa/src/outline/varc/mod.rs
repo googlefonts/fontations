@@ -431,12 +431,10 @@ impl<'a> Outlines<'a> {
             out.clear();
             return Ok(());
         };
-        out.clear();
-        out.try_reserve(count);
+        *out = SmallVec::with_len(count, 0.0);
         let mut iter = packed.iter();
-        for _ in 0..count {
-            let value = iter.next().ok_or(ReadError::OutOfBounds)?;
-            out.push(value as f32 / 16384.0);
+        for (slot, value) in out.iter_mut().zip(iter.by_ref().take(count)) {
+            *slot = value as f32 / 16384.0;
         }
         Ok(())
     }
