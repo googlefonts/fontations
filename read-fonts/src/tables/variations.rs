@@ -440,7 +440,7 @@ impl<'a> PackedDeltas<'a> {
         Self { data, count }
     }
 
-    pub(crate) fn count(&self) -> usize {
+    pub fn count(&self) -> usize {
         self.count
     }
 

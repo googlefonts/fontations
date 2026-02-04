@@ -412,7 +412,9 @@ impl<'a> Outlines<'a> {
 
     fn axis_indices(&self, nth: usize, out: &mut SmallVec<u16, 16>) -> Result<(), DrawError> {
         let packed = self.varc.axis_indices(nth)?;
+        let count = packed.count();
         out.clear();
+        out.try_reserve(count);
         for value in packed.iter() {
             out.push(value as u16);
         }
@@ -430,6 +432,7 @@ impl<'a> Outlines<'a> {
             return Ok(());
         };
         out.clear();
+        out.try_reserve(count);
         let mut iter = packed.iter();
         for _ in 0..count {
             let value = iter.next().ok_or(ReadError::OutOfBounds)?;
