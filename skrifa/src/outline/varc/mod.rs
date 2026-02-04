@@ -178,6 +178,12 @@ impl<'a> Outlines<'a> {
         }))
     }
 
+    /// Lightweight coverage lookup without computing max_component_memory.
+    fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u16>, ReadError> {
+        let coverage = self.varc.coverage()?;
+        Ok(coverage.get(glyph_id))
+    }
+
     fn compute_max_component_memory(
         &self,
         glyph_id: GlyphId,
@@ -207,12 +213,8 @@ impl<'a> Outlines<'a> {
             let component_gid = component.gid();
             let component_memory = if component_gid == glyph_id {
                 self.base.base_outline_memory(component_gid)
-            } else if let Some(component_outline) = self.outline(component_gid)? {
-                self.max_component_memory_for_glyph(
-                    component_gid,
-                    component_outline.coverage_index,
-                    stack,
-                )?
+            } else if let Some(coverage_index) = self.coverage_index(component_gid)? {
+                self.max_component_memory_for_glyph(component_gid, coverage_index, stack)?
             } else {
                 self.base.base_outline_memory(component_gid)
             };
@@ -328,11 +330,11 @@ impl<'a> Outlines<'a> {
                 mul_matrix(parent_matrix, matrix)
             };
             if component_gid != glyph_id {
-                if let Some(component_outline) = self.outline(component_gid)? {
+                if let Some(coverage_index) = self.coverage_index(component_gid)? {
                     if !stack.contains(&component_gid) {
                         self.draw_glyph(
                             component_gid,
-                            component_outline.coverage_index,
+                            coverage_index,
                             font_coords,
                             &component_coords,
                             size,
