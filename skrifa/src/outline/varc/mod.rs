@@ -700,6 +700,7 @@ fn compute_tuple_deltas(
     let region_indices = data.region_indices();
     let mut deltas = data.delta_set(inner)?.fetcher();
     let regions = store.region_list()?.regions();
+    let out_slice = out.as_mut_slice();
 
     for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
@@ -712,7 +713,7 @@ fn compute_tuple_deltas(
             deltas.skip(tuple_len)?;
             continue;
         }
-        deltas.add_to_f32_scaled(out.as_mut_slice(), scalar)?;
+        deltas.add_to_f32_scaled(out_slice, scalar)?;
     }
 
     Ok(())
