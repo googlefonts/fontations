@@ -414,11 +414,9 @@ impl<'a> Outlines<'a> {
 
     fn axis_indices(&self, nth: usize, out: &mut SmallVec<u16, 16>) -> Result<(), DrawError> {
         let packed = self.varc.axis_indices(nth)?;
-        let count = packed.count();
-        out.clear();
-        out.try_reserve(count);
-        for value in packed.iter() {
-            out.push(value as u16);
+        *out = SmallVec::with_len(packed.count(), 0);
+        for (slot, value) in out.iter_mut().zip(packed.iter()) {
+            *slot = value as u16;
         }
         Ok(())
     }
