@@ -155,6 +155,10 @@ impl<'a> Outlines<'a> {
         self.base.font()
     }
 
+    pub(crate) fn fallback_outline_kind(&self, glyph_id: GlyphId) -> Option<OutlineKind<'a>> {
+        self.base.base_outline_kind(glyph_id)
+    }
+
     pub fn outline(&self, glyph_id: GlyphId) -> Result<Option<Outline>, ReadError> {
         let coverage = self.varc.coverage()?;
         let Some(coverage_index) = coverage.get(glyph_id) else {

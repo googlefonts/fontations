@@ -612,7 +612,11 @@ impl<'a> OutlineGlyphCollection<'a> {
                 kind: OutlineKind::Cff(cff.clone(), glyph_id, cff.subfont_index(glyph_id)),
             }),
             OutlineCollectionKind::Varc(varc) => Some(OutlineGlyph {
-                kind: OutlineKind::Varc(varc.clone(), varc.outline(glyph_id).ok()??),
+                kind: if let Some(outline) = varc.outline(glyph_id).ok()? {
+                    OutlineKind::Varc(varc.clone(), outline)
+                } else {
+                    varc.fallback_outline_kind(glyph_id)?
+                },
             }),
         }
     }
