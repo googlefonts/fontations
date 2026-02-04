@@ -242,7 +242,7 @@ impl<'a> Outlines<'a> {
             buf,
             pen,
             &mut stack,
-            IDENTITY_MATRIX,
+            TransformKind::Translate { tx: 0.0, ty: 0.0 },
             GLYF_COMPOSITE_RECURSION_LIMIT,
         )
     }
@@ -271,7 +271,7 @@ impl<'a> Outlines<'a> {
         buf: &mut [u8],
         pen: &mut dyn OutlinePen,
         stack: &mut GlyphStack,
-        parent_matrix: Affine,
+        parent_kind: TransformKind,
         remaining_depth: usize,
     ) -> Result<(), DrawError> {
         if remaining_depth == 0 {
@@ -317,15 +317,13 @@ impl<'a> Outlines<'a> {
                 scalar_cache.as_mut(),
                 &mut deltas,
             )?;
-            let matrix = if is_translation_only(component.flags()) {
-                let scale = size.linear_scale(self.units_per_em);
-                let tx = transform.translate_x() * scale;
-                let ty = transform.translate_y() * scale;
-                apply_translation(parent_matrix, tx, ty)
-            } else {
-                let matrix = matrix_with_scale(&transform, size, self.units_per_em);
-                mul_matrix(parent_matrix, matrix)
-            };
+            let child_kind = compose_kind(
+                parent_kind,
+                component.flags(),
+                &transform,
+                size,
+                self.units_per_em,
+            );
             if component_gid != glyph_id {
                 if let Some(component_outline) = self.outline(component_gid)? {
                     if !stack.contains(&component_gid) {
@@ -339,22 +337,48 @@ impl<'a> Outlines<'a> {
                             buf,
                             pen,
                             stack,
-                            matrix,
+                            child_kind,
                             remaining_depth - 1,
                         )?;
                         continue;
                     }
                 }
             }
-            let mut transform_pen = TransformPen::new(pen, matrix);
-            self.draw_base_glyph(
-                component_gid,
-                &component_coords,
-                size,
-                path_style,
-                buf,
-                &mut transform_pen,
-            )?;
+            match child_kind {
+                TransformKind::Translate { tx, ty } => {
+                    let mut translate_pen = TranslatePen::new(pen, tx, ty);
+                    self.draw_base_glyph(
+                        component_gid,
+                        &component_coords,
+                        size,
+                        path_style,
+                        buf,
+                        &mut translate_pen,
+                    )?;
+                }
+                TransformKind::ScaleTranslate { sx, sy, tx, ty } => {
+                    let mut scale_pen = ScaleTranslatePen::new(pen, sx, sy, tx, ty);
+                    self.draw_base_glyph(
+                        component_gid,
+                        &component_coords,
+                        size,
+                        path_style,
+                        buf,
+                        &mut scale_pen,
+                    )?;
+                }
+                TransformKind::General(matrix) => {
+                    let mut transform_pen = TransformPen::new(pen, matrix);
+                    self.draw_base_glyph(
+                        component_gid,
+                        &component_coords,
+                        size,
+                        path_style,
+                        buf,
+                        &mut transform_pen,
+                    )?;
+                }
+            }
         }
         stack.pop();
         Ok(())
@@ -779,8 +803,6 @@ fn matrix_with_scale(transform: &DecomposedTransform, size: Size, units_per_em: 
     matrix
 }
 
-const IDENTITY_MATRIX: Affine = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
-
 #[inline(always)]
 fn mul_matrix(a: Affine, b: Affine) -> Affine {
     [
@@ -793,28 +815,113 @@ fn mul_matrix(a: Affine, b: Affine) -> Affine {
     ]
 }
 
-#[inline(always)]
-fn apply_translation(matrix: Affine, tx: f32, ty: f32) -> Affine {
-    [
-        matrix[0],
-        matrix[1],
-        matrix[2],
-        matrix[3],
-        matrix[0] * tx + matrix[2] * ty + matrix[4],
-        matrix[1] * tx + matrix[3] * ty + matrix[5],
-    ]
+#[derive(Clone, Copy)]
+enum TransformKind {
+    Translate { tx: f32, ty: f32 },
+    ScaleTranslate { sx: f32, sy: f32, tx: f32, ty: f32 },
+    General(Affine),
 }
 
 #[inline(always)]
-fn is_translation_only(flags: VarcFlags) -> bool {
+fn compose_kind(
+    parent: TransformKind,
+    flags: VarcFlags,
+    transform: &DecomposedTransform,
+    size: Size,
+    units_per_em: u16,
+) -> TransformKind {
+    let translate = VarcFlags::HAVE_TRANSLATE_X | VarcFlags::HAVE_TRANSLATE_Y;
+    let scale = VarcFlags::HAVE_SCALE_X | VarcFlags::HAVE_SCALE_Y;
     let other = VarcFlags::HAVE_ROTATION
-        | VarcFlags::HAVE_SCALE_X
-        | VarcFlags::HAVE_SCALE_Y
         | VarcFlags::HAVE_SKEW_X
         | VarcFlags::HAVE_SKEW_Y
         | VarcFlags::HAVE_TCENTER_X
         | VarcFlags::HAVE_TCENTER_Y;
-    !flags.intersects(other)
+
+    if flags.intersects(other) {
+        let child = matrix_with_scale(transform, size, units_per_em);
+        return TransformKind::General(mul_matrix(parent.to_matrix(), child));
+    }
+
+    let tx = if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
+        transform.translate_x() * size.linear_scale(units_per_em)
+    } else {
+        0.0
+    };
+    let ty = if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
+        transform.translate_y() * size.linear_scale(units_per_em)
+    } else {
+        0.0
+    };
+    let sx = if flags.contains(VarcFlags::HAVE_SCALE_X) {
+        transform.scale_x()
+    } else {
+        1.0
+    };
+    let sy = if flags.contains(VarcFlags::HAVE_SCALE_Y) {
+        transform.scale_y()
+    } else if flags.contains(VarcFlags::HAVE_SCALE_X) {
+        transform.scale_x()
+    } else {
+        1.0
+    };
+
+    let child = if flags.intersects(scale) {
+        TransformKind::ScaleTranslate { sx, sy, tx, ty }
+    } else {
+        TransformKind::Translate { tx, ty }
+    };
+
+    match parent {
+        TransformKind::Translate { tx: ptx, ty: pty } => match child {
+            TransformKind::Translate { tx, ty } => TransformKind::Translate {
+                tx: ptx + tx,
+                ty: pty + ty,
+            },
+            TransformKind::ScaleTranslate { sx, sy, tx, ty } => TransformKind::ScaleTranslate {
+                sx,
+                sy,
+                tx: ptx + tx,
+                ty: pty + ty,
+            },
+            TransformKind::General(matrix) => TransformKind::General(matrix),
+        },
+        TransformKind::ScaleTranslate {
+            sx: psx,
+            sy: psy,
+            tx: ptx,
+            ty: pty,
+        } => match child {
+            TransformKind::Translate { tx, ty } => TransformKind::ScaleTranslate {
+                sx: psx,
+                sy: psy,
+                tx: psx * tx + ptx,
+                ty: psy * ty + pty,
+            },
+            TransformKind::ScaleTranslate { sx, sy, tx, ty } => TransformKind::ScaleTranslate {
+                sx: psx * sx,
+                sy: psy * sy,
+                tx: psx * tx + ptx,
+                ty: psy * ty + pty,
+            },
+            TransformKind::General(matrix) => TransformKind::General(matrix),
+        },
+        TransformKind::General(parent_matrix) => {
+            let child_matrix = child.to_matrix();
+            TransformKind::General(mul_matrix(parent_matrix, child_matrix))
+        }
+    }
+}
+
+impl TransformKind {
+    #[inline(always)]
+    fn to_matrix(self) -> Affine {
+        match self {
+            TransformKind::Translate { tx, ty } => [1.0, 0.0, 0.0, 1.0, tx, ty],
+            TransformKind::ScaleTranslate { sx, sy, tx, ty } => [sx, 0.0, 0.0, sy, tx, ty],
+            TransformKind::General(matrix) => matrix,
+        }
+    }
 }
 
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
@@ -834,6 +941,106 @@ impl<'a, P: OutlinePen + ?Sized> TransformPen<'a, P> {
 }
 
 impl<P: OutlinePen + ?Sized> OutlinePen for TransformPen<'_, P> {
+    fn move_to(&mut self, x: f32, y: f32) {
+        let (x, y) = self.transform(x, y);
+        self.pen.move_to(x, y);
+    }
+
+    fn line_to(&mut self, x: f32, y: f32) {
+        let (x, y) = self.transform(x, y);
+        self.pen.line_to(x, y);
+    }
+
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        let (cx0, cy0) = self.transform(cx0, cy0);
+        let (x, y) = self.transform(x, y);
+        self.pen.quad_to(cx0, cy0, x, y);
+    }
+
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        let (cx0, cy0) = self.transform(cx0, cy0);
+        let (cx1, cy1) = self.transform(cx1, cy1);
+        let (x, y) = self.transform(x, y);
+        self.pen.curve_to(cx0, cy0, cx1, cy1, x, y);
+    }
+
+    fn close(&mut self) {
+        self.pen.close();
+    }
+}
+
+struct TranslatePen<'a, P: OutlinePen + ?Sized> {
+    pen: &'a mut P,
+    tx: f32,
+    ty: f32,
+}
+
+impl<'a, P: OutlinePen + ?Sized> TranslatePen<'a, P> {
+    fn new(pen: &'a mut P, tx: f32, ty: f32) -> Self {
+        Self { pen, tx, ty }
+    }
+}
+
+impl<P: OutlinePen + ?Sized> OutlinePen for TranslatePen<'_, P> {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.pen.move_to(x + self.tx, y + self.ty);
+    }
+
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.pen.line_to(x + self.tx, y + self.ty);
+    }
+
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        self.pen.quad_to(
+            cx0 + self.tx,
+            cy0 + self.ty,
+            x + self.tx,
+            y + self.ty,
+        );
+    }
+
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        self.pen.curve_to(
+            cx0 + self.tx,
+            cy0 + self.ty,
+            cx1 + self.tx,
+            cy1 + self.ty,
+            x + self.tx,
+            y + self.ty,
+        );
+    }
+
+    fn close(&mut self) {
+        self.pen.close();
+    }
+}
+
+struct ScaleTranslatePen<'a, P: OutlinePen + ?Sized> {
+    pen: &'a mut P,
+    sx: f32,
+    sy: f32,
+    tx: f32,
+    ty: f32,
+}
+
+impl<'a, P: OutlinePen + ?Sized> ScaleTranslatePen<'a, P> {
+    fn new(pen: &'a mut P, sx: f32, sy: f32, tx: f32, ty: f32) -> Self {
+        Self {
+            pen,
+            sx,
+            sy,
+            tx,
+            ty,
+        }
+    }
+
+    #[inline(always)]
+    fn transform(&self, x: f32, y: f32) -> (f32, f32) {
+        (x * self.sx + self.tx, y * self.sy + self.ty)
+    }
+}
+
+impl<P: OutlinePen + ?Sized> OutlinePen for ScaleTranslatePen<'_, P> {
     fn move_to(&mut self, x: f32, y: f32) {
         let (x, y) = self.transform(x, y);
         self.pen.move_to(x, y);
