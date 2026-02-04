@@ -273,6 +273,7 @@ impl<'a> Outlines<'a> {
         let glyph = self.varc.glyph(coverage_index as usize)?;
         stack.push(glyph_id);
         let mut component_coords = SmallVec::<F2Dot14, 64>::new();
+        let mut deltas = SmallVec::<i32, 32>::new();
         for component in glyph.components() {
             let component = component?;
             if !self.component_condition_met(
@@ -280,6 +281,7 @@ impl<'a> Outlines<'a> {
                 current_coords,
                 var_store.as_ref(),
                 scalar_cache.as_mut(),
+                &mut deltas,
             )? {
                 continue;
             }
@@ -291,6 +293,7 @@ impl<'a> Outlines<'a> {
                 var_store.as_ref(),
                 scalar_cache.as_mut(),
                 &mut component_coords,
+                &mut deltas,
             )?;
             let mut transform = *component.transform();
             self.apply_transform_variations(
@@ -299,6 +302,7 @@ impl<'a> Outlines<'a> {
                 &mut transform,
                 var_store.as_ref(),
                 scalar_cache.as_mut(),
+                &mut deltas,
             )?;
             let matrix = matrix_with_scale(&transform, size, self.units_per_em);
             let mut transform_pen = TransformPen::new(pen, matrix);
@@ -362,6 +366,7 @@ impl<'a> Outlines<'a> {
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
         coords: &mut SmallVec<F2Dot14, 64>,
+        deltas: &mut SmallVec<i32, 32>,
     ) -> Result<(), DrawError> {
         let flags = component.flags();
         if flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) {
@@ -383,15 +388,16 @@ impl<'a> Outlines<'a> {
         self.axis_values(component, axis_indices.len(), &mut axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
             let store = var_store.ok_or(ReadError::NullOffset)?;
-            let deltas = compute_tuple_deltas(
+            compute_tuple_deltas(
                 store,
                 var_idx,
                 current_coords,
                 axis_indices.len(),
                 scalar_cache,
+                deltas,
             )?;
-            for (value, delta) in axis_values.iter_mut().zip(deltas) {
-                *value += delta as f32 / 16384.0;
+            for (value, delta) in axis_values.iter_mut().zip(deltas.iter()) {
+                *value += *delta as f32 / 16384.0;
             }
         }
 
@@ -444,6 +450,7 @@ impl<'a> Outlines<'a> {
         transform: &mut DecomposedTransform,
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
+        deltas: &mut SmallVec<i32, 32>,
     ) -> Result<(), DrawError> {
         let Some(var_idx) = component.transform_var_index() else {
             return Ok(());
@@ -487,10 +494,10 @@ impl<'a> Outlines<'a> {
         }
 
         let store = var_store.ok_or(ReadError::NullOffset)?;
-        let deltas = compute_tuple_deltas(store, var_idx, coords, field_count, scalar_cache)?;
+        compute_tuple_deltas(store, var_idx, coords, field_count, scalar_cache, deltas)?;
 
         // Apply deltas in flag order, consuming from iterator
-        let mut delta_iter = deltas.into_iter();
+        let mut delta_iter = deltas.iter().copied();
 
         if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
             let delta = delta_iter.next().unwrap_or(0);
@@ -541,6 +548,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
+        deltas: &mut SmallVec<i32, 32>,
     ) -> Result<bool, DrawError> {
         let Some(condition_index) = component.condition_index() else {
             return Ok(true);
@@ -550,7 +558,7 @@ impl<'a> Outlines<'a> {
         };
         let condition_list = condition_list?;
         let condition = condition_list.conditions().get(condition_index as usize)?;
-        self.eval_condition(&condition, coords, var_store, scalar_cache)
+        self.eval_condition(&condition, coords, var_store, scalar_cache, deltas)
     }
 
     fn eval_condition(
@@ -559,6 +567,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         mut scalar_cache: Option<&mut ScalarCache>,
+        deltas: &mut SmallVec<i32, 32>,
     ) -> Result<bool, DrawError> {
         match condition {
             Condition::Format1AxisRange(condition) => {
@@ -575,17 +584,20 @@ impl<'a> Outlines<'a> {
                 let default_value = condition.default_value() as i32;
                 let var_idx = condition.var_index();
                 let store = var_store.ok_or(ReadError::NullOffset)?;
-                let delta = compute_tuple_deltas(store, var_idx, coords, 1, scalar_cache)?
-                    .first()
-                    .copied()
-                    .unwrap_or(0);
+                compute_tuple_deltas(store, var_idx, coords, 1, scalar_cache, deltas)?;
+                let delta = deltas.first().copied().unwrap_or(0);
                 Ok(default_value + delta > 0)
             }
             Condition::Format3And(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if !self.eval_condition(&nested, coords, var_store, scalar_cache.as_deref_mut())?
-                    {
+                    if !self.eval_condition(
+                        &nested,
+                        coords,
+                        var_store,
+                        scalar_cache.as_deref_mut(),
+                        deltas,
+                    )? {
                         return Ok(false);
                     }
                 }
@@ -594,8 +606,13 @@ impl<'a> Outlines<'a> {
             Condition::Format4Or(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if self.eval_condition(&nested, coords, var_store, scalar_cache.as_deref_mut())?
-                    {
+                    if self.eval_condition(
+                        &nested,
+                        coords,
+                        var_store,
+                        scalar_cache.as_deref_mut(),
+                        deltas,
+                    )? {
                         return Ok(true);
                     }
                 }
@@ -603,7 +620,7 @@ impl<'a> Outlines<'a> {
             }
             Condition::Format5Negate(condition) => {
                 let nested = condition.condition()?;
-                Ok(!self.eval_condition(&nested, coords, var_store, scalar_cache)?)
+                Ok(!self.eval_condition(&nested, coords, var_store, scalar_cache, deltas)?)
             }
         }
     }
@@ -671,12 +688,11 @@ fn compute_tuple_deltas<'a>(
     coords: &[F2Dot14],
     tuple_len: usize,
     mut scalar_cache: Option<&mut ScalarCache>,
-) -> Result<SmallVec<i32, 32>, ReadError> {
-    if tuple_len == 0 {
-        return Ok(SmallVec::new());
-    }
-    if var_idx == NO_VARIATION_INDEX {
-        return Ok(SmallVec::with_len(tuple_len, 0));
+    out: &mut SmallVec<i32, 32>,
+) -> Result<(), ReadError> {
+    *out = SmallVec::with_len(tuple_len, 0i32);
+    if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
+        return Ok(());
     }
     let outer = (var_idx >> 16) as usize;
     let inner = (var_idx & 0xFFFF) as usize;
@@ -688,7 +704,6 @@ fn compute_tuple_deltas<'a>(
     let mut deltas = data.delta_set(inner)?.fetcher();
 
     let regions = store.region_list()?.regions();
-    let mut out = SmallVec::with_len(tuple_len, 0i32);
     if tuple_len == 1 {
         for region_index in region_indices.iter() {
             let region_idx = region_index.get() as usize;
@@ -710,7 +725,7 @@ fn compute_tuple_deltas<'a>(
             }
             deltas.add_to_i32_scaled(&mut out[..1], scalar)?;
         }
-        return Ok(out);
+        return Ok(());
     }
     for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
@@ -733,7 +748,7 @@ fn compute_tuple_deltas<'a>(
         deltas.add_to_i32_scaled(out.as_mut_slice(), scalar)?;
     }
 
-    Ok(out)
+    Ok(())
 }
 
 fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2Dot14]) -> f32 {
