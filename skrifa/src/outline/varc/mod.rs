@@ -268,13 +268,19 @@ impl<'a> Outlines<'a> {
         if stack.contains(&glyph_id) {
             return Ok(());
         }
-        let mut scalar_cache = self.scalar_cache()?;
+        let var_store = self.var_store()?;
+        let mut scalar_cache = self.scalar_cache_from_store(var_store.as_ref())?;
         let glyph = self.varc.glyph(coverage_index as usize)?;
         stack.push(glyph_id);
         let mut component_coords = SmallVec::<F2Dot14, 64>::new();
         for component in glyph.components() {
             let component = component?;
-            if !self.component_condition_met(&component, current_coords, scalar_cache.as_mut())? {
+            if !self.component_condition_met(
+                &component,
+                current_coords,
+                var_store.as_ref(),
+                scalar_cache.as_mut(),
+            )? {
                 continue;
             }
             let component_gid = component.gid();
@@ -282,6 +288,7 @@ impl<'a> Outlines<'a> {
                 &component,
                 font_coords,
                 current_coords,
+                var_store.as_ref(),
                 scalar_cache.as_mut(),
                 &mut component_coords,
             )?;
@@ -290,6 +297,7 @@ impl<'a> Outlines<'a> {
                 &component,
                 current_coords,
                 &mut transform,
+                var_store.as_ref(),
                 scalar_cache.as_mut(),
             )?;
             let matrix = matrix_with_scale(&transform, size, self.units_per_em);
@@ -351,6 +359,7 @@ impl<'a> Outlines<'a> {
         component: &VarcComponent<'a>,
         font_coords: &[F2Dot14],
         current_coords: &[F2Dot14],
+        var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
         coords: &mut SmallVec<F2Dot14, 64>,
     ) -> Result<(), DrawError> {
@@ -373,18 +382,14 @@ impl<'a> Outlines<'a> {
         let mut axis_values = SmallVec::<f32, 16>::new();
         self.axis_values(component, axis_indices.len(), &mut axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
-            let deltas = self
-                .var_store()?
-                .ok_or(ReadError::NullOffset)
-                .and_then(|store| {
-                    compute_tuple_deltas(
-                        &store,
-                        var_idx,
-                        current_coords,
-                        axis_indices.len(),
-                        scalar_cache,
-                    )
-                })?;
+            let store = var_store.ok_or(ReadError::NullOffset)?;
+            let deltas = compute_tuple_deltas(
+                store,
+                var_idx,
+                current_coords,
+                axis_indices.len(),
+                scalar_cache,
+            )?;
             for (value, delta) in axis_values.iter_mut().zip(deltas) {
                 *value += delta as f32 / 16384.0;
             }
@@ -437,6 +442,7 @@ impl<'a> Outlines<'a> {
         component: &VarcComponent<'a>,
         coords: &[F2Dot14],
         transform: &mut DecomposedTransform,
+        var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
     ) -> Result<(), DrawError> {
         let Some(var_idx) = component.transform_var_index() else {
@@ -480,12 +486,8 @@ impl<'a> Outlines<'a> {
             return Ok(());
         }
 
-        let deltas = self
-            .var_store()?
-            .ok_or(ReadError::NullOffset)
-            .and_then(|store| {
-                compute_tuple_deltas(&store, var_idx, coords, field_count, scalar_cache)
-            })?;
+        let store = var_store.ok_or(ReadError::NullOffset)?;
+        let deltas = compute_tuple_deltas(store, var_idx, coords, field_count, scalar_cache)?;
 
         // Apply deltas in flag order, consuming from iterator
         let mut delta_iter = deltas.into_iter();
@@ -537,6 +539,7 @@ impl<'a> Outlines<'a> {
         &self,
         component: &VarcComponent<'a>,
         coords: &[F2Dot14],
+        var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
     ) -> Result<bool, DrawError> {
         let Some(condition_index) = component.condition_index() else {
@@ -547,13 +550,14 @@ impl<'a> Outlines<'a> {
         };
         let condition_list = condition_list?;
         let condition = condition_list.conditions().get(condition_index as usize)?;
-        self.eval_condition(&condition, coords, scalar_cache)
+        self.eval_condition(&condition, coords, var_store, scalar_cache)
     }
 
     fn eval_condition(
         &self,
         condition: &Condition<'a>,
         coords: &[F2Dot14],
+        var_store: Option<&MultiItemVariationStore<'a>>,
         mut scalar_cache: Option<&mut ScalarCache>,
     ) -> Result<bool, DrawError> {
         match condition {
@@ -570,12 +574,8 @@ impl<'a> Outlines<'a> {
             Condition::Format2VariableValue(condition) => {
                 let default_value = condition.default_value() as i32;
                 let var_idx = condition.var_index();
-                let delta = self
-                    .var_store()?
-                    .ok_or(ReadError::NullOffset)
-                    .and_then(|store| {
-                        compute_tuple_deltas(&store, var_idx, coords, 1, scalar_cache)
-                    })?
+                let store = var_store.ok_or(ReadError::NullOffset)?;
+                let delta = compute_tuple_deltas(store, var_idx, coords, 1, scalar_cache)?
                     .first()
                     .copied()
                     .unwrap_or(0);
@@ -584,7 +584,8 @@ impl<'a> Outlines<'a> {
             Condition::Format3And(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if !self.eval_condition(&nested, coords, scalar_cache.as_deref_mut())? {
+                    if !self.eval_condition(&nested, coords, var_store, scalar_cache.as_deref_mut())?
+                    {
                         return Ok(false);
                     }
                 }
@@ -593,7 +594,8 @@ impl<'a> Outlines<'a> {
             Condition::Format4Or(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if self.eval_condition(&nested, coords, scalar_cache.as_deref_mut())? {
+                    if self.eval_condition(&nested, coords, var_store, scalar_cache.as_deref_mut())?
+                    {
                         return Ok(true);
                     }
                 }
@@ -601,7 +603,7 @@ impl<'a> Outlines<'a> {
             }
             Condition::Format5Negate(condition) => {
                 let nested = condition.condition()?;
-                Ok(!self.eval_condition(&nested, coords, scalar_cache)?)
+                Ok(!self.eval_condition(&nested, coords, var_store, scalar_cache)?)
             }
         }
     }
@@ -610,8 +612,11 @@ impl<'a> Outlines<'a> {
         self.varc.multi_var_store().transpose()
     }
 
-    fn scalar_cache(&self) -> Result<Option<ScalarCache>, DrawError> {
-        let Some(store) = self.var_store()? else {
+    fn scalar_cache_from_store(
+        &self,
+        store: Option<&MultiItemVariationStore<'a>>,
+    ) -> Result<Option<ScalarCache>, DrawError> {
+        let Some(store) = store else {
             return Ok(None);
         };
         let region_count = store.region_list()?.regions().len();
