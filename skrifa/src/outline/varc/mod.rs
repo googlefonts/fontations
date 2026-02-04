@@ -254,7 +254,7 @@ impl<'a> Outlines<'a> {
         let coverage = self.varc.coverage()?;
         let var_store = self.varc.multi_var_store().transpose()?;
         let regions = var_store.as_ref().map(|s| s.region_list()).transpose()?;
-        let mut scalar_cache = self.scalar_cache_from_store(var_store.as_ref())?;
+        let mut scalar_cache = self.scalar_cache_from_store(var_store.as_ref())?.unwrap();
         let mut scratch = Scratchpad::new();
         self.draw_glyph(
             outline.glyph_id,
@@ -270,7 +270,7 @@ impl<'a> Outlines<'a> {
             var_store.as_ref(),
             regions.as_ref(),
             &coverage,
-            scalar_cache.as_mut(),
+            &mut scalar_cache,
             &mut scratch,
         )
     }
@@ -303,7 +303,7 @@ impl<'a> Outlines<'a> {
         var_store: Option<&MultiItemVariationStore<'a>>,
         regions: Option<&SparseVariationRegionList<'a>>,
         coverage: &read_fonts::tables::layout::CoverageTable<'a>,
-        mut scalar_cache: Option<&mut ScalarCache>,
+        scalar_cache: &mut ScalarCache,
         scratch: &mut Scratchpad,
     ) -> Result<(), DrawError> {
         if stack.len() >= GLYF_COMPOSITE_RECURSION_LIMIT {
@@ -320,7 +320,7 @@ impl<'a> Outlines<'a> {
                 current_coords,
                 var_store,
                 regions,
-                scalar_cache.as_deref_mut(),
+                scalar_cache,
                 scratch,
             )? {
                 continue;
@@ -340,7 +340,7 @@ impl<'a> Outlines<'a> {
                     current_coords,
                     var_store,
                     regions,
-                    scalar_cache.as_deref_mut(),
+                    scalar_cache,
                     &mut component_coords_buffer,
                     scratch,
                 )?;
@@ -354,7 +354,7 @@ impl<'a> Outlines<'a> {
                 &mut transform,
                 var_store,
                 regions,
-                scalar_cache.as_deref_mut(),
+                scalar_cache,
                 &mut scratch.deltas,
             )?;
             let matrix = if is_translation_only(flags) {
@@ -385,7 +385,7 @@ impl<'a> Outlines<'a> {
                                 var_store,
                                 regions,
                                 coverage,
-                                scalar_cache.as_deref_mut(),
+                                scalar_cache,
                                 scratch,
                             )?;
                         } else {
@@ -410,7 +410,7 @@ impl<'a> Outlines<'a> {
                                 var_store,
                                 regions,
                                 coverage,
-                                child_scalar_cache,
+                                child_scalar_cache.unwrap(),
                                 scratch,
                             )?;
                         }
@@ -460,7 +460,7 @@ impl<'a> Outlines<'a> {
         current_coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         regions: Option<&SparseVariationRegionList<'a>>,
-        scalar_cache: Option<&mut ScalarCache>,
+        scalar_cache: &mut ScalarCache,
         coords: &mut CoordVec,
         scratch: &mut Scratchpad,
     ) -> Result<(), DrawError> {
@@ -488,14 +488,13 @@ impl<'a> Outlines<'a> {
         if let Some(var_idx) = component.axis_values_var_index() {
             let store = var_store.ok_or(ReadError::NullOffset)?;
             let regions = regions.ok_or(ReadError::NullOffset)?;
-            let cache = scalar_cache.ok_or(ReadError::NullOffset)?;
             compute_tuple_deltas(
                 store,
                 regions,
                 var_idx,
                 current_coords,
                 scratch.axis_indices.len(),
-                cache,
+                scalar_cache,
                 &mut scratch.deltas,
             )?;
             const SCALE: f32 = 1.0 / 16384.0;
@@ -558,7 +557,7 @@ impl<'a> Outlines<'a> {
         transform: &mut DecomposedTransform,
         var_store: Option<&MultiItemVariationStore<'a>>,
         regions: Option<&SparseVariationRegionList<'a>>,
-        scalar_cache: Option<&mut ScalarCache>,
+        scalar_cache: &mut ScalarCache,
         deltas: &mut DeltaVec,
     ) -> Result<(), DrawError> {
         let Some(var_idx) = component.transform_var_index() else {
@@ -588,8 +587,15 @@ impl<'a> Outlines<'a> {
 
         let store = var_store.ok_or(ReadError::NullOffset)?;
         let regions = regions.ok_or(ReadError::NullOffset)?;
-        let cache = scalar_cache.ok_or(ReadError::NullOffset)?;
-        compute_tuple_deltas(store, regions, var_idx, coords, field_count, cache, deltas)?;
+        compute_tuple_deltas(
+            store,
+            regions,
+            var_idx,
+            coords,
+            field_count,
+            scalar_cache,
+            deltas,
+        )?;
 
         // Apply deltas in flag order, consuming from iterator
         let mut delta_iter = deltas.iter().copied();
@@ -651,7 +657,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         regions: Option<&SparseVariationRegionList<'a>>,
-        scalar_cache: Option<&mut ScalarCache>,
+        scalar_cache: &mut ScalarCache,
         scratch: &mut Scratchpad,
     ) -> Result<bool, DrawError> {
         let Some(condition_index) = component.condition_index() else {
@@ -664,8 +670,7 @@ impl<'a> Outlines<'a> {
         let condition = condition_list.conditions().get(condition_index as usize)?;
         let store = var_store.ok_or(ReadError::NullOffset)?;
         let regions = regions.ok_or(ReadError::NullOffset)?;
-        let cache = scalar_cache.ok_or(ReadError::NullOffset)?;
-        Self::eval_condition(&condition, coords, store, regions, cache, scratch)
+        Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch)
     }
 
     fn eval_condition(
