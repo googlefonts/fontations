@@ -571,7 +571,7 @@ impl<'a> PackedDeltaFetcher<'a> {
     }
 
     #[inline(always)]
-    pub fn add_to_i32_scaled(&mut self, out: &mut [i32], scale: f32) -> Result<(), ReadError> {
+    pub fn add_to_f32_scaled(&mut self, out: &mut [f32], scale: f32) -> Result<(), ReadError> {
         let mut remaining = out.len();
         if remaining > self.remaining_total {
             return Err(ReadError::OutOfBounds);
@@ -593,12 +593,12 @@ impl<'a> PackedDeltaFetcher<'a> {
                     let bytes = &self.data[self.pos..self.pos + take];
                     if scaled {
                         for &b in bytes {
-                            out[idx] += (b as i8 as f32 * scale) as i32;
+                            out[idx] += b as i8 as f32 * scale;
                             idx += 1;
                         }
                     } else {
                         for &b in bytes {
-                            out[idx] += b as i8 as i32;
+                            out[idx] += b as i8 as f32;
                             idx += 1;
                         }
                     }
@@ -608,13 +608,13 @@ impl<'a> PackedDeltaFetcher<'a> {
                     let bytes = &self.data[self.pos..self.pos + take * 2];
                     if scaled {
                         for chunk in bytes.chunks_exact(2) {
-                            let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as i32;
-                            out[idx] += (delta as f32 * scale) as i32;
+                            let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as f32;
+                            out[idx] += delta * scale;
                             idx += 1;
                         }
                     } else {
                         for chunk in bytes.chunks_exact(2) {
-                            let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as i32;
+                            let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as f32;
                             out[idx] += delta;
                             idx += 1;
                         }
@@ -626,14 +626,14 @@ impl<'a> PackedDeltaFetcher<'a> {
                     if scaled {
                         for chunk in bytes.chunks_exact(4) {
                             let delta =
-                                i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-                            out[idx] += (delta as f32 * scale) as i32;
+                                i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32;
+                            out[idx] += delta * scale;
                             idx += 1;
                         }
                     } else {
                         for chunk in bytes.chunks_exact(4) {
                             let delta =
-                                i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                                i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32;
                             out[idx] += delta;
                             idx += 1;
                         }

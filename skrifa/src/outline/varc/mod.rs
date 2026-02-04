@@ -270,7 +270,7 @@ impl<'a> Outlines<'a> {
         let glyph = self.varc.glyph(coverage_index as usize)?;
         stack.push(glyph_id);
         let mut component_coords = SmallVec::<F2Dot14, 64>::new();
-        let mut deltas = SmallVec::<i32, 32>::new();
+        let mut deltas = SmallVec::<f32, 32>::new();
         for component in glyph.components() {
             let component = component?;
             if !self.component_condition_met(
@@ -364,7 +364,7 @@ impl<'a> Outlines<'a> {
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
         coords: &mut SmallVec<F2Dot14, 64>,
-        deltas: &mut SmallVec<i32, 32>,
+        deltas: &mut SmallVec<f32, 32>,
     ) -> Result<(), DrawError> {
         let flags = component.flags();
         if flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) {
@@ -395,7 +395,7 @@ impl<'a> Outlines<'a> {
                 deltas,
             )?;
             for (value, delta) in axis_values.iter_mut().zip(deltas.iter()) {
-                *value += *delta as f32 / 16384.0;
+                *value += *delta / 16384.0;
             }
         }
 
@@ -446,7 +446,7 @@ impl<'a> Outlines<'a> {
         transform: &mut DecomposedTransform,
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
-        deltas: &mut SmallVec<i32, 32>,
+        deltas: &mut SmallVec<f32, 32>,
     ) -> Result<(), DrawError> {
         let Some(var_idx) = component.transform_var_index() else {
             return Ok(());
@@ -496,40 +496,40 @@ impl<'a> Outlines<'a> {
         let mut delta_iter = deltas.iter().copied();
 
         if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
-            let delta = delta_iter.next().unwrap_or(0);
-            transform.set_translate_x(transform.translate_x() + delta as f32);
+            let delta = delta_iter.next().unwrap_or(0.0);
+            transform.set_translate_x(transform.translate_x() + delta);
         }
         if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
-            let delta = delta_iter.next().unwrap_or(0);
-            transform.set_translate_y(transform.translate_y() + delta as f32);
+            let delta = delta_iter.next().unwrap_or(0.0);
+            transform.set_translate_y(transform.translate_y() + delta);
         }
         if flags.contains(VarcFlags::HAVE_ROTATION) {
-            let delta = delta_iter.next().unwrap_or(0);
-            transform.set_rotation(transform.rotation() + delta as f32 / 4096.0);
+            let delta = delta_iter.next().unwrap_or(0.0);
+            transform.set_rotation(transform.rotation() + delta / 4096.0);
         }
         if flags.contains(VarcFlags::HAVE_SCALE_X) {
-            let delta = delta_iter.next().unwrap_or(0);
-            transform.set_scale_x(transform.scale_x() + delta as f32 / 1024.0);
+            let delta = delta_iter.next().unwrap_or(0.0);
+            transform.set_scale_x(transform.scale_x() + delta / 1024.0);
         }
         if scale_y_present {
-            let delta = delta_iter.next().unwrap_or(0);
-            transform.set_scale_y(transform.scale_y() + delta as f32 / 1024.0);
+            let delta = delta_iter.next().unwrap_or(0.0);
+            transform.set_scale_y(transform.scale_y() + delta / 1024.0);
         }
         if flags.contains(VarcFlags::HAVE_SKEW_X) {
-            let delta = delta_iter.next().unwrap_or(0);
-            transform.set_skew_x(transform.skew_x() + delta as f32 / 4096.0);
+            let delta = delta_iter.next().unwrap_or(0.0);
+            transform.set_skew_x(transform.skew_x() + delta / 4096.0);
         }
         if flags.contains(VarcFlags::HAVE_SKEW_Y) {
-            let delta = delta_iter.next().unwrap_or(0);
-            transform.set_skew_y(transform.skew_y() + delta as f32 / 4096.0);
+            let delta = delta_iter.next().unwrap_or(0.0);
+            transform.set_skew_y(transform.skew_y() + delta / 4096.0);
         }
         if flags.contains(VarcFlags::HAVE_TCENTER_X) {
-            let delta = delta_iter.next().unwrap_or(0);
-            transform.set_center_x(transform.center_x() + delta as f32);
+            let delta = delta_iter.next().unwrap_or(0.0);
+            transform.set_center_x(transform.center_x() + delta);
         }
         if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
-            let delta = delta_iter.next().unwrap_or(0);
-            transform.set_center_y(transform.center_y() + delta as f32);
+            let delta = delta_iter.next().unwrap_or(0.0);
+            transform.set_center_y(transform.center_y() + delta);
         }
 
         if !scale_y_present {
@@ -544,7 +544,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
-        deltas: &mut SmallVec<i32, 32>,
+        deltas: &mut SmallVec<f32, 32>,
     ) -> Result<bool, DrawError> {
         let Some(condition_index) = component.condition_index() else {
             return Ok(true);
@@ -562,7 +562,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         mut scalar_cache: Option<&mut ScalarCache>,
-        deltas: &mut SmallVec<i32, 32>,
+        deltas: &mut SmallVec<f32, 32>,
     ) -> Result<bool, DrawError> {
         match condition {
             Condition::Format1AxisRange(condition) => {
@@ -576,12 +576,12 @@ impl<'a> Outlines<'a> {
                     && coord <= condition.filter_range_max_value().to_f32())
             }
             Condition::Format2VariableValue(condition) => {
-                let default_value = condition.default_value() as i32;
+                let default_value = condition.default_value() as f32;
                 let var_idx = condition.var_index();
                 let store = var_store.ok_or(ReadError::NullOffset)?;
                 compute_tuple_deltas(store, var_idx, coords, 1, scalar_cache, deltas)?;
-                let delta = deltas.first().copied().unwrap_or(0);
-                Ok(default_value + delta > 0)
+                let delta = deltas.first().copied().unwrap_or(0.0);
+                Ok(default_value + delta > 0.0)
             }
             Condition::Format3And(condition) => {
                 for nested in condition.conditions().iter() {
@@ -689,9 +689,9 @@ fn compute_tuple_deltas(
     coords: &[F2Dot14],
     tuple_len: usize,
     mut scalar_cache: Option<&mut ScalarCache>,
-    out: &mut SmallVec<i32, 32>,
+    out: &mut SmallVec<f32, 32>,
 ) -> Result<(), ReadError> {
-    *out = SmallVec::with_len(tuple_len, 0i32);
+    *out = SmallVec::with_len(tuple_len, 0.0);
     if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
         return Ok(());
     }
@@ -723,7 +723,7 @@ fn compute_tuple_deltas(
             deltas.skip(tuple_len)?;
             continue;
         }
-        deltas.add_to_i32_scaled(out.as_mut_slice(), scalar)?;
+        deltas.add_to_f32_scaled(out.as_mut_slice(), scalar)?;
     }
 
     Ok(())
