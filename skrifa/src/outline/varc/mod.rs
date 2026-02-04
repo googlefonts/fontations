@@ -643,7 +643,7 @@ struct ScalarCache {
 }
 
 impl ScalarCache {
-    const INVALID: f32 = f32::NAN;
+    const INVALID: f32 = 2.0; // Scalars are in [0,1], so 2.0 means "not cached"
 
     fn new(count: usize) -> Self {
         Self {
@@ -651,26 +651,14 @@ impl ScalarCache {
         }
     }
 
-    #[inline]
-    fn get(&self, index: usize) -> Option<f32> {
-        let Some(value) = self.values.get(index).copied() else {
-            return Some(0.0);
-        };
-        if value == 0.0 {
-            return Some(0.0);
-        }
-        if value.is_nan() {
-            return None;
-        }
-        Some(value)
+    fn get(&self, index: usize) -> f32 {
+        self.values.get(index).copied().unwrap_or(Self::INVALID)
     }
 
-    #[inline]
     fn set(&mut self, index: usize, value: f32) {
-        let Some(slot) = self.values.get_mut(index) else {
-            return;
-        };
-        *slot = value;
+        if let Some(slot) = self.values.get_mut(index) {
+            *slot = value;
+        }
     }
 }
 
@@ -705,13 +693,11 @@ fn compute_tuple_deltas(
 
     for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
-        let scalar = if let Some(value) = cache.get(region_idx) {
-            value
-        } else {
-            let value = compute_sparse_region_scalar(&regions.get(region_idx)?, coords);
-            cache.set(region_idx, value);
-            value
-        };
+        let mut scalar = cache.get(region_idx);
+        if scalar >= 2.0 {
+            scalar = compute_sparse_region_scalar(&regions.get(region_idx)?, coords);
+            cache.set(region_idx, scalar);
+        }
         if scalar == 0.0 {
             deltas.skip(tuple_len)?;
             continue;
