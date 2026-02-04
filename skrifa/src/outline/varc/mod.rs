@@ -705,29 +705,6 @@ fn compute_tuple_deltas(
     let mut deltas = data.delta_set(inner)?.fetcher();
 
     let regions = store.region_list()?.regions();
-    if tuple_len == 1 {
-        for region_index in region_indices.iter() {
-            let region_idx = region_index.get() as usize;
-            let region = regions.get(region_idx)?;
-            let scalar = if let Some(cache) = scalar_cache.as_deref_mut() {
-                if let Some(value) = cache.get(region_idx) {
-                    value
-                } else {
-                    let value = compute_sparse_region_scalar(&region, coords);
-                    cache.set(region_idx, value);
-                    value
-                }
-            } else {
-                compute_sparse_region_scalar(&region, coords)
-            };
-            if scalar == 0.0 {
-                deltas.skip(1)?;
-                continue;
-            }
-            deltas.add_to_i32_scaled(&mut out[..1], scalar)?;
-        }
-        return Ok(());
-    }
     for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
         let region = regions.get(region_idx)?;
