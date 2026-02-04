@@ -369,8 +369,10 @@ impl<'a> Outlines<'a> {
         let axis_indices_index = component
             .axis_indices_index()
             .ok_or(ReadError::MalformedData("Missing axisIndicesIndex"))?;
-        let axis_indices = self.axis_indices(axis_indices_index as usize)?;
-        let mut axis_values = self.axis_values(component, axis_indices.len())?;
+        let mut axis_indices = SmallVec::<u16, 64>::new();
+        self.axis_indices(axis_indices_index as usize, &mut axis_indices)?;
+        let mut axis_values = SmallVec::<f32, 64>::new();
+        self.axis_values(component, axis_indices.len(), &mut axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
             let deltas = self
                 .var_store()?
@@ -398,35 +400,37 @@ impl<'a> Outlines<'a> {
         Ok(())
     }
 
-    fn axis_indices(&self, nth: usize) -> Result<SmallVec<u16, 64>, DrawError> {
+    fn axis_indices(&self, nth: usize, out: &mut SmallVec<u16, 64>) -> Result<(), DrawError> {
         let packed = self.varc.axis_indices(nth)?;
-        let mut indices = SmallVec::new();
+        out.clear();
         for value in packed.iter() {
             if value < 0 || value > u16::MAX as i32 {
                 return Err(DrawError::Read(ReadError::MalformedData(
                     "axis index out of range",
                 )));
             }
-            indices.push(value as u16);
+            out.push(value as u16);
         }
-        Ok(indices)
+        Ok(())
     }
 
     fn axis_values(
         &self,
         component: &VarcComponent<'a>,
         count: usize,
-    ) -> Result<SmallVec<f32, 64>, DrawError> {
+        out: &mut SmallVec<f32, 64>,
+    ) -> Result<(), DrawError> {
         let Some(packed) = component.axis_values() else {
-            return Ok(SmallVec::new());
+            out.clear();
+            return Ok(());
         };
-        let mut values = SmallVec::new();
+        out.clear();
         let mut iter = packed.iter();
         for _ in 0..count {
             let value = iter.next().ok_or(ReadError::OutOfBounds)?;
-            values.push(value as f32 / 16384.0);
+            out.push(value as f32 / 16384.0);
         }
-        Ok(values)
+        Ok(())
     }
 
     fn apply_transform_variations(
