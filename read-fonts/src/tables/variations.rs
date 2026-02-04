@@ -588,6 +588,7 @@ impl<'a> PackedDeltaFetcher<'a> {
             match self.value_type {
                 DeltaRunType::Zero => {
                     // nothing to add
+                    idx += take;
                 }
                 DeltaRunType::I8 => {
                     let bytes = &self.data[self.pos..self.pos + take];
@@ -640,9 +641,6 @@ impl<'a> PackedDeltaFetcher<'a> {
                     }
                     self.pos += take * 4;
                 }
-            }
-            if self.value_type == DeltaRunType::Zero {
-                idx += take;
             }
             self.run_count -= take;
             remaining -= take;
