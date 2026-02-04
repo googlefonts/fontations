@@ -577,9 +577,6 @@ impl<'a> PackedDeltaFetcher<'a> {
             return Err(ReadError::OutOfBounds);
         }
         self.remaining_total -= remaining;
-        if scale == 0.0 {
-            return self.skip(remaining);
-        }
         let scaled = scale != 1.0;
         let mut idx = 0usize;
         while remaining > 0 {
