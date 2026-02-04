@@ -233,7 +233,7 @@ impl<'a> Outlines<'a> {
             pen,
             &mut stack,
             IDENTITY_MATRIX,
-            0,
+            GLYF_COMPOSITE_RECURSION_LIMIT,
         )
     }
 
@@ -262,9 +262,9 @@ impl<'a> Outlines<'a> {
         pen: &mut dyn OutlinePen,
         stack: &mut GlyphStack,
         parent_matrix: [f32; 6],
-        depth: usize,
+        remaining_depth: usize,
     ) -> Result<(), DrawError> {
-        if depth > GLYF_COMPOSITE_RECURSION_LIMIT {
+        if remaining_depth == 0 {
             return Err(DrawError::RecursionLimitExceeded(glyph_id));
         }
         let var_store = self.var_store()?;
@@ -330,7 +330,7 @@ impl<'a> Outlines<'a> {
                             pen,
                             stack,
                             matrix,
-                            depth + 1,
+                            remaining_depth - 1,
                         )?;
                         continue;
                     }
