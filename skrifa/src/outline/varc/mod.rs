@@ -31,6 +31,7 @@ type AxisIndexVec = SmallVec<u16, 16>;
 type AxisValueVec = SmallVec<f32, 16>;
 type DeltaVec = SmallVec<f32, 16>;
 type ScalarCacheVec = SmallVec<f32, 128>;
+type Affine = [f32; 6];
 
 #[derive(Clone)]
 enum BaseOutlines<'a> {
@@ -270,7 +271,7 @@ impl<'a> Outlines<'a> {
         buf: &mut [u8],
         pen: &mut dyn OutlinePen,
         stack: &mut GlyphStack,
-        parent_matrix: [f32; 6],
+        parent_matrix: Affine,
         remaining_depth: usize,
     ) -> Result<(), DrawError> {
         if remaining_depth == 0 {
@@ -770,7 +771,7 @@ fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2
 }
 
 #[inline(always)]
-fn matrix_with_scale(transform: &DecomposedTransform, size: Size, units_per_em: u16) -> [f32; 6] {
+fn matrix_with_scale(transform: &DecomposedTransform, size: Size, units_per_em: u16) -> Affine {
     let mut matrix = transform.matrix();
     let scale = size.linear_scale(units_per_em);
     matrix[4] *= scale;
@@ -778,10 +779,10 @@ fn matrix_with_scale(transform: &DecomposedTransform, size: Size, units_per_em: 
     matrix
 }
 
-const IDENTITY_MATRIX: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+const IDENTITY_MATRIX: Affine = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
 
 #[inline(always)]
-fn mul_matrix(a: [f32; 6], b: [f32; 6]) -> [f32; 6] {
+fn mul_matrix(a: Affine, b: Affine) -> Affine {
     [
         a[0] * b[0] + a[2] * b[1],
         a[1] * b[0] + a[3] * b[1],
@@ -793,7 +794,7 @@ fn mul_matrix(a: [f32; 6], b: [f32; 6]) -> [f32; 6] {
 }
 
 #[inline(always)]
-fn apply_translation(matrix: [f32; 6], tx: f32, ty: f32) -> [f32; 6] {
+fn apply_translation(matrix: Affine, tx: f32, ty: f32) -> Affine {
     [
         matrix[0],
         matrix[1],
@@ -818,11 +819,11 @@ fn is_translation_only(flags: VarcFlags) -> bool {
 
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
     pen: &'a mut P,
-    matrix: [f32; 6],
+    matrix: Affine,
 }
 
 impl<'a, P: OutlinePen + ?Sized> TransformPen<'a, P> {
-    fn new(pen: &'a mut P, matrix: [f32; 6]) -> Self {
+    fn new(pen: &'a mut P, matrix: Affine) -> Self {
         Self { pen, matrix }
     }
 
