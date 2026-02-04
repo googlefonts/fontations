@@ -752,11 +752,16 @@ fn compute_tuple_deltas<'a>(
 fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2Dot14]) -> f32 {
     let mut scalar = 1.0f32;
     for axis in region.region_axis_offsets() {
-        let coord = coords
-            .get(axis.axis_index() as usize)
-            .copied()
-            .unwrap_or(F2Dot14::ZERO);
         let peak = axis.peak();
+        if peak == F2Dot14::ZERO {
+            continue;
+        }
+        let axis_index = axis.axis_index() as usize;
+        let coord = coords.get(axis_index).copied().unwrap_or(F2Dot14::ZERO);
+        if coord == F2Dot14::ZERO {
+            scalar = 0.0;
+            break;
+        }
         let start = axis.start();
         let end = axis.end();
         if start > peak || peak > end || (start < F2Dot14::ZERO && end > F2Dot14::ZERO) {
