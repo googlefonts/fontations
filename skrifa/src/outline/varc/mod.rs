@@ -680,8 +680,8 @@ fn expand_coords(out: &mut SmallVec<F2Dot14, 64>, axis_count: usize, coords: &[F
     }
 }
 
-fn compute_tuple_deltas<'a>(
-    store: &MultiItemVariationStore<'a>,
+fn compute_tuple_deltas(
+    store: &MultiItemVariationStore,
     var_idx: u32,
     coords: &[F2Dot14],
     tuple_len: usize,
