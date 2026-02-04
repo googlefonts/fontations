@@ -827,6 +827,7 @@ impl<'a, P: OutlinePen + ?Sized> TransformPen<'a, P> {
         Self { pen, matrix }
     }
 
+    #[inline(always)]
     fn transform(&self, x: f32, y: f32) -> (f32, f32) {
         let [a, b, c, d, e, f] = self.matrix;
         (a * x + c * y + e, b * x + d * y + f)
