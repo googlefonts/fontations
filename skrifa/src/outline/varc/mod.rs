@@ -414,11 +414,6 @@ impl<'a> Outlines<'a> {
         let packed = self.varc.axis_indices(nth)?;
         out.clear();
         for value in packed.iter() {
-            if value < 0 || value > u16::MAX as i32 {
-                return Err(DrawError::Read(ReadError::MalformedData(
-                    "axis index out of range",
-                )));
-            }
             out.push(value as u16);
         }
         Ok(())
