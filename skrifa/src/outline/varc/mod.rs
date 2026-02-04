@@ -730,15 +730,15 @@ fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2
         } else if coord == peak {
             continue;
         } else if coord < peak {
-            let coord = coord.to_f32();
-            let start = start.to_f32();
-            let peak = peak.to_f32();
-            scalar = (scalar * (coord - start)) / (peak - start);
+            // Use raw bits - scale factors cancel in the ratio
+            let numer = (coord.to_bits() - start.to_bits()) as f32;
+            let denom = (peak.to_bits() - start.to_bits()) as f32;
+            scalar = scalar * numer / denom;
         } else {
-            let coord = coord.to_f32();
-            let end = end.to_f32();
-            let peak = peak.to_f32();
-            scalar = (scalar * (end - coord)) / (end - peak);
+            // Use raw bits - scale factors cancel in the ratio
+            let numer = (end.to_bits() - coord.to_bits()) as f32;
+            let denom = (end.to_bits() - peak.to_bits()) as f32;
+            scalar = scalar * numer / denom;
         }
     }
     scalar
