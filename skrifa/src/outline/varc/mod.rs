@@ -358,6 +358,7 @@ impl<'a> Outlines<'a> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn component_coords(
         &self,
         component: &VarcComponent<'a>,
@@ -556,11 +557,10 @@ impl<'a> Outlines<'a> {
         };
         let condition_list = condition_list?;
         let condition = condition_list.conditions().get(condition_index as usize)?;
-        self.eval_condition(&condition, coords, var_store, scalar_cache, deltas)
+        Self::eval_condition(&condition, coords, var_store, scalar_cache, deltas)
     }
 
     fn eval_condition(
-        &self,
         condition: &Condition<'a>,
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
@@ -589,7 +589,7 @@ impl<'a> Outlines<'a> {
             Condition::Format3And(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if !self.eval_condition(
+                    if !Self::eval_condition(
                         &nested,
                         coords,
                         var_store,
@@ -604,7 +604,7 @@ impl<'a> Outlines<'a> {
             Condition::Format4Or(condition) => {
                 for nested in condition.conditions().iter() {
                     let nested = nested?;
-                    if self.eval_condition(
+                    if Self::eval_condition(
                         &nested,
                         coords,
                         var_store,
@@ -618,7 +618,13 @@ impl<'a> Outlines<'a> {
             }
             Condition::Format5Negate(condition) => {
                 let nested = condition.condition()?;
-                Ok(!self.eval_condition(&nested, coords, var_store, scalar_cache, deltas)?)
+                Ok(!Self::eval_condition(
+                    &nested,
+                    coords,
+                    var_store,
+                    scalar_cache,
+                    deltas,
+                )?)
             }
         }
     }
