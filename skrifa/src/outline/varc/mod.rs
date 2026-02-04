@@ -232,6 +232,7 @@ impl<'a> Outlines<'a> {
             buf,
             pen,
             &mut stack,
+            IDENTITY_MATRIX,
             0,
         )
     }
@@ -260,6 +261,7 @@ impl<'a> Outlines<'a> {
         buf: &mut [u8],
         pen: &mut dyn OutlinePen,
         stack: &mut GlyphStack,
+        parent_matrix: [f32; 6],
         depth: usize,
     ) -> Result<(), DrawError> {
         if depth > GLYF_COMPOSITE_RECURSION_LIMIT {
@@ -302,7 +304,7 @@ impl<'a> Outlines<'a> {
                 &mut deltas,
             )?;
             let matrix = matrix_with_scale(&transform, size, self.units_per_em);
-            let mut transform_pen = TransformPen::new(pen, matrix);
+            let matrix = mul_matrix(parent_matrix, matrix);
             if component_gid != glyph_id {
                 if let Some(component_outline) = self.outline(component_gid)? {
                     if !stack.contains(&component_gid) {
@@ -314,14 +316,16 @@ impl<'a> Outlines<'a> {
                             size,
                             path_style,
                             buf,
-                            &mut transform_pen,
+                            pen,
                             stack,
+                            matrix,
                             depth + 1,
                         )?;
                         continue;
                     }
                 }
             }
+            let mut transform_pen = TransformPen::new(pen, matrix);
             self.draw_base_glyph(
                 component_gid,
                 &component_coords,
@@ -765,12 +769,27 @@ fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2
     scalar
 }
 
+#[inline(always)]
 fn matrix_with_scale(transform: &DecomposedTransform, size: Size, units_per_em: u16) -> [f32; 6] {
     let mut matrix = transform.matrix();
     let scale = size.linear_scale(units_per_em);
     matrix[4] *= scale;
     matrix[5] *= scale;
     matrix
+}
+
+const IDENTITY_MATRIX: [f32; 6] = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+
+#[inline(always)]
+fn mul_matrix(a: [f32; 6], b: [f32; 6]) -> [f32; 6] {
+    [
+        a[0] * b[0] + a[2] * b[1],
+        a[1] * b[0] + a[3] * b[1],
+        a[0] * b[2] + a[2] * b[3],
+        a[1] * b[2] + a[3] * b[3],
+        a[0] * b[4] + a[2] * b[5] + a[4],
+        a[1] * b[4] + a[3] * b[5] + a[5],
+    ]
 }
 
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
