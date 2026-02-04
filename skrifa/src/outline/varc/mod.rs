@@ -26,6 +26,11 @@ use crate::{
 use super::{OutlineGlyph, OutlineKind};
 
 type GlyphStack = SmallVec<GlyphId, 8>;
+type CoordVec = SmallVec<F2Dot14, 64>;
+type AxisIndexVec = SmallVec<u16, 16>;
+type AxisValueVec = SmallVec<f32, 16>;
+type DeltaVec = SmallVec<f32, 16>;
+type ScalarCacheVec = SmallVec<f32, 128>;
 
 #[derive(Clone)]
 enum BaseOutlines<'a> {
@@ -275,10 +280,10 @@ impl<'a> Outlines<'a> {
         let mut scalar_cache = self.scalar_cache_from_store(var_store.as_ref())?;
         let glyph = self.varc.glyph(coverage_index as usize)?;
         stack.push(glyph_id);
-        let mut component_coords = SmallVec::<F2Dot14, 64>::new();
-        let mut deltas = SmallVec::<f32, 16>::new();
-        let mut axis_indices = SmallVec::<u16, 16>::new();
-        let mut axis_values = SmallVec::<f32, 16>::new();
+        let mut component_coords = CoordVec::new();
+        let mut deltas = DeltaVec::new();
+        let mut axis_indices = AxisIndexVec::new();
+        let mut axis_values = AxisValueVec::new();
         for component in glyph.components() {
             let component = component?;
             if !self.component_condition_met(
@@ -382,10 +387,10 @@ impl<'a> Outlines<'a> {
         current_coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
-        coords: &mut SmallVec<F2Dot14, 64>,
-        deltas: &mut SmallVec<f32, 16>,
-        axis_indices: &mut SmallVec<u16, 16>,
-        axis_values: &mut SmallVec<f32, 16>,
+        coords: &mut CoordVec,
+        deltas: &mut DeltaVec,
+        axis_indices: &mut AxisIndexVec,
+        axis_values: &mut AxisValueVec,
     ) -> Result<(), DrawError> {
         let flags = component.flags();
         if flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) {
@@ -427,7 +432,7 @@ impl<'a> Outlines<'a> {
         Ok(())
     }
 
-    fn axis_indices(&self, nth: usize, out: &mut SmallVec<u16, 16>) -> Result<(), DrawError> {
+    fn axis_indices(&self, nth: usize, out: &mut AxisIndexVec) -> Result<(), DrawError> {
         let packed = self.varc.axis_indices(nth)?;
         *out = SmallVec::with_len(packed.count(), 0);
         for (slot, value) in out.iter_mut().zip(packed.iter()) {
@@ -440,7 +445,7 @@ impl<'a> Outlines<'a> {
         &self,
         component: &VarcComponent<'a>,
         count: usize,
-        out: &mut SmallVec<f32, 16>,
+        out: &mut AxisValueVec,
     ) -> Result<(), DrawError> {
         let Some(packed) = component.axis_values() else {
             out.clear();
@@ -461,7 +466,7 @@ impl<'a> Outlines<'a> {
         transform: &mut DecomposedTransform,
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
-        deltas: &mut SmallVec<f32, 16>,
+        deltas: &mut DeltaVec,
     ) -> Result<(), DrawError> {
         let Some(var_idx) = component.transform_var_index() else {
             return Ok(());
@@ -547,7 +552,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         scalar_cache: Option<&mut ScalarCache>,
-        deltas: &mut SmallVec<f32, 16>,
+        deltas: &mut DeltaVec,
     ) -> Result<bool, DrawError> {
         let Some(condition_index) = component.condition_index() else {
             return Ok(true);
@@ -565,7 +570,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         mut scalar_cache: Option<&mut ScalarCache>,
-        deltas: &mut SmallVec<f32, 16>,
+        deltas: &mut DeltaVec,
     ) -> Result<bool, DrawError> {
         match condition {
             Condition::Format1AxisRange(condition) => {
@@ -642,7 +647,7 @@ impl<'a> Outlines<'a> {
 }
 
 struct ScalarCache {
-    values: SmallVec<f32, 128>,
+    values: ScalarCacheVec,
 }
 
 impl ScalarCache {
@@ -650,7 +655,7 @@ impl ScalarCache {
 
     fn new(count: usize) -> Self {
         Self {
-            values: SmallVec::with_len(count, Self::INVALID),
+            values: ScalarCacheVec::with_len(count, Self::INVALID),
         }
     }
 
@@ -675,7 +680,7 @@ impl ScalarCache {
     }
 }
 
-fn expand_coords(out: &mut SmallVec<F2Dot14, 64>, axis_count: usize, coords: &[F2Dot14]) {
+fn expand_coords(out: &mut CoordVec, axis_count: usize, coords: &[F2Dot14]) {
     *out = SmallVec::with_len(axis_count, F2Dot14::ZERO);
     for (slot, value) in out.iter_mut().zip(coords.iter().copied()) {
         *slot = value;
@@ -688,7 +693,7 @@ fn compute_tuple_deltas(
     coords: &[F2Dot14],
     tuple_len: usize,
     mut scalar_cache: Option<&mut ScalarCache>,
-    out: &mut SmallVec<f32, 16>,
+    out: &mut DeltaVec,
 ) -> Result<(), ReadError> {
     *out = SmallVec::with_len(tuple_len, 0.0);
     if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
