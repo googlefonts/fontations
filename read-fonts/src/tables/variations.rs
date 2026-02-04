@@ -667,7 +667,6 @@ impl<'a> DeltaRunIter<'a> {
     }
 
     /// Skips `n` deltas without reading the actual delta values.
-    /// Skips `n` deltas without reading the actual delta values.
     #[inline(always)]
     pub fn skip_fast(mut self, n: usize) -> Self {
         let mut wanted = n;
