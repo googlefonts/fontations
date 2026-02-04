@@ -345,7 +345,6 @@ impl Validate for GlyphMap {
 
 impl<'a> FromObjRef<read_fonts::tables::ift::GlyphMap<'a>> for GlyphMap {
     fn from_obj_ref(obj: &read_fonts::tables::ift::GlyphMap<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
         GlyphMap {
             first_mapped_glyph: obj.first_mapped_glyph(),
         }
@@ -428,7 +427,7 @@ impl Validate for FeatureRecord {
 }
 
 impl FromObjRef<read_fonts::tables::ift::FeatureRecord> for FeatureRecord {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::FeatureRecord, offset_data: FontData) -> Self {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::FeatureRecord, _: FontData) -> Self {
         FeatureRecord {
             feature_tag: obj.feature_tag(),
         }
@@ -459,7 +458,7 @@ impl Validate for EntryMapRecord {
 }
 
 impl FromObjRef<read_fonts::tables::ift::EntryMapRecord> for EntryMapRecord {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::EntryMapRecord, offset_data: FontData) -> Self {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::EntryMapRecord, _: FontData) -> Self {
         EntryMapRecord {}
     }
 }

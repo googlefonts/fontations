@@ -9,62 +9,26 @@ use crate::codegen_prelude::*;
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Index1 {
-    /// Number of objects stored in INDEX.
-    pub count: u16,
-    /// Object array element size.
-    pub off_size: u8,
-    /// Bytes containing `count + 1` offsets each of `off_size`.
-    pub offsets: Vec<VarOffset>,
     /// Array containing the object data.
-    pub data: Vec<u8>,
+    pub data: Vec<Vec<u8>>,
 }
 
 impl Index1 {
     /// Construct a new `Index1`
-    pub fn new(count: u16, off_size: u8, offsets: Vec<VarOffset>, data: Vec<u8>) -> Self {
-        Self {
-            count,
-            off_size,
-            offsets,
-            data,
-        }
-    }
-}
-
-impl FontWrite for Index1 {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.count.write_into(writer);
-        self.off_size.write_into(writer);
-        self.offsets.write_into(writer);
-        self.data.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("Index1")
+    #[allow(clippy::useless_conversion)]
+    pub fn new(data: Vec<Vec<u8>>) -> Self {
+        Self { data }
     }
 }
 
 impl Validate for Index1 {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Index1", |ctx| {
-            ctx.in_field("offsets", |ctx| {
-                self.offsets.validate_impl(ctx);
-            });
-        })
-    }
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 impl<'a> FromObjRef<read_fonts::tables::postscript::Index1<'a>> for Index1 {
     fn from_obj_ref(obj: &read_fonts::tables::postscript::Index1<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
         Index1 {
-            count: obj.count(),
-            off_size: obj.off_size(),
-            offsets: obj
-                .offsets()
-                .iter()
-                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
-                .collect(),
-            data: obj.data().to_owned_obj(offset_data),
+            data: convert_objects_f1(obj),
         }
     }
 }
@@ -82,62 +46,26 @@ impl<'a> FontRead<'a> for Index1 {
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Index2 {
-    /// Number of objects stored in INDEX.
-    pub count: u32,
-    /// Object array element size.
-    pub off_size: u8,
-    /// Bytes containing `count + 1` offsets each of `off_size`.
-    pub offsets: Vec<VarOffset>,
     /// Array containing the object data.
-    pub data: Vec<u8>,
+    pub data: Vec<Vec<u8>>,
 }
 
 impl Index2 {
     /// Construct a new `Index2`
-    pub fn new(count: u32, off_size: u8, offsets: Vec<VarOffset>, data: Vec<u8>) -> Self {
-        Self {
-            count,
-            off_size,
-            offsets,
-            data,
-        }
-    }
-}
-
-impl FontWrite for Index2 {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.count.write_into(writer);
-        self.off_size.write_into(writer);
-        self.offsets.write_into(writer);
-        self.data.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("Index2")
+    #[allow(clippy::useless_conversion)]
+    pub fn new(data: Vec<Vec<u8>>) -> Self {
+        Self { data }
     }
 }
 
 impl Validate for Index2 {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Index2", |ctx| {
-            ctx.in_field("offsets", |ctx| {
-                self.offsets.validate_impl(ctx);
-            });
-        })
-    }
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 impl<'a> FromObjRef<read_fonts::tables::postscript::Index2<'a>> for Index2 {
     fn from_obj_ref(obj: &read_fonts::tables::postscript::Index2<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
         Index2 {
-            count: obj.count(),
-            off_size: obj.off_size(),
-            offsets: obj
-                .offsets()
-                .iter()
-                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
-                .collect(),
-            data: obj.data().to_owned_obj(offset_data),
+            data: convert_objects_f2(obj),
         }
     }
 }
