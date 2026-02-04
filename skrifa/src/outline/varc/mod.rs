@@ -687,6 +687,34 @@ fn compute_tuple_deltas<'a>(
 
     let regions = store.region_list()?.regions();
     let mut out = SmallVec::with_len(tuple_len, 0i32);
+    if tuple_len == 1 {
+        for region_index in region_indices.iter() {
+            let region_idx = region_index.get() as usize;
+            let region = regions.get(region_idx)?;
+            let scalar = if let Some(cache) = scalar_cache.as_deref_mut() {
+                if let Some(value) = cache.get(region_idx) {
+                    value
+                } else {
+                    let value = compute_sparse_region_scalar(&region, coords);
+                    cache.set(region_idx, value);
+                    value
+                }
+            } else {
+                compute_sparse_region_scalar(&region, coords)
+            };
+            if scalar == 0.0 {
+                deltas_iter = deltas_iter.skip_fast(1);
+                continue;
+            }
+            let delta = deltas_iter.next().ok_or(ReadError::OutOfBounds)?;
+            if scalar == 1.0 {
+                out[0] += delta as i32;
+            } else {
+                out[0] += (delta as f32 * scalar) as i32;
+            }
+        }
+        return Ok(out);
+    }
     for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
         let region = regions.get(region_idx)?;
