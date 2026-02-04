@@ -445,7 +445,7 @@ impl<'a> Outlines<'a> {
         out: &mut AxisIndexVec,
     ) -> Result<(), DrawError> {
         let packed = self.varc.axis_indices_with_count(nth, count)?;
-        *out = SmallVec::with_len(count, 0);
+        out.resize_and_fill(count, 0);
         for (slot, value) in out.iter_mut().zip(packed.iter()) {
             *slot = value as u16;
         }
@@ -463,7 +463,7 @@ impl<'a> Outlines<'a> {
             return Ok(());
         };
         const SCALE: f32 = 1.0 / 16384.0;
-        *out = SmallVec::with_len(count, 0.0);
+        out.resize_and_fill(count, 0.0);
         let mut iter = packed.iter();
         for (slot, value) in out.iter_mut().zip(iter.by_ref().take(count)) {
             *slot = value as f32 * SCALE;
@@ -673,7 +673,7 @@ impl ScalarCache {
 }
 
 fn expand_coords(out: &mut CoordVec, axis_count: usize, coords: &[F2Dot14]) {
-    *out = SmallVec::with_len(axis_count, F2Dot14::ZERO);
+    out.resize_and_fill(axis_count, F2Dot14::ZERO);
     for (slot, value) in out.iter_mut().zip(coords.iter().copied()) {
         *slot = value;
     }
@@ -687,7 +687,7 @@ fn compute_tuple_deltas(
     cache: &mut ScalarCache,
     out: &mut DeltaVec,
 ) -> Result<(), ReadError> {
-    *out = SmallVec::with_len(tuple_len, 0.0);
+    out.resize_and_fill(tuple_len, 0.0);
     if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
         return Ok(());
     }
