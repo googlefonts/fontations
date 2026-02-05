@@ -708,9 +708,7 @@ impl<'a> DeltaRunIter<'a> {
         loop {
             if wanted > remaining {
                 // Consume the rest of this run and move to the next.
-                if value_type != DeltaRunType::Zero {
-                    self.cursor.advance_by(remaining * value_type as usize);
-                }
+                self.cursor.advance_by(remaining * value_type as usize);
                 wanted -= remaining;
                 if self.read_next_control().is_none() {
                     self.limit = Some(0);
@@ -722,9 +720,7 @@ impl<'a> DeltaRunIter<'a> {
             }
             let consumed = wanted;
             self.remaining_in_run -= consumed as u8;
-            if value_type != DeltaRunType::Zero {
-                self.cursor.advance_by(consumed * value_type as usize);
-            }
+            self.cursor.advance_by(consumed * value_type as usize);
             if let Some(limit) = self.limit.as_mut() {
                 *limit = limit.saturating_sub(n);
             }
