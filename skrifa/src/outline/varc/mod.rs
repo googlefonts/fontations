@@ -328,7 +328,9 @@ impl<'a> Outlines<'a> {
             let component_gid = component.gid();
             let flags = component.flags();
 
-            let (component_coords, coords_the_same) = if !flags.contains(VarcFlags::HAVE_AXES) {
+            let (component_coords, coords_the_same) = if !flags.contains(VarcFlags::HAVE_AXES)
+                && !flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES)
+            {
                 (current_coords, true)
             } else {
                 self.component_coords(
