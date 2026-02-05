@@ -511,12 +511,11 @@ impl<'a> Outlines<'a> {
 
     fn axis_indices(&self, nth: usize, out: &mut AxisIndexVec) -> Result<usize, DrawError> {
         let packed = self.varc.axis_indices(nth)?;
-        let count = packed.count_or_compute();
-        out.resize_and_fill(count, 0);
-        for (slot, value) in out.iter_mut().zip(packed.iter()) {
-            *slot = value as u16;
+        out.clear();
+        for value in packed.iter() {
+            out.push(value as u16);
         }
-        Ok(count)
+        Ok(out.len())
     }
 
     fn axis_values(
