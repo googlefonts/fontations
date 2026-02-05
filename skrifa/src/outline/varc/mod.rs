@@ -328,10 +328,11 @@ impl<'a> Outlines<'a> {
             let component_gid = component.gid();
             let flags = component.flags();
 
-            let (component_coords, coords_the_same) = if !flags.contains(VarcFlags::HAVE_AXES)
-                && !flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES)
-            {
-                (current_coords, true)
+            let coords_the_same = !flags.contains(VarcFlags::HAVE_AXES)
+                && !flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES);
+
+            let component_coords = if coords_the_same {
+                current_coords
             } else {
                 self.component_coords(
                     &component,
@@ -343,7 +344,7 @@ impl<'a> Outlines<'a> {
                     &mut component_coords_buffer,
                     scratch,
                 )?;
-                (component_coords_buffer.as_slice(), false)
+                component_coords_buffer.as_slice()
             };
 
             let mut transform = *component.transform();
