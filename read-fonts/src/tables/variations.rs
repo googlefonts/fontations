@@ -542,11 +542,9 @@ impl<'a> PackedDeltaFetcher<'a> {
         self.run_count = (control & DELTA_RUN_COUNT_MASK) as usize + 1;
         self.value_type = DeltaRunType::new(control);
         let width = self.value_type as usize;
-        if width != 0 {
-            let needed = self.run_count.saturating_mul(width);
-            if self.pos.saturating_add(needed) > self.end {
-                return Err(ReadError::OutOfBounds);
-            }
+        let needed = self.run_count * width;
+        if self.pos + needed > self.end {
+            return Err(ReadError::OutOfBounds);
         }
         Ok(())
     }
@@ -561,9 +559,7 @@ impl<'a> PackedDeltaFetcher<'a> {
             self.ensure_run()?;
             let take = n.min(self.run_count);
             let width = self.value_type as usize;
-            if width != 0 {
-                self.pos += take * width;
-            }
+            self.pos += take * width;
             self.run_count -= take;
             n -= take;
         }
