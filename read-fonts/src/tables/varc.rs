@@ -32,16 +32,6 @@ impl Varc<'_> {
         Ok(PackedDeltas::consume_all(raw.into()))
     }
 
-    /// Like axis_indices but with a pre-known count to avoid re-counting packed deltas.
-    pub fn axis_indices_with_count(
-        &self,
-        nth: usize,
-        count: usize,
-    ) -> Result<PackedDeltas<'_>, ReadError> {
-        let raw = self.axis_indices_list().get(nth)?;
-        Ok(PackedDeltas::new(raw.into(), count))
-    }
-
     /// Friendlier accessor than directly using raw data via [Index2]
     ///
     /// nth would typically be obtained by looking up a [GlyphId] in [Self::coverage].
