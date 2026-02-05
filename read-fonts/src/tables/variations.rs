@@ -571,88 +571,45 @@ impl<'a> PackedDeltaFetcher<'a> {
             return Err(ReadError::OutOfBounds);
         }
         self.remaining_total -= remaining;
-        let scaled = scale != 1.0;
         let mut idx = 0usize;
-        if scaled {
-            while remaining > 0 {
-                self.ensure_run()?;
-                let take = remaining.min(self.run_count);
-                match self.value_type {
-                    DeltaRunType::Zero => {
-                        // nothing to add
-                        idx += take;
-                    }
-                    DeltaRunType::I8 => {
-                        let bytes = &self.data[self.pos..self.pos + take];
-                        for &b in bytes {
-                            out[idx] += b as i8 as f32 * scale;
-                            idx += 1;
-                        }
-                        self.pos += take;
-                    }
-                    DeltaRunType::I16 => {
-                        let bytes = &self.data[self.pos..self.pos + take * 2];
-                        for chunk in bytes.chunks_exact(2) {
-                            let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as f32;
-                            out[idx] += delta * scale;
-                            idx += 1;
-                        }
-                        self.pos += take * 2;
-                    }
-                    DeltaRunType::I32 => {
-                        let bytes = &self.data[self.pos..self.pos + take * 4];
-                        for chunk in bytes.chunks_exact(4) {
-                            let delta =
-                                i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32;
-                            out[idx] += delta * scale;
-                            idx += 1;
-                        }
-                        self.pos += take * 4;
-                    }
+        while remaining > 0 {
+            self.ensure_run()?;
+            let take = remaining.min(self.run_count);
+            match self.value_type {
+                DeltaRunType::Zero => {
+                    // nothing to add
+                    idx += take;
                 }
-                self.run_count -= take;
-                remaining -= take;
-            }
-        } else {
-            while remaining > 0 {
-                self.ensure_run()?;
-                let take = remaining.min(self.run_count);
-                match self.value_type {
-                    DeltaRunType::Zero => {
-                        // nothing to add
-                        idx += take;
+                DeltaRunType::I8 => {
+                    let bytes = &self.data[self.pos..self.pos + take];
+                    for &b in bytes {
+                        out[idx] += b as i8 as f32 * scale;
+                        idx += 1;
                     }
-                    DeltaRunType::I8 => {
-                        let bytes = &self.data[self.pos..self.pos + take];
-                        for &b in bytes {
-                            out[idx] += b as i8 as f32;
-                            idx += 1;
-                        }
-                        self.pos += take;
-                    }
-                    DeltaRunType::I16 => {
-                        let bytes = &self.data[self.pos..self.pos + take * 2];
-                        for chunk in bytes.chunks_exact(2) {
-                            let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as f32;
-                            out[idx] += delta;
-                            idx += 1;
-                        }
-                        self.pos += take * 2;
-                    }
-                    DeltaRunType::I32 => {
-                        let bytes = &self.data[self.pos..self.pos + take * 4];
-                        for chunk in bytes.chunks_exact(4) {
-                            let delta =
-                                i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32;
-                            out[idx] += delta;
-                            idx += 1;
-                        }
-                        self.pos += take * 4;
-                    }
+                    self.pos += take;
                 }
-                self.run_count -= take;
-                remaining -= take;
+                DeltaRunType::I16 => {
+                    let bytes = &self.data[self.pos..self.pos + take * 2];
+                    for chunk in bytes.chunks_exact(2) {
+                        let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as f32;
+                        out[idx] += delta * scale;
+                        idx += 1;
+                    }
+                    self.pos += take * 2;
+                }
+                DeltaRunType::I32 => {
+                    let bytes = &self.data[self.pos..self.pos + take * 4];
+                    for chunk in bytes.chunks_exact(4) {
+                        let delta =
+                            i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32;
+                        out[idx] += delta * scale;
+                        idx += 1;
+                    }
+                    self.pos += take * 4;
+                }
             }
+            self.run_count -= take;
+            remaining -= take;
         }
         Ok(())
     }
