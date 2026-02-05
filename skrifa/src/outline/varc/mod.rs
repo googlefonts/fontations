@@ -327,10 +327,8 @@ impl<'a> Outlines<'a> {
             }
             let component_gid = component.gid();
             let flags = component.flags();
-            let has_axes_or_variations =
-                flags.contains(VarcFlags::HAVE_AXES) || component.axis_values_var_index().is_some();
 
-            let (component_coords, coords_the_same) = if !has_axes_or_variations {
+            let (component_coords, coords_the_same) = if !flags.contains(VarcFlags::HAVE_AXES) {
                 (current_coords, true)
             } else {
                 self.component_coords(
@@ -468,7 +466,7 @@ impl<'a> Outlines<'a> {
             expand_coords(coords, current_coords.len(), current_coords);
         }
 
-        if !flags.contains(VarcFlags::HAVE_AXES) && component.axis_values_var_index().is_none() {
+        if !flags.contains(VarcFlags::HAVE_AXES) {
             return Ok(());
         }
 
