@@ -900,14 +900,14 @@ fn apply_translation(matrix: Affine, tx: f32, ty: f32) -> Affine {
 
 #[inline(always)]
 fn is_translation_only(flags: VarcFlags) -> bool {
-    let other = VarcFlags::HAVE_ROTATION
-        | VarcFlags::HAVE_SCALE_X
-        | VarcFlags::HAVE_SCALE_Y
-        | VarcFlags::HAVE_SKEW_X
-        | VarcFlags::HAVE_SKEW_Y
-        | VarcFlags::HAVE_TCENTER_X
-        | VarcFlags::HAVE_TCENTER_Y;
-    !flags.intersects(other)
+    const OTHER: u32 = VarcFlags::HAVE_ROTATION.bits()
+        | VarcFlags::HAVE_SCALE_X.bits()
+        | VarcFlags::HAVE_SCALE_Y.bits()
+        | VarcFlags::HAVE_SKEW_X.bits()
+        | VarcFlags::HAVE_SKEW_Y.bits()
+        | VarcFlags::HAVE_TCENTER_X.bits()
+        | VarcFlags::HAVE_TCENTER_Y.bits();
+    (flags.bits() & OTHER) == 0
 }
 
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
