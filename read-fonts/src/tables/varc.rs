@@ -233,13 +233,6 @@ impl<'a> VarcComponent<'a> {
     pub fn axis_indices_index(&self) -> Option<u32> {
         self.axis_indices_index
     }
-    /// Returns the count of axis indices/values (same count for both).
-    pub fn num_axis_values(&self) -> usize {
-        self.axis_values
-            .as_ref()
-            .map(|p| p.count_or_compute())
-            .unwrap_or(0)
-    }
     pub fn axis_values(&self) -> Option<&PackedDeltas<'a>> {
         self.axis_values.as_ref()
     }

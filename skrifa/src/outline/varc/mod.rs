@@ -476,12 +476,7 @@ impl<'a> Outlines<'a> {
         let axis_indices_index = component
             .axis_indices_index()
             .ok_or(ReadError::MalformedData("Missing axisIndicesIndex"))?;
-        let num_axes = component.num_axis_values();
-        self.axis_indices(
-            axis_indices_index as usize,
-            num_axes,
-            &mut scratch.axis_indices,
-        )?;
+        let num_axes = self.axis_indices(axis_indices_index as usize, &mut scratch.axis_indices)?;
         self.axis_values(component, num_axes, &mut scratch.axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
             let store = var_store.ok_or(ReadError::NullOffset)?;
@@ -514,18 +509,14 @@ impl<'a> Outlines<'a> {
         Ok(())
     }
 
-    fn axis_indices(
-        &self,
-        nth: usize,
-        count: usize,
-        out: &mut AxisIndexVec,
-    ) -> Result<(), DrawError> {
-        let packed = self.varc.axis_indices_with_count(nth, count)?;
+    fn axis_indices(&self, nth: usize, out: &mut AxisIndexVec) -> Result<usize, DrawError> {
+        let packed = self.varc.axis_indices(nth)?;
+        let count = packed.count_or_compute();
         out.resize_and_fill(count, 0);
         for (slot, value) in out.iter_mut().zip(packed.iter()) {
             *slot = value as u16;
         }
-        Ok(())
+        Ok(count)
     }
 
     fn axis_values(
