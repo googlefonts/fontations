@@ -549,7 +549,6 @@ impl<'a> PackedDeltaFetcher<'a> {
         Ok(())
     }
 
-    #[inline(always)]
     pub fn skip(&mut self, mut n: usize) -> Result<(), ReadError> {
         if n > self.remaining_total {
             return Err(ReadError::OutOfBounds);
@@ -566,16 +565,8 @@ impl<'a> PackedDeltaFetcher<'a> {
         Ok(())
     }
 
-    #[inline(always)]
     pub fn add_to_f32_scaled(&mut self, out: &mut [f32], scale: f32) -> Result<(), ReadError> {
         let mut remaining = out.len();
-
-        if scale == 0.0 {
-            // nothing to add
-            self.skip(remaining)?;
-            return Ok(());
-        }
-
         if remaining > self.remaining_total {
             return Err(ReadError::OutOfBounds);
         }

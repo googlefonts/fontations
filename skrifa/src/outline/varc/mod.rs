@@ -815,7 +815,11 @@ fn compute_tuple_deltas(
             scalar = compute_sparse_region_scalar(&regions.get(region_idx)?, coords);
             cache.set(region_idx, scalar);
         }
-        deltas.add_to_f32_scaled(out_slice, scalar)?;
+        if scalar == 0.0 {
+            deltas.skip(out_slice.len())?;
+        } else {
+            deltas.add_to_f32_scaled(out_slice, scalar)?;
+        }
     }
 
     Ok(())
