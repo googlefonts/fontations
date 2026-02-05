@@ -801,6 +801,7 @@ fn compute_tuple_deltas(
     let regions = regions.regions();
     let out_slice = out.as_mut_slice();
 
+    let mut skip = 0;
     for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
         let mut scalar = cache.get(region_idx);
@@ -808,9 +809,14 @@ fn compute_tuple_deltas(
             scalar = compute_sparse_region_scalar(&regions.get(region_idx)?, coords);
             cache.set(region_idx, scalar);
         }
+        // We skip lazily. Reduces work at the tail end.
         if scalar == 0.0 {
-            deltas.skip(out_slice.len())?;
+            skip += out_slice.len();
         } else {
+            if skip != 0 {
+                deltas.skip(skip)?;
+                skip = 0;
+            }
             deltas.add_to_f32_scaled(out_slice, scalar)?;
         }
     }
