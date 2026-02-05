@@ -25,9 +25,9 @@ use super::OutlineKind;
 
 type GlyphStack = SmallVec<GlyphId, 8>;
 type CoordVec = SmallVec<F2Dot14, 64>;
-type AxisIndexVec = SmallVec<u16, 32>;
-type AxisValueVec = SmallVec<f32, 32>;
-type DeltaVec = SmallVec<f32, 32>;
+type AxisIndexVec = SmallVec<u16, 64>;
+type AxisValueVec = SmallVec<f32, 64>;
+type DeltaVec = SmallVec<f32, 64>;
 type ScalarCacheVec = SmallVec<f32, 128>;
 type Affine = [f32; 6];
 
