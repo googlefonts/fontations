@@ -124,7 +124,9 @@ impl<'a> VarcComponent<'a> {
         let (axis_indices_index, axis_values) = if raw_flags & VarcFlags::HAVE_AXES.bits != 0 {
             // <https://github.com/harfbuzz/harfbuzz/blob/0c2f5ecd51d11e32836ee136a1bc765d650a4ec0/src/OT/Var/VARC/VARC.cc#L195-L206>
             let axis_indices_index = cursor.read_u32_var()?;
-            let num_axis_values = table.axis_indices(axis_indices_index as usize)?.count();
+            let num_axis_values = table
+                .axis_indices(axis_indices_index as usize)?
+                .count_or_compute();
             // we need to consume num_axis_values entries in packed delta format
             let deltas = if num_axis_values > 0 {
                 let Some(data) = cursor.remaining() else {
@@ -233,7 +235,10 @@ impl<'a> VarcComponent<'a> {
     }
     /// Returns the count of axis indices/values (same count for both).
     pub fn num_axis_values(&self) -> usize {
-        self.axis_values.as_ref().map(|p| p.count()).unwrap_or(0)
+        self.axis_values
+            .as_ref()
+            .map(|p| p.count_or_compute())
+            .unwrap_or(0)
     }
     pub fn axis_values(&self) -> Option<&PackedDeltas<'a>> {
         self.axis_values.as_ref()

@@ -425,27 +425,33 @@ impl ExactSizeIterator for PackedPointNumbersIter<'_> {}
 pub struct PackedDeltas<'a> {
     data: FontData<'a>,
     // How many values we expect
-    count: usize,
+    count: Option<usize>,
 }
 
 impl<'a> PackedDeltas<'a> {
     pub(crate) fn new(data: FontData<'a>, count: usize) -> Self {
-        Self { data, count }
+        Self {
+            data,
+            count: Some(count),
+        }
     }
 
     /// NOTE: this is unbounded, and assumes all of data is deltas.
     #[doc(hidden)] // used by tests in write-fonts
     pub fn consume_all(data: FontData<'a>) -> Self {
-        let count = count_all_deltas(data);
-        Self { data, count }
+        Self { data, count: None }
     }
 
-    pub fn count(&self) -> usize {
+    pub fn count(&self) -> Option<usize> {
         self.count
     }
 
+    pub fn count_or_compute(&self) -> usize {
+        self.count.unwrap_or_else(|| count_all_deltas(self.data))
+    }
+
     pub fn iter(&self) -> DeltaRunIter<'a> {
-        DeltaRunIter::new(self.data.cursor(), Some(self.count))
+        DeltaRunIter::new(self.data.cursor(), self.count)
     }
 
     pub fn fetcher(&self) -> PackedDeltaFetcher<'a> {
@@ -453,11 +459,13 @@ impl<'a> PackedDeltas<'a> {
     }
 
     fn x_deltas(&self) -> DeltaRunIter<'a> {
-        DeltaRunIter::new(self.data.cursor(), Some(self.count / 2))
+        let count = self.count_or_compute() / 2;
+        DeltaRunIter::new(self.data.cursor(), Some(count))
     }
 
     fn y_deltas(&self) -> DeltaRunIter<'a> {
-        DeltaRunIter::new(self.data.cursor(), Some(self.count)).skip_fast(self.count / 2)
+        let count = self.count_or_compute();
+        DeltaRunIter::new(self.data.cursor(), Some(count)).skip_fast(count / 2)
     }
 }
 
@@ -514,11 +522,11 @@ pub struct PackedDeltaFetcher<'a> {
     end: usize,
     run_count: usize,
     value_type: DeltaRunType,
-    remaining_total: usize,
+    remaining_total: Option<usize>,
 }
 
 impl<'a> PackedDeltaFetcher<'a> {
-    fn new(data: &'a [u8], count: usize) -> Self {
+    fn new(data: &'a [u8], count: Option<usize>) -> Self {
         Self {
             data,
             pos: 0,
@@ -550,10 +558,12 @@ impl<'a> PackedDeltaFetcher<'a> {
     }
 
     pub fn skip(&mut self, mut n: usize) -> Result<(), ReadError> {
-        if n > self.remaining_total {
-            return Err(ReadError::OutOfBounds);
+        if let Some(remaining_total) = self.remaining_total {
+            if n > remaining_total {
+                return Err(ReadError::OutOfBounds);
+            }
+            self.remaining_total = Some(remaining_total - n);
         }
-        self.remaining_total -= n;
         while n > 0 {
             self.ensure_run()?;
             let take = n.min(self.run_count);
@@ -567,10 +577,12 @@ impl<'a> PackedDeltaFetcher<'a> {
 
     pub fn add_to_f32_scaled(&mut self, out: &mut [f32], scale: f32) -> Result<(), ReadError> {
         let mut remaining = out.len();
-        if remaining > self.remaining_total {
-            return Err(ReadError::OutOfBounds);
+        if let Some(remaining_total) = self.remaining_total {
+            if remaining > remaining_total {
+                return Err(ReadError::OutOfBounds);
+            }
+            self.remaining_total = Some(remaining_total - remaining);
         }
-        self.remaining_total -= remaining;
         let mut idx = 0usize;
         while remaining > 0 {
             self.ensure_run()?;
@@ -613,6 +625,19 @@ impl<'a> PackedDeltaFetcher<'a> {
         }
         Ok(())
     }
+}
+
+/// Counts the number of deltas available in the given data, avoiding
+/// excessive reads.
+fn count_all_deltas(data: FontData) -> usize {
+    let mut count = 0;
+    let mut offset = 0;
+    while let Ok(control) = data.read_at::<u8>(offset) {
+        let run_count = (control & DELTA_RUN_COUNT_MASK) as usize + 1;
+        count += run_count;
+        offset += run_count * DeltaRunType::new(control) as usize + 1;
+    }
+    count
 }
 
 impl<'a> DeltaRunIter<'a> {
@@ -709,19 +734,6 @@ impl Iterator for DeltaRunIter<'_> {
             DeltaRunType::I32 => self.cursor.read::<i32>().ok(),
         }
     }
-}
-
-/// Counts the number of deltas available in the given data, avoiding
-/// excessive reads.
-fn count_all_deltas(data: FontData) -> usize {
-    let mut count = 0;
-    let mut offset = 0;
-    while let Ok(control) = data.read_at::<u8>(offset) {
-        let run_count = (control & DELTA_RUN_COUNT_MASK) as usize + 1;
-        count += run_count;
-        offset += run_count * DeltaRunType::new(control) as usize + 1;
-    }
-    count
 }
 
 /// A helper type for iterating over [`TupleVariationHeader`]s.
@@ -1859,7 +1871,7 @@ mod tests {
         static INPUT: FontData = FontData::new(&[0x83, 0x40, 0x01, 0x02, 0x01, 0x81, 0x80]);
 
         let deltas = PackedDeltas::consume_all(INPUT);
-        assert_eq!(deltas.count, 7);
+        assert_eq!(deltas.count_or_compute(), 7);
         assert_eq!(
             deltas.iter().collect::<Vec<_>>(),
             &[0, 0, 0, 0, 258, -127, -128]
@@ -1882,7 +1894,7 @@ mod tests {
         static EXPECTED: &[i32] = &[10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228];
 
         let deltas = PackedDeltas::consume_all(INPUT);
-        assert_eq!(deltas.count, EXPECTED.len());
+        assert_eq!(deltas.count_or_compute(), EXPECTED.len());
         assert_eq!(deltas.iter().collect::<Vec<_>>(), EXPECTED);
     }
 
@@ -1930,7 +1942,7 @@ mod tests {
             7,
         ]);
         let deltas = PackedDeltas::consume_all(INPUT);
-        assert_eq!(deltas.count, 8);
+        assert_eq!(deltas.count_or_compute(), 8);
         let x_deltas = deltas.x_deltas().collect::<Vec<_>>();
         let y_deltas = deltas.y_deltas().collect::<Vec<_>>();
         assert_eq!(x_deltas, [0, 1, 2, 3]);
