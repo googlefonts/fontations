@@ -480,7 +480,7 @@ impl<'a> Outlines<'a> {
         //println!("reset {}", flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) as u32);
         // //print axis coords as integer
         //print!("axis[");
-        for (i, coord) in current_coords.iter().copied().enumerate() {
+        for (i, _coord) in current_coords.iter().copied().enumerate() {
             if i != 0 {
                 //print!(", ");
             }
@@ -490,7 +490,7 @@ impl<'a> Outlines<'a> {
 
         self.axis_values(component, num_axes, &mut scratch.axis_values)?;
         //print!("bef [");
-        for (i, value) in scratch.axis_values.iter().copied().enumerate() {
+        for (i, _value) in scratch.axis_values.iter().copied().enumerate() {
             if i != 0 {
                 //print!(", ");
             }
@@ -528,7 +528,7 @@ impl<'a> Outlines<'a> {
         }
         // //print axis values as integer
         //print!("aft [");
-        for (i, value) in scratch.axis_values.iter().copied().enumerate() {
+        for (i, _value) in scratch.axis_values.iter().copied().enumerate() {
             if i != 0 {
                 //print!(", ");
             }
