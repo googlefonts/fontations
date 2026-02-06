@@ -357,15 +357,7 @@ impl<'a> Outlines<'a> {
                 scalar_cache,
                 &mut scratch.deltas,
             )?;
-            let matrix = if is_translation_only(flags) {
-                let scale = size.linear_scale(self.units_per_em);
-                let tx = transform.translate_x() * scale;
-                let ty = transform.translate_y() * scale;
-                apply_translation(parent_matrix, tx, ty)
-            } else {
-                let matrix = matrix_with_scale(&transform, size, self.units_per_em);
-                mul_matrix(parent_matrix, matrix)
-            };
+            let matrix = mul_matrix(parent_matrix, transform.matrix());
             if component_gid != glyph_id {
                 if let Some(coverage_index) = coverage.get(component_gid) {
                     if !stack.contains(&component_gid) {
