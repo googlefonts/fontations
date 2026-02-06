@@ -169,15 +169,6 @@ impl<'a> VarcComponent<'a> {
                 transform.scale_x
             };
         }
-        let skew_mask = VarcFlags::HAVE_SKEW_X.bits | VarcFlags::HAVE_SKEW_Y.bits;
-        if raw_flags & skew_mask != 0 {
-            if raw_flags & VarcFlags::HAVE_SKEW_X.bits != 0 {
-                transform.skew_x = cursor.read::<F4Dot12>()?.to_f32()
-            }
-            if raw_flags & VarcFlags::HAVE_SKEW_Y.bits != 0 {
-                transform.skew_y = cursor.read::<F4Dot12>()?.to_f32()
-            }
-        }
         let center_mask = VarcFlags::HAVE_TCENTER_X.bits | VarcFlags::HAVE_TCENTER_Y.bits;
         if raw_flags & center_mask != 0 {
             if raw_flags & VarcFlags::HAVE_TCENTER_X.bits != 0 {
@@ -185,6 +176,15 @@ impl<'a> VarcComponent<'a> {
             }
             if raw_flags & VarcFlags::HAVE_TCENTER_Y.bits != 0 {
                 transform.center_y = cursor.read::<FWord>()?.to_i16() as f32
+            }
+        }
+        let skew_mask = VarcFlags::HAVE_SKEW_X.bits | VarcFlags::HAVE_SKEW_Y.bits;
+        if raw_flags & skew_mask != 0 {
+            if raw_flags & VarcFlags::HAVE_SKEW_X.bits != 0 {
+                transform.skew_x = cursor.read::<F4Dot12>()?.to_f32()
+            }
+            if raw_flags & VarcFlags::HAVE_SKEW_Y.bits != 0 {
+                transform.skew_y = cursor.read::<F4Dot12>()?.to_f32()
             }
         }
 
