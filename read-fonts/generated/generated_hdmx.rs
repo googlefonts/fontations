@@ -90,19 +90,19 @@ impl<'a> Hdmx<'a> {
     /// Table version number (set to 0).
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of device records.
     pub fn num_records(&self) -> u16 {
         let range = self.shape.num_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Size of device record, 32-bit aligned.
     pub fn size_device_record(&self) -> u32 {
         let range = self.shape.size_device_record_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of device records.

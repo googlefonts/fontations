@@ -79,37 +79,37 @@ impl<'a> CffHeader<'a> {
     /// Format major version (starting at 1).
     pub fn major(&self) -> u8 {
         let range = self.shape.major_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Format minor version (starting at 0).
     pub fn minor(&self) -> u8 {
         let range = self.shape.minor_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Header size (bytes).
     pub fn hdr_size(&self) -> u8 {
         let range = self.shape.hdr_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Absolute offset size.
     pub fn off_size(&self) -> u8 {
         let range = self.shape.off_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Padding bytes before the start of the Name INDEX.
     pub fn _padding(&self) -> &'a [u8] {
         let range = self.shape._padding_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// Remaining table data.
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.shape.trailing_data_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 

@@ -86,6 +86,22 @@ impl<'a> FontData<'a> {
             .ok_or(ReadError::OutOfBounds)
     }
 
+    /// Read a scalar without bounds checking.
+    ///
+    /// This method is only intended to be called from generated code which has
+    /// already performed bounds checks. For the safe version, see [`read_at`].
+    ///
+    /// # Safety
+    ///
+    /// Calling this method with an invalid offset is undefined behaviour.
+    ///
+    /// [`read_at`]: FontData::read_at
+    pub(crate) unsafe fn read_at_unchecked<T: Scalar>(&self, offset: usize) -> T {
+        let end = offset.wrapping_add(T::RAW_BYTE_LEN);
+        let bytes = self.bytes.get_unchecked(offset..end);
+        T::read(bytes).unwrap_unchecked()
+    }
+
     /// Read a big-endian value at the provided location in the data.
     pub fn read_be_at<T: Scalar>(&self, offset: usize) -> Result<BigEndian<T>, ReadError> {
         let end = offset
@@ -161,15 +177,44 @@ impl<'a> FontData<'a> {
             .bytes
             .get(range.clone())
             .ok_or(ReadError::OutOfBounds)?;
-        if bytes
-            .len()
-            .checked_rem(std::mem::size_of::<T>())
-            .unwrap_or(1) // definitely != 0
-            != 0
-        {
+        if bytes.len().checked_rem(std::mem::size_of::<T>()) != Some(0) {
             return Err(ReadError::InvalidArrayLen);
         };
         Ok(bytemuck::cast_slice(bytes))
+    }
+
+    /// Interpret the bytes in the provided range as a slice of `T`, without
+    /// checking invariants.
+    ///
+    /// This is only intended to be called from generated code, where bounds
+    /// checks have already occurred and invariants are known to be enforced.
+    ///
+    /// For the safe version, see [`read_array`].
+    ///
+    /// # Safety
+    ///
+    /// Safe use of this method requires upholding the following invariants:
+    ///   - the provided `range` must be in bounds of the underlying data
+    ///   - `size_of::<T>` must be non-zero
+    ///   - the length of the range must be divisible by `size_of::<T>` (no remainder)
+    ///   - the alignment of `T` must be 1.
+    ///
+    ///
+    /// [`read_array`]: FontData::read_array
+    #[allow(clippy::arithmetic_side_effects)] // we want unchecked division
+    pub unsafe fn read_array_unchecked<T: AnyBitPattern + FixedSize>(
+        &self,
+        range: Range<usize>,
+    ) -> &'a [T] {
+        // we use debug_asserts here to triple-check our invariants: all of our
+        // code-generated types should be constructed in our test suite, so if
+        // we've broken an invariant in codegen we should at least catch it here
+        debug_assert!(std::mem::size_of::<T>() > 0);
+        debug_assert_eq!(range.len().checked_rem(std::mem::size_of::<T>()), Some(0));
+        debug_assert!(std::mem::align_of::<T>() == 1);
+        let bytes = self.bytes.get_unchecked(range);
+        let new_len = bytes.len() / std::mem::size_of::<T>();
+        core::slice::from_raw_parts(bytes.as_ptr() as *const T, new_len)
     }
 
     pub(crate) fn cursor(&self) -> Cursor<'a> {

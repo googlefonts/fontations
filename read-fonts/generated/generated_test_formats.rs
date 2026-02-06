@@ -52,17 +52,17 @@ pub type Table1<'a> = TableRef<'a, Table1Marker>;
 impl<'a> Table1<'a> {
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn heft(&self) -> u32 {
         let range = self.shape.heft_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn flex(&self) -> u16 {
         let range = self.shape.flex_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -141,17 +141,17 @@ pub type Table2<'a> = TableRef<'a, Table2Marker>;
 impl<'a> Table2<'a> {
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn value_count(&self) -> u16 {
         let range = self.shape.value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn values(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.values_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -219,12 +219,12 @@ pub type Table3<'a> = TableRef<'a, Table3Marker>;
 impl<'a> Table3<'a> {
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn something(&self) -> u16 {
         let range = self.shape.something_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 

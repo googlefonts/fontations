@@ -72,13 +72,13 @@ impl<'a> Base<'a> {
     /// (major, minor) Version for the BASE table (1,0) or (1,1)
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to horizontal Axis table, from beginning of BASE table (may be NULL)
     pub fn horiz_axis_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.horiz_axis_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`horiz_axis_offset`][Self::horiz_axis_offset].
@@ -90,7 +90,7 @@ impl<'a> Base<'a> {
     /// Offset to vertical Axis table, from beginning of BASE table (may be NULL)
     pub fn vert_axis_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.vert_axis_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`vert_axis_offset`][Self::vert_axis_offset].
@@ -102,7 +102,7 @@ impl<'a> Base<'a> {
     /// Offset to Item Variation Store table, from beginning of BASE table (may be null)
     pub fn item_var_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_var_store_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
@@ -187,7 +187,7 @@ impl<'a> Axis<'a> {
     /// be NULL)
     pub fn base_tag_list_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.base_tag_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`base_tag_list_offset`][Self::base_tag_list_offset].
@@ -199,7 +199,7 @@ impl<'a> Axis<'a> {
     /// Offset to BaseScriptList table, from beginning of Axis table
     pub fn base_script_list_offset(&self) -> Offset16 {
         let range = self.shape.base_script_list_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`base_script_list_offset`][Self::base_script_list_offset].
@@ -285,14 +285,14 @@ impl<'a> BaseTagList<'a> {
     /// — may be zero (0)
     pub fn base_tag_count(&self) -> u16 {
         let range = self.shape.base_tag_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of 4-byte baseline identification tags — must be in
     /// alphabetical order
     pub fn baseline_tags(&self) -> &'a [BigEndian<Tag>] {
         let range = self.shape.baseline_tags_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -365,14 +365,14 @@ impl<'a> BaseScriptList<'a> {
     /// Number of BaseScriptRecords defined
     pub fn base_script_count(&self) -> u16 {
         let range = self.shape.base_script_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of BaseScriptRecords, in alphabetical order by
     /// baseScriptTag
     pub fn base_script_records(&self) -> &'a [BaseScriptRecord] {
         let range = self.shape.base_script_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -517,7 +517,7 @@ impl<'a> BaseScript<'a> {
     /// Offset to BaseValues table, from beginning of BaseScript table (may be NULL)
     pub fn base_values_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.base_values_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`base_values_offset`][Self::base_values_offset].
@@ -529,7 +529,7 @@ impl<'a> BaseScript<'a> {
     /// Offset to MinMax table, from beginning of BaseScript table (may be NULL)
     pub fn default_min_max_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.default_min_max_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`default_min_max_offset`][Self::default_min_max_offset].
@@ -541,14 +541,14 @@ impl<'a> BaseScript<'a> {
     /// Number of BaseLangSysRecords defined — may be zero (0)
     pub fn base_lang_sys_count(&self) -> u16 {
         let range = self.shape.base_lang_sys_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of BaseLangSysRecords, in alphabetical order by
     /// BaseLangSysTag
     pub fn base_lang_sys_records(&self) -> &'a [BaseLangSysRecord] {
         let range = self.shape.base_lang_sys_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -700,14 +700,14 @@ impl<'a> BaseValues<'a> {
     /// BaseTagList
     pub fn default_baseline_index(&self) -> u16 {
         let range = self.shape.default_baseline_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of BaseCoord tables defined — should equal
     /// baseTagCount in the BaseTagList
     pub fn base_coord_count(&self) -> u16 {
         let range = self.shape.base_coord_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of offsets to BaseCoord tables, from beginning of
@@ -715,7 +715,7 @@ impl<'a> BaseValues<'a> {
     /// BaseTagList
     pub fn base_coord_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.base_coord_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`base_coord_offsets`][Self::base_coord_offsets].
@@ -825,7 +825,7 @@ impl<'a> MinMax<'a> {
     /// value, from the beginning of MinMax table (may be NULL)
     pub fn min_coord_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.min_coord_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`min_coord_offset`][Self::min_coord_offset].
@@ -838,7 +838,7 @@ impl<'a> MinMax<'a> {
     /// from the beginning of MinMax table (may be NULL)
     pub fn max_coord_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.max_coord_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`max_coord_offset`][Self::max_coord_offset].
@@ -850,14 +850,14 @@ impl<'a> MinMax<'a> {
     /// Number of FeatMinMaxRecords — may be zero (0)
     pub fn feat_min_max_count(&self) -> u16 {
         let range = self.shape.feat_min_max_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of FeatMinMaxRecords, in alphabetical order by
     /// featureTableTag
     pub fn feat_min_max_records(&self) -> &'a [FeatMinMaxRecord] {
         let range = self.shape.feat_min_max_records_byte_range();
-        self.data.read_array(range).unwrap()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 }
 
@@ -1108,13 +1108,13 @@ impl<'a> BaseCoordFormat1<'a> {
     /// Format identifier — format = 1
     pub fn base_coord_format(&self) -> u16 {
         let range = self.shape.base_coord_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -1196,25 +1196,25 @@ impl<'a> BaseCoordFormat2<'a> {
     /// Format identifier — format = 2
     pub fn base_coord_format(&self) -> u16 {
         let range = self.shape.base_coord_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Glyph ID of control glyph
     pub fn reference_glyph(&self) -> u16 {
         let range = self.shape.reference_glyph_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Index of contour point on the reference glyph
     pub fn base_coord_point(&self) -> u16 {
         let range = self.shape.base_coord_point_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 }
 
@@ -1292,13 +1292,13 @@ impl<'a> BaseCoordFormat3<'a> {
     /// Format identifier — format = 3
     pub fn base_coord_format(&self) -> u16 {
         let range = self.shape.base_coord_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
         let range = self.shape.coordinate_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offset to Device table (non-variable font) / Variation Index
@@ -1306,7 +1306,7 @@ impl<'a> BaseCoordFormat3<'a> {
     /// BaseCoord table (may be NULL).
     pub fn device_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.device_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`device_offset`][Self::device_offset].

@@ -152,7 +152,7 @@ impl<'a> Post<'a> {
     /// 3.0
     pub fn version(&self) -> Version16Dot16 {
         let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Italic angle in counter-clockwise degrees from the vertical.
@@ -160,7 +160,7 @@ impl<'a> Post<'a> {
     /// right (forward).
     pub fn italic_angle(&self) -> Fixed {
         let range = self.shape.italic_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// This is the suggested distance of the top of the underline from
@@ -172,7 +172,7 @@ impl<'a> Post<'a> {
     /// value of this field.
     pub fn underline_position(&self) -> FWord {
         let range = self.shape.underline_position_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Suggested values for the underline thickness. In general, the
@@ -181,53 +181,53 @@ impl<'a> Post<'a> {
     /// the strikeout thickness, which is specified in the OS/2 table.
     pub fn underline_thickness(&self) -> FWord {
         let range = self.shape.underline_thickness_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Set to 0 if the font is proportionally spaced, non-zero if the
     /// font is not proportionally spaced (i.e. monospaced).
     pub fn is_fixed_pitch(&self) -> u32 {
         let range = self.shape.is_fixed_pitch_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minimum memory usage when an OpenType font is downloaded.
     pub fn min_mem_type42(&self) -> u32 {
         let range = self.shape.min_mem_type42_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Maximum memory usage when an OpenType font is downloaded.
     pub fn max_mem_type42(&self) -> u32 {
         let range = self.shape.max_mem_type42_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Minimum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
     pub fn min_mem_type1(&self) -> u32 {
         let range = self.shape.min_mem_type1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Maximum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
     pub fn max_mem_type1(&self) -> u32 {
         let range = self.shape.max_mem_type1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Number of glyphs (this should be the same as numGlyphs in
     /// 'maxp' table).
     pub fn num_glyphs(&self) -> Option<u16> {
         let range = self.shape.num_glyphs_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        Some(unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// Array of indices into the string data. See below for details.
     pub fn glyph_name_index(&self) -> Option<&'a [BigEndian<u16>]> {
         let range = self.shape.glyph_name_index_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        Some(unsafe { self.data.read_array_unchecked(range) })
     }
 
     /// Storage for the string data.
