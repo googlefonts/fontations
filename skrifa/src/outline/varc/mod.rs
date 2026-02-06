@@ -357,7 +357,8 @@ impl<'a> Outlines<'a> {
                 scalar_cache,
                 &mut scratch.deltas,
             )?;
-            let matrix = mul_matrix(parent_matrix, transform.matrix());
+            let scale = size.linear_scale(self.units_per_em);
+            let matrix = mul_matrix(parent_matrix, scale_matrix(transform.matrix(), scale));
             if component_gid != glyph_id {
                 if let Some(coverage_index) = coverage.get(component_gid) {
                     if !stack.contains(&component_gid) {
@@ -889,12 +890,8 @@ fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2
 }
 
 #[inline(always)]
-fn matrix_with_scale(transform: &DecomposedTransform, size: Size, units_per_em: u16) -> Affine {
-    let mut matrix = transform.matrix();
-    let scale = size.linear_scale(units_per_em);
-    matrix[4] *= scale;
-    matrix[5] *= scale;
-    matrix
+fn scale_matrix(m: Affine, s: f32) -> Affine {
+    [m[0], m[1], m[2], m[3], m[4] * s, m[5] * s]
 }
 
 const IDENTITY_MATRIX: Affine = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
@@ -911,29 +908,6 @@ fn mul_matrix(a: Affine, b: Affine) -> Affine {
     ]
 }
 
-#[inline(always)]
-fn apply_translation(matrix: Affine, tx: f32, ty: f32) -> Affine {
-    [
-        matrix[0],
-        matrix[1],
-        matrix[2],
-        matrix[3],
-        matrix[0] * tx + matrix[2] * ty + matrix[4],
-        matrix[1] * tx + matrix[3] * ty + matrix[5],
-    ]
-}
-
-#[inline(always)]
-fn is_translation_only(flags: VarcFlags) -> bool {
-    const OTHER: u32 = VarcFlags::HAVE_ROTATION.bits()
-        | VarcFlags::HAVE_SCALE_X.bits()
-        | VarcFlags::HAVE_SCALE_Y.bits()
-        | VarcFlags::HAVE_SKEW_X.bits()
-        | VarcFlags::HAVE_SKEW_Y.bits()
-        | VarcFlags::HAVE_TCENTER_X.bits()
-        | VarcFlags::HAVE_TCENTER_Y.bits();
-    (flags.bits() & OTHER) == 0
-}
 
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
     pen: &'a mut P,
