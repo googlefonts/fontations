@@ -644,14 +644,6 @@ impl<'a> Outlines<'a> {
                 | VarcFlags::HAVE_TCENTER_Y.bits(),
         );
         if flags.intersects(SKEW_OR_CENTER) {
-            if flags.contains(VarcFlags::HAVE_TCENTER_X) {
-                let delta = delta_iter.next().unwrap_or(0.0);
-                transform.set_center_x(transform.center_x() + delta);
-            }
-            if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
-                let delta = delta_iter.next().unwrap_or(0.0);
-                transform.set_center_y(transform.center_y() + delta);
-            }
             if flags.contains(VarcFlags::HAVE_SKEW_X) {
                 let delta = delta_iter.next().unwrap_or(0.0);
                 transform.set_skew_x(transform.skew_x() + delta / 4096.0);
@@ -659,6 +651,14 @@ impl<'a> Outlines<'a> {
             if flags.contains(VarcFlags::HAVE_SKEW_Y) {
                 let delta = delta_iter.next().unwrap_or(0.0);
                 transform.set_skew_y(transform.skew_y() + delta / 4096.0);
+            }
+            if flags.contains(VarcFlags::HAVE_TCENTER_X) {
+                let delta = delta_iter.next().unwrap_or(0.0);
+                transform.set_center_x(transform.center_x() + delta);
+            }
+            if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
+                let delta = delta_iter.next().unwrap_or(0.0);
+                transform.set_center_y(transform.center_y() + delta);
             }
         }
 
