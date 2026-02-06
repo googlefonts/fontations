@@ -497,18 +497,15 @@ impl<'a> Outlines<'a> {
         if let Some(var_idx) = component.axis_values_var_index() {
             let store = var_store.ok_or(ReadError::NullOffset)?;
             let regions = regions.ok_or(ReadError::NullOffset)?;
-            compute_tuple_deltas(
+            accumulate_tuple_deltas_in_place(
                 store,
                 regions,
                 var_idx,
                 current_coords,
                 scratch.axis_indices.len(),
                 scalar_cache,
-                &mut scratch.deltas,
+                scratch.axis_values.as_mut_slice(),
             )?;
-            for (value, delta) in scratch.axis_values.iter_mut().zip(scratch.deltas.iter()) {
-                *value += *delta;
-            }
         }
 
         for (axis_index, value) in scratch
@@ -812,9 +809,45 @@ fn compute_tuple_deltas(
     out: &mut DeltaVec,
 ) -> Result<(), ReadError> {
     out.resize_and_fill(tuple_len, 0.0);
+    add_tuple_deltas(
+        store,
+        regions,
+        var_idx,
+        coords,
+        tuple_len,
+        cache,
+        out.as_mut_slice(),
+    )
+}
+
+fn accumulate_tuple_deltas_in_place(
+    store: &MultiItemVariationStore,
+    regions: &SparseVariationRegionList,
+    var_idx: u32,
+    coords: &[F2Dot14],
+    tuple_len: usize,
+    cache: &mut ScalarCache,
+    out: &mut [f32],
+) -> Result<(), ReadError> {
+    add_tuple_deltas(store, regions, var_idx, coords, tuple_len, cache, out)
+}
+
+fn add_tuple_deltas(
+    store: &MultiItemVariationStore,
+    regions: &SparseVariationRegionList,
+    var_idx: u32,
+    coords: &[F2Dot14],
+    tuple_len: usize,
+    cache: &mut ScalarCache,
+    out: &mut [f32],
+) -> Result<(), ReadError> {
     if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
         return Ok(());
     }
+    if out.len() < tuple_len {
+        return Err(ReadError::OutOfBounds);
+    }
+    let out = &mut out[..tuple_len];
     let outer = (var_idx >> 16) as usize;
     let inner = (var_idx & 0xFFFF) as usize;
     let data = store
@@ -824,7 +857,6 @@ fn compute_tuple_deltas(
     let region_indices = data.region_indices();
     let mut deltas = data.delta_set(inner)?.fetcher();
     let regions = regions.regions();
-    let out_slice = out.as_mut_slice();
 
     let mut skip = 0;
     for region_index in region_indices.iter() {
@@ -834,18 +866,16 @@ fn compute_tuple_deltas(
             scalar = compute_sparse_region_scalar(&regions.get(region_idx)?, coords);
             cache.set(region_idx, scalar);
         }
-        // We skip lazily. Reduces work at the tail end.
         if scalar == 0.0 {
-            skip += out_slice.len();
-        } else {
-            if skip != 0 {
-                deltas.skip(skip)?;
-                skip = 0;
-            }
-            deltas.add_to_f32_scaled(out_slice, scalar)?;
+            skip += tuple_len;
+            continue;
         }
+        if skip != 0 {
+            deltas.skip(skip)?;
+            skip = 0;
+        }
+        deltas.add_to_f32_scaled(out, scalar)?;
     }
-
     Ok(())
 }
 
