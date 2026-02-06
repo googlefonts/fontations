@@ -871,7 +871,7 @@ fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2
         let start = axis.start();
         let end = axis.end();
         if start > peak || peak > end || (start < F2Dot14::ZERO && end > F2Dot14::ZERO) {
-            return 1.0;
+            continue;
         }
         if coord < start || coord > end {
             return 0.0;
