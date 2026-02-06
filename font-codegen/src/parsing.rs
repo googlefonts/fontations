@@ -1884,9 +1884,9 @@ impl IfTransform {
         Ok(IfTransform::AnyFlag(field.clone(), flags))
     }
 
-    pub(crate) fn input_field(&self) -> Vec<syn::Ident> {
+    pub(crate) fn input_field(&self) -> syn::Ident {
         match self {
-            IfTransform::AnyFlag(field, _) => vec![field.clone()],
+            IfTransform::AnyFlag(field, _) => field.clone(),
         }
     }
 }
