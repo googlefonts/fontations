@@ -21,6 +21,10 @@ use crate::{
     GLYF_COMPOSITE_RECURSION_LIMIT,
 };
 
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::CoreFloat;
+
 use super::OutlineKind;
 
 type GlyphStack = SmallVec<GlyphId, 8>;
@@ -516,19 +520,8 @@ impl<'a> Outlines<'a> {
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
                 return Err(DrawError::Read(ReadError::OutOfBounds));
             };
-            // Match HarfBuzz: keep axis values in raw 2.14-bit space and round once.
-            let rounded = if value >= 0.0 {
-                value + 0.5
-            } else {
-                value - 0.5
-            };
-            let mut raw = rounded as i32;
-            if raw < i16::MIN as i32 {
-                raw = i16::MIN as i32;
-            } else if raw > i16::MAX as i32 {
-                raw = i16::MAX as i32;
-            }
-            *slot = F2Dot14::from_bits(raw as i16);
+            let raw = value.round().clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+            *slot = F2Dot14::from_bits(raw);
         }
         // //print axis values as integer
         //print!("aft [");
