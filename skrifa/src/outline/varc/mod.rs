@@ -502,9 +502,8 @@ impl<'a> Outlines<'a> {
                 scalar_cache,
                 &mut scratch.deltas,
             )?;
-            const SCALE: f32 = 1.0 / 16384.0;
             for (value, delta) in scratch.axis_values.iter_mut().zip(scratch.deltas.iter()) {
-                *value += *delta * SCALE;
+                *value += *delta;
             }
         }
 
@@ -517,7 +516,9 @@ impl<'a> Outlines<'a> {
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
                 return Err(DrawError::Read(ReadError::OutOfBounds));
             };
-            *slot = F2Dot14::from_f32(value);
+            // Match HarfBuzz: keep axis values in raw 2.14-bit space and round once.
+            let raw = value.round().clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+            *slot = F2Dot14::from_bits(raw);
         }
         // //print axis values as integer
         //print!("aft [");
@@ -550,10 +551,9 @@ impl<'a> Outlines<'a> {
             out.clear();
             return Ok(());
         };
-        const SCALE: f32 = 1.0 / 16384.0;
         out.resize_and_fill(count, 0.0);
         for (slot, value) in out.iter_mut().zip(packed.iter().by_ref().take(count)) {
-            *slot = value as f32 * SCALE;
+            *slot = value as f32;
         }
         Ok(())
     }
