@@ -908,7 +908,6 @@ fn mul_matrix(a: Affine, b: Affine) -> Affine {
     ]
 }
 
-
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
     pen: &'a mut P,
     matrix: Affine,
