@@ -91,7 +91,7 @@ fn subset_gdef(
                 &var_store,
                 s,
                 plan,
-                &plan.gdef_varstore_inner_maps,
+                (&plan.gdef_varstore_inner_maps, false),
                 var_store_offset_pos,
             ) {
                 Ok(()) => true,
