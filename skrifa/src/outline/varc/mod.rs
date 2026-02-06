@@ -477,7 +477,26 @@ impl<'a> Outlines<'a> {
             .axis_indices_index()
             .ok_or(ReadError::MalformedData("Missing axisIndicesIndex"))?;
         let num_axes = self.axis_indices(axis_indices_index as usize, &mut scratch.axis_indices)?;
+        //println!("reset {}", flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) as u32);
+        // //print axis coords as integer
+        //print!("axis[");
+        for (i, coord) in current_coords.iter().copied().enumerate() {
+            if i != 0 {
+                //print!(", ");
+            }
+            //print!("{}:{}", i, (coord.to_bits()) as i32);
+        }
+        //println!("]");
+
         self.axis_values(component, num_axes, &mut scratch.axis_values)?;
+        //print!("bef [");
+        for (i, value) in scratch.axis_values.iter().copied().enumerate() {
+            if i != 0 {
+                //print!(", ");
+            }
+            //print!("{}", (value * 16384.0).round() as i32);
+        }
+        //println!("]");
         if let Some(var_idx) = component.axis_values_var_index() {
             let store = var_store.ok_or(ReadError::NullOffset)?;
             let regions = regions.ok_or(ReadError::NullOffset)?;
@@ -501,11 +520,21 @@ impl<'a> Outlines<'a> {
             .iter()
             .zip(scratch.axis_values.iter().copied())
         {
+            //println!("Setting axis {} to {}", axis_index, (value * 16384.0).round() as i32);
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
                 return Err(DrawError::Read(ReadError::OutOfBounds));
             };
             *slot = F2Dot14::from_f32(value);
         }
+        // //print axis values as integer
+        //print!("aft [");
+        for (i, value) in scratch.axis_values.iter().copied().enumerate() {
+            if i != 0 {
+                //print!(", ");
+            }
+            //print!("{}", (value * 16384.0).round() as i32);
+        }
+        //println!("]");
         Ok(())
     }
 
@@ -833,18 +862,19 @@ fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2
         }
         let axis_index = axis.axis_index() as usize;
         let coord = coords.get(axis_index).copied().unwrap_or(F2Dot14::ZERO);
+        if coord == peak {
+            continue;
+        }
         if coord == F2Dot14::ZERO {
             return 0.0;
         }
         let start = axis.start();
         let end = axis.end();
         if start > peak || peak > end || (start < F2Dot14::ZERO && end > F2Dot14::ZERO) {
-            continue;
+            return 1.0;
         }
         if coord < start || coord > end {
             return 0.0;
-        } else if coord == peak {
-            continue;
         } else if coord < peak {
             // Use raw bits - scale factors cancel in the ratio
             let numerat = coord.to_bits() - start.to_bits();
