@@ -4,9 +4,10 @@ use read_fonts::{
     tables::{
         layout::Condition,
         varc::{
-            DecomposedTransform, MultiItemVariationStore, SparseVariationRegionList, Varc,
-            VarcComponent, VarcFlags,
+            DecomposedTransform, MultiItemVariationStore, SparseVariationRegion,
+            SparseVariationRegionList, Varc, VarcComponent, VarcFlags,
         },
+        variations::NO_VARIATION_INDEX,
     },
     types::{F2Dot14, GlyphId},
     FontRef, ReadError, TableProvider,
@@ -30,11 +31,9 @@ type GlyphStack = SmallVec<GlyphId, 8>;
 type CoordVec = SmallVec<F2Dot14, 64>;
 type AxisIndexVec = SmallVec<u16, 64>;
 type AxisValueVec = SmallVec<f32, 64>;
-type CoordRawVec = SmallVec<f32, 64>;
 type DeltaVec = SmallVec<f32, 64>;
 type ScalarCacheVec = SmallVec<f32, 128>;
 type Affine = [f32; 6];
-const DEBUG_VARC_TRACE_VAR_IDX: Option<u32> = Some(22_478_849);
 
 struct Scratchpad {
     deltas: DeltaVec,
@@ -254,8 +253,6 @@ impl<'a> Outlines<'a> {
     ) -> Result<(), DrawError> {
         let mut font_coords = CoordVec::new();
         expand_coords(&mut font_coords, self.axis_count, coords);
-        let mut font_coords_raw = CoordRawVec::new();
-        expand_coords_raw_f32(&mut font_coords_raw, font_coords.as_slice());
         let mut stack = GlyphStack::new();
         let pen: &mut dyn OutlinePen = pen;
         let coverage = self.varc.coverage()?;
@@ -266,8 +263,8 @@ impl<'a> Outlines<'a> {
         self.draw_glyph(
             outline.glyph_id,
             outline.coverage_index,
-            font_coords_raw.as_slice(),
-            font_coords_raw.as_slice(),
+            &font_coords,
+            &font_coords,
             size,
             path_style,
             buf,
@@ -279,7 +276,6 @@ impl<'a> Outlines<'a> {
             &coverage,
             &mut scalar_cache,
             &mut scratch,
-            None,
         )
     }
 
@@ -300,8 +296,8 @@ impl<'a> Outlines<'a> {
         &self,
         glyph_id: GlyphId,
         coverage_index: u16,
-        font_coords_raw: &[f32],
-        current_coords_raw: &[f32],
+        font_coords: &[F2Dot14],
+        current_coords: &[F2Dot14],
         size: Size,
         path_style: PathStyle,
         buf: &mut [u8],
@@ -313,24 +309,19 @@ impl<'a> Outlines<'a> {
         coverage: &read_fonts::tables::layout::CoverageTable<'a>,
         scalar_cache: &mut ScalarCache,
         scratch: &mut Scratchpad,
-        trace_var_idx: Option<u32>,
     ) -> Result<(), DrawError> {
         if stack.len() >= GLYF_COMPOSITE_RECURSION_LIMIT {
             return Err(DrawError::RecursionLimitExceeded(glyph_id));
         }
         let glyph = self.varc.glyph(coverage_index as usize)?;
         stack.push(glyph_id);
-        let mut current_coords = CoordVec::new();
-        expand_coords_from_raw_rounded(&mut current_coords, current_coords_raw);
-        let mut component_coords_raw_buffer = CoordRawVec::new();
         let mut component_coords_buffer = CoordVec::new();
         let mut child_scalar_cache: Option<ScalarCache> = None;
         for component in glyph.components() {
             let component = component?;
             if !self.component_condition_met(
                 &component,
-                current_coords.as_slice(),
-                current_coords_raw,
+                current_coords,
                 var_store,
                 regions,
                 scalar_cache,
@@ -344,70 +335,34 @@ impl<'a> Outlines<'a> {
             let coords_the_same = !flags.contains(VarcFlags::HAVE_AXES)
                 && !flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES);
 
-            let component_coords_raw = if coords_the_same {
-                current_coords_raw
+            let component_coords = if coords_the_same {
+                current_coords
             } else {
                 self.component_coords(
                     &component,
-                    font_coords_raw,
-                    current_coords_raw,
+                    font_coords,
+                    current_coords,
                     var_store,
                     regions,
                     scalar_cache,
-                    &mut component_coords_raw_buffer,
+                    &mut component_coords_buffer,
                     scratch,
                 )?;
-                component_coords_raw_buffer.as_slice()
+                component_coords_buffer.as_slice()
             };
 
             let mut transform = *component.transform();
             self.apply_transform_variations(
-                glyph_id,
                 &component,
-                current_coords_raw,
+                current_coords,
                 &mut transform,
                 var_store,
                 regions,
                 scalar_cache,
                 &mut scratch.deltas,
             )?;
-            let component_trace_var_idx = match component.transform_var_index() {
-                Some(var_idx) if Some(var_idx) == DEBUG_VARC_TRACE_VAR_IDX => Some(var_idx),
-                _ => trace_var_idx,
-            };
             let scale = size.linear_scale(self.units_per_em);
-            if component_trace_var_idx == DEBUG_VARC_TRACE_VAR_IDX {
-                eprintln!(
-                    "VARC_LINEAR_SCALE parent_gid={} gid={} var_idx={} ppem={:.16} upem={} scale={:.16} scale_x64={:.16}",
-                    glyph_id.to_u32(),
-                    component_gid.to_u32(),
-                    component_trace_var_idx.unwrap_or_default(),
-                    size.ppem().unwrap_or(-1.0) as f64,
-                    self.units_per_em,
-                    scale as f64,
-                    (scale * 64.0) as f64
-                );
-            }
-            let matrix = mul_matrix(
-                parent_matrix,
-                scale_matrix(normalized_transform_from_raw(transform).matrix(), scale),
-            );
-            if let Some(var_idx) = component.transform_var_index() {
-                if Some(var_idx) == DEBUG_VARC_TRACE_VAR_IDX {
-                    eprintln!(
-                        "VARC_AFFINE parent_gid={} gid={} var_idx={} xx={:.16} yx={:.16} xy={:.16} yy={:.16} x0={:.16} y0={:.16}",
-                        glyph_id.to_u32(),
-                        component_gid.to_u32(),
-                        var_idx,
-                        matrix[0] as f64,
-                        matrix[1] as f64,
-                        matrix[2] as f64,
-                        matrix[3] as f64,
-                        matrix[4] as f64,
-                        matrix[5] as f64
-                    );
-                }
-            }
+            let matrix = mul_matrix(parent_matrix, scale_matrix(transform.matrix(), scale));
             if component_gid != glyph_id {
                 if let Some(coverage_index) = coverage.get(component_gid) {
                     if !stack.contains(&component_gid) {
@@ -416,8 +371,8 @@ impl<'a> Outlines<'a> {
                             self.draw_glyph(
                                 component_gid,
                                 coverage_index,
-                                font_coords_raw,
-                                current_coords_raw,
+                                font_coords,
+                                current_coords,
                                 size,
                                 path_style,
                                 buf,
@@ -429,7 +384,6 @@ impl<'a> Outlines<'a> {
                                 coverage,
                                 scalar_cache,
                                 scratch,
-                                component_trace_var_idx,
                             )?;
                         } else {
                             if let Some(ref mut cache) = child_scalar_cache {
@@ -440,8 +394,8 @@ impl<'a> Outlines<'a> {
                             self.draw_glyph(
                                 component_gid,
                                 coverage_index,
-                                font_coords_raw,
-                                component_coords_raw,
+                                font_coords,
+                                component_coords,
                                 size,
                                 path_style,
                                 buf,
@@ -453,29 +407,13 @@ impl<'a> Outlines<'a> {
                                 coverage,
                                 child_scalar_cache.as_mut().unwrap(),
                                 scratch,
-                                component_trace_var_idx,
                             )?;
                         }
                         continue;
                     }
                 }
             }
-            let component_coords = if coords_the_same {
-                current_coords.as_slice()
-            } else {
-                expand_coords_from_raw_rounded(&mut component_coords_buffer, component_coords_raw);
-                component_coords_buffer.as_slice()
-            };
-            let mut transform_pen = TransformPen::new(
-                pen,
-                matrix,
-                component_trace_var_idx.map(|var_idx| TransformTrace {
-                    parent_gid: glyph_id,
-                    gid: component_gid,
-                    var_idx,
-                    seq: 0,
-                }),
-            );
+            let mut transform_pen = TransformPen::new(pen, matrix);
             self.draw_base_glyph(
                 component_gid,
                 component_coords,
@@ -513,19 +451,19 @@ impl<'a> Outlines<'a> {
     fn component_coords(
         &self,
         component: &VarcComponent<'a>,
-        font_coords_raw: &[f32],
-        current_coords_raw: &[f32],
+        font_coords: &[F2Dot14],
+        current_coords: &[F2Dot14],
         var_store: Option<&MultiItemVariationStore<'a>>,
         regions: Option<&SparseVariationRegionList<'a>>,
         scalar_cache: &mut ScalarCache,
-        coords: &mut CoordRawVec,
+        coords: &mut CoordVec,
         scratch: &mut Scratchpad,
     ) -> Result<(), DrawError> {
         let flags = component.flags();
         if flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) {
-            expand_coords_raw(coords, font_coords_raw.len(), font_coords_raw);
+            expand_coords(coords, font_coords.len(), font_coords);
         } else {
-            expand_coords_raw(coords, current_coords_raw.len(), current_coords_raw);
+            expand_coords(coords, current_coords.len(), current_coords);
         }
 
         if !flags.contains(VarcFlags::HAVE_AXES) {
@@ -539,7 +477,7 @@ impl<'a> Outlines<'a> {
         //println!("reset {}", flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) as u32);
         // //print axis coords as integer
         //print!("axis[");
-        for (i, _coord) in current_coords_raw.iter().copied().enumerate() {
+        for (i, _coord) in current_coords.iter().copied().enumerate() {
             if i != 0 {
                 //print!(", ");
             }
@@ -563,7 +501,7 @@ impl<'a> Outlines<'a> {
                 store,
                 regions,
                 var_idx,
-                current_coords_raw,
+                current_coords,
                 scratch.axis_indices.len(),
                 scalar_cache,
                 scratch.axis_values.as_mut_slice(),
@@ -575,10 +513,12 @@ impl<'a> Outlines<'a> {
             .iter()
             .zip(scratch.axis_values.iter().copied())
         {
+            //println!("Setting axis {} to {}", axis_index, (value * 16384.0).round() as i32);
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
                 return Err(DrawError::Read(ReadError::OutOfBounds));
             };
-            *slot = value;
+            let raw = value.round().clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+            *slot = F2Dot14::from_bits(raw);
         }
         // //print axis values as integer
         //print!("aft [");
@@ -621,9 +561,8 @@ impl<'a> Outlines<'a> {
     #[allow(clippy::too_many_arguments)]
     fn apply_transform_variations(
         &self,
-        parent_gid: GlyphId,
         component: &VarcComponent<'a>,
-        coords_raw: &[f32],
+        coords: &[F2Dot14],
         transform: &mut DecomposedTransform,
         var_store: Option<&MultiItemVariationStore<'a>>,
         regions: Option<&SparseVariationRegionList<'a>>,
@@ -653,19 +592,19 @@ impl<'a> Outlines<'a> {
             return Ok(());
         }
 
-        debug_trace_coords(parent_gid, component.gid(), var_idx, coords_raw);
-
         let store = var_store.ok_or(ReadError::NullOffset)?;
         let regions = regions.ok_or(ReadError::NullOffset)?;
-        // Match HB rounding behavior: accumulate tuple deltas directly onto
-        // preloaded component values instead of summing a standalone delta vector.
+
+        // Accumulate deltas directly onto preloaded component values in raw tuple units.
+        const ANGLE_SCALE: f32 = 4096.0;
+        const SCALE_SCALE: f32 = 1024.0;
         let mut translate_x = transform.translate_x();
         let mut translate_y = transform.translate_y();
-        let mut rotation_raw = transform.rotation();
-        let mut scale_x_raw = transform.scale_x();
-        let mut scale_y_raw = transform.scale_y();
-        let mut skew_x_raw = transform.skew_x();
-        let mut skew_y_raw = transform.skew_y();
+        let mut rotation_raw = transform.rotation() * ANGLE_SCALE;
+        let mut scale_x_raw = transform.scale_x() * SCALE_SCALE;
+        let mut scale_y_raw = transform.scale_y() * SCALE_SCALE;
+        let mut skew_x_raw = transform.skew_x() * ANGLE_SCALE;
+        let mut skew_y_raw = transform.skew_y() * ANGLE_SCALE;
         let mut center_x = transform.center_x();
         let mut center_y = transform.center_y();
 
@@ -701,28 +640,12 @@ impl<'a> Outlines<'a> {
             store,
             regions,
             var_idx,
-            coords_raw,
+            coords,
             field_count,
             scalar_cache,
             deltas.as_mut_slice(),
         )?;
 
-        let rotation_field_index = transform_component_index(flags, VarcFlags::HAVE_ROTATION);
-        if let Some(rotation_field_index) = rotation_field_index {
-            debug_rotation_region_terms(
-                store,
-                regions,
-                var_idx,
-                coords_raw,
-                field_count,
-                rotation_field_index,
-                parent_gid,
-                component.gid(),
-                scalar_cache,
-            )?;
-        }
-
-        // Unpack values in flag order.
         let mut value_iter = deltas.iter().copied();
         if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
             translate_x = value_iter.next().unwrap_or(translate_x);
@@ -731,21 +654,7 @@ impl<'a> Outlines<'a> {
             translate_y = value_iter.next().unwrap_or(translate_y);
         }
         if flags.contains(VarcFlags::HAVE_ROTATION) {
-            let pre_raw = rotation_raw;
             rotation_raw = value_iter.next().unwrap_or(rotation_raw);
-            let delta = rotation_raw - pre_raw;
-            eprintln!(
-                "VARC_ROT parent_gid={} gid={} var_idx={} pre_raw={:.16} pre={:.16} delta_raw={:.16} delta={:.16} post_raw={:.16} post={:.16}",
-                parent_gid.to_u32(),
-                component.gid().to_u32(),
-                var_idx,
-                pre_raw as f64,
-                (pre_raw / 4096.0) as f64,
-                delta as f64,
-                (delta / 4096.0) as f64,
-                rotation_raw as f64,
-                (rotation_raw / 4096.0) as f64
-            );
         }
         if flags.contains(VarcFlags::HAVE_SCALE_X) {
             scale_x_raw = value_iter.next().unwrap_or(scale_x_raw);
@@ -753,46 +662,37 @@ impl<'a> Outlines<'a> {
         if flags.contains(VarcFlags::HAVE_SCALE_Y) {
             scale_y_raw = value_iter.next().unwrap_or(scale_y_raw);
         }
-        if flags.contains(VarcFlags::HAVE_SKEW_X) {
-            skew_x_raw = value_iter.next().unwrap_or(skew_x_raw);
-        }
-        if flags.contains(VarcFlags::HAVE_SKEW_Y) {
-            skew_y_raw = value_iter.next().unwrap_or(skew_y_raw);
-        }
-        if flags.contains(VarcFlags::HAVE_TCENTER_X) {
-            center_x = value_iter.next().unwrap_or(center_x);
-        }
-        if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
-            center_y = value_iter.next().unwrap_or(center_y);
+        const SKEW_OR_CENTER: VarcFlags = VarcFlags::from_bits_truncate(
+            VarcFlags::HAVE_SKEW_X.bits()
+                | VarcFlags::HAVE_SKEW_Y.bits()
+                | VarcFlags::HAVE_TCENTER_X.bits()
+                | VarcFlags::HAVE_TCENTER_Y.bits(),
+        );
+        if flags.intersects(SKEW_OR_CENTER) {
+            if flags.contains(VarcFlags::HAVE_SKEW_X) {
+                skew_x_raw = value_iter.next().unwrap_or(skew_x_raw);
+            }
+            if flags.contains(VarcFlags::HAVE_SKEW_Y) {
+                skew_y_raw = value_iter.next().unwrap_or(skew_y_raw);
+            }
+            if flags.contains(VarcFlags::HAVE_TCENTER_X) {
+                center_x = value_iter.next().unwrap_or(center_x);
+            }
+            if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
+                center_y = value_iter.next().unwrap_or(center_y);
+            }
         }
 
         if !flags.contains(VarcFlags::HAVE_SCALE_Y) {
             scale_y_raw = scale_x_raw;
         }
-        if Some(var_idx) == DEBUG_VARC_TRACE_VAR_IDX {
-            eprintln!(
-                "VARC_XFORM parent_gid={} gid={} var_idx={} tx={:.16} ty={:.16} rot_raw={:.16} sx_raw={:.16} sy_raw={:.16} skx_raw={:.16} sky_raw={:.16} cx={:.16} cy={:.16}",
-                parent_gid.to_u32(),
-                component.gid().to_u32(),
-                var_idx,
-                translate_x as f64,
-                translate_y as f64,
-                rotation_raw as f64,
-                scale_x_raw as f64,
-                scale_y_raw as f64,
-                skew_x_raw as f64,
-                skew_y_raw as f64,
-                center_x as f64,
-                center_y as f64
-            );
-        }
         transform.set_translate_x(translate_x);
         transform.set_translate_y(translate_y);
-        transform.set_rotation(rotation_raw);
-        transform.set_scale_x(scale_x_raw);
-        transform.set_scale_y(scale_y_raw);
-        transform.set_skew_x(skew_x_raw);
-        transform.set_skew_y(skew_y_raw);
+        transform.set_rotation(rotation_raw / ANGLE_SCALE);
+        transform.set_scale_x(scale_x_raw / SCALE_SCALE);
+        transform.set_scale_y(scale_y_raw / SCALE_SCALE);
+        transform.set_skew_x(skew_x_raw / ANGLE_SCALE);
+        transform.set_skew_y(skew_y_raw / ANGLE_SCALE);
         transform.set_center_x(center_x);
         transform.set_center_y(center_y);
         Ok(())
@@ -802,7 +702,6 @@ impl<'a> Outlines<'a> {
         &self,
         component: &VarcComponent<'a>,
         coords: &[F2Dot14],
-        coords_raw: &[f32],
         var_store: Option<&MultiItemVariationStore<'a>>,
         regions: Option<&SparseVariationRegionList<'a>>,
         scalar_cache: &mut ScalarCache,
@@ -818,21 +717,12 @@ impl<'a> Outlines<'a> {
         let condition = condition_list.conditions().get(condition_index as usize)?;
         let store = var_store.ok_or(ReadError::NullOffset)?;
         let regions = regions.ok_or(ReadError::NullOffset)?;
-        Self::eval_condition(
-            &condition,
-            coords,
-            coords_raw,
-            store,
-            regions,
-            scalar_cache,
-            scratch,
-        )
+        Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch)
     }
 
     fn eval_condition(
         condition: &Condition<'a>,
         coords: &[F2Dot14],
-        coords_raw: &[f32],
         var_store: &MultiItemVariationStore<'a>,
         regions: &SparseVariationRegionList<'a>,
         scalar_cache: &mut ScalarCache,
@@ -852,7 +742,7 @@ impl<'a> Outlines<'a> {
                     var_store,
                     regions,
                     var_idx,
-                    coords_raw,
+                    coords,
                     1,
                     scalar_cache,
                     &mut scratch.deltas,
@@ -866,7 +756,6 @@ impl<'a> Outlines<'a> {
                     if !Self::eval_condition(
                         &nested,
                         coords,
-                        coords_raw,
                         var_store,
                         regions,
                         scalar_cache,
@@ -883,7 +772,6 @@ impl<'a> Outlines<'a> {
                     if Self::eval_condition(
                         &nested,
                         coords,
-                        coords_raw,
                         var_store,
                         regions,
                         scalar_cache,
@@ -899,7 +787,6 @@ impl<'a> Outlines<'a> {
                 Ok(!Self::eval_condition(
                     &nested,
                     coords,
-                    coords_raw,
                     var_store,
                     regions,
                     scalar_cache,
@@ -934,8 +821,14 @@ impl ScalarCache {
         }
     }
 
-    fn as_mut_slice(&mut self) -> &mut [f32] {
-        self.values.as_mut_slice()
+    fn get(&self, index: usize) -> f32 {
+        self.values.get(index).copied().unwrap_or(Self::INVALID)
+    }
+
+    fn set(&mut self, index: usize, value: f32) {
+        if let Some(slot) = self.values.get_mut(index) {
+            *slot = value;
+        }
     }
 }
 
@@ -946,104 +839,24 @@ fn expand_coords(out: &mut CoordVec, axis_count: usize, coords: &[F2Dot14]) {
     }
 }
 
-fn expand_coords_raw(out: &mut CoordRawVec, axis_count: usize, coords: &[f32]) {
-    out.resize_and_fill(axis_count, 0.0);
-    for (slot, value) in out.iter_mut().zip(coords.iter().copied()) {
-        *slot = value;
-    }
-}
-
-fn expand_coords_raw_f32(out: &mut CoordRawVec, coords: &[F2Dot14]) {
-    out.resize_and_fill(coords.len(), 0.0);
-    for (slot, value) in out.iter_mut().zip(coords.iter().copied()) {
-        *slot = value.to_bits() as f32;
-    }
-}
-
-#[inline(always)]
-fn round_raw_f2dot14(value: f32) -> i16 {
-    if !value.is_finite() {
-        return 0;
-    }
-    let rounded = if value >= 0.0 {
-        value + 0.5
-    } else {
-        value - 0.5
-    };
-    if rounded < i16::MIN as f32 {
-        i16::MIN
-    } else if rounded > i16::MAX as f32 {
-        i16::MAX
-    } else {
-        rounded as i16
-    }
-}
-
-fn transform_component_index(flags: VarcFlags, target: VarcFlags) -> Option<usize> {
-    let mut index = 0usize;
-    for flag in [
-        VarcFlags::HAVE_TRANSLATE_X,
-        VarcFlags::HAVE_TRANSLATE_Y,
-        VarcFlags::HAVE_ROTATION,
-        VarcFlags::HAVE_SCALE_X,
-        VarcFlags::HAVE_SCALE_Y,
-        VarcFlags::HAVE_SKEW_X,
-        VarcFlags::HAVE_SKEW_Y,
-        VarcFlags::HAVE_TCENTER_X,
-        VarcFlags::HAVE_TCENTER_Y,
-    ] {
-        if flags.contains(flag) {
-            if flag == target {
-                return Some(index);
-            }
-            index += 1;
-        }
-    }
-    None
-}
-
-fn debug_trace_coords(parent_gid: GlyphId, gid: GlyphId, var_idx: u32, coords_raw: &[f32]) {
-    if Some(var_idx) != DEBUG_VARC_TRACE_VAR_IDX {
-        return;
-    }
-    eprint!(
-        "VARC_COORDS parent_gid={} gid={} var_idx={} len={}",
-        parent_gid.to_u32(),
-        gid.to_u32(),
-        var_idx,
-        coords_raw.len()
-    );
-    for (axis, raw) in coords_raw.iter().copied().enumerate() {
-        let rounded = round_raw_f2dot14(raw) as i32;
-        eprint!(" {}:{:.16}/{}", axis, raw as f64, rounded);
-    }
-    eprintln!();
-}
-
-fn expand_coords_from_raw_rounded(out: &mut CoordVec, coords: &[f32]) {
-    out.resize_and_fill(coords.len(), F2Dot14::ZERO);
-    for (slot, value) in out.iter_mut().zip(coords.iter().copied()) {
-        *slot = F2Dot14::from_bits(round_raw_f2dot14(value));
-    }
-}
-
 fn compute_tuple_deltas(
     store: &MultiItemVariationStore,
     regions: &SparseVariationRegionList,
     var_idx: u32,
-    coords: &[f32],
+    coords: &[F2Dot14],
     tuple_len: usize,
     cache: &mut ScalarCache,
     out: &mut DeltaVec,
 ) -> Result<(), ReadError> {
     out.resize_and_fill(tuple_len, 0.0);
-    store.add_tuple_deltas_raw_f32(
+    add_tuple_deltas(
+        store,
         regions,
         var_idx,
         coords,
         tuple_len,
+        cache,
         out.as_mut_slice(),
-        Some(cache.as_mut_slice()),
     )
 }
 
@@ -1051,36 +864,30 @@ fn accumulate_tuple_deltas_in_place(
     store: &MultiItemVariationStore,
     regions: &SparseVariationRegionList,
     var_idx: u32,
-    coords: &[f32],
+    coords: &[F2Dot14],
     tuple_len: usize,
     cache: &mut ScalarCache,
     out: &mut [f32],
 ) -> Result<(), ReadError> {
-    store.add_tuple_deltas_raw_f32(
-        regions,
-        var_idx,
-        coords,
-        tuple_len,
-        out,
-        Some(cache.as_mut_slice()),
-    )
+    add_tuple_deltas(store, regions, var_idx, coords, tuple_len, cache, out)
 }
 
-fn debug_rotation_region_terms(
+fn add_tuple_deltas(
     store: &MultiItemVariationStore,
     regions: &SparseVariationRegionList,
     var_idx: u32,
-    coords: &[f32],
+    coords: &[F2Dot14],
     tuple_len: usize,
-    rotation_index: usize,
-    parent_gid: GlyphId,
-    gid: GlyphId,
     cache: &mut ScalarCache,
+    out: &mut [f32],
 ) -> Result<(), ReadError> {
-    if tuple_len == 0 || rotation_index >= tuple_len {
+    if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
         return Ok(());
     }
-
+    if out.len() < tuple_len {
+        return Err(ReadError::OutOfBounds);
+    }
+    let out = &mut out[..tuple_len];
     let outer = (var_idx >> 16) as usize;
     let inner = (var_idx & 0xFFFF) as usize;
     let data = store
@@ -1088,80 +895,71 @@ fn debug_rotation_region_terms(
         .get(outer)
         .map_err(|_| ReadError::InvalidCollectionIndex(outer as _))?;
     let region_indices = data.region_indices();
-    let all_regions = regions.regions();
     let mut deltas = data.delta_set(inner)?.fetcher();
-    let mut skip = 0usize;
-    let mut tmp = DeltaVec::with_len(tuple_len, 0.0);
-    let mut running_f32 = 0.0f32;
-    let mut running_f64 = 0.0f64;
+    let regions = regions.regions();
 
-    for (region_order, region_index) in region_indices.iter().enumerate() {
+    let mut skip = 0;
+    for region_index in region_indices.iter() {
         let region_idx = region_index.get() as usize;
-        let scalar = if let Some(slot) = cache.values.get_mut(region_idx) {
-            if *slot <= 1.0 {
-                *slot
-            } else {
-                let computed = all_regions.get(region_idx)?.compute_scalar_raw_f32(coords);
-                *slot = computed;
-                computed
-            }
-        } else {
-            all_regions.get(region_idx)?.compute_scalar_raw_f32(coords)
-        };
-
+        let mut scalar = cache.get(region_idx);
+        if scalar >= 2.0 {
+            scalar = compute_sparse_region_scalar(&regions.get(region_idx)?, coords);
+            cache.set(region_idx, scalar);
+        }
         if scalar == 0.0 {
             skip += tuple_len;
-            eprintln!(
-                "VARC_ROT_REGION parent_gid={} gid={} var_idx={} region_order={} region_idx={} scalar={:.16} raw={:.16} contrib={:.16} running_f32={:.16} running_f64={:.16}",
-                parent_gid.to_u32(),
-                gid.to_u32(),
-                var_idx,
-                region_order,
-                region_idx,
-                0.0f64,
-                0.0f64,
-                0.0f64,
-                running_f32 as f64,
-                running_f64
-            );
             continue;
         }
-
         if skip != 0 {
             deltas.skip(skip)?;
             skip = 0;
         }
-        tmp.as_mut_slice().fill(0.0);
-        deltas.add_to_f32_scaled(tmp.as_mut_slice(), 1.0)?;
-        let raw = tmp[rotation_index];
-        let contrib = raw * scalar;
-        running_f32 += contrib;
-        running_f64 += (raw as f64) * (scalar as f64);
-        eprintln!(
-            "VARC_ROT_REGION parent_gid={} gid={} var_idx={} region_order={} region_idx={} scalar={:.16} raw={:.16} contrib={:.16} running_f32={:.16} running_f64={:.16}",
-            parent_gid.to_u32(),
-            gid.to_u32(),
-            var_idx,
-            region_order,
-            region_idx,
-            scalar as f64,
-            raw as f64,
-            contrib as f64,
-            running_f32 as f64,
-            running_f64
-        );
+        deltas.add_to_f32_scaled(out, scalar)?;
     }
     Ok(())
 }
 
-#[inline(always)]
-fn normalized_transform_from_raw(mut transform: DecomposedTransform) -> DecomposedTransform {
-    transform.set_rotation(transform.rotation() / 4096.0);
-    transform.set_scale_x(transform.scale_x() / 1024.0);
-    transform.set_scale_y(transform.scale_y() / 1024.0);
-    transform.set_skew_x(transform.skew_x() / 4096.0);
-    transform.set_skew_y(transform.skew_y() / 4096.0);
-    transform
+fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2Dot14]) -> f32 {
+    let mut scalar = 1.0f32;
+    for axis in region.region_axes() {
+        let peak = axis.peak();
+        if peak == F2Dot14::ZERO {
+            continue;
+        }
+        let axis_index = axis.axis_index() as usize;
+        let coord = coords.get(axis_index).copied().unwrap_or(F2Dot14::ZERO);
+        if coord == peak {
+            continue;
+        }
+        if coord == F2Dot14::ZERO {
+            return 0.0;
+        }
+        let start = axis.start();
+        let end = axis.end();
+        if start > peak || peak > end || (start < F2Dot14::ZERO && end > F2Dot14::ZERO) {
+            continue;
+        }
+        if coord < start || coord > end {
+            return 0.0;
+        } else if coord < peak {
+            // Use raw bits - scale factors cancel in the ratio
+            let numerat = coord.to_bits() - start.to_bits();
+            if numerat == 0 {
+                return 0.0;
+            }
+            let denom = peak.to_bits() - start.to_bits();
+            scalar *= numerat as f32 / denom as f32;
+        } else {
+            // Use raw bits - scale factors cancel in the ratio
+            let numerat = end.to_bits() - coord.to_bits();
+            if numerat == 0 {
+                return 0.0;
+            }
+            let denom = end.to_bits() - peak.to_bits();
+            scalar *= numerat as f32 / denom as f32;
+        }
+    }
+    scalar
 }
 
 #[inline(always)]
@@ -1186,20 +984,11 @@ fn mul_matrix(a: Affine, b: Affine) -> Affine {
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
     pen: &'a mut P,
     matrix: Affine,
-    trace: Option<TransformTrace>,
-}
-
-#[derive(Copy, Clone)]
-struct TransformTrace {
-    parent_gid: GlyphId,
-    gid: GlyphId,
-    var_idx: u32,
-    seq: u32,
 }
 
 impl<'a, P: OutlinePen + ?Sized> TransformPen<'a, P> {
-    fn new(pen: &'a mut P, matrix: Affine, trace: Option<TransformTrace>) -> Self {
-        Self { pen, matrix, trace }
+    fn new(pen: &'a mut P, matrix: Affine) -> Self {
+        Self { pen, matrix }
     }
 
     #[inline(always)]
@@ -1207,181 +996,33 @@ impl<'a, P: OutlinePen + ?Sized> TransformPen<'a, P> {
         let [a, b, c, d, e, f] = self.matrix;
         (a * x + c * y + e, b * x + d * y + f)
     }
-
-    fn next_seq(&mut self) -> Option<u32> {
-        let trace = self.trace.as_mut()?;
-        let seq = trace.seq;
-        trace.seq = trace.seq.saturating_add(1);
-        Some(seq)
-    }
-
-    fn trace_point(&self, phase: &str, seq: u32, op: &str, x: f32, y: f32) {
-        let Some(trace) = self.trace else {
-            return;
-        };
-        eprintln!(
-            "VARC_CMD phase={} parent_gid={} gid={} var_idx={} seq={} op={} x_raw_26_6={:.16} y_raw_26_6={:.16} x_norm={:.16} y_norm={:.16} x_cmp={:.16} y_cmp={:.16}",
-            phase,
-            trace.parent_gid.to_u32(),
-            trace.gid.to_u32(),
-            trace.var_idx,
-            seq,
-            op,
-            (x * 64.0) as f64,
-            (y * 64.0) as f64,
-            x as f64,
-            y as f64,
-            x as f64,
-            y as f64
-        );
-    }
-
-    fn trace_quad(&self, phase: &str, seq: u32, op: &str, cx0: f32, cy0: f32, x: f32, y: f32) {
-        let Some(trace) = self.trace else {
-            return;
-        };
-        eprintln!(
-            "VARC_CMD phase={} parent_gid={} gid={} var_idx={} seq={} op={} cx0_raw_26_6={:.16} cy0_raw_26_6={:.16} x_raw_26_6={:.16} y_raw_26_6={:.16} cx0_norm={:.16} cy0_norm={:.16} x_norm={:.16} y_norm={:.16} cx0_cmp={:.16} cy0_cmp={:.16} x_cmp={:.16} y_cmp={:.16}",
-            phase,
-            trace.parent_gid.to_u32(),
-            trace.gid.to_u32(),
-            trace.var_idx,
-            seq,
-            op,
-            (cx0 * 64.0) as f64,
-            (cy0 * 64.0) as f64,
-            (x * 64.0) as f64,
-            (y * 64.0) as f64,
-            cx0 as f64,
-            cy0 as f64,
-            x as f64,
-            y as f64,
-            cx0 as f64,
-            cy0 as f64,
-            x as f64,
-            y as f64
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn trace_cubic(
-        &self,
-        phase: &str,
-        seq: u32,
-        op: &str,
-        cx0: f32,
-        cy0: f32,
-        cx1: f32,
-        cy1: f32,
-        x: f32,
-        y: f32,
-    ) {
-        let Some(trace) = self.trace else {
-            return;
-        };
-        eprintln!(
-            "VARC_CMD phase={} parent_gid={} gid={} var_idx={} seq={} op={} cx0_raw_26_6={:.16} cy0_raw_26_6={:.16} cx1_raw_26_6={:.16} cy1_raw_26_6={:.16} x_raw_26_6={:.16} y_raw_26_6={:.16} cx0_norm={:.16} cy0_norm={:.16} cx1_norm={:.16} cy1_norm={:.16} x_norm={:.16} y_norm={:.16} cx0_cmp={:.16} cy0_cmp={:.16} cx1_cmp={:.16} cy1_cmp={:.16} x_cmp={:.16} y_cmp={:.16}",
-            phase,
-            trace.parent_gid.to_u32(),
-            trace.gid.to_u32(),
-            trace.var_idx,
-            seq,
-            op,
-            (cx0 * 64.0) as f64,
-            (cy0 * 64.0) as f64,
-            (cx1 * 64.0) as f64,
-            (cy1 * 64.0) as f64,
-            (x * 64.0) as f64,
-            (y * 64.0) as f64,
-            cx0 as f64,
-            cy0 as f64,
-            cx1 as f64,
-            cy1 as f64,
-            x as f64,
-            y as f64,
-            cx0 as f64,
-            cy0 as f64,
-            cx1 as f64,
-            cy1 as f64,
-            x as f64,
-            y as f64
-        );
-    }
-
-    fn trace_close(&self, phase: &str, seq: u32, op: &str) {
-        let Some(trace) = self.trace else {
-            return;
-        };
-        eprintln!(
-            "VARC_CMD phase={} parent_gid={} gid={} var_idx={} seq={} op={}",
-            phase,
-            trace.parent_gid.to_u32(),
-            trace.gid.to_u32(),
-            trace.var_idx,
-            seq,
-            op
-        );
-    }
 }
 
 impl<P: OutlinePen + ?Sized> OutlinePen for TransformPen<'_, P> {
     fn move_to(&mut self, x: f32, y: f32) {
-        let seq = self.next_seq();
-        if let Some(seq) = seq {
-            self.trace_point("pre", seq, "M", x, y);
-        }
-        let (tx, ty) = self.transform(x, y);
-        if let Some(seq) = seq {
-            self.trace_point("post", seq, "M", tx, ty);
-        }
-        self.pen.move_to(tx, ty);
+        let (x, y) = self.transform(x, y);
+        self.pen.move_to(x, y);
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        let seq = self.next_seq();
-        if let Some(seq) = seq {
-            self.trace_point("pre", seq, "L", x, y);
-        }
-        let (tx, ty) = self.transform(x, y);
-        if let Some(seq) = seq {
-            self.trace_point("post", seq, "L", tx, ty);
-        }
-        self.pen.line_to(tx, ty);
+        let (x, y) = self.transform(x, y);
+        self.pen.line_to(x, y);
     }
 
     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        let seq = self.next_seq();
-        if let Some(seq) = seq {
-            self.trace_quad("pre", seq, "Q", cx0, cy0, x, y);
-        }
-        let (tcx0, tcy0) = self.transform(cx0, cy0);
-        let (tx, ty) = self.transform(x, y);
-        if let Some(seq) = seq {
-            self.trace_quad("post", seq, "Q", tcx0, tcy0, tx, ty);
-        }
-        self.pen.quad_to(tcx0, tcy0, tx, ty);
+        let (cx0, cy0) = self.transform(cx0, cy0);
+        let (x, y) = self.transform(x, y);
+        self.pen.quad_to(cx0, cy0, x, y);
     }
 
     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        let seq = self.next_seq();
-        if let Some(seq) = seq {
-            self.trace_cubic("pre", seq, "C", cx0, cy0, cx1, cy1, x, y);
-        }
-        let (tcx0, tcy0) = self.transform(cx0, cy0);
-        let (tcx1, tcy1) = self.transform(cx1, cy1);
-        let (tx, ty) = self.transform(x, y);
-        if let Some(seq) = seq {
-            self.trace_cubic("post", seq, "C", tcx0, tcy0, tcx1, tcy1, tx, ty);
-        }
-        self.pen.curve_to(tcx0, tcy0, tcx1, tcy1, tx, ty);
+        let (cx0, cy0) = self.transform(cx0, cy0);
+        let (cx1, cy1) = self.transform(cx1, cy1);
+        let (x, y) = self.transform(x, y);
+        self.pen.curve_to(cx0, cy0, cx1, cy1, x, y);
     }
 
     fn close(&mut self) {
-        let seq = self.next_seq();
-        if let Some(seq) = seq {
-            self.trace_close("pre", seq, "Z");
-            self.trace_close("post", seq, "Z");
-        }
         self.pen.close();
     }
 }

@@ -42,23 +42,11 @@ impl Size {
     /// type or from the [head](read_fonts::tables::head::Head) table.
     ///
     /// Returns 1.0 for an unscaled size or when `units_per_em` is 0.
-    #[track_caller]
     pub fn linear_scale(self, units_per_em: u16) -> f32 {
-        let scale = match self.0 {
+        match self.0 {
             Some(ppem) if units_per_em != 0 => ppem / units_per_em as f32,
             _ => 1.0,
-        };
-        let caller = core::panic::Location::caller();
-        eprintln!(
-            "SKRIFA_LINEAR_SCALE caller={}:{} ppem={:.16} upem={} scale={:.16} scale_x64={:.16}",
-            caller.file(),
-            caller.line(),
-            self.0.unwrap_or(-1.0) as f64,
-            units_per_em,
-            scale as f64,
-            (scale * 64.0) as f64
-        );
-        scale
+        }
     }
 
     /// Computes a fixed point linear scale factor that matches FreeType.

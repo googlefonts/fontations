@@ -576,12 +576,6 @@ impl<'a> PackedDeltaFetcher<'a> {
     }
 
     pub fn add_to_f32_scaled(&mut self, out: &mut [f32], scale: f32) -> Result<(), ReadError> {
-        #[inline(always)]
-        fn mul_unfused(delta: f32, scale: f32) -> f32 {
-            // Keep mul/add unfused for cross-engine numeric debugging.
-            core::hint::black_box(delta * scale)
-        }
-
         let mut remaining = out.len();
         if let Some(remaining_total) = self.remaining_total {
             if remaining > remaining_total {
@@ -601,8 +595,7 @@ impl<'a> PackedDeltaFetcher<'a> {
                 DeltaRunType::I8 => {
                     let bytes = &self.data[self.pos..self.pos + take];
                     for &b in bytes {
-                        let scaled = mul_unfused(b as i8 as f32, scale);
-                        out[idx] += scaled;
+                        out[idx] += b as i8 as f32 * scale;
                         idx += 1;
                     }
                     self.pos += take;
@@ -611,8 +604,7 @@ impl<'a> PackedDeltaFetcher<'a> {
                     let bytes = &self.data[self.pos..self.pos + take * 2];
                     for chunk in bytes.chunks_exact(2) {
                         let delta = i16::from_be_bytes([chunk[0], chunk[1]]) as f32;
-                        let scaled = mul_unfused(delta, scale);
-                        out[idx] += scaled;
+                        out[idx] += delta * scale;
                         idx += 1;
                     }
                     self.pos += take * 2;
@@ -622,8 +614,7 @@ impl<'a> PackedDeltaFetcher<'a> {
                     for chunk in bytes.chunks_exact(4) {
                         let delta =
                             i32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]) as f32;
-                        let scaled = mul_unfused(delta, scale);
-                        out[idx] += scaled;
+                        out[idx] += delta * scale;
                         idx += 1;
                     }
                     self.pos += take * 4;
