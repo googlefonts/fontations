@@ -438,6 +438,7 @@ impl<'a> MultiItemVariationData<'a> {
 mod tests {
     use types::GlyphId16;
 
+    use crate::FontData;
     use crate::{FontRef, ReadError, TableProvider};
 
     use super::{Condition, DecomposedTransform, Varc};
@@ -464,6 +465,69 @@ mod tests {
 
     fn round6(v: f32) -> f32 {
         (v * 1_000_000.0).round() / 1_000_000.0
+    }
+
+    fn sfnt_table_range(data: &[u8], tag: [u8; 4]) -> (usize, usize) {
+        let num_tables = u16::from_be_bytes([data[4], data[5]]) as usize;
+        for i in 0..num_tables {
+            let record = 12 + i * 16;
+            if data[record..record + 4] == tag {
+                let offset = u32::from_be_bytes([
+                    data[record + 8],
+                    data[record + 9],
+                    data[record + 10],
+                    data[record + 11],
+                ]) as usize;
+                let length = u32::from_be_bytes([
+                    data[record + 12],
+                    data[record + 13],
+                    data[record + 14],
+                    data[record + 15],
+                ]) as usize;
+                return (offset, length);
+            }
+        }
+        panic!(
+            "missing table {:?}",
+            core::str::from_utf8(&tag).unwrap_or("????")
+        );
+    }
+
+    fn write_be_u32(dst: &mut [u8], value: u32) {
+        dst.copy_from_slice(&value.to_be_bytes());
+    }
+
+    fn read_be_u32(src: &[u8]) -> u32 {
+        u32::from_be_bytes([src[0], src[1], src[2], src[3]])
+    }
+
+    fn encode_u32_var(value: u32) -> Vec<u8> {
+        if value < 0x80 {
+            vec![value as u8]
+        } else if value < 0x4000 {
+            vec![0x80 | ((value >> 8) as u8), value as u8]
+        } else if value < 0x20_0000 {
+            vec![
+                0xC0 | ((value >> 16) as u8),
+                (value >> 8) as u8,
+                value as u8,
+            ]
+        } else if value < 0x1000_0000 {
+            vec![
+                0xE0 | ((value >> 24) as u8),
+                (value >> 16) as u8,
+                (value >> 8) as u8,
+                value as u8,
+            ]
+        } else {
+            vec![
+                0xF0,
+                (value >> 24) as u8,
+                (value >> 16) as u8,
+                (value >> 8) as u8,
+                value as u8,
+            ]
+        }
     }
 
     trait Round {
@@ -598,6 +662,518 @@ mod tests {
             vec![2, 3, 4, 5, 6],
             table.axis_indices(1).unwrap().iter().collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn axis_indices_offset_out_of_bounds_errors() {
+        let mut bytes = font_test_data::varc::CJK_6868.to_vec();
+        let (varc_offset, varc_len) = sfnt_table_range(&bytes, *b"VARC");
+        // axis_indices_list_offset is the 5th u32 in the VARC header.
+        let axis_indices_offset = varc_offset + 16;
+        write_be_u32(
+            &mut bytes[axis_indices_offset..axis_indices_offset + 4],
+            (varc_len as u32).saturating_add(8),
+        );
+
+        let font = FontRef::new(&bytes).unwrap();
+        let table = font.varc().unwrap();
+        assert!(matches!(table.axis_indices(0), Err(ReadError::OutOfBounds)));
+    }
+
+    #[test]
+    fn var_composite_glyphs_offset_out_of_bounds_errors() {
+        let mut bytes = font_test_data::varc::CJK_6868.to_vec();
+        let (varc_offset, varc_len) = sfnt_table_range(&bytes, *b"VARC");
+        // var_composite_glyphs_offset is the 6th u32 in the VARC header.
+        let glyphs_offset = varc_offset + 20;
+        write_be_u32(
+            &mut bytes[glyphs_offset..glyphs_offset + 4],
+            (varc_len as u32).saturating_add(8),
+        );
+
+        let font = FontRef::new(&bytes).unwrap();
+        let table = font.varc().unwrap();
+        assert!(matches!(table.glyph(0), Err(ReadError::OutOfBounds)));
+    }
+
+    #[test]
+    fn parse_component_with_missing_translate_data_errors() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        // flags=HAVE_TRANSLATE_X, gid=1, missing FWORD payload.
+        let data = FontData::new(&[0x10, 0x00, 0x01]);
+        let mut cursor = data.cursor();
+        assert!(matches!(
+            super::VarcComponent::parse(&table, &mut cursor),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn parse_component_with_invalid_axis_indices_index_errors() {
+        let font = FontRef::new(font_test_data::varc::CONDITIONALS).unwrap();
+        let table = font.varc().unwrap();
+        // flags=HAVE_AXES, gid=1, axis_indices_index=127 (out of range).
+        let data = FontData::new(&[0x02, 0x00, 0x01, 0x7F]);
+        let mut cursor = data.cursor();
+        assert!(matches!(
+            super::VarcComponent::parse(&table, &mut cursor),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn parse_component_reserved_fields_are_consumed() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        // flags = HAVE_TRANSLATE_X plus two reserved bits.
+        let flags = 0x0001_8010_u32;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(flags));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&[0x00, 0x07]); // translate_x = 7
+        bytes.extend_from_slice(&encode_u32_var(1)); // reserved payload 1
+        bytes.extend_from_slice(&encode_u32_var(2)); // reserved payload 2
+        bytes.push(0xAA); // sentinel
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        assert_eq!(component.transform().translate_x(), 7.0);
+        assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+    }
+
+    #[test]
+    fn parse_component_reserved_fields_truncation_errors() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        // flags = HAVE_TRANSLATE_X plus two reserved bits, but only one reserved payload follows.
+        let flags = 0x0001_8010_u32;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(flags));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&[0x00, 0x07]); // translate_x
+        bytes.extend_from_slice(&encode_u32_var(1)); // only one reserved payload
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        assert!(matches!(
+            super::VarcComponent::parse(&table, &mut cursor),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn parse_component_gid_is_24bit_path() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(super::VarcFlags::GID_IS_24BIT.bits()));
+        bytes.extend_from_slice(&[0x12, 0x34, 0x56]);
+        bytes.push(0xAA); // sentinel
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        assert_eq!(component.gid().to_u32(), 0x12_34_56);
+        assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+    }
+
+    #[test]
+    fn parse_component_gid_is_24bit_truncation_errors() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(super::VarcFlags::GID_IS_24BIT.bits()));
+        bytes.extend_from_slice(&[0x12, 0x34]); // truncated uint24
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        assert!(matches!(
+            super::VarcComponent::parse(&table, &mut cursor),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn parse_component_with_axes_zero_count_does_not_consume_axis_values() {
+        let mut bytes = font_test_data::varc::CJK_6868.to_vec();
+        let (varc_offset, _) = sfnt_table_range(&bytes, *b"VARC");
+        let axis_indices_rel = read_be_u32(&bytes[varc_offset + 16..varc_offset + 20]) as usize;
+        let axis_indices_abs = varc_offset + axis_indices_rel;
+        // Overwrite axis_indices_list with Index2 { count = 1, off_size = 1, offsets = [1, 1] }.
+        // That single item is empty, so count_or_compute() must be zero.
+        bytes[axis_indices_abs..axis_indices_abs + 7]
+            .copy_from_slice(&[0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01]);
+        let font = FontRef::new(&bytes).unwrap();
+        let table = font.varc().unwrap();
+        assert_eq!(table.axis_indices(0).unwrap().count_or_compute(), 0);
+
+        // flags = HAVE_AXES | HAVE_TRANSLATE_X
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(0x12));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&encode_u32_var(0)); // axis_indices_index, count is zero
+        bytes.extend_from_slice(&[0x00, 0x05]); // translate_x
+        bytes.push(0xAA); // sentinel
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        assert_eq!(component.transform().translate_x(), 5.0);
+        assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+    }
+
+    #[test]
+    fn parse_component_with_axes_nonzero_count_consumes_axis_values() {
+        let font = FontRef::new(font_test_data::varc::CONDITIONALS).unwrap();
+        let table = font.varc().unwrap();
+        assert_eq!(table.axis_indices(1).unwrap().count_or_compute(), 5);
+
+        // flags = HAVE_AXES | HAVE_TRANSLATE_X
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(0x12));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&encode_u32_var(1)); // axis_indices_index, count is five
+        bytes.push(0x04); // one I8 run, count = 5
+        bytes.extend_from_slice(&[1, 2, 3, 4, 5]); // packed axis values
+        bytes.extend_from_slice(&[0x00, 0x09]); // translate_x
+        bytes.push(0xAA); // sentinel
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        assert_eq!(component.transform().translate_x(), 9.0);
+        assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+    }
+
+    #[test]
+    fn parse_component_scale_x_only_applies_to_scale_y() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(super::VarcFlags::HAVE_SCALE_X.bits()));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&[0x08, 0x00]); // scale_x = 2.0 in F6Dot10
+        bytes.push(0xAA); // sentinel
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        assert_eq!(component.transform().scale_x(), 2.0);
+        assert_eq!(component.transform().scale_y(), 2.0);
+        assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+    }
+
+    #[test]
+    fn parse_component_scale_x_and_scale_y_are_independent() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let flags = super::VarcFlags::HAVE_SCALE_X.bits() | super::VarcFlags::HAVE_SCALE_Y.bits();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(flags));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&[0x08, 0x00]); // scale_x = 2.0
+        bytes.extend_from_slice(&[0x0C, 0x00]); // scale_y = 3.0
+        bytes.push(0xAA); // sentinel
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        assert_eq!(component.transform().scale_x(), 2.0);
+        assert_eq!(component.transform().scale_y(), 3.0);
+        assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+    }
+
+    #[test]
+    fn parse_component_multibyte_condition_and_var_indices() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let flags = super::VarcFlags::HAVE_CONDITION.bits()
+            | super::VarcFlags::AXIS_VALUES_HAVE_VARIATION.bits()
+            | super::VarcFlags::TRANSFORM_HAS_VARIATION.bits()
+            | super::VarcFlags::HAVE_TRANSLATE_X.bits();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(flags));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&encode_u32_var(0x2345)); // condition_index
+        bytes.extend_from_slice(&encode_u32_var(0x0123)); // axis_values_var_index
+        bytes.extend_from_slice(&encode_u32_var(0x0222)); // transform_var_index
+        bytes.extend_from_slice(&[0x00, 0x07]); // translate_x = 7
+        bytes.push(0xAA); // sentinel
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        assert_eq!(component.condition_index(), Some(0x2345));
+        assert_eq!(component.axis_values_var_index(), Some(0x0123));
+        assert_eq!(component.transform_var_index(), Some(0x0222));
+        assert_eq!(component.transform().translate_x(), 7.0);
+        assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+    }
+
+    #[test]
+    fn parse_component_truncated_multibyte_condition_index_errors() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(super::VarcFlags::HAVE_CONDITION.bits()));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.push(0x81); // truncated uint32var (needs one more byte)
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        assert!(matches!(
+            super::VarcComponent::parse(&table, &mut cursor),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn parse_component_axes_with_var_index_and_zero_axis_count() {
+        let mut bytes = font_test_data::varc::CJK_6868.to_vec();
+        let (varc_offset, _) = sfnt_table_range(&bytes, *b"VARC");
+        let axis_indices_rel = read_be_u32(&bytes[varc_offset + 16..varc_offset + 20]) as usize;
+        let axis_indices_abs = varc_offset + axis_indices_rel;
+        // One empty axis-indices entry at index 0.
+        bytes[axis_indices_abs..axis_indices_abs + 7]
+            .copy_from_slice(&[0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01]);
+        let font = FontRef::new(&bytes).unwrap();
+        let table = font.varc().unwrap();
+
+        let flags = super::VarcFlags::HAVE_AXES.bits()
+            | super::VarcFlags::AXIS_VALUES_HAVE_VARIATION.bits()
+            | super::VarcFlags::HAVE_TRANSLATE_X.bits();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(flags));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&encode_u32_var(0)); // axis_indices_index => zero-length axis list
+        bytes.extend_from_slice(&encode_u32_var(0x0123)); // axis_values_var_index
+        bytes.extend_from_slice(&[0x00, 0x06]); // translate_x = 6
+        bytes.push(0xAA); // sentinel
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        assert_eq!(component.axis_indices_index(), Some(0));
+        assert!(component.axis_values().is_none());
+        assert_eq!(component.axis_values_var_index(), Some(0x0123));
+        assert_eq!(component.transform().translate_x(), 6.0);
+        assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+    }
+
+    #[test]
+    fn parse_component_axes_truncated_i16_payload_detected_on_fetch() {
+        let font = FontRef::new(font_test_data::varc::CONDITIONALS).unwrap();
+        let table = font.varc().unwrap();
+        assert_eq!(table.axis_indices(1).unwrap().count_or_compute(), 5);
+
+        // flags = HAVE_AXES.
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(super::VarcFlags::HAVE_AXES.bits()));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&encode_u32_var(1)); // axis_indices_index => expects 5 values
+        bytes.push(0x44); // I16 run, count = 5
+        bytes.extend_from_slice(&[0x00, 0x01, 0x00, 0x02, 0x00, 0x03]); // only 3 i16 values
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        let mut out = [0.0; 5];
+        assert!(matches!(
+            component
+                .axis_values()
+                .unwrap()
+                .fetcher()
+                .add_to_f32_scaled(&mut out, 1.0),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn parse_component_axes_truncated_i32_payload_detected_on_fetch() {
+        let font = FontRef::new(font_test_data::varc::CONDITIONALS).unwrap();
+        let table = font.varc().unwrap();
+        assert_eq!(table.axis_indices(1).unwrap().count_or_compute(), 5);
+
+        // flags = HAVE_AXES.
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(super::VarcFlags::HAVE_AXES.bits()));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&encode_u32_var(1)); // axis_indices_index => expects 5 values
+        bytes.push(0xC4); // I32 run, count = 5
+        bytes.extend_from_slice(&[
+            0x00, 0x00, 0x00, 0x01, // only 1 i32 value
+            0x00, 0x00, 0x00, 0x02,
+        ]);
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+        let mut out = [0.0; 5];
+        assert!(matches!(
+            component
+                .axis_values()
+                .unwrap()
+                .fetcher()
+                .add_to_f32_scaled(&mut out, 1.0),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn parse_component_axes_payload_overshoot_causes_following_field_error() {
+        let font = FontRef::new(font_test_data::varc::CONDITIONALS).unwrap();
+        let table = font.varc().unwrap();
+        assert_eq!(table.axis_indices(1).unwrap().count_or_compute(), 5);
+
+        // flags = HAVE_AXES | HAVE_TRANSLATE_X.
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&encode_u32_var(
+            super::VarcFlags::HAVE_AXES.bits() | super::VarcFlags::HAVE_TRANSLATE_X.bits(),
+        ));
+        bytes.extend_from_slice(&[0x00, 0x01]); // gid
+        bytes.extend_from_slice(&encode_u32_var(1)); // axis_indices_index => expects 5 values
+        bytes.push(0x44); // I16 run, count = 5 (needs 10 bytes)
+        bytes.extend_from_slice(&[0x00, 0x01, 0x00, 0x02]); // too short
+        bytes.extend_from_slice(&[0x00, 0x09]); // intended translate_x (should be unreachable)
+        let data = FontData::new(&bytes);
+        let mut cursor = data.cursor();
+
+        assert!(matches!(
+            super::VarcComponent::parse(&table, &mut cursor),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn generated_condition_varints_roundtrip() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let mut state = 0x1234_5678_u32;
+        for _ in 0..256 {
+            // xorshift32
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            let value = state;
+
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&encode_u32_var(super::VarcFlags::HAVE_CONDITION.bits()));
+            bytes.extend_from_slice(&[0x00, 0x01]); // gid
+            bytes.extend_from_slice(&encode_u32_var(value));
+            bytes.push(0xAA); // sentinel
+            let data = FontData::new(&bytes);
+            let mut cursor = data.cursor();
+
+            let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+            assert_eq!(component.condition_index(), Some(value));
+            assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+        }
+    }
+
+    #[test]
+    fn generated_axis_values_single_run_roundtrip() {
+        let font = FontRef::new(font_test_data::varc::CONDITIONALS).unwrap();
+        let table = font.varc().unwrap();
+        assert_eq!(table.axis_indices(1).unwrap().count_or_compute(), 5);
+
+        let mut state = 0xA5A5_5A5A_u32;
+        for _ in 0..128 {
+            // xorshift32
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            let run_kind = state & 3;
+
+            let mut payload = Vec::new();
+            let mut expected = [0f32; 5];
+            match run_kind {
+                0 => {
+                    // I8, count = 5
+                    payload.push(0x04);
+                    for out in &mut expected {
+                        state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+                        let v = ((state >> 24) as i8) % 64;
+                        payload.push(v as u8);
+                        *out = v as f32;
+                    }
+                }
+                1 => {
+                    // I16, count = 5
+                    payload.push(0x44);
+                    for out in &mut expected {
+                        state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+                        let v = ((state >> 16) as i16) % 2048;
+                        payload.extend_from_slice(&v.to_be_bytes());
+                        *out = v as f32;
+                    }
+                }
+                2 => {
+                    // I32, count = 5
+                    payload.push(0xC4);
+                    for out in &mut expected {
+                        state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+                        let v = (state as i32) % 1_000_000;
+                        payload.extend_from_slice(&v.to_be_bytes());
+                        *out = v as f32;
+                    }
+                }
+                _ => {
+                    // Zero, count = 5
+                    payload.push(0x84);
+                }
+            }
+
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&encode_u32_var(
+                super::VarcFlags::HAVE_AXES.bits() | super::VarcFlags::HAVE_TRANSLATE_X.bits(),
+            ));
+            bytes.extend_from_slice(&[0x00, 0x01]); // gid
+            bytes.extend_from_slice(&encode_u32_var(1)); // axis_indices_index => 5 values
+            bytes.extend_from_slice(&payload);
+            bytes.extend_from_slice(&[0x00, 0x07]); // translate_x
+            bytes.push(0xAA); // sentinel
+
+            let data = FontData::new(&bytes);
+            let mut cursor = data.cursor();
+            let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
+            let mut out = [0.0f32; 5];
+            component
+                .axis_values()
+                .unwrap()
+                .fetcher()
+                .add_to_f32_scaled(&mut out, 1.0)
+                .unwrap();
+            assert_eq!(out, expected);
+            assert_eq!(component.transform().translate_x(), 7.0);
+            assert_eq!(cursor.read::<u8>().unwrap(), 0xAA);
+        }
+    }
+
+    #[test]
+    fn parse_component_truncated_condition_varint_boundaries_error() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let values = [0x80_u32, 0x4000_u32, 0x20_0000_u32, 0x1000_0000_u32];
+
+        for value in values {
+            let encoded = encode_u32_var(value);
+            assert!(encoded.len() > 1);
+            let truncated = &encoded[..encoded.len() - 1];
+
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&encode_u32_var(super::VarcFlags::HAVE_CONDITION.bits()));
+            bytes.extend_from_slice(&[0x00, 0x01]); // gid
+            bytes.extend_from_slice(truncated);
+            let data = FontData::new(&bytes);
+            let mut cursor = data.cursor();
+
+            assert!(matches!(
+                super::VarcComponent::parse(&table, &mut cursor),
+                Err(ReadError::OutOfBounds)
+            ));
+        }
     }
 
     #[test]

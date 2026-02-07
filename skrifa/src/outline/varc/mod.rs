@@ -956,3 +956,455 @@ impl<P: OutlinePen + ?Sized> OutlinePen for TransformPen<'_, P> {
         self.pen.close();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::outline::pen::PathElement;
+    use read_fonts::{FontRef, TableProvider};
+
+    fn coord(value: f32) -> F2Dot14 {
+        F2Dot14::from_f32(value)
+    }
+
+    fn assert_close(actual: f32, expected: f32) {
+        let diff = (actual - expected).abs();
+        assert!(
+            diff <= 1e-6,
+            "expected {expected}, got {actual}, diff {diff}"
+        );
+    }
+
+    fn path_head_signature(path: &[PathElement], n: usize) -> Vec<String> {
+        path.iter()
+            .take(n)
+            .map(|el| match *el {
+                PathElement::MoveTo { x, y } => format!("M{:.2},{:.2}", x, y),
+                PathElement::LineTo { x, y } => format!("L{:.2},{:.2}", x, y),
+                PathElement::QuadTo { cx0, cy0, x, y } => {
+                    format!("Q{:.2},{:.2} {:.2},{:.2}", cx0, cy0, x, y)
+                }
+                PathElement::CurveTo {
+                    cx0,
+                    cy0,
+                    cx1,
+                    cy1,
+                    x,
+                    y,
+                } => format!(
+                    "C{:.2},{:.2} {:.2},{:.2} {:.2},{:.2}",
+                    cx0, cy0, cx1, cy1, x, y
+                ),
+                PathElement::Close => "Z".to_string(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn expand_coords_pads_and_truncates() {
+        let mut out = CoordVec::new();
+        expand_coords(&mut out, 4, &[coord(0.25), coord(-0.5)]);
+        assert_eq!(
+            out.as_slice(),
+            &[coord(0.25), coord(-0.5), F2Dot14::ZERO, F2Dot14::ZERO]
+        );
+
+        expand_coords(&mut out, 1, &[coord(0.25), coord(-0.5)]);
+        assert_eq!(out.as_slice(), &[coord(0.25)]);
+    }
+
+    #[test]
+    fn scale_matrix_only_scales_translation() {
+        let matrix = [1.0, 2.0, 3.0, 4.0, 5.0, -6.0];
+        assert_eq!(
+            scale_matrix(matrix, 10.0),
+            [1.0, 2.0, 3.0, 4.0, 50.0, -60.0]
+        );
+    }
+
+    #[test]
+    fn mul_matrix_identity_and_known_product() {
+        let a = [0.5, 1.0, -2.0, 0.25, 7.0, -3.0];
+        assert_eq!(mul_matrix(IDENTITY_MATRIX, a), a);
+        assert_eq!(mul_matrix(a, IDENTITY_MATRIX), a);
+
+        let translate = [1.0, 0.0, 0.0, 1.0, 10.0, 20.0];
+        let scale = [2.0, 0.0, 0.0, 3.0, 0.0, 0.0];
+        assert_eq!(
+            mul_matrix(translate, scale),
+            [2.0, 0.0, 0.0, 3.0, 10.0, 20.0]
+        );
+        assert_eq!(
+            mul_matrix(scale, translate),
+            [2.0, 0.0, 0.0, 3.0, 20.0, 60.0]
+        );
+    }
+
+    #[test]
+    fn compute_sparse_region_scalar_handles_boundaries_and_products() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let varc = font.varc().unwrap();
+        let store = varc.multi_var_store().unwrap().unwrap();
+        let regions = store.region_list().unwrap();
+        let region_list = regions.regions();
+
+        let axis0_region = region_list.get(0).unwrap();
+        assert_close(
+            compute_sparse_region_scalar(&axis0_region, &[coord(1.0)]),
+            1.0,
+        );
+        assert_close(
+            compute_sparse_region_scalar(&axis0_region, &[coord(0.5)]),
+            0.5,
+        );
+        assert_close(
+            compute_sparse_region_scalar(&axis0_region, &[F2Dot14::ZERO]),
+            0.0,
+        );
+        assert_close(compute_sparse_region_scalar(&axis0_region, &[]), 0.0);
+        assert_close(
+            compute_sparse_region_scalar(&axis0_region, &[coord(-0.25)]),
+            0.0,
+        );
+
+        let axis0_axis1_region = region_list.get(2).unwrap();
+        assert_close(
+            compute_sparse_region_scalar(&axis0_axis1_region, &[coord(0.5), coord(0.25)]),
+            0.125,
+        );
+    }
+
+    #[test]
+    fn compute_tuple_deltas_no_variation_index_is_noop_after_resize() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let varc = font.varc().unwrap();
+        let store = varc.multi_var_store().unwrap().unwrap();
+        let regions = store.region_list().unwrap();
+        let mut cache = ScalarCache::new(regions.region_count() as usize);
+        let mut out = DeltaVec::new();
+        out.push(42.0);
+
+        compute_tuple_deltas(
+            &store,
+            &regions,
+            NO_VARIATION_INDEX,
+            &[coord(0.0)],
+            3,
+            &mut cache,
+            &mut out,
+        )
+        .unwrap();
+        assert_eq!(out.as_slice(), &[0.0, 0.0, 0.0]);
+
+        compute_tuple_deltas(
+            &store,
+            &regions,
+            NO_VARIATION_INDEX,
+            &[coord(0.0)],
+            0,
+            &mut cache,
+            &mut out,
+        )
+        .unwrap();
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn compute_tuple_deltas_invalid_outer_index_errors() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let varc = font.varc().unwrap();
+        let store = varc.multi_var_store().unwrap().unwrap();
+        let regions = store.region_list().unwrap();
+        let mut cache = ScalarCache::new(regions.region_count() as usize);
+        let mut out = DeltaVec::new();
+
+        let err = compute_tuple_deltas(&store, &regions, 0xFFFF_0000, &[], 1, &mut cache, &mut out)
+            .unwrap_err();
+        assert!(matches!(err, ReadError::InvalidCollectionIndex(_)));
+    }
+
+    #[test]
+    fn compute_tuple_deltas_matches_manual_decode() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let varc = font.varc().unwrap();
+        let store = varc.multi_var_store().unwrap().unwrap();
+        let regions = store.region_list().unwrap();
+        let region_list = regions.regions();
+        let coords = [coord(0.5); 8];
+
+        let mut tried = 0usize;
+        for (outer, data) in store.variation_data().iter().enumerate() {
+            let data = data.unwrap();
+            let region_count = data.region_indices().len();
+            if region_count == 0 {
+                continue;
+            }
+            let delta_set_count = data.delta_sets().unwrap().count() as usize;
+            for inner in 0..delta_set_count.min(3) {
+                let decoded = data.delta_set(inner).unwrap().iter().collect::<Vec<_>>();
+                if decoded.is_empty() || decoded.len() % region_count != 0 {
+                    continue;
+                }
+                let tuple_len = decoded.len() / region_count;
+                let var_idx = ((outer as u32) << 16) | inner as u32;
+
+                let mut cache = ScalarCache::new(regions.region_count() as usize);
+                let mut actual = DeltaVec::new();
+                compute_tuple_deltas(
+                    &store,
+                    &regions,
+                    var_idx,
+                    &coords,
+                    tuple_len,
+                    &mut cache,
+                    &mut actual,
+                )
+                .unwrap();
+                let first = actual.as_slice().to_vec();
+
+                // Same cache after population should not alter results.
+                compute_tuple_deltas(
+                    &store,
+                    &regions,
+                    var_idx,
+                    &coords,
+                    tuple_len,
+                    &mut cache,
+                    &mut actual,
+                )
+                .unwrap();
+                assert_eq!(actual.as_slice(), first.as_slice());
+
+                let mut expected = vec![0.0f32; tuple_len];
+                for (region_order, region_idx) in data.region_indices().iter().enumerate() {
+                    let scalar = compute_sparse_region_scalar(
+                        &region_list.get(region_idx.get() as usize).unwrap(),
+                        &coords,
+                    );
+                    if scalar == 0.0 {
+                        continue;
+                    }
+                    let base = region_order * tuple_len;
+                    for (i, slot) in expected.iter_mut().enumerate() {
+                        *slot += decoded[base + i] as f32 * scalar;
+                    }
+                }
+                assert_eq!(actual.len(), expected.len());
+                for (a, e) in actual.iter().zip(expected.iter()) {
+                    assert_close(*a, *e);
+                }
+                tried += 1;
+            }
+        }
+        assert!(tried > 0, "expected at least one tuple to be exercised");
+    }
+
+    fn apply_transform_variations_reference(
+        component: &VarcComponent<'_>,
+        coords: &[F2Dot14],
+        transform: &mut DecomposedTransform,
+        var_store: Option<&MultiItemVariationStore<'_>>,
+        regions: Option<&SparseVariationRegionList<'_>>,
+        scalar_cache: &mut ScalarCache,
+        deltas: &mut DeltaVec,
+    ) -> Result<(), DrawError> {
+        let Some(var_idx) = component.transform_var_index() else {
+            return Ok(());
+        };
+        let flags = component.flags();
+        const TRANSFORM_MASK: VarcFlags = VarcFlags::from_bits_truncate(
+            VarcFlags::HAVE_TRANSLATE_X.bits()
+                | VarcFlags::HAVE_TRANSLATE_Y.bits()
+                | VarcFlags::HAVE_ROTATION.bits()
+                | VarcFlags::HAVE_SCALE_X.bits()
+                | VarcFlags::HAVE_SCALE_Y.bits()
+                | VarcFlags::HAVE_SKEW_X.bits()
+                | VarcFlags::HAVE_SKEW_Y.bits()
+                | VarcFlags::HAVE_TCENTER_X.bits()
+                | VarcFlags::HAVE_TCENTER_Y.bits(),
+        );
+        let field_count = (flags.bits() & TRANSFORM_MASK.bits()).count_ones() as usize;
+        if field_count == 0 {
+            return Ok(());
+        }
+
+        let store = var_store.ok_or(ReadError::NullOffset)?;
+        let regions = regions.ok_or(ReadError::NullOffset)?;
+        compute_tuple_deltas(
+            store,
+            regions,
+            var_idx,
+            coords,
+            field_count,
+            scalar_cache,
+            deltas,
+        )?;
+
+        let mut delta_iter = deltas.iter().copied();
+        if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
+            transform.set_translate_x(transform.translate_x() + delta_iter.next().unwrap_or(0.0));
+        }
+        if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
+            transform.set_translate_y(transform.translate_y() + delta_iter.next().unwrap_or(0.0));
+        }
+        if flags.contains(VarcFlags::HAVE_ROTATION) {
+            transform
+                .set_rotation(transform.rotation() + delta_iter.next().unwrap_or(0.0) / 4096.0);
+        }
+        if flags.contains(VarcFlags::HAVE_SCALE_X) {
+            transform.set_scale_x(transform.scale_x() + delta_iter.next().unwrap_or(0.0) / 1024.0);
+        }
+        if flags.contains(VarcFlags::HAVE_SCALE_Y) {
+            transform.set_scale_y(transform.scale_y() + delta_iter.next().unwrap_or(0.0) / 1024.0);
+        }
+        const SKEW_OR_CENTER: VarcFlags = VarcFlags::from_bits_truncate(
+            VarcFlags::HAVE_SKEW_X.bits()
+                | VarcFlags::HAVE_SKEW_Y.bits()
+                | VarcFlags::HAVE_TCENTER_X.bits()
+                | VarcFlags::HAVE_TCENTER_Y.bits(),
+        );
+        if flags.intersects(SKEW_OR_CENTER) {
+            if flags.contains(VarcFlags::HAVE_SKEW_X) {
+                transform
+                    .set_skew_x(transform.skew_x() + delta_iter.next().unwrap_or(0.0) / 4096.0);
+            }
+            if flags.contains(VarcFlags::HAVE_SKEW_Y) {
+                transform
+                    .set_skew_y(transform.skew_y() + delta_iter.next().unwrap_or(0.0) / 4096.0);
+            }
+            if flags.contains(VarcFlags::HAVE_TCENTER_X) {
+                transform.set_center_x(transform.center_x() + delta_iter.next().unwrap_or(0.0));
+            }
+            if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
+                transform.set_center_y(transform.center_y() + delta_iter.next().unwrap_or(0.0));
+            }
+        }
+        if !flags.contains(VarcFlags::HAVE_SCALE_Y) {
+            transform.set_scale_y(transform.scale_x());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn apply_transform_variations_matches_reference_path() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
+        let coverage = outlines.varc.coverage().unwrap();
+        let var_store = outlines.varc.multi_var_store().transpose().unwrap();
+        let regions = var_store
+            .as_ref()
+            .map(|s| s.region_list())
+            .transpose()
+            .unwrap();
+        let region_count = regions
+            .as_ref()
+            .map(|r| r.region_count() as usize)
+            .unwrap_or(0);
+
+        let mut coords = CoordVec::new();
+        coords.resize_and_fill(outlines.axis_count, F2Dot14::ZERO);
+        for (i, c) in coords.iter_mut().enumerate() {
+            *c = match i % 4 {
+                0 => coord(0.5),
+                1 => coord(-0.5),
+                2 => coord(0.25),
+                _ => coord(-0.25),
+            };
+        }
+
+        let mut tested = 0usize;
+        for gid16 in coverage.iter() {
+            let gid: GlyphId = gid16.into();
+            let coverage_index = coverage.get(gid).unwrap() as usize;
+            let glyph = outlines.varc.glyph(coverage_index).unwrap();
+            for component in glyph.components() {
+                let component = component.unwrap();
+                if component.transform_var_index().is_none() {
+                    continue;
+                }
+
+                let mut transform_new = *component.transform();
+                let mut transform_ref = *component.transform();
+                let mut cache_new = ScalarCache::new(region_count);
+                let mut cache_ref = ScalarCache::new(region_count);
+                let mut deltas_new = DeltaVec::new();
+                let mut deltas_ref = DeltaVec::new();
+
+                outlines
+                    .apply_transform_variations(
+                        &component,
+                        &coords,
+                        &mut transform_new,
+                        var_store.as_ref(),
+                        regions.as_ref(),
+                        &mut cache_new,
+                        &mut deltas_new,
+                    )
+                    .unwrap();
+                apply_transform_variations_reference(
+                    &component,
+                    &coords,
+                    &mut transform_ref,
+                    var_store.as_ref(),
+                    regions.as_ref(),
+                    &mut cache_ref,
+                    &mut deltas_ref,
+                )
+                .unwrap();
+
+                assert_close(transform_new.translate_x(), transform_ref.translate_x());
+                assert_close(transform_new.translate_y(), transform_ref.translate_y());
+                assert_close(transform_new.rotation(), transform_ref.rotation());
+                assert_close(transform_new.scale_x(), transform_ref.scale_x());
+                assert_close(transform_new.scale_y(), transform_ref.scale_y());
+                assert_close(transform_new.skew_x(), transform_ref.skew_x());
+                assert_close(transform_new.skew_y(), transform_ref.skew_y());
+                assert_close(transform_new.center_x(), transform_ref.center_x());
+                assert_close(transform_new.center_y(), transform_ref.center_y());
+                tested += 1;
+                if tested >= 32 {
+                    break;
+                }
+            }
+            if tested >= 32 {
+                break;
+            }
+        }
+        assert!(tested > 0, "expected at least one transformed component");
+    }
+
+    #[test]
+    fn draw_varc_6868_freetype_path_head_snapshot() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
+        let gid = font.cmap().unwrap().map_codepoint(0x6868_u32).unwrap();
+        let outline = outlines.outline(gid).unwrap().unwrap();
+        let mut memory = vec![0u8; outline.required_buffer_size()];
+        let mut pen = Vec::<PathElement>::new();
+        outlines
+            .draw(
+                &outline,
+                &mut memory,
+                Size::unscaled(),
+                &[],
+                PathStyle::FreeType,
+                &mut pen,
+            )
+            .unwrap();
+
+        let head = path_head_signature(&pen, 8);
+        assert_eq!(
+            head,
+            vec![
+                "M454.56,574.77".to_string(),
+                "Q477.58,585.56 499.80,598.25".to_string(),
+                "Q522.02,610.95 543.36,625.16".to_string(),
+                "Q564.71,639.37 584.54,655.19".to_string(),
+                "Q604.38,671.02 623.03,688.41".to_string(),
+                "Q641.67,705.80 658.41,724.46".to_string(),
+                "Q675.14,743.12 689.79,763.21".to_string(),
+                "Q704.43,783.31 717.03,804.56".to_string(),
+            ]
+        );
+    }
+}

@@ -1899,6 +1899,189 @@ mod tests {
     }
 
     #[test]
+    fn packed_delta_fetcher_skip_matches_iterator_suffix() {
+        static INPUT: FontData = FontData::new(&[
+            0x03, 0x0A, 0x97, 0x00, 0xC6, 0x87, 0x41, 0x10, 0x22, 0xFB, 0x34,
+        ]);
+        let deltas = PackedDeltas::consume_all(INPUT);
+        let expected = deltas.iter().collect::<Vec<_>>();
+
+        for skip in 0..=expected.len() {
+            let mut fetcher = deltas.fetcher();
+            fetcher.skip(skip).unwrap();
+            let mut out = vec![0.0; expected.len() - skip];
+            fetcher.add_to_f32_scaled(&mut out, 1.0).unwrap();
+            let got = out.into_iter().map(|v| v as i32).collect::<Vec<_>>();
+            assert_eq!(&got[..], &expected[skip..], "skip={skip}");
+        }
+
+        let mut fetcher = deltas.fetcher();
+        assert!(matches!(
+            fetcher.skip(expected.len() + 1),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn packed_delta_fetcher_scaled_add_and_exhaustion() {
+        static INPUT: FontData = FontData::new(&[
+            0x03, 0x0A, 0x97, 0x00, 0xC6, 0x87, 0x41, 0x10, 0x22, 0xFB, 0x34,
+        ]);
+        // First four deltas are [10, -105, 0, -58].
+        let deltas = PackedDeltas::new(INPUT, 4);
+        let mut fetcher = deltas.fetcher();
+        let mut out = [1.0f32; 4];
+        fetcher.add_to_f32_scaled(&mut out, 0.5).unwrap();
+        assert_eq!(out, [6.0, -51.5, 1.0, -28.0]);
+
+        // Bounded fetcher should now be exhausted.
+        let mut extra = [0.0f32; 1];
+        assert!(matches!(
+            fetcher.add_to_f32_scaled(&mut extra, 1.0),
+            Err(ReadError::OutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn packed_delta_fetcher_skip_then_add_bounded() {
+        static INPUT: FontData = FontData::new(&[0x83, 0x40, 0x01, 0x02, 0x01, 0x81, 0x80]);
+        // Full decoded stream: [0, 0, 0, 0, 258, -127, -128]
+        let deltas = PackedDeltas::new(INPUT, 7);
+        let mut fetcher = deltas.fetcher();
+        fetcher.skip(3).unwrap();
+        let mut out = [0.0f32; 4];
+        fetcher.add_to_f32_scaled(&mut out, 1.0).unwrap();
+        assert_eq!(out, [0.0, 258.0, -127.0, -128.0]);
+    }
+
+    #[test]
+    fn delta_run_iter_end_exhausts_unbounded_data() {
+        static INPUT: FontData = FontData::new(&[0x83, 0x40, 0x01, 0x02, 0x01, 0x81, 0x80]);
+        let deltas = PackedDeltas::consume_all(INPUT);
+        let end = deltas.iter().end();
+        assert_eq!(end.remaining_bytes(), 0);
+    }
+
+    #[test]
+    fn delta_run_iter_end_respects_bounded_count() {
+        static INPUT: FontData = FontData::new(&[0x83, 0x40, 0x01, 0x02, 0x01, 0x81, 0x80]);
+        // Count is exactly the first run only (4 zeros), so end() should not consume past
+        // the run header byte.
+        let deltas = PackedDeltas::new(INPUT, 4);
+        let end = deltas.iter().end();
+        assert_eq!(end.remaining_bytes(), INPUT.len() - 1);
+
+        let end_via_skip = deltas.iter().skip_fast(4).cursor;
+        assert_eq!(end_via_skip.remaining_bytes(), INPUT.len() - 1);
+    }
+
+    #[test]
+    fn delta_run_iter_end_matches_manual_iteration_for_bounded_data() {
+        static INPUT: FontData = FontData::new(&[
+            0x03, 0x0A, 0x97, 0x00, 0xC6, 0x87, 0x41, 0x10, 0x22, 0xFB, 0x34,
+        ]);
+        let deltas = PackedDeltas::new(INPUT, 6);
+
+        let iter_collected = deltas.iter().collect::<Vec<_>>();
+        assert_eq!(iter_collected.len(), 6);
+
+        let end = deltas.iter().end();
+        let end_via_skip = deltas.iter().skip_fast(6).cursor;
+        assert_eq!(end.remaining_bytes(), end_via_skip.remaining_bytes());
+    }
+
+    fn lcg_next(state: &mut u32) -> u32 {
+        *state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+        *state
+    }
+
+    fn generated_delta_stream(seed: u32) -> (Vec<u8>, Vec<i32>) {
+        let mut state = seed;
+        let mut bytes = Vec::new();
+        let mut expected = Vec::new();
+        let run_count = (lcg_next(&mut state) % 6 + 1) as usize;
+        for _ in 0..run_count {
+            let run_type = (lcg_next(&mut state) % 4) as usize;
+            let len = (lcg_next(&mut state) % 8 + 1) as usize;
+            let control = match run_type {
+                0 => (len - 1) as u8,        // i8
+                1 => 0x40 | (len - 1) as u8, // i16
+                2 => 0x80 | (len - 1) as u8, // zero
+                _ => 0xC0 | (len - 1) as u8, // i32
+            };
+            bytes.push(control);
+            match run_type {
+                0 => {
+                    for _ in 0..len {
+                        let v = ((lcg_next(&mut state) % 255) as i32 - 127) as i8;
+                        bytes.push(v as u8);
+                        expected.push(v as i32);
+                    }
+                }
+                1 => {
+                    for _ in 0..len {
+                        let v = ((lcg_next(&mut state) % 65535) as i32 - 32767) as i16;
+                        bytes.extend(v.to_be_bytes());
+                        expected.push(v as i32);
+                    }
+                }
+                2 => {
+                    expected.resize(expected.len() + len, 0);
+                }
+                _ => {
+                    for _ in 0..len {
+                        let v = (lcg_next(&mut state) % 2_000_001) as i32 - 1_000_000;
+                        bytes.extend(v.to_be_bytes());
+                        expected.push(v);
+                    }
+                }
+            }
+        }
+        (bytes, expected)
+    }
+
+    #[test]
+    fn generated_packed_deltas_iter_matches_expected() {
+        for seed in 1..=64 {
+            let (bytes, expected) = generated_delta_stream(seed);
+            let data = FontData::new(&bytes);
+            let deltas = PackedDeltas::consume_all(data);
+            assert_eq!(deltas.count_or_compute(), expected.len(), "seed={seed}");
+            assert_eq!(deltas.iter().collect::<Vec<_>>(), expected, "seed={seed}");
+        }
+    }
+
+    #[test]
+    fn generated_fetcher_skip_scaled_matches_expected() {
+        for seed in 1..=64 {
+            let (bytes, expected) = generated_delta_stream(seed);
+            let data = FontData::new(&bytes);
+            let deltas = PackedDeltas::new(data, expected.len());
+            let mut fetcher = deltas.fetcher();
+            let skip = (seed as usize * 7) % (expected.len() + 1);
+            fetcher.skip(skip).unwrap();
+
+            let scale = if seed % 2 == 0 { 0.25 } else { -0.5 };
+            let mut out = vec![10.0f32; expected.len() - skip];
+            fetcher.add_to_f32_scaled(&mut out, scale).unwrap();
+            for (i, got) in out.iter().copied().enumerate() {
+                let want = 10.0 + expected[skip + i] as f32 * scale;
+                assert!(
+                    (got - want).abs() <= 1e-6,
+                    "seed={seed} i={i} got={got} want={want}"
+                );
+            }
+
+            // Bounded fetcher should be exhausted after consuming all remaining entries.
+            let mut extra = [0.0f32; 1];
+            assert!(matches!(
+                fetcher.add_to_f32_scaled(&mut extra, 1.0),
+                Err(ReadError::OutOfBounds)
+            ));
+        }
+    }
+
+    #[test]
     fn packed_point_split() {
         static INPUT: FontData =
             FontData::new(&[2, 1, 1, 2, 1, 205, 143, 1, 8, 0, 1, 202, 59, 1, 255, 0]);
