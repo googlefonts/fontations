@@ -1,6 +1,6 @@
 //! the [VARC (Variable Composite/Component)](https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md) table
 
-use super::variations::PackedDeltas;
+use super::variations::{PackedDeltas, NO_VARIATION_INDEX};
 pub use super::{
     layout::{Condition, CoverageTable},
     postscript::Index2,
@@ -145,7 +145,15 @@ impl<'a> VarcComponent<'a> {
             None
         };
 
-        let mut transform = DecomposedTransform::default();
+        // Keep transform values in raw encoded units while parsing:
+        // - rotation/skew: F4Dot12 raw units
+        // - scale: F6Dot10 raw units
+        // Division to normalized values can be deferred by consumers.
+        let mut transform = DecomposedTransform {
+            scale_x: 1024.0,
+            scale_y: 1024.0,
+            ..Default::default()
+        };
         let translate_mask = VarcFlags::HAVE_TRANSLATE_X.bits | VarcFlags::HAVE_TRANSLATE_Y.bits;
         if raw_flags & translate_mask != 0 {
             if raw_flags & VarcFlags::HAVE_TRANSLATE_X.bits != 0 {
@@ -156,15 +164,15 @@ impl<'a> VarcComponent<'a> {
             }
         }
         if raw_flags & VarcFlags::HAVE_ROTATION.bits != 0 {
-            transform.rotation = cursor.read::<F4Dot12>()?.to_f32()
+            transform.rotation = cursor.read::<F4Dot12>()?.to_bits() as f32
         }
         let scale_mask = VarcFlags::HAVE_SCALE_X.bits | VarcFlags::HAVE_SCALE_Y.bits;
         if raw_flags & scale_mask != 0 {
             if raw_flags & VarcFlags::HAVE_SCALE_X.bits != 0 {
-                transform.scale_x = cursor.read::<F6Dot10>()?.to_f32()
+                transform.scale_x = cursor.read::<F6Dot10>()?.to_bits() as f32
             }
             transform.scale_y = if raw_flags & VarcFlags::HAVE_SCALE_Y.bits != 0 {
-                cursor.read::<F6Dot10>()?.to_f32()
+                cursor.read::<F6Dot10>()?.to_bits() as f32
             } else {
                 transform.scale_x
             };
@@ -181,10 +189,10 @@ impl<'a> VarcComponent<'a> {
         let skew_mask = VarcFlags::HAVE_SKEW_X.bits | VarcFlags::HAVE_SKEW_Y.bits;
         if raw_flags & skew_mask != 0 {
             if raw_flags & VarcFlags::HAVE_SKEW_X.bits != 0 {
-                transform.skew_x = cursor.read::<F4Dot12>()?.to_f32()
+                transform.skew_x = cursor.read::<F4Dot12>()?.to_bits() as f32
             }
             if raw_flags & VarcFlags::HAVE_SKEW_Y.bits != 0 {
-                transform.skew_y = cursor.read::<F4Dot12>()?.to_f32()
+                transform.skew_y = cursor.read::<F4Dot12>()?.to_bits() as f32
             }
         }
 
@@ -370,7 +378,12 @@ impl DecomposedTransform {
 
         // Python: t = t.rotate(self.rotation * math.pi)
         if self.rotation != 0.0 {
-            let (s, c) = (self.rotation * core::f32::consts::PI).sin_cos();
+            let rot = self.rotation * core::f32::consts::PI;
+            let (s, c) = rot.sin_cos();
+            eprintln!(
+                "VARC_TRIG kind=rotate in={:.16} sin={:.16} cos={:.16}",
+                rot as f64, s as f64, c as f64
+            );
             transform = transform.transform([c, s, -s, c, 0.0, 0.0]);
         }
 
@@ -381,10 +394,18 @@ impl DecomposedTransform {
 
         // Python: t = t.skew(-self.skewX * math.pi, self.skewY * math.pi)
         if (self.skew_x, self.skew_y) != (0.0, 0.0) {
+            let skew_y = self.skew_y * core::f32::consts::PI;
+            let skew_x = -self.skew_x * core::f32::consts::PI;
+            let tan_y = skew_y.tan();
+            let tan_x = skew_x.tan();
+            eprintln!(
+                "VARC_TRIG kind=skew in_x={:.16} in_y={:.16} tan_x={:.16} tan_y={:.16}",
+                skew_x as f64, skew_y as f64, tan_x as f64, tan_y as f64
+            );
             transform = transform.transform([
                 1.0,
-                (self.skew_y * core::f32::consts::PI).tan(),
-                (-self.skew_x * core::f32::consts::PI).tan(),
+                tan_y,
+                tan_x,
                 1.0,
                 0.0,
                 0.0,
@@ -431,6 +452,115 @@ impl<'a> MultiItemVariationData<'a> {
         let index = self.delta_sets()?;
         let raw_deltas = index.get(i).map_err(|_| ReadError::OutOfBounds)?;
         Ok(PackedDeltas::consume_all(raw_deltas.into()))
+    }
+}
+
+impl<'a> MultiItemVariationStore<'a> {
+    /// Adds tuple deltas for `var_idx` into `out` using float coordinates in raw
+    /// 2.14 units (that is, `F2Dot14::to_bits() as f32`).
+    ///
+    /// If provided, `scalar_cache` should be indexed by region index and initialized
+    /// to values greater than `1.0` (for example, `2.0`) to indicate "not cached".
+    pub fn add_tuple_deltas_raw_f32(
+        &self,
+        region_list: &SparseVariationRegionList<'a>,
+        var_idx: u32,
+        coords: &[f32],
+        tuple_len: usize,
+        out: &mut [f32],
+        mut scalar_cache: Option<&mut [f32]>,
+    ) -> Result<(), ReadError> {
+        if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
+            return Ok(());
+        }
+        if out.len() < tuple_len {
+            return Err(ReadError::OutOfBounds);
+        }
+        let out = &mut out[..tuple_len];
+        let outer = (var_idx >> 16) as usize;
+        let inner = (var_idx & 0xFFFF) as usize;
+        let data = self
+            .variation_data()
+            .get(outer)
+            .map_err(|_| ReadError::InvalidCollectionIndex(outer as _))?;
+        let region_indices = data.region_indices();
+        let mut deltas = data.delta_set(inner)?.fetcher();
+        let regions = region_list.regions();
+
+        let mut skip = 0usize;
+        for region_index in region_indices.iter() {
+            let region_idx = region_index.get() as usize;
+            let scalar = if let Some(cache) = scalar_cache.as_deref_mut() {
+                if let Some(slot) = cache.get_mut(region_idx) {
+                    if *slot <= 1.0 {
+                        *slot
+                    } else {
+                        let computed = regions.get(region_idx)?.compute_scalar_raw_f32(coords);
+                        *slot = computed;
+                        computed
+                    }
+                } else {
+                    regions.get(region_idx)?.compute_scalar_raw_f32(coords)
+                }
+            } else {
+                regions.get(region_idx)?.compute_scalar_raw_f32(coords)
+            };
+
+            if scalar == 0.0 {
+                skip += tuple_len;
+                continue;
+            }
+
+            if skip != 0 {
+                deltas.skip(skip)?;
+                skip = 0;
+            }
+            deltas.add_to_f32_scaled(out, scalar)?;
+        }
+        Ok(())
+    }
+}
+
+impl SparseVariationRegion<'_> {
+    /// Computes a scalar for coordinates in raw 2.14 units
+    /// (that is, `F2Dot14::to_bits() as f32`).
+    pub fn compute_scalar_raw_f32(&self, coords: &[f32]) -> f32 {
+        let mut scalar = 1.0f32;
+        for axis in self.region_axes() {
+            let axis_index = axis.axis_index() as usize;
+            let coord = coords.get(axis_index).copied().unwrap_or(0.0);
+            let peak = axis.peak().to_bits() as f32;
+            if peak == 0.0 || coord == peak {
+                continue;
+            }
+            if coord == 0.0 {
+                return 0.0;
+            }
+            let start = axis.start().to_bits() as f32;
+            let end = axis.end().to_bits() as f32;
+            // Match HarfBuzz behavior for malformed regions.
+            if start > peak || peak > end {
+                continue;
+            }
+            if start < 0.0 && end > 0.0 && peak != 0.0 {
+                continue;
+            }
+            // Endpoints are out-of-range in HB.
+            if coord <= start || end <= coord {
+                return 0.0;
+            } else {
+                let factor = if coord < peak {
+                    (coord - start) / (peak - start)
+                } else {
+                    (end - coord) / (end - peak)
+                };
+                if factor == 0.0 {
+                    return 0.0;
+                }
+                scalar *= factor;
+            }
+        }
+        scalar
     }
 }
 
