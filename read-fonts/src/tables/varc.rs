@@ -99,19 +99,19 @@ impl<'a> VarcComponent<'a> {
         // Ref https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md#variable-component-record
 
         // This is a GlyphID16 if GID_IS_24BIT bit of flags is clear, else GlyphID24.
-        let gid = if raw_flags & VarcFlags::GID_IS_24BIT.bits != 0 {
+        let gid = if flags.contains(VarcFlags::GID_IS_24BIT) {
             GlyphId::new(cursor.read::<Uint24>()?.to_u32())
         } else {
             GlyphId::from(cursor.read::<u16>()?)
         };
 
-        let condition_index = if raw_flags & VarcFlags::HAVE_CONDITION.bits != 0 {
+        let condition_index = if flags.contains(VarcFlags::HAVE_CONDITION) {
             Some(cursor.read_u32_var()?)
         } else {
             None
         };
 
-        let (axis_indices_index, axis_values) = if raw_flags & VarcFlags::HAVE_AXES.bits != 0 {
+        let (axis_indices_index, axis_values) = if flags.contains(VarcFlags::HAVE_AXES) {
             // <https://github.com/harfbuzz/harfbuzz/blob/0c2f5ecd51d11e32836ee136a1bc765d650a4ec0/src/OT/Var/VARC/VARC.cc#L195-L206>
             let axis_indices_index = cursor.read_u32_var()?;
             let num_axis_values = table
@@ -133,57 +133,53 @@ impl<'a> VarcComponent<'a> {
             (None, None)
         };
 
-        let axis_values_var_index = if raw_flags & VarcFlags::AXIS_VALUES_HAVE_VARIATION.bits != 0 {
+        let axis_values_var_index = if flags.contains(VarcFlags::AXIS_VALUES_HAVE_VARIATION) {
             Some(cursor.read_u32_var()?)
         } else {
             None
         };
 
-        let transform_var_index = if raw_flags & VarcFlags::TRANSFORM_HAS_VARIATION.bits != 0 {
+        let transform_var_index = if flags.contains(VarcFlags::TRANSFORM_HAS_VARIATION) {
             Some(cursor.read_u32_var()?)
         } else {
             None
         };
 
         let mut transform = DecomposedTransform::default();
-        let translate_mask = VarcFlags::HAVE_TRANSLATE_X.bits | VarcFlags::HAVE_TRANSLATE_Y.bits;
-        if raw_flags & translate_mask != 0 {
-            if raw_flags & VarcFlags::HAVE_TRANSLATE_X.bits != 0 {
+        if flags.intersects(VarcFlags::HAVE_TRANSLATE_X | VarcFlags::HAVE_TRANSLATE_Y) {
+            if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
                 transform.translate_x = cursor.read::<FWord>()?.to_i16() as f32
             }
-            if raw_flags & VarcFlags::HAVE_TRANSLATE_Y.bits != 0 {
+            if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
                 transform.translate_y = cursor.read::<FWord>()?.to_i16() as f32
             }
         }
-        if raw_flags & VarcFlags::HAVE_ROTATION.bits != 0 {
+        if flags.contains(VarcFlags::HAVE_ROTATION) {
             transform.rotation = cursor.read::<F4Dot12>()?.to_f32()
         }
-        let scale_mask = VarcFlags::HAVE_SCALE_X.bits | VarcFlags::HAVE_SCALE_Y.bits;
-        if raw_flags & scale_mask != 0 {
-            if raw_flags & VarcFlags::HAVE_SCALE_X.bits != 0 {
+        if flags.intersects(VarcFlags::HAVE_SCALE_X | VarcFlags::HAVE_SCALE_Y) {
+            if flags.contains(VarcFlags::HAVE_SCALE_X) {
                 transform.scale_x = cursor.read::<F6Dot10>()?.to_f32()
             }
-            transform.scale_y = if raw_flags & VarcFlags::HAVE_SCALE_Y.bits != 0 {
+            transform.scale_y = if flags.contains(VarcFlags::HAVE_SCALE_Y) {
                 cursor.read::<F6Dot10>()?.to_f32()
             } else {
                 transform.scale_x
             };
         }
-        let center_mask = VarcFlags::HAVE_TCENTER_X.bits | VarcFlags::HAVE_TCENTER_Y.bits;
-        if raw_flags & center_mask != 0 {
-            if raw_flags & VarcFlags::HAVE_TCENTER_X.bits != 0 {
+        if flags.intersects(VarcFlags::HAVE_TCENTER_X | VarcFlags::HAVE_TCENTER_Y) {
+            if flags.contains(VarcFlags::HAVE_TCENTER_X) {
                 transform.center_x = cursor.read::<FWord>()?.to_i16() as f32
             }
-            if raw_flags & VarcFlags::HAVE_TCENTER_Y.bits != 0 {
+            if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
                 transform.center_y = cursor.read::<FWord>()?.to_i16() as f32
             }
         }
-        let skew_mask = VarcFlags::HAVE_SKEW_X.bits | VarcFlags::HAVE_SKEW_Y.bits;
-        if raw_flags & skew_mask != 0 {
-            if raw_flags & VarcFlags::HAVE_SKEW_X.bits != 0 {
+        if flags.intersects(VarcFlags::HAVE_SKEW_X | VarcFlags::HAVE_SKEW_Y) {
+            if flags.contains(VarcFlags::HAVE_SKEW_X) {
                 transform.skew_x = cursor.read::<F4Dot12>()?.to_f32()
             }
-            if raw_flags & VarcFlags::HAVE_SKEW_Y.bits != 0 {
+            if flags.contains(VarcFlags::HAVE_SKEW_Y) {
                 transform.skew_y = cursor.read::<F4Dot12>()?.to_f32()
             }
         }
