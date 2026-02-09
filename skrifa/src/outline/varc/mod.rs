@@ -51,6 +51,19 @@ impl Scratchpad {
     }
 }
 
+struct VarcDrawContext<'a, 'b> {
+    font_coords: &'b [F2Dot14],
+    size: Size,
+    path_style: PathStyle,
+    buf: &'b mut [u8],
+    pen: &'b mut dyn OutlinePen,
+    stack: &'b mut GlyphStack,
+    coverage: &'b read_fonts::tables::layout::CoverageTable<'a>,
+    var_store: Option<&'b MultiItemVariationStore<'a>>,
+    regions: Option<&'b SparseVariationRegionList<'a>>,
+    scratch: &'b mut Scratchpad,
+}
+
 #[derive(Clone)]
 enum BaseOutlines<'a> {
     Glyf(glyf::Outlines<'a>),
@@ -260,22 +273,25 @@ impl<'a> Outlines<'a> {
         let regions = var_store.as_ref().map(|s| s.region_list()).transpose()?;
         let mut scalar_cache = self.scalar_cache_from_store(var_store.as_ref())?.unwrap();
         let mut scratch = Scratchpad::new();
-        self.draw_glyph(
-            outline.glyph_id,
-            outline.coverage_index,
-            &font_coords,
-            &font_coords,
+        let mut ctx = VarcDrawContext {
+            font_coords: &font_coords,
             size,
             path_style,
             buf,
             pen,
-            &mut stack,
+            stack: &mut stack,
+            coverage: &coverage,
+            var_store: var_store.as_ref(),
+            regions: regions.as_ref(),
+            scratch: &mut scratch,
+        };
+        self.draw_glyph(
+            outline.glyph_id,
+            outline.coverage_index,
+            &font_coords,
             IDENTITY_MATRIX,
-            var_store.as_ref(),
-            regions.as_ref(),
-            &coverage,
             &mut scalar_cache,
-            &mut scratch,
+            &mut ctx,
         )
     }
 
@@ -291,42 +307,25 @@ impl<'a> Outlines<'a> {
         Ok(self.glyph_metrics.advance_width(outline.glyph_id, coords))
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn draw_glyph(
         &self,
         glyph_id: GlyphId,
         coverage_index: u16,
-        font_coords: &[F2Dot14],
         current_coords: &[F2Dot14],
-        size: Size,
-        path_style: PathStyle,
-        buf: &mut [u8],
-        pen: &mut dyn OutlinePen,
-        stack: &mut GlyphStack,
         parent_matrix: Affine,
-        var_store: Option<&MultiItemVariationStore<'a>>,
-        regions: Option<&SparseVariationRegionList<'a>>,
-        coverage: &read_fonts::tables::layout::CoverageTable<'a>,
         scalar_cache: &mut ScalarCache,
-        scratch: &mut Scratchpad,
+        ctx: &mut VarcDrawContext<'a, '_>,
     ) -> Result<(), DrawError> {
-        if stack.len() >= GLYF_COMPOSITE_RECURSION_LIMIT {
+        if ctx.stack.len() >= GLYF_COMPOSITE_RECURSION_LIMIT {
             return Err(DrawError::RecursionLimitExceeded(glyph_id));
         }
         let glyph = self.varc.glyph(coverage_index as usize)?;
-        stack.push(glyph_id);
+        ctx.stack.push(glyph_id);
         let mut component_coords_buffer = CoordVec::new();
         let mut child_scalar_cache: Option<ScalarCache> = None;
         for component in glyph.components() {
             let component = component?;
-            if !self.component_condition_met(
-                &component,
-                current_coords,
-                var_store,
-                regions,
-                scalar_cache,
-                scratch,
-            )? {
+            if !self.component_condition_met(&component, current_coords, scalar_cache, ctx)? {
                 continue;
             }
             let component_gid = component.gid();
@@ -340,13 +339,10 @@ impl<'a> Outlines<'a> {
             } else {
                 self.component_coords(
                     &component,
-                    font_coords,
                     current_coords,
-                    var_store,
-                    regions,
-                    scalar_cache,
                     &mut component_coords_buffer,
-                    scratch,
+                    scalar_cache,
+                    ctx,
                 )?;
                 component_coords_buffer.as_slice()
             };
@@ -356,74 +352,54 @@ impl<'a> Outlines<'a> {
                 &component,
                 current_coords,
                 &mut transform,
-                var_store,
-                regions,
                 scalar_cache,
-                &mut scratch.deltas,
+                ctx,
             )?;
-            let scale = size.linear_scale(self.units_per_em);
+            let scale = ctx.size.linear_scale(self.units_per_em);
             let matrix = mul_matrix(parent_matrix, scale_matrix(transform.matrix(), scale));
             if component_gid != glyph_id {
-                if let Some(coverage_index) = coverage.get(component_gid) {
-                    if !stack.contains(&component_gid) {
+                if let Some(coverage_index) = ctx.coverage.get(component_gid) {
+                    if !ctx.stack.contains(&component_gid) {
                         // Optimization: if coordinates haven't changed, we can reuse the scalar cache.
                         if coords_the_same {
                             self.draw_glyph(
                                 component_gid,
                                 coverage_index,
-                                font_coords,
                                 current_coords,
-                                size,
-                                path_style,
-                                buf,
-                                pen,
-                                stack,
                                 matrix,
-                                var_store,
-                                regions,
-                                coverage,
                                 scalar_cache,
-                                scratch,
+                                ctx,
                             )?;
                         } else {
                             if let Some(ref mut cache) = child_scalar_cache {
                                 cache.values.fill(ScalarCache::INVALID);
                             } else {
-                                child_scalar_cache = self.scalar_cache_from_store(var_store)?;
+                                child_scalar_cache = self.scalar_cache_from_store(ctx.var_store)?;
                             }
                             self.draw_glyph(
                                 component_gid,
                                 coverage_index,
-                                font_coords,
                                 component_coords,
-                                size,
-                                path_style,
-                                buf,
-                                pen,
-                                stack,
                                 matrix,
-                                var_store,
-                                regions,
-                                coverage,
                                 child_scalar_cache.as_mut().unwrap(),
-                                scratch,
+                                ctx,
                             )?;
                         }
                         continue;
                     }
                 }
             }
-            let mut transform_pen = TransformPen::new(pen, matrix);
+            let mut transform_pen = TransformPen::new(&mut *ctx.pen, matrix);
             self.draw_base_glyph(
                 component_gid,
                 component_coords,
-                size,
-                path_style,
-                buf,
+                ctx.size,
+                ctx.path_style,
+                ctx.buf,
                 &mut transform_pen,
             )?;
         }
-        stack.pop();
+        ctx.stack.pop();
         Ok(())
     }
 
@@ -447,21 +423,17 @@ impl<'a> Outlines<'a> {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn component_coords(
         &self,
-        component: &VarcComponent<'a>,
-        font_coords: &[F2Dot14],
+        component: &VarcComponent<'_>,
         current_coords: &[F2Dot14],
-        var_store: Option<&MultiItemVariationStore<'a>>,
-        regions: Option<&SparseVariationRegionList<'a>>,
-        scalar_cache: &mut ScalarCache,
         coords: &mut CoordVec,
-        scratch: &mut Scratchpad,
+        scalar_cache: &mut ScalarCache,
+        ctx: &mut VarcDrawContext<'a, '_>,
     ) -> Result<(), DrawError> {
         let flags = component.flags();
         if flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) {
-            expand_coords(coords, font_coords.len(), font_coords);
+            expand_coords(coords, ctx.font_coords.len(), ctx.font_coords);
         } else {
             expand_coords(coords, current_coords.len(), current_coords);
         }
@@ -473,30 +445,37 @@ impl<'a> Outlines<'a> {
         let axis_indices_index = component
             .axis_indices_index()
             .ok_or(ReadError::MalformedData("Missing axisIndicesIndex"))?;
-        let num_axes = self.axis_indices(axis_indices_index as usize, &mut scratch.axis_indices)?;
+        let num_axes =
+            self.axis_indices(axis_indices_index as usize, &mut ctx.scratch.axis_indices)?;
 
-        self.axis_values(component, num_axes, &mut scratch.axis_values)?;
+        self.axis_values(component, num_axes, &mut ctx.scratch.axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
-            let store = var_store.ok_or(ReadError::NullOffset)?;
-            let regions = regions.ok_or(ReadError::NullOffset)?;
+            let store = ctx.var_store.ok_or(ReadError::NullOffset)?;
+            let regions = ctx.regions.ok_or(ReadError::NullOffset)?;
             compute_tuple_deltas(
                 store,
                 regions,
                 var_idx,
                 current_coords,
-                scratch.axis_indices.len(),
+                ctx.scratch.axis_indices.len(),
                 scalar_cache,
-                &mut scratch.deltas,
+                &mut ctx.scratch.deltas,
             )?;
-            for (value, delta) in scratch.axis_values.iter_mut().zip(scratch.deltas.iter()) {
+            for (value, delta) in ctx
+                .scratch
+                .axis_values
+                .iter_mut()
+                .zip(ctx.scratch.deltas.iter())
+            {
                 *value += *delta;
             }
         }
 
-        for (axis_index, value) in scratch
+        for (axis_index, value) in ctx
+            .scratch
             .axis_indices
             .iter()
-            .zip(scratch.axis_values.iter().copied())
+            .zip(ctx.scratch.axis_values.iter().copied())
         {
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
                 return Err(DrawError::Read(ReadError::OutOfBounds));
@@ -518,7 +497,7 @@ impl<'a> Outlines<'a> {
 
     fn axis_values(
         &self,
-        component: &VarcComponent<'a>,
+        component: &VarcComponent<'_>,
         count: usize,
         out: &mut AxisValueVec,
     ) -> Result<(), DrawError> {
@@ -533,16 +512,13 @@ impl<'a> Outlines<'a> {
         Ok(())
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn apply_transform_variations(
         &self,
-        component: &VarcComponent<'a>,
+        component: &VarcComponent<'_>,
         coords: &[F2Dot14],
         transform: &mut DecomposedTransform,
-        var_store: Option<&MultiItemVariationStore<'a>>,
-        regions: Option<&SparseVariationRegionList<'a>>,
         scalar_cache: &mut ScalarCache,
-        deltas: &mut DeltaVec,
+        ctx: &mut VarcDrawContext<'a, '_>,
     ) -> Result<(), DrawError> {
         let Some(var_idx) = component.transform_var_index() else {
             return Ok(());
@@ -567,8 +543,8 @@ impl<'a> Outlines<'a> {
             return Ok(());
         }
 
-        let store = var_store.ok_or(ReadError::NullOffset)?;
-        let regions = regions.ok_or(ReadError::NullOffset)?;
+        let store = ctx.var_store.ok_or(ReadError::NullOffset)?;
+        let regions = ctx.regions.ok_or(ReadError::NullOffset)?;
         compute_tuple_deltas(
             store,
             regions,
@@ -576,11 +552,11 @@ impl<'a> Outlines<'a> {
             coords,
             field_count,
             scalar_cache,
-            deltas,
+            &mut ctx.scratch.deltas,
         )?;
 
         // Apply deltas in flag order, consuming from iterator
-        let mut delta_iter = deltas.iter().copied();
+        let mut delta_iter = ctx.scratch.deltas.iter().copied();
 
         if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
             let delta = delta_iter.next().unwrap_or(0.0);
@@ -635,12 +611,10 @@ impl<'a> Outlines<'a> {
 
     fn component_condition_met(
         &self,
-        component: &VarcComponent<'a>,
+        component: &VarcComponent<'_>,
         coords: &[F2Dot14],
-        var_store: Option<&MultiItemVariationStore<'a>>,
-        regions: Option<&SparseVariationRegionList<'a>>,
         scalar_cache: &mut ScalarCache,
-        scratch: &mut Scratchpad,
+        ctx: &mut VarcDrawContext<'a, '_>,
     ) -> Result<bool, DrawError> {
         let Some(condition_index) = component.condition_index() else {
             return Ok(true);
@@ -650,9 +624,16 @@ impl<'a> Outlines<'a> {
         };
         let condition_list = condition_list?;
         let condition = condition_list.conditions().get(condition_index as usize)?;
-        let store = var_store.ok_or(ReadError::NullOffset)?;
-        let regions = regions.ok_or(ReadError::NullOffset)?;
-        Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch)
+        let store = ctx.var_store.ok_or(ReadError::NullOffset)?;
+        let regions = ctx.regions.ok_or(ReadError::NullOffset)?;
+        Self::eval_condition(
+            &condition,
+            coords,
+            store,
+            regions,
+            scalar_cache,
+            ctx.scratch,
+        )
     }
 
     fn eval_condition(
@@ -1299,18 +1280,31 @@ mod tests {
                 let mut transform_ref = *component.transform();
                 let mut cache_new = ScalarCache::new(region_count);
                 let mut cache_ref = ScalarCache::new(region_count);
-                let mut deltas_new = DeltaVec::new();
                 let mut deltas_ref = DeltaVec::new();
+                let mut stack = GlyphStack::new();
+                let mut scratch = Scratchpad::new();
+                let mut pen = Vec::<PathElement>::new();
+                let mut buf: [u8; 0] = [];
+                let mut ctx = VarcDrawContext {
+                    font_coords: &coords,
+                    size: Size::unscaled(),
+                    path_style: PathStyle::default(),
+                    buf: &mut buf,
+                    pen: &mut pen,
+                    stack: &mut stack,
+                    coverage: &coverage,
+                    var_store: var_store.as_ref(),
+                    regions: regions.as_ref(),
+                    scratch: &mut scratch,
+                };
 
                 outlines
                     .apply_transform_variations(
                         &component,
                         &coords,
                         &mut transform_new,
-                        var_store.as_ref(),
-                        regions.as_ref(),
                         &mut cache_new,
-                        &mut deltas_new,
+                        &mut ctx,
                     )
                     .unwrap();
                 apply_transform_variations_reference(
