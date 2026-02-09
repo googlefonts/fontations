@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GsubMarker {}
-
 impl<'a> MinByteRange for Gsub<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.lookup_list_offset_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Gsub<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GsubMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
-pub type Gsub<'a> = TableRef<'a, GsubMarker>;
+#[derive(Clone)]
+pub struct Gsub<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gsub<'a> {
@@ -42,6 +37,7 @@ impl<'a> Gsub<'a> {
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -290,8 +286,8 @@ impl<'a> FontRead<'a> for SingleSubst<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            SingleSubstFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            SingleSubstFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            SingleSubstFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            SingleSubstFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -333,14 +329,9 @@ impl<'a> SomeTable<'a> for SingleSubst<'a> {
     }
 }
 
-impl Format<u16> for SingleSubstFormat1Marker {
+impl Format<u16> for SingleSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#11-single-substitution-format-1)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SingleSubstFormat1Marker {}
 
 impl<'a> MinByteRange for SingleSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -353,19 +344,20 @@ impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SingleSubstFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#11-single-substitution-format-1)
-pub type SingleSubstFormat1<'a> = TableRef<'a, SingleSubstFormat1Marker>;
+#[derive(Clone)]
+pub struct SingleSubstFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SingleSubstFormat1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -437,14 +429,9 @@ impl<'a> std::fmt::Debug for SingleSubstFormat1<'a> {
     }
 }
 
-impl Format<u16> for SingleSubstFormat2Marker {
+impl Format<u16> for SingleSubstFormat2<'_> {
     const FORMAT: u16 = 2;
 }
-
-/// [Single Substitution Format 2](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#12-single-substitution-format-2)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SingleSubstFormat2Marker {}
 
 impl<'a> MinByteRange for SingleSubstFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -457,19 +444,20 @@ impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SingleSubstFormat2Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Single Substitution Format 2](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#12-single-substitution-format-2)
-pub type SingleSubstFormat2<'a> = TableRef<'a, SingleSubstFormat2Marker>;
+#[derive(Clone)]
+pub struct SingleSubstFormat2<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SingleSubstFormat2<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -558,14 +546,9 @@ impl<'a> std::fmt::Debug for SingleSubstFormat2<'a> {
     }
 }
 
-impl Format<u16> for MultipleSubstFormat1Marker {
+impl Format<u16> for MultipleSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Multiple Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#21-multiple-substitution-format-1)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MultipleSubstFormat1Marker {}
 
 impl<'a> MinByteRange for MultipleSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -578,19 +561,20 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MultipleSubstFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Multiple Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#21-multiple-substitution-format-1)
-pub type MultipleSubstFormat1<'a> = TableRef<'a, MultipleSubstFormat1Marker>;
+#[derive(Clone)]
+pub struct MultipleSubstFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MultipleSubstFormat1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -697,11 +681,6 @@ impl<'a> std::fmt::Debug for MultipleSubstFormat1<'a> {
     }
 }
 
-/// Part of [MultipleSubstFormat1]
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SequenceMarker {}
-
 impl<'a> MinByteRange for Sequence<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.substitute_glyph_ids_byte_range().end
@@ -713,19 +692,20 @@ impl<'a> FontRead<'a> for Sequence<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SequenceMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// Part of [MultipleSubstFormat1]
-pub type Sequence<'a> = TableRef<'a, SequenceMarker>;
+#[derive(Clone)]
+pub struct Sequence<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sequence<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -779,14 +759,9 @@ impl<'a> std::fmt::Debug for Sequence<'a> {
     }
 }
 
-impl Format<u16> for AlternateSubstFormat1Marker {
+impl Format<u16> for AlternateSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Alternate Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#31-alternate-substitution-format-1)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AlternateSubstFormat1Marker {}
 
 impl<'a> MinByteRange for AlternateSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -799,19 +774,20 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AlternateSubstFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Alternate Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#31-alternate-substitution-format-1)
-pub type AlternateSubstFormat1<'a> = TableRef<'a, AlternateSubstFormat1Marker>;
+#[derive(Clone)]
+pub struct AlternateSubstFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AlternateSubstFormat1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -921,11 +897,6 @@ impl<'a> std::fmt::Debug for AlternateSubstFormat1<'a> {
     }
 }
 
-/// Part of [AlternateSubstFormat1]
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AlternateSetMarker {}
-
 impl<'a> MinByteRange for AlternateSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.alternate_glyph_ids_byte_range().end
@@ -937,19 +908,20 @@ impl<'a> FontRead<'a> for AlternateSet<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AlternateSetMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// Part of [AlternateSubstFormat1]
-pub type AlternateSet<'a> = TableRef<'a, AlternateSetMarker>;
+#[derive(Clone)]
+pub struct AlternateSet<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AlternateSet<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1002,14 +974,9 @@ impl<'a> std::fmt::Debug for AlternateSet<'a> {
     }
 }
 
-impl Format<u16> for LigatureSubstFormat1Marker {
+impl Format<u16> for LigatureSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Ligature Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#41-ligature-substitution-format-1)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct LigatureSubstFormat1Marker {}
 
 impl<'a> MinByteRange for LigatureSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1022,19 +989,20 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: LigatureSubstFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Ligature Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#41-ligature-substitution-format-1)
-pub type LigatureSubstFormat1<'a> = TableRef<'a, LigatureSubstFormat1Marker>;
+#[derive(Clone)]
+pub struct LigatureSubstFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureSubstFormat1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1141,11 +1109,6 @@ impl<'a> std::fmt::Debug for LigatureSubstFormat1<'a> {
     }
 }
 
-/// Part of [LigatureSubstFormat1]
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct LigatureSetMarker {}
-
 impl<'a> MinByteRange for LigatureSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ligature_offsets_byte_range().end
@@ -1157,19 +1120,20 @@ impl<'a> FontRead<'a> for LigatureSet<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: LigatureSetMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// Part of [LigatureSubstFormat1]
-pub type LigatureSet<'a> = TableRef<'a, LigatureSetMarker>;
+#[derive(Clone)]
+pub struct LigatureSet<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureSet<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn ligature_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1240,11 +1204,6 @@ impl<'a> std::fmt::Debug for LigatureSet<'a> {
     }
 }
 
-/// Part of [LigatureSubstFormat1]
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct LigatureMarker {}
-
 impl<'a> MinByteRange for Ligature<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_glyph_ids_byte_range().end
@@ -1256,19 +1215,20 @@ impl<'a> FontRead<'a> for Ligature<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: LigatureMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// Part of [LigatureSubstFormat1]
-pub type Ligature<'a> = TableRef<'a, LigatureMarker>;
+#[derive(Clone)]
+pub struct Ligature<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ligature<'a> {
     pub const MIN_SIZE: usize = (GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn ligature_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1337,15 +1297,8 @@ impl<'a> std::fmt::Debug for Ligature<'a> {
     }
 }
 
-impl Format<u16> for ExtensionSubstFormat1Marker {
+impl Format<u16> for ExtensionSubstFormat1<'_> {
     const FORMAT: u16 = 1;
-}
-
-/// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
-#[derive(Debug)]
-#[doc(hidden)]
-pub struct ExtensionSubstFormat1Marker<T = ()> {
-    offset_type: std::marker::PhantomData<*const T>,
 }
 
 impl<'a, T> MinByteRange for ExtensionSubstFormat1<'a, T> {
@@ -1354,14 +1307,6 @@ impl<'a, T> MinByteRange for ExtensionSubstFormat1<'a, T> {
     }
 }
 
-impl<T> Clone for ExtensionSubstFormat1Marker<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for ExtensionSubstFormat1Marker<T> {}
-
 impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -1369,9 +1314,7 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
         }
         Ok(Self {
             data,
-            shape: ExtensionSubstFormat1Marker {
-                offset_type: std::marker::PhantomData,
-            },
+            offset_type: std::marker::PhantomData,
         })
     }
 }
@@ -1379,11 +1322,9 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
 impl<'a> ExtensionSubstFormat1<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> ExtensionSubstFormat1<'a, T> {
-        TableRef {
+        ExtensionSubstFormat1 {
             data: self.data,
-            shape: ExtensionSubstFormat1Marker {
-                offset_type: std::marker::PhantomData,
-            },
+            offset_type: std::marker::PhantomData,
         }
     }
 }
@@ -1392,21 +1333,24 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> ExtensionSubstFormat1<'a, ()> {
-        TableRef {
+        ExtensionSubstFormat1 {
             data: self.data,
-            shape: ExtensionSubstFormat1Marker {
-                offset_type: std::marker::PhantomData,
-            },
+            offset_type: std::marker::PhantomData,
         }
     }
 }
 
 /// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
-pub type ExtensionSubstFormat1<'a, T> = TableRef<'a, ExtensionSubstFormat1Marker<T>>;
+#[derive(Clone)]
+pub struct ExtensionSubstFormat1<'a, T = ()> {
+    data: FontData<'a>,
+    offset_type: std::marker::PhantomData<*const T>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> ExtensionSubstFormat1<'a, T> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1563,14 +1507,9 @@ impl std::fmt::Debug for ExtensionSubtable<'_> {
     }
 }
 
-impl Format<u16> for ReverseChainSingleSubstFormat1Marker {
+impl Format<u16> for ReverseChainSingleSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct ReverseChainSingleSubstFormat1Marker {}
 
 impl<'a> MinByteRange for ReverseChainSingleSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1583,15 +1522,15 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: ReverseChainSingleSubstFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
-pub type ReverseChainSingleSubstFormat1<'a> = TableRef<'a, ReverseChainSingleSubstFormat1Marker>;
+#[derive(Clone)]
+pub struct ReverseChainSingleSubstFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ReverseChainSingleSubstFormat1<'a> {
@@ -1600,6 +1539,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;

@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [DSIG (Digital Signature Table)](https://docs.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct DsigMarker {}
-
 impl<'a> MinByteRange for Dsig<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.signature_records_byte_range().end
@@ -26,20 +21,21 @@ impl<'a> FontRead<'a> for Dsig<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: DsigMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [DSIG (Digital Signature Table)](https://docs.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure) table
-pub type Dsig<'a> = TableRef<'a, DsigMarker>;
+#[derive(Clone)]
+pub struct Dsig<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Dsig<'a> {
     pub const MIN_SIZE: usize =
         (u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + PermissionFlags::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -479,11 +475,6 @@ impl<'a> SomeRecord<'a> for SignatureRecord {
     }
 }
 
-/// [Signature Block Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SignatureBlockFormat1Marker {}
-
 impl<'a> MinByteRange for SignatureBlockFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.signature_byte_range().end
@@ -495,19 +486,20 @@ impl<'a> FontRead<'a> for SignatureBlockFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SignatureBlockFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Signature Block Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure)
-pub type SignatureBlockFormat1<'a> = TableRef<'a, SignatureBlockFormat1Marker>;
+#[derive(Clone)]
+pub struct SignatureBlockFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SignatureBlockFormat1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn _reserved1_byte_range(&self) -> Range<usize> {
         let start = 0;

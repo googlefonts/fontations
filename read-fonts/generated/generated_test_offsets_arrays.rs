@@ -5,10 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct KindsOfOffsetsMarker {}
-
 impl<'a> MinByteRange for KindsOfOffsets<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.record_array_offset_byte_range().end
@@ -20,14 +16,14 @@ impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: KindsOfOffsetsMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type KindsOfOffsets<'a> = TableRef<'a, KindsOfOffsetsMarker>;
+#[derive(Clone)]
+pub struct KindsOfOffsets<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> KindsOfOffsets<'a> {
@@ -37,6 +33,7 @@ impl<'a> KindsOfOffsets<'a> {
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -265,10 +262,6 @@ impl<'a> std::fmt::Debug for KindsOfOffsets<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct KindsOfArraysOfOffsetsMarker {}
-
 impl<'a> MinByteRange for KindsOfArraysOfOffsets<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.nullable_offsets_byte_range().end
@@ -280,18 +273,19 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: KindsOfArraysOfOffsetsMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type KindsOfArraysOfOffsets<'a> = TableRef<'a, KindsOfArraysOfOffsetsMarker>;
+#[derive(Clone)]
+pub struct KindsOfArraysOfOffsets<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> KindsOfArraysOfOffsets<'a> {
     pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -480,10 +474,6 @@ impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct KindsOfArraysMarker {}
-
 impl<'a> MinByteRange for KindsOfArrays<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.records_byte_range().end
@@ -495,18 +485,19 @@ impl<'a> FontRead<'a> for KindsOfArrays<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: KindsOfArraysMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type KindsOfArrays<'a> = TableRef<'a, KindsOfArraysMarker>;
+#[derive(Clone)]
+pub struct KindsOfArrays<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> KindsOfArrays<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -631,10 +622,6 @@ impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct VarLenHaverMarker {}
-
 impl<'a> MinByteRange for VarLenHaver<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.other_field_byte_range().end
@@ -646,18 +633,19 @@ impl<'a> FontRead<'a> for VarLenHaver<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: VarLenHaverMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type VarLenHaver<'a> = TableRef<'a, VarLenHaverMarker>;
+#[derive(Clone)]
+pub struct VarLenHaver<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenHaver<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -720,10 +708,6 @@ impl<'a> std::fmt::Debug for VarLenHaver<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct DummyMarker {}
-
 impl<'a> MinByteRange for Dummy<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self._reserved_byte_range().end
@@ -735,18 +719,19 @@ impl<'a> FontRead<'a> for Dummy<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: DummyMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type Dummy<'a> = TableRef<'a, DummyMarker>;
+#[derive(Clone)]
+pub struct Dummy<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Dummy<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn value_byte_range(&self) -> Range<usize> {
         let start = 0;

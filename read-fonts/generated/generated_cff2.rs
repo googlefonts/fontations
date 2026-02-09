@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cff2HeaderMarker {}
-
 impl<'a> MinByteRange for Cff2Header<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.trailing_data_byte_range().end
@@ -21,20 +16,21 @@ impl<'a> FontRead<'a> for Cff2Header<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cff2HeaderMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
-pub type Cff2Header<'a> = TableRef<'a, Cff2HeaderMarker>;
+#[derive(Clone)]
+pub struct Cff2Header<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cff2Header<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;

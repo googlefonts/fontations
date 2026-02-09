@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AvarMarker {}
-
 impl<'a> MinByteRange for Avar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.axis_segment_maps_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Avar<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AvarMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
-pub type Avar<'a> = TableRef<'a, AvarMarker>;
+#[derive(Clone)]
+pub struct Avar<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Avar<'a> {
     pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

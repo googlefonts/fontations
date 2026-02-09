@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct FvarMarker {}
-
 impl<'a> MinByteRange for Fvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.instance_size_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Fvar<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: FvarMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
-pub type Fvar<'a> = TableRef<'a, FvarMarker>;
+#[derive(Clone)]
+pub struct Fvar<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Fvar<'a> {
@@ -45,6 +40,7 @@ impl<'a> Fvar<'a> {
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -171,15 +167,6 @@ impl<'a> std::fmt::Debug for Fvar<'a> {
     }
 }
 
-/// Shim table to handle combined axis and instance arrays.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AxisInstanceArraysMarker {
-    axis_count: u16,
-    instance_count: u16,
-    instance_size: u16,
-}
-
 impl<'a> MinByteRange for AxisInstanceArrays<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.instances_byte_range().end
@@ -198,11 +185,9 @@ impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
         }
         Ok(Self {
             data,
-            shape: AxisInstanceArraysMarker {
-                axis_count,
-                instance_count,
-                instance_size,
-            },
+            axis_count,
+            instance_count,
+            instance_size,
         })
     }
 }
@@ -224,11 +209,18 @@ impl<'a> AxisInstanceArrays<'a> {
 }
 
 /// Shim table to handle combined axis and instance arrays.
-pub type AxisInstanceArrays<'a> = TableRef<'a, AxisInstanceArraysMarker>;
+#[derive(Clone)]
+pub struct AxisInstanceArrays<'a> {
+    data: FontData<'a>,
+    axis_count: u16,
+    instance_count: u16,
+    instance_size: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AxisInstanceArrays<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 
     pub fn axes_byte_range(&self) -> Range<usize> {
         let axis_count = self.axis_count();
@@ -266,15 +258,15 @@ impl<'a> AxisInstanceArrays<'a> {
     }
 
     pub(crate) fn axis_count(&self) -> u16 {
-        self.shape.axis_count
+        self.axis_count
     }
 
     pub(crate) fn instance_count(&self) -> u16 {
-        self.shape.instance_count
+        self.instance_count
     }
 
     pub(crate) fn instance_size(&self) -> u16 {
-        self.shape.instance_size
+        self.instance_size
     }
 }
 

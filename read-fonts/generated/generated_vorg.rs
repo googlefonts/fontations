@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct VorgMarker {}
-
 impl<'a> MinByteRange for Vorg<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.vert_origin_y_metrics_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Vorg<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: VorgMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [VORG (Vertical Origin)](https://docs.microsoft.com/en-us/typography/opentype/spec/vorg) table.
-pub type Vorg<'a> = TableRef<'a, VorgMarker>;
+#[derive(Clone)]
+pub struct Vorg<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vorg<'a> {
     pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

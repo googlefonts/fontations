@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct LtagMarker {}
-
 impl<'a> MinByteRange for Ltag<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.tag_ranges_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Ltag<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: LtagMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [language tag](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ltag.html) table.
-pub type Ltag<'a> = TableRef<'a, LtagMarker>;
+#[derive(Clone)]
+pub struct Ltag<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ltag<'a> {
     pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

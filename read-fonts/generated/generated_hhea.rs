@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct HheaMarker {}
-
 impl<'a> MinByteRange for Hhea<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.number_of_h_metrics_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Hhea<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: HheaMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-pub type Hhea<'a> = TableRef<'a, HheaMarker>;
+#[derive(Clone)]
+pub struct Hhea<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hhea<'a> {
@@ -55,6 +50,7 @@ impl<'a> Hhea<'a> {
         + i16::RAW_BYTE_LEN
         + i16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

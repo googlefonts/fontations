@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CmapMarker {}
-
 impl<'a> MinByteRange for Cmap<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.encoding_records_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Cmap<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: CmapMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
-pub type Cmap<'a> = TableRef<'a, CmapMarker>;
+#[derive(Clone)]
+pub struct Cmap<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -273,15 +269,15 @@ impl<'a> FontRead<'a> for CmapSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            Cmap0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
-            Cmap2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            Cmap4Marker::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
-            Cmap6Marker::FORMAT => Ok(Self::Format6(FontRead::read(data)?)),
-            Cmap8Marker::FORMAT => Ok(Self::Format8(FontRead::read(data)?)),
-            Cmap10Marker::FORMAT => Ok(Self::Format10(FontRead::read(data)?)),
-            Cmap12Marker::FORMAT => Ok(Self::Format12(FontRead::read(data)?)),
-            Cmap13Marker::FORMAT => Ok(Self::Format13(FontRead::read(data)?)),
-            Cmap14Marker::FORMAT => Ok(Self::Format14(FontRead::read(data)?)),
+            Cmap0::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
+            Cmap2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            Cmap4::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
+            Cmap6::FORMAT => Ok(Self::Format6(FontRead::read(data)?)),
+            Cmap8::FORMAT => Ok(Self::Format8(FontRead::read(data)?)),
+            Cmap10::FORMAT => Ok(Self::Format10(FontRead::read(data)?)),
+            Cmap12::FORMAT => Ok(Self::Format12(FontRead::read(data)?)),
+            Cmap13::FORMAT => Ok(Self::Format13(FontRead::read(data)?)),
+            Cmap14::FORMAT => Ok(Self::Format14(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -337,14 +333,9 @@ impl<'a> SomeTable<'a> for CmapSubtable<'a> {
     }
 }
 
-impl Format<u16> for Cmap0Marker {
+impl Format<u16> for Cmap0<'_> {
     const FORMAT: u16 = 0;
 }
-
-/// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cmap0Marker {}
 
 impl<'a> MinByteRange for Cmap0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -357,19 +348,20 @@ impl<'a> FontRead<'a> for Cmap0<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cmap0Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
-pub type Cmap0<'a> = TableRef<'a, Cmap0Marker>;
+#[derive(Clone)]
+pub struct Cmap0<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap0<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -445,14 +437,9 @@ impl<'a> std::fmt::Debug for Cmap0<'a> {
     }
 }
 
-impl Format<u16> for Cmap2Marker {
+impl Format<u16> for Cmap2<'_> {
     const FORMAT: u16 = 2;
 }
-
-/// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cmap2Marker {}
 
 impl<'a> MinByteRange for Cmap2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -465,19 +452,20 @@ impl<'a> FontRead<'a> for Cmap2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cmap2Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
-pub type Cmap2<'a> = TableRef<'a, Cmap2Marker>;
+#[derive(Clone)]
+pub struct Cmap2<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap2<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -613,14 +601,9 @@ impl<'a> SomeRecord<'a> for SubHeader {
     }
 }
 
-impl Format<u16> for Cmap4Marker {
+impl Format<u16> for Cmap4<'_> {
     const FORMAT: u16 = 4;
 }
-
-/// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cmap4Marker {}
 
 impl<'a> MinByteRange for Cmap4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -633,15 +616,15 @@ impl<'a> FontRead<'a> for Cmap4<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cmap4Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
-pub type Cmap4<'a> = TableRef<'a, Cmap4Marker>;
+#[derive(Clone)]
+pub struct Cmap4<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap4<'a> {
@@ -653,6 +636,7 @@ impl<'a> Cmap4<'a> {
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -847,14 +831,9 @@ impl<'a> std::fmt::Debug for Cmap4<'a> {
     }
 }
 
-impl Format<u16> for Cmap6Marker {
+impl Format<u16> for Cmap6<'_> {
     const FORMAT: u16 = 6;
 }
-
-/// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cmap6Marker {}
 
 impl<'a> MinByteRange for Cmap6<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -867,15 +846,15 @@ impl<'a> FontRead<'a> for Cmap6<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cmap6Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
-pub type Cmap6<'a> = TableRef<'a, Cmap6Marker>;
+#[derive(Clone)]
+pub struct Cmap6<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap6<'a> {
@@ -884,6 +863,7 @@ impl<'a> Cmap6<'a> {
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -986,14 +966,9 @@ impl<'a> std::fmt::Debug for Cmap6<'a> {
     }
 }
 
-impl Format<u16> for Cmap8Marker {
+impl Format<u16> for Cmap8<'_> {
     const FORMAT: u16 = 8;
 }
-
-/// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cmap8Marker {}
 
 impl<'a> MinByteRange for Cmap8<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1006,15 +981,15 @@ impl<'a> FontRead<'a> for Cmap8<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cmap8Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
-pub type Cmap8<'a> = TableRef<'a, Cmap8Marker>;
+#[derive(Clone)]
+pub struct Cmap8<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap8<'a> {
@@ -1023,6 +998,7 @@ impl<'a> Cmap8<'a> {
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1198,14 +1174,9 @@ impl<'a> SomeRecord<'a> for SequentialMapGroup {
     }
 }
 
-impl Format<u16> for Cmap10Marker {
+impl Format<u16> for Cmap10<'_> {
     const FORMAT: u16 = 10;
 }
-
-/// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cmap10Marker {}
 
 impl<'a> MinByteRange for Cmap10<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1218,15 +1189,15 @@ impl<'a> FontRead<'a> for Cmap10<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cmap10Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
-pub type Cmap10<'a> = TableRef<'a, Cmap10Marker>;
+#[derive(Clone)]
+pub struct Cmap10<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap10<'a> {
@@ -1236,6 +1207,7 @@ impl<'a> Cmap10<'a> {
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1344,14 +1316,9 @@ impl<'a> std::fmt::Debug for Cmap10<'a> {
     }
 }
 
-impl Format<u16> for Cmap12Marker {
+impl Format<u16> for Cmap12<'_> {
     const FORMAT: u16 = 12;
 }
-
-/// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cmap12Marker {}
 
 impl<'a> MinByteRange for Cmap12<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1364,15 +1331,15 @@ impl<'a> FontRead<'a> for Cmap12<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cmap12Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
-pub type Cmap12<'a> = TableRef<'a, Cmap12Marker>;
+#[derive(Clone)]
+pub struct Cmap12<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap12<'a> {
@@ -1381,6 +1348,7 @@ impl<'a> Cmap12<'a> {
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1483,14 +1451,9 @@ impl<'a> std::fmt::Debug for Cmap12<'a> {
     }
 }
 
-impl Format<u16> for Cmap13Marker {
+impl Format<u16> for Cmap13<'_> {
     const FORMAT: u16 = 13;
 }
-
-/// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cmap13Marker {}
 
 impl<'a> MinByteRange for Cmap13<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1503,15 +1466,15 @@ impl<'a> FontRead<'a> for Cmap13<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cmap13Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
-pub type Cmap13<'a> = TableRef<'a, Cmap13Marker>;
+#[derive(Clone)]
+pub struct Cmap13<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap13<'a> {
@@ -1520,6 +1483,7 @@ impl<'a> Cmap13<'a> {
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1674,14 +1638,9 @@ impl<'a> SomeRecord<'a> for ConstantMapGroup {
     }
 }
 
-impl Format<u16> for Cmap14Marker {
+impl Format<u16> for Cmap14<'_> {
     const FORMAT: u16 = 14;
 }
-
-/// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Cmap14Marker {}
 
 impl<'a> MinByteRange for Cmap14<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1694,19 +1653,20 @@ impl<'a> FontRead<'a> for Cmap14<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Cmap14Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
-pub type Cmap14<'a> = TableRef<'a, Cmap14Marker>;
+#[derive(Clone)]
+pub struct Cmap14<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap14<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1875,11 +1835,6 @@ impl<'a> SomeRecord<'a> for VariationSelector {
     }
 }
 
-/// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct DefaultUvsMarker {}
-
 impl<'a> MinByteRange for DefaultUvs<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ranges_byte_range().end
@@ -1891,19 +1846,20 @@ impl<'a> FontRead<'a> for DefaultUvs<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: DefaultUvsMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
-pub type DefaultUvs<'a> = TableRef<'a, DefaultUvsMarker>;
+#[derive(Clone)]
+pub struct DefaultUvs<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> DefaultUvs<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn num_unicode_value_ranges_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1964,11 +1920,6 @@ impl<'a> std::fmt::Debug for DefaultUvs<'a> {
     }
 }
 
-/// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct NonDefaultUvsMarker {}
-
 impl<'a> MinByteRange for NonDefaultUvs<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.uvs_mapping_byte_range().end
@@ -1980,19 +1931,20 @@ impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: NonDefaultUvsMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
-pub type NonDefaultUvs<'a> = TableRef<'a, NonDefaultUvsMarker>;
+#[derive(Clone)]
+pub struct NonDefaultUvs<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> NonDefaultUvs<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn num_uvs_mappings_byte_range(&self) -> Range<usize> {
         let start = 0;

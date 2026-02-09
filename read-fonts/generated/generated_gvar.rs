@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GvarMarker {}
-
 impl<'a> MinByteRange for Gvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_variation_data_offsets_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Gvar<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GvarMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
-pub type Gvar<'a> = TableRef<'a, GvarMarker>;
+#[derive(Clone)]
+pub struct Gvar<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gvar<'a> {
@@ -45,6 +40,7 @@ impl<'a> Gvar<'a> {
         + u16::RAW_BYTE_LEN
         + GvarFlags::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -500,14 +496,6 @@ impl<'a> From<GvarFlags> for FieldType<'a> {
     }
 }
 
-/// Array of tuple records shared across all glyph variation data tables.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SharedTuplesMarker {
-    shared_tuple_count: u16,
-    axis_count: u16,
-}
-
 impl<'a> MinByteRange for SharedTuples<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.tuples_byte_range().end
@@ -526,10 +514,8 @@ impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
         }
         Ok(Self {
             data,
-            shape: SharedTuplesMarker {
-                shared_tuple_count,
-                axis_count,
-            },
+            shared_tuple_count,
+            axis_count,
         })
     }
 }
@@ -550,11 +536,17 @@ impl<'a> SharedTuples<'a> {
 }
 
 /// Array of tuple records shared across all glyph variation data tables.
-pub type SharedTuples<'a> = TableRef<'a, SharedTuplesMarker>;
+#[derive(Clone)]
+pub struct SharedTuples<'a> {
+    data: FontData<'a>,
+    shared_tuple_count: u16,
+    axis_count: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SharedTuples<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 
     pub fn tuples_byte_range(&self) -> Range<usize> {
         let shared_tuple_count = self.shared_tuple_count();
@@ -572,11 +564,11 @@ impl<'a> SharedTuples<'a> {
     }
 
     pub(crate) fn shared_tuple_count(&self) -> u16 {
-        self.shape.shared_tuple_count
+        self.shared_tuple_count
     }
 
     pub(crate) fn axis_count(&self) -> u16 {
-        self.shape.axis_count
+        self.axis_count
     }
 }
 
@@ -604,11 +596,6 @@ impl<'a> std::fmt::Debug for SharedTuples<'a> {
     }
 }
 
-/// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GlyphVariationDataHeaderMarker {}
-
 impl<'a> MinByteRange for GlyphVariationDataHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.tuple_variation_headers_byte_range().end
@@ -620,19 +607,20 @@ impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GlyphVariationDataHeaderMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
-pub type GlyphVariationDataHeader<'a> = TableRef<'a, GlyphVariationDataHeaderMarker>;
+#[derive(Clone)]
+pub struct GlyphVariationDataHeader<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphVariationDataHeader<'a> {
     pub const MIN_SIZE: usize = (TupleVariationCount::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
         let start = 0;

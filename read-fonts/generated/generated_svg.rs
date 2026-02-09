@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SvgMarker {}
-
 impl<'a> MinByteRange for Svg<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self._reserved_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Svg<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SvgMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [SVG](https://learn.microsoft.com/en-us/typography/opentype/spec/svg) table
-pub type Svg<'a> = TableRef<'a, SvgMarker>;
+#[derive(Clone)]
+pub struct Svg<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Svg<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -103,11 +99,6 @@ impl<'a> std::fmt::Debug for Svg<'a> {
     }
 }
 
-/// [SVGDocumentList](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SVGDocumentListMarker {}
-
 impl<'a> MinByteRange for SVGDocumentList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.document_records_byte_range().end
@@ -119,19 +110,20 @@ impl<'a> FontRead<'a> for SVGDocumentList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SVGDocumentListMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [SVGDocumentList](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
-pub type SVGDocumentList<'a> = TableRef<'a, SVGDocumentListMarker>;
+#[derive(Clone)]
+pub struct SVGDocumentList<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SVGDocumentList<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn num_entries_byte_range(&self) -> Range<usize> {
         let start = 0;

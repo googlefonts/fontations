@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AnkrMarker {}
-
 impl<'a> MinByteRange for Ankr<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_table_offset_byte_range().end
@@ -26,20 +21,21 @@ impl<'a> FontRead<'a> for Ankr<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AnkrMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
-pub type Ankr<'a> = TableRef<'a, AnkrMarker>;
+#[derive(Clone)]
+pub struct Ankr<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ankr<'a> {
     pub const MIN_SIZE: usize =
         (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -128,10 +124,6 @@ impl<'a> std::fmt::Debug for Ankr<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GlyphDataEntryMarker {}
-
 impl<'a> MinByteRange for GlyphDataEntry<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.anchor_points_byte_range().end
@@ -143,18 +135,19 @@ impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GlyphDataEntryMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type GlyphDataEntry<'a> = TableRef<'a, GlyphDataEntryMarker>;
+#[derive(Clone)]
+pub struct GlyphDataEntry<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphDataEntry<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn num_points_byte_range(&self) -> Range<usize> {
         let start = 0;

@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct KerxMarker {}
-
 impl<'a> MinByteRange for Kerx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtables_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Kerx<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: KerxMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [kerx (Extended Kerning)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
-pub type Kerx<'a> = TableRef<'a, KerxMarker>;
+#[derive(Clone)]
+pub struct Kerx<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Kerx<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -112,11 +108,6 @@ impl<'a> std::fmt::Debug for Kerx<'a> {
     }
 }
 
-/// A subtable in a `kerx` table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SubtableMarker {}
-
 impl<'a> MinByteRange for Subtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -128,19 +119,20 @@ impl<'a> FontRead<'a> for Subtable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SubtableMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// A subtable in a `kerx` table.
-pub type Subtable<'a> = TableRef<'a, SubtableMarker>;
+#[derive(Clone)]
+pub struct Subtable<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable<'a> {
     pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -216,11 +208,6 @@ impl<'a> std::fmt::Debug for Subtable<'a> {
     }
 }
 
-/// The type 0 `kerx` subtable.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Subtable0Marker {}
-
 impl<'a> MinByteRange for Subtable0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pairs_byte_range().end
@@ -232,20 +219,21 @@ impl<'a> FontRead<'a> for Subtable0<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Subtable0Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The type 0 `kerx` subtable.
-pub type Subtable0<'a> = TableRef<'a, Subtable0Marker>;
+#[derive(Clone)]
+pub struct Subtable0<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable0<'a> {
     pub const MIN_SIZE: usize =
         (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn n_pairs_byte_range(&self) -> Range<usize> {
         let start = 0;

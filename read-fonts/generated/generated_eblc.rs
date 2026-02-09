@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct EblcMarker {}
-
 impl<'a> MinByteRange for Eblc<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.bitmap_sizes_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Eblc<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: EblcMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
-pub type Eblc<'a> = TableRef<'a, EblcMarker>;
+#[derive(Clone)]
+pub struct Eblc<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Eblc<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;

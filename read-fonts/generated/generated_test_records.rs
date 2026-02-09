@@ -5,10 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BasicTableMarker {}
-
 impl<'a> MinByteRange for BasicTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.array_records_byte_range().end
@@ -20,18 +16,19 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BasicTableMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
+#[derive(Clone)]
+pub struct BasicTable<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BasicTable<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn simple_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -325,10 +322,6 @@ impl<'a> SomeRecord<'a> for ContainsOffsets {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct VarLenItemMarker {}
-
 impl<'a> MinByteRange for VarLenItem<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -340,18 +333,19 @@ impl<'a> FontRead<'a> for VarLenItem<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: VarLenItemMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker>;
+#[derive(Clone)]
+pub struct VarLenItem<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenItem<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = 0;

@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MaxpMarker {}
-
 impl<'a> MinByteRange for Maxp<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.num_glyphs_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Maxp<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MaxpMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
-pub type Maxp<'a> = TableRef<'a, MaxpMarker>;
+#[derive(Clone)]
+pub struct Maxp<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Maxp<'a> {
     pub const MIN_SIZE: usize = (Version16Dot16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

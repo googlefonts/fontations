@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CpalMarker {}
-
 impl<'a> MinByteRange for Cpal<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.color_record_indices_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Cpal<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: CpalMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
-pub type Cpal<'a> = TableRef<'a, CpalMarker>;
+#[derive(Clone)]
+pub struct Cpal<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cpal<'a> {
@@ -43,6 +38,7 @@ impl<'a> Cpal<'a> {
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + Offset32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

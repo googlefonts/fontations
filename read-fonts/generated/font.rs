@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct TableDirectoryMarker {}
-
 impl<'a> MinByteRange for TableDirectory<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.table_records_byte_range().end
@@ -21,15 +16,15 @@ impl<'a> FontRead<'a> for TableDirectory<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: TableDirectoryMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
-pub type TableDirectory<'a> = TableRef<'a, TableDirectoryMarker>;
+#[derive(Clone)]
+pub struct TableDirectory<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TableDirectory<'a> {
@@ -38,6 +33,7 @@ impl<'a> TableDirectory<'a> {
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn sfnt_version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -202,11 +198,6 @@ impl<'a> SomeRecord<'a> for TableRecord {
     }
 }
 
-/// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct TTCHeaderMarker {}
-
 impl<'a> MinByteRange for TTCHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.table_directory_offsets_byte_range().end
@@ -218,19 +209,20 @@ impl<'a> FontRead<'a> for TTCHeader<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: TTCHeaderMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
-pub type TTCHeader<'a> = TableRef<'a, TTCHeaderMarker>;
+#[derive(Clone)]
+pub struct TTCHeader<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TTCHeader<'a> {
     pub const MIN_SIZE: usize = (Tag::RAW_BYTE_LEN + MajorMinor::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn ttc_tag_byte_range(&self) -> Range<usize> {
         let start = 0;

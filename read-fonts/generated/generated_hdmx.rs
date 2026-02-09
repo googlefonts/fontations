@@ -5,13 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct HdmxMarker {
-    num_glyphs: u16,
-}
-
 impl<'a> MinByteRange for Hdmx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.records_byte_range().end
@@ -33,10 +26,7 @@ impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: HdmxMarker { num_glyphs },
-        })
+        Ok(Self { data, num_glyphs })
     }
 }
 
@@ -52,11 +42,16 @@ impl<'a> Hdmx<'a> {
 }
 
 /// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
-pub type Hdmx<'a> = TableRef<'a, HdmxMarker>;
+#[derive(Clone)]
+pub struct Hdmx<'a> {
+    data: FontData<'a>,
+    num_glyphs: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hdmx<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -117,7 +112,7 @@ impl<'a> Hdmx<'a> {
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
-        self.shape.num_glyphs
+        self.num_glyphs
     }
 }
 

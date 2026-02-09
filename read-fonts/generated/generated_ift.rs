@@ -76,8 +76,8 @@ impl<'a> FontRead<'a> for Ift<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
-            PatchMapFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            PatchMapFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            PatchMapFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            PatchMapFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -424,14 +424,9 @@ impl<'a> From<PatchMapFieldPresenceFlags> for FieldType<'a> {
     }
 }
 
-impl Format<u8> for PatchMapFormat1Marker {
+impl Format<u8> for PatchMapFormat1<'_> {
     const FORMAT: u8 = 1;
 }
-
-/// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PatchMapFormat1Marker {}
 
 impl<'a> MinByteRange for PatchMapFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -444,15 +439,15 @@ impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PatchMapFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
-pub type PatchMapFormat1<'a> = TableRef<'a, PatchMapFormat1Marker>;
+#[derive(Clone)]
+pub struct PatchMapFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PatchMapFormat1<'a> {
@@ -469,6 +464,7 @@ impl<'a> PatchMapFormat1<'a> {
         + Offset32::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + u8::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -745,13 +741,6 @@ impl<'a> std::fmt::Debug for PatchMapFormat1<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GlyphMapMarker {
-    glyph_count: Uint24,
-    max_entry_index: u16,
-}
-
 impl<'a> MinByteRange for GlyphMap<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_index_byte_range().end
@@ -770,10 +759,8 @@ impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
         }
         Ok(Self {
             data,
-            shape: GlyphMapMarker {
-                glyph_count,
-                max_entry_index,
-            },
+            glyph_count,
+            max_entry_index,
         })
     }
 }
@@ -793,11 +780,17 @@ impl<'a> GlyphMap<'a> {
     }
 }
 
-pub type GlyphMap<'a> = TableRef<'a, GlyphMapMarker>;
+#[derive(Clone)]
+pub struct GlyphMap<'a> {
+    data: FontData<'a>,
+    glyph_count: Uint24,
+    max_entry_index: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphMap<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn first_mapped_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -829,11 +822,11 @@ impl<'a> GlyphMap<'a> {
     }
 
     pub(crate) fn glyph_count(&self) -> Uint24 {
-        self.shape.glyph_count
+        self.glyph_count
     }
 
     pub(crate) fn max_entry_index(&self) -> u16 {
-        self.shape.max_entry_index
+        self.max_entry_index
     }
 }
 
@@ -859,12 +852,6 @@ impl<'a> std::fmt::Debug for GlyphMap<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct FeatureMapMarker {
-    max_entry_index: u16,
-}
-
 impl<'a> MinByteRange for FeatureMap<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_map_data_byte_range().end
@@ -883,7 +870,7 @@ impl<'a> FontReadWithArgs<'a> for FeatureMap<'a> {
         }
         Ok(Self {
             data,
-            shape: FeatureMapMarker { max_entry_index },
+            max_entry_index,
         })
     }
 }
@@ -899,11 +886,16 @@ impl<'a> FeatureMap<'a> {
     }
 }
 
-pub type FeatureMap<'a> = TableRef<'a, FeatureMapMarker>;
+#[derive(Clone)]
+pub struct FeatureMap<'a> {
+    data: FontData<'a>,
+    max_entry_index: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FeatureMap<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn feature_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -946,7 +938,7 @@ impl<'a> FeatureMap<'a> {
     }
 
     pub(crate) fn max_entry_index(&self) -> u16 {
-        self.shape.max_entry_index
+        self.max_entry_index
     }
 }
 
@@ -1138,14 +1130,9 @@ impl<'a> SomeRecord<'a> for EntryMapRecord {
     }
 }
 
-impl Format<u8> for PatchMapFormat2Marker {
+impl Format<u8> for PatchMapFormat2<'_> {
     const FORMAT: u8 = 2;
 }
-
-/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PatchMapFormat2Marker {}
 
 impl<'a> MinByteRange for PatchMapFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1158,15 +1145,15 @@ impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PatchMapFormat2Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
-pub type PatchMapFormat2<'a> = TableRef<'a, PatchMapFormat2Marker>;
+#[derive(Clone)]
+pub struct PatchMapFormat2<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PatchMapFormat2<'a> {
@@ -1181,6 +1168,7 @@ impl<'a> PatchMapFormat2<'a> {
         + Offset32::RAW_BYTE_LEN
         + Offset32::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1413,10 +1401,6 @@ impl<'a> std::fmt::Debug for PatchMapFormat2<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MappingEntriesMarker {}
-
 impl<'a> MinByteRange for MappingEntries<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_data_byte_range().end
@@ -1428,18 +1412,19 @@ impl<'a> FontRead<'a> for MappingEntries<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MappingEntriesMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type MappingEntries<'a> = TableRef<'a, MappingEntriesMarker>;
+#[derive(Clone)]
+pub struct MappingEntries<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MappingEntries<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 
     pub fn entry_data_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1475,10 +1460,6 @@ impl<'a> std::fmt::Debug for MappingEntries<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct EntryDataMarker {}
-
 impl<'a> MinByteRange for EntryData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.trailing_data_byte_range().end
@@ -1490,18 +1471,19 @@ impl<'a> FontRead<'a> for EntryData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: EntryDataMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type EntryData<'a> = TableRef<'a, EntryDataMarker>;
+#[derive(Clone)]
+pub struct EntryData<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> EntryData<'a> {
     pub const MIN_SIZE: usize = EntryFormatFlags::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_flags_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2076,10 +2058,6 @@ impl<'a> SomeRecord<'a> for DesignSpaceSegment {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct IdStringDataMarker {}
-
 impl<'a> MinByteRange for IdStringData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.id_data_byte_range().end
@@ -2091,18 +2069,19 @@ impl<'a> FontRead<'a> for IdStringData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: IdStringDataMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type IdStringData<'a> = TableRef<'a, IdStringDataMarker>;
+#[derive(Clone)]
+pub struct IdStringData<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IdStringData<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 
     pub fn id_data_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2138,11 +2117,6 @@ impl<'a> std::fmt::Debug for IdStringData<'a> {
     }
 }
 
-/// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct TableKeyedPatchMarker {}
-
 impl<'a> MinByteRange for TableKeyedPatch<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.patch_offsets_byte_range().end
@@ -2154,20 +2128,21 @@ impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: TableKeyedPatchMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Table Keyed Patch](https://w3c.github.io/IFT/Overview.html#table-keyed)
-pub type TableKeyedPatch<'a> = TableRef<'a, TableKeyedPatchMarker>;
+#[derive(Clone)]
+pub struct TableKeyedPatch<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TableKeyedPatch<'a> {
     pub const MIN_SIZE: usize =
         (Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + CompatibilityId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2270,11 +2245,6 @@ impl<'a> std::fmt::Debug for TableKeyedPatch<'a> {
     }
 }
 
-/// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct TablePatchMarker {}
-
 impl<'a> MinByteRange for TablePatch<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.brotli_stream_byte_range().end
@@ -2286,20 +2256,21 @@ impl<'a> FontRead<'a> for TablePatch<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: TablePatchMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [TablePatch](https://w3c.github.io/IFT/Overview.html#tablepatch)
-pub type TablePatch<'a> = TableRef<'a, TablePatchMarker>;
+#[derive(Clone)]
+pub struct TablePatch<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TablePatch<'a> {
     pub const MIN_SIZE: usize =
         (Tag::RAW_BYTE_LEN + TablePatchFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn tag_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2679,11 +2650,6 @@ impl<'a> From<TablePatchFlags> for FieldType<'a> {
     }
 }
 
-/// [Glyph Keyed Patch](https://w3c.github.io/IFT/Overview.html#glyph-keyed)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GlyphKeyedPatchMarker {}
-
 impl<'a> MinByteRange for GlyphKeyedPatch<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.brotli_stream_byte_range().end
@@ -2695,15 +2661,15 @@ impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GlyphKeyedPatchMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Glyph Keyed Patch](https://w3c.github.io/IFT/Overview.html#glyph-keyed)
-pub type GlyphKeyedPatch<'a> = TableRef<'a, GlyphKeyedPatchMarker>;
+#[derive(Clone)]
+pub struct GlyphKeyedPatch<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphKeyedPatch<'a> {
@@ -2712,6 +2678,7 @@ impl<'a> GlyphKeyedPatch<'a> {
         + GlyphKeyedFlags::RAW_BYTE_LEN
         + CompatibilityId::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3112,13 +3079,6 @@ impl<'a> From<GlyphKeyedFlags> for FieldType<'a> {
     }
 }
 
-/// [GlyphPatches](https://w3c.github.io/IFT/Overview.html#glyphpatches)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GlyphPatchesMarker {
-    flags: GlyphKeyedFlags,
-}
-
 impl<'a> MinByteRange for GlyphPatches<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_offsets_byte_range().end
@@ -3135,10 +3095,7 @@ impl<'a> FontReadWithArgs<'a> for GlyphPatches<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GlyphPatchesMarker { flags },
-        })
+        Ok(Self { data, flags })
     }
 }
 
@@ -3154,11 +3111,16 @@ impl<'a> GlyphPatches<'a> {
 }
 
 /// [GlyphPatches](https://w3c.github.io/IFT/Overview.html#glyphpatches)
-pub type GlyphPatches<'a> = TableRef<'a, GlyphPatchesMarker>;
+#[derive(Clone)]
+pub struct GlyphPatches<'a> {
+    data: FontData<'a>,
+    flags: GlyphKeyedFlags,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphPatches<'a> {
     pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u8::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3231,7 +3193,7 @@ impl<'a> GlyphPatches<'a> {
     }
 
     pub(crate) fn flags(&self) -> GlyphKeyedFlags {
-        self.shape.flags
+        self.flags
     }
 }
 
@@ -3273,10 +3235,6 @@ impl<'a> std::fmt::Debug for GlyphPatches<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GlyphDataMarker {}
-
 impl<'a> MinByteRange for GlyphData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -3288,18 +3246,19 @@ impl<'a> FontRead<'a> for GlyphData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GlyphDataMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
+#[derive(Clone)]
+pub struct GlyphData<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphData<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;

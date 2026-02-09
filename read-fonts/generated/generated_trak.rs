@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct TrakMarker {}
-
 impl<'a> MinByteRange for Trak<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.reserved_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Trak<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: TrakMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [tracking (trak)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6trak.html) table.
-pub type Trak<'a> = TableRef<'a, TrakMarker>;
+#[derive(Clone)]
+pub struct Trak<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Trak<'a> {
@@ -43,6 +38,7 @@ impl<'a> Trak<'a> {
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -141,11 +137,6 @@ impl<'a> std::fmt::Debug for Trak<'a> {
     }
 }
 
-/// The tracking data table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct TrackDataMarker {}
-
 impl<'a> MinByteRange for TrackData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.track_table_byte_range().end
@@ -157,19 +148,20 @@ impl<'a> FontRead<'a> for TrackData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: TrackDataMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The tracking data table.
-pub type TrackData<'a> = TableRef<'a, TrackDataMarker>;
+#[derive(Clone)]
+pub struct TrackData<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> TrackData<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn n_tracks_byte_range(&self) -> Range<usize> {
         let start = 0;

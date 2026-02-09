@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GaspMarker {}
-
 impl<'a> MinByteRange for Gasp<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.gasp_ranges_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Gasp<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GaspMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
-pub type Gasp<'a> = TableRef<'a, GaspMarker>;
+#[derive(Clone)]
+pub struct Gasp<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gasp<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

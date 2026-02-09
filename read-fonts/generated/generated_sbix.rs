@@ -313,13 +313,6 @@ impl<'a> From<HeaderFlags> for FieldType<'a> {
     }
 }
 
-/// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SbixMarker {
-    num_glyphs: u16,
-}
-
 impl<'a> MinByteRange for Sbix<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.strike_offsets_byte_range().end
@@ -341,10 +334,7 @@ impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SbixMarker { num_glyphs },
-        })
+        Ok(Self { data, num_glyphs })
     }
 }
 
@@ -360,11 +350,16 @@ impl<'a> Sbix<'a> {
 }
 
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
-pub type Sbix<'a> = TableRef<'a, SbixMarker>;
+#[derive(Clone)]
+pub struct Sbix<'a> {
+    data: FontData<'a>,
+    num_glyphs: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sbix<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + HeaderFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -426,7 +421,7 @@ impl<'a> Sbix<'a> {
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
-        self.shape.num_glyphs
+        self.num_glyphs
     }
 }
 
@@ -468,13 +463,6 @@ impl<'a> std::fmt::Debug for Sbix<'a> {
     }
 }
 
-/// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct StrikeMarker {
-    num_glyphs: u16,
-}
-
 impl<'a> MinByteRange for Strike<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_offsets_byte_range().end
@@ -491,10 +479,7 @@ impl<'a> FontReadWithArgs<'a> for Strike<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: StrikeMarker { num_glyphs },
-        })
+        Ok(Self { data, num_glyphs })
     }
 }
 
@@ -510,11 +495,16 @@ impl<'a> Strike<'a> {
 }
 
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
-pub type Strike<'a> = TableRef<'a, StrikeMarker>;
+#[derive(Clone)]
+pub struct Strike<'a> {
+    data: FontData<'a>,
+    num_glyphs: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Strike<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn ppem_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -554,7 +544,7 @@ impl<'a> Strike<'a> {
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
-        self.shape.num_glyphs
+        self.num_glyphs
     }
 }
 
@@ -581,11 +571,6 @@ impl<'a> std::fmt::Debug for Strike<'a> {
     }
 }
 
-/// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GlyphDataMarker {}
-
 impl<'a> MinByteRange for GlyphData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -597,19 +582,20 @@ impl<'a> FontRead<'a> for GlyphData<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GlyphDataMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
-pub type GlyphData<'a> = TableRef<'a, GlyphDataMarker>;
+#[derive(Clone)]
+pub struct GlyphData<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphData<'a> {
     pub const MIN_SIZE: usize = (i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + Tag::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn origin_offset_x_byte_range(&self) -> Range<usize> {
         let start = 0;

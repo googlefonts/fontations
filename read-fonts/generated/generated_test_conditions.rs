@@ -5,10 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MajorMinorVersionMarker {}
-
 impl<'a> MinByteRange for MajorMinorVersion<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.always_present_byte_range().end
@@ -20,18 +16,19 @@ impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MajorMinorVersionMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type MajorMinorVersion<'a> = TableRef<'a, MajorMinorVersionMarker>;
+#[derive(Clone)]
+pub struct MajorMinorVersion<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MajorMinorVersion<'a> {
     pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -415,10 +412,6 @@ impl<'a> From<GotFlags> for FieldType<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct FlagDayMarker {}
-
 impl<'a> MinByteRange for FlagDay<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.flags_byte_range().end
@@ -430,18 +423,19 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: FlagDayMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type FlagDay<'a> = TableRef<'a, FlagDayMarker>;
+#[derive(Clone)]
+pub struct FlagDay<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FlagDay<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + GotFlags::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn volume_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -520,10 +514,6 @@ impl<'a> std::fmt::Debug for FlagDay<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct FieldsAfterConditionalsMarker {}
-
 impl<'a> MinByteRange for FieldsAfterConditionals<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.and_me_too_byte_range().end
@@ -535,19 +525,20 @@ impl<'a> FontRead<'a> for FieldsAfterConditionals<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: FieldsAfterConditionalsMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
-pub type FieldsAfterConditionals<'a> = TableRef<'a, FieldsAfterConditionalsMarker>;
+#[derive(Clone)]
+pub struct FieldsAfterConditionals<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FieldsAfterConditionals<'a> {
     pub const MIN_SIZE: usize =
         (GotFlags::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = 0;

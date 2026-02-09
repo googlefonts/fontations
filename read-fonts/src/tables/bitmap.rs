@@ -406,15 +406,15 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable<'a> {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            IndexSubtable1Marker::FORMAT => {
-                Ok(Self::Format1(FontReadWithArgs::read_with_args(data, args)?))
+            IndexSubtable1::FORMAT => {
+                FontReadWithArgs::read_with_args(data, args).map(Self::Format1)
             }
-            IndexSubtable2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            IndexSubtable3Marker::FORMAT => {
-                Ok(Self::Format3(FontReadWithArgs::read_with_args(data, args)?))
+            IndexSubtable2::FORMAT => FontRead::read(data).map(Self::Format2),
+            IndexSubtable3::FORMAT => {
+                FontReadWithArgs::read_with_args(data, args).map(Self::Format3)
             }
-            IndexSubtable4Marker::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
-            IndexSubtable5Marker::FORMAT => Ok(Self::Format5(FontRead::read(data)?)),
+            IndexSubtable4::FORMAT => FontRead::read(data).map(Self::Format4),
+            IndexSubtable5::FORMAT => FontRead::read(data).map(Self::Format5),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
