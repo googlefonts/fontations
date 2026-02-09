@@ -77,20 +77,6 @@ impl<'a> BaseOutlines<'a> {
         }
     }
 
-    fn prefer_interpreter(&self) -> bool {
-        match self {
-            Self::Glyf(glyf) => glyf.prefer_interpreter(),
-            _ => false,
-        }
-    }
-
-    fn fractional_size_hinting(&self) -> bool {
-        match self {
-            Self::Glyf(glyf) => glyf.fractional_size_hinting,
-            _ => true,
-        }
-    }
-
     fn font(&self) -> &FontRef<'a> {
         match self {
             Self::Glyf(glyf) => &glyf.font,
@@ -193,11 +179,11 @@ impl<'a> Outlines<'a> {
     }
 
     pub fn prefer_interpreter(&self) -> bool {
-        self.base.prefer_interpreter()
+        false
     }
 
     pub fn fractional_size_hinting(&self) -> bool {
-        self.base.fractional_size_hinting()
+        false
     }
 
     pub fn font(&self) -> &FontRef<'a> {
