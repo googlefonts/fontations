@@ -13,8 +13,24 @@ use crate::{
 /// <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=33>
 pub const NESTING_DEPTH_LIMIT: u32 = 10;
 
-/// Trait that provides access to resources for charstring evaluation.
+/// The type of a PostScript charstring.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum CharstringKind {
+    /// Type1 charstring.
+    ///
+    /// See reference at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf>.
+    Type1,
+    /// Type2 charstring.
+    ///
+    /// See reference at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf>.
+    Type2,
+}
+
+/// Trait that provides context for charstring evaluation.
 pub trait CharstringContext {
+    /// Returns the type of the charstring.
+    fn kind(&self) -> CharstringKind;
+
     /// Returns the base and accent charstrings for the `seac` (standard
     /// encoded accented character) operator.
     fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error>;
@@ -33,6 +49,10 @@ pub trait CharstringContext {
 //
 // Types are (cff_blob, charstrings, global_subrs, subrs)
 impl<'a> CharstringContext for (&'a [u8], &'a Index<'a>, &'a Index<'a>, &'a Index<'a>) {
+    fn kind(&self) -> CharstringKind {
+        CharstringKind::Type2
+    }
+
     fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error> {
         let cff = Cff::read(FontData::new(self.0))?;
         let charset = cff.charset(0)?.ok_or(Error::MissingCharset)?;
@@ -100,28 +120,47 @@ pub trait CommandSink {
 /// item variation store, then `blend_state` must be provided, otherwise
 /// `Error::MissingBlendState` will be returned if a blend operator is
 /// present.
-pub fn evaluate(
-    context: &impl CharstringContext,
-    blend_state: Option<BlendState>,
+pub fn evaluate<'a>(
+    context: &'a impl CharstringContext,
+    blend_state: Option<BlendState<'a>>,
     charstring_data: &[u8],
-    sink: &mut impl CommandSink,
+    sink: &'a mut impl CommandSink,
 ) -> Result<(), Error> {
     let mut evaluator = Evaluator::new(context, blend_state, sink);
     evaluator.evaluate(charstring_data, 0)?;
     Ok(())
 }
 
+/// Specifies how the seac operation was invoked.
+#[derive(PartialEq)]
+enum SeacMode {
+    /// Through the `seac` operator.
+    Explicit,
+    /// Implicitly with extra arguments on the stack through the
+    /// `endchar` operator.
+    Implicit,
+}
+
 /// Transient state for evaluating a charstring and handling recursive
 /// subroutine calls.
 struct Evaluator<'a, S> {
     context: &'a dyn CharstringContext,
+    is_type1: bool,
     blend_state: Option<BlendState<'a>>,
     sink: &'a mut S,
     is_open: bool,
+    /// When the flex state is active, moveto commands simply
+    /// accumulate vectors on the stack which will be used
+    /// to emit curves when the flex is finalized
+    is_flexing: bool,
     have_read_width: bool,
     stem_count: usize,
     x: Fixed,
     y: Fixed,
+    /// X side-bearing
+    sbx: Fixed,
+    /// X width
+    wx: Fixed,
     stack: Stack,
     stack_ix: usize,
 }
@@ -135,16 +174,21 @@ where
         blend_state: Option<BlendState<'a>>,
         sink: &'a mut S,
     ) -> Self {
+        let is_type1 = context.kind() == CharstringKind::Type1;
         Self {
             context,
+            is_type1,
             blend_state,
             sink,
             is_open: false,
+            is_flexing: false,
             have_read_width: false,
             stem_count: 0,
             stack: Stack::new(),
             x: Fixed::ZERO,
             y: Fixed::ZERO,
+            sbx: Fixed::ZERO,
+            wx: Fixed::ZERO,
             stack_ix: 0,
         }
     }
@@ -165,8 +209,15 @@ where
                 }
                 // Push a fixed point value to the stack
                 255 => {
-                    let num = Fixed::from_bits(cursor.read::<i32>()?);
-                    self.stack.push(num)?;
+                    let val = cursor.read::<i32>()?;
+                    if self.is_type1 {
+                        // Type1 interprets this as an integer
+                        self.stack.push(val)?;
+                    } else {
+                        // Type2 interprets this as a raw 16.16 fixed point
+                        // value
+                        self.stack.push(Fixed::from_bits(val))?;
+                    }
                 }
                 _ => {
                     // FreeType ignores reserved (unknown) operators.
@@ -246,7 +297,7 @@ where
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2463>
             EndChar => {
                 if self.stack.len() == 4 || self.stack.len() == 5 && !self.have_read_width {
-                    self.handle_seac(nesting_depth)?;
+                    self.handle_seac(SeacMode::Implicit, nesting_depth)?;
                 } else if !self.stack.is_empty() && !self.have_read_width {
                     self.have_read_width = true;
                     self.stack.clear();
@@ -332,16 +383,18 @@ where
                     self.have_read_width = true;
                     i = 1;
                 }
-                if !self.is_open {
-                    self.is_open = true;
-                } else {
-                    self.sink.close();
+                if !self.is_flexing {
+                    let [dx, dy] = self.stack.fixed_array::<2>(i)?;
+                    self.x += dx;
+                    self.y += dy;
+                    if !self.is_open {
+                        self.is_open = true;
+                    } else {
+                        self.sink.close();
+                    }
+                    self.sink.move_to(self.x, self.y);
+                    self.reset_stack();
                 }
-                let [dx, dy] = self.stack.fixed_array::<2>(i)?;
-                self.x += dx;
-                self.y += dy;
-                self.sink.move_to(self.x, self.y);
-                self.reset_stack();
             }
             // Starts a new subpath by moving the current point in the
             // horizontal or vertical direction
@@ -353,19 +406,30 @@ where
                     self.have_read_width = true;
                     i = 1;
                 }
-                if !self.is_open {
-                    self.is_open = true;
+                if self.is_flexing {
+                    // We need to add the other coordinate to the stack so we
+                    // have a full flex vector
+                    self.stack.push(0)?;
+                    if operator == VMoveTo {
+                        // For vertical move, the coordinates are in the wrong
+                        // order so swap them
+                        self.stack.exch()?;
+                    }
                 } else {
-                    self.sink.close();
+                    let delta = self.stack.get_fixed(i)?;
+                    if operator == HMoveTo {
+                        self.x += delta;
+                    } else {
+                        self.y += delta;
+                    }
+                    if !self.is_open {
+                        self.is_open = true;
+                    } else {
+                        self.sink.close();
+                    }
+                    self.sink.move_to(self.x, self.y);
+                    self.reset_stack();
                 }
-                let delta = self.stack.get_fixed(i)?;
-                if operator == HMoveTo {
-                    self.x += delta;
-                } else {
-                    self.y += delta;
-                }
-                self.sink.move_to(self.x, self.y);
-                self.reset_stack();
             }
             // Emits a sequence of lines
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=16>
@@ -491,12 +555,108 @@ where
                 };
                 self.evaluate(subr_charstring, nesting_depth + 1)?;
             }
+            // Sets the left sidebearing point to (sbx, 0) and the character
+            // width vector to (wx, 0) in character space. Also sets current
+            // point to (sbx, 0).
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=56>
+            // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2429>
+            Hsbw => {
+                if self.is_type1 {
+                    let [sbx, wx] = self.stack.fixed_array(0)?;
+                    self.sbx = sbx;
+                    self.x = sbx;
+                    self.wx = wx;
+                    self.have_read_width = true;
+                    self.reset_stack();
+                }
+            }
+            // Standard Encoding Accented Character.
+            // Makes an accented character from two other characters in the
+            // font program.
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=56>
+            // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1294>
+            Seac => {
+                self.handle_seac(SeacMode::Explicit, nesting_depth)?;
+            }
+            // Sets the left sidebearing point to (sbx, sby) and the character
+            // width vector to (wx, wy) in character space. Also sets current
+            // point to (sbx, sby).
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=57>
+            // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1496>
+            Sbw => {
+                if self.is_type1 {
+                    let [x, y, wx, _wy] = self.stack.fixed_array(0)?;
+                    self.x = x;
+                    self.y = y;
+                    self.sbx = x;
+                    self.wx = wx;
+                    self.have_read_width = true;
+                    self.reset_stack();
+                }
+            }
+            // Brackets an outline section for dots in letters such as 'i',
+            // 'j' and '!'. Purely metadata that a hinter can use.
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=58>
+            DotSection => {
+                // Nothing to do.
+            }
+            // Declares ranges for three horizontal or vertical stem zones.
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=59>
+            // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1199>
+            HStem3 | VStem3 => {
+                // Currently unimplemented.
+            }
+            // Division operator.
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=60>
+            // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1586>
+            Div => {
+                self.stack.div(self.is_type1)?;
+            }
+            // Mechanism for making calls into the PostScript interpreter.
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=61>
+            // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1644>
+            CallOtherSubr => {
+                let subr_idx = self.stack.pop_i32()?;
+                let num_args = self.stack.pop_i32()?;
+                match (subr_idx, num_args) {
+                    // End flex. Emit curves from accumulated vectors on the
+                    // stack.
+                    (0, 3) => {
+                        self.is_flexing = false;
+                        self.handle_flex()?;
+                    }
+                    // Begin flex. Accumulate vectors from moveto operators.
+                    (1, 0) => {
+                        self.is_flexing = true;
+                    }
+                    _ => {}
+                }
+            }
+            // Removes a number from the PostScript interpreter stack and
+            // pushes that number to the BuildChar stack. Only used to
+            // retrieve results from OtherSubrs procedures and those are
+            // handled explicitly so this is a nop.
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=61>
+            Pop => {
+                // Nothing to do.
+            }
+            // Sets the current point without performing a move command.
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=62>
+            // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2379>
+            SetCurrentPoint => {
+                if self.is_type1 {
+                    let [x, y] = self.stack.fixed_array(0)?;
+                    self.x = x;
+                    self.y = y;
+                    self.reset_stack();
+                }
+            }
         }
         Ok(true)
     }
 
     /// See `endchar` in Appendix C at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=35>
-    fn handle_seac(&mut self, nesting_depth: u32) -> Result<(), Error> {
+    fn handle_seac(&mut self, mode: SeacMode, nesting_depth: u32) -> Result<(), Error> {
         // handle seac operator
         let accent_code = self.stack.pop_i32()?;
         let base_code = self.stack.pop_i32()?;
@@ -504,16 +664,48 @@ where
             self.context.seac_components(base_code, accent_code)?;
         let dy = self.stack.pop_fixed()?;
         let dx = self.stack.pop_fixed()?;
-        if !self.stack.is_empty() && !self.have_read_width {
+        let sb = if self.is_type1 {
+            // Type1 has an additional side bearing argument
+            self.stack.pop_fixed()?
+        } else if !self.stack.is_empty() && !self.have_read_width {
             self.stack.pop_i32()?;
             self.have_read_width = true;
+            Fixed::ZERO
+        } else {
+            Fixed::ZERO
+        };
+        struct Component<'a> {
+            charstring: &'a [u8],
+            x: Fixed,
+            y: Fixed,
         }
-        // The accent must be evaluated first to match FreeType but the
-        // base should be placed at the current position, so save it
         let x = self.x;
         let y = self.y;
-        self.x = dx;
-        self.y = dy;
+        // Base components for explicit seac are always 0 in FreeType
+        let [bx, by] = if mode == SeacMode::Explicit {
+            [Fixed::ZERO; 2]
+        } else {
+            [x, y]
+        };
+        let mut components = [
+            Component {
+                charstring: base_charstring,
+                x: bx,
+                y: by,
+            },
+            Component {
+                charstring: accent_charstring,
+                // Adjustments only for type1 but these will be 0 for type2
+                // anyway
+                x: dx + self.sbx - sb,
+                y: dy,
+            },
+        ];
+        // FreeType evaluates accent first for implicit seac but base first
+        // for explicit so swap if necessary.
+        if mode == SeacMode::Implicit {
+            components.swap(0, 1);
+        }
         // FreeType calls cf2_interpT2CharString for each component
         // which uses a fresh set of stem hints. Since our hinter is in
         // a separate crate, we signal this through the sink. Also
@@ -521,14 +713,61 @@ where
         // bytes for each hint mask instruction.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1443>
         // and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L540>
-        self.sink.clear_hints();
-        self.stem_count = 0;
-        self.evaluate(accent_charstring, nesting_depth + 1)?;
-        self.x = x;
-        self.y = y;
-        self.sink.clear_hints();
-        self.stem_count = 0;
-        self.evaluate(base_charstring, nesting_depth + 1)
+        for component in components {
+            self.sink.clear_hints();
+            self.stem_count = 0;
+            self.x = component.x;
+            self.y = component.y;
+            self.evaluate(component.charstring, nesting_depth + 1)?;
+        }
+        Ok(())
+    }
+
+    /// Emit two curves for the accumulated flex vectors.
+    fn handle_flex(&mut self) -> Result<(), Error> {
+        // FreeType does weird accounting for flex vectors
+        // that we don't wish to copy so do the equivalent
+        // thing from fonttools instead:
+        // <https://github.com/fonttools/fonttools/blob/9cec77d49bdb1a1ca346ac5fefdc5e7c30929026/Lib/fontTools/misc/psCharStrings.py#L1066>
+        let final_y = self.stack.pop_fixed()?;
+        let final_x = self.stack.pop_fixed()?;
+        // Flex height is unused
+        let _ = self.stack.pop_fixed()?;
+        let p3y = self.stack.pop_fixed()?;
+        let p3x = self.stack.pop_fixed()?;
+        let bcp4y = self.stack.pop_fixed()?;
+        let bcp4x = self.stack.pop_fixed()?;
+        let bcp3y = self.stack.pop_fixed()?;
+        let bcp3x = self.stack.pop_fixed()?;
+        let p2y = self.stack.pop_fixed()?;
+        let p2x = self.stack.pop_fixed()?;
+        let bcp2y = self.stack.pop_fixed()?;
+        let bcp2x = self.stack.pop_fixed()?;
+        let bcp1y = self.stack.pop_fixed()?;
+        let bcp1x = self.stack.pop_fixed()?;
+        let rpy = self.stack.pop_fixed()?;
+        let rpx = self.stack.pop_fixed()?;
+        self.reset_stack();
+        self.stack.push(bcp1x + rpx)?;
+        self.stack.push(bcp1y + rpy)?;
+        self.stack.push(bcp2x)?;
+        self.stack.push(bcp2y)?;
+        self.stack.push(p2x)?;
+        self.stack.push(p2y)?;
+        self.emit_curves([PointMode::DxDy; 3])?;
+        self.reset_stack();
+        self.stack.push(bcp3x)?;
+        self.stack.push(bcp3y)?;
+        self.stack.push(bcp4x)?;
+        self.stack.push(bcp4y)?;
+        self.stack.push(p3x)?;
+        self.stack.push(p3y)?;
+        self.emit_curves([PointMode::DxDy; 3])?;
+        self.reset_stack();
+        // Push final position back on the stack
+        self.stack.push(final_x)?;
+        self.stack.push(final_y)?;
+        Ok(())
     }
 
     fn coords_remaining(&self) -> usize {
@@ -652,6 +891,7 @@ enum Operator {
     RrCurveTo,
     CallSubr,
     Return,
+    Hsbw,
     EndChar,
     VariationStoreIndex,
     Blend,
@@ -668,6 +908,15 @@ enum Operator {
     CallGsubr,
     VhCurveTo,
     HvCurveTo,
+    DotSection,
+    VStem3,
+    HStem3,
+    Seac,
+    Sbw,
+    Div,
+    CallOtherSubr,
+    Pop,
+    SetCurrentPoint,
     HFlex,
     Flex,
     HFlex1,
@@ -700,6 +949,7 @@ impl Operator {
             8 => RrCurveTo,
             10 => CallSubr,
             11 => Return,
+            13 => Hsbw,
             14 => EndChar,
             15 => VariationStoreIndex,
             16 => Blend,
@@ -726,6 +976,15 @@ impl Operator {
     pub fn from_two_byte_opcode(opcode: u8) -> Option<Self> {
         use Operator::*;
         Some(match opcode {
+            0 => DotSection,
+            1 => VStem3,
+            2 => HStem3,
+            6 => Seac,
+            7 => Sbw,
+            12 => Div,
+            16 => CallOtherSubr,
+            17 => Pop,
+            33 => SetCurrentPoint,
             34 => HFlex,
             35 => Flex,
             36 => HFlex1,
@@ -788,7 +1047,13 @@ mod tests {
         let coords = &[F2Dot14::from_f32(0.0)];
         let blend_state = BlendState::new(store, coords, 0).unwrap();
         let mut commands = CaptureCommandSink::default();
-        evaluate(&NullContext, Some(blend_state), charstring, &mut commands).unwrap();
+        evaluate(
+            &NullContext(CharstringKind::Type2),
+            Some(blend_state),
+            charstring,
+            &mut commands,
+        )
+        .unwrap();
         // 50 50 100 1 blend 0 rmoveto
         // 500 -100 -200 1 blend hlineto
         // 500 vlineto
@@ -858,7 +1123,13 @@ mod tests {
         ];
         use Command::*;
         let mut commands = CaptureCommandSink::default();
-        evaluate(&NullContext, None, charstring, &mut commands).unwrap();
+        evaluate(
+            &NullContext(CharstringKind::Type2),
+            None,
+            charstring,
+            &mut commands,
+        )
+        .unwrap();
         // Expected results from extracted glyph data in
         // font-test-data/test_data/extracted/charstring_path_ops-glyphs.txt
         // --------------------------------------------------------------------
@@ -1095,7 +1366,8 @@ mod tests {
         // Test case:
         // Evaluate HHCURVETO operator with 2 elements on the stack
         let mut commands = CaptureCommandSink::default();
-        let mut evaluator = Evaluator::new(&NullContext, None, &mut commands);
+        let mut evaluator =
+            Evaluator::new(&NullContext(CharstringKind::Type2), None, &mut commands);
         evaluator.stack.push(0).unwrap();
         evaluator.stack.push(0).unwrap();
         let mut cursor = FontData::new(&[]).cursor();
@@ -1112,16 +1384,162 @@ mod tests {
             2,   // reserved
         ];
         let mut commands = CaptureCommandSink::default();
-        evaluate(&NullContext, None, charstring, &mut commands).unwrap();
+        evaluate(
+            &NullContext(CharstringKind::Type2),
+            None,
+            charstring,
+            &mut commands,
+        )
+        .unwrap();
         assert_eq!(
             commands.0,
             [Command::MoveTo(Fixed::from_i32(-107), Fixed::ZERO)]
         );
     }
 
-    struct NullContext;
+    #[test]
+    fn op_div() {
+        let mut commands = CaptureCommandSink::default();
+        let mut eval = Evaluator::new(&NullContext(CharstringKind::Type2), None, &mut commands);
+        let mut cursor = FontData::new(&[]).cursor();
+        eval.stack.push(Fixed::from_f64(512.5)).unwrap();
+        eval.stack.push(2).unwrap();
+        eval.evaluate_operator(Operator::Div, &mut cursor, 0)
+            .unwrap();
+        assert_eq!(
+            eval.stack.pop_fixed().unwrap(),
+            Fixed::from_f64(512.5 / 2.0)
+        );
+    }
+
+    #[test]
+    fn op_div_type1_large_int() {
+        let mut commands = CaptureCommandSink::default();
+        let mut eval = Evaluator::new(&NullContext(CharstringKind::Type1), None, &mut commands);
+        let mut cursor = FontData::new(&[]).cursor();
+        // Greater than 32,000 which triggers "large int div" behavior for type1.
+        eval.stack.push(32001).unwrap();
+        eval.stack.push(2).unwrap();
+        eval.evaluate_operator(Operator::Div, &mut cursor, 0)
+            .unwrap();
+        assert_eq!(
+            eval.stack.pop_fixed().unwrap(),
+            Fixed::from_f64(32001.0 / 2.0)
+        );
+    }
+
+    /// Shared code for the (h)sbw tests.
+    ///
+    /// Returns [sbx, wx]
+    fn eval_h_sbw(operator: Operator, kind: CharstringKind) -> [Fixed; 2] {
+        let mut commands = CaptureCommandSink::default();
+        let ctx = &NullContext(kind);
+        let mut eval = Evaluator::new(ctx, None, &mut commands);
+        let mut cursor = FontData::new(&[]).cursor();
+        eval.stack.push(Fixed::from_f64(42.5)).unwrap();
+        if operator == Operator::Sbw {
+            // sbw includes y coords
+            eval.stack.push(0).unwrap();
+        }
+        eval.stack.push(501).unwrap();
+        eval.stack.push(1000).unwrap();
+        eval.evaluate_operator(operator, &mut cursor, 0).unwrap();
+        [eval.sbx, eval.wx]
+    }
+
+    #[test]
+    fn op_sbw_type1() {
+        let [sbx, wx] = eval_h_sbw(Operator::Sbw, CharstringKind::Type1);
+        assert_eq!(sbx, Fixed::from_f64(42.5));
+        assert_eq!(wx, Fixed::from_f64(501.0));
+    }
+
+    #[test]
+    fn op_hsbw_type1() {
+        let [sbx, wx] = eval_h_sbw(Operator::Hsbw, CharstringKind::Type1);
+        assert_eq!(sbx, Fixed::from_f64(42.5));
+        assert_eq!(wx, Fixed::from_f64(501.0));
+    }
+
+    /// sbw is ignored in type 2
+    #[test]
+    fn op_sbw_type2_no_effect() {
+        let [sbx, wx] = eval_h_sbw(Operator::Sbw, CharstringKind::Type2);
+        assert_eq!(sbx, Fixed::ZERO);
+        assert_eq!(wx, Fixed::ZERO);
+    }
+
+    /// hsbw is ignored in type 2
+    #[test]
+    fn op_hsbw_type2_no_effect() {
+        let [sbx, wx] = eval_h_sbw(Operator::Hsbw, CharstringKind::Type2);
+        assert_eq!(sbx, Fixed::ZERO);
+        assert_eq!(wx, Fixed::ZERO);
+    }
+
+    #[test]
+    fn op_callothersubr_flex() {
+        let mut commands = CaptureCommandSink::default();
+        let mut eval = Evaluator::new(&NullContext(CharstringKind::Type1), None, &mut commands);
+        let mut cursor = FontData::new(&[]).cursor();
+        // push some numbers and optionally evaluate an operator
+        macro_rules! op {
+            ($nums:expr) => {
+                for n in $nums {
+                    eval.stack.push(n).unwrap();
+                }
+            };
+            ($nums:expr, $op:ident) => {
+                op!($nums);
+                eval.evaluate_operator(Operator::$op, &mut cursor, 0)
+                    .unwrap();
+            };
+        }
+        // Emulate a flex vector call
+        // begin flex
+        op!([0, 1], CallOtherSubr);
+        // emit flex vectors with a series of moves
+        for vec in [[1, 2]; 7] {
+            op!(vec, RMoveTo);
+        }
+        // flex_height, final_x, final_y
+        op!([0, 100, 200]);
+        // end flex
+        op!([3, 0], CallOtherSubr);
+        // flex usually ends with a subr call to setcurrentpoint
+        // which makes use of the final coords pushed to the stack
+        let none: [i32; 0] = [];
+        op!(none, SetCurrentPoint);
+        let expected = [
+            Command::CurveTo(
+                Fixed::from_i32(2),
+                Fixed::from_i32(4),
+                Fixed::from_i32(3),
+                Fixed::from_i32(6),
+                Fixed::from_i32(4),
+                Fixed::from_i32(8),
+            ),
+            Command::CurveTo(
+                Fixed::from_i32(5),
+                Fixed::from_i32(10),
+                Fixed::from_i32(6),
+                Fixed::from_i32(12),
+                Fixed::from_i32(7),
+                Fixed::from_i32(14),
+            ),
+        ];
+        assert_eq!(eval.x, Fixed::from_i32(100));
+        assert_eq!(eval.y, Fixed::from_i32(200));
+        assert_eq!(commands.0, expected);
+    }
+
+    struct NullContext(CharstringKind);
 
     impl CharstringContext for NullContext {
+        fn kind(&self) -> CharstringKind {
+            self.0
+        }
+
         fn seac_components(&self, base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
             Err(Error::InvalidSeacCode(base_code))
         }

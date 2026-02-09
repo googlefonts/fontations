@@ -85,7 +85,6 @@ impl Stack {
     }
 
     /// Swaps the top two elements.
-    #[allow(unused)]
     pub(crate) fn exch(&mut self) -> Result<(), Error> {
         if self.top < 2 {
             return Err(Error::StackUnderflow);
@@ -315,7 +314,6 @@ impl Stack {
     ///
     /// Implements special behavior for Type1 fonts to handle the case of
     /// integers greater than 32k per FreeType.
-    #[allow(unused)]
     pub(crate) fn div(&mut self, is_type1: bool) -> Result<(), Error> {
         let b_idx = self.pop()?;
         let a_idx = self.pop()?;
