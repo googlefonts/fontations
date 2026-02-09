@@ -1398,31 +1398,83 @@ mod tests {
     }
 
     #[test]
-    fn op_sbw() {
+    fn op_div() {
         let mut commands = CaptureCommandSink::default();
-        let mut eval = Evaluator::new(&NullContext(CharstringKind::Type1), None, &mut commands);
+        let mut eval = Evaluator::new(&NullContext(CharstringKind::Type2), None, &mut commands);
         let mut cursor = FontData::new(&[]).cursor();
-        eval.stack.push(Fixed::from_f64(42.5)).unwrap();
-        eval.stack.push(0).unwrap();
-        eval.stack.push(501).unwrap();
-        eval.stack.push(1000).unwrap();
-        eval.evaluate_operator(Operator::Sbw, &mut cursor, 0)
+        eval.stack.push(Fixed::from_f64(512.5)).unwrap();
+        eval.stack.push(2).unwrap();
+        eval.evaluate_operator(Operator::Div, &mut cursor, 0)
             .unwrap();
-        assert_eq!(eval.sbx, Fixed::from_f64(42.5));
-        assert_eq!(eval.wx, Fixed::from_f64(501.0));
+        assert_eq!(
+            eval.stack.pop_fixed().unwrap(),
+            Fixed::from_f64(512.5 / 2.0)
+        );
     }
 
     #[test]
-    fn op_hsbw() {
+    fn op_div_type1_large_int() {
         let mut commands = CaptureCommandSink::default();
         let mut eval = Evaluator::new(&NullContext(CharstringKind::Type1), None, &mut commands);
         let mut cursor = FontData::new(&[]).cursor();
-        eval.stack.push(Fixed::from_f64(42.5)).unwrap();
-        eval.stack.push(501).unwrap();
-        eval.evaluate_operator(Operator::Hsbw, &mut cursor, 0)
+        // Greater than 32,000 which triggers "large int div" behavior for type1.
+        eval.stack.push(32001).unwrap();
+        eval.stack.push(2).unwrap();
+        eval.evaluate_operator(Operator::Div, &mut cursor, 0)
             .unwrap();
-        assert_eq!(eval.sbx, Fixed::from_f64(42.5));
-        assert_eq!(eval.wx, Fixed::from_f64(501.0));
+        assert_eq!(
+            eval.stack.pop_fixed().unwrap(),
+            Fixed::from_f64(32001.0 / 2.0)
+        );
+    }
+
+    /// Shared code for the (h)sbw tests.
+    ///
+    /// Returns [sbx, wx]
+    fn eval_h_sbw(operator: Operator, kind: CharstringKind) -> [Fixed; 2] {
+        let mut commands = CaptureCommandSink::default();
+        let ctx = &NullContext(kind);
+        let mut eval = Evaluator::new(ctx, None, &mut commands);
+        let mut cursor = FontData::new(&[]).cursor();
+        eval.stack.push(Fixed::from_f64(42.5)).unwrap();
+        if operator == Operator::Sbw {
+            // sbw includes y coords
+            eval.stack.push(0).unwrap();
+        }
+        eval.stack.push(501).unwrap();
+        eval.stack.push(1000).unwrap();
+        eval.evaluate_operator(operator, &mut cursor, 0).unwrap();
+        [eval.sbx, eval.wx]
+    }
+
+    #[test]
+    fn op_sbw_type1() {
+        let [sbx, wx] = eval_h_sbw(Operator::Sbw, CharstringKind::Type1);
+        assert_eq!(sbx, Fixed::from_f64(42.5));
+        assert_eq!(wx, Fixed::from_f64(501.0));
+    }
+
+    #[test]
+    fn op_hsbw_type1() {
+        let [sbx, wx] = eval_h_sbw(Operator::Hsbw, CharstringKind::Type1);
+        assert_eq!(sbx, Fixed::from_f64(42.5));
+        assert_eq!(wx, Fixed::from_f64(501.0));
+    }
+
+    /// sbw is ignored in type 2
+    #[test]
+    fn op_sbw_type2_no_effect() {
+        let [sbx, wx] = eval_h_sbw(Operator::Sbw, CharstringKind::Type2);
+        assert_eq!(sbx, Fixed::ZERO);
+        assert_eq!(wx, Fixed::ZERO);
+    }
+
+    /// hsbw is ignored in type 2
+    #[test]
+    fn op_hsbw_type2_no_effect() {
+        let [sbx, wx] = eval_h_sbw(Operator::Hsbw, CharstringKind::Type2);
+        assert_eq!(sbx, Fixed::ZERO);
+        assert_eq!(wx, Fixed::ZERO);
     }
 
     #[test]
@@ -1438,9 +1490,7 @@ mod tests {
                 }
             };
             ($nums:expr, $op:ident) => {
-                for n in $nums {
-                    eval.stack.push(n).unwrap();
-                }
+                op!($nums);
                 eval.evaluate_operator(Operator::$op, &mut cursor, 0)
                     .unwrap();
             };
@@ -1452,10 +1502,14 @@ mod tests {
         for vec in [[1, 2]; 7] {
             op!(vec, RMoveTo);
         }
-        // final_x, final_y, flex_height
-        op!([100, 100, 0]);
+        // flex_height, final_x, final_y
+        op!([0, 100, 200]);
         // end flex
         op!([3, 0], CallOtherSubr);
+        // flex usually ends with a subr call to setcurrentpoint
+        // which makes use of the final coords pushed to the stack
+        let none: [i32; 0] = [];
+        op!(none, SetCurrentPoint);
         let expected = [
             Command::CurveTo(
                 Fixed::from_i32(2),
@@ -1474,6 +1528,8 @@ mod tests {
                 Fixed::from_i32(14),
             ),
         ];
+        assert_eq!(eval.x, Fixed::from_i32(100));
+        assert_eq!(eval.y, Fixed::from_i32(200));
         assert_eq!(commands.0, expected);
     }
 
