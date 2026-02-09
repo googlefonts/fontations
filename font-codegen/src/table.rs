@@ -22,30 +22,17 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let generic = item.attrs.generic_offset.as_ref();
     let generic_with_default = generic.map(|t| quote!(#t = ()));
     let phantom_decl = generic.map(|t| quote!(offset_type: std::marker::PhantomData<*const #t>));
-    let marker_name = item.marker_name();
     let raw_name = item.raw_name();
     let field_byte_range_fns = item.iter_field_byte_range_fns();
     let optional_min_byte_range_trait_impl = item.impl_min_byte_range_trait();
     let min_valid_size = item.min_valid_size_expr();
-    let shape_fields = item
+    let stored_args = item
         .attrs
         .read_args
         .as_ref()
         .map(|args| args.constructor_args())
         .into_iter()
         .flatten();
-    let derive_clone_copy = generic.is_none().then(|| quote!(Clone, Copy));
-    let impl_clone_copy = generic.is_some().then(|| {
-        quote! {
-            impl<#generic> Clone for #marker_name<#generic> {
-                fn clone(&self) -> Self {
-                    *self
-                }
-            }
-
-            impl<#generic> Copy for #marker_name<#generic> {}
-        }
-    });
 
     let of_unit_docs = " Replace the specific generic type on this implementation with `()`";
 
@@ -56,11 +43,9 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                impl<'a> #raw_name<'a, ()> {
                    #[allow(dead_code)]
                    pub(crate) fn into_concrete<T>(self) -> #raw_name<'a, #t> {
-                       TableRef {
+                       #raw_name {
                            data: self.data,
-                           shape: #marker_name {
-                               offset_type: std::marker::PhantomData,
-                           }
+                           offset_type: std::marker::PhantomData,
                        }
                    }
                }
@@ -71,20 +56,16 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                    #[allow(dead_code)]
                    #[doc = #of_unit_docs]
                    pub(crate) fn of_unit_type(&self) -> #raw_name<'a, ()> {
-                       TableRef {
+                       #raw_name {
                            data: self.data,
-                           shape: #marker_name {
-                               offset_type: std::marker::PhantomData,
-                           }
+                           offset_type: std::marker::PhantomData,
                        }
                    }
                }
         }
     });
 
-    //let stashed_read_arg_getters = item.read_arg_getters();
     let table_ref_getters = item.iter_table_ref_getters();
-
     let optional_format_trait_impl = item.impl_format_trait();
     let font_read = generate_font_read(item)?;
     let debug = generate_debug(item)?;
@@ -103,30 +84,27 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     Ok(quote! {
         #optional_format_trait_impl
 
-        #( #docs )*
-        #[derive(Debug, #derive_clone_copy)]
-        #[doc(hidden)]
-        pub struct #marker_name <#generic_with_default> {
-            #( #shape_fields, )*
-            #phantom_decl
-        }
-
         #optional_min_byte_range_trait_impl
 
         #top_level
-
-        #impl_clone_copy
 
         #font_read
 
         #impl_into_generic
 
         #( #docs )*
-        pub type #raw_name<'a, #generic> = TableRef<'a, #marker_name<#generic>>;
+        #[derive(Clone)]
+        pub struct #raw_name<'a, #generic_with_default> {
+            data: FontData<'a>,
+            #( #stored_args, )*
+            #phantom_decl
+        }
 
         #[allow(clippy::needless_lifetimes)]
         impl<'a, #generic> #raw_name<'a, #generic> {
             pub const MIN_SIZE: usize = #min_valid_size;
+
+            basic_table_impls!(impl_the_methods);
 
             #( #field_byte_range_fns )*
             #( #table_ref_getters )*
@@ -138,7 +116,6 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 }
 
 fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
-    let marker_name = item.marker_name();
     let name = item.raw_name();
     let generic = item.attrs.generic_offset.as_ref();
     let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
@@ -169,9 +146,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                      Ok(
                          Self {
                              data,
-                             shape: #marker_name {
-                                #( #arg_idents, )*
-                             }
+                             #( #arg_idents, )*
                          }
                      )
                 }
@@ -197,9 +172,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                     }
                     Ok(Self {
                         data,
-                        shape: #marker_name {
-                            #phantom
-                        }
+                        #phantom
                     })
                 }
             }
@@ -791,7 +764,7 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
                 let expr = &expr.expr;
                 quote!(format if #expr)
             } else {
-                let typ = variant.marker_name();
+                let typ = variant.type_name();
                 quote!(#typ::FORMAT)
             };
             Some(quote! {
@@ -899,10 +872,6 @@ impl Table {
         self.fields.sanity_check(phase)
     }
 
-    fn marker_name(&self) -> syn::Ident {
-        quote::format_ident!("{}Marker", self.raw_name())
-    }
-
     fn iter_field_byte_range_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
         let mut prev_field_end_expr = quote!(0);
         let mut iter = self.fields.iter();
@@ -972,12 +941,12 @@ impl Table {
 
     pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {
         let field = self.fields.iter().find(|fld| fld.attrs.format.is_some())?;
-        let name = self.marker_name();
+        let name = self.raw_name();
         let value = &field.attrs.format.as_ref().unwrap();
         let typ = field.typ.cooked_type_tokens();
 
         Some(quote! {
-            impl Format<#typ> for #name {
+            impl Format<#typ> for #name<'_> {
                 const FORMAT: #typ = #value;
             }
         })
@@ -1062,16 +1031,13 @@ impl TableReadArgs {
         &'a self,
         _referenced_fields: &'a ReferencedFields,
     ) -> impl Iterator<Item = TokenStream> + 'a {
-        self.args
-            .iter()
-            //.filter(|arg| referenced_fields.needs_at_runtime(&arg.ident))
-            .map(|TableReadArg { ident, typ }| {
-                quote! {
-                    pub(crate) fn #ident(&self) -> #typ {
-                        self.shape.#ident
-                    }
+        self.args.iter().map(|TableReadArg { ident, typ }| {
+            quote! {
+                pub(crate) fn #ident(&self) -> #typ {
+                    self.#ident
                 }
-            })
+            }
+        })
     }
 }
 

@@ -5,13 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct HmtxMarker {
-    number_of_h_metrics: u16,
-}
-
 impl<'a> MinByteRange for Hmtx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.left_side_bearings_byte_range().end
@@ -35,9 +28,7 @@ impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
         }
         Ok(Self {
             data,
-            shape: HmtxMarker {
-                number_of_h_metrics,
-            },
+            number_of_h_metrics,
         })
     }
 }
@@ -54,11 +45,16 @@ impl<'a> Hmtx<'a> {
 }
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-pub type Hmtx<'a> = TableRef<'a, HmtxMarker>;
+#[derive(Clone)]
+pub struct Hmtx<'a> {
+    data: FontData<'a>,
+    number_of_h_metrics: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hmtx<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 
     pub fn h_metrics_byte_range(&self) -> Range<usize> {
         let number_of_h_metrics = self.number_of_h_metrics();
@@ -89,7 +85,7 @@ impl<'a> Hmtx<'a> {
     }
 
     pub(crate) fn number_of_h_metrics(&self) -> u16 {
-        self.shape.number_of_h_metrics
+        self.number_of_h_metrics
     }
 }
 

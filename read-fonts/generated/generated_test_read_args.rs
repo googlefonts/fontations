@@ -5,12 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseArrayMarker {
-    mark_class_count: u16,
-}
-
 impl<'a> MinByteRange for BaseArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_records_byte_range().end
@@ -29,7 +23,7 @@ impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
         }
         Ok(Self {
             data,
-            shape: BaseArrayMarker { mark_class_count },
+            mark_class_count,
         })
     }
 }
@@ -45,11 +39,16 @@ impl<'a> BaseArray<'a> {
     }
 }
 
-pub type BaseArray<'a> = TableRef<'a, BaseArrayMarker>;
+#[derive(Clone)]
+pub struct BaseArray<'a> {
+    data: FontData<'a>,
+    mark_class_count: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseArray<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn base_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -82,7 +81,7 @@ impl<'a> BaseArray<'a> {
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
-        self.shape.mark_class_count
+        self.mark_class_count
     }
 }
 

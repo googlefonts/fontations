@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PostMarker {}
-
 impl<'a> MinByteRange for Post<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.max_mem_type1_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Post<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PostMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
-pub type Post<'a> = TableRef<'a, PostMarker>;
+#[derive(Clone)]
+pub struct Post<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Post<'a> {
@@ -47,6 +42,7 @@ impl<'a> Post<'a> {
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

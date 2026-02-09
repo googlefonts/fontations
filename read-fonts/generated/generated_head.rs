@@ -692,12 +692,6 @@ impl<'a> From<Flags> for FieldType<'a> {
     }
 }
 
-/// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
-/// (font header) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct HeadMarker {}
-
 impl<'a> MinByteRange for Head<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_format_byte_range().end
@@ -714,16 +708,16 @@ impl<'a> FontRead<'a> for Head<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: HeadMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
 /// (font header) table.
-pub type Head<'a> = TableRef<'a, HeadMarker>;
+#[derive(Clone)]
+pub struct Head<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Head<'a> {
@@ -744,6 +738,7 @@ impl<'a> Head<'a> {
         + i16::RAW_BYTE_LEN
         + i16::RAW_BYTE_LEN
         + i16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

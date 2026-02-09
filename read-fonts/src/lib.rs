@@ -184,6 +184,38 @@ pub(crate) mod codegen_prelude {
                 .saturating_add(2)
         }
     }
+
+    #[macro_export]
+    macro_rules! basic_table_impls {
+        (impl_the_methods) => {
+            /// Resolve the provided offset from the start of this table.
+            pub fn resolve_offset<O: Offset, R: FontRead<'a>>(
+                &self,
+                offset: O,
+            ) -> Result<R, ReadError> {
+                offset.resolve(self.data)
+            }
+
+            /// Return a reference to this table's raw data.
+            ///
+            /// We use this in the compile crate to resolve offsets.
+            pub fn offset_data(&self) -> FontData<'a> {
+                self.data
+            }
+
+            /// Return a reference to the table's 'Shape' struct.
+            ///
+            /// This is a low level implementation detail, but it can be useful in
+            /// some cases where you want to know things about a table's layout, such
+            /// as the byte offsets of specific fields.
+            #[deprecated(note = "just use the base type directly")]
+            pub fn shape(&self) -> &Self {
+                &self
+            }
+        };
+    }
+
+    pub(crate) use crate::basic_table_impls;
 }
 
 include!("../generated/font.rs");

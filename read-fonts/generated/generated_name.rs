@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct NameMarker {}
-
 impl<'a> MinByteRange for Name<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.name_record_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Name<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: NameMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
-pub type Name<'a> = TableRef<'a, NameMarker>;
+#[derive(Clone)]
+pub struct Name<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Name<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
