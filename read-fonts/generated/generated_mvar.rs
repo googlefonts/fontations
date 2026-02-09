@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [MVAR (Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MvarMarker {}
-
 impl<'a> MinByteRange for Mvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.value_records_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Mvar<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MvarMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [MVAR (Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
-pub type Mvar<'a> = TableRef<'a, MvarMarker>;
+#[derive(Clone)]
+pub struct Mvar<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Mvar<'a> {
@@ -43,6 +38,7 @@ impl<'a> Mvar<'a> {
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

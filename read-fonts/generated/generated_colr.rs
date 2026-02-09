@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct ColrMarker {}
-
 impl<'a> MinByteRange for Colr<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.num_layer_records_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Colr<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: ColrMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
-pub type Colr<'a> = TableRef<'a, ColrMarker>;
+#[derive(Clone)]
+pub struct Colr<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Colr<'a> {
@@ -43,6 +38,7 @@ impl<'a> Colr<'a> {
         + Offset32::RAW_BYTE_LEN
         + Offset32::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -383,11 +379,6 @@ impl<'a> SomeRecord<'a> for Layer {
     }
 }
 
-/// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseGlyphListMarker {}
-
 impl<'a> MinByteRange for BaseGlyphList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_glyph_paint_records_byte_range().end
@@ -399,19 +390,20 @@ impl<'a> FontRead<'a> for BaseGlyphList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BaseGlyphListMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-pub type BaseGlyphList<'a> = TableRef<'a, BaseGlyphListMarker>;
+#[derive(Clone)]
+pub struct BaseGlyphList<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseGlyphList<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn num_base_glyph_paint_records_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -523,11 +515,6 @@ impl<'a> SomeRecord<'a> for BaseGlyphPaint {
     }
 }
 
-/// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct LayerListMarker {}
-
 impl<'a> MinByteRange for LayerList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.paint_offsets_byte_range().end
@@ -539,19 +526,20 @@ impl<'a> FontRead<'a> for LayerList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: LayerListMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-pub type LayerList<'a> = TableRef<'a, LayerListMarker>;
+#[derive(Clone)]
+pub struct LayerList<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LayerList<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn num_layers_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -620,11 +608,6 @@ impl<'a> std::fmt::Debug for LayerList<'a> {
     }
 }
 
-/// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct ClipListMarker {}
-
 impl<'a> MinByteRange for ClipList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.clips_byte_range().end
@@ -636,19 +619,20 @@ impl<'a> FontRead<'a> for ClipList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: ClipListMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
-pub type ClipList<'a> = TableRef<'a, ClipListMarker>;
+#[derive(Clone)]
+pub struct ClipList<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipList<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -841,8 +825,8 @@ impl<'a> FontRead<'a> for ClipBox<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
-            ClipBoxFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            ClipBoxFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            ClipBoxFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            ClipBoxFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -884,14 +868,9 @@ impl<'a> SomeTable<'a> for ClipBox<'a> {
     }
 }
 
-impl Format<u8> for ClipBoxFormat1Marker {
+impl Format<u8> for ClipBoxFormat1<'_> {
     const FORMAT: u8 = 1;
 }
-
-/// [ClipBoxFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct ClipBoxFormat1Marker {}
 
 impl<'a> MinByteRange for ClipBoxFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -904,15 +883,15 @@ impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: ClipBoxFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [ClipBoxFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-pub type ClipBoxFormat1<'a> = TableRef<'a, ClipBoxFormat1Marker>;
+#[derive(Clone)]
+pub struct ClipBoxFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat1<'a> {
@@ -921,6 +900,7 @@ impl<'a> ClipBoxFormat1<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1008,14 +988,9 @@ impl<'a> std::fmt::Debug for ClipBoxFormat1<'a> {
     }
 }
 
-impl Format<u8> for ClipBoxFormat2Marker {
+impl Format<u8> for ClipBoxFormat2<'_> {
     const FORMAT: u8 = 2;
 }
-
-/// [ClipBoxFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct ClipBoxFormat2Marker {}
 
 impl<'a> MinByteRange for ClipBoxFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1028,15 +1003,15 @@ impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: ClipBoxFormat2Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [ClipBoxFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-pub type ClipBoxFormat2<'a> = TableRef<'a, ClipBoxFormat2Marker>;
+#[derive(Clone)]
+pub struct ClipBoxFormat2<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ClipBoxFormat2<'a> {
@@ -1046,6 +1021,7 @@ impl<'a> ClipBoxFormat2<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1347,11 +1323,6 @@ impl<'a> SomeRecord<'a> for VarColorStop {
     }
 }
 
-/// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct ColorLineMarker {}
-
 impl<'a> MinByteRange for ColorLine<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.color_stops_byte_range().end
@@ -1363,19 +1334,20 @@ impl<'a> FontRead<'a> for ColorLine<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: ColorLineMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
-pub type ColorLine<'a> = TableRef<'a, ColorLineMarker>;
+#[derive(Clone)]
+pub struct ColorLine<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ColorLine<'a> {
     pub const MIN_SIZE: usize = (Extend::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn extend_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1444,11 +1416,6 @@ impl<'a> std::fmt::Debug for ColorLine<'a> {
     }
 }
 
-/// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct VarColorLineMarker {}
-
 impl<'a> MinByteRange for VarColorLine<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.color_stops_byte_range().end
@@ -1460,19 +1427,20 @@ impl<'a> FontRead<'a> for VarColorLine<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: VarColorLineMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
-pub type VarColorLine<'a> = TableRef<'a, VarColorLineMarker>;
+#[derive(Clone)]
+pub struct VarColorLine<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarColorLine<'a> {
     pub const MIN_SIZE: usize = (Extend::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn extend_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1708,60 +1676,48 @@ impl<'a> FontRead<'a> for Paint<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
-            PaintColrLayersMarker::FORMAT => Ok(Self::ColrLayers(FontRead::read(data)?)),
-            PaintSolidMarker::FORMAT => Ok(Self::Solid(FontRead::read(data)?)),
-            PaintVarSolidMarker::FORMAT => Ok(Self::VarSolid(FontRead::read(data)?)),
-            PaintLinearGradientMarker::FORMAT => Ok(Self::LinearGradient(FontRead::read(data)?)),
-            PaintVarLinearGradientMarker::FORMAT => {
-                Ok(Self::VarLinearGradient(FontRead::read(data)?))
-            }
-            PaintRadialGradientMarker::FORMAT => Ok(Self::RadialGradient(FontRead::read(data)?)),
-            PaintVarRadialGradientMarker::FORMAT => {
-                Ok(Self::VarRadialGradient(FontRead::read(data)?))
-            }
-            PaintSweepGradientMarker::FORMAT => Ok(Self::SweepGradient(FontRead::read(data)?)),
-            PaintVarSweepGradientMarker::FORMAT => {
-                Ok(Self::VarSweepGradient(FontRead::read(data)?))
-            }
-            PaintGlyphMarker::FORMAT => Ok(Self::Glyph(FontRead::read(data)?)),
-            PaintColrGlyphMarker::FORMAT => Ok(Self::ColrGlyph(FontRead::read(data)?)),
-            PaintTransformMarker::FORMAT => Ok(Self::Transform(FontRead::read(data)?)),
-            PaintVarTransformMarker::FORMAT => Ok(Self::VarTransform(FontRead::read(data)?)),
-            PaintTranslateMarker::FORMAT => Ok(Self::Translate(FontRead::read(data)?)),
-            PaintVarTranslateMarker::FORMAT => Ok(Self::VarTranslate(FontRead::read(data)?)),
-            PaintScaleMarker::FORMAT => Ok(Self::Scale(FontRead::read(data)?)),
-            PaintVarScaleMarker::FORMAT => Ok(Self::VarScale(FontRead::read(data)?)),
-            PaintScaleAroundCenterMarker::FORMAT => {
-                Ok(Self::ScaleAroundCenter(FontRead::read(data)?))
-            }
-            PaintVarScaleAroundCenterMarker::FORMAT => {
+            PaintColrLayers::FORMAT => Ok(Self::ColrLayers(FontRead::read(data)?)),
+            PaintSolid::FORMAT => Ok(Self::Solid(FontRead::read(data)?)),
+            PaintVarSolid::FORMAT => Ok(Self::VarSolid(FontRead::read(data)?)),
+            PaintLinearGradient::FORMAT => Ok(Self::LinearGradient(FontRead::read(data)?)),
+            PaintVarLinearGradient::FORMAT => Ok(Self::VarLinearGradient(FontRead::read(data)?)),
+            PaintRadialGradient::FORMAT => Ok(Self::RadialGradient(FontRead::read(data)?)),
+            PaintVarRadialGradient::FORMAT => Ok(Self::VarRadialGradient(FontRead::read(data)?)),
+            PaintSweepGradient::FORMAT => Ok(Self::SweepGradient(FontRead::read(data)?)),
+            PaintVarSweepGradient::FORMAT => Ok(Self::VarSweepGradient(FontRead::read(data)?)),
+            PaintGlyph::FORMAT => Ok(Self::Glyph(FontRead::read(data)?)),
+            PaintColrGlyph::FORMAT => Ok(Self::ColrGlyph(FontRead::read(data)?)),
+            PaintTransform::FORMAT => Ok(Self::Transform(FontRead::read(data)?)),
+            PaintVarTransform::FORMAT => Ok(Self::VarTransform(FontRead::read(data)?)),
+            PaintTranslate::FORMAT => Ok(Self::Translate(FontRead::read(data)?)),
+            PaintVarTranslate::FORMAT => Ok(Self::VarTranslate(FontRead::read(data)?)),
+            PaintScale::FORMAT => Ok(Self::Scale(FontRead::read(data)?)),
+            PaintVarScale::FORMAT => Ok(Self::VarScale(FontRead::read(data)?)),
+            PaintScaleAroundCenter::FORMAT => Ok(Self::ScaleAroundCenter(FontRead::read(data)?)),
+            PaintVarScaleAroundCenter::FORMAT => {
                 Ok(Self::VarScaleAroundCenter(FontRead::read(data)?))
             }
-            PaintScaleUniformMarker::FORMAT => Ok(Self::ScaleUniform(FontRead::read(data)?)),
-            PaintVarScaleUniformMarker::FORMAT => Ok(Self::VarScaleUniform(FontRead::read(data)?)),
-            PaintScaleUniformAroundCenterMarker::FORMAT => {
+            PaintScaleUniform::FORMAT => Ok(Self::ScaleUniform(FontRead::read(data)?)),
+            PaintVarScaleUniform::FORMAT => Ok(Self::VarScaleUniform(FontRead::read(data)?)),
+            PaintScaleUniformAroundCenter::FORMAT => {
                 Ok(Self::ScaleUniformAroundCenter(FontRead::read(data)?))
             }
-            PaintVarScaleUniformAroundCenterMarker::FORMAT => {
+            PaintVarScaleUniformAroundCenter::FORMAT => {
                 Ok(Self::VarScaleUniformAroundCenter(FontRead::read(data)?))
             }
-            PaintRotateMarker::FORMAT => Ok(Self::Rotate(FontRead::read(data)?)),
-            PaintVarRotateMarker::FORMAT => Ok(Self::VarRotate(FontRead::read(data)?)),
-            PaintRotateAroundCenterMarker::FORMAT => {
-                Ok(Self::RotateAroundCenter(FontRead::read(data)?))
-            }
-            PaintVarRotateAroundCenterMarker::FORMAT => {
+            PaintRotate::FORMAT => Ok(Self::Rotate(FontRead::read(data)?)),
+            PaintVarRotate::FORMAT => Ok(Self::VarRotate(FontRead::read(data)?)),
+            PaintRotateAroundCenter::FORMAT => Ok(Self::RotateAroundCenter(FontRead::read(data)?)),
+            PaintVarRotateAroundCenter::FORMAT => {
                 Ok(Self::VarRotateAroundCenter(FontRead::read(data)?))
             }
-            PaintSkewMarker::FORMAT => Ok(Self::Skew(FontRead::read(data)?)),
-            PaintVarSkewMarker::FORMAT => Ok(Self::VarSkew(FontRead::read(data)?)),
-            PaintSkewAroundCenterMarker::FORMAT => {
-                Ok(Self::SkewAroundCenter(FontRead::read(data)?))
-            }
-            PaintVarSkewAroundCenterMarker::FORMAT => {
+            PaintSkew::FORMAT => Ok(Self::Skew(FontRead::read(data)?)),
+            PaintVarSkew::FORMAT => Ok(Self::VarSkew(FontRead::read(data)?)),
+            PaintSkewAroundCenter::FORMAT => Ok(Self::SkewAroundCenter(FontRead::read(data)?)),
+            PaintVarSkewAroundCenter::FORMAT => {
                 Ok(Self::VarSkewAroundCenter(FontRead::read(data)?))
             }
-            PaintCompositeMarker::FORMAT => Ok(Self::Composite(FontRead::read(data)?)),
+            PaintComposite::FORMAT => Ok(Self::Composite(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1863,14 +1819,9 @@ impl<'a> SomeTable<'a> for Paint<'a> {
     }
 }
 
-impl Format<u8> for PaintColrLayersMarker {
+impl Format<u8> for PaintColrLayers<'_> {
     const FORMAT: u8 = 1;
 }
-
-/// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintColrLayersMarker {}
 
 impl<'a> MinByteRange for PaintColrLayers<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1883,19 +1834,20 @@ impl<'a> FontRead<'a> for PaintColrLayers<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintColrLayersMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
-pub type PaintColrLayers<'a> = TableRef<'a, PaintColrLayersMarker>;
+#[derive(Clone)]
+pub struct PaintColrLayers<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrLayers<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1957,14 +1909,9 @@ impl<'a> std::fmt::Debug for PaintColrLayers<'a> {
     }
 }
 
-impl Format<u8> for PaintSolidMarker {
+impl Format<u8> for PaintSolid<'_> {
     const FORMAT: u8 = 2;
 }
-
-/// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintSolidMarker {}
 
 impl<'a> MinByteRange for PaintSolid<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1977,19 +1924,20 @@ impl<'a> FontRead<'a> for PaintSolid<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintSolidMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
-pub type PaintSolid<'a> = TableRef<'a, PaintSolidMarker>;
+#[derive(Clone)]
+pub struct PaintSolid<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSolid<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2051,14 +1999,9 @@ impl<'a> std::fmt::Debug for PaintSolid<'a> {
     }
 }
 
-impl Format<u8> for PaintVarSolidMarker {
+impl Format<u8> for PaintVarSolid<'_> {
     const FORMAT: u8 = 3;
 }
-
-/// [PaintVarSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarSolidMarker {}
 
 impl<'a> MinByteRange for PaintVarSolid<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2071,20 +2014,21 @@ impl<'a> FontRead<'a> for PaintVarSolid<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarSolidMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
-pub type PaintVarSolid<'a> = TableRef<'a, PaintVarSolidMarker>;
+#[derive(Clone)]
+pub struct PaintVarSolid<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSolid<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2159,14 +2103,9 @@ impl<'a> std::fmt::Debug for PaintVarSolid<'a> {
     }
 }
 
-impl Format<u8> for PaintLinearGradientMarker {
+impl Format<u8> for PaintLinearGradient<'_> {
     const FORMAT: u8 = 4;
 }
-
-/// [PaintLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintLinearGradientMarker {}
 
 impl<'a> MinByteRange for PaintLinearGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2179,15 +2118,15 @@ impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintLinearGradientMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
-pub type PaintLinearGradient<'a> = TableRef<'a, PaintLinearGradientMarker>;
+#[derive(Clone)]
+pub struct PaintLinearGradient<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintLinearGradient<'a> {
@@ -2199,6 +2138,7 @@ impl<'a> PaintLinearGradient<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2334,14 +2274,9 @@ impl<'a> std::fmt::Debug for PaintLinearGradient<'a> {
     }
 }
 
-impl Format<u8> for PaintVarLinearGradientMarker {
+impl Format<u8> for PaintVarLinearGradient<'_> {
     const FORMAT: u8 = 5;
 }
-
-/// [PaintVarLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarLinearGradientMarker {}
 
 impl<'a> MinByteRange for PaintVarLinearGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2354,15 +2289,15 @@ impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarLinearGradientMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
-pub type PaintVarLinearGradient<'a> = TableRef<'a, PaintVarLinearGradientMarker>;
+#[derive(Clone)]
+pub struct PaintVarLinearGradient<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarLinearGradient<'a> {
@@ -2375,6 +2310,7 @@ impl<'a> PaintVarLinearGradient<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2529,14 +2465,9 @@ impl<'a> std::fmt::Debug for PaintVarLinearGradient<'a> {
     }
 }
 
-impl Format<u8> for PaintRadialGradientMarker {
+impl Format<u8> for PaintRadialGradient<'_> {
     const FORMAT: u8 = 6;
 }
-
-/// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintRadialGradientMarker {}
 
 impl<'a> MinByteRange for PaintRadialGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2549,15 +2480,15 @@ impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintRadialGradientMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
-pub type PaintRadialGradient<'a> = TableRef<'a, PaintRadialGradientMarker>;
+#[derive(Clone)]
+pub struct PaintRadialGradient<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRadialGradient<'a> {
@@ -2569,6 +2500,7 @@ impl<'a> PaintRadialGradient<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + UfWord::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2704,14 +2636,9 @@ impl<'a> std::fmt::Debug for PaintRadialGradient<'a> {
     }
 }
 
-impl Format<u8> for PaintVarRadialGradientMarker {
+impl Format<u8> for PaintVarRadialGradient<'_> {
     const FORMAT: u8 = 7;
 }
-
-/// [PaintVarRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarRadialGradientMarker {}
 
 impl<'a> MinByteRange for PaintVarRadialGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2724,15 +2651,15 @@ impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarRadialGradientMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
-pub type PaintVarRadialGradient<'a> = TableRef<'a, PaintVarRadialGradientMarker>;
+#[derive(Clone)]
+pub struct PaintVarRadialGradient<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRadialGradient<'a> {
@@ -2745,6 +2672,7 @@ impl<'a> PaintVarRadialGradient<'a> {
         + FWord::RAW_BYTE_LEN
         + UfWord::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2897,14 +2825,9 @@ impl<'a> std::fmt::Debug for PaintVarRadialGradient<'a> {
     }
 }
 
-impl Format<u8> for PaintSweepGradientMarker {
+impl Format<u8> for PaintSweepGradient<'_> {
     const FORMAT: u8 = 8;
 }
-
-/// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintSweepGradientMarker {}
 
 impl<'a> MinByteRange for PaintSweepGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2917,15 +2840,15 @@ impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintSweepGradientMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
-pub type PaintSweepGradient<'a> = TableRef<'a, PaintSweepGradientMarker>;
+#[derive(Clone)]
+pub struct PaintSweepGradient<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSweepGradient<'a> {
@@ -2935,6 +2858,7 @@ impl<'a> PaintSweepGradient<'a> {
         + FWord::RAW_BYTE_LEN
         + F2Dot14::RAW_BYTE_LEN
         + F2Dot14::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3046,14 +2970,9 @@ impl<'a> std::fmt::Debug for PaintSweepGradient<'a> {
     }
 }
 
-impl Format<u8> for PaintVarSweepGradientMarker {
+impl Format<u8> for PaintVarSweepGradient<'_> {
     const FORMAT: u8 = 9;
 }
-
-/// [PaintVarSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarSweepGradientMarker {}
 
 impl<'a> MinByteRange for PaintVarSweepGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3066,15 +2985,15 @@ impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarSweepGradientMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
-pub type PaintVarSweepGradient<'a> = TableRef<'a, PaintVarSweepGradientMarker>;
+#[derive(Clone)]
+pub struct PaintVarSweepGradient<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSweepGradient<'a> {
@@ -3085,6 +3004,7 @@ impl<'a> PaintVarSweepGradient<'a> {
         + F2Dot14::RAW_BYTE_LEN
         + F2Dot14::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3211,14 +3131,9 @@ impl<'a> std::fmt::Debug for PaintVarSweepGradient<'a> {
     }
 }
 
-impl Format<u8> for PaintGlyphMarker {
+impl Format<u8> for PaintGlyph<'_> {
     const FORMAT: u8 = 10;
 }
-
-/// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintGlyphMarker {}
 
 impl<'a> MinByteRange for PaintGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3231,20 +3146,21 @@ impl<'a> FontRead<'a> for PaintGlyph<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintGlyphMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
-pub type PaintGlyph<'a> = TableRef<'a, PaintGlyphMarker>;
+#[derive(Clone)]
+pub struct PaintGlyph<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintGlyph<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3315,14 +3231,9 @@ impl<'a> std::fmt::Debug for PaintGlyph<'a> {
     }
 }
 
-impl Format<u8> for PaintColrGlyphMarker {
+impl Format<u8> for PaintColrGlyph<'_> {
     const FORMAT: u8 = 11;
 }
-
-/// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintColrGlyphMarker {}
 
 impl<'a> MinByteRange for PaintColrGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3335,19 +3246,20 @@ impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintColrGlyphMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
-pub type PaintColrGlyph<'a> = TableRef<'a, PaintColrGlyphMarker>;
+#[derive(Clone)]
+pub struct PaintColrGlyph<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintColrGlyph<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3396,14 +3308,9 @@ impl<'a> std::fmt::Debug for PaintColrGlyph<'a> {
     }
 }
 
-impl Format<u8> for PaintTransformMarker {
+impl Format<u8> for PaintTransform<'_> {
     const FORMAT: u8 = 12;
 }
-
-/// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintTransformMarker {}
 
 impl<'a> MinByteRange for PaintTransform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3416,20 +3323,21 @@ impl<'a> FontRead<'a> for PaintTransform<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintTransformMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
-pub type PaintTransform<'a> = TableRef<'a, PaintTransformMarker>;
+#[derive(Clone)]
+pub struct PaintTransform<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTransform<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3509,14 +3417,9 @@ impl<'a> std::fmt::Debug for PaintTransform<'a> {
     }
 }
 
-impl Format<u8> for PaintVarTransformMarker {
+impl Format<u8> for PaintVarTransform<'_> {
     const FORMAT: u8 = 13;
 }
-
-/// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarTransformMarker {}
 
 impl<'a> MinByteRange for PaintVarTransform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3529,20 +3432,21 @@ impl<'a> FontRead<'a> for PaintVarTransform<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarTransformMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
-pub type PaintVarTransform<'a> = TableRef<'a, PaintVarTransformMarker>;
+#[derive(Clone)]
+pub struct PaintVarTransform<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTransform<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3622,11 +3526,6 @@ impl<'a> std::fmt::Debug for PaintVarTransform<'a> {
     }
 }
 
-/// [Affine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Affine2x3Marker {}
-
 impl<'a> MinByteRange for Affine2x3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.dy_byte_range().end
@@ -3638,15 +3537,15 @@ impl<'a> FontRead<'a> for Affine2x3<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Affine2x3Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Affine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
-pub type Affine2x3<'a> = TableRef<'a, Affine2x3Marker>;
+#[derive(Clone)]
+pub struct Affine2x3<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Affine2x3<'a> {
@@ -3656,6 +3555,7 @@ impl<'a> Affine2x3<'a> {
         + Fixed::RAW_BYTE_LEN
         + Fixed::RAW_BYTE_LEN
         + Fixed::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn xx_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3756,11 +3656,6 @@ impl<'a> std::fmt::Debug for Affine2x3<'a> {
     }
 }
 
-/// [VarAffine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct VarAffine2x3Marker {}
-
 impl<'a> MinByteRange for VarAffine2x3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
@@ -3772,15 +3667,15 @@ impl<'a> FontRead<'a> for VarAffine2x3<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: VarAffine2x3Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [VarAffine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
-pub type VarAffine2x3<'a> = TableRef<'a, VarAffine2x3Marker>;
+#[derive(Clone)]
+pub struct VarAffine2x3<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarAffine2x3<'a> {
@@ -3791,6 +3686,7 @@ impl<'a> VarAffine2x3<'a> {
         + Fixed::RAW_BYTE_LEN
         + Fixed::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn xx_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3908,14 +3804,9 @@ impl<'a> std::fmt::Debug for VarAffine2x3<'a> {
     }
 }
 
-impl Format<u8> for PaintTranslateMarker {
+impl Format<u8> for PaintTranslate<'_> {
     const FORMAT: u8 = 14;
 }
-
-/// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintTranslateMarker {}
 
 impl<'a> MinByteRange for PaintTranslate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3928,20 +3819,21 @@ impl<'a> FontRead<'a> for PaintTranslate<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintTranslateMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
-pub type PaintTranslate<'a> = TableRef<'a, PaintTranslateMarker>;
+#[derive(Clone)]
+pub struct PaintTranslate<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintTranslate<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN + FWord::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -4025,14 +3917,9 @@ impl<'a> std::fmt::Debug for PaintTranslate<'a> {
     }
 }
 
-impl Format<u8> for PaintVarTranslateMarker {
+impl Format<u8> for PaintVarTranslate<'_> {
     const FORMAT: u8 = 15;
 }
-
-/// [PaintVarTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarTranslateMarker {}
 
 impl<'a> MinByteRange for PaintVarTranslate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4045,15 +3932,15 @@ impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarTranslateMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
-pub type PaintVarTranslate<'a> = TableRef<'a, PaintVarTranslateMarker>;
+#[derive(Clone)]
+pub struct PaintVarTranslate<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarTranslate<'a> {
@@ -4062,6 +3949,7 @@ impl<'a> PaintVarTranslate<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -4158,14 +4046,9 @@ impl<'a> std::fmt::Debug for PaintVarTranslate<'a> {
     }
 }
 
-impl Format<u8> for PaintScaleMarker {
+impl Format<u8> for PaintScale<'_> {
     const FORMAT: u8 = 16;
 }
-
-/// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintScaleMarker {}
 
 impl<'a> MinByteRange for PaintScale<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4178,20 +4061,21 @@ impl<'a> FontRead<'a> for PaintScale<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintScaleMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScale<'a> = TableRef<'a, PaintScaleMarker>;
+#[derive(Clone)]
+pub struct PaintScale<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScale<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -4275,14 +4159,9 @@ impl<'a> std::fmt::Debug for PaintScale<'a> {
     }
 }
 
-impl Format<u8> for PaintVarScaleMarker {
+impl Format<u8> for PaintVarScale<'_> {
     const FORMAT: u8 = 17;
 }
-
-/// [PaintVarScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarScaleMarker {}
 
 impl<'a> MinByteRange for PaintVarScale<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4295,15 +4174,15 @@ impl<'a> FontRead<'a> for PaintVarScale<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarScaleMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScale<'a> = TableRef<'a, PaintVarScaleMarker>;
+#[derive(Clone)]
+pub struct PaintVarScale<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScale<'a> {
@@ -4312,6 +4191,7 @@ impl<'a> PaintVarScale<'a> {
         + F2Dot14::RAW_BYTE_LEN
         + F2Dot14::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -4410,14 +4290,9 @@ impl<'a> std::fmt::Debug for PaintVarScale<'a> {
     }
 }
 
-impl Format<u8> for PaintScaleAroundCenterMarker {
+impl Format<u8> for PaintScaleAroundCenter<'_> {
     const FORMAT: u8 = 18;
 }
-
-/// [PaintScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintScaleAroundCenterMarker {}
 
 impl<'a> MinByteRange for PaintScaleAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4430,15 +4305,15 @@ impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintScaleAroundCenterMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScaleAroundCenter<'a> = TableRef<'a, PaintScaleAroundCenterMarker>;
+#[derive(Clone)]
+pub struct PaintScaleAroundCenter<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleAroundCenter<'a> {
@@ -4448,6 +4323,7 @@ impl<'a> PaintScaleAroundCenter<'a> {
         + F2Dot14::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -4557,14 +4433,9 @@ impl<'a> std::fmt::Debug for PaintScaleAroundCenter<'a> {
     }
 }
 
-impl Format<u8> for PaintVarScaleAroundCenterMarker {
+impl Format<u8> for PaintVarScaleAroundCenter<'_> {
     const FORMAT: u8 = 19;
 }
-
-/// [PaintVarScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarScaleAroundCenterMarker {}
 
 impl<'a> MinByteRange for PaintVarScaleAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4577,15 +4448,15 @@ impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarScaleAroundCenterMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScaleAroundCenter<'a> = TableRef<'a, PaintVarScaleAroundCenterMarker>;
+#[derive(Clone)]
+pub struct PaintVarScaleAroundCenter<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleAroundCenter<'a> {
@@ -4596,6 +4467,7 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -4722,14 +4594,9 @@ impl<'a> std::fmt::Debug for PaintVarScaleAroundCenter<'a> {
     }
 }
 
-impl Format<u8> for PaintScaleUniformMarker {
+impl Format<u8> for PaintScaleUniform<'_> {
     const FORMAT: u8 = 20;
 }
-
-/// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintScaleUniformMarker {}
 
 impl<'a> MinByteRange for PaintScaleUniform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4742,19 +4609,20 @@ impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintScaleUniformMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScaleUniform<'a> = TableRef<'a, PaintScaleUniformMarker>;
+#[derive(Clone)]
+pub struct PaintScaleUniform<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniform<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -4825,14 +4693,9 @@ impl<'a> std::fmt::Debug for PaintScaleUniform<'a> {
     }
 }
 
-impl Format<u8> for PaintVarScaleUniformMarker {
+impl Format<u8> for PaintVarScaleUniform<'_> {
     const FORMAT: u8 = 21;
 }
-
-/// [PaintVarScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarScaleUniformMarker {}
 
 impl<'a> MinByteRange for PaintVarScaleUniform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4845,20 +4708,21 @@ impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarScaleUniformMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScaleUniform<'a> = TableRef<'a, PaintVarScaleUniformMarker>;
+#[derive(Clone)]
+pub struct PaintVarScaleUniform<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniform<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -4943,14 +4807,9 @@ impl<'a> std::fmt::Debug for PaintVarScaleUniform<'a> {
     }
 }
 
-impl Format<u8> for PaintScaleUniformAroundCenterMarker {
+impl Format<u8> for PaintScaleUniformAroundCenter<'_> {
     const FORMAT: u8 = 22;
 }
-
-/// [PaintScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintScaleUniformAroundCenterMarker {}
 
 impl<'a> MinByteRange for PaintScaleUniformAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -4963,15 +4822,15 @@ impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintScaleUniformAroundCenterMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintScaleUniformAroundCenter<'a> = TableRef<'a, PaintScaleUniformAroundCenterMarker>;
+#[derive(Clone)]
+pub struct PaintScaleUniformAroundCenter<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintScaleUniformAroundCenter<'a> {
@@ -4980,6 +4839,7 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
         + F2Dot14::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -5076,14 +4936,9 @@ impl<'a> std::fmt::Debug for PaintScaleUniformAroundCenter<'a> {
     }
 }
 
-impl Format<u8> for PaintVarScaleUniformAroundCenterMarker {
+impl Format<u8> for PaintVarScaleUniformAroundCenter<'_> {
     const FORMAT: u8 = 23;
 }
-
-/// [PaintVarScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarScaleUniformAroundCenterMarker {}
 
 impl<'a> MinByteRange for PaintVarScaleUniformAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5096,16 +4951,15 @@ impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarScaleUniformAroundCenterMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
-pub type PaintVarScaleUniformAroundCenter<'a> =
-    TableRef<'a, PaintVarScaleUniformAroundCenterMarker>;
+#[derive(Clone)]
+pub struct PaintVarScaleUniformAroundCenter<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarScaleUniformAroundCenter<'a> {
@@ -5115,6 +4969,7 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -5227,14 +5082,9 @@ impl<'a> std::fmt::Debug for PaintVarScaleUniformAroundCenter<'a> {
     }
 }
 
-impl Format<u8> for PaintRotateMarker {
+impl Format<u8> for PaintRotate<'_> {
     const FORMAT: u8 = 24;
 }
-
-/// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintRotateMarker {}
 
 impl<'a> MinByteRange for PaintRotate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5247,19 +5097,20 @@ impl<'a> FontRead<'a> for PaintRotate<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintRotateMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintRotate<'a> = TableRef<'a, PaintRotateMarker>;
+#[derive(Clone)]
+pub struct PaintRotate<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotate<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -5331,14 +5182,9 @@ impl<'a> std::fmt::Debug for PaintRotate<'a> {
     }
 }
 
-impl Format<u8> for PaintVarRotateMarker {
+impl Format<u8> for PaintVarRotate<'_> {
     const FORMAT: u8 = 25;
 }
-
-/// [PaintVarRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarRotateMarker {}
 
 impl<'a> MinByteRange for PaintVarRotate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5351,20 +5197,21 @@ impl<'a> FontRead<'a> for PaintVarRotate<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarRotateMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintVarRotate<'a> = TableRef<'a, PaintVarRotateMarker>;
+#[derive(Clone)]
+pub struct PaintVarRotate<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotate<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -5449,14 +5296,9 @@ impl<'a> std::fmt::Debug for PaintVarRotate<'a> {
     }
 }
 
-impl Format<u8> for PaintRotateAroundCenterMarker {
+impl Format<u8> for PaintRotateAroundCenter<'_> {
     const FORMAT: u8 = 26;
 }
-
-/// [PaintRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintRotateAroundCenterMarker {}
 
 impl<'a> MinByteRange for PaintRotateAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5469,15 +5311,15 @@ impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintRotateAroundCenterMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintRotateAroundCenter<'a> = TableRef<'a, PaintRotateAroundCenterMarker>;
+#[derive(Clone)]
+pub struct PaintRotateAroundCenter<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintRotateAroundCenter<'a> {
@@ -5486,6 +5328,7 @@ impl<'a> PaintRotateAroundCenter<'a> {
         + F2Dot14::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -5583,14 +5426,9 @@ impl<'a> std::fmt::Debug for PaintRotateAroundCenter<'a> {
     }
 }
 
-impl Format<u8> for PaintVarRotateAroundCenterMarker {
+impl Format<u8> for PaintVarRotateAroundCenter<'_> {
     const FORMAT: u8 = 27;
 }
-
-/// [PaintVarRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarRotateAroundCenterMarker {}
 
 impl<'a> MinByteRange for PaintVarRotateAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5603,15 +5441,15 @@ impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarRotateAroundCenterMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
-pub type PaintVarRotateAroundCenter<'a> = TableRef<'a, PaintVarRotateAroundCenterMarker>;
+#[derive(Clone)]
+pub struct PaintVarRotateAroundCenter<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarRotateAroundCenter<'a> {
@@ -5621,6 +5459,7 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -5733,14 +5572,9 @@ impl<'a> std::fmt::Debug for PaintVarRotateAroundCenter<'a> {
     }
 }
 
-impl Format<u8> for PaintSkewMarker {
+impl Format<u8> for PaintSkew<'_> {
     const FORMAT: u8 = 28;
 }
-
-/// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintSkewMarker {}
 
 impl<'a> MinByteRange for PaintSkew<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5753,20 +5587,21 @@ impl<'a> FontRead<'a> for PaintSkew<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintSkewMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintSkew<'a> = TableRef<'a, PaintSkewMarker>;
+#[derive(Clone)]
+pub struct PaintSkew<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkew<'a> {
     pub const MIN_SIZE: usize =
         (u8::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -5852,14 +5687,9 @@ impl<'a> std::fmt::Debug for PaintSkew<'a> {
     }
 }
 
-impl Format<u8> for PaintVarSkewMarker {
+impl Format<u8> for PaintVarSkew<'_> {
     const FORMAT: u8 = 29;
 }
-
-/// [PaintVarSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarSkewMarker {}
 
 impl<'a> MinByteRange for PaintVarSkew<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -5872,15 +5702,15 @@ impl<'a> FontRead<'a> for PaintVarSkew<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarSkewMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintVarSkew<'a> = TableRef<'a, PaintVarSkewMarker>;
+#[derive(Clone)]
+pub struct PaintVarSkew<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkew<'a> {
@@ -5889,6 +5719,7 @@ impl<'a> PaintVarSkew<'a> {
         + F2Dot14::RAW_BYTE_LEN
         + F2Dot14::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -5989,14 +5820,9 @@ impl<'a> std::fmt::Debug for PaintVarSkew<'a> {
     }
 }
 
-impl Format<u8> for PaintSkewAroundCenterMarker {
+impl Format<u8> for PaintSkewAroundCenter<'_> {
     const FORMAT: u8 = 30;
 }
-
-/// [PaintSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintSkewAroundCenterMarker {}
 
 impl<'a> MinByteRange for PaintSkewAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -6009,15 +5835,15 @@ impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintSkewAroundCenterMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintSkewAroundCenter<'a> = TableRef<'a, PaintSkewAroundCenterMarker>;
+#[derive(Clone)]
+pub struct PaintSkewAroundCenter<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintSkewAroundCenter<'a> {
@@ -6027,6 +5853,7 @@ impl<'a> PaintSkewAroundCenter<'a> {
         + F2Dot14::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -6138,14 +5965,9 @@ impl<'a> std::fmt::Debug for PaintSkewAroundCenter<'a> {
     }
 }
 
-impl Format<u8> for PaintVarSkewAroundCenterMarker {
+impl Format<u8> for PaintVarSkewAroundCenter<'_> {
     const FORMAT: u8 = 31;
 }
-
-/// [PaintVarSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintVarSkewAroundCenterMarker {}
 
 impl<'a> MinByteRange for PaintVarSkewAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -6158,15 +5980,15 @@ impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintVarSkewAroundCenterMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintVarSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
-pub type PaintVarSkewAroundCenter<'a> = TableRef<'a, PaintVarSkewAroundCenterMarker>;
+#[derive(Clone)]
+pub struct PaintVarSkewAroundCenter<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintVarSkewAroundCenter<'a> {
@@ -6177,6 +5999,7 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
         + FWord::RAW_BYTE_LEN
         + FWord::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -6305,14 +6128,9 @@ impl<'a> std::fmt::Debug for PaintVarSkewAroundCenter<'a> {
     }
 }
 
-impl Format<u8> for PaintCompositeMarker {
+impl Format<u8> for PaintComposite<'_> {
     const FORMAT: u8 = 32;
 }
-
-/// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaintCompositeMarker {}
 
 impl<'a> MinByteRange for PaintComposite<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -6325,15 +6143,15 @@ impl<'a> FontRead<'a> for PaintComposite<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PaintCompositeMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
-pub type PaintComposite<'a> = TableRef<'a, PaintCompositeMarker>;
+#[derive(Clone)]
+pub struct PaintComposite<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PaintComposite<'a> {
@@ -6341,6 +6159,7 @@ impl<'a> PaintComposite<'a> {
         + Offset24::RAW_BYTE_LEN
         + CompositeMode::RAW_BYTE_LEN
         + Offset24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;

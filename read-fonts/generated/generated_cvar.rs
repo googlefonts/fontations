@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CvarMarker {}
-
 impl<'a> MinByteRange for Cvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.tuple_variation_headers_byte_range().end
@@ -26,20 +21,21 @@ impl<'a> FontRead<'a> for Cvar<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: CvarMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
-pub type Cvar<'a> = TableRef<'a, CvarMarker>;
+#[derive(Clone)]
+pub struct Cvar<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cvar<'a> {
     pub const MIN_SIZE: usize =
         (MajorMinor::RAW_BYTE_LEN + TupleVariationCount::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

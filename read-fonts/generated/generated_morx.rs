@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [morx (Extended Glyph Metamorphosis)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MorxMarker {}
-
 impl<'a> MinByteRange for Morx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.chains_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Morx<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MorxMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [morx (Extended Glyph Metamorphosis)](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html) table.
-pub type Morx<'a> = TableRef<'a, MorxMarker>;
+#[derive(Clone)]
+pub struct Morx<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Morx<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -112,11 +108,6 @@ impl<'a> std::fmt::Debug for Morx<'a> {
     }
 }
 
-/// A chain in a `morx` table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct ChainMarker {}
-
 impl<'a> MinByteRange for Chain<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtables_byte_range().end
@@ -128,20 +119,21 @@ impl<'a> FontRead<'a> for Chain<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: ChainMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// A chain in a `morx` table.
-pub type Chain<'a> = TableRef<'a, ChainMarker>;
+#[derive(Clone)]
+pub struct Chain<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Chain<'a> {
     pub const MIN_SIZE: usize =
         (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn default_flags_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -316,11 +308,6 @@ impl<'a> SomeRecord<'a> for Feature {
     }
 }
 
-/// A subtable in a `morx` chain.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SubtableMarker {}
-
 impl<'a> MinByteRange for Subtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -332,19 +319,20 @@ impl<'a> FontRead<'a> for Subtable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SubtableMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// A subtable in a `morx` chain.
-pub type Subtable<'a> = TableRef<'a, SubtableMarker>;
+#[derive(Clone)]
+pub struct Subtable<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable<'a> {
     pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = 0;

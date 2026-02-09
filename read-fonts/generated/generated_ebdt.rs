@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [Embedded Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct EbdtMarker {}
-
 impl<'a> MinByteRange for Ebdt<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.minor_version_byte_range().end
@@ -26,19 +21,20 @@ impl<'a> FontRead<'a> for Ebdt<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: EbdtMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [Embedded Bitmap Data](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt) table
-pub type Ebdt<'a> = TableRef<'a, EbdtMarker>;
+#[derive(Clone)]
+pub struct Ebdt<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Ebdt<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;

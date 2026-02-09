@@ -739,13 +739,6 @@ impl<'a> SomeRecord<'a> for SmallGlyphMetrics {
     }
 }
 
-/// [IndexSubtableList](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablelist) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct IndexSubtableListMarker {
-    number_of_index_subtables: u32,
-}
-
 impl<'a> MinByteRange for IndexSubtableList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.index_subtable_records_byte_range().end
@@ -764,9 +757,7 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
         }
         Ok(Self {
             data,
-            shape: IndexSubtableListMarker {
-                number_of_index_subtables,
-            },
+            number_of_index_subtables,
         })
     }
 }
@@ -783,11 +774,16 @@ impl<'a> IndexSubtableList<'a> {
 }
 
 /// [IndexSubtableList](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablelist) table.
-pub type IndexSubtableList<'a> = TableRef<'a, IndexSubtableListMarker>;
+#[derive(Clone)]
+pub struct IndexSubtableList<'a> {
+    data: FontData<'a>,
+    number_of_index_subtables: u32,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtableList<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 
     pub fn index_subtable_records_byte_range(&self) -> Range<usize> {
         let number_of_index_subtables = self.number_of_index_subtables();
@@ -805,7 +801,7 @@ impl<'a> IndexSubtableList<'a> {
     }
 
     pub(crate) fn number_of_index_subtables(&self) -> u32 {
-        self.shape.number_of_index_subtables
+        self.number_of_index_subtables
     }
 }
 
@@ -899,16 +895,8 @@ impl<'a> SomeRecord<'a> for IndexSubtableRecord {
     }
 }
 
-impl Format<u16> for IndexSubtable1Marker {
+impl Format<u16> for IndexSubtable1<'_> {
     const FORMAT: u16 = 1;
-}
-
-/// [IndexSubTable1](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable1-variable-metrics-glyphs-with-4-byte-offsets): variable-metrics glyphs with 4-byte offsets.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct IndexSubtable1Marker {
-    last_glyph_index: GlyphId16,
-    first_glyph_index: GlyphId16,
 }
 
 impl<'a> MinByteRange for IndexSubtable1<'a> {
@@ -932,10 +920,8 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
         }
         Ok(Self {
             data,
-            shape: IndexSubtable1Marker {
-                last_glyph_index,
-                first_glyph_index,
-            },
+            last_glyph_index,
+            first_glyph_index,
         })
     }
 }
@@ -956,11 +942,17 @@ impl<'a> IndexSubtable1<'a> {
 }
 
 /// [IndexSubTable1](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable1-variable-metrics-glyphs-with-4-byte-offsets): variable-metrics glyphs with 4-byte offsets.
-pub type IndexSubtable1<'a> = TableRef<'a, IndexSubtable1Marker>;
+#[derive(Clone)]
+pub struct IndexSubtable1<'a> {
+    data: FontData<'a>,
+    last_glyph_index: GlyphId16,
+    first_glyph_index: GlyphId16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1014,11 +1006,11 @@ impl<'a> IndexSubtable1<'a> {
     }
 
     pub(crate) fn last_glyph_index(&self) -> GlyphId16 {
-        self.shape.last_glyph_index
+        self.last_glyph_index
     }
 
     pub(crate) fn first_glyph_index(&self) -> GlyphId16 {
-        self.shape.first_glyph_index
+        self.first_glyph_index
     }
 }
 
@@ -1046,14 +1038,9 @@ impl<'a> std::fmt::Debug for IndexSubtable1<'a> {
     }
 }
 
-impl Format<u16> for IndexSubtable2Marker {
+impl Format<u16> for IndexSubtable2<'_> {
     const FORMAT: u16 = 2;
 }
-
-/// [IndexSubTable2](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable2-all-glyphs-have-identical-metrics): all glyphs have identical metrics.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct IndexSubtable2Marker {}
 
 impl<'a> MinByteRange for IndexSubtable2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1066,20 +1053,21 @@ impl<'a> FontRead<'a> for IndexSubtable2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: IndexSubtable2Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [IndexSubTable2](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable2-all-glyphs-have-identical-metrics): all glyphs have identical metrics.
-pub type IndexSubtable2<'a> = TableRef<'a, IndexSubtable2Marker>;
+#[derive(Clone)]
+pub struct IndexSubtable2<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable2<'a> {
     pub const MIN_SIZE: usize =
         (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1174,16 +1162,8 @@ impl<'a> std::fmt::Debug for IndexSubtable2<'a> {
     }
 }
 
-impl Format<u16> for IndexSubtable3Marker {
+impl Format<u16> for IndexSubtable3<'_> {
     const FORMAT: u16 = 3;
-}
-
-/// [IndexSubTable3](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with 2-byte offsets.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct IndexSubtable3Marker {
-    last_glyph_index: GlyphId16,
-    first_glyph_index: GlyphId16,
 }
 
 impl<'a> MinByteRange for IndexSubtable3<'a> {
@@ -1207,10 +1187,8 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
         }
         Ok(Self {
             data,
-            shape: IndexSubtable3Marker {
-                last_glyph_index,
-                first_glyph_index,
-            },
+            last_glyph_index,
+            first_glyph_index,
         })
     }
 }
@@ -1231,11 +1209,17 @@ impl<'a> IndexSubtable3<'a> {
 }
 
 /// [IndexSubTable3](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with 2-byte offsets.
-pub type IndexSubtable3<'a> = TableRef<'a, IndexSubtable3Marker>;
+#[derive(Clone)]
+pub struct IndexSubtable3<'a> {
+    data: FontData<'a>,
+    last_glyph_index: GlyphId16,
+    first_glyph_index: GlyphId16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable3<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1289,11 +1273,11 @@ impl<'a> IndexSubtable3<'a> {
     }
 
     pub(crate) fn last_glyph_index(&self) -> GlyphId16 {
-        self.shape.last_glyph_index
+        self.last_glyph_index
     }
 
     pub(crate) fn first_glyph_index(&self) -> GlyphId16 {
-        self.shape.first_glyph_index
+        self.first_glyph_index
     }
 }
 
@@ -1321,14 +1305,9 @@ impl<'a> std::fmt::Debug for IndexSubtable3<'a> {
     }
 }
 
-impl Format<u16> for IndexSubtable4Marker {
+impl Format<u16> for IndexSubtable4<'_> {
     const FORMAT: u16 = 4;
 }
-
-/// [IndexSubTable4](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with sparse glyph codes.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct IndexSubtable4Marker {}
 
 impl<'a> MinByteRange for IndexSubtable4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1341,20 +1320,21 @@ impl<'a> FontRead<'a> for IndexSubtable4<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: IndexSubtable4Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [IndexSubTable4](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with sparse glyph codes.
-pub type IndexSubtable4<'a> = TableRef<'a, IndexSubtable4Marker>;
+#[derive(Clone)]
+pub struct IndexSubtable4<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable4<'a> {
     pub const MIN_SIZE: usize =
         (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1494,14 +1474,9 @@ impl<'a> SomeRecord<'a> for GlyphIdOffsetPair {
     }
 }
 
-impl Format<u16> for IndexSubtable5Marker {
+impl Format<u16> for IndexSubtable5<'_> {
     const FORMAT: u16 = 5;
 }
-
-/// [IndexSubTable5](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable5-constant-metrics-glyphs-with-sparse-glyph-codes): constant-metrics glyphs with sparse glyph codes
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct IndexSubtable5Marker {}
 
 impl<'a> MinByteRange for IndexSubtable5<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1514,15 +1489,15 @@ impl<'a> FontRead<'a> for IndexSubtable5<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: IndexSubtable5Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [IndexSubTable5](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable5-constant-metrics-glyphs-with-sparse-glyph-codes): constant-metrics glyphs with sparse glyph codes
-pub type IndexSubtable5<'a> = TableRef<'a, IndexSubtable5Marker>;
+#[derive(Clone)]
+pub struct IndexSubtable5<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable5<'a> {
@@ -1531,6 +1506,7 @@ impl<'a> IndexSubtable5<'a> {
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;

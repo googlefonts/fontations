@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [BASE](https://learn.microsoft.com/en-us/typography/opentype/spec/base) (Baseline) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseMarker {}
-
 impl<'a> MinByteRange for Base<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.vert_axis_offset_byte_range().end
@@ -26,20 +21,21 @@ impl<'a> FontRead<'a> for Base<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BaseMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [BASE](https://learn.microsoft.com/en-us/typography/opentype/spec/base) (Baseline) table
-pub type Base<'a> = TableRef<'a, BaseMarker>;
+#[derive(Clone)]
+pub struct Base<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Base<'a> {
     pub const MIN_SIZE: usize =
         (MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -143,11 +139,6 @@ impl<'a> std::fmt::Debug for Base<'a> {
     }
 }
 
-/// [Axis Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#axis-tables-horizaxis-and-vertaxis)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AxisMarker {}
-
 impl<'a> MinByteRange for Axis<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_script_list_offset_byte_range().end
@@ -159,19 +150,20 @@ impl<'a> FontRead<'a> for Axis<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AxisMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Axis Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#axis-tables-horizaxis-and-vertaxis)
-pub type Axis<'a> = TableRef<'a, AxisMarker>;
+#[derive(Clone)]
+pub struct Axis<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Axis<'a> {
     pub const MIN_SIZE: usize = (Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn base_tag_list_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -239,11 +231,6 @@ impl<'a> std::fmt::Debug for Axis<'a> {
     }
 }
 
-/// [BaseTagList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basetaglist-table)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseTagListMarker {}
-
 impl<'a> MinByteRange for BaseTagList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.baseline_tags_byte_range().end
@@ -255,19 +242,20 @@ impl<'a> FontRead<'a> for BaseTagList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BaseTagListMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [BaseTagList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basetaglist-table)
-pub type BaseTagList<'a> = TableRef<'a, BaseTagListMarker>;
+#[derive(Clone)]
+pub struct BaseTagList<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseTagList<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn base_tag_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -319,11 +307,6 @@ impl<'a> std::fmt::Debug for BaseTagList<'a> {
     }
 }
 
-/// [BaseScriptList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptlist-table)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseScriptListMarker {}
-
 impl<'a> MinByteRange for BaseScriptList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_script_records_byte_range().end
@@ -335,19 +318,20 @@ impl<'a> FontRead<'a> for BaseScriptList<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BaseScriptListMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [BaseScriptList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptlist-table)
-pub type BaseScriptList<'a> = TableRef<'a, BaseScriptListMarker>;
+#[derive(Clone)]
+pub struct BaseScriptList<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseScriptList<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn base_script_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -459,11 +443,6 @@ impl<'a> SomeRecord<'a> for BaseScriptRecord {
     }
 }
 
-/// [BaseScript Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescript-table)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseScriptMarker {}
-
 impl<'a> MinByteRange for BaseScript<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_lang_sys_records_byte_range().end
@@ -475,20 +454,21 @@ impl<'a> FontRead<'a> for BaseScript<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BaseScriptMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [BaseScript Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescript-table)
-pub type BaseScript<'a> = TableRef<'a, BaseScriptMarker>;
+#[derive(Clone)]
+pub struct BaseScript<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseScript<'a> {
     pub const MIN_SIZE: usize =
         (Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn base_values_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -647,11 +627,6 @@ impl<'a> SomeRecord<'a> for BaseLangSysRecord {
     }
 }
 
-/// [BaseValues](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basevalues-table) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseValuesMarker {}
-
 impl<'a> MinByteRange for BaseValues<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_coord_offsets_byte_range().end
@@ -663,19 +638,20 @@ impl<'a> FontRead<'a> for BaseValues<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BaseValuesMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [BaseValues](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basevalues-table) table
-pub type BaseValues<'a> = TableRef<'a, BaseValuesMarker>;
+#[derive(Clone)]
+pub struct BaseValues<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseValues<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn default_baseline_index_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -766,11 +742,6 @@ impl<'a> std::fmt::Debug for BaseValues<'a> {
     }
 }
 
-/// [MinMax](https://learn.microsoft.com/en-us/typography/opentype/spec/base#minmax-table) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MinMaxMarker {}
-
 impl<'a> MinByteRange for MinMax<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.feat_min_max_records_byte_range().end
@@ -782,20 +753,21 @@ impl<'a> FontRead<'a> for MinMax<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MinMaxMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [MinMax](https://learn.microsoft.com/en-us/typography/opentype/spec/base#minmax-table) table
-pub type MinMax<'a> = TableRef<'a, MinMaxMarker>;
+#[derive(Clone)]
+pub struct MinMax<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MinMax<'a> {
     pub const MIN_SIZE: usize =
         (Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn min_coord_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1020,9 +992,9 @@ impl<'a> FontRead<'a> for BaseCoord<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            BaseCoordFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            BaseCoordFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            BaseCoordFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            BaseCoordFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            BaseCoordFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            BaseCoordFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1066,14 +1038,9 @@ impl<'a> SomeTable<'a> for BaseCoord<'a> {
     }
 }
 
-impl Format<u16> for BaseCoordFormat1Marker {
+impl Format<u16> for BaseCoordFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [BaseCoordFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-1)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseCoordFormat1Marker {}
 
 impl<'a> MinByteRange for BaseCoordFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1086,19 +1053,20 @@ impl<'a> FontRead<'a> for BaseCoordFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BaseCoordFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [BaseCoordFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-1)
-pub type BaseCoordFormat1<'a> = TableRef<'a, BaseCoordFormat1Marker>;
+#[derive(Clone)]
+pub struct BaseCoordFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseCoordFormat1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn base_coord_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1147,14 +1115,9 @@ impl<'a> std::fmt::Debug for BaseCoordFormat1<'a> {
     }
 }
 
-impl Format<u16> for BaseCoordFormat2Marker {
+impl Format<u16> for BaseCoordFormat2<'_> {
     const FORMAT: u16 = 2;
 }
-
-/// [BaseCoordFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-2)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseCoordFormat2Marker {}
 
 impl<'a> MinByteRange for BaseCoordFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1167,20 +1130,21 @@ impl<'a> FontRead<'a> for BaseCoordFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BaseCoordFormat2Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [BaseCoordFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-2)
-pub type BaseCoordFormat2<'a> = TableRef<'a, BaseCoordFormat2Marker>;
+#[derive(Clone)]
+pub struct BaseCoordFormat2<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseCoordFormat2<'a> {
     pub const MIN_SIZE: usize =
         (u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn base_coord_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1255,14 +1219,9 @@ impl<'a> std::fmt::Debug for BaseCoordFormat2<'a> {
     }
 }
 
-impl Format<u16> for BaseCoordFormat3Marker {
+impl Format<u16> for BaseCoordFormat3<'_> {
     const FORMAT: u16 = 3;
 }
-
-/// [BaseCoordFormat3](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-3)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseCoordFormat3Marker {}
 
 impl<'a> MinByteRange for BaseCoordFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1275,19 +1234,20 @@ impl<'a> FontRead<'a> for BaseCoordFormat3<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: BaseCoordFormat3Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [BaseCoordFormat3](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-3)
-pub type BaseCoordFormat3<'a> = TableRef<'a, BaseCoordFormat3Marker>;
+#[derive(Clone)]
+pub struct BaseCoordFormat3<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseCoordFormat3<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn base_coord_format_byte_range(&self) -> Range<usize> {
         let start = 0;

@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The OpenType [kerning](https://learn.microsoft.com/en-us/typography/opentype/spec/kern) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct OtKernMarker {}
-
 impl<'a> MinByteRange for OtKern<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtable_data_byte_range().end
@@ -21,19 +16,20 @@ impl<'a> FontRead<'a> for OtKern<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: OtKernMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The OpenType [kerning](https://learn.microsoft.com/en-us/typography/opentype/spec/kern) table.
-pub type OtKern<'a> = TableRef<'a, OtKernMarker>;
+#[derive(Clone)]
+pub struct OtKern<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> OtKern<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -96,11 +92,6 @@ impl<'a> std::fmt::Debug for OtKern<'a> {
     }
 }
 
-/// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AatKernMarker {}
-
 impl<'a> MinByteRange for AatKern<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtable_data_byte_range().end
@@ -112,19 +103,20 @@ impl<'a> FontRead<'a> for AatKern<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AatKernMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The Apple Advanced Typography [kerning](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html) table.
-pub type AatKern<'a> = TableRef<'a, AatKernMarker>;
+#[derive(Clone)]
+pub struct AatKern<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AatKern<'a> {
     pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -187,11 +179,6 @@ impl<'a> std::fmt::Debug for AatKern<'a> {
     }
 }
 
-/// A subtable in an OT `kern` table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct OtSubtableMarker {}
-
 impl<'a> MinByteRange for OtSubtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -203,19 +190,20 @@ impl<'a> FontRead<'a> for OtSubtable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: OtSubtableMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// A subtable in an OT `kern` table.
-pub type OtSubtable<'a> = TableRef<'a, OtSubtableMarker>;
+#[derive(Clone)]
+pub struct OtSubtable<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> OtSubtable<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -291,11 +279,6 @@ impl<'a> std::fmt::Debug for OtSubtable<'a> {
     }
 }
 
-/// A subtable in an AAT `kern` table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AatSubtableMarker {}
-
 impl<'a> MinByteRange for AatSubtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -307,19 +290,20 @@ impl<'a> FontRead<'a> for AatSubtable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AatSubtableMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// A subtable in an AAT `kern` table.
-pub type AatSubtable<'a> = TableRef<'a, AatSubtableMarker>;
+#[derive(Clone)]
+pub struct AatSubtable<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AatSubtable<'a> {
     pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -395,11 +379,6 @@ impl<'a> std::fmt::Debug for AatSubtable<'a> {
     }
 }
 
-/// The type 0 `kern` subtable.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Subtable0Marker {}
-
 impl<'a> MinByteRange for Subtable0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pairs_byte_range().end
@@ -411,20 +390,21 @@ impl<'a> FontRead<'a> for Subtable0<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Subtable0Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The type 0 `kern` subtable.
-pub type Subtable0<'a> = TableRef<'a, Subtable0Marker>;
+#[derive(Clone)]
+pub struct Subtable0<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable0<'a> {
     pub const MIN_SIZE: usize =
         (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn n_pairs_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -520,11 +500,6 @@ impl<'a> std::fmt::Debug for Subtable0<'a> {
     }
 }
 
-/// Class table for the type 2 `kern` subtable.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Subtable2ClassTableMarker {}
-
 impl<'a> MinByteRange for Subtable2ClassTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.offsets_byte_range().end
@@ -536,19 +511,20 @@ impl<'a> FontRead<'a> for Subtable2ClassTable<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Subtable2ClassTableMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// Class table for the type 2 `kern` subtable.
-pub type Subtable2ClassTable<'a> = TableRef<'a, Subtable2ClassTableMarker>;
+#[derive(Clone)]
+pub struct Subtable2ClassTable<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable2ClassTable<'a> {
     pub const MIN_SIZE: usize = (GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn first_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -611,11 +587,6 @@ impl<'a> std::fmt::Debug for Subtable2ClassTable<'a> {
     }
 }
 
-/// The type 3 'kern' subtable.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Subtable3Marker {}
-
 impl<'a> MinByteRange for Subtable3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.kern_index_byte_range().end
@@ -627,15 +598,15 @@ impl<'a> FontRead<'a> for Subtable3<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: Subtable3Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The type 3 'kern' subtable.
-pub type Subtable3<'a> = TableRef<'a, Subtable3Marker>;
+#[derive(Clone)]
+pub struct Subtable3<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Subtable3<'a> {
@@ -644,6 +615,7 @@ impl<'a> Subtable3<'a> {
         + u8::RAW_BYTE_LEN
         + u8::RAW_BYTE_LEN
         + u8::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = 0;

@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GlyfMarker {}
-
 impl TopLevelTable for Glyf<'_> {
     /// `glyf`
     const TAG: Tag = Tag::new(b"glyf");
@@ -20,19 +15,20 @@ impl<'a> FontRead<'a> for Glyf<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GlyfMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
-pub type Glyf<'a> = TableRef<'a, GlyfMarker>;
+#[derive(Clone)]
+pub struct Glyf<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Glyf<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -58,11 +54,6 @@ impl<'a> std::fmt::Debug for Glyf<'a> {
     }
 }
 
-/// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SimpleGlyphMarker {}
-
 impl<'a> MinByteRange for SimpleGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_byte_range().end
@@ -74,15 +65,15 @@ impl<'a> FontRead<'a> for SimpleGlyph<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SimpleGlyphMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
-pub type SimpleGlyph<'a> = TableRef<'a, SimpleGlyphMarker>;
+#[derive(Clone)]
+pub struct SimpleGlyph<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SimpleGlyph<'a> {
@@ -92,6 +83,7 @@ impl<'a> SimpleGlyph<'a> {
         + i16::RAW_BYTE_LEN
         + i16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn number_of_contours_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -640,11 +632,6 @@ impl<'a> From<SimpleGlyphFlags> for FieldType<'a> {
     }
 }
 
-/// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CompositeGlyphMarker {}
-
 impl<'a> MinByteRange for CompositeGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_data_byte_range().end
@@ -656,15 +643,15 @@ impl<'a> FontRead<'a> for CompositeGlyph<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: CompositeGlyphMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
-pub type CompositeGlyph<'a> = TableRef<'a, CompositeGlyphMarker>;
+#[derive(Clone)]
+pub struct CompositeGlyph<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CompositeGlyph<'a> {
@@ -673,6 +660,7 @@ impl<'a> CompositeGlyph<'a> {
         + i16::RAW_BYTE_LEN
         + i16::RAW_BYTE_LEN
         + i16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn number_of_contours_byte_range(&self) -> Range<usize> {
         let start = 0;

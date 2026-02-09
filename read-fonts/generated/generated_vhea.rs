@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct VheaMarker {}
-
 impl<'a> MinByteRange for Vhea<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.number_of_long_ver_metrics_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Vhea<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: VheaMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
-pub type Vhea<'a> = TableRef<'a, VheaMarker>;
+#[derive(Clone)]
+pub struct Vhea<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vhea<'a> {
@@ -55,6 +50,7 @@ impl<'a> Vhea<'a> {
         + i16::RAW_BYTE_LEN
         + i16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

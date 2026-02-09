@@ -5,13 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct VmtxMarker {
-    number_of_long_ver_metrics: u16,
-}
-
 impl<'a> MinByteRange for Vmtx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.top_side_bearings_byte_range().end
@@ -35,9 +28,7 @@ impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
         }
         Ok(Self {
             data,
-            shape: VmtxMarker {
-                number_of_long_ver_metrics,
-            },
+            number_of_long_ver_metrics,
         })
     }
 }
@@ -54,11 +45,16 @@ impl<'a> Vmtx<'a> {
 }
 
 /// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
-pub type Vmtx<'a> = TableRef<'a, VmtxMarker>;
+#[derive(Clone)]
+pub struct Vmtx<'a> {
+    data: FontData<'a>,
+    number_of_long_ver_metrics: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vmtx<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 
     pub fn v_metrics_byte_range(&self) -> Range<usize> {
         let number_of_long_ver_metrics = self.number_of_long_ver_metrics();
@@ -89,7 +85,7 @@ impl<'a> Vmtx<'a> {
     }
 
     pub(crate) fn number_of_long_ver_metrics(&self) -> u16 {
-        self.shape.number_of_long_ver_metrics
+        self.number_of_long_ver_metrics
     }
 }
 

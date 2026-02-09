@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [VVAR (Vertical Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct VvarMarker {}
-
 impl<'a> MinByteRange for Vvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.v_org_mapping_offset_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Vvar<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: VvarMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [VVAR (Vertical Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
-pub type Vvar<'a> = TableRef<'a, VvarMarker>;
+#[derive(Clone)]
+pub struct Vvar<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Vvar<'a> {
@@ -44,6 +39,7 @@ impl<'a> Vvar<'a> {
         + Offset32::RAW_BYTE_LEN
         + Offset32::RAW_BYTE_LEN
         + Offset32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

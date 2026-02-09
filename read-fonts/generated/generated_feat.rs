@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct FeatMarker {}
-
 impl<'a> MinByteRange for Feat<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.names_byte_range().end
@@ -26,20 +21,21 @@ impl<'a> FontRead<'a> for Feat<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: FeatMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [feature name](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html) table.
-pub type Feat<'a> = TableRef<'a, FeatMarker>;
+#[derive(Clone)]
+pub struct Feat<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Feat<'a> {
     pub const MIN_SIZE: usize =
         (MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -210,12 +206,6 @@ impl<'a> SomeRecord<'a> for FeatureName {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SettingNameArrayMarker {
-    n_settings: u16,
-}
-
 impl<'a> MinByteRange for SettingNameArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.settings_byte_range().end
@@ -232,10 +222,7 @@ impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SettingNameArrayMarker { n_settings },
-        })
+        Ok(Self { data, n_settings })
     }
 }
 
@@ -250,11 +237,16 @@ impl<'a> SettingNameArray<'a> {
     }
 }
 
-pub type SettingNameArray<'a> = TableRef<'a, SettingNameArrayMarker>;
+#[derive(Clone)]
+pub struct SettingNameArray<'a> {
+    data: FontData<'a>,
+    n_settings: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SettingNameArray<'a> {
     pub const MIN_SIZE: usize = 0;
+    basic_table_impls!(impl_the_methods);
 
     pub fn settings_byte_range(&self) -> Range<usize> {
         let n_settings = self.n_settings();
@@ -270,7 +262,7 @@ impl<'a> SettingNameArray<'a> {
     }
 
     pub(crate) fn n_settings(&self) -> u16 {
-        self.shape.n_settings
+        self.n_settings
     }
 }
 

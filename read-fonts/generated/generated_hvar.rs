@@ -5,11 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [HVAR (Horizontal Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct HvarMarker {}
-
 impl<'a> MinByteRange for Hvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.rsb_mapping_offset_byte_range().end
@@ -26,15 +21,15 @@ impl<'a> FontRead<'a> for Hvar<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: HvarMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// The [HVAR (Horizontal Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
-pub type Hvar<'a> = TableRef<'a, HvarMarker>;
+#[derive(Clone)]
+pub struct Hvar<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Hvar<'a> {
@@ -43,6 +38,7 @@ impl<'a> Hvar<'a> {
         + Offset32::RAW_BYTE_LEN
         + Offset32::RAW_BYTE_LEN
         + Offset32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;

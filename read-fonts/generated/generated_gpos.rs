@@ -5,12 +5,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
-/// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GposMarker {}
-
 impl<'a> MinByteRange for Gpos<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.lookup_list_offset_byte_range().end
@@ -27,16 +21,16 @@ impl<'a> FontRead<'a> for Gpos<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: GposMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
-pub type Gpos<'a> = TableRef<'a, GposMarker>;
+#[derive(Clone)]
+pub struct Gpos<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Gpos<'a> {
@@ -44,6 +38,7 @@ impl<'a> Gpos<'a> {
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -650,9 +645,9 @@ impl<'a> FontRead<'a> for AnchorTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            AnchorFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            AnchorFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            AnchorFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            AnchorFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            AnchorFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            AnchorFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -696,14 +691,9 @@ impl<'a> SomeTable<'a> for AnchorTable<'a> {
     }
 }
 
-impl Format<u16> for AnchorFormat1Marker {
+impl Format<u16> for AnchorFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AnchorFormat1Marker {}
 
 impl<'a> MinByteRange for AnchorFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -716,19 +706,20 @@ impl<'a> FontRead<'a> for AnchorFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AnchorFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
-pub type AnchorFormat1<'a> = TableRef<'a, AnchorFormat1Marker>;
+#[derive(Clone)]
+pub struct AnchorFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AnchorFormat1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -790,14 +781,9 @@ impl<'a> std::fmt::Debug for AnchorFormat1<'a> {
     }
 }
 
-impl Format<u16> for AnchorFormat2Marker {
+impl Format<u16> for AnchorFormat2<'_> {
     const FORMAT: u16 = 2;
 }
-
-/// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AnchorFormat2Marker {}
 
 impl<'a> MinByteRange for AnchorFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -810,20 +796,21 @@ impl<'a> FontRead<'a> for AnchorFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AnchorFormat2Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
-pub type AnchorFormat2<'a> = TableRef<'a, AnchorFormat2Marker>;
+#[derive(Clone)]
+pub struct AnchorFormat2<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AnchorFormat2<'a> {
     pub const MIN_SIZE: usize =
         (u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -898,14 +885,9 @@ impl<'a> std::fmt::Debug for AnchorFormat2<'a> {
     }
 }
 
-impl Format<u16> for AnchorFormat3Marker {
+impl Format<u16> for AnchorFormat3<'_> {
     const FORMAT: u16 = 3;
 }
-
-/// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AnchorFormat3Marker {}
 
 impl<'a> MinByteRange for AnchorFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -918,15 +900,15 @@ impl<'a> FontRead<'a> for AnchorFormat3<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: AnchorFormat3Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
-pub type AnchorFormat3<'a> = TableRef<'a, AnchorFormat3Marker>;
+#[derive(Clone)]
+pub struct AnchorFormat3<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> AnchorFormat3<'a> {
@@ -935,6 +917,7 @@ impl<'a> AnchorFormat3<'a> {
         + i16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1044,11 +1027,6 @@ impl<'a> std::fmt::Debug for AnchorFormat3<'a> {
     }
 }
 
-/// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MarkArrayMarker {}
-
 impl<'a> MinByteRange for MarkArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark_records_byte_range().end
@@ -1060,19 +1038,20 @@ impl<'a> FontRead<'a> for MarkArray<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MarkArrayMarker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
-pub type MarkArray<'a> = TableRef<'a, MarkArrayMarker>;
+#[derive(Clone)]
+pub struct MarkArray<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkArray<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn mark_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1228,8 +1207,8 @@ impl<'a> FontRead<'a> for SinglePos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            SinglePosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            SinglePosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            SinglePosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            SinglePosFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1271,14 +1250,9 @@ impl<'a> SomeTable<'a> for SinglePos<'a> {
     }
 }
 
-impl Format<u16> for SinglePosFormat1Marker {
+impl Format<u16> for SinglePosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SinglePosFormat1Marker {}
 
 impl<'a> MinByteRange for SinglePosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1291,20 +1265,21 @@ impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SinglePosFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
-pub type SinglePosFormat1<'a> = TableRef<'a, SinglePosFormat1Marker>;
+#[derive(Clone)]
+pub struct SinglePosFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SinglePosFormat1<'a> {
     pub const MIN_SIZE: usize =
         (u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1395,14 +1370,9 @@ impl<'a> std::fmt::Debug for SinglePosFormat1<'a> {
     }
 }
 
-impl Format<u16> for SinglePosFormat2Marker {
+impl Format<u16> for SinglePosFormat2<'_> {
     const FORMAT: u16 = 2;
 }
-
-/// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SinglePosFormat2Marker {}
 
 impl<'a> MinByteRange for SinglePosFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1415,15 +1385,15 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: SinglePosFormat2Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
-pub type SinglePosFormat2<'a> = TableRef<'a, SinglePosFormat2Marker>;
+#[derive(Clone)]
+pub struct SinglePosFormat2<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SinglePosFormat2<'a> {
@@ -1431,6 +1401,7 @@ impl<'a> SinglePosFormat2<'a> {
         + Offset16::RAW_BYTE_LEN
         + ValueFormat::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1596,8 +1567,8 @@ impl<'a> FontRead<'a> for PairPos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            PairPosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            PairPosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            PairPosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            PairPosFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1639,14 +1610,9 @@ impl<'a> SomeTable<'a> for PairPos<'a> {
     }
 }
 
-impl Format<u16> for PairPosFormat1Marker {
+impl Format<u16> for PairPosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PairPosFormat1Marker {}
 
 impl<'a> MinByteRange for PairPosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -1659,15 +1625,15 @@ impl<'a> FontRead<'a> for PairPosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PairPosFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
-pub type PairPosFormat1<'a> = TableRef<'a, PairPosFormat1Marker>;
+#[derive(Clone)]
+pub struct PairPosFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PairPosFormat1<'a> {
@@ -1676,6 +1642,7 @@ impl<'a> PairPosFormat1<'a> {
         + ValueFormat::RAW_BYTE_LEN
         + ValueFormat::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1811,14 +1778,6 @@ impl<'a> std::fmt::Debug for PairPosFormat1<'a> {
     }
 }
 
-/// Part of [PairPosFormat1]
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PairSetMarker {
-    value_format1: ValueFormat,
-    value_format2: ValueFormat,
-}
-
 impl<'a> MinByteRange for PairSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pair_value_records_byte_range().end
@@ -1840,10 +1799,8 @@ impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
         }
         Ok(Self {
             data,
-            shape: PairSetMarker {
-                value_format1,
-                value_format2,
-            },
+            value_format1,
+            value_format2,
         })
     }
 }
@@ -1864,11 +1821,17 @@ impl<'a> PairSet<'a> {
 }
 
 /// Part of [PairPosFormat1]
-pub type PairSet<'a> = TableRef<'a, PairSetMarker>;
+#[derive(Clone)]
+pub struct PairSet<'a> {
+    data: FontData<'a>,
+    value_format1: ValueFormat,
+    value_format2: ValueFormat,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PairSet<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn pair_value_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -1906,11 +1869,11 @@ impl<'a> PairSet<'a> {
     }
 
     pub(crate) fn value_format1(&self) -> ValueFormat {
-        self.shape.value_format1
+        self.value_format1
     }
 
     pub(crate) fn value_format2(&self) -> ValueFormat {
-        self.shape.value_format2
+        self.value_format2
     }
 }
 
@@ -2048,14 +2011,9 @@ impl<'a> SomeRecord<'a> for PairValueRecord {
     }
 }
 
-impl Format<u16> for PairPosFormat2Marker {
+impl Format<u16> for PairPosFormat2<'_> {
     const FORMAT: u16 = 2;
 }
-
-/// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PairPosFormat2Marker {}
 
 impl<'a> MinByteRange for PairPosFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2068,15 +2026,15 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: PairPosFormat2Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
-pub type PairPosFormat2<'a> = TableRef<'a, PairPosFormat2Marker>;
+#[derive(Clone)]
+pub struct PairPosFormat2<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PairPosFormat2<'a> {
@@ -2088,6 +2046,7 @@ impl<'a> PairPosFormat2<'a> {
         + Offset16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2455,14 +2414,9 @@ impl<'a> SomeRecord<'a> for Class2Record {
     }
 }
 
-impl Format<u16> for CursivePosFormat1Marker {
+impl Format<u16> for CursivePosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CursivePosFormat1Marker {}
 
 impl<'a> MinByteRange for CursivePosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2475,19 +2429,20 @@ impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: CursivePosFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
-pub type CursivePosFormat1<'a> = TableRef<'a, CursivePosFormat1Marker>;
+#[derive(Clone)]
+pub struct CursivePosFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> CursivePosFormat1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2655,14 +2610,9 @@ impl<'a> SomeRecord<'a> for EntryExitRecord {
     }
 }
 
-impl Format<u16> for MarkBasePosFormat1Marker {
+impl Format<u16> for MarkBasePosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MarkBasePosFormat1Marker {}
 
 impl<'a> MinByteRange for MarkBasePosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -2675,15 +2625,15 @@ impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MarkBasePosFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
-pub type MarkBasePosFormat1<'a> = TableRef<'a, MarkBasePosFormat1Marker>;
+#[derive(Clone)]
+pub struct MarkBasePosFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkBasePosFormat1<'a> {
@@ -2693,6 +2643,7 @@ impl<'a> MarkBasePosFormat1<'a> {
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2834,13 +2785,6 @@ impl<'a> std::fmt::Debug for MarkBasePosFormat1<'a> {
     }
 }
 
-/// Part of [MarkBasePosFormat1]
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseArrayMarker {
-    mark_class_count: u16,
-}
-
 impl<'a> MinByteRange for BaseArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_records_byte_range().end
@@ -2859,7 +2803,7 @@ impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
         }
         Ok(Self {
             data,
-            shape: BaseArrayMarker { mark_class_count },
+            mark_class_count,
         })
     }
 }
@@ -2876,11 +2820,16 @@ impl<'a> BaseArray<'a> {
 }
 
 /// Part of [MarkBasePosFormat1]
-pub type BaseArray<'a> = TableRef<'a, BaseArrayMarker>;
+#[derive(Clone)]
+pub struct BaseArray<'a> {
+    data: FontData<'a>,
+    mark_class_count: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseArray<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn base_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -2913,7 +2862,7 @@ impl<'a> BaseArray<'a> {
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
-        self.shape.mark_class_count
+        self.mark_class_count
     }
 }
 
@@ -3038,14 +2987,9 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
     }
 }
 
-impl Format<u16> for MarkLigPosFormat1Marker {
+impl Format<u16> for MarkLigPosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MarkLigPosFormat1Marker {}
 
 impl<'a> MinByteRange for MarkLigPosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3058,15 +3002,15 @@ impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MarkLigPosFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
-pub type MarkLigPosFormat1<'a> = TableRef<'a, MarkLigPosFormat1Marker>;
+#[derive(Clone)]
+pub struct MarkLigPosFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkLigPosFormat1<'a> {
@@ -3076,6 +3020,7 @@ impl<'a> MarkLigPosFormat1<'a> {
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3217,13 +3162,6 @@ impl<'a> std::fmt::Debug for MarkLigPosFormat1<'a> {
     }
 }
 
-/// Part of [MarkLigPosFormat1]
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct LigatureArrayMarker {
-    mark_class_count: u16,
-}
-
 impl<'a> MinByteRange for LigatureArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ligature_attach_offsets_byte_range().end
@@ -3242,7 +3180,7 @@ impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
         }
         Ok(Self {
             data,
-            shape: LigatureArrayMarker { mark_class_count },
+            mark_class_count,
         })
     }
 }
@@ -3259,11 +3197,16 @@ impl<'a> LigatureArray<'a> {
 }
 
 /// Part of [MarkLigPosFormat1]
-pub type LigatureArray<'a> = TableRef<'a, LigatureArrayMarker>;
+#[derive(Clone)]
+pub struct LigatureArray<'a> {
+    data: FontData<'a>,
+    mark_class_count: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureArray<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn ligature_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3301,7 +3244,7 @@ impl<'a> LigatureArray<'a> {
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
-        self.shape.mark_class_count
+        self.mark_class_count
     }
 }
 
@@ -3341,13 +3284,6 @@ impl<'a> std::fmt::Debug for LigatureArray<'a> {
     }
 }
 
-/// Part of [MarkLigPosFormat1]
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct LigatureAttachMarker {
-    mark_class_count: u16,
-}
-
 impl<'a> MinByteRange for LigatureAttach<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_records_byte_range().end
@@ -3366,7 +3302,7 @@ impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
         }
         Ok(Self {
             data,
-            shape: LigatureAttachMarker { mark_class_count },
+            mark_class_count,
         })
     }
 }
@@ -3383,11 +3319,16 @@ impl<'a> LigatureAttach<'a> {
 }
 
 /// Part of [MarkLigPosFormat1]
-pub type LigatureAttach<'a> = TableRef<'a, LigatureAttachMarker>;
+#[derive(Clone)]
+pub struct LigatureAttach<'a> {
+    data: FontData<'a>,
+    mark_class_count: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> LigatureAttach<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn component_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3421,7 +3362,7 @@ impl<'a> LigatureAttach<'a> {
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
-        self.shape.mark_class_count
+        self.mark_class_count
     }
 }
 
@@ -3546,14 +3487,9 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
     }
 }
 
-impl Format<u16> for MarkMarkPosFormat1Marker {
+impl Format<u16> for MarkMarkPosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
-
-/// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MarkMarkPosFormat1Marker {}
 
 impl<'a> MinByteRange for MarkMarkPosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
@@ -3566,15 +3502,15 @@ impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
-        Ok(Self {
-            data,
-            shape: MarkMarkPosFormat1Marker {},
-        })
+        Ok(Self { data })
     }
 }
 
 /// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
-pub type MarkMarkPosFormat1<'a> = TableRef<'a, MarkMarkPosFormat1Marker>;
+#[derive(Clone)]
+pub struct MarkMarkPosFormat1<'a> {
+    data: FontData<'a>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> MarkMarkPosFormat1<'a> {
@@ -3584,6 +3520,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3725,13 +3662,6 @@ impl<'a> std::fmt::Debug for MarkMarkPosFormat1<'a> {
     }
 }
 
-/// Part of [MarkMarkPosFormat1]Class2Record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Mark2ArrayMarker {
-    mark_class_count: u16,
-}
-
 impl<'a> MinByteRange for Mark2Array<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark2_records_byte_range().end
@@ -3750,7 +3680,7 @@ impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
         }
         Ok(Self {
             data,
-            shape: Mark2ArrayMarker { mark_class_count },
+            mark_class_count,
         })
     }
 }
@@ -3767,11 +3697,16 @@ impl<'a> Mark2Array<'a> {
 }
 
 /// Part of [MarkMarkPosFormat1]Class2Record
-pub type Mark2Array<'a> = TableRef<'a, Mark2ArrayMarker>;
+#[derive(Clone)]
+pub struct Mark2Array<'a> {
+    data: FontData<'a>,
+    mark_class_count: u16,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Mark2Array<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
 
     pub fn mark2_count_byte_range(&self) -> Range<usize> {
         let start = 0;
@@ -3804,7 +3739,7 @@ impl<'a> Mark2Array<'a> {
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
-        self.shape.mark_class_count
+        self.mark_class_count
     }
 }
 
@@ -3929,15 +3864,8 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
     }
 }
 
-impl Format<u16> for ExtensionPosFormat1Marker {
+impl Format<u16> for ExtensionPosFormat1<'_> {
     const FORMAT: u16 = 1;
-}
-
-/// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-#[derive(Debug)]
-#[doc(hidden)]
-pub struct ExtensionPosFormat1Marker<T = ()> {
-    offset_type: std::marker::PhantomData<*const T>,
 }
 
 impl<'a, T> MinByteRange for ExtensionPosFormat1<'a, T> {
@@ -3946,14 +3874,6 @@ impl<'a, T> MinByteRange for ExtensionPosFormat1<'a, T> {
     }
 }
 
-impl<T> Clone for ExtensionPosFormat1Marker<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for ExtensionPosFormat1Marker<T> {}
-
 impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         if data.len() < Self::MIN_SIZE {
@@ -3961,9 +3881,7 @@ impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
         }
         Ok(Self {
             data,
-            shape: ExtensionPosFormat1Marker {
-                offset_type: std::marker::PhantomData,
-            },
+            offset_type: std::marker::PhantomData,
         })
     }
 }
@@ -3971,11 +3889,9 @@ impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
 impl<'a> ExtensionPosFormat1<'a, ()> {
     #[allow(dead_code)]
     pub(crate) fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
-        TableRef {
+        ExtensionPosFormat1 {
             data: self.data,
-            shape: ExtensionPosFormat1Marker {
-                offset_type: std::marker::PhantomData,
-            },
+            offset_type: std::marker::PhantomData,
         }
     }
 }
@@ -3984,21 +3900,24 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
     pub(crate) fn of_unit_type(&self) -> ExtensionPosFormat1<'a, ()> {
-        TableRef {
+        ExtensionPosFormat1 {
             data: self.data,
-            shape: ExtensionPosFormat1Marker {
-                offset_type: std::marker::PhantomData,
-            },
+            offset_type: std::marker::PhantomData,
         }
     }
 }
 
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-pub type ExtensionPosFormat1<'a, T> = TableRef<'a, ExtensionPosFormat1Marker<T>>;
+#[derive(Clone)]
+pub struct ExtensionPosFormat1<'a, T = ()> {
+    data: FontData<'a>,
+    offset_type: std::marker::PhantomData<*const T>,
+}
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> ExtensionPosFormat1<'a, T> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
