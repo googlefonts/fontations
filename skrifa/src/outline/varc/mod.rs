@@ -474,26 +474,8 @@ impl<'a> Outlines<'a> {
             .axis_indices_index()
             .ok_or(ReadError::MalformedData("Missing axisIndicesIndex"))?;
         let num_axes = self.axis_indices(axis_indices_index as usize, &mut scratch.axis_indices)?;
-        //println!("reset {}", flags.contains(VarcFlags::RESET_UNSPECIFIED_AXES) as u32);
-        // //print axis coords as integer
-        //print!("axis[");
-        for (i, _coord) in current_coords.iter().copied().enumerate() {
-            if i != 0 {
-                //print!(", ");
-            }
-            //print!("{}:{}", i, (coord.to_bits()) as i32);
-        }
-        //println!("]");
 
         self.axis_values(component, num_axes, &mut scratch.axis_values)?;
-        //print!("bef [");
-        for (i, _value) in scratch.axis_values.iter().copied().enumerate() {
-            if i != 0 {
-                //print!(", ");
-            }
-            //print!("{}", (value * 16384.0).round() as i32);
-        }
-        //println!("]");
         if let Some(var_idx) = component.axis_values_var_index() {
             let store = var_store.ok_or(ReadError::NullOffset)?;
             let regions = regions.ok_or(ReadError::NullOffset)?;
@@ -516,22 +498,12 @@ impl<'a> Outlines<'a> {
             .iter()
             .zip(scratch.axis_values.iter().copied())
         {
-            //println!("Setting axis {} to {}", axis_index, (value * 16384.0).round() as i32);
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
                 return Err(DrawError::Read(ReadError::OutOfBounds));
             };
             let raw = value.round().clamp(i16::MIN as f32, i16::MAX as f32) as i16;
             *slot = F2Dot14::from_bits(raw);
         }
-        // //print axis values as integer
-        //print!("aft [");
-        for (i, _value) in scratch.axis_values.iter().copied().enumerate() {
-            if i != 0 {
-                //print!(", ");
-            }
-            //print!("{}", (value * 16384.0).round() as i32);
-        }
-        //println!("]");
         Ok(())
     }
 
