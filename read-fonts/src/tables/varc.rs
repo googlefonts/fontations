@@ -464,24 +464,14 @@ mod tests {
     }
 
     fn sfnt_table_range(data: &[u8], tag: [u8; 4]) -> (usize, usize) {
-        let num_tables = u16::from_be_bytes([data[4], data[5]]) as usize;
-        for i in 0..num_tables {
-            let record = 12 + i * 16;
-            if data[record..record + 4] == tag {
-                let offset = u32::from_be_bytes([
-                    data[record + 8],
-                    data[record + 9],
-                    data[record + 10],
-                    data[record + 11],
-                ]) as usize;
-                let length = u32::from_be_bytes([
-                    data[record + 12],
-                    data[record + 13],
-                    data[record + 14],
-                    data[record + 15],
-                ]) as usize;
-                return (offset, length);
-            }
+        let font = FontRef::new(data).unwrap();
+        if let Some(rec) = font
+            .table_directory()
+            .table_records()
+            .iter()
+            .find(|rec| rec.tag() == tag)
+        {
+            return (rec.offset() as usize, rec.length() as usize);
         }
         panic!(
             "missing table {:?}",
