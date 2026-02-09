@@ -45,7 +45,7 @@ impl Varc<'_> {
     }
 }
 
-impl<'a> SparseVariationRegion<'a> {
+impl SparseVariationRegion<'_> {
     /// Computes a floating point scalar value for this sparse region and the
     /// specified normalized variation coordinates.
     pub fn compute_scalar_f32(&self, coords: &[F2Dot14]) -> f32 {
