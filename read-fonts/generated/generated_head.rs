@@ -696,9 +696,35 @@ impl<'a> From<Flags> for FieldType<'a> {
 /// (font header) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct HeadMarker {}
+pub struct HeadMarker;
 
-impl HeadMarker {
+impl<'a> MinByteRange for Head<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_data_format_byte_range().end
+    }
+}
+
+impl TopLevelTable for Head<'_> {
+    /// `head`
+    const TAG: Tag = Tag::new(b"head");
+}
+
+impl<'a> FontRead<'a> for Head<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
+/// (font header) table.
+pub type Head<'a> = TableRef<'a, HeadMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Head<'a> {
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -783,59 +809,17 @@ impl HeadMarker {
         let start = self.index_to_loc_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for HeadMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.glyph_data_format_byte_range().end
-    }
-}
-
-impl TopLevelTable for Head<'_> {
-    /// `head`
-    const TAG: Tag = Tag::new(b"head");
-}
-
-impl<'a> FontRead<'a> for Head<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<Fixed>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<Flags>();
-        cursor.advance::<u16>();
-        cursor.advance::<LongDateTime>();
-        cursor.advance::<LongDateTime>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<MacStyle>();
-        cursor.advance::<u16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.finish(HeadMarker {})
-    }
-}
-
-/// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
-/// (font header) table.
-pub type Head<'a> = TableRef<'a, HeadMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Head<'a> {
     /// Version number of the font header table, set to (1, 0)
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Set by font manufacturer.
     pub fn font_revision(&self) -> Fixed {
-        let range = self.shape.font_revision_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.font_revision_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// To compute: set it to 0, sum the entire font as uint32, then
@@ -844,20 +828,20 @@ impl<'a> Head<'a> {
     /// invalidated by changes to the file structure and font table
     /// directory, and must be ignored.
     pub fn checksum_adjustment(&self) -> u32 {
-        let range = self.shape.checksum_adjustment_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.checksum_adjustment_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Set to 0x5F0F3CF5.
     pub fn magic_number(&self) -> u32 {
-        let range = self.shape.magic_number_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.magic_number_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// See the flags enum.
     pub fn flags(&self) -> Flags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.flags_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Set to a value from 16 to 16384. Any value in this range is
@@ -865,76 +849,76 @@ impl<'a> Head<'a> {
     /// recommended as this allows performance optimizations in some
     /// rasterizers.
     pub fn units_per_em(&self) -> u16 {
-        let range = self.shape.units_per_em_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.units_per_em_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of seconds since 12:00 midnight that started January 1st
     /// 1904 in GMT/UTC time zone.
     pub fn created(&self) -> LongDateTime {
-        let range = self.shape.created_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.created_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of seconds since 12:00 midnight that started January 1st
     /// 1904 in GMT/UTC time zone.
     pub fn modified(&self) -> LongDateTime {
-        let range = self.shape.modified_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.modified_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Minimum x coordinate across all glyph bounding boxes.
     pub fn x_min(&self) -> i16 {
-        let range = self.shape.x_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.x_min_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Minimum y coordinate across all glyph bounding boxes.
     pub fn y_min(&self) -> i16 {
-        let range = self.shape.y_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.y_min_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Maximum x coordinate across all glyph bounding boxes.
     pub fn x_max(&self) -> i16 {
-        let range = self.shape.x_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.x_max_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Maximum y coordinate across all glyph bounding boxes.
     pub fn y_max(&self) -> i16 {
-        let range = self.shape.y_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.y_max_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Bits identifying the font's style; see [MacStyle]
     pub fn mac_style(&self) -> MacStyle {
-        let range = self.shape.mac_style_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.mac_style_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Smallest readable size in pixels.
     pub fn lowest_rec_ppem(&self) -> u16 {
-        let range = self.shape.lowest_rec_ppem_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.lowest_rec_ppem_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Deprecated (Set to 2).
     pub fn font_direction_hint(&self) -> i16 {
-        let range = self.shape.font_direction_hint_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.font_direction_hint_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// 0 for short offsets (Offset16), 1 for long (Offset32).
     pub fn index_to_loc_format(&self) -> i16 {
-        let range = self.shape.index_to_loc_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.index_to_loc_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// 0 for current format.
     pub fn glyph_data_format(&self) -> i16 {
-        let range = self.shape.glyph_data_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.glyph_data_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 }
 

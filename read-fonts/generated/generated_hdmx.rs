@@ -8,12 +8,63 @@ use crate::codegen_prelude::*;
 /// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct HdmxMarker {
-    num_glyphs: u16,
-    records_byte_len: usize,
+pub struct HdmxMarker;
+
+impl<'a> MinByteRange for Hdmx<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.records_byte_range().end
+    }
 }
 
-impl HdmxMarker {
+impl TopLevelTable for Hdmx<'_> {
+    /// `hdmx`
+    const TAG: Tag = Tag::new(b"hdmx");
+}
+
+impl ReadArgs for Hdmx<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let args = *args;
+        Ok(TableRef {
+            args,
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+impl<'a> Hdmx<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
+        let args = num_glyphs;
+        Self::read_with_args(data, &args)
+    }
+}
+
+/// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
+pub type Hdmx<'a> = TableRef<'a, HdmxMarker, u16>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Hdmx<'a> {
+    fn records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_records()) as usize)
+            .checked_mul(
+                <DeviceRecord as ComputeSize>::compute_size(&(
+                    self.args,
+                    self.size_device_record(),
+                ))
+                .unwrap(),
+            )
+            .unwrap()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -31,90 +82,39 @@ impl HdmxMarker {
 
     pub fn records_byte_range(&self) -> Range<usize> {
         let start = self.size_device_record_byte_range().end;
-        start..start + self.records_byte_len
+        start..start + self.records_byte_len(start)
     }
-}
 
-impl MinByteRange for HdmxMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.records_byte_range().end
-    }
-}
-
-impl TopLevelTable for Hdmx<'_> {
-    /// `hdmx`
-    const TAG: Tag = Tag::new(b"hdmx");
-}
-
-impl ReadArgs for Hdmx<'_> {
-    type Args = u16;
-}
-
-impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_glyphs = *args;
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let num_records: u16 = cursor.read()?;
-        let size_device_record: u32 = cursor.read()?;
-        let records_byte_len = (num_records as usize)
-            .checked_mul(<DeviceRecord as ComputeSize>::compute_size(&(
-                num_glyphs,
-                size_device_record,
-            ))?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(records_byte_len);
-        cursor.finish(HdmxMarker {
-            num_glyphs,
-            records_byte_len,
-        })
-    }
-}
-
-impl<'a> Hdmx<'a> {
-    /// A constructor that requires additional arguments.
-    ///
-    /// This type requires some external state in order to be
-    /// parsed.
-    pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
-        let args = num_glyphs;
-        Self::read_with_args(data, &args)
-    }
-}
-
-/// The [Horizontal Device Metrics](https://learn.microsoft.com/en-us/typography/opentype/spec/hdmx) table.
-pub type Hdmx<'a> = TableRef<'a, HdmxMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Hdmx<'a> {
     /// Table version number (set to 0).
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of device records.
     pub fn num_records(&self) -> u16 {
-        let range = self.shape.num_records_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.num_records_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Size of device record, 32-bit aligned.
     pub fn size_device_record(&self) -> u32 {
-        let range = self.shape.size_device_record_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.size_device_record_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of device records.
     pub fn records(&self) -> ComputedArray<'a, DeviceRecord<'a>> {
-        let range = self.shape.records_byte_range();
-        self.data
-            .read_with_args(range, &(self.num_glyphs(), self.size_device_record()))
-            .unwrap()
+        let range = self.records_byte_range();
+        unchecked::read_with_args(
+            self.data,
+            range,
+            &(self.num_glyphs(), self.size_device_record()),
+        )
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
-        self.shape.num_glyphs
+        self.args
     }
 }
 

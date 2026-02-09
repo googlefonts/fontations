@@ -8,13 +8,43 @@ use crate::codegen_prelude::*;
 /// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AvarMarker {
-    axis_segment_maps_byte_len: usize,
-    axis_index_map_offset_byte_start: Option<usize>,
-    var_store_offset_byte_start: Option<usize>,
+pub struct AvarMarker;
+
+impl<'a> MinByteRange for Avar<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.axis_segment_maps_byte_range().end
+    }
 }
 
-impl AvarMarker {
+impl TopLevelTable for Avar<'_> {
+    /// `avar`
+    const TAG: Tag = Tag::new(b"avar");
+}
+
+impl<'a> FontRead<'a> for Avar<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
+pub type Avar<'a> = TableRef<'a, AvarMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Avar<'a> {
+    fn axis_segment_maps_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let data = self.data.split_off(start).unwrap();
+            <SegmentMaps as VarSize>::total_len_for_count(data, (self.axis_count()) as usize)
+                .unwrap()
+        }
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -32,92 +62,53 @@ impl AvarMarker {
 
     pub fn axis_segment_maps_byte_range(&self) -> Range<usize> {
         let start = self.axis_count_byte_range().end;
-        start..start + self.axis_segment_maps_byte_len
+        start..start + self.axis_segment_maps_byte_len(start)
     }
 
     pub fn axis_index_map_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.axis_index_map_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self.axis_segment_maps_byte_range().end;
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn var_store_offset_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.var_store_offset_byte_start?;
-        Some(start..start + Offset32::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self
+                .axis_index_map_offset_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.axis_segment_maps_byte_range().end);
+            Some(start..start + Offset32::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
-}
 
-impl MinByteRange for AvarMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.axis_segment_maps_byte_range().end
-    }
-}
-
-impl TopLevelTable for Avar<'_> {
-    /// `avar`
-    const TAG: Tag = Tag::new(b"avar");
-}
-
-impl<'a> FontRead<'a> for Avar<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
-        cursor.advance::<u16>();
-        let axis_count: u16 = cursor.read()?;
-        let axis_segment_maps_byte_len = {
-            let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
-            <SegmentMaps as VarSize>::total_len_for_count(data, axis_count as usize)?
-        };
-        cursor.advance_by(axis_segment_maps_byte_len);
-        let axis_index_map_offset_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.advance::<Offset32>());
-        let var_store_offset_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.advance::<Offset32>());
-        cursor.finish(AvarMarker {
-            axis_segment_maps_byte_len,
-            axis_index_map_offset_byte_start,
-            var_store_offset_byte_start,
-        })
-    }
-}
-
-/// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
-pub type Avar<'a> = TableRef<'a, AvarMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Avar<'a> {
     /// Major version number of the axis variations table — set to 1 or 2.
     /// Minor version number of the axis variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// The number of variation axes for this font. This must be the same number as axisCount in the 'fvar' table.
     pub fn axis_count(&self) -> u16 {
-        let range = self.shape.axis_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.axis_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
     pub fn axis_segment_maps(&self) -> VarLenArray<'a, SegmentMaps<'a>> {
-        let range = self.shape.axis_segment_maps_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        let range = self.axis_segment_maps_byte_range();
+        VarLenArray::read(unchecked::split_off(self.data, range.start)).unwrap()
     }
 
     /// Offset to DeltaSetIndexMap table (may be NULL).
     pub fn axis_index_map_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.axis_index_map_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.axis_index_map_offset_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`axis_index_map_offset`][Self::axis_index_map_offset].
@@ -128,8 +119,8 @@ impl<'a> Avar<'a> {
 
     /// Offset to ItemVariationStore (may be NULL).
     pub fn var_store_offset(&self) -> Option<Nullable<Offset32>> {
-        let range = self.shape.var_store_offset_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.var_store_offset_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Attempt to resolve [`var_store_offset`][Self::var_store_offset].

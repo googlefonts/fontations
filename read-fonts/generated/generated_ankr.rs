@@ -8,9 +8,34 @@ use crate::codegen_prelude::*;
 /// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AnkrMarker {}
+pub struct AnkrMarker;
 
-impl AnkrMarker {
+impl<'a> MinByteRange for Ankr<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_data_table_offset_byte_range().end
+    }
+}
+
+impl TopLevelTable for Ankr<'_> {
+    /// `ankr`
+    const TAG: Tag = Tag::new(b"ankr");
+}
+
+impl<'a> FontRead<'a> for Ankr<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
+pub type Ankr<'a> = TableRef<'a, AnkrMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Ankr<'a> {
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -30,53 +55,25 @@ impl AnkrMarker {
         let start = self.lookup_table_offset_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
     }
-}
 
-impl MinByteRange for AnkrMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.glyph_data_table_offset_byte_range().end
-    }
-}
-
-impl TopLevelTable for Ankr<'_> {
-    /// `ankr`
-    const TAG: Tag = Tag::new(b"ankr");
-}
-
-impl<'a> FontRead<'a> for Ankr<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<Offset32>();
-        cursor.advance::<u32>();
-        cursor.finish(AnkrMarker {})
-    }
-}
-
-/// The [anchor point](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6ankr.html) table.
-pub type Ankr<'a> = TableRef<'a, AnkrMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Ankr<'a> {
     /// Version number (set to zero).
     pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Flags (currently unused; set to zero).
     pub fn flags(&self) -> u16 {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.flags_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to the table's lookup table; currently this is always `0x0000000C`.
     ///
     /// Lookup values are two byte offsets into the glyph data table.
     pub fn lookup_table_offset(&self) -> Offset32 {
-        let range = self.shape.lookup_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.lookup_table_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Attempt to resolve [`lookup_table_offset`][Self::lookup_table_offset].
@@ -87,8 +84,8 @@ impl<'a> Ankr<'a> {
 
     /// Offset to the glyph data table.
     pub fn glyph_data_table_offset(&self) -> u32 {
-        let range = self.shape.glyph_data_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.glyph_data_table_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 }
 
@@ -124,23 +121,9 @@ impl<'a> std::fmt::Debug for Ankr<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GlyphDataEntryMarker {
-    anchor_points_byte_len: usize,
-}
+pub struct GlyphDataEntryMarker;
 
-impl GlyphDataEntryMarker {
-    pub fn num_points_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn anchor_points_byte_range(&self) -> Range<usize> {
-        let start = self.num_points_byte_range().end;
-        start..start + self.anchor_points_byte_len
-    }
-}
-
-impl MinByteRange for GlyphDataEntryMarker {
+impl<'a> MinByteRange for GlyphDataEntry<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.anchor_points_byte_range().end
     }
@@ -148,32 +131,45 @@ impl MinByteRange for GlyphDataEntryMarker {
 
 impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let num_points: u32 = cursor.read()?;
-        let anchor_points_byte_len = (num_points as usize)
-            .checked_mul(AnchorPoint::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(anchor_points_byte_len);
-        cursor.finish(GlyphDataEntryMarker {
-            anchor_points_byte_len,
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
 
-pub type GlyphDataEntry<'a> = TableRef<'a, GlyphDataEntryMarker>;
+pub type GlyphDataEntry<'a> = TableRef<'a, GlyphDataEntryMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> GlyphDataEntry<'a> {
+    fn anchor_points_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_points()) as usize)
+            .checked_mul(AnchorPoint::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn num_points_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn anchor_points_byte_range(&self) -> Range<usize> {
+        let start = self.num_points_byte_range().end;
+        start..start + self.anchor_points_byte_len(start)
+    }
+
     /// Number of anchor points for this glyph.
     pub fn num_points(&self) -> u32 {
-        let range = self.shape.num_points_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.num_points_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Individual anchor points.
     pub fn anchor_points(&self) -> &'a [AnchorPoint] {
-        let range = self.shape.anchor_points_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.anchor_points_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 

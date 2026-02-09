@@ -8,11 +8,41 @@ use crate::codegen_prelude::*;
 /// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MetaMarker {
-    data_maps_byte_len: usize,
+pub struct MetaMarker;
+
+impl<'a> MinByteRange for Meta<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_maps_byte_range().end
+    }
 }
 
-impl MetaMarker {
+impl TopLevelTable for Meta<'_> {
+    /// `meta`
+    const TAG: Tag = Tag::new(b"meta");
+}
+
+impl<'a> FontRead<'a> for Meta<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
+pub type Meta<'a> = TableRef<'a, MetaMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Meta<'a> {
+    fn data_maps_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.data_maps_count()) as usize)
+            .checked_mul(DataMapRecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
@@ -35,63 +65,31 @@ impl MetaMarker {
 
     pub fn data_maps_byte_range(&self) -> Range<usize> {
         let start = self.data_maps_count_byte_range().end;
-        start..start + self.data_maps_byte_len
+        start..start + self.data_maps_byte_len(start)
     }
-}
 
-impl MinByteRange for MetaMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.data_maps_byte_range().end
-    }
-}
-
-impl TopLevelTable for Meta<'_> {
-    /// `meta`
-    const TAG: Tag = Tag::new(b"meta");
-}
-
-impl<'a> FontRead<'a> for Meta<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let data_maps_count: u32 = cursor.read()?;
-        let data_maps_byte_len = (data_maps_count as usize)
-            .checked_mul(DataMapRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(data_maps_byte_len);
-        cursor.finish(MetaMarker { data_maps_byte_len })
-    }
-}
-
-/// [`meta`](https://docs.microsoft.com/en-us/typography/opentype/spec/meta)
-pub type Meta<'a> = TableRef<'a, MetaMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Meta<'a> {
     /// Version number of the metadata table — set to 1.
     pub fn version(&self) -> u32 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Flags — currently unused; set to 0.
     pub fn flags(&self) -> u32 {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.flags_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// The number of data maps in the table.
     pub fn data_maps_count(&self) -> u32 {
-        let range = self.shape.data_maps_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.data_maps_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array of data map records.
     pub fn data_maps(&self) -> &'a [DataMapRecord] {
-        let range = self.shape.data_maps_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.data_maps_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 

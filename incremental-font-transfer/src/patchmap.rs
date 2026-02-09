@@ -109,7 +109,7 @@ fn add_intersecting_format1_patches(
 
     // Step 2: produce final output.
     let mut applied_entries_indices: HashMap<PatchUrl, IntSet<u32>> = Default::default();
-    let applied_entries_start_bit_index = map.shape().applied_entries_bitmap_byte_range().start * 8;
+    let applied_entries_start_bit_index = map.applied_entries_bitmap_byte_range().start * 8;
 
     for (index, subset_def) in entries
         .into_iter()
@@ -684,7 +684,7 @@ fn decode_format2_entry<'a>(
 
     entries.push(entry);
 
-    let consumed_bytes = entry_data.shape().trailing_data_byte_range().end - trailing_data.len();
+    let consumed_bytes = entry_data.trailing_data_byte_range().end - trailing_data.len();
     Ok((FontData::new(trailing_data), consumed_bytes))
 }
 

@@ -27,13 +27,13 @@ impl Subset for Os2<'_> {
 
         let us_first_char_index: u16 = plan.os2_info.min_cmap_codepoint.min(0xFFFF) as u16;
         s.copy_assign(
-            self.shape().us_first_char_index_byte_range().start,
+            self.us_first_char_index_byte_range().start,
             us_first_char_index,
         );
 
         let us_last_char_index: u16 = plan.os2_info.max_cmap_codepoint.min(0xFFFF) as u16;
         s.copy_assign(
-            self.shape().us_last_char_index_byte_range().start,
+            self.us_last_char_index_byte_range().start,
             us_last_char_index,
         );
 

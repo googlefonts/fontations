@@ -8,15 +8,45 @@ use crate::codegen_prelude::*;
 /// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PostMarker {
-    num_glyphs_byte_start: Option<usize>,
-    glyph_name_index_byte_start: Option<usize>,
-    glyph_name_index_byte_len: Option<usize>,
-    string_data_byte_start: Option<usize>,
-    string_data_byte_len: Option<usize>,
+pub struct PostMarker;
+
+impl<'a> MinByteRange for Post<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.max_mem_type1_byte_range().end
+    }
 }
 
-impl PostMarker {
+impl TopLevelTable for Post<'_> {
+    /// `post`
+    const TAG: Tag = Tag::new(b"post");
+}
+
+impl<'a> FontRead<'a> for Post<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
+pub type Post<'a> = TableRef<'a, PostMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Post<'a> {
+    fn glyph_name_index_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_glyphs().unwrap_or_default()) as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn string_data_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        self.data.len().saturating_sub(start)
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Version16Dot16::RAW_BYTE_LEN
@@ -63,104 +93,56 @@ impl PostMarker {
     }
 
     pub fn num_glyphs_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.num_glyphs_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self.max_mem_type1_byte_range().end;
+            Some(start..start + u16::RAW_BYTE_LEN)
+        } else {
+            None
+        }
     }
 
     pub fn glyph_name_index_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.glyph_name_index_byte_start?;
-        Some(start..start + self.glyph_name_index_byte_len?)
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self
+                .num_glyphs_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| self.max_mem_type1_byte_range().end);
+            Some(start..start + self.glyph_name_index_byte_len(start))
+        } else {
+            None
+        }
     }
 
     pub fn string_data_byte_range(&self) -> Option<Range<usize>> {
-        let start = self.string_data_byte_start?;
-        Some(start..start + self.string_data_byte_len?)
-    }
-}
-
-impl MinByteRange for PostMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.max_mem_type1_byte_range().end
-    }
-}
-
-impl TopLevelTable for Post<'_> {
-    /// `post`
-    const TAG: Tag = Tag::new(b"post");
-}
-
-impl<'a> FontRead<'a> for Post<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let version: Version16Dot16 = cursor.read()?;
-        cursor.advance::<Fixed>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let num_glyphs_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        let num_glyphs = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.read::<u16>())
-            .transpose()?
-            .unwrap_or_default();
-        let glyph_name_index_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        let glyph_name_index_byte_len = version.compatible((2u16, 0u16)).then_some(
-            (num_glyphs as usize)
-                .checked_mul(u16::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?,
-        );
-        if let Some(value) = glyph_name_index_byte_len {
-            cursor.advance_by(value);
+        if self.version().compatible((2u16, 0u16)) {
+            let start = self
+                .glyph_name_index_byte_range()
+                .map(|range| range.end)
+                .unwrap_or_else(|| {
+                    self.num_glyphs_byte_range()
+                        .map(|range| range.end)
+                        .unwrap_or_else(|| self.max_mem_type1_byte_range().end)
+                });
+            Some(start..start + self.string_data_byte_len(start))
+        } else {
+            None
         }
-        let string_data_byte_start = version
-            .compatible((2u16, 0u16))
-            .then(|| cursor.position())
-            .transpose()?;
-        let string_data_byte_len = version
-            .compatible((2u16, 0u16))
-            .then_some(cursor.remaining_bytes());
-        if let Some(value) = string_data_byte_len {
-            cursor.advance_by(value);
-        }
-        cursor.finish(PostMarker {
-            num_glyphs_byte_start,
-            glyph_name_index_byte_start,
-            glyph_name_index_byte_len,
-            string_data_byte_start,
-            string_data_byte_len,
-        })
     }
-}
 
-/// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
-pub type Post<'a> = TableRef<'a, PostMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Post<'a> {
     /// 0x00010000 for version 1.0 0x00020000 for version 2.0
     /// 0x00025000 for version 2.5 (deprecated) 0x00030000 for version
     /// 3.0
     pub fn version(&self) -> Version16Dot16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.version_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Italic angle in counter-clockwise degrees from the vertical.
     /// Zero for upright text, negative for text that leans to the
     /// right (forward).
     pub fn italic_angle(&self) -> Fixed {
-        let range = self.shape.italic_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.italic_angle_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// This is the suggested distance of the top of the underline from
@@ -171,8 +153,8 @@ impl<'a> Post<'a> {
     /// calculated by subtracting half the underlineThickness from the
     /// value of this field.
     pub fn underline_position(&self) -> FWord {
-        let range = self.shape.underline_position_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.underline_position_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Suggested values for the underline thickness. In general, the
@@ -180,60 +162,60 @@ impl<'a> Post<'a> {
     /// underscore character (U+005F LOW LINE), and should also match
     /// the strikeout thickness, which is specified in the OS/2 table.
     pub fn underline_thickness(&self) -> FWord {
-        let range = self.shape.underline_thickness_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.underline_thickness_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Set to 0 if the font is proportionally spaced, non-zero if the
     /// font is not proportionally spaced (i.e. monospaced).
     pub fn is_fixed_pitch(&self) -> u32 {
-        let range = self.shape.is_fixed_pitch_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.is_fixed_pitch_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Minimum memory usage when an OpenType font is downloaded.
     pub fn min_mem_type42(&self) -> u32 {
-        let range = self.shape.min_mem_type42_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.min_mem_type42_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Maximum memory usage when an OpenType font is downloaded.
     pub fn max_mem_type42(&self) -> u32 {
-        let range = self.shape.max_mem_type42_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.max_mem_type42_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Minimum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
     pub fn min_mem_type1(&self) -> u32 {
-        let range = self.shape.min_mem_type1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.min_mem_type1_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Maximum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
     pub fn max_mem_type1(&self) -> u32 {
-        let range = self.shape.max_mem_type1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.max_mem_type1_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Number of glyphs (this should be the same as numGlyphs in
     /// 'maxp' table).
     pub fn num_glyphs(&self) -> Option<u16> {
-        let range = self.shape.num_glyphs_byte_range()?;
-        Some(self.data.read_at(range.start).unwrap())
+        let range = self.num_glyphs_byte_range()?;
+        Some(unchecked::read_at(self.data, range.start))
     }
 
     /// Array of indices into the string data. See below for details.
     pub fn glyph_name_index(&self) -> Option<&'a [BigEndian<u16>]> {
-        let range = self.shape.glyph_name_index_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        let range = self.glyph_name_index_byte_range()?;
+        Some(unchecked::read_array(self.data, range))
     }
 
     /// Storage for the string data.
     pub fn string_data(&self) -> Option<VarLenArray<'a, PString<'a>>> {
-        let range = self.shape.string_data_byte_range()?;
-        Some(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
+        let range = self.string_data_byte_range()?;
+        Some(VarLenArray::read(unchecked::split_off(self.data, range.start)).unwrap())
     }
 }
 

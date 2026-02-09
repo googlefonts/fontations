@@ -742,18 +742,9 @@ impl<'a> SomeRecord<'a> for SmallGlyphMetrics {
 /// [IndexSubtableList](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablelist) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct IndexSubtableListMarker {
-    index_subtable_records_byte_len: usize,
-}
+pub struct IndexSubtableListMarker;
 
-impl IndexSubtableListMarker {
-    pub fn index_subtable_records_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.index_subtable_records_byte_len
-    }
-}
-
-impl MinByteRange for IndexSubtableListMarker {
+impl<'a> MinByteRange for IndexSubtableList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.index_subtable_records_byte_range().end
     }
@@ -765,14 +756,11 @@ impl ReadArgs for IndexSubtableList<'_> {
 
 impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
     fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
-        let number_of_index_subtables = *args;
-        let mut cursor = data.cursor();
-        let index_subtable_records_byte_len = (number_of_index_subtables as usize)
-            .checked_mul(IndexSubtableRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(index_subtable_records_byte_len);
-        cursor.finish(IndexSubtableListMarker {
-            index_subtable_records_byte_len,
+        let args = *args;
+        Ok(TableRef {
+            args,
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -789,14 +777,30 @@ impl<'a> IndexSubtableList<'a> {
 }
 
 /// [IndexSubtableList](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtablelist) table.
-pub type IndexSubtableList<'a> = TableRef<'a, IndexSubtableListMarker>;
+pub type IndexSubtableList<'a> = TableRef<'a, IndexSubtableListMarker, u32>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtableList<'a> {
+    fn index_subtable_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.args) as usize)
+            .checked_mul(IndexSubtableRecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn index_subtable_records_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.index_subtable_records_byte_len(start)
+    }
+
     /// Array of IndexSubtableRecords.
     pub fn index_subtable_records(&self) -> &'a [IndexSubtableRecord] {
-        let range = self.shape.index_subtable_records_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.index_subtable_records_byte_range();
+        unchecked::read_array(self.data, range)
+    }
+
+    pub(crate) fn number_of_index_subtables(&self) -> u32 {
+        self.args
     }
 }
 
@@ -897,33 +901,9 @@ impl Format<u16> for IndexSubtable1Marker {
 /// [IndexSubTable1](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable1-variable-metrics-glyphs-with-4-byte-offsets): variable-metrics glyphs with 4-byte offsets.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct IndexSubtable1Marker {
-    sbit_offsets_byte_len: usize,
-}
+pub struct IndexSubtable1Marker;
 
-impl IndexSubtable1Marker {
-    pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
-        start..start + self.sbit_offsets_byte_len
-    }
-}
-
-impl MinByteRange for IndexSubtable1Marker {
+impl<'a> MinByteRange for IndexSubtable1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sbit_offsets_byte_range().end
     }
@@ -938,18 +918,11 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
         data: FontData<'a>,
         args: &(GlyphId16, GlyphId16),
     ) -> Result<Self, ReadError> {
-        let (last_glyph_index, first_glyph_index) = *args;
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        let sbit_offsets_byte_len =
-            (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
-                .checked_mul(u32::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(sbit_offsets_byte_len);
-        cursor.finish(IndexSubtable1Marker {
-            sbit_offsets_byte_len,
+        let args = *args;
+        Ok(TableRef {
+            args,
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -970,31 +943,66 @@ impl<'a> IndexSubtable1<'a> {
 }
 
 /// [IndexSubTable1](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable1-variable-metrics-glyphs-with-4-byte-offsets): variable-metrics glyphs with 4-byte offsets.
-pub type IndexSubtable1<'a> = TableRef<'a, IndexSubtable1Marker>;
+pub type IndexSubtable1<'a> = TableRef<'a, IndexSubtable1Marker, (GlyphId16, GlyphId16)>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable1<'a> {
+    fn sbit_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        (transforms::subtract_add_two(self.args.0, self.args.1))
+            .checked_mul(u32::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn index_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
+        let start = self.index_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.image_format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.image_data_offset_byte_range().end;
+        start..start + self.sbit_offsets_byte_len(start)
+    }
+
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
-        let range = self.shape.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.index_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
-        let range = self.shape.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
-        let range = self.shape.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_data_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     pub fn sbit_offsets(&self) -> &'a [BigEndian<u32>] {
-        let range = self.shape.sbit_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.sbit_offsets_byte_range();
+        unchecked::read_array(self.data, range)
+    }
+
+    pub(crate) fn last_glyph_index(&self) -> GlyphId16 {
+        self.args.0
+    }
+
+    pub(crate) fn first_glyph_index(&self) -> GlyphId16 {
+        self.args.1
     }
 }
 
@@ -1029,11 +1037,34 @@ impl Format<u16> for IndexSubtable2Marker {
 /// [IndexSubTable2](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable2-all-glyphs-have-identical-metrics): all glyphs have identical metrics.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct IndexSubtable2Marker {
-    big_metrics_byte_len: usize,
+pub struct IndexSubtable2Marker;
+
+impl<'a> MinByteRange for IndexSubtable2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.big_metrics_byte_range().end
+    }
 }
 
-impl IndexSubtable2Marker {
+impl<'a> FontRead<'a> for IndexSubtable2<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [IndexSubTable2](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable2-all-glyphs-have-identical-metrics): all glyphs have identical metrics.
+pub type IndexSubtable2<'a> = TableRef<'a, IndexSubtable2Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> IndexSubtable2<'a> {
+    fn big_metrics_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        BigGlyphMetrics::RAW_BYTE_LEN
+    }
+
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1056,64 +1087,37 @@ impl IndexSubtable2Marker {
 
     pub fn big_metrics_byte_range(&self) -> Range<usize> {
         let start = self.image_size_byte_range().end;
-        start..start + self.big_metrics_byte_len
+        start..start + self.big_metrics_byte_len(start)
     }
-}
 
-impl MinByteRange for IndexSubtable2Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.big_metrics_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for IndexSubtable2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let big_metrics_byte_len = BigGlyphMetrics::RAW_BYTE_LEN;
-        cursor.advance_by(big_metrics_byte_len);
-        cursor.finish(IndexSubtable2Marker {
-            big_metrics_byte_len,
-        })
-    }
-}
-
-/// [IndexSubTable2](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable2-all-glyphs-have-identical-metrics): all glyphs have identical metrics.
-pub type IndexSubtable2<'a> = TableRef<'a, IndexSubtable2Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> IndexSubtable2<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
-        let range = self.shape.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.index_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
-        let range = self.shape.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
-        let range = self.shape.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_data_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// All the glyphs are of the same size.
     pub fn image_size(&self) -> u32 {
-        let range = self.shape.image_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_size_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// All glyphs have the same metrics; glyph data may be compressed, byte-aligned, or bit-aligned.
     pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
-        let range = self.shape.big_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.big_metrics_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 
@@ -1156,33 +1160,9 @@ impl Format<u16> for IndexSubtable3Marker {
 /// [IndexSubTable3](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with 2-byte offsets.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct IndexSubtable3Marker {
-    sbit_offsets_byte_len: usize,
-}
+pub struct IndexSubtable3Marker;
 
-impl IndexSubtable3Marker {
-    pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
-        start..start + self.sbit_offsets_byte_len
-    }
-}
-
-impl MinByteRange for IndexSubtable3Marker {
+impl<'a> MinByteRange for IndexSubtable3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sbit_offsets_byte_range().end
     }
@@ -1197,18 +1177,11 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
         data: FontData<'a>,
         args: &(GlyphId16, GlyphId16),
     ) -> Result<Self, ReadError> {
-        let (last_glyph_index, first_glyph_index) = *args;
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        let sbit_offsets_byte_len =
-            (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
-                .checked_mul(u16::RAW_BYTE_LEN)
-                .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(sbit_offsets_byte_len);
-        cursor.finish(IndexSubtable3Marker {
-            sbit_offsets_byte_len,
+        let args = *args;
+        Ok(TableRef {
+            args,
+            data,
+            _marker: std::marker::PhantomData,
         })
     }
 }
@@ -1229,31 +1202,66 @@ impl<'a> IndexSubtable3<'a> {
 }
 
 /// [IndexSubTable3](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with 2-byte offsets.
-pub type IndexSubtable3<'a> = TableRef<'a, IndexSubtable3Marker>;
+pub type IndexSubtable3<'a> = TableRef<'a, IndexSubtable3Marker, (GlyphId16, GlyphId16)>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable3<'a> {
+    fn sbit_offsets_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        (transforms::subtract_add_two(self.args.0, self.args.1))
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
+    pub fn index_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
+        let start = self.index_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.image_format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.image_data_offset_byte_range().end;
+        start..start + self.sbit_offsets_byte_len(start)
+    }
+
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
-        let range = self.shape.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.index_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
-        let range = self.shape.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
-        let range = self.shape.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_data_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     pub fn sbit_offsets(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.sbit_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.sbit_offsets_byte_range();
+        unchecked::read_array(self.data, range)
+    }
+
+    pub(crate) fn last_glyph_index(&self) -> GlyphId16 {
+        self.args.0
+    }
+
+    pub(crate) fn first_glyph_index(&self) -> GlyphId16 {
+        self.args.1
     }
 }
 
@@ -1288,11 +1296,36 @@ impl Format<u16> for IndexSubtable4Marker {
 /// [IndexSubTable4](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with sparse glyph codes.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct IndexSubtable4Marker {
-    glyph_array_byte_len: usize,
+pub struct IndexSubtable4Marker;
+
+impl<'a> MinByteRange for IndexSubtable4<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_array_byte_range().end
+    }
 }
 
-impl IndexSubtable4Marker {
+impl<'a> FontRead<'a> for IndexSubtable4<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [IndexSubTable4](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with sparse glyph codes.
+pub type IndexSubtable4<'a> = TableRef<'a, IndexSubtable4Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> IndexSubtable4<'a> {
+    fn glyph_array_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        (transforms::add(self.num_glyphs(), 1_usize))
+            .checked_mul(GlyphIdOffsetPair::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1315,66 +1348,37 @@ impl IndexSubtable4Marker {
 
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let start = self.num_glyphs_byte_range().end;
-        start..start + self.glyph_array_byte_len
+        start..start + self.glyph_array_byte_len(start)
     }
-}
 
-impl MinByteRange for IndexSubtable4Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.glyph_array_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for IndexSubtable4<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        let num_glyphs: u32 = cursor.read()?;
-        let glyph_array_byte_len = (transforms::add(num_glyphs, 1_usize))
-            .checked_mul(GlyphIdOffsetPair::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(glyph_array_byte_len);
-        cursor.finish(IndexSubtable4Marker {
-            glyph_array_byte_len,
-        })
-    }
-}
-
-/// [IndexSubTable4](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with sparse glyph codes.
-pub type IndexSubtable4<'a> = TableRef<'a, IndexSubtable4Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> IndexSubtable4<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
-        let range = self.shape.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.index_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
-        let range = self.shape.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
-        let range = self.shape.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_data_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Array length.
     pub fn num_glyphs(&self) -> u32 {
-        let range = self.shape.num_glyphs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.num_glyphs_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// One per glyph.
     pub fn glyph_array(&self) -> &'a [GlyphIdOffsetPair] {
-        let range = self.shape.glyph_array_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.glyph_array_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 
@@ -1459,12 +1463,40 @@ impl Format<u16> for IndexSubtable5Marker {
 /// [IndexSubTable5](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable5-constant-metrics-glyphs-with-sparse-glyph-codes): constant-metrics glyphs with sparse glyph codes
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct IndexSubtable5Marker {
-    big_metrics_byte_len: usize,
-    glyph_array_byte_len: usize,
+pub struct IndexSubtable5Marker;
+
+impl<'a> MinByteRange for IndexSubtable5<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.glyph_array_byte_range().end
+    }
 }
 
-impl IndexSubtable5Marker {
+impl<'a> FontRead<'a> for IndexSubtable5<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [IndexSubTable5](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable5-constant-metrics-glyphs-with-sparse-glyph-codes): constant-metrics glyphs with sparse glyph codes
+pub type IndexSubtable5<'a> = TableRef<'a, IndexSubtable5Marker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> IndexSubtable5<'a> {
+    fn big_metrics_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        BigGlyphMetrics::RAW_BYTE_LEN
+    }
+    fn glyph_array_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.num_glyphs()) as usize)
+            .checked_mul(GlyphId16::RAW_BYTE_LEN)
+            .unwrap()
+    }
+
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1487,7 +1519,7 @@ impl IndexSubtable5Marker {
 
     pub fn big_metrics_byte_range(&self) -> Range<usize> {
         let start = self.image_size_byte_range().end;
-        start..start + self.big_metrics_byte_len
+        start..start + self.big_metrics_byte_len(start)
     }
 
     pub fn num_glyphs_byte_range(&self) -> Range<usize> {
@@ -1497,82 +1529,49 @@ impl IndexSubtable5Marker {
 
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let start = self.num_glyphs_byte_range().end;
-        start..start + self.glyph_array_byte_len
+        start..start + self.glyph_array_byte_len(start)
     }
-}
 
-impl MinByteRange for IndexSubtable5Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.glyph_array_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for IndexSubtable5<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        cursor.advance::<u32>();
-        let big_metrics_byte_len = BigGlyphMetrics::RAW_BYTE_LEN;
-        cursor.advance_by(big_metrics_byte_len);
-        let num_glyphs: u32 = cursor.read()?;
-        let glyph_array_byte_len = (num_glyphs as usize)
-            .checked_mul(GlyphId16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(glyph_array_byte_len);
-        cursor.finish(IndexSubtable5Marker {
-            big_metrics_byte_len,
-            glyph_array_byte_len,
-        })
-    }
-}
-
-/// [IndexSubTable5](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable5-constant-metrics-glyphs-with-sparse-glyph-codes): constant-metrics glyphs with sparse glyph codes
-pub type IndexSubtable5<'a> = TableRef<'a, IndexSubtable5Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> IndexSubtable5<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
-        let range = self.shape.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.index_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
-        let range = self.shape.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_format_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
-        let range = self.shape.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_data_offset_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// All glyphs have the same data size.
     pub fn image_size(&self) -> u32 {
-        let range = self.shape.image_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.image_size_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// All glyphs have the same metrics.
     pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
-        let range = self.shape.big_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.big_metrics_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     /// Array length.
     pub fn num_glyphs(&self) -> u32 {
-        let range = self.shape.num_glyphs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.num_glyphs_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// One per glyph, sorted by glyhph ID.
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
-        let range = self.shape.glyph_array_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.glyph_array_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 

@@ -8,12 +8,43 @@ use crate::codegen_prelude::*;
 /// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CffHeaderMarker {
-    _padding_byte_len: usize,
-    trailing_data_byte_len: usize,
+pub struct CffHeaderMarker;
+
+impl<'a> MinByteRange for CffHeader<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.trailing_data_byte_range().end
+    }
 }
 
-impl CffHeaderMarker {
+impl<'a> FontRead<'a> for CffHeader<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
+pub type CffHeader<'a> = TableRef<'a, CffHeaderMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> CffHeader<'a> {
+    fn _padding_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        (transforms::subtract(self.hdr_size(), 4_usize))
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn trailing_data_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let remaining = self.data.len().saturating_sub(start);
+            remaining / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        }
+    }
+
     pub fn major_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
@@ -36,80 +67,48 @@ impl CffHeaderMarker {
 
     pub fn _padding_byte_range(&self) -> Range<usize> {
         let start = self.off_size_byte_range().end;
-        start..start + self._padding_byte_len
+        start..start + self._padding_byte_len(start)
     }
 
     pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self._padding_byte_range().end;
-        start..start + self.trailing_data_byte_len
+        start..start + self.trailing_data_byte_len(start)
     }
-}
 
-impl MinByteRange for CffHeaderMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.trailing_data_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for CffHeader<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u8>();
-        cursor.advance::<u8>();
-        let hdr_size: u8 = cursor.read()?;
-        cursor.advance::<u8>();
-        let _padding_byte_len = (transforms::subtract(hdr_size, 4_usize))
-            .checked_mul(u8::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(_padding_byte_len);
-        let trailing_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(trailing_data_byte_len);
-        cursor.finish(CffHeaderMarker {
-            _padding_byte_len,
-            trailing_data_byte_len,
-        })
-    }
-}
-
-/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
-pub type CffHeader<'a> = TableRef<'a, CffHeaderMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> CffHeader<'a> {
     /// Format major version (starting at 1).
     pub fn major(&self) -> u8 {
-        let range = self.shape.major_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.major_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Format minor version (starting at 0).
     pub fn minor(&self) -> u8 {
-        let range = self.shape.minor_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.minor_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Header size (bytes).
     pub fn hdr_size(&self) -> u8 {
-        let range = self.shape.hdr_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.hdr_size_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Absolute offset size.
     pub fn off_size(&self) -> u8 {
-        let range = self.shape.off_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.off_size_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     /// Padding bytes before the start of the Name INDEX.
     pub fn _padding(&self) -> &'a [u8] {
-        let range = self.shape._padding_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self._padding_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     /// Remaining table data.
     pub fn trailing_data(&self) -> &'a [u8] {
-        let range = self.shape.trailing_data_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.trailing_data_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 

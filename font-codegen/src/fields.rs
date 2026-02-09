@@ -315,11 +315,23 @@ fn if_expression(xform: &IfTransform, add_self: bool) -> TokenStream {
 }
 
 impl Condition {
-    fn condition_tokens_for_read(&self) -> TokenStream {
+    pub(crate) fn condition_tokens_for_read(&self) -> TokenStream {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
             Condition::IfCond { xform } => if_expression(xform, false),
+        }
+    }
+
+    pub(crate) fn condition_tokens_for_access(&self) -> TokenStream {
+        match self {
+            Condition::SinceVersion(version) => quote!(self.version().compatible(#version)),
+            Condition::IfFlag { field, flag } => quote!(self.#field().contains(#flag)),
+            Condition::IfCond { xform } => match xform {
+                IfTransform::AnyFlag(field, flags) => {
+                    quote!(self.#field().intersects(#(#flags)|*))
+                }
+            },
         }
     }
 
@@ -690,7 +702,7 @@ impl Field {
         self.attrs.skip_getter.is_none()
     }
 
-    pub(crate) fn shape_len_expr(&self) -> TokenStream {
+    pub(crate) fn shape_len_expr(&self, start_expr: TokenStream) -> TokenStream {
         // is this a scalar/offset? then it's just 'RAW_BYTE_LEN'
         // is this computed? then it is stored
         match &self.typ {
@@ -702,8 +714,7 @@ impl Field {
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => {
                 let len_field = self.shape_byte_len_field_name();
-                let try_op = self.is_conditional().then(|| quote!(?));
-                quote!(self.#len_field #try_op)
+                quote!(self.#len_field(#start_expr))
             }
             FieldType::PendingResolution { .. } => panic!("Should have resolved {self:?}"),
         }
@@ -717,7 +728,7 @@ impl Field {
             result.extend(
                 count
                     .iter_referenced_fields()
-                    .map(|fld| (fld.clone(), NeededWhen::Parse)),
+                    .map(|fld| (fld.clone(), NeededWhen::Both)),
             );
         }
         if let Some(flds) = self.attrs.conditional.as_ref().map(|c| c.input_field()) {
@@ -814,13 +825,13 @@ impl Field {
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args).unwrap() )
+            quote!(unchecked::read_with_args(self.data, range, &#get_args))
         } else if is_var_array {
-            quote!(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
+            quote!(VarLenArray::read(unchecked::split_off(self.data, range.start)).unwrap())
         } else if is_array {
-            quote!(self.data.read_array(range).unwrap())
+            quote!(unchecked::read_array(self.data, range))
         } else {
-            quote!(self.data.read_at(range.start).unwrap())
+            quote!(unchecked::read_at(self.data, range.start))
         };
         if is_versioned {
             read_stmt = quote!(Some(#read_stmt));
@@ -887,7 +898,7 @@ impl Field {
     fn getter_range_stmt(&self) -> TokenStream {
         let shape_range_fn_name = self.shape_byte_range_fn_name();
         let try_op = self.is_conditional().then(|| quote!(?));
-        quote!( self.shape.#shape_range_fn_name() #try_op )
+        quote!( self.#shape_range_fn_name() #try_op )
     }
 
     fn typed_offset_getter_docs(&self, has_data_arg: bool) -> TokenStream {

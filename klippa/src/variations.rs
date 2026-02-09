@@ -111,7 +111,7 @@ impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
         let Some(src_var_regions_bytes) = self
             .offset_data()
             .as_bytes()
-            .get(self.shape().variation_regions_byte_range())
+            .get(self.variation_regions_byte_range())
         else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };

@@ -7,12 +7,43 @@ use crate::codegen_prelude::*;
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct BasicTableMarker {
-    simple_records_byte_len: usize,
-    array_records_byte_len: usize,
+pub struct BasicTableMarker;
+
+impl<'a> MinByteRange for BasicTable<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.array_records_byte_range().end
+    }
 }
 
-impl BasicTableMarker {
+impl<'a> FontRead<'a> for BasicTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
+pub type BasicTable<'a> = TableRef<'a, BasicTableMarker, ()>;
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> BasicTable<'a> {
+    fn simple_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.simple_count()) as usize)
+            .checked_mul(SimpleRecord::RAW_BYTE_LEN)
+            .unwrap()
+    }
+    fn array_records_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        ((self.array_records_count()) as usize)
+            .checked_mul(
+                <ContainsArrays as ComputeSize>::compute_size(&self.arrays_inner_count()).unwrap(),
+            )
+            .unwrap()
+    }
+
     pub fn simple_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -20,7 +51,7 @@ impl BasicTableMarker {
 
     pub fn simple_records_byte_range(&self) -> Range<usize> {
         let start = self.simple_count_byte_range().end;
-        start..start + self.simple_records_byte_len
+        start..start + self.simple_records_byte_len(start)
     }
 
     pub fn arrays_inner_count_byte_range(&self) -> Range<usize> {
@@ -35,68 +66,32 @@ impl BasicTableMarker {
 
     pub fn array_records_byte_range(&self) -> Range<usize> {
         let start = self.array_records_count_byte_range().end;
-        start..start + self.array_records_byte_len
+        start..start + self.array_records_byte_len(start)
     }
-}
 
-impl MinByteRange for BasicTableMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.array_records_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for BasicTable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let simple_count: u16 = cursor.read()?;
-        let simple_records_byte_len = (simple_count as usize)
-            .checked_mul(SimpleRecord::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(simple_records_byte_len);
-        let arrays_inner_count: u16 = cursor.read()?;
-        let array_records_count: u32 = cursor.read()?;
-        let array_records_byte_len = (array_records_count as usize)
-            .checked_mul(<ContainsArrays as ComputeSize>::compute_size(
-                &arrays_inner_count,
-            )?)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(array_records_byte_len);
-        cursor.finish(BasicTableMarker {
-            simple_records_byte_len,
-            array_records_byte_len,
-        })
-    }
-}
-
-pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> BasicTable<'a> {
     pub fn simple_count(&self) -> u16 {
-        let range = self.shape.simple_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.simple_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     pub fn simple_records(&self) -> &'a [SimpleRecord] {
-        let range = self.shape.simple_records_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.simple_records_byte_range();
+        unchecked::read_array(self.data, range)
     }
 
     pub fn arrays_inner_count(&self) -> u16 {
-        let range = self.shape.arrays_inner_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.arrays_inner_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     pub fn array_records_count(&self) -> u32 {
-        let range = self.shape.array_records_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.array_records_count_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
-        let range = self.shape.array_records_byte_range();
-        self.data
-            .read_with_args(range, &self.arrays_inner_count())
-            .unwrap()
+        let range = self.array_records_byte_range();
+        unchecked::read_with_args(self.data, range, &self.arrays_inner_count())
     }
 }
 
@@ -338,23 +333,9 @@ impl<'a> SomeRecord<'a> for ContainsOffsets {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct VarLenItemMarker {
-    data_byte_len: usize,
-}
+pub struct VarLenItemMarker;
 
-impl VarLenItemMarker {
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + self.data_byte_len
-    }
-}
-
-impl MinByteRange for VarLenItemMarker {
+impl<'a> MinByteRange for VarLenItem<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
     }
@@ -362,26 +343,44 @@ impl MinByteRange for VarLenItemMarker {
 
 impl<'a> FontRead<'a> for VarLenItem<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u32>();
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(data_byte_len);
-        cursor.finish(VarLenItemMarker { data_byte_len })
+        Ok(TableRef {
+            args: (),
+            data,
+            _marker: std::marker::PhantomData,
+        })
     }
 }
 
-pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker>;
+pub type VarLenItem<'a> = TableRef<'a, VarLenItemMarker, ()>;
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VarLenItem<'a> {
+    fn data_byte_len(&self, start: usize) -> usize {
+        let _ = start;
+        {
+            let remaining = self.data.len().saturating_sub(start);
+            remaining / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        }
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + self.data_byte_len(start)
+    }
+
     pub fn length(&self) -> u32 {
-        let range = self.shape.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        let range = self.length_byte_range();
+        unchecked::read_at(self.data, range.start)
     }
 
     pub fn data(&self) -> &'a [u8] {
-        let range = self.shape.data_byte_range();
-        self.data.read_array(range).unwrap()
+        let range = self.data_byte_range();
+        unchecked::read_array(self.data, range)
     }
 }
 
