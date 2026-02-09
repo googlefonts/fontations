@@ -65,8 +65,16 @@ impl Subset for Colr<'_> {
             .transpose()
             .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
         {
-            Offset32::serialize_subset(&var_store, s, plan, &plan.colr_varstore_inner_maps, 30)
-                .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
+            match Offset32::serialize_subset(
+                &var_store,
+                s,
+                plan,
+                (&plan.colr_varstore_inner_maps, false),
+                30,
+            ) {
+                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(_) => return Err(SubsetError::SubsetTableError(Colr::TAG)),
+            }
         }
 
         // BaseGlyphList offset pos = 14

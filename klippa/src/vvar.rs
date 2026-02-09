@@ -47,7 +47,7 @@ impl Subset for Vvar<'_> {
             &var_store,
             s,
             plan,
-            vvar_subset_plan.inner_maps(),
+            (vvar_subset_plan.inner_maps(), true),
             var_store_offset_pos,
         )
         .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;

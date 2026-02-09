@@ -52,7 +52,7 @@ impl Subset for Hvar<'_> {
             &var_store,
             s,
             plan,
-            hvar_subset_plan.inner_maps(),
+            (hvar_subset_plan.inner_maps(), true),
             var_store_offset_pos,
         )
         .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
