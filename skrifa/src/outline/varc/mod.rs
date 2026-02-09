@@ -127,6 +127,9 @@ impl<'a> BaseOutlines<'a> {
 #[derive(Clone)]
 pub(crate) struct Outlines<'a> {
     varc: Varc<'a>,
+    coverage: read_fonts::tables::layout::CoverageTable<'a>,
+    var_store: Option<MultiItemVariationStore<'a>>,
+    regions: Option<SparseVariationRegionList<'a>>,
     base: BaseOutlines<'a>,
     glyph_metrics: GlyphHMetrics<'a>,
     units_per_em: u16,
@@ -162,8 +165,18 @@ impl<'a> Outlines<'a> {
         let glyph_metrics = GlyphHMetrics::new(font)?;
         let units_per_em = font.head().ok()?.units_per_em();
         let axis_count = font.axes().len();
+        let coverage = varc.coverage().ok()?;
+        let var_store = varc.multi_var_store().transpose().ok()?;
+        let regions = var_store
+            .as_ref()
+            .map(|s| s.region_list())
+            .transpose()
+            .ok()?;
         Some(Self {
             varc,
+            coverage,
+            var_store,
+            regions,
             base,
             glyph_metrics,
             units_per_em,
@@ -196,8 +209,7 @@ impl<'a> Outlines<'a> {
     }
 
     pub fn outline(&self, glyph_id: GlyphId) -> Result<Option<Outline>, ReadError> {
-        let coverage = self.varc.coverage()?;
-        let Some(coverage_index) = coverage.get(glyph_id) else {
+        let Some(coverage_index) = self.coverage.get(glyph_id) else {
             return Ok(None);
         };
         let max_component_memory = self.compute_max_component_memory(glyph_id, coverage_index)?;
@@ -210,8 +222,7 @@ impl<'a> Outlines<'a> {
 
     /// Lightweight coverage lookup without computing max_component_memory.
     fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u16>, ReadError> {
-        let coverage = self.varc.coverage()?;
-        Ok(coverage.get(glyph_id))
+        Ok(self.coverage.get(glyph_id))
     }
 
     fn compute_max_component_memory(
@@ -267,18 +278,17 @@ impl<'a> Outlines<'a> {
         expand_coords(&mut font_coords, self.axis_count, coords);
         let mut stack = GlyphStack::new();
         let pen: &mut dyn OutlinePen = pen;
-        let coverage = self.varc.coverage()?;
-        let var_store = self.varc.multi_var_store().transpose()?;
-        let regions = var_store.as_ref().map(|s| s.region_list()).transpose()?;
-        let mut scalar_cache = self.scalar_cache_from_store(var_store.as_ref())?.unwrap();
+        let mut scalar_cache = self
+            .scalar_cache_from_store(self.var_store.as_ref())?
+            .unwrap();
         let mut scratch = Scratchpad::new();
         let ctx = VarcSharedContext {
             font_coords: &font_coords,
             size,
             path_style,
-            coverage: &coverage,
-            var_store: var_store.as_ref(),
-            store_regions: var_store.as_ref().zip(regions.as_ref()),
+            coverage: &self.coverage,
+            var_store: self.var_store.as_ref(),
+            store_regions: self.var_store.as_ref().zip(self.regions.as_ref()),
         };
         self.draw_glyph(
             outline.glyph_id,
@@ -488,7 +498,10 @@ impl<'a> Outlines<'a> {
             }
         }
 
-        for (axis_index, value) in scratch.axis_indices.iter().zip(scratch.axis_values.iter().copied())
+        for (axis_index, value) in scratch
+            .axis_indices
+            .iter()
+            .zip(scratch.axis_values.iter().copied())
         {
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
                 return Err(DrawError::Read(ReadError::OutOfBounds));
@@ -639,14 +652,7 @@ impl<'a> Outlines<'a> {
         let condition_list = condition_list?;
         let condition = condition_list.conditions().get(condition_index as usize)?;
         let (store, regions) = store_regions.ok_or(ReadError::NullOffset)?;
-        Self::eval_condition(
-            &condition,
-            coords,
-            store,
-            regions,
-            scalar_cache,
-            scratch,
-        )
+        Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch)
     }
 
     fn eval_condition(
