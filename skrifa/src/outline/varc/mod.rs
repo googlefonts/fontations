@@ -4,8 +4,8 @@ use read_fonts::{
     tables::{
         layout::Condition,
         varc::{
-            DecomposedTransform, MultiItemVariationStore, SparseVariationRegion,
-            SparseVariationRegionList, Varc, VarcComponent, VarcFlags,
+            DecomposedTransform, MultiItemVariationStore, SparseVariationRegionList, Varc,
+            VarcComponent, VarcFlags,
         },
         variations::NO_VARIATION_INDEX,
     },
@@ -803,7 +803,7 @@ fn compute_tuple_deltas(
         let region_idx = region_index.get() as usize;
         let mut scalar = cache.get(region_idx);
         if scalar >= 2.0 {
-            scalar = compute_sparse_region_scalar(&regions.get(region_idx)?, coords);
+            scalar = regions.get(region_idx)?.compute_scalar_f32(coords);
             cache.set(region_idx, scalar);
         }
         // We skip lazily. Reduces work at the tail end.
@@ -819,49 +819,6 @@ fn compute_tuple_deltas(
     }
 
     Ok(())
-}
-
-fn compute_sparse_region_scalar(region: &SparseVariationRegion<'_>, coords: &[F2Dot14]) -> f32 {
-    let mut scalar = 1.0f32;
-    for axis in region.region_axes() {
-        let peak = axis.peak();
-        if peak == F2Dot14::ZERO {
-            continue;
-        }
-        let axis_index = axis.axis_index() as usize;
-        let coord = coords.get(axis_index).copied().unwrap_or(F2Dot14::ZERO);
-        if coord == peak {
-            continue;
-        }
-        if coord == F2Dot14::ZERO {
-            return 0.0;
-        }
-        let start = axis.start();
-        let end = axis.end();
-        if start > peak || peak > end || (start < F2Dot14::ZERO && end > F2Dot14::ZERO) {
-            continue;
-        }
-        if coord < start || coord > end {
-            return 0.0;
-        } else if coord < peak {
-            // Use raw bits - scale factors cancel in the ratio
-            let numerat = coord.to_bits() - start.to_bits();
-            if numerat == 0 {
-                return 0.0;
-            }
-            let denom = peak.to_bits() - start.to_bits();
-            scalar *= numerat as f32 / denom as f32;
-        } else {
-            // Use raw bits - scale factors cancel in the ratio
-            let numerat = end.to_bits() - coord.to_bits();
-            if numerat == 0 {
-                return 0.0;
-            }
-            let denom = end.to_bits() - peak.to_bits();
-            scalar *= numerat as f32 / denom as f32;
-        }
-    }
-    scalar
 }
 
 #[inline(always)]
@@ -1013,40 +970,6 @@ mod tests {
     }
 
     #[test]
-    fn compute_sparse_region_scalar_handles_boundaries_and_products() {
-        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
-        let varc = font.varc().unwrap();
-        let store = varc.multi_var_store().unwrap().unwrap();
-        let regions = store.region_list().unwrap();
-        let region_list = regions.regions();
-
-        let axis0_region = region_list.get(0).unwrap();
-        assert_close(
-            compute_sparse_region_scalar(&axis0_region, &[coord(1.0)]),
-            1.0,
-        );
-        assert_close(
-            compute_sparse_region_scalar(&axis0_region, &[coord(0.5)]),
-            0.5,
-        );
-        assert_close(
-            compute_sparse_region_scalar(&axis0_region, &[F2Dot14::ZERO]),
-            0.0,
-        );
-        assert_close(compute_sparse_region_scalar(&axis0_region, &[]), 0.0);
-        assert_close(
-            compute_sparse_region_scalar(&axis0_region, &[coord(-0.25)]),
-            0.0,
-        );
-
-        let axis0_axis1_region = region_list.get(2).unwrap();
-        assert_close(
-            compute_sparse_region_scalar(&axis0_axis1_region, &[coord(0.5), coord(0.25)]),
-            0.125,
-        );
-    }
-
-    #[test]
     fn compute_tuple_deltas_no_variation_index_is_noop_after_resize() {
         let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
         let varc = font.varc().unwrap();
@@ -1149,10 +1072,10 @@ mod tests {
 
                 let mut expected = vec![0.0f32; tuple_len];
                 for (region_order, region_idx) in data.region_indices().iter().enumerate() {
-                    let scalar = compute_sparse_region_scalar(
-                        &region_list.get(region_idx.get() as usize).unwrap(),
-                        &coords,
-                    );
+                    let scalar = region_list
+                        .get(region_idx.get() as usize)
+                        .unwrap()
+                        .compute_scalar_f32(&coords);
                     if scalar == 0.0 {
                         continue;
                     }

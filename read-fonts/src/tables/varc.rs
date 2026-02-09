@@ -5,6 +5,7 @@ pub use super::{
     layout::{Condition, CoverageTable},
     postscript::Index2,
 };
+use crate::types::F2Dot14;
 
 #[cfg(feature = "libm")]
 #[allow(unused_imports)]
@@ -41,6 +42,53 @@ impl Varc<'_> {
             table: self,
             data: raw.into(),
         })
+    }
+}
+
+impl<'a> SparseVariationRegion<'a> {
+    /// Computes a floating point scalar value for this sparse region and the
+    /// specified normalized variation coordinates.
+    pub fn compute_scalar_f32(&self, coords: &[F2Dot14]) -> f32 {
+        let mut scalar = 1.0f32;
+        for axis in self.region_axes() {
+            let peak = axis.peak();
+            if peak == F2Dot14::ZERO {
+                continue;
+            }
+            let axis_index = axis.axis_index() as usize;
+            let coord = coords.get(axis_index).copied().unwrap_or(F2Dot14::ZERO);
+            if coord == peak {
+                continue;
+            }
+            if coord == F2Dot14::ZERO {
+                return 0.0;
+            }
+            let start = axis.start();
+            let end = axis.end();
+            if start > peak || peak > end || (start < F2Dot14::ZERO && end > F2Dot14::ZERO) {
+                continue;
+            }
+            if coord < start || coord > end {
+                return 0.0;
+            } else if coord < peak {
+                // Use raw bits - scale factors cancel in the ratio
+                let numerat = coord.to_bits() - start.to_bits();
+                if numerat == 0 {
+                    return 0.0;
+                }
+                let denom = peak.to_bits() - start.to_bits();
+                scalar *= numerat as f32 / denom as f32;
+            } else {
+                // Use raw bits - scale factors cancel in the ratio
+                let numerat = end.to_bits() - coord.to_bits();
+                if numerat == 0 {
+                    return 0.0;
+                }
+                let denom = end.to_bits() - peak.to_bits();
+                scalar *= numerat as f32 / denom as f32;
+            }
+        }
+        scalar
     }
 }
 
@@ -434,6 +482,7 @@ impl<'a> MultiItemVariationData<'a> {
 mod tests {
     use types::GlyphId16;
 
+    use crate::types::F2Dot14;
     use crate::FontData;
     use crate::{FontRef, ReadError, TableProvider};
 
@@ -461,6 +510,18 @@ mod tests {
 
     fn round6(v: f32) -> f32 {
         (v * 1_000_000.0).round() / 1_000_000.0
+    }
+
+    fn coord(value: f32) -> F2Dot14 {
+        F2Dot14::from_f32(value)
+    }
+
+    fn assert_close(actual: f32, expected: f32) {
+        let diff = (actual - expected).abs();
+        assert!(
+            diff <= 1e-6,
+            "expected {expected}, got {actual}, diff {diff}"
+        );
     }
 
     fn sfnt_table_range(data: &[u8], tag: [u8; 4]) -> (usize, usize) {
@@ -647,6 +708,28 @@ mod tests {
         assert_eq!(
             vec![2, 3, 4, 5, 6],
             table.axis_indices(1).unwrap().iter().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn compute_sparse_region_scalar_handles_boundaries_and_products() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let varc = font.varc().unwrap();
+        let store = varc.multi_var_store().unwrap().unwrap();
+        let regions = store.region_list().unwrap();
+        let region_list = regions.regions();
+
+        let axis0_region = region_list.get(0).unwrap();
+        assert_close(axis0_region.compute_scalar_f32(&[coord(1.0)]), 1.0);
+        assert_close(axis0_region.compute_scalar_f32(&[coord(0.5)]), 0.5);
+        assert_close(axis0_region.compute_scalar_f32(&[F2Dot14::ZERO]), 0.0);
+        assert_close(axis0_region.compute_scalar_f32(&[]), 0.0);
+        assert_close(axis0_region.compute_scalar_f32(&[coord(-0.25)]), 0.0);
+
+        let axis0_axis1_region = region_list.get(2).unwrap();
+        assert_close(
+            axis0_axis1_region.compute_scalar_f32(&[coord(0.5), coord(0.25)]),
+            0.125,
         );
     }
 
