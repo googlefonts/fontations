@@ -1022,7 +1022,7 @@ mod tests {
             if region_count == 0 {
                 continue;
             }
-            let delta_set_count = data.delta_sets().unwrap().count() as usize;
+            let delta_set_count = data.delta_set_count() as usize;
             for inner in 0..delta_set_count.min(3) {
                 let decoded = data.delta_set(inner).unwrap().iter().collect::<Vec<_>>();
                 if decoded.is_empty() || decoded.len() % region_count != 0 {

@@ -374,16 +374,29 @@ impl FromObjRef<read_fonts::tables::varc::SparseRegionAxisCoordinates>
 pub struct MultiItemVariationData {
     pub region_index_count: u16,
     pub region_indices: Vec<u16>,
-    pub raw_delta_sets: Vec<u8>,
+    pub delta_set_count: u32,
+    pub delta_set_off_size: u8,
+    pub delta_set_offsets: Vec<u8>,
+    pub delta_set_data: Vec<u8>,
 }
 
 impl MultiItemVariationData {
     /// Construct a new `MultiItemVariationData`
-    pub fn new(region_index_count: u16, region_indices: Vec<u16>, raw_delta_sets: Vec<u8>) -> Self {
+    pub fn new(
+        region_index_count: u16,
+        region_indices: Vec<u16>,
+        delta_set_count: u32,
+        delta_set_off_size: u8,
+        delta_set_offsets: Vec<u8>,
+        delta_set_data: Vec<u8>,
+    ) -> Self {
         Self {
             region_index_count,
             region_indices,
-            raw_delta_sets,
+            delta_set_count,
+            delta_set_off_size,
+            delta_set_offsets,
+            delta_set_data,
         }
     }
 }
@@ -394,7 +407,10 @@ impl FontWrite for MultiItemVariationData {
         (1 as u8).write_into(writer);
         self.region_index_count.write_into(writer);
         self.region_indices.write_into(writer);
-        self.raw_delta_sets.write_into(writer);
+        self.delta_set_count.write_into(writer);
+        self.delta_set_off_size.write_into(writer);
+        self.delta_set_offsets.write_into(writer);
+        self.delta_set_data.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("MultiItemVariationData")
@@ -424,7 +440,10 @@ impl<'a> FromObjRef<read_fonts::tables::varc::MultiItemVariationData<'a>>
         MultiItemVariationData {
             region_index_count: obj.region_index_count(),
             region_indices: obj.region_indices().to_owned_obj(offset_data),
-            raw_delta_sets: obj.raw_delta_sets().to_owned_obj(offset_data),
+            delta_set_count: obj.delta_set_count(),
+            delta_set_off_size: obj.delta_set_off_size(),
+            delta_set_offsets: obj.delta_set_offsets().to_owned_obj(offset_data),
+            delta_set_data: obj.delta_set_data().to_owned_obj(offset_data),
         }
     }
 }

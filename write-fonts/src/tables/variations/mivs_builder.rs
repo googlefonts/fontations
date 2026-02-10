@@ -278,12 +278,14 @@ impl MultiItemVariationStoreBuilder {
         }
 
         let index2 = Index2::from_items(items);
-        let raw_delta_sets = crate::dump_table(&index2).expect("Index2 serialization failed");
 
         MultiItemVariationData::new(
             region_indices.len() as u16,
             region_indices.to_vec(),
-            raw_delta_sets,
+            index2.count,
+            index2.off_size,
+            index2.offsets,
+            index2.data,
         )
     }
 
