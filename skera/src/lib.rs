@@ -47,7 +47,8 @@ use layout::{
     remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
-    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
+    parse_instancing_spec, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
+    populate_gids,
 };
 
 use fnv::FnvHashMap;
