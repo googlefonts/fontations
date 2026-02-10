@@ -39,6 +39,21 @@ pub(crate) struct TripleDistances {
     pub(crate) positive: f32,
 }
 
+impl TripleDistances {
+    pub(crate) fn new(negative: f32, positive: f32) -> Self {
+        Self { negative, positive }
+    }
+}
+
+impl From<Triple> for TripleDistances {
+    fn from(triple: Triple) -> Self {
+        TripleDistances {
+            negative: triple.middle - triple.minimum,
+            positive: triple.maximum - triple.middle,
+        }
+    }
+}
+
 type RebaseTentResultItem = (f32, Triple);
 type RebaseTentResult = Vec<RebaseTentResultItem>;
 
