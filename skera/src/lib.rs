@@ -37,7 +37,6 @@ mod vmtx;
 mod vorg;
 mod vvar;
 use crate::{
-    parsing_util::InstancingSpec,
     repack::resolve_overflows,
     variations::solver::{Triple, TripleDistances},
 };
@@ -49,13 +48,16 @@ use layout::{
 };
 pub use parsing_util::{
     parse_instancing_spec, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
-    populate_gids,
+    populate_gids, InstancingSpec,
 };
 
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::{
-    raw::{tables::fvar::Fvar, ReadError},
+    raw::{
+        tables::{avar::Avar, fvar::Fvar},
+        ReadError,
+    },
     MetadataProvider,
 };
 use thiserror::Error;
@@ -1364,6 +1366,11 @@ fn subset_table<'a>(
     }
 
     match tag {
+        Avar::TAG => font
+            .avar()
+            .map_err(|_| SubsetError::SubsetTableError(Avar::TAG))?
+            .subset(plan, font, s, builder),
+
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
