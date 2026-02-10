@@ -367,7 +367,7 @@ pub(crate) fn rebase_tent<F: Float + std::fmt::Debug + Copy + Default + PartialE
     debug_assert!(axis_limit.middle <= axis_limit.maximum);
     debug_assert!(tent.minimum <= tent.middle);
     debug_assert!(tent.middle <= tent.maximum);
-    debug_assert!(tent.middle != F::zero(), "tent middle was zero",);
+    debug_assert!(tent.middle.abs() >= F::epsilon(), "tent middle was zero",);
 
     let sols = solve(tent, axis_limit, false);
 
