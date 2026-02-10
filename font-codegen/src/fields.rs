@@ -230,6 +230,19 @@ impl Fields {
                                 }
                             }
                         },
+                        Condition::If { field } => {
+                            let field_str = field.to_string();
+                            let present_msg = format!("'{field_str}' is zero but '{name}' is present");
+                            let missing_msg = format!("'{field_str}' is nonzero but '{name}' is None");
+                            quote! {
+                                if !(#condition) && self.#name.is_some() {
+                                    ctx.report(#present_msg)
+                                }
+                                if (#condition) && self.#name.is_none() {
+                                    ctx.report(#missing_msg)
+                                }
+                            }
+                        }
                     }
                 });
 
@@ -320,6 +333,7 @@ impl Condition {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
             Condition::IfCond { xform } => if_expression(xform, false),
+            Condition::If { field } => quote!((#field != 0)),
         }
     }
 
@@ -328,6 +342,7 @@ impl Condition {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
             Condition::IfCond { xform } => if_expression(xform, true),
+            Condition::If { field } => quote!((self.#field != 0)),
         }
     }
 
@@ -338,6 +353,7 @@ impl Condition {
             Condition::SinceVersion(_) => vec![],
             Condition::IfFlag { field, .. } => vec![field.clone()],
             Condition::IfCond { xform } => xform.input_field(),
+            Condition::If { field } => vec![field.clone()],
         }
     }
 }

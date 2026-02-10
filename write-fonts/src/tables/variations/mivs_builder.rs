@@ -279,14 +279,17 @@ impl MultiItemVariationStoreBuilder {
 
         let index2 = Index2::from_items(items);
 
-        MultiItemVariationData::new(
+        let mut data = MultiItemVariationData::new(
             region_indices.len() as u16,
             region_indices.to_vec(),
             index2.count,
-            index2.off_size,
-            index2.offsets,
-            index2.data,
-        )
+        );
+        if index2.count > 0 {
+            data.delta_set_off_size = Some(index2.off_size);
+            data.delta_set_offsets = Some(index2.offsets);
+            data.delta_set_data = Some(index2.data);
+        }
+        data
     }
 
     /// Flatten delta tuples into a single vector in region order.

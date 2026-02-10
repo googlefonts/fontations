@@ -469,9 +469,12 @@ impl<'a> MultiItemVariationData<'a> {
         if index > count {
             return Err(ReadError::OutOfBounds);
         }
-        let off_size = self.delta_set_off_size() as usize;
+        let off_size = self.delta_set_off_size().ok_or(ReadError::OutOfBounds)? as usize;
         let data_offset = index * off_size;
-        let offset_data: FontData<'a> = self.delta_set_offsets().into();
+        let offset_data: FontData<'a> = self
+            .delta_set_offsets()
+            .ok_or(ReadError::OutOfBounds)?
+            .into();
         let raw = match off_size {
             1 => offset_data.read_at::<u8>(data_offset)? as usize,
             2 => offset_data.read_at::<u16>(data_offset)? as usize,
@@ -489,6 +492,7 @@ impl<'a> MultiItemVariationData<'a> {
         let end = self.delta_set_offset(i + 1)?;
         let raw_deltas = self
             .delta_set_data()
+            .ok_or(ReadError::OutOfBounds)?
             .get(start..end)
             .ok_or(ReadError::OutOfBounds)?;
         Ok(PackedDeltas::consume_all(raw_deltas.into()))

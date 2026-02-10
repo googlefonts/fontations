@@ -248,6 +248,8 @@ pub(crate) enum Condition {
     SinceVersion(VersionSpec),
     IfFlag { field: syn::Ident, flag: syn::Path },
     IfCond { xform: IfTransform },
+    /// Field is present only when the referenced field is nonzero.
+    If { field: syn::Ident },
 }
 
 #[derive(Clone, Debug)]
@@ -1043,6 +1045,7 @@ static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
 static SINCE_VERSION: &str = "since_version";
 static IF_COND: &str = "if_cond";
+static PRESENT_IF: &str = "present_if";
 static IF_FLAG: &str = "if_flag";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
@@ -1103,6 +1106,9 @@ impl Parse for FieldAttrs {
             } else if ident == SINCE_VERSION {
                 let spec = attr.parse_args()?;
                 this.checked_set_condition(ident, Condition::SinceVersion(spec))?;
+            } else if ident == PRESENT_IF {
+                let condition = parse_if(&attr)?;
+                this.checked_set_condition(ident, condition)?;
             } else if ident == IF_FLAG {
                 let condition = parse_if_flag(&attr)?;
                 this.checked_set_condition(ident, condition)?;
@@ -1808,6 +1814,26 @@ fn parse_attr_eq_value<T: Parse>(attr: &syn::Attribute) -> syn::Result<T> {
     }
     let tokens = attr.meta.require_name_value()?.value.to_token_stream();
     syn::parse2::<T>(tokens).map_err(|err| syn::Error::new(attr.meta.span(), err.to_string()))
+}
+
+fn parse_if(attr: &syn::Attribute) -> syn::Result<Condition> {
+    struct IfField(syn::Ident);
+    impl Parse for IfField {
+        fn parse(input: ParseStream) -> syn::Result<Self> {
+            input.parse::<Token![$]>()?;
+            let ident = input.parse::<syn::Ident>()?;
+            Ok(IfField(ident))
+        }
+    }
+
+    attr.parse_args::<IfField>()
+        .map(|IfField(field)| Condition::If { field })
+        .map_err(|e| {
+            syn::Error::new(
+                e.span(),
+                format!("expected #[present_if($field_name)]: '{e}'"),
+            )
+        })
 }
 
 fn parse_if_flag(attr: &syn::Attribute) -> syn::Result<Condition> {
