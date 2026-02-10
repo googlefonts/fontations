@@ -54,7 +54,10 @@ pub use parsing_util::{
 
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
-use skrifa::{raw::ReadError, MetadataProvider};
+use skrifa::{
+    raw::{tables::fvar::Fvar, ReadError},
+    MetadataProvider,
+};
 use thiserror::Error;
 use write_fonts::{
     read::{
@@ -1389,6 +1392,11 @@ fn subset_table<'a>(
         Cpal::TAG => font
             .cpal()
             .map_err(|_| SubsetError::SubsetTableError(Cpal::TAG))?
+            .subset(plan, font, s, builder),
+
+        Fvar::TAG => font
+            .fvar()
+            .map_err(|_| SubsetError::SubsetTableError(Fvar::TAG))?
             .subset(plan, font, s, builder),
 
         Gdef::TAG => font
