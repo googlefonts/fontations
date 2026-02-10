@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod avar;
 mod base;
 mod cblc;
 mod cmap;
@@ -51,7 +52,7 @@ pub use parsing_util::{
 
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
-use skrifa::MetadataProvider;
+use skrifa::{raw::ReadError, MetadataProvider};
 use thiserror::Error;
 use write_fonts::{
     read::{
@@ -88,7 +89,7 @@ use write_fonts::{
             vorg::Vorg,
             vvar::Vvar,
         },
-        types::{GlyphId, NameId, Tag},
+        types::{F2Dot14, GlyphId, NameId, Tag},
         FontRef, TableProvider, TopLevelTable,
     },
     FontBuilder,
@@ -359,14 +360,18 @@ pub struct Plan {
 
     // normalized axes range map
     axes_location: FnvHashMap<Tag, Triple>,
-    normalized_coords: Vec<i32>,
+    normalized_coords: Vec<F2Dot14>,
 
     // user specified axes range map
     user_axes_location: FnvHashMap<Tag, Triple>,
     axes_triple_distances: FnvHashMap<Tag, TripleDistances>,
+    pinned_at_default: bool,
+    all_axes_pinned: bool,
 
     //retained old axis index -> new axis index mapping in fvar axis array
-    axes_index_map: FnvHashMap<u32, (u32, i32)>,
+    axes_index_map: FnvHashMap<usize, usize>,
+    axis_tags: Vec<Tag>,
+    axes_old_index_tag_map: FnvHashMap<usize, Tag>,
 }
 
 #[derive(Default)]
@@ -397,6 +402,7 @@ impl Plan {
             layout_features: layout_features.clone(),
             name_ids: name_ids.clone(),
             name_languages: name_languages.clone(),
+            pinned_at_default: true,
             ..Default::default()
         };
 
@@ -405,6 +411,7 @@ impl Plan {
         this.no_subset_tables
             .extend(default_no_subset_tables.iter().copied());
 
+        let _ = this.normalize_axes_location(font); // Proper error handling later
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
         this.create_old_gid_to_new_gid_map();
@@ -419,6 +426,93 @@ impl Plan {
         }
         this.collect_base_var_indices(font);
         this
+    }
+
+    fn normalize_axes_location(&mut self, font: &FontRef) -> Result<(), ReadError> {
+        if self.user_axes_location.is_empty() {
+            return Ok(());
+        }
+        let axes = font.axes();
+        let has_avar = font.avar().is_ok();
+        let mut axis_not_pinned = false;
+        let mut new_axis_idx = 0;
+        let mut normalized_mins = vec![];
+        let mut normalized_defaults = vec![];
+        let mut normalized_maxs = vec![];
+        self.normalized_coords = vec![F2Dot14::ZERO; axes.len()];
+        for (i, axis) in axes.iter().enumerate() {
+            let axis_tag = axis.tag();
+            self.axes_old_index_tag_map.insert(i, axis_tag);
+            if self
+                .user_axes_location
+                .get(&axis_tag)
+                .map(|t| !t.is_point())
+                .unwrap_or(false)
+            {
+                axis_not_pinned = true;
+                self.axes_index_map.insert(i, new_axis_idx);
+                self.axis_tags.push(axis_tag);
+                new_axis_idx += 1;
+            }
+            if let Some(axis_range) = self.user_axes_location.get(&axis_tag) {
+                self.axes_triple_distances.insert(
+                    axis_tag,
+                    // These are for the whole axis, not the user chosen subspace
+                    Triple::new(axis.min_value(), axis.default_value(), axis.max_value()).into(),
+                );
+                // This rounds to f2dot14. Behdad says it should be 16.16
+                let normalized_min = axis.normalize(axis_range.minimum);
+                let normalized_default = axis.normalize(axis_range.middle);
+                let normalized_max = axis.normalize(axis_range.maximum);
+                if has_avar {
+                    normalized_mins.push(normalized_min);
+                    normalized_defaults.push(normalized_default);
+                    normalized_maxs.push(normalized_max);
+                } else {
+                    self.axes_location.insert(
+                        axis_tag,
+                        Triple::new(
+                            normalized_min.to_f32(),
+                            normalized_default.to_f32(),
+                            normalized_max.to_f32(),
+                        ),
+                    );
+                    self.normalized_coords[i] = normalized_default;
+                    if normalized_default.to_f32() != 0.0 {
+                        self.pinned_at_default = false;
+                    }
+                }
+            }
+        }
+        self.all_axes_pinned = !axis_not_pinned;
+        if let Ok(avar) = font.avar() {
+            if avar.version().major == 2 {
+                log::warn!("Partial-instancing avar2 table is not supported.");
+                return Err(ReadError::InvalidFormat(2));
+            }
+            normalized_mins = avar::map_coords_2_14(&avar, normalized_mins)?;
+            normalized_defaults = avar::map_coords_2_14(&avar, normalized_defaults)?;
+            normalized_maxs = avar::map_coords_2_14(&avar, normalized_maxs)?;
+            for (i, axis) in axes.iter().enumerate() {
+                let axis_tag = axis.tag();
+                if self.user_axes_location.contains_key(&axis_tag) {
+                    self.axes_location.insert(
+                        axis_tag,
+                        Triple::new(
+                            normalized_mins[i].to_f32(),
+                            normalized_defaults[i].to_f32(),
+                            normalized_maxs[i].to_f32(),
+                        ),
+                    );
+                    self.normalized_coords[i] = normalized_defaults[i];
+                    if normalized_defaults[i].to_f32() != 0.0 {
+                        self.pinned_at_default = false;
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn populate_unicodes_to_retain(
