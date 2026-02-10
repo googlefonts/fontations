@@ -6,7 +6,7 @@
 //! To generate the expected output files, pass GEN_EXPECTED_OUTPUTS=1 as an
 //! environment variable.
 
-use klippa::{parse_unicodes, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES};
+use skera::{parse_unicodes, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES};
 use skrifa::GlyphId;
 use std::fmt::Write;
 use std::fs;
@@ -278,7 +278,7 @@ impl SubsetTestCase {
     }
 
     fn run(&self) {
-        let output_temp_dir = TempDir::new_in(".", "klippa_test").unwrap();
+        let output_temp_dir = TempDir::new_in(".", "skera_test").unwrap();
         let output_dir = output_temp_dir.path();
         for font in &self.fonts {
             for profile in &self.profiles {
@@ -291,7 +291,7 @@ impl SubsetTestCase {
     }
 
     fn gen_expected_output(&self) {
-        let output_temp_dir = TempDir::new_in(".", "klippa_test").unwrap();
+        let output_temp_dir = TempDir::new_in(".", "skera_test").unwrap();
         let output_dir = output_temp_dir.path();
         for font in &self.fonts {
             for profile in &self.profiles {
@@ -385,7 +385,7 @@ impl SubsetTestCase {
 
         let diff = diff_ttx(&expected_ttx, &output_ttx);
         if !diff.is_empty() {
-            panic!("{diff}\nError: ttx for fonttools and klippa does not match.");
+            panic!("{diff}\nError: ttx for fonttools and skera does not match.");
         }
         fs::remove_file(expected_file).unwrap();
         fs::remove_file(expected_ttx).unwrap();

@@ -1,5 +1,5 @@
 [package]
-name = "klippa"
+name = "skera"
 version = "0.1.0"
 description = "Subsetting a font file according to provided input."
 readme = "README.md"
