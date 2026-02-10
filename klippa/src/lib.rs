@@ -32,6 +32,7 @@ mod sbix;
 pub mod serialize;
 mod stat;
 mod variations;
+mod vmtx;
 mod vorg;
 mod vvar;
 use crate::repack::resolve_overflows;
@@ -46,12 +47,9 @@ pub use parsing_util::{
 };
 
 use fnv::FnvHashMap;
-use serialize::SerializeErrorFlags;
-use serialize::Serializer;
+use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::MetadataProvider;
 use thiserror::Error;
-use write_fonts::types::GlyphId;
-use write_fonts::types::Tag;
 use write_fonts::{
     read::{
         collections::{int_set::Domain, IntSet},
@@ -61,7 +59,7 @@ use write_fonts::{
             cblc::Cblc,
             cff::Cff,
             cff2::Cff2,
-            cmap::{Cmap, CmapSubtable},
+            cmap::{Cmap, CmapSubtable, PlatformId},
             colr::Colr,
             cpal::Cpal,
             cvar::Cvar,
@@ -73,21 +71,25 @@ use write_fonts::{
             gvar::Gvar,
             hdmx::Hdmx,
             head::Head,
+            hhea::Hhea,
+            hmtx::Hmtx,
             hvar::Hvar,
             loca::Loca,
+            maxp::Maxp,
             name::Name,
             os2::Os2,
             post::Post,
             sbix::Sbix,
+            vhea::Vhea,
+            vmtx::Vmtx,
             vorg::Vorg,
             vvar::Vvar,
         },
-        types::NameId,
+        types::{GlyphId, NameId, Tag},
         FontRef, TableProvider, TopLevelTable,
     },
-    tables::cmap::PlatformId,
+    FontBuilder,
 };
-use write_fonts::{tables::hhea::Hhea, tables::hmtx::Hmtx, tables::maxp::Maxp, FontBuilder};
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
 const MAX_NESTING_LEVEL: u8 = 64;
@@ -1271,6 +1273,14 @@ fn subset_table<'a>(
         Hmtx::TAG => font
             .hmtx()
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?
+            .subset(plan, font, s, builder),
+
+        //Skip, handled by Vmtx
+        Vhea::TAG => Ok(()),
+
+        Vmtx::TAG => font
+            .vmtx()
+            .map_err(|_| SubsetError::SubsetTableError(Vmtx::TAG))?
             .subset(plan, font, s, builder),
 
         Hvar::TAG => font

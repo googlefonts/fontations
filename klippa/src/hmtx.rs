@@ -39,14 +39,14 @@ impl Subset for Hmtx<'_> {
             let new_gid = new_gid.to_u32() as usize;
             if new_gid < new_num_h_metrics {
                 let idx = 4 * new_gid;
-                let advance = UfWord::from(self.advance(*old_gid).unwrap());
+                let advance = UfWord::from(self.advance(*old_gid).unwrap_or(0));
                 s.copy_assign(idx, advance);
 
-                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap());
+                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap_or(0));
                 s.copy_assign(idx + 2, lsb);
             } else {
                 let idx = 4 * new_num_h_metrics + (new_gid - new_num_h_metrics) * 2;
-                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap());
+                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap_or(0));
                 s.copy_assign(idx, lsb);
             }
         }
