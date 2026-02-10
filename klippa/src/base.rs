@@ -68,15 +68,16 @@ impl Subset for Base<'_> {
                     .embed(0_u32)
                     .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
 
-                Offset32::serialize_subset(
+                match Offset32::serialize_subset(
                     &var_store,
                     s,
                     plan,
-                    &plan.base_varstore_inner_maps,
+                    (&plan.base_varstore_inner_maps, false),
                     varstore_offset_pos,
-                )
-                .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
-                Ok(())
+                ) {
+                    Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => Ok(()),
+                    Err(_) => Err(SubsetError::SubsetTableError(Base::TAG)),
+                }
             }
             None => {
                 if self.version().minor > 0 {

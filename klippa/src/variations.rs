@@ -17,27 +17,31 @@ use write_fonts::{
 };
 
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
-    type ArgsForSubset = &'a [IncBiMap];
+    type ArgsForSubset = (&'a [IncBiMap], bool);
     type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        inner_maps: &[IncBiMap],
+        args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        if inner_maps.is_empty() {
+        let (inner_maps, keep_empty) = args;
+        if !keep_empty && inner_maps.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         s.embed(self.format())?;
 
-        let regions = self
+        let var_region_list = self
             .variation_region_list()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
 
         let var_data_array = self.item_variation_data();
         let mut region_indices = IntSet::empty();
         for (i, inner_map) in inner_maps.iter().enumerate() {
+            if inner_map.len() == 0 {
+                continue;
+            }
             match var_data_array.get(i) {
                 Some(Ok(var_data)) => {
                     collect_region_refs(&var_data, inner_map, &mut region_indices);
@@ -49,27 +53,29 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
             }
         }
 
-        let max_region_count = regions.region_count();
-        region_indices.remove_range(max_region_count..=u16::MAX);
-
-        if region_indices.is_empty() {
+        if region_indices.is_empty() && !keep_empty {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        let mut region_map = IncBiMap::with_capacity(region_indices.len() as usize);
+        // varRegionList
+        let max_region_count = var_region_list.region_count();
+        region_indices.remove_range(max_region_count..=u16::MAX);
+
+        let mut region_map: IncBiMap = IncBiMap::with_capacity(region_indices.len() as usize);
         for region in region_indices.iter() {
             region_map.add(region as u32);
         }
 
-        let Ok(var_region_list) = self.variation_region_list() else {
-            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-        };
+        let region_list_offset_pos = s.embed(Offset32::new(0))?;
+        Offset32::serialize_subset(
+            &var_region_list,
+            s,
+            plan,
+            &region_map,
+            region_list_offset_pos,
+        )?;
 
-        // var_region_list
-        let regions_offset_pos = s.embed(Offset32::new(0))?;
-        Offset32::serialize_subset(&var_region_list, s, plan, &region_map, regions_offset_pos)?;
-
-        serialize_var_data_offset_array(self, s, plan, inner_maps, &region_map)
+        serialize_var_data_offset_array(self, s, plan, inner_maps, &region_map, keep_empty)
     }
 }
 
@@ -89,6 +95,9 @@ impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
         let region_count = region_map.len() as u16;
         s.embed(region_count)?;
 
+        if region_count == 0 {
+            return Ok(());
+        }
         //Fixed size of a VariationRegion
         let var_region_size = 3 * axis_count as usize * F2Dot14::RAW_BYTE_LEN;
         if var_region_size.checked_mul(region_count as usize).is_none() {
@@ -132,6 +141,7 @@ fn serialize_var_data_offset_array(
     plan: &Plan,
     inner_maps: &[IncBiMap],
     region_map: &IncBiMap,
+    keep_empty: bool,
 ) -> Result<(), SerializeErrorFlags> {
     let mut vardata_count = 0_u16;
     let count_pos = s.embed(vardata_count)?;
@@ -159,7 +169,11 @@ fn serialize_var_data_offset_array(
         }
     }
     if vardata_count == 0 {
-        return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        if !keep_empty {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        } else {
+            return Ok(());
+        }
     }
     s.copy_assign(count_pos, vardata_count);
     Ok(())
@@ -601,7 +615,7 @@ mod test {
 
         let mut s = Serializer::new(1024);
         assert_eq!(s.start_serialize(), Ok(()));
-        let ret = item_varstore.subset(&plan, &mut s, &plan.base_varstore_inner_maps);
+        let ret = item_varstore.subset(&plan, &mut s, (&plan.base_varstore_inner_maps, false));
         assert_eq!(ret, Ok(()));
         assert!(!s.in_error());
         s.end_serialize();
