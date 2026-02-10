@@ -14,6 +14,10 @@ impl Triple {
         }
     }
 
+    pub(crate) fn point(p: f32) -> Self {
+        Self::new(p, p, p)
+    }
+
     #[allow(dead_code)]
     pub(crate) fn is_point(&self) -> bool {
         self.minimum == self.middle && self.middle == self.maximum

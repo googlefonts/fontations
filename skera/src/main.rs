@@ -259,6 +259,7 @@ fn main() {
             &layout_features,
             &name_ids,
             &name_languages,
+            &instancing_spec,
         );
         match subset_font(&font, &plan) {
             Ok(out) => {
