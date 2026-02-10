@@ -426,6 +426,7 @@ fn gen_subset_font_file(
         &profile.layout_features,
         &profile.name_ids,
         &profile.name_languages,
+        &None,
     );
 
     let subset_output = subset_font(&font, &plan).unwrap();
