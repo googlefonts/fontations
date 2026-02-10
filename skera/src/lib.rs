@@ -37,6 +37,7 @@ mod vmtx;
 mod vorg;
 mod vvar;
 use crate::{
+    parsing_util::InstancingSpec,
     repack::resolve_overflows,
     variations::solver::{Triple, TripleDistances},
 };
@@ -393,6 +394,7 @@ impl Plan {
         layout_features: &IntSet<Tag>,
         name_ids: &IntSet<NameId>,
         name_languages: &IntSet<u16>,
+        variations: &Option<InstancingSpec>,
     ) -> Self {
         let mut this = Plan {
             glyphs_requested: input_gids.clone(),
@@ -406,6 +408,10 @@ impl Plan {
             pinned_at_default: true,
             ..Default::default()
         };
+
+        if let Some(variations) = variations {
+            let _ = this.apply_instancing_spec(variations, font); // XXX Propagate
+        }
 
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L71>
         let default_no_subset_tables = [gasp::Gasp::TAG, FPGM, PREP, VDMX, DSIG];
@@ -909,6 +915,49 @@ impl Plan {
             &mut self.base_varstore_inner_maps,
         );
     }
+
+    fn apply_instancing_spec(
+        &mut self,
+        spec: &InstancingSpec,
+        font: &FontRef,
+    ) -> Result<(), SubsetError> {
+        if spec.pin_all_axes_to_default {
+            for axis in font.axes().iter() {
+                self.user_axes_location
+                    .insert(axis.tag(), Triple::point(axis.default_value()));
+            }
+            return Ok(());
+        }
+        for font_axis in font.axes().iter() {
+            let tag = font_axis.tag();
+            let spec_axis = spec.axes.get(&tag);
+            match spec_axis {
+                Some(parsing_util::AxisSpec::PinToDefault) => {
+                    self.user_axes_location
+                        .insert(tag, Triple::point(font_axis.default_value()));
+                }
+                Some(parsing_util::AxisSpec::Range { min, def, max }) => {
+                    let new_min = min.clamp(font_axis.min_value(), font_axis.max_value());
+                    let new_max = max.clamp(font_axis.min_value(), font_axis.max_value());
+                    let new_def = def.clamp(new_min, new_max);
+                    self.user_axes_location
+                        .insert(tag, Triple::new(new_min, new_def, new_max));
+                }
+                None => {
+                    // If an axis is not specified in the instancing spec, we keep it as is, which means it's not pinned and will not be removed.
+                    self.user_axes_location.insert(
+                        tag,
+                        Triple::new(
+                            font_axis.min_value(),
+                            font_axis.default_value(),
+                            font_axis.max_value(),
+                        ),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 // TODO: when instancing, calculate delta value and set new varidx to NO_VARIATIONS_IDX if all axes are pinned
@@ -1093,6 +1142,9 @@ pub enum SubsetError {
 
     #[error("Subsetting table '{0}' failed")]
     SubsetTableError(Tag),
+
+    #[error("Invalid input to --variations: {0}")]
+    InvalidInstancingSpec(String),
 }
 
 pub trait NameIdClosure {
