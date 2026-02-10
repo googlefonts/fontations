@@ -431,6 +431,7 @@ pub struct FlagDayMarker {
     foo_byte_start: Option<usize>,
     bar_byte_start: Option<usize>,
     baz_byte_start: Option<usize>,
+    qux_byte_start: Option<usize>,
 }
 
 impl FlagDayMarker {
@@ -456,6 +457,11 @@ impl FlagDayMarker {
 
     pub fn baz_byte_range(&self) -> Option<Range<usize>> {
         let start = self.baz_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+
+    pub fn qux_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.qux_byte_start?;
         Some(start..start + u16::RAW_BYTE_LEN)
     }
 }
@@ -492,10 +498,18 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
         flags
             .intersects(GotFlags::BAZ | GotFlags::FOO)
             .then(|| cursor.advance::<u16>());
+        let qux_byte_start = !flags
+            .intersects(GotFlags::FOO)
+            .then(|| cursor.position())
+            .transpose()?;
+        !flags
+            .intersects(GotFlags::FOO)
+            .then(|| cursor.advance::<u16>());
         cursor.finish(FlagDayMarker {
             foo_byte_start,
             bar_byte_start,
             baz_byte_start,
+            qux_byte_start,
         })
     }
 }
@@ -528,6 +542,11 @@ impl<'a> FlagDay<'a> {
         let range = self.shape.baz_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
+
+    pub fn qux(&self) -> Option<u16> {
+        let range = self.shape.qux_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -544,6 +563,9 @@ impl<'a> SomeTable<'a> for FlagDay<'a> {
             3usize if flags.contains(GotFlags::BAR) => Some(Field::new("bar", self.bar().unwrap())),
             4usize if flags.intersects(GotFlags::BAZ | GotFlags::FOO) => {
                 Some(Field::new("baz", self.baz().unwrap()))
+            }
+            5usize if !flags.intersects(GotFlags::FOO) => {
+                Some(Field::new("qux", self.qux().unwrap()))
             }
             _ => None,
         }

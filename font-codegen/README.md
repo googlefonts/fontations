@@ -5,6 +5,7 @@ compiling various font tables. For an in-depth overview of what code we generate
 and how it works, see the [codegen-tour][] document.
 
 The basics:
+
 - Inputs live in `resources/codegen_inputs`.
 - To run the code generator:
   ```sh
@@ -26,7 +27,6 @@ The basics:
 - these output files (which are not in the module tree) are included with the
   [`include!`][] macro into a corresponding module, generally in
   `$crate/src/tables/$name.rs`.
-
 
 ## Adding a new table
 
@@ -50,7 +50,6 @@ The basics:
 - Update `otexplorer` to add support for your table. Run the `otexplorer` tool,
   and ensure it is producing reasonable output.
 - Repeat this process for the `write-fonts` crate.
-
 
 ## Modifying the codegen code
 
@@ -107,7 +106,7 @@ Offset16	langTagOffset	Language-tag string offset from start of storage area (in
 ```
 
 - all objects are separated by a newline, and begin with `@OBJECT_TYPE`.
-- record & table are currently interchangeable, but this may change, and  you
+- record & table are currently interchangeable, but this may change, and you
   should follow the spec.
 - enum & flags require an explicit format
 - this does not handle lifetimes, which will need to be added manually
@@ -164,18 +163,27 @@ The following annotations are supported on top-level objects:
   with the signature `fn(&self, &mut ValidationCtx)`.
 
 #### field attributes
+
 - `#[nullable]`: only allowed on offsets or arrays of offsets, and indicates
   that this field is allowed to be null. This changes the behaviour of getters,
   as well as validation and compilation code.
 - `#[since_version(version)]`: indicates that a field only exists in a given version
   of the table. The `version` may be either a single integer literal
   (`#[since_version(1)]`), or a major.minor pair (`#[since_version(1.1)]`).
+- `#[before_version(version)]`: indicates that a field only exists prior to a given version
+  of the table. The `version` may be either a single integer literal
+  (`#[before_version(2)]`) or a major.minor pair (`#[before_version(1.1)]`).
 - `#[if_flag($field, Flags::SOME_FLAG)]`: indicates that a given field is only
   present if a particular flag is set on the named field. The field is expected
   to be a bitset with a `contains` method.
-- `#[if_cond($field, Flags::SOME_FLAG_A, Flags::SOME_FLAG_B, ...)]`: indicates that a
-  given field is only present if at least one of the listed flags is set on the named
-  field. The field is expected to be a bitset with a `contains` method.
+- `#[if_cond($method(...))]`:
+  A function identifier, then one or more arguments.
+  - `#[if_cond(any_flag($field, Flags::SOME_FLAG_A, Flags::SOME_FLAG_B, ...))]`: indicates that a
+    given field is only present if at least one of the listed flags is set on the named
+    field. The field is expected to be a bitset with an `intersects` method.
+  - `#[if_cond(not_flag($field, Flags::SOME_FLAG_A, Flags::SOME_FLAG_B, ...))]`: indicates that a
+    given field is only present if none of the listed flags are set on the named
+    field. The field is expected to be a bitset with an `intersects` method.
 - `#[skip_getter]`: if present, we will not generate a getter for this field.
   Used on things like padding fields.
 - `#[offset_getter(method name)]`: only allowed on offsets or arrays of offsets.
@@ -233,7 +241,6 @@ The following annotations are supported on top-level objects:
 - `#[to_owned(expr)]`: uncommon/hacky: provide an expression that will be used
   in `FromObjRef` to convert the parse type to the compile type.
 
-
 ### codegen plans
 
 There is also the concept of a 'codegen plan', which is a simple toml file
@@ -243,6 +250,8 @@ intended to be the general mechanism by which codegen is run.
 See `../resources/codegen_plan.toml` for an example.
 
 [opentype]: https://docs.microsoft.com/en-us/typography/opentype/
+
 [`include!`]: http://doc.rust-lang.org/1.64.0/std/macro.include.html
+
 [codegen-tour]: ../docs/codegen-tour.md
 

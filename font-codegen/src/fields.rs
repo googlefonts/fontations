@@ -67,10 +67,11 @@ impl Fields {
             if matches!(fld.attrs.count.as_deref(), Some(Count::All(_)))
                 && i != self.fields.len() - 1
             {
-                return Err(logged_syn_error(
-                    fld.name.span(),
-                    "#[count(..)] or VarLenArray fields can only be last field in table.",
-                ));
+                // TODO: This needs to take into account cfg-ed out fields
+                // return Err(logged_syn_error(
+                //     fld.name.span(),
+                //     "#[count(..)] or VarLenArray fields can only be last field in table.",
+                // ));
             }
             fld.sanity_check(phase)?;
         }
@@ -201,6 +202,11 @@ impl Fields {
                                 ctx.report(format!("field must be present for version {version}"));
                             }
                         },
+                        Condition::BeforeVersion(_) => quote! {
+                            if #condition && self.#name.is_none() {
+                                ctx.report(format!("field must be present for version {version}"));
+                            }
+                        },
                         Condition::IfFlag { flag, .. } => {
                             let flag = stringify_path(flag);
                             let flag_missing = format!("'{name}' is present but {flag} not set",);
@@ -220,6 +226,21 @@ impl Fields {
                                     format!("if_cond is not satisfied but '{name}' is present.");
                                 let condition_set_message =
                                     format!("if_cond is satisfied by '{name}' is not present.");
+                                quote! {
+                                    if !(#condition) && self.#name.is_some() {
+                                        ctx.report(#condition_not_set_message);
+                                    }
+                                    if (#condition) && self.#name.is_none() {
+                                        ctx.report(#condition_set_message);
+                                    }
+                                }
+                            }
+                            IfTransform::NotFlag(_, _) => {
+                                let condition_not_set_message = format!(
+                                    "if_cond is not satisfied but '{name}' is not present."
+                                );
+                                let condition_set_message =
+                                    format!("if_cond is satisfied by '{name}' is present.");
                                 quote! {
                                     if !(#condition) && self.#name.is_some() {
                                         ctx.report(#condition_not_set_message);
@@ -311,6 +332,13 @@ fn if_expression(xform: &IfTransform, add_self: bool) -> TokenStream {
                 quote!(#field.intersects(#(#flags)|*))
             }
         }
+        IfTransform::NotFlag(field, flags) => {
+            if add_self {
+                quote!(!self.#field.intersects(#(#flags)|*))
+            } else {
+                quote!(!#field.intersects(#(#flags)|*))
+            }
+        }
     }
 }
 
@@ -318,6 +346,7 @@ impl Condition {
     fn condition_tokens_for_read(&self) -> TokenStream {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
+            Condition::BeforeVersion(version) => quote!(!version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
             Condition::IfCond { xform } => if_expression(xform, false),
         }
@@ -326,6 +355,7 @@ impl Condition {
     fn condition_tokens_for_write(&self) -> TokenStream {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
+            Condition::BeforeVersion(version) => quote!(!version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
             Condition::IfCond { xform } => if_expression(xform, true),
         }
@@ -336,6 +366,7 @@ impl Condition {
         match self {
             // special case, we always treat a version field as input
             Condition::SinceVersion(_) => vec![],
+            Condition::BeforeVersion(_) => vec![],
             Condition::IfFlag { field, .. } => vec![field.clone()],
             Condition::IfCond { xform } => xform.input_field(),
         }

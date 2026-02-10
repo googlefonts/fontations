@@ -53,8 +53,12 @@ pub mod vmtx;
 pub mod vorg;
 pub mod vvar;
 
+mod featgr;
+mod gloc;
 #[cfg(feature = "ift")]
 pub mod ift;
+mod silf;
+mod sill;
 
 /// Computes the table checksum for the given data.
 ///

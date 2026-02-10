@@ -246,6 +246,7 @@ pub(crate) struct FieldReadArgs {
 #[derive(Clone, Debug)]
 pub(crate) enum Condition {
     SinceVersion(VersionSpec),
+    BeforeVersion(VersionSpec),
     IfFlag { field: syn::Ident, flag: syn::Path },
     IfCond { xform: IfTransform },
 }
@@ -256,6 +257,10 @@ pub(crate) enum IfTransform {
     ///
     /// Evaluates to true if field has at least one of the input flags set.
     AnyFlag(syn::Ident, Vec<syn::Path>),
+    /// not_flag(field, flag_a, ...):
+    ///
+    /// Evaluates to true if field does *not* have any flag set
+    NotFlag(syn::Ident, Vec<syn::Path>),
 }
 
 enum IfArg {
@@ -320,6 +325,8 @@ pub(crate) enum CountTransform {
     SubAddTwo,
     /// requires exactly one arg. Get the count from the $arg1.`try_into::<usize>`().
     TryInto,
+    /// requires exactly one arg. Count the number of 1 bits in the value
+    CountOnes,
 }
 
 /// Attributes for specifying how to compile a field
@@ -1042,6 +1049,7 @@ static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
 static SINCE_VERSION: &str = "since_version";
+static BEFORE_VERSION: &str = "before_version";
 static IF_COND: &str = "if_cond";
 static IF_FLAG: &str = "if_flag";
 static FORMAT: &str = "format";
@@ -1103,6 +1111,9 @@ impl Parse for FieldAttrs {
             } else if ident == SINCE_VERSION {
                 let spec = attr.parse_args()?;
                 this.checked_set_condition(ident, Condition::SinceVersion(spec))?;
+            } else if ident == BEFORE_VERSION {
+                let spec = attr.parse_args()?;
+                this.checked_set_condition(ident, Condition::BeforeVersion(spec))?;
             } else if ident == IF_FLAG {
                 let condition = parse_if_flag(&attr)?;
                 this.checked_set_condition(ident, condition)?;
@@ -1471,6 +1482,7 @@ static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
     (CountTransform::MaxValueBitmapLen, "max_value_bitmap_len"),
     (CountTransform::SubAddTwo, "subtract_add_two"),
     (CountTransform::TryInto, "try_into"),
+    (CountTransform::CountOnes, "count_ones"),
 ];
 
 impl FromStr for CountTransform {
@@ -1509,6 +1521,7 @@ impl CountTransform {
             CountTransform::MaxValueBitmapLen => 1,
             CountTransform::SubAddTwo => 2,
             CountTransform::TryInto => 1,
+            CountTransform::CountOnes => 1,
         }
     }
 }
@@ -1668,6 +1681,9 @@ impl Count {
                 }
                 (CountTransform::TryInto, [a]) => {
                     quote!(usize::try_from(#a).unwrap_or_default())
+                }
+                (CountTransform::CountOnes, [a]) => {
+                    quote!(transforms::count_ones(#a))
                 }
                 _ => unreachable!("validated before now"),
             },
@@ -1861,6 +1877,7 @@ impl IfTransform {
     fn from_args(s: &str, args: Vec<IfArg>) -> Result<Self, String> {
         match s {
             "any_flag" => Self::any_flag(args),
+            "not_flag" => Self::not_flag(args),
             _ => Err(format!("invalid if_cond transform function: {}", s)),
         }
     }
@@ -1884,9 +1901,29 @@ impl IfTransform {
         Ok(IfTransform::AnyFlag(field.clone(), flags))
     }
 
+    fn not_flag(args: Vec<IfArg>) -> Result<Self, String> {
+        let Some(IfArg::Field(field)) = args.first() else {
+            return Err("First argument to not_flag must be a field name.".to_string());
+        };
+
+        let mut flags: Vec<syn::Path> = vec![];
+        for arg in args.iter().skip(1) {
+            let IfArg::Path(flag) = arg else {
+                return Err(
+                    "Arguments after the first argument to not_flag must be a flag names."
+                        .to_string(),
+                );
+            };
+            flags.push(flag.clone());
+        }
+
+        Ok(IfTransform::NotFlag(field.clone(), flags))
+    }
+
     pub(crate) fn input_field(&self) -> Vec<syn::Ident> {
         match self {
             IfTransform::AnyFlag(field, _) => vec![field.clone()],
+            IfTransform::NotFlag(field, _) => vec![field.clone()],
         }
     }
 }
