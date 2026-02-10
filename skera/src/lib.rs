@@ -35,7 +35,10 @@ mod variations;
 mod vmtx;
 mod vorg;
 mod vvar;
-use crate::repack::resolve_overflows;
+use crate::{
+    repack::resolve_overflows,
+    variations::solver::{Triple, TripleDistances},
+};
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
@@ -353,6 +356,17 @@ pub struct Plan {
     layout_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
     //GDEF table varstore retained varidx mapping
     gdef_varstore_inner_maps: Vec<IncBiMap>,
+
+    // normalized axes range map
+    axes_location: FnvHashMap<Tag, Triple>,
+    normalized_coords: Vec<i32>,
+
+    // user specified axes range map
+    user_axes_location: FnvHashMap<Tag, Triple>,
+    axes_triple_distances: FnvHashMap<Tag, TripleDistances>,
+
+    //retained old axis index -> new axis index mapping in fvar axis array
+    axes_index_map: FnvHashMap<u32, (u32, i32)>,
 }
 
 #[derive(Default)]
