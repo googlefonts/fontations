@@ -57,7 +57,10 @@ use unicode_closure::unicode_closure;
 
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
-use skrifa::{raw::ReadError, MetadataProvider};
+use skrifa::{
+    raw::{tables::fvar::Fvar, ReadError},
+    MetadataProvider,
+};
 use thiserror::Error;
 use write_fonts::{
     read::{
@@ -73,7 +76,6 @@ use write_fonts::{
             colr::Colr,
             cpal::Cpal,
             cvar::Cvar,
-            fvar::Fvar,
             gasp,
             gdef::Gdef,
             glyf::{Glyf, Glyph},
@@ -1540,6 +1542,16 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Cpal::TAG))?
             .subset(plan, font, s, builder),
 
+        Fvar::TAG => {
+            if plan.axes_index_map.is_empty() && !plan.all_axes_pinned {
+                passthrough_table(tag, font, s)
+            } else {
+                font.fvar()
+                    .map_err(|_| SubsetError::SubsetTableError(Fvar::TAG))?
+                    .subset(plan, font, s, builder)
+            }
+        }
+
         Gdef::TAG => font
             .gdef()
             .map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))?
@@ -1603,7 +1615,7 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?
             .subset(plan, font, s, builder),
 
-        Fvar::TAG | Cvar::TAG => passthrough_table(tag, font, s),
+        Cvar::TAG => passthrough_table(tag, font, s),
         // MVAR/CVT: not supported by read-fonts, but we want to pass through it during subsetting
         MVAR | CVT => passthrough_table(tag, font, s),
 
