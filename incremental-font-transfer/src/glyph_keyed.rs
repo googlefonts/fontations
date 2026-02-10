@@ -28,8 +28,8 @@ use read_fonts::{
     FontData, FontRead, FontRef, ReadError, TableProvider, TopLevelTable,
 };
 
-use klippa::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
 use shared_brotli_patch_decoder::SharedBrotliDecoder;
+use skera::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
 use skrifa::GlyphId;
 use std::collections::{BTreeSet, HashMap};
 use std::ops::{Range, RangeInclusive};
@@ -878,7 +878,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
         // spec which prescribes the above ordering we always output the parts in the spec ordering
         // regardless of how they were ordered in the original table. Additionally this will correctly resolve cases
         // where the original table had overlapping shared tuple and glyph variation data.
-        // However, as a result we may need to change offsets in part 1 if ordering gets modified. The klippa serializer
+        // However, as a result we may need to change offsets in part 1 if ordering gets modified. The skera serializer
         // is used to recalculate offsets as needed.
         let orig_bytes = self.as_bytes();
         let orig_size = orig_bytes.len();

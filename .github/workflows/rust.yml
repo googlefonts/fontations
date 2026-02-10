@@ -55,8 +55,8 @@ jobs:
       - name: cargo clippy skrifa (1.85)
         run: cargo clippy -p skrifa --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy klippa (1.85)
-        run: cargo clippy -p klippa --all-features --all-targets -- -D warnings
+      - name: cargo clippy skera (1.85)
+        run: cargo clippy -p skera --all-features --all-targets -- -D warnings
 
   test-stable:
     name: cargo test stable
@@ -94,10 +94,10 @@ jobs:
       - name: cargo test skrifa (all)
         run: cargo test -p skrifa --all-targets --all-features
 
-      - name: cargo test klippa
+      - name: cargo test skera
         run: |
-          pip install -r resources/scripts/klippa_ci_requirements.txt
-          cargo test -p klippa --all-targets --all-features
+          pip install -r resources/scripts/skera_ci_requirements.txt
+          cargo test -p skera --all-targets --all-features
 
       - name: cargo test incremental-font-transfer
         run: cargo test -p incremental-font-transfer --all-targets --all-features

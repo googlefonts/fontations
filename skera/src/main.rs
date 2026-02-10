@@ -5,7 +5,7 @@
 //!
 
 use clap::Parser;
-use klippa::{
+use skera::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
     subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC, JSTF, KERN,
     KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,

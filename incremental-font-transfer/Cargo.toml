@@ -25,7 +25,7 @@ read-fonts = { workspace = true, features = ["ift"] }
 write-fonts = { workspace = true, features = ["ift"] }
 font-types = { workspace = true }
 skrifa = { workspace = true }
-klippa = { workspace = true }
+skera = { workspace = true }
 shared-brotli-patch-decoder = { workspace = true, default-features = false }
 data-encoding = "2.6.0"
 data-encoding-macro = "0.1.15"

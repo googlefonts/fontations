@@ -10,7 +10,7 @@ members = [
     "otexplorer",
     "skrifa",
     "fauntlet",
-    "klippa",
+    "skera",
     "fuzz",
     "shared-brotli-patch-decoder",
     "incremental-font-transfer",
@@ -49,7 +49,7 @@ skrifa = { version = "0.40.0", path = "skrifa", default-features = false, featur
 write-fonts = { version = "0.45.0", path = "write-fonts" }
 shared-brotli-patch-decoder = { version = "0.1.0", path = "shared-brotli-patch-decoder", default-features = false }
 incremental-font-transfer = { version = "0.1.0", path = "incremental-font-transfer" }
-klippa = { version = "0.1.0", path = "klippa" }
+skera = { version = "0.1.0", path = "skera" }
 
 [workspace.metadata.release]
 allow-branch = ["main"]

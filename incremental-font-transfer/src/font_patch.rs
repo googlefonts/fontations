@@ -18,8 +18,8 @@ use crate::glyph_keyed::apply_glyph_keyed_patches;
 
 use crate::table_keyed::apply_table_keyed_patch;
 use font_types::Tag;
-use klippa::serialize::SerializeErrorFlags;
 use read_fonts::tables::ift::{CompatibilityId, GlyphKeyedPatch, TableKeyedPatch};
+use skera::serialize::SerializeErrorFlags;
 
 use read_fonts::{FontData, FontRead, FontRef, ReadError};
 
