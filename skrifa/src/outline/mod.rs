@@ -87,6 +87,7 @@ mod memory;
 mod metrics;
 mod path;
 mod unscaled;
+mod varc;
 
 #[cfg(test)]
 mod testing;
@@ -125,6 +126,8 @@ pub enum OutlineGlyphFormat {
     Cff,
     /// PostScript outlines sourced from the `CFF2` table.
     Cff2,
+    /// Variable composites sourced from the `VARC` table.
+    Varc,
 }
 
 /// Specifies the hinting strategy for memory size calculations.
@@ -278,6 +281,7 @@ impl<'a> OutlineGlyph<'a> {
                     OutlineGlyphFormat::Cff
                 }
             }
+            OutlineKind::Varc(..) => OutlineGlyphFormat::Varc,
         }
     }
 
@@ -286,6 +290,7 @@ impl<'a> OutlineGlyph<'a> {
         match &self.kind {
             OutlineKind::Glyf(_, glyph) => glyph.glyph_id,
             OutlineKind::Cff(_, gid, _) => *gid,
+            OutlineKind::Varc(_, outline) => outline.glyph_id,
         }
     }
 
@@ -308,6 +313,7 @@ impl<'a> OutlineGlyph<'a> {
     pub fn has_hinting(&self) -> Option<bool> {
         match &self.kind {
             OutlineKind::Glyf(_, outline) => Some(outline.has_hinting),
+            OutlineKind::Varc(..) => Some(false),
             _ => None,
         }
     }
@@ -330,6 +336,7 @@ impl<'a> OutlineGlyph<'a> {
     pub fn draw_memory_size(&self, hinting: Hinting) -> usize {
         match &self.kind {
             OutlineKind::Glyf(_, outline) => outline.required_buffer_size(hinting),
+            OutlineKind::Varc(_, outline) => outline.required_buffer_size(),
             _ => 0,
         }
     }
@@ -398,7 +405,7 @@ impl<'a> OutlineGlyph<'a> {
         let coords = location.into().effective_coords();
         match &self.kind {
             OutlineKind::Glyf(glyf, outline) => {
-                with_glyf_memory(outline, Hinting::None, user_memory, |buf| {
+                with_temporary_memory(self, Hinting::None, user_memory, |buf| {
                     let (lsb, advance_width) = match path_style {
                         PathStyle::FreeType => {
                             let scaled_outline =
@@ -434,6 +441,12 @@ impl<'a> OutlineGlyph<'a> {
                 cff.draw(&subfont, *glyph_id, coords, false, pen)?;
                 Ok(AdjustedMetrics::default())
             }
+            OutlineKind::Varc(varc, outline) => {
+                with_temporary_memory(self, Hinting::None, user_memory, |buf| {
+                    varc.draw(outline, buf, size, coords, path_style, pen)?;
+                    Ok(AdjustedMetrics::default())
+                })
+            }
         }
     }
 
@@ -450,7 +463,7 @@ impl<'a> OutlineGlyph<'a> {
         let ppem = None;
         match &self.kind {
             OutlineKind::Glyf(glyf, outline) => {
-                with_glyf_memory(outline, Hinting::None, user_memory, |buf| {
+                with_temporary_memory(self, Hinting::None, user_memory, |buf| {
                     let outline = FreeTypeScaler::unhinted(glyf, outline, buf, ppem, coords)?
                         .scale(&outline.glyph, outline.glyph_id)?;
                     sink.try_reserve(outline.points.len())?;
@@ -483,6 +496,14 @@ impl<'a> OutlineGlyph<'a> {
                 let advance = cff.glyph_metrics.advance_width(*glyph_id, coords);
                 Ok(advance)
             }
+            OutlineKind::Varc(varc, outline) => {
+                with_temporary_memory(self, Hinting::None, user_memory, |buf| {
+                    let mut adapter = unscaled::UnscaledPenAdapter::new(sink);
+                    let advance = varc.draw_unscaled(outline, buf, coords, &mut adapter)?;
+                    adapter.finish()?;
+                    Ok(advance)
+                })
+            }
         }
     }
 
@@ -490,6 +511,7 @@ impl<'a> OutlineGlyph<'a> {
         match &self.kind {
             OutlineKind::Glyf(glyf, ..) => &glyf.font,
             OutlineKind::Cff(cff, ..) => &cff.font,
+            OutlineKind::Varc(varc, ..) => varc.font(),
         }
     }
 
@@ -497,6 +519,7 @@ impl<'a> OutlineGlyph<'a> {
         match &self.kind {
             OutlineKind::Cff(cff, ..) => cff.units_per_em(),
             OutlineKind::Glyf(glyf, ..) => glyf.units_per_em(),
+            OutlineKind::Varc(varc, ..) => varc.units_per_em(),
         }
     }
 }
@@ -506,6 +529,7 @@ enum OutlineKind<'a> {
     Glyf(glyf::Outlines<'a>, glyf::Outline<'a>),
     // Third field is subfont index
     Cff(cff::Outlines<'a>, GlyphId, u32),
+    Varc(varc::Outlines<'a>, varc::Outline),
 }
 
 impl Debug for OutlineKind<'_> {
@@ -517,6 +541,7 @@ impl Debug for OutlineKind<'_> {
                 .field(gid)
                 .field(subfont_index)
                 .finish(),
+            Self::Varc(_, outline) => f.debug_tuple("Varc").field(&outline.glyph_id).finish(),
         }
     }
 }
@@ -530,7 +555,9 @@ pub struct OutlineGlyphCollection<'a> {
 impl<'a> OutlineGlyphCollection<'a> {
     /// Creates a new outline collection for the given font.
     pub fn new(font: &FontRef<'a>) -> Self {
-        let kind = if let Some(glyf) = glyf::Outlines::new(font) {
+        let kind = if let Some(varc) = varc::Outlines::new(font) {
+            OutlineCollectionKind::Varc(varc)
+        } else if let Some(glyf) = glyf::Outlines::new(font) {
             OutlineCollectionKind::Glyf(glyf)
         } else if let Some(cff) = cff::Outlines::new(font) {
             OutlineCollectionKind::Cff(cff)
@@ -556,6 +583,7 @@ impl<'a> OutlineGlyphCollection<'a> {
                 let upem = font.head().ok()?.units_per_em();
                 OutlineCollectionKind::Cff(cff::Outlines::from_cff2(font, upem)?)
             }
+            OutlineGlyphFormat::Varc => OutlineCollectionKind::Varc(varc::Outlines::new(font)?),
         };
         Some(Self { kind })
     }
@@ -568,7 +596,8 @@ impl<'a> OutlineGlyphCollection<'a> {
                 .is_cff2()
                 .then_some(OutlineGlyphFormat::Cff2)
                 .or(Some(OutlineGlyphFormat::Cff)),
-            _ => None,
+            OutlineCollectionKind::Varc(..) => Some(OutlineGlyphFormat::Varc),
+            OutlineCollectionKind::None => None,
         }
     }
 
@@ -582,16 +611,24 @@ impl<'a> OutlineGlyphCollection<'a> {
             OutlineCollectionKind::Cff(cff) => Some(OutlineGlyph {
                 kind: OutlineKind::Cff(cff.clone(), glyph_id, cff.subfont_index(glyph_id)),
             }),
+            OutlineCollectionKind::Varc(varc) => Some(OutlineGlyph {
+                kind: if let Some(outline) = varc.outline(glyph_id).ok()? {
+                    OutlineKind::Varc(varc.clone(), outline)
+                } else {
+                    varc.fallback_outline_kind(glyph_id)?
+                },
+            }),
         }
     }
 
     /// Returns an iterator over all of the outline glyphs in the collection.
     pub fn iter(&self) -> impl Iterator<Item = (GlyphId, OutlineGlyph<'a>)> + 'a + Clone {
         let len = match &self.kind {
-            OutlineCollectionKind::Glyf(glyf) => glyf.glyph_count(),
-            OutlineCollectionKind::Cff(cff) => cff.glyph_count(),
-            _ => 0,
-        } as u16;
+            OutlineCollectionKind::Glyf(glyf) => glyf.glyph_count() as u32,
+            OutlineCollectionKind::Cff(cff) => cff.glyph_count() as u32,
+            OutlineCollectionKind::Varc(varc) => varc.glyph_count(),
+            OutlineCollectionKind::None => 0,
+        };
         let copy = self.clone();
         (0..len).filter_map(move |gid| {
             let gid = GlyphId::from(gid);
@@ -616,6 +653,7 @@ impl<'a> OutlineGlyphCollection<'a> {
     pub fn prefer_interpreter(&self) -> bool {
         match &self.kind {
             OutlineCollectionKind::Glyf(glyf) => glyf.prefer_interpreter(),
+            OutlineCollectionKind::Varc(varc) => varc.prefer_interpreter(),
             _ => true,
         }
     }
@@ -648,6 +686,7 @@ impl<'a> OutlineGlyphCollection<'a> {
     pub fn fractional_size_hinting(&self) -> bool {
         match &self.kind {
             OutlineCollectionKind::Glyf(glyf) => glyf.fractional_size_hinting,
+            OutlineCollectionKind::Varc(varc) => varc.fractional_size_hinting(),
             _ => true,
         }
     }
@@ -656,7 +695,8 @@ impl<'a> OutlineGlyphCollection<'a> {
         match &self.kind {
             OutlineCollectionKind::Glyf(glyf) => Some(&glyf.font),
             OutlineCollectionKind::Cff(cff) => Some(&cff.font),
-            _ => None,
+            OutlineCollectionKind::Varc(varc) => Some(varc.font()),
+            OutlineCollectionKind::None => None,
         }
     }
 }
@@ -666,6 +706,7 @@ enum OutlineCollectionKind<'a> {
     None,
     Glyf(glyf::Outlines<'a>),
     Cff(cff::Outlines<'a>),
+    Varc(varc::Outlines<'a>),
 }
 
 impl Debug for OutlineCollectionKind<'_> {
@@ -674,14 +715,15 @@ impl Debug for OutlineCollectionKind<'_> {
             Self::None => write!(f, "None"),
             Self::Glyf(..) => f.debug_tuple("Glyf").finish(),
             Self::Cff(..) => f.debug_tuple("Cff").finish(),
+            Self::Varc(..) => f.debug_tuple("Varc").finish(),
         }
     }
 }
 
 /// Invokes the callback with a memory buffer suitable for drawing
-/// the given TrueType outline.
-pub(super) fn with_glyf_memory<R>(
-    outline: &glyf::Outline,
+/// the given outline.
+pub(super) fn with_temporary_memory<R>(
+    outline: &OutlineGlyph<'_>,
     hinting: Hinting,
     memory: Option<&mut [u8]>,
     mut f: impl FnMut(&mut [u8]) -> R,
@@ -689,7 +731,7 @@ pub(super) fn with_glyf_memory<R>(
     match memory {
         Some(buf) => f(buf),
         None => {
-            let buf_size = outline.required_buffer_size(hinting);
+            let buf_size = outline.draw_memory_size(hinting);
             memory::with_temporary_memory(buf_size, f)
         }
     }

@@ -375,6 +375,9 @@ impl HintingInstance {
                     }
                     self.kind = HinterKind::Cff(subfonts);
                 }
+                OutlineCollectionKind::Varc(..) => {
+                    self.kind = HinterKind::Varc;
+                }
                 OutlineCollectionKind::None => {}
             },
             Engine::Auto(styles) => {
@@ -403,7 +406,7 @@ impl HintingInstance {
     pub fn is_enabled(&self) -> bool {
         match &self.kind {
             HinterKind::Glyf(instance) => instance.is_enabled(),
-            HinterKind::Cff(_) | HinterKind::Auto(_) => true,
+            HinterKind::Cff(_) | HinterKind::Auto(_) | HinterKind::Varc => true,
             _ => false,
         }
     }
@@ -426,7 +429,7 @@ impl HintingInstance {
                 if matches!(path_style, PathStyle::HarfBuzz) {
                     return Err(DrawError::HarfBuzzHintingUnsupported);
                 }
-                super::with_glyf_memory(outline, Hinting::Embedded, memory, |buf| {
+                super::with_temporary_memory(glyph, Hinting::Embedded, memory, |buf| {
                     let scaled_outline = FreeTypeScaler::hinted(
                         glyf,
                         outline,
@@ -456,6 +459,12 @@ impl HintingInstance {
                 cff.draw(subfont, *glyph_id, &self.coords, true, pen)?;
                 Ok(AdjustedMetrics::default())
             }
+            (HinterKind::Varc, OutlineKind::Varc(varc, outline)) => {
+                super::with_temporary_memory(glyph, Hinting::None, memory, |buf| {
+                    varc.draw(outline, buf, self.size, &self.coords, path_style, pen)?;
+                    Ok(AdjustedMetrics::default())
+                })
+            }
             _ => Err(DrawError::NoSources),
         }
     }
@@ -468,6 +477,7 @@ enum HinterKind {
     None,
     Glyf(Box<glyf::HintInstance>),
     Cff(Vec<cff::Subfont>),
+    Varc,
     Auto(autohint::Instance),
 }
 

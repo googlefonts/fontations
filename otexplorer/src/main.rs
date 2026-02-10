@@ -117,6 +117,7 @@ fn get_some_table<'a>(
         tables::maxp::Maxp::TAG => font.maxp().map(|x| Box::new(x) as _),
         tables::name::Name::TAG => font.name().map(|x| Box::new(x) as _),
         tables::post::Post::TAG => font.post().map(|x| Box::new(x) as _),
+        tables::varc::Varc::TAG => font.varc().map(|x| Box::new(x) as _),
         tables::colr::Colr::TAG => font.colr().map(|x| Box::new(x) as _),
         tables::stat::Stat::TAG => font.stat().map(|x| Box::new(x) as _),
         tables::vhea::Vhea::TAG => font.vhea().map(|x| Box::new(x) as _),
