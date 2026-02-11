@@ -67,7 +67,7 @@ const PFB_BINARY_SEGMENT_TAG: u16 = 0x8002;
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1parse.c#L69>
 fn decode_pfb_tag(data: &[u8], start: usize) -> Option<(u16, u32)> {
     let header: [u8; 6] = data.get(start..start + 6)?.try_into().ok()?;
-    let tag = (header[0] as u16) << 8 | header[1] as u16;
+    let tag = ((header[0] as u16) << 8) | header[1] as u16;
     if matches!(tag, PFB_BINARY_SEGMENT_TAG | PFB_TEXT_SEGMENT_TAG) {
         let size = u32::from_le_bytes(header[2..].try_into().unwrap());
         Some((tag, size))
@@ -77,7 +77,7 @@ fn decode_pfb_tag(data: &[u8], start: usize) -> Option<(u16, u32)> {
 }
 
 /// Returns an iterator over the sequence of PFB binary segments.
-fn decode_pfb_binary_segments<'a>(data: &'a [u8]) -> impl Iterator<Item = &'a [u8]> + 'a {
+fn decode_pfb_binary_segments(data: &[u8]) -> impl Iterator<Item = [u8]> + '_ {
     let mut pos = 0usize;
     core::iter::from_fn(move || {
         let (tag, len) = decode_pfb_tag(data, pos)?;
