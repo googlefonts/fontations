@@ -67,18 +67,21 @@ impl<'a> Kerx<'a> {
     /// The version number of the extended kerning table (currently 2, 3, or 4)
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// The number of subtables included in the extended kerning table.
     pub fn n_tables(&self) -> u32 {
         let range = self.n_tables_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
         let range = self.subtables_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        self.data
+            .split_off(range.start)
+            .and_then(|d| VarLenArray::read(d).ok())
+            .unwrap()
     }
 }
 
@@ -162,25 +165,25 @@ impl<'a> Subtable<'a> {
     /// The length of this subtable in bytes, including this header.
     pub fn length(&self) -> u32 {
         let range = self.length_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Circumstances under which this table is used.
     pub fn coverage(&self) -> u32 {
         let range = self.coverage_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// The tuple count. This value is only used with variation fonts and should be 0 for all other fonts. The subtable's tupleCount will be ignored if the 'kerx' table version is less than 4.
     pub fn tuple_count(&self) -> u32 {
         let range = self.tuple_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Subtable specific data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 }
 
@@ -269,31 +272,31 @@ impl<'a> Subtable0<'a> {
     /// The number of kerning pairs in this subtable.
     pub fn n_pairs(&self) -> u32 {
         let range = self.n_pairs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// The largest power of two less than or equal to the value of nPairs, multiplied by the size in bytes of an entry in the subtable.
     pub fn search_range(&self) -> u32 {
         let range = self.search_range_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// This is calculated as log2 of the largest power of two less than or equal to the value of nPairs. This value indicates how many iterations of the search loop have to be made. For example, in a list of eight items, there would be three iterations of the loop.
     pub fn entry_selector(&self) -> u32 {
         let range = self.entry_selector_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// The value of nPairs minus the largest power of two less than or equal to nPairs. This is multiplied by the size in bytes of an entry in the table.
     pub fn range_shift(&self) -> u32 {
         let range = self.range_shift_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Kerning records.
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.pairs_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 }
 

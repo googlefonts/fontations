@@ -12,16 +12,11 @@ use super::parsing::{
 };
 
 impl Fields {
-    pub(crate) fn new(mut fields: Vec<Field>) -> syn::Result<Self> {
+    pub(crate) fn new(fields: Vec<Field>) -> syn::Result<Self> {
         let referenced_fields = fields
             .iter()
             .flat_map(Field::input_fields)
             .collect::<ReferencedFields>();
-
-        for field in fields.iter_mut() {
-            field.read_at_parse_time =
-                field.attrs.version.is_some() || referenced_fields.needs_at_parsetime(&field.name);
-        }
 
         Ok(Fields {
             fields,
@@ -768,21 +763,22 @@ impl Field {
         let name = &self.name;
         let is_array = self.is_array();
         let is_var_array = self.is_var_array();
-        let is_versioned = self.is_conditional();
+        let is_conditional = self.is_conditional();
+        let maybe_unwrap = self.validated_at_parse.then(|| quote!( .unwrap() ));
 
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args).unwrap() )
+            quote!( self.data.read_with_args(range, &#get_args) #maybe_unwrap )
         } else if is_var_array {
-            quote!(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
+            quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap )
         } else if is_array {
-            quote!(self.data.read_array(range).unwrap())
+            quote!(self.data.read_array(range).ok() #maybe_unwrap)
         } else {
-            quote!(self.data.read_at(range.start).unwrap())
+            quote!(self.data.read_at(range.start).ok() #maybe_unwrap)
         };
-        if is_versioned {
-            read_stmt = quote! { (!range.is_empty()).then(||#read_stmt) };
+        if is_conditional {
+            read_stmt = quote! { (!range.is_empty()).then(||#read_stmt).flatten() };
         }
 
         let docs = &self.attrs.docs;
@@ -1034,11 +1030,6 @@ impl Field {
             return None;
         }
 
-        assert!(
-            !self.read_at_parse_time,
-            "i did not expect things with computed lengths \
-            to ever be needed at parse time"
-        );
         let read_args = self.attrs.read_with_args.as_deref();
         let read_args = if has_self_param {
             read_args.map(FieldReadArgs::to_tokens_for_table_getter)

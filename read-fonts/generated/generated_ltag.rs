@@ -64,25 +64,25 @@ impl<'a> Ltag<'a> {
     /// Table version; currently 1.
     pub fn version(&self) -> u32 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Table flags; currently none defined.
     pub fn flags(&self) -> u32 {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Number of language tags which follow.
     pub fn num_tags(&self) -> u32 {
         let range = self.num_tags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Range of each tag's string.
     pub fn tag_ranges(&self) -> &'a [FTStringRange] {
         let range = self.tag_ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 }
 

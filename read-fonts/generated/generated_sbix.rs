@@ -389,7 +389,7 @@ impl<'a> Sbix<'a> {
     /// Table version number — set to 1.
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Bit 0: Set to 1.
@@ -397,19 +397,19 @@ impl<'a> Sbix<'a> {
     /// Bits 2 to 15: reserved (set to 0).
     pub fn flags(&self) -> HeaderFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Number of bitmap strikes.
     pub fn num_strikes(&self) -> u32 {
         let range = self.num_strikes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Offsets from the beginning of the 'sbix' table to data for each individual bitmap strike.
     pub fn strike_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.strike_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 
     /// A dynamically resolving wrapper for [`strike_offsets`][Self::strike_offsets].
@@ -528,19 +528,19 @@ impl<'a> Strike<'a> {
     /// The PPEM size for which this strike was designed.
     pub fn ppem(&self) -> u16 {
         let range = self.ppem_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// The device pixel density (in PPI) for which this strike was designed. (E.g., 96 PPI, 192 PPI.)
     pub fn ppi(&self) -> u16 {
         let range = self.ppi_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Offset from the beginning of the strike data header to bitmap data for an individual glyph ID.
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.glyph_data_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
@@ -625,25 +625,25 @@ impl<'a> GlyphData<'a> {
     /// The horizontal (x-axis) position of the left edge of the bitmap graphic in relation to the glyph design space origin.
     pub fn origin_offset_x(&self) -> i16 {
         let range = self.origin_offset_x_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// The vertical (y-axis) position of the bottom edge of the bitmap graphic in relation to the glyph design space origin.
     pub fn origin_offset_y(&self) -> i16 {
         let range = self.origin_offset_y_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Indicates the format of the embedded graphic data: one of 'jpg ', 'png ' or 'tiff', or the special format 'dupe'.
     pub fn graphic_type(&self) -> Tag {
         let range = self.graphic_type_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// The actual embedded graphic data. The total length is inferred from sequential entries in the glyphDataOffsets array and the fixed size (8 bytes) of the preceding fields.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 }
 

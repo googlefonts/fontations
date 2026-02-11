@@ -155,68 +155,86 @@ impl<'a> Maxp<'a> {
     /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.
     pub fn version(&self) -> Version16Dot16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// The number of glyphs in the font.
     pub fn num_glyphs(&self) -> u16 {
         let range = self.num_glyphs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Maximum points in a non-composite glyph.
     pub fn max_points(&self) -> Option<u16> {
         let range = self.max_points_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Maximum contours in a non-composite glyph.
     pub fn max_contours(&self) -> Option<u16> {
         let range = self.max_contours_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Maximum points in a composite glyph.
     pub fn max_composite_points(&self) -> Option<u16> {
         let range = self.max_composite_points_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Maximum contours in a composite glyph.
     pub fn max_composite_contours(&self) -> Option<u16> {
         let range = self.max_composite_contours_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// 1 if instructions do not use the twilight zone (Z0), or 2 if
     /// instructions do use Z0; should be set to 2 in most cases.
     pub fn max_zones(&self) -> Option<u16> {
         let range = self.max_zones_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Maximum points used in Z0.
     pub fn max_twilight_points(&self) -> Option<u16> {
         let range = self.max_twilight_points_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Number of Storage Area locations.
     pub fn max_storage(&self) -> Option<u16> {
         let range = self.max_storage_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Number of FDEFs, equal to the highest function number + 1.
     pub fn max_function_defs(&self) -> Option<u16> {
         let range = self.max_function_defs_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Number of IDEFs.
     pub fn max_instruction_defs(&self) -> Option<u16> {
         let range = self.max_instruction_defs_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Maximum stack depth across Font Program ('fpgm' table), CVT
@@ -224,26 +242,34 @@ impl<'a> Maxp<'a> {
     /// 'glyf' table).
     pub fn max_stack_elements(&self) -> Option<u16> {
         let range = self.max_stack_elements_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Maximum byte count for glyph instructions.
     pub fn max_size_of_instructions(&self) -> Option<u16> {
         let range = self.max_size_of_instructions_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Maximum number of components referenced at “top level” for
     /// any composite glyph.
     pub fn max_component_elements(&self) -> Option<u16> {
         let range = self.max_component_elements_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Maximum levels of recursion; 1 for simple components.
     pub fn max_component_depth(&self) -> Option<u16> {
         let range = self.max_component_depth_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 }
 
