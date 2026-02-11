@@ -354,7 +354,7 @@ pub(crate) fn rebase_tent(
     debug_assert!(axis_limit.middle <= axis_limit.maximum && axis_limit.maximum <= 1.0);
     debug_assert!(-2.0 <= tent.minimum && tent.minimum <= tent.middle);
     debug_assert!(tent.middle <= tent.maximum && tent.maximum <= 2.0);
-    debug_assert!(tent.middle != 0.0);
+    debug_assert!(tent.middle.abs() >= f32::EPSILON, "tent middle was zero",);
 
     let sols = solve(tent, axis_limit, false);
 
