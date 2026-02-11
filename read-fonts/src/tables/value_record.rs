@@ -178,6 +178,7 @@ impl PartialEq for ValueRecord {
 }
 
 impl ValueRecord {
+    pub const MIN_SIZE: usize = 0;
     pub fn read(data: FontData, format: ValueFormat) -> Result<Self, ReadError> {
         let mut this = ValueRecord {
             format,

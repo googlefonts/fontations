@@ -33,7 +33,23 @@ impl Fields {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         let mut custom_offset_data_fld: Option<&Field> = None;
         let mut normal_offset_data_fld = None;
+        // our simple bounds checking just sums the sizes of fields up to the
+        // first conditional. If there is a non-conditional field after that
+        // which is always present (which does not currently exist in the spec)
+        // then our logic is broken.
+        let mut first_conditional = None;
         for (i, fld) in self.fields.iter().enumerate() {
+            if fld.is_conditional() && first_conditional.is_none() {
+                first_conditional = Some(i);
+            }
+
+            if first_conditional.is_some() && !fld.is_conditional() && fld.is_zerocopy_compatible()
+            {
+                return Err(logged_syn_error(
+                    fld.name.span(),
+                    "non-conditional fields cannot follow conditional fields",
+                ));
+            }
             if let Some(attr) = fld.attrs.offset_data.as_ref() {
                 if let Some(prev_field) = custom_offset_data_fld.replace(fld) {
                     if prev_field.attrs.offset_data.as_ref().unwrap().attr != attr.attr {
@@ -538,10 +554,9 @@ impl Field {
                 Some(quote!(#typ :: RAW_BYTE_LEN))
             }
             FieldType::Array { .. } | FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
-                None
+                Some(Default::default())
             }
-            //FIXME: NO MERGE: what do we do with structs?
-            FieldType::Struct { .. } => None,
+            FieldType::Struct { typ } => Some(quote!( #typ :: MIN_SIZE  )),
             FieldType::PendingResolution { .. } => panic!("resolved before now"),
         }
     }

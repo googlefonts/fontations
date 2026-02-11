@@ -1277,8 +1277,10 @@ pub struct SinglePosFormat1<'a> {
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> SinglePosFormat1<'a> {
-    pub const MIN_SIZE: usize =
-        (u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN);
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN
+        + ValueFormat::RAW_BYTE_LEN
+        + ValueRecord::MIN_SIZE);
     basic_table_impls!(impl_the_methods);
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
