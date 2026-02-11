@@ -157,65 +157,65 @@ impl<'a> Hhea<'a> {
     /// The major/minor version (1, 0)
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Typographic ascent.
     pub fn ascender(&self) -> FWord {
         let range = self.ascender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Typographic descent.
     pub fn descender(&self) -> FWord {
         let range = self.descender_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Typographic line gap. Negative LineGap values are treated as
     /// zero in some legacy platform implementations.
     pub fn line_gap(&self) -> FWord {
         let range = self.line_gap_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Maximum advance width value in 'hmtx' table.
     pub fn advance_width_max(&self) -> UfWord {
         let range = self.advance_width_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Minimum left sidebearing value in 'hmtx' table for glyphs with
     /// contours (empty glyphs should be ignored).
     pub fn min_left_side_bearing(&self) -> FWord {
         let range = self.min_left_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Minimum right sidebearing value; calculated as min(aw - (lsb +
     /// xMax - xMin)) for glyphs with contours (empty glyphs should be ignored).
     pub fn min_right_side_bearing(&self) -> FWord {
         let range = self.min_right_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Max(lsb + (xMax-xMin))
     pub fn x_max_extent(&self) -> FWord {
         let range = self.x_max_extent_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Used to calculate the slope of the cursor (rise/run); 1 for
     /// vertical caret, 0 for horizontal.
     pub fn caret_slope_rise(&self) -> i16 {
         let range = self.caret_slope_rise_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// 0 for vertical caret, 1 for horizontal.
     pub fn caret_slope_run(&self) -> i16 {
         let range = self.caret_slope_run_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// The amount by which a slanted highlight on a glyph needs to be
@@ -223,19 +223,19 @@ impl<'a> Hhea<'a> {
     /// non-slanted fonts
     pub fn caret_offset(&self) -> i16 {
         let range = self.caret_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// 0 for current format.
     pub fn metric_data_format(&self) -> i16 {
         let range = self.metric_data_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Number of hMetric entries in 'hmtx' table
     pub fn number_of_h_metrics(&self) -> u16 {
         let range = self.number_of_h_metrics_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 }
 

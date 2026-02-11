@@ -208,8 +208,10 @@ pub mod conditions {
     #[test]
     fn majorminor_1_1() {
         let bytes = BeBuffer::new().push(MajorMinor::VERSION_1_1).push(0u16);
-        // shouldn't parse, we're missing a field
-        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
+        let too_small = MajorMinorVersion::read(bytes.data().into()).unwrap();
+        // this is expected to be present but the data is malformed; we will
+        // still parse the table but checked read of the field will fail
+        assert!(too_small.if_11().is_none());
 
         let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_1_1)
@@ -222,8 +224,9 @@ pub mod conditions {
     #[test]
     fn major_minor_2() {
         let bytes = BeBuffer::new().push(MajorMinor::VERSION_2_0).push(0u16);
-        // shouldn't parse, we're missing a field
-        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
+        let too_small = MajorMinorVersion::read(bytes.data().into()).unwrap();
+        assert!(too_small.if_11().is_none());
+        assert!(too_small.if_20().is_none());
 
         let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_2_0)

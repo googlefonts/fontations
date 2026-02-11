@@ -169,12 +169,14 @@ pub(crate) struct Field {
     pub(crate) attrs: FieldAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) typ: FieldType,
-    /// `true` if this field is required to be read in order to parse subsequent
-    /// fields.
+    /// `true` if the presence of this field is guaranteed if the containing
+    /// table parses successfully.
     ///
-    /// For instance: in a versioned table, the version must be read to determine
-    /// whether to expect version-dependent fields.
-    pub(crate) read_at_parse_time: bool,
+    /// This is true for fields at the start of a table, up to the first conditional.
+    ///
+    /// These fields must be present, which means reads can unwrap (and could even
+    /// be unsafe.)
+    pub(crate) validated_at_parse: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -755,7 +757,7 @@ impl Parse for Field {
             name,
             typ,
             // computed later
-            read_at_parse_time: false,
+            validated_at_parse: false,
         })
     }
 }
@@ -1302,10 +1304,17 @@ impl Items {
                 Item::Table(item) => &mut item.fields.fields,
                 _ => continue,
             };
-            for field in fields {
+            for field in fields.iter_mut() {
                 resolve_field(&known, field)?;
             }
+            for field in fields
+                .iter_mut()
+                .take_while(|fld| fld.known_min_size_stmt().is_some())
+            {
+                field.validated_at_parse = true;
+            }
         }
+
         Ok(())
     }
 

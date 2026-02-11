@@ -60,22 +60,26 @@ impl<'a> MajorMinorVersion<'a> {
 
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn always_present(&self) -> u16 {
         let range = self.always_present_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn if_11(&self) -> Option<u16> {
         let range = self.if_11_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     pub fn if_20(&self) -> Option<u32> {
         let range = self.if_20_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 }
 
@@ -467,22 +471,26 @@ impl<'a> FlagDay<'a> {
 
     pub fn volume(&self) -> u16 {
         let range = self.volume_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn flags(&self) -> GotFlags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn foo(&self) -> Option<u16> {
         let range = self.foo_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     pub fn bar(&self) -> Option<u16> {
         let range = self.bar_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 }
 

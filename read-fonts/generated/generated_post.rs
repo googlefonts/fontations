@@ -128,7 +128,7 @@ impl<'a> Post<'a> {
     /// 3.0
     pub fn version(&self) -> Version16Dot16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Italic angle in counter-clockwise degrees from the vertical.
@@ -136,7 +136,7 @@ impl<'a> Post<'a> {
     /// right (forward).
     pub fn italic_angle(&self) -> Fixed {
         let range = self.italic_angle_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// This is the suggested distance of the top of the underline from
@@ -148,7 +148,7 @@ impl<'a> Post<'a> {
     /// value of this field.
     pub fn underline_position(&self) -> FWord {
         let range = self.underline_position_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Suggested values for the underline thickness. In general, the
@@ -157,60 +157,69 @@ impl<'a> Post<'a> {
     /// the strikeout thickness, which is specified in the OS/2 table.
     pub fn underline_thickness(&self) -> FWord {
         let range = self.underline_thickness_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Set to 0 if the font is proportionally spaced, non-zero if the
     /// font is not proportionally spaced (i.e. monospaced).
     pub fn is_fixed_pitch(&self) -> u32 {
         let range = self.is_fixed_pitch_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Minimum memory usage when an OpenType font is downloaded.
     pub fn min_mem_type42(&self) -> u32 {
         let range = self.min_mem_type42_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Maximum memory usage when an OpenType font is downloaded.
     pub fn max_mem_type42(&self) -> u32 {
         let range = self.max_mem_type42_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Minimum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
     pub fn min_mem_type1(&self) -> u32 {
         let range = self.min_mem_type1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Maximum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
     pub fn max_mem_type1(&self) -> u32 {
         let range = self.max_mem_type1_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Number of glyphs (this should be the same as numGlyphs in
     /// 'maxp' table).
     pub fn num_glyphs(&self) -> Option<u16> {
         let range = self.num_glyphs_byte_range();
-        (!range.is_empty()).then(|| self.data.read_at(range.start).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
     }
 
     /// Array of indices into the string data. See below for details.
     pub fn glyph_name_index(&self) -> Option<&'a [BigEndian<u16>]> {
         let range = self.glyph_name_index_byte_range();
-        (!range.is_empty()).then(|| self.data.read_array(range).unwrap())
+        (!range.is_empty())
+            .then(|| self.data.read_array(range).ok())
+            .flatten()
     }
 
     /// Storage for the string data.
     pub fn string_data(&self) -> Option<VarLenArray<'a, PString<'a>>> {
         let range = self.string_data_byte_range();
         (!range.is_empty())
-            .then(|| VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
+            .then(|| {
+                self.data
+                    .split_off(range.start)
+                    .and_then(|d| VarLenArray::read(d).ok())
+            })
+            .flatten()
     }
 }
 

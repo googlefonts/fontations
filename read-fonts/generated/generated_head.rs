@@ -845,13 +845,13 @@ impl<'a> Head<'a> {
     /// Version number of the font header table, set to (1, 0)
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Set by font manufacturer.
     pub fn font_revision(&self) -> Fixed {
         let range = self.font_revision_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// To compute: set it to 0, sum the entire font as uint32, then
@@ -861,19 +861,19 @@ impl<'a> Head<'a> {
     /// directory, and must be ignored.
     pub fn checksum_adjustment(&self) -> u32 {
         let range = self.checksum_adjustment_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Set to 0x5F0F3CF5.
     pub fn magic_number(&self) -> u32 {
         let range = self.magic_number_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// See the flags enum.
     pub fn flags(&self) -> Flags {
         let range = self.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Set to a value from 16 to 16384. Any value in this range is
@@ -882,75 +882,75 @@ impl<'a> Head<'a> {
     /// rasterizers.
     pub fn units_per_em(&self) -> u16 {
         let range = self.units_per_em_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Number of seconds since 12:00 midnight that started January 1st
     /// 1904 in GMT/UTC time zone.
     pub fn created(&self) -> LongDateTime {
         let range = self.created_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Number of seconds since 12:00 midnight that started January 1st
     /// 1904 in GMT/UTC time zone.
     pub fn modified(&self) -> LongDateTime {
         let range = self.modified_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Minimum x coordinate across all glyph bounding boxes.
     pub fn x_min(&self) -> i16 {
         let range = self.x_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Minimum y coordinate across all glyph bounding boxes.
     pub fn y_min(&self) -> i16 {
         let range = self.y_min_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Maximum x coordinate across all glyph bounding boxes.
     pub fn x_max(&self) -> i16 {
         let range = self.x_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Maximum y coordinate across all glyph bounding boxes.
     pub fn y_max(&self) -> i16 {
         let range = self.y_max_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Bits identifying the font's style; see [MacStyle]
     pub fn mac_style(&self) -> MacStyle {
         let range = self.mac_style_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Smallest readable size in pixels.
     pub fn lowest_rec_ppem(&self) -> u16 {
         let range = self.lowest_rec_ppem_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Deprecated (Set to 2).
     pub fn font_direction_hint(&self) -> i16 {
         let range = self.font_direction_hint_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// 0 for short offsets (Offset16), 1 for long (Offset32).
     pub fn index_to_loc_format(&self) -> i16 {
         let range = self.index_to_loc_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// 0 for current format.
     pub fn glyph_data_format(&self) -> i16 {
         let range = self.glyph_data_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 }
 
