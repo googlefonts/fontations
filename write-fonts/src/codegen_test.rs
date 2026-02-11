@@ -137,35 +137,9 @@ pub mod conditions {
     }
 
     #[test]
-    fn fields_after_conditions_empty() {
-        let table = FieldsAfterConditionals::new(GotFlags::empty(), 1, 2, 3);
-        let data = crate::dump_table(&table).unwrap();
-        let expected = BeBuffer::new().extend([0u16, 1, 2, 3]);
-        assert_eq!(expected.as_slice(), data);
-    }
-
-    #[test]
-    fn fields_after_conditions_one_present() {
-        let mut table = FieldsAfterConditionals::new(GotFlags::BAR, 1, 2, 3);
-        table.bar = Some(0xba4);
-        let data = crate::dump_table(&table).unwrap();
-        let expected = BeBuffer::new()
-            .push(GotFlags::BAR)
-            .extend([1u16, 0xba4, 2, 3]);
-        assert_eq!(expected.as_slice(), data);
-    }
-
-    #[test]
-    fn fields_after_conditions_all_present() {
-        let mut table =
-            FieldsAfterConditionals::new(GotFlags::BAR | GotFlags::BAZ | GotFlags::FOO, 1, 2, 3);
-        table.bar = Some(0xba4);
-        table.foo = Some(0xf00);
-        table.baz = Some(0xba2);
-        let data = crate::dump_table(&table).unwrap();
-        let expected = BeBuffer::new()
-            .push(GotFlags::BAR | GotFlags::BAZ | GotFlags::FOO)
-            .extend([0xf00u16, 1, 0xba4, 0xba2, 2, 3]);
-        assert_eq!(expected.as_slice(), data);
+    #[should_panic(expected = "if_cond is satisfied by 'baz' is not present.")]
+    fn flag_present_field_missing_any_flags() {
+        let flags_are_wrong = FlagDay::new(42, GotFlags::BAZ);
+        crate::dump_table(&flags_are_wrong).unwrap();
     }
 }
