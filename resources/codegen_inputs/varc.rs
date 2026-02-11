@@ -59,8 +59,15 @@ table MultiItemVariationData {
     region_index_count: u16,
     #[count($region_index_count)]
     region_indices: [u16],
+    delta_set_count: u32,
+    #[present_if($delta_set_count)]
+    delta_set_off_size: u8,
+    #[present_if($delta_set_count)]
+    #[count(add_multiply($delta_set_count, 1, $delta_set_off_size))]
+    delta_set_offsets: [u8],
+    #[present_if($delta_set_count)]
     #[count(..)]
-    raw_delta_sets: [u8],    
+    delta_set_data: [u8],
 }
 
 table ConditionList {

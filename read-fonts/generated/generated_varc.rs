@@ -555,7 +555,11 @@ impl Format<u8> for MultiItemVariationDataMarker {
 #[doc(hidden)]
 pub struct MultiItemVariationDataMarker {
     region_indices_byte_len: usize,
-    raw_delta_sets_byte_len: usize,
+    delta_set_off_size_byte_start: Option<usize>,
+    delta_set_offsets_byte_start: Option<usize>,
+    delta_set_offsets_byte_len: Option<usize>,
+    delta_set_data_byte_start: Option<usize>,
+    delta_set_data_byte_len: Option<usize>,
 }
 
 impl MultiItemVariationDataMarker {
@@ -574,15 +578,30 @@ impl MultiItemVariationDataMarker {
         start..start + self.region_indices_byte_len
     }
 
-    pub fn raw_delta_sets_byte_range(&self) -> Range<usize> {
+    pub fn delta_set_count_byte_range(&self) -> Range<usize> {
         let start = self.region_indices_byte_range().end;
-        start..start + self.raw_delta_sets_byte_len
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn delta_set_off_size_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.delta_set_off_size_byte_start?;
+        Some(start..start + u8::RAW_BYTE_LEN)
+    }
+
+    pub fn delta_set_offsets_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.delta_set_offsets_byte_start?;
+        Some(start..start + self.delta_set_offsets_byte_len?)
+    }
+
+    pub fn delta_set_data_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.delta_set_data_byte_start?;
+        Some(start..start + self.delta_set_data_byte_len?)
     }
 }
 
 impl MinByteRange for MultiItemVariationDataMarker {
     fn min_byte_range(&self) -> Range<usize> {
-        0..self.raw_delta_sets_byte_range().end
+        0..self.delta_set_count_byte_range().end
     }
 }
 
@@ -595,12 +614,40 @@ impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
             .checked_mul(u16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(region_indices_byte_len);
-        let raw_delta_sets_byte_len =
-            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        cursor.advance_by(raw_delta_sets_byte_len);
+        let delta_set_count: u32 = cursor.read()?;
+        let delta_set_off_size_byte_start = (delta_set_count != 0)
+            .then(|| cursor.position())
+            .transpose()?;
+        let delta_set_off_size = (delta_set_count != 0)
+            .then(|| cursor.read::<u8>())
+            .transpose()?
+            .unwrap_or_default();
+        let delta_set_offsets_byte_start = (delta_set_count != 0)
+            .then(|| cursor.position())
+            .transpose()?;
+        let delta_set_offsets_byte_len = (delta_set_count != 0).then_some(
+            (transforms::add_multiply(delta_set_count, 1_usize, delta_set_off_size))
+                .checked_mul(u8::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?,
+        );
+        if let Some(value) = delta_set_offsets_byte_len {
+            cursor.advance_by(value);
+        }
+        let delta_set_data_byte_start = (delta_set_count != 0)
+            .then(|| cursor.position())
+            .transpose()?;
+        let delta_set_data_byte_len = (delta_set_count != 0)
+            .then_some(cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN);
+        if let Some(value) = delta_set_data_byte_len {
+            cursor.advance_by(value);
+        }
         cursor.finish(MultiItemVariationDataMarker {
             region_indices_byte_len,
-            raw_delta_sets_byte_len,
+            delta_set_off_size_byte_start,
+            delta_set_offsets_byte_start,
+            delta_set_offsets_byte_len,
+            delta_set_data_byte_start,
+            delta_set_data_byte_len,
         })
     }
 }
@@ -624,9 +671,24 @@ impl<'a> MultiItemVariationData<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn raw_delta_sets(&self) -> &'a [u8] {
-        let range = self.shape.raw_delta_sets_byte_range();
-        self.data.read_array(range).unwrap()
+    pub fn delta_set_count(&self) -> u32 {
+        let range = self.shape.delta_set_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn delta_set_off_size(&self) -> Option<u8> {
+        let range = self.shape.delta_set_off_size_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    pub fn delta_set_offsets(&self) -> Option<&'a [u8]> {
+        let range = self.shape.delta_set_offsets_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+
+    pub fn delta_set_data(&self) -> Option<&'a [u8]> {
+        let range = self.shape.delta_set_data_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
     }
 }
 
@@ -636,11 +698,23 @@ impl<'a> SomeTable<'a> for MultiItemVariationData<'a> {
         "MultiItemVariationData"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let delta_set_count = self.delta_set_count();
         match idx {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("region_index_count", self.region_index_count())),
             2usize => Some(Field::new("region_indices", self.region_indices())),
-            3usize => Some(Field::new("raw_delta_sets", self.raw_delta_sets())),
+            3usize => Some(Field::new("delta_set_count", self.delta_set_count())),
+            4usize if (delta_set_count != 0) => Some(Field::new(
+                "delta_set_off_size",
+                self.delta_set_off_size().unwrap(),
+            )),
+            5usize if (delta_set_count != 0) => Some(Field::new(
+                "delta_set_offsets",
+                self.delta_set_offsets().unwrap(),
+            )),
+            6usize if (delta_set_count != 0) => {
+                Some(Field::new("delta_set_data", self.delta_set_data().unwrap()))
+            }
             _ => None,
         }
     }

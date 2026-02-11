@@ -463,17 +463,38 @@ impl Transform for [f32; 6] {
 }
 
 impl<'a> MultiItemVariationData<'a> {
-    /// An [Index2] where each item is a [PackedDeltas]
-    pub fn delta_sets(&self) -> Result<Index2<'a>, ReadError> {
-        Index2::read(self.raw_delta_sets().into())
+    /// Read the offset at the given index from the delta set offsets array.
+    fn delta_set_offset(&self, index: usize) -> Result<usize, ReadError> {
+        let count = self.delta_set_count() as usize;
+        if index > count {
+            return Err(ReadError::OutOfBounds);
+        }
+        let off_size = self.delta_set_off_size().ok_or(ReadError::OutOfBounds)? as usize;
+        let data_offset = index * off_size;
+        let offset_data: FontData<'a> = self
+            .delta_set_offsets()
+            .ok_or(ReadError::OutOfBounds)?
+            .into();
+        let raw = match off_size {
+            1 => offset_data.read_at::<u8>(data_offset)? as usize,
+            2 => offset_data.read_at::<u16>(data_offset)? as usize,
+            3 => offset_data.read_at::<Uint24>(data_offset)?.to_u32() as usize,
+            4 => offset_data.read_at::<u32>(data_offset)? as usize,
+            _ => return Err(ReadError::OutOfBounds),
+        };
+        // CFF INDEX offsets are 1-based
+        raw.checked_sub(1).ok_or(ReadError::OutOfBounds)
     }
 
     /// Read a specific delta set.
-    ///
-    /// Equivalent to calling [Self::delta_sets], fetching item i, and parsing as [PackedDeltas]
     pub fn delta_set(&self, i: usize) -> Result<PackedDeltas<'a>, ReadError> {
-        let index = self.delta_sets()?;
-        let raw_deltas = index.get(i).map_err(|_| ReadError::OutOfBounds)?;
+        let start = self.delta_set_offset(i)?;
+        let end = self.delta_set_offset(i + 1)?;
+        let raw_deltas = self
+            .delta_set_data()
+            .ok_or(ReadError::OutOfBounds)?
+            .get(start..end)
+            .ok_or(ReadError::OutOfBounds)?;
         Ok(PackedDeltas::consume_all(raw_deltas.into()))
     }
 }
@@ -1447,7 +1468,7 @@ mod tests {
                 .variation_data()
                 .iter()
                 .map(|d| d.unwrap())
-                .map(|d| (d.region_index_count(), d.delta_sets().unwrap().count()))
+                .map(|d| (d.region_index_count(), d.delta_set_count()))
                 .collect::<Vec<_>>()
         );
         assert_eq!(

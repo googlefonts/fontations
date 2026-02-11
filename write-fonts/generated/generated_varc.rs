@@ -374,16 +374,20 @@ impl FromObjRef<read_fonts::tables::varc::SparseRegionAxisCoordinates>
 pub struct MultiItemVariationData {
     pub region_index_count: u16,
     pub region_indices: Vec<u16>,
-    pub raw_delta_sets: Vec<u8>,
+    pub delta_set_count: u32,
+    pub delta_set_off_size: Option<u8>,
+    pub delta_set_offsets: Option<Vec<u8>>,
+    pub delta_set_data: Option<Vec<u8>>,
 }
 
 impl MultiItemVariationData {
     /// Construct a new `MultiItemVariationData`
-    pub fn new(region_index_count: u16, region_indices: Vec<u16>, raw_delta_sets: Vec<u8>) -> Self {
+    pub fn new(region_index_count: u16, region_indices: Vec<u16>, delta_set_count: u32) -> Self {
         Self {
             region_index_count,
             region_indices,
-            raw_delta_sets,
+            delta_set_count,
+            ..Default::default()
         }
     }
 }
@@ -394,7 +398,25 @@ impl FontWrite for MultiItemVariationData {
         (1 as u8).write_into(writer);
         self.region_index_count.write_into(writer);
         self.region_indices.write_into(writer);
-        self.raw_delta_sets.write_into(writer);
+        self.delta_set_count.write_into(writer);
+        (self.delta_set_count != 0).then(|| {
+            self.delta_set_off_size
+                .as_ref()
+                .expect("missing conditional field should have failed validation")
+                .write_into(writer)
+        });
+        (self.delta_set_count != 0).then(|| {
+            self.delta_set_offsets
+                .as_ref()
+                .expect("missing conditional field should have failed validation")
+                .write_into(writer)
+        });
+        (self.delta_set_count != 0).then(|| {
+            self.delta_set_data
+                .as_ref()
+                .expect("missing conditional field should have failed validation")
+                .write_into(writer)
+        });
     }
     fn table_type(&self) -> TableType {
         TableType::Named("MultiItemVariationData")
@@ -404,9 +426,34 @@ impl FontWrite for MultiItemVariationData {
 impl Validate for MultiItemVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MultiItemVariationData", |ctx| {
+            let delta_set_count = self.delta_set_count;
             ctx.in_field("region_indices", |ctx| {
                 if self.region_indices.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");
+                }
+            });
+            ctx.in_field("delta_set_off_size", |ctx| {
+                if !(delta_set_count != 0) && self.delta_set_off_size.is_some() {
+                    ctx.report("'delta_set_count' is zero but 'delta_set_off_size' is present")
+                }
+                if (delta_set_count != 0) && self.delta_set_off_size.is_none() {
+                    ctx.report("'delta_set_count' is nonzero but 'delta_set_off_size' is None")
+                }
+            });
+            ctx.in_field("delta_set_offsets", |ctx| {
+                if !(delta_set_count != 0) && self.delta_set_offsets.is_some() {
+                    ctx.report("'delta_set_count' is zero but 'delta_set_offsets' is present")
+                }
+                if (delta_set_count != 0) && self.delta_set_offsets.is_none() {
+                    ctx.report("'delta_set_count' is nonzero but 'delta_set_offsets' is None")
+                }
+            });
+            ctx.in_field("delta_set_data", |ctx| {
+                if !(delta_set_count != 0) && self.delta_set_data.is_some() {
+                    ctx.report("'delta_set_count' is zero but 'delta_set_data' is present")
+                }
+                if (delta_set_count != 0) && self.delta_set_data.is_none() {
+                    ctx.report("'delta_set_count' is nonzero but 'delta_set_data' is None")
                 }
             });
         })
@@ -424,7 +471,10 @@ impl<'a> FromObjRef<read_fonts::tables::varc::MultiItemVariationData<'a>>
         MultiItemVariationData {
             region_index_count: obj.region_index_count(),
             region_indices: obj.region_indices().to_owned_obj(offset_data),
-            raw_delta_sets: obj.raw_delta_sets().to_owned_obj(offset_data),
+            delta_set_count: obj.delta_set_count(),
+            delta_set_off_size: obj.delta_set_off_size(),
+            delta_set_offsets: obj.delta_set_offsets().to_owned_obj(offset_data),
+            delta_set_data: obj.delta_set_data().to_owned_obj(offset_data),
         }
     }
 }
