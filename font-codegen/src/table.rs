@@ -975,7 +975,8 @@ impl Table {
         let field_sizes = self
             .fields
             .iter()
-            .filter_map(|fld| fld.known_min_size_stmt())
+            .map_while(Field::known_min_size_stmt)
+            .filter(|tokens| !tokens.is_empty())
             .collect::<Vec<_>>();
         match field_sizes.as_slice() {
             [] => quote!(0),
