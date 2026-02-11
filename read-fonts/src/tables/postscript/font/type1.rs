@@ -77,7 +77,7 @@ fn decode_pfb_tag(data: &[u8], start: usize) -> Option<(u16, u32)> {
 }
 
 /// Returns an iterator over the sequence of PFB binary segments.
-fn decode_pfb_binary_segments(data: &[u8]) -> impl Iterator<Item = [u8]> + '_ {
+fn decode_pfb_binary_segments(data: &[u8]) -> impl Iterator<Item = &[u8]> + '_ {
     let mut pos = 0usize;
     core::iter::from_fn(move || {
         let (tag, len) = decode_pfb_tag(data, pos)?;
