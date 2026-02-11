@@ -36,7 +36,9 @@ mod variations;
 mod vmtx;
 mod vorg;
 mod vvar;
+
 use crate::{
+    glyf_loca::{ContourPoint, ContourPoints},
     repack::resolve_overflows,
     variations::solver::{Triple, TripleDistances},
 };
@@ -54,6 +56,8 @@ pub use parsing_util::{
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::{
+    instance::LocationRef,
+    prelude::Size,
     raw::{
         tables::{avar::Avar, fvar::Fvar},
         ReadError,
@@ -368,6 +372,10 @@ pub struct Plan {
     // normalized axes range map
     axes_location: FnvHashMap<Tag, Triple>,
     normalized_coords: Vec<F2Dot14>,
+    //map: new_gid -> contour points vector
+    new_gid_contour_points_map: FnvHashMap<GlyphId, ContourPoints>,
+    // new gids set for composite glyphs
+    composite_new_gids: IntSet<GlyphId>,
 
     // user specified axes range map
     user_axes_location: FnvHashMap<Tag, Triple>,
@@ -437,6 +445,7 @@ impl Plan {
             this.unicode_to_new_gid_list[i].1 = *new_gid;
         }
         this.collect_base_var_indices(font);
+        this.get_instance_glyphs_contour_points(font);
         this
     }
 
@@ -921,6 +930,110 @@ impl Plan {
         );
     }
 
+    fn get_instance_glyphs_contour_points(&mut self, font: &FontRef) {
+        if self.user_axes_location.is_empty() || self.all_axes_pinned {
+            return;
+        }
+
+        let Ok(loca) = font.loca(None) else { return }; // Could be CFF
+        let Ok(glyf) = font.glyf() else { return }; // loca but no glyf? No outlines for you.
+        for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
+            if new_gid.to_u32() == 0
+                && !(self
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE))
+            {
+                // .notdef with no outline, but still needs phantom points
+                let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+                let lsb = metrics.left_side_bearing(*old_gid).unwrap_or(0.0);
+                let aw = metrics.advance_width(*old_gid).unwrap_or(0.0);
+
+                let mut contour_points = ContourPoints(Vec::new());
+                contour_points.0.push(ContourPoint {
+                    x: lsb,
+                    y: 0.0,
+                    is_end_point: true,
+                });
+                contour_points.0.push(ContourPoint {
+                    x: lsb + aw,
+                    y: 0.0,
+                    is_end_point: true,
+                });
+                contour_points.0.push(ContourPoint {
+                    x: 0.0,
+                    y: 0.0,
+                    is_end_point: true,
+                });
+                contour_points.0.push(ContourPoint {
+                    x: 0.0,
+                    y: 0.0,
+                    is_end_point: true,
+                });
+
+                self.new_gid_contour_points_map
+                    .insert(*new_gid, contour_points);
+                continue;
+            }
+            let glyph_result = loca.get_glyf(*old_gid, &glyf);
+
+            let glyph = match glyph_result {
+                Ok(Some(glyph)) => {
+                    self.new_gid_contour_points_map.insert(
+                        *new_gid,
+                        ContourPoints::from_glyph_no_var(&glyph, font, *old_gid),
+                    );
+                    Some(glyph)
+                }
+                Ok(None) => {
+                    // Empty glyph (no outline), but still needs phantom points for metrics
+                    let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+                    let lsb = metrics.left_side_bearing(*old_gid).unwrap_or(0.0);
+                    let aw = metrics.advance_width(*old_gid).unwrap_or(0.0);
+
+                    let mut contour_points = ContourPoints(Vec::new());
+                    // Add 4 phantom points for empty glyph
+                    contour_points.0.push(ContourPoint {
+                        x: lsb,
+                        y: 0.0,
+                        is_end_point: true,
+                    });
+                    contour_points.0.push(ContourPoint {
+                        x: lsb + aw,
+                        y: 0.0,
+                        is_end_point: true,
+                    });
+                    contour_points.0.push(ContourPoint {
+                        x: 0.0,
+                        y: 0.0,
+                        is_end_point: true,
+                    });
+                    contour_points.0.push(ContourPoint {
+                        x: 0.0,
+                        y: 0.0,
+                        is_end_point: true,
+                    });
+
+                    self.new_gid_contour_points_map
+                        .insert(*new_gid, contour_points);
+                    None
+                }
+                Err(_) => {
+                    // Error reading glyph - insert empty for safety
+                    self.new_gid_contour_points_map
+                        .insert(*new_gid, ContourPoints(Vec::new()));
+                    None
+                }
+            };
+            if self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS)
+                && matches!(glyph, Some(Glyph::Composite(..)))
+            {
+                self.composite_new_gids.insert(*new_gid);
+            }
+        }
+    }
+
     fn apply_instancing_spec(
         &mut self,
         spec: &InstancingSpec,
@@ -1150,6 +1263,9 @@ pub enum SubsetError {
 
     #[error("Invalid input to --variations: {0}")]
     InvalidInstancingSpec(String),
+
+    #[error("Invalid contour data in glyf table")]
+    InvalidContourData,
 }
 
 pub trait NameIdClosure {
