@@ -797,7 +797,7 @@ impl<'a> IndexSubtableList<'a> {
     /// Array of IndexSubtableRecords.
     pub fn index_subtable_records(&self) -> &'a [IndexSubtableRecord] {
         let range = self.index_subtable_records_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 
     pub(crate) fn number_of_index_subtables(&self) -> u32 {
@@ -985,24 +985,24 @@ impl<'a> IndexSubtable1<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
         let range = self.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
         let range = self.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn sbit_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.sbit_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 
     pub(crate) fn last_glyph_index(&self) -> GlyphId16 {
@@ -1102,31 +1102,31 @@ impl<'a> IndexSubtable2<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
         let range = self.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
         let range = self.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// All the glyphs are of the same size.
     pub fn image_size(&self) -> u32 {
         let range = self.image_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// All glyphs have the same metrics; glyph data may be compressed, byte-aligned, or bit-aligned.
     pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
         let range = self.big_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 }
 
@@ -1252,24 +1252,24 @@ impl<'a> IndexSubtable3<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
         let range = self.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
         let range = self.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     pub fn sbit_offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.sbit_offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 
     pub(crate) fn last_glyph_index(&self) -> GlyphId16 {
@@ -1372,31 +1372,31 @@ impl<'a> IndexSubtable4<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
         let range = self.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
         let range = self.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Array length.
     pub fn num_glyphs(&self) -> u32 {
         let range = self.num_glyphs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// One per glyph.
     pub fn glyph_array(&self) -> &'a [GlyphIdOffsetPair] {
         let range = self.glyph_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 }
 
@@ -1554,43 +1554,43 @@ impl<'a> IndexSubtable5<'a> {
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Format of EBDT image data.
     pub fn image_format(&self) -> u16 {
         let range = self.image_format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Offset to image data in EBDT table.
     pub fn image_data_offset(&self) -> u32 {
         let range = self.image_data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// All glyphs have the same data size.
     pub fn image_size(&self) -> u32 {
         let range = self.image_size_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// All glyphs have the same metrics.
     pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
         let range = self.big_metrics_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 
     /// Array length.
     pub fn num_glyphs(&self) -> u32 {
         let range = self.num_glyphs_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// One per glyph, sorted by glyhph ID.
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.glyph_array_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 }
 

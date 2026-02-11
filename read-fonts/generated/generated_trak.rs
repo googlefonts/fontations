@@ -73,19 +73,19 @@ impl<'a> Trak<'a> {
     /// Version number of the tracking table (0x00010000 for the current version).
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Format of the tracking table (set to 0).
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Offset from start of tracking table to TrackData for horizontal text (or 0 if none).
     pub fn horiz_offset(&self) -> Nullable<Offset16> {
         let range = self.horiz_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Attempt to resolve [`horiz_offset`][Self::horiz_offset].
@@ -97,7 +97,7 @@ impl<'a> Trak<'a> {
     /// Offset from start of tracking table to TrackData for vertical text (or 0 if none).
     pub fn vert_offset(&self) -> Nullable<Offset16> {
         let range = self.vert_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Attempt to resolve [`vert_offset`][Self::vert_offset].
@@ -191,25 +191,25 @@ impl<'a> TrackData<'a> {
     /// Number of separate tracks included in this table.
     pub fn n_tracks(&self) -> u16 {
         let range = self.n_tracks_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Number of point sizes included in this table.
     pub fn n_sizes(&self) -> u16 {
         let range = self.n_sizes_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Offset from the start of the tracking table to the start of the size subtable.
     pub fn size_table_offset(&self) -> u32 {
         let range = self.size_table_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Array of TrackTableEntry records.
     pub fn track_table(&self) -> &'a [TrackTableEntry] {
         let range = self.track_table_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_array(range).ok().unwrap()
     }
 }
 
