@@ -89,6 +89,12 @@ mod path;
 mod unscaled;
 mod varc;
 
+#[cfg(feature = "skera")]
+pub use glyf::deltas::{
+    composite_glyph as composite_glyph_deltas, simple_glyph as simple_glyph_deltas,
+    SimpleGlyph as SimpleGlyphForDeltas,
+};
+
 #[cfg(test)]
 mod testing;
 

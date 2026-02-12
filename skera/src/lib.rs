@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod avar;
 mod base;
 mod cblc;
 mod cmap;
@@ -35,7 +36,13 @@ mod variations;
 mod vmtx;
 mod vorg;
 mod vvar;
-use crate::repack::resolve_overflows;
+
+use crate::{
+    glyf_loca::{ContourPoint, ContourPoints, PHANTOM_POINT_COUNT},
+    repack::resolve_overflows,
+    variations::solver::{Triple, TripleDistances},
+};
+use font_types::Point;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
@@ -43,12 +50,22 @@ use layout::{
     remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
-    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
+    parse_instancing_spec, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
+    populate_gids, InstancingSpec,
 };
 
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
-use skrifa::MetadataProvider;
+use skrifa::{
+    instance::LocationRef,
+    outline::{composite_glyph_deltas, simple_glyph_deltas, SimpleGlyphForDeltas},
+    prelude::Size,
+    raw::{
+        tables::{avar::Avar, fvar::Fvar, glyf::PointFlags},
+        ReadError,
+    },
+    MetadataProvider,
+};
 use thiserror::Error;
 use write_fonts::{
     read::{
@@ -85,7 +102,7 @@ use write_fonts::{
             vorg::Vorg,
             vvar::Vvar,
         },
-        types::{GlyphId, NameId, Tag},
+        types::{F2Dot14, GlyphId, NameId, Tag},
         FontRef, TableProvider, TopLevelTable,
     },
     FontBuilder,
@@ -353,6 +370,30 @@ pub struct Plan {
     layout_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
     //GDEF table varstore retained varidx mapping
     gdef_varstore_inner_maps: Vec<IncBiMap>,
+
+    // normalized axes range map
+    axes_location: FnvHashMap<Tag, Triple>,
+    normalized_coords: Vec<F2Dot14>,
+    //map: new_gid -> contour points vector
+    new_gid_contour_points_map: FnvHashMap<GlyphId, ContourPoints>,
+    // new gids set for composite glyphs
+    composite_new_gids: IntSet<GlyphId>,
+    new_gid_instance_deltas_map: FnvHashMap<GlyphId, Vec<Point<f32>>>,
+    // hmtx metrics map: new gid->(advance, lsb)
+    hmtx_map: FnvHashMap<GlyphId, (u16, i16)>,
+    // vmtx metrics map: new gid->(advance, lsb)
+    vmtx_map: FnvHashMap<GlyphId, (u16, i16)>,
+
+    // user specified axes range map
+    user_axes_location: FnvHashMap<Tag, Triple>,
+    axes_triple_distances: FnvHashMap<Tag, TripleDistances>,
+    pinned_at_default: bool,
+    all_axes_pinned: bool,
+
+    //retained old axis index -> new axis index mapping in fvar axis array
+    axes_index_map: FnvHashMap<usize, usize>,
+    axis_tags: Vec<Tag>,
+    axes_old_index_tag_map: FnvHashMap<usize, Tag>,
 }
 
 #[derive(Default)]
@@ -373,6 +414,7 @@ impl Plan {
         layout_features: &IntSet<Tag>,
         name_ids: &IntSet<NameId>,
         name_languages: &IntSet<u16>,
+        variations: &Option<InstancingSpec>,
     ) -> Self {
         let mut this = Plan {
             glyphs_requested: input_gids.clone(),
@@ -383,14 +425,20 @@ impl Plan {
             layout_features: layout_features.clone(),
             name_ids: name_ids.clone(),
             name_languages: name_languages.clone(),
+            pinned_at_default: true,
             ..Default::default()
         };
+
+        if let Some(variations) = variations {
+            let _ = this.apply_instancing_spec(variations, font); // XXX Propagate
+        }
 
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L71>
         let default_no_subset_tables = [gasp::Gasp::TAG, FPGM, PREP, VDMX, DSIG];
         this.no_subset_tables
             .extend(default_no_subset_tables.iter().copied());
 
+        let _ = this.normalize_axes_location(font); // Proper error handling later
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
         this.create_old_gid_to_new_gid_map();
@@ -404,7 +452,97 @@ impl Plan {
             this.unicode_to_new_gid_list[i].1 = *new_gid;
         }
         this.collect_base_var_indices(font);
+        this.get_instance_glyphs_contour_points(font);
+        this.get_instance_deltas(font);
+        this.collect_new_metrics(font);
         this
+    }
+
+    fn normalize_axes_location(&mut self, font: &FontRef) -> Result<(), ReadError> {
+        if self.user_axes_location.is_empty() {
+            return Ok(());
+        }
+        let axes = font.axes();
+        let has_avar = font.avar().is_ok();
+        let mut axis_not_pinned = false;
+        let mut new_axis_idx = 0;
+        let mut normalized_mins = vec![];
+        let mut normalized_defaults = vec![];
+        let mut normalized_maxs = vec![];
+        self.normalized_coords = vec![F2Dot14::ZERO; axes.len()];
+        for (i, axis) in axes.iter().enumerate() {
+            let axis_tag = axis.tag();
+            self.axes_old_index_tag_map.insert(i, axis_tag);
+            if self
+                .user_axes_location
+                .get(&axis_tag)
+                .map(|t| !t.is_point())
+                .unwrap_or(false)
+            {
+                axis_not_pinned = true;
+                self.axes_index_map.insert(i, new_axis_idx);
+                self.axis_tags.push(axis_tag);
+                new_axis_idx += 1;
+            }
+            if let Some(axis_range) = self.user_axes_location.get(&axis_tag) {
+                self.axes_triple_distances.insert(
+                    axis_tag,
+                    // These are for the whole axis, not the user chosen subspace
+                    Triple::new(axis.min_value(), axis.default_value(), axis.max_value()).into(),
+                );
+                // This rounds to f2dot14. Behdad says it should be 16.16
+                let normalized_min = axis.normalize(axis_range.minimum);
+                let normalized_default = axis.normalize(axis_range.middle);
+                let normalized_max = axis.normalize(axis_range.maximum);
+                if has_avar {
+                    normalized_mins.push(normalized_min);
+                    normalized_defaults.push(normalized_default);
+                    normalized_maxs.push(normalized_max);
+                } else {
+                    self.axes_location.insert(
+                        axis_tag,
+                        Triple::new(
+                            normalized_min.to_f32(),
+                            normalized_default.to_f32(),
+                            normalized_max.to_f32(),
+                        ),
+                    );
+                    self.normalized_coords[i] = normalized_default;
+                    if normalized_default.to_f32() != 0.0 {
+                        self.pinned_at_default = false;
+                    }
+                }
+            }
+        }
+        self.all_axes_pinned = !axis_not_pinned;
+        if let Ok(avar) = font.avar() {
+            if avar.version().major == 2 {
+                log::warn!("Partial-instancing avar2 table is not supported.");
+                return Err(ReadError::InvalidFormat(2));
+            }
+            normalized_mins = avar::map_coords_2_14(&avar, normalized_mins)?;
+            normalized_defaults = avar::map_coords_2_14(&avar, normalized_defaults)?;
+            normalized_maxs = avar::map_coords_2_14(&avar, normalized_maxs)?;
+            for (i, axis) in axes.iter().enumerate() {
+                let axis_tag = axis.tag();
+                if self.user_axes_location.contains_key(&axis_tag) {
+                    self.axes_location.insert(
+                        axis_tag,
+                        Triple::new(
+                            normalized_mins[i].to_f32(),
+                            normalized_defaults[i].to_f32(),
+                            normalized_maxs[i].to_f32(),
+                        ),
+                    );
+                    self.normalized_coords[i] = normalized_defaults[i];
+                    if normalized_defaults[i].to_f32() != 0.0 {
+                        self.pinned_at_default = false;
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     fn populate_unicodes_to_retain(
@@ -800,6 +938,245 @@ impl Plan {
             &mut self.base_varstore_inner_maps,
         );
     }
+
+    fn get_instance_glyphs_contour_points(&mut self, font: &FontRef) {
+        if self.user_axes_location.is_empty() {
+            return;
+        }
+        let Ok(loca) = font.loca(None) else { return }; // Could be CFF
+        let Ok(glyf) = font.glyf() else { return }; // loca but no glyf? No outlines for you.
+        for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
+            if new_gid.to_u32() == 0
+                && !(self
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE))
+            {
+                // .notdef with no outline, but still needs phantom points
+                let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+                let lsb = metrics.left_side_bearing(*old_gid).unwrap_or(0.0);
+                let aw = metrics.advance_width(*old_gid).unwrap_or(0.0);
+
+                let mut contour_points = ContourPoints(Vec::new());
+                contour_points.0.push(ContourPoint {
+                    x: lsb,
+                    y: 0.0,
+                    is_end_point: true,
+                    is_on_curve: true,
+                });
+                contour_points.0.push(ContourPoint {
+                    x: lsb + aw,
+                    y: 0.0,
+                    is_end_point: true,
+                    is_on_curve: true,
+                });
+                contour_points.0.push(ContourPoint {
+                    x: 0.0,
+                    y: 0.0,
+                    is_end_point: true,
+                    is_on_curve: true,
+                });
+                contour_points.0.push(ContourPoint {
+                    x: 0.0,
+                    y: 0.0,
+                    is_end_point: true,
+                    is_on_curve: true,
+                });
+
+                self.new_gid_contour_points_map
+                    .insert(*new_gid, contour_points);
+                continue;
+            }
+            let glyph_result = loca.get_glyf(*old_gid, &glyf);
+
+            let glyph = match glyph_result {
+                Ok(Some(glyph)) => {
+                    self.new_gid_contour_points_map.insert(
+                        *new_gid,
+                        ContourPoints::from_glyph_no_var(&glyph, font, *old_gid),
+                    );
+                    Some(glyph)
+                }
+                Ok(None) => {
+                    // Empty glyph (no outline), but still needs phantom points for metrics
+                    let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+                    let lsb = metrics.left_side_bearing(*old_gid).unwrap_or(0.0);
+                    let aw = metrics.advance_width(*old_gid).unwrap_or(0.0);
+
+                    let mut contour_points = ContourPoints(Vec::new());
+                    // Add 4 phantom points for empty glyph
+                    contour_points.0.push(ContourPoint {
+                        x: lsb,
+                        y: 0.0,
+                        is_end_point: true,
+                        is_on_curve: true,
+                    });
+                    contour_points.0.push(ContourPoint {
+                        x: lsb + aw,
+                        y: 0.0,
+                        is_end_point: true,
+                        is_on_curve: true,
+                    });
+                    contour_points.0.push(ContourPoint {
+                        x: 0.0,
+                        y: 0.0,
+                        is_end_point: true,
+                        is_on_curve: true,
+                    });
+                    contour_points.0.push(ContourPoint {
+                        x: 0.0,
+                        y: 0.0,
+                        is_end_point: true,
+                        is_on_curve: true,
+                    });
+
+                    self.new_gid_contour_points_map
+                        .insert(*new_gid, contour_points);
+                    None
+                }
+                Err(_) => {
+                    // Error reading glyph - insert empty for safety
+                    self.new_gid_contour_points_map
+                        .insert(*new_gid, ContourPoints(Vec::new()));
+                    None
+                }
+            };
+            if self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS)
+                && matches!(glyph, Some(Glyph::Composite(..)))
+            {
+                self.composite_new_gids.insert(*new_gid);
+            }
+        }
+    }
+
+    fn apply_instancing_spec(
+        &mut self,
+        spec: &InstancingSpec,
+        font: &FontRef,
+    ) -> Result<(), SubsetError> {
+        if spec.pin_all_axes_to_default {
+            for axis in font.axes().iter() {
+                self.user_axes_location
+                    .insert(axis.tag(), Triple::point(axis.default_value()));
+            }
+            return Ok(());
+        }
+        for font_axis in font.axes().iter() {
+            let tag = font_axis.tag();
+            let spec_axis = spec.axes.get(&tag);
+            match spec_axis {
+                Some(parsing_util::AxisSpec::PinToDefault) => {
+                    self.user_axes_location
+                        .insert(tag, Triple::point(font_axis.default_value()));
+                }
+                Some(parsing_util::AxisSpec::Range { min, def, max }) => {
+                    let new_min = min.clamp(font_axis.min_value(), font_axis.max_value());
+                    let new_max = max.clamp(font_axis.min_value(), font_axis.max_value());
+                    let new_def = def.clamp(new_min, new_max);
+                    self.user_axes_location
+                        .insert(tag, Triple::new(new_min, new_def, new_max));
+                }
+                None => {
+                    // If an axis is not specified in the instancing spec, we keep it as is, which means it's not pinned and will not be removed.
+                    self.user_axes_location.insert(
+                        tag,
+                        Triple::new(
+                            font_axis.min_value(),
+                            font_axis.default_value(),
+                            font_axis.max_value(),
+                        ),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn get_instance_deltas(&mut self, font: &FontRef) {
+        if self.user_axes_location.is_empty() {
+            return;
+        }
+        let Ok(gvar) = font.gvar() else { return };
+
+        let Ok(loca) = font.loca(None) else { return }; // Could be CFF
+        let Ok(glyf) = font.glyf() else { return };
+        for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
+            let glyph = loca.get_glyf(*old_gid, &glyf).unwrap();
+            let coords = &self.normalized_coords;
+            match glyph {
+                Some(Glyph::Simple(simple_glyph)) => {
+                    let mut points: Vec<Point<f32>> =
+                        vec![Point { x: 0.0, y: 0.0 }; simple_glyph.num_points()];
+                    let mut flags: Vec<PointFlags> =
+                        vec![PointFlags::default(); simple_glyph.num_points()];
+                    simple_glyph.read_points_fast(&mut points, &mut flags);
+                    let end_pts: Vec<u16> = simple_glyph
+                        .end_pts_of_contours()
+                        .iter()
+                        .map(|&i| i.get())
+                        .collect();
+                    // Add the four phantom points, steal from end of new_gid_contour_points_map
+                    let contour_points = self.new_gid_contour_points_map.get(new_gid).unwrap();
+                    let phantoms = contour_points
+                        .0
+                        .iter()
+                        .skip(contour_points.0.len() - PHANTOM_POINT_COUNT);
+                    for phantom in phantoms {
+                        points.push(Point {
+                            x: phantom.x,
+                            y: phantom.y,
+                        });
+                        flags.push(PointFlags::default());
+                    }
+                    let skrifa_simple_glyph = SimpleGlyphForDeltas {
+                        points: &points,
+                        flags: &mut flags,
+                        contours: &end_pts,
+                    };
+                    let mut deltas_buffer =
+                        vec![font_types::Point { x: 0.0, y: 0.0 }; points.len()];
+                    let mut iup_buffer = vec![font_types::Point { x: 0.0, y: 0.0 }; points.len()];
+                    simple_glyph_deltas(
+                        &gvar,
+                        *old_gid,
+                        coords,
+                        skrifa_simple_glyph,
+                        &mut iup_buffer,
+                        &mut deltas_buffer,
+                    );
+                    self.new_gid_instance_deltas_map
+                        .insert(*new_gid, deltas_buffer);
+                }
+                Some(Glyph::Composite(composite_glyph)) => {
+                    let delta_count =
+                        composite_glyph.components().count() + glyf_loca::PHANTOM_POINT_COUNT;
+                    let mut deltas_buffer = vec![font_types::Point { x: 0.0, y: 0.0 }; delta_count];
+                    composite_glyph_deltas(&gvar, *old_gid, coords, &mut deltas_buffer);
+
+                    self.new_gid_instance_deltas_map
+                        .insert(*new_gid, deltas_buffer);
+                }
+                None => {
+                    // Empty glyph, insert empty list
+                    self.new_gid_instance_deltas_map.insert(*new_gid, vec![]);
+                }
+            }
+        }
+    }
+
+    fn collect_new_metrics(&mut self, font: &FontRef) {
+        let location: LocationRef = LocationRef::new(&self.normalized_coords);
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), location);
+        for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
+            let aw = glyph_metrics.advance_width(*old_gid).unwrap_or(0.0);
+            let ls = glyph_metrics.left_side_bearing(*old_gid).unwrap_or(0.0);
+            // XXX Skrifa is *wrong* here; it doesn't apply deltas for LSB.
+            // https://github.com/googlefonts/fontations/issues/1747
+            self.hmtx_map.insert(*new_gid, (aw as u16, ls as i16));
+            // No vertical stuff in skrifa yet
+        }
+    }
 }
 
 // TODO: when instancing, calculate delta value and set new varidx to NO_VARIATIONS_IDX if all axes are pinned
@@ -984,6 +1361,12 @@ pub enum SubsetError {
 
     #[error("Subsetting table '{0}' failed")]
     SubsetTableError(Tag),
+
+    #[error("Invalid input to --variations: {0}")]
+    InvalidInstancingSpec(String),
+
+    #[error("Invalid contour data in glyf table")]
+    InvalidContourData,
 }
 
 pub trait NameIdClosure {
@@ -1200,6 +1583,11 @@ fn subset_table<'a>(
     }
 
     match tag {
+        Avar::TAG => font
+            .avar()
+            .map_err(|_| SubsetError::SubsetTableError(Avar::TAG))?
+            .subset(plan, font, s, builder),
+
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
@@ -1228,6 +1616,11 @@ fn subset_table<'a>(
         Cpal::TAG => font
             .cpal()
             .map_err(|_| SubsetError::SubsetTableError(Cpal::TAG))?
+            .subset(plan, font, s, builder),
+
+        Fvar::TAG => font
+            .fvar()
+            .map_err(|_| SubsetError::SubsetTableError(Fvar::TAG))?
             .subset(plan, font, s, builder),
 
         Gdef::TAG => font

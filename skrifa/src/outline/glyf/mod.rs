@@ -1,6 +1,6 @@
 //! Scaling support for TrueType outlines.
 
-mod deltas;
+pub(crate) mod deltas;
 mod hint;
 mod memory;
 mod outline;
