@@ -239,7 +239,6 @@ impl FontWrite for PatchMapFormat1 {
 impl Validate for PatchMapFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PatchMapFormat1", |ctx| {
-            let field_flags = self.field_flags;
             ctx.in_field("glyph_map", |ctx| {
                 self.glyph_map.validate_impl(ctx);
             });
@@ -557,7 +556,6 @@ impl FontWrite for PatchMapFormat2 {
 impl Validate for PatchMapFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PatchMapFormat2", |ctx| {
-            let field_flags = self.field_flags;
             ctx.in_field("entries", |ctx| {
                 self.entries.validate_impl(ctx);
             });
@@ -761,7 +759,6 @@ impl FontWrite for EntryData {
 impl Validate for EntryData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("EntryData", |ctx| {
-            let format_flags = self.format_flags;
             ctx.in_field("feature_count", |ctx| {
                 if !(self
                     .format_flags

@@ -12,7 +12,7 @@ use quote::{quote, ToTokens};
 
 use crate::parsing::{Attr, GenericGroup, Item, Items, Phase};
 
-use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
+use super::parsing::{Field, Table, TableFormat, TableReadArg, TableReadArgs};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
@@ -949,7 +949,7 @@ impl Table {
                     .read_args
                     .as_ref()
                     .into_iter()
-                    .flat_map(|args| args.iter_table_ref_getters(&self.fields.referenced_fields)),
+                    .flat_map(|args| args.iter_table_ref_getters()),
             )
     }
 
@@ -1046,10 +1046,7 @@ impl TableReadArgs {
         }
     }
 
-    fn iter_table_ref_getters<'a>(
-        &'a self,
-        _referenced_fields: &'a ReferencedFields,
-    ) -> impl Iterator<Item = TokenStream> + 'a {
+    fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.args.iter().map(|TableReadArg { ident, typ }| {
             quote! {
                 pub(crate) fn #ident(&self) -> #typ {

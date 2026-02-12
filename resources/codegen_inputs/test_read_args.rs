@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::codegen_test::read_args)]
 
 #[read_args(mark_class_count: u16)]
+#[skip_constructor]
 table BaseArray {
     /// Number of BaseRecords
     #[compile(array_len($base_records))]
@@ -13,6 +14,7 @@ table BaseArray {
 
 /// Part of [BaseArray]
 #[read_args(mark_class_count: u16)]
+#[skip_constructor]
 record BaseRecord<'a> {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class

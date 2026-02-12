@@ -12,13 +12,6 @@ pub struct BaseArray {
     pub base_records: Vec<BaseRecord>,
 }
 
-impl BaseArray {
-    /// Construct a new `BaseArray`
-    pub fn new(base_records: Vec<BaseRecord>) -> Self {
-        Self { base_records }
-    }
-}
-
 impl FontWrite for BaseArray {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -67,15 +60,6 @@ pub struct BaseRecord {
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
     pub base_anchor_offsets: Vec<u16>,
-}
-
-impl BaseRecord {
-    /// Construct a new `BaseRecord`
-    pub fn new(base_anchor_offsets: Vec<u16>) -> Self {
-        Self {
-            base_anchor_offsets,
-        }
-    }
 }
 
 impl FontWrite for BaseRecord {
