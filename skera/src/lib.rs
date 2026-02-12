@@ -379,6 +379,10 @@ pub struct Plan {
     // new gids set for composite glyphs
     composite_new_gids: IntSet<GlyphId>,
     new_gid_instance_deltas_map: FnvHashMap<GlyphId, Vec<Point<f32>>>,
+    // hmtx metrics map: new gid->(advance, lsb)
+    hmtx_map: FnvHashMap<GlyphId, (u16, i16)>,
+    // vmtx metrics map: new gid->(advance, lsb)
+    vmtx_map: FnvHashMap<GlyphId, (u16, i16)>,
 
     // user specified axes range map
     user_axes_location: FnvHashMap<Tag, Triple>,
@@ -450,6 +454,7 @@ impl Plan {
         this.collect_base_var_indices(font);
         this.get_instance_glyphs_contour_points(font);
         this.get_instance_deltas(font);
+        this.collect_new_metrics(font);
         this
     }
 
@@ -1096,10 +1101,8 @@ impl Plan {
 
         let Ok(loca) = font.loca(None) else { return }; // Could be CFF
         let Ok(glyf) = font.glyf() else { return };
-
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
             let glyph = loca.get_glyf(*old_gid, &glyf).unwrap();
-
             let coords = &self.normalized_coords;
             match glyph {
                 Some(Glyph::Simple(simple_glyph)) => {
@@ -1159,6 +1162,19 @@ impl Plan {
                     self.new_gid_instance_deltas_map.insert(*new_gid, vec![]);
                 }
             }
+        }
+    }
+
+    fn collect_new_metrics(&mut self, font: &FontRef) {
+        let location: LocationRef = LocationRef::new(&self.normalized_coords);
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), location);
+        for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
+            let aw = glyph_metrics.advance_width(*old_gid).unwrap_or(0.0);
+            let ls = glyph_metrics.left_side_bearing(*old_gid).unwrap_or(0.0);
+            // XXX Skrifa is *wrong* here; it doesn't apply deltas for LSB.
+            // https://github.com/googlefonts/fontations/issues/1747
+            self.hmtx_map.insert(*new_gid, (aw as u16, ls as i16));
+            // No vertical stuff in skrifa yet
         }
     }
 }
