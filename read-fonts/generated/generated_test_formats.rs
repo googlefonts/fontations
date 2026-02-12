@@ -9,9 +9,13 @@ impl Format<u16> for Table1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for Table1<'a> {
+impl<'a> MinByteRange<'a> for Table1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.flex_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -95,9 +99,13 @@ impl Format<u16> for Table2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for Table2<'a> {
+impl<'a> MinByteRange<'a> for Table2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.values_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -182,9 +190,13 @@ impl Format<u16> for Table3<'_> {
     const FORMAT: u16 = 3;
 }
 
-impl<'a> MinByteRange for Table3<'a> {
+impl<'a> MinByteRange<'a> for Table3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.something_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -290,12 +302,19 @@ impl<'a> FontRead<'a> for MyTable<'a> {
     }
 }
 
-impl MinByteRange for MyTable<'_> {
+impl<'a> MinByteRange<'a> for MyTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::MyFormat22(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::MyFormat22(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
         }
     }
 }

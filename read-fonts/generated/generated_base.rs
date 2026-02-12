@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Base<'a> {
+impl<'a> MinByteRange<'a> for Base<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.vert_axis_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -141,9 +145,13 @@ impl<'a> std::fmt::Debug for Base<'a> {
     }
 }
 
-impl<'a> MinByteRange for Axis<'a> {
+impl<'a> MinByteRange<'a> for Axis<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_script_list_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -233,9 +241,13 @@ impl<'a> std::fmt::Debug for Axis<'a> {
     }
 }
 
-impl<'a> MinByteRange for BaseTagList<'a> {
+impl<'a> MinByteRange<'a> for BaseTagList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.baseline_tags_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -309,9 +321,13 @@ impl<'a> std::fmt::Debug for BaseTagList<'a> {
     }
 }
 
-impl<'a> MinByteRange for BaseScriptList<'a> {
+impl<'a> MinByteRange<'a> for BaseScriptList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_script_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -445,9 +461,13 @@ impl<'a> SomeRecord<'a> for BaseScriptRecord {
     }
 }
 
-impl<'a> MinByteRange for BaseScript<'a> {
+impl<'a> MinByteRange<'a> for BaseScript<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_lang_sys_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -629,9 +649,13 @@ impl<'a> SomeRecord<'a> for BaseLangSysRecord {
     }
 }
 
-impl<'a> MinByteRange for BaseValues<'a> {
+impl<'a> MinByteRange<'a> for BaseValues<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_coord_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -744,9 +768,13 @@ impl<'a> std::fmt::Debug for BaseValues<'a> {
     }
 }
 
-impl<'a> MinByteRange for MinMax<'a> {
+impl<'a> MinByteRange<'a> for MinMax<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.feat_min_max_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1002,12 +1030,19 @@ impl<'a> FontRead<'a> for BaseCoord<'a> {
     }
 }
 
-impl MinByteRange for BaseCoord<'_> {
+impl<'a> MinByteRange<'a> for BaseCoord<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1044,9 +1079,13 @@ impl Format<u16> for BaseCoordFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for BaseCoordFormat1<'a> {
+impl<'a> MinByteRange<'a> for BaseCoordFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.coordinate_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1121,9 +1160,13 @@ impl Format<u16> for BaseCoordFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for BaseCoordFormat2<'a> {
+impl<'a> MinByteRange<'a> for BaseCoordFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_coord_point_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1225,9 +1268,13 @@ impl Format<u16> for BaseCoordFormat3<'_> {
     const FORMAT: u16 = 3;
 }
 
-impl<'a> MinByteRange for BaseCoordFormat3<'a> {
+impl<'a> MinByteRange<'a> for BaseCoordFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.device_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

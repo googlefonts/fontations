@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Gdef<'a> {
+impl<'a> MinByteRange<'a> for Gdef<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark_attach_class_def_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -275,9 +279,13 @@ impl<'a> From<GlyphClassDef> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for AttachList<'a> {
+impl<'a> MinByteRange<'a> for AttachList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.attach_point_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -392,9 +400,13 @@ impl<'a> std::fmt::Debug for AttachList<'a> {
     }
 }
 
-impl<'a> MinByteRange for AttachPoint<'a> {
+impl<'a> MinByteRange<'a> for AttachPoint<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.point_indices_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -466,9 +478,13 @@ impl<'a> std::fmt::Debug for AttachPoint<'a> {
     }
 }
 
-impl<'a> MinByteRange for LigCaretList<'a> {
+impl<'a> MinByteRange<'a> for LigCaretList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.lig_glyph_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -583,9 +599,13 @@ impl<'a> std::fmt::Debug for LigCaretList<'a> {
     }
 }
 
-impl<'a> MinByteRange for LigGlyph<'a> {
+impl<'a> MinByteRange<'a> for LigGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.caret_value_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -718,12 +738,19 @@ impl<'a> FontRead<'a> for CaretValue<'a> {
     }
 }
 
-impl MinByteRange for CaretValue<'_> {
+impl<'a> MinByteRange<'a> for CaretValue<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
         }
     }
 }
@@ -760,9 +787,13 @@ impl Format<u16> for CaretValueFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for CaretValueFormat1<'a> {
+impl<'a> MinByteRange<'a> for CaretValueFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.coordinate_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -837,9 +868,13 @@ impl Format<u16> for CaretValueFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for CaretValueFormat2<'a> {
+impl<'a> MinByteRange<'a> for CaretValueFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.caret_value_point_index_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -917,9 +952,13 @@ impl Format<u16> for CaretValueFormat3<'_> {
     const FORMAT: u16 = 3;
 }
 
-impl<'a> MinByteRange for CaretValueFormat3<'a> {
+impl<'a> MinByteRange<'a> for CaretValueFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.device_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1018,9 +1057,13 @@ impl Format<u16> for MarkGlyphSets<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for MarkGlyphSets<'a> {
+impl<'a> MinByteRange<'a> for MarkGlyphSets<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.coverage_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

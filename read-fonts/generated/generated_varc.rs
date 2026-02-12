@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Varc<'a> {
+impl<'a> MinByteRange<'a> for Varc<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_composite_glyphs_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -189,9 +193,13 @@ impl Format<u16> for MultiItemVariationStore<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for MultiItemVariationStore<'a> {
+impl<'a> MinByteRange<'a> for MultiItemVariationStore<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.variation_data_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -318,9 +326,13 @@ impl<'a> std::fmt::Debug for MultiItemVariationStore<'a> {
     }
 }
 
-impl<'a> MinByteRange for SparseVariationRegionList<'a> {
+impl<'a> MinByteRange<'a> for SparseVariationRegionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.region_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -409,9 +421,13 @@ impl<'a> std::fmt::Debug for SparseVariationRegionList<'a> {
     }
 }
 
-impl<'a> MinByteRange for SparseVariationRegion<'a> {
+impl<'a> MinByteRange<'a> for SparseVariationRegion<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.region_axes_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -543,9 +559,13 @@ impl Format<u8> for MultiItemVariationData<'_> {
     const FORMAT: u8 = 1;
 }
 
-impl<'a> MinByteRange for MultiItemVariationData<'a> {
+impl<'a> MinByteRange<'a> for MultiItemVariationData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.raw_delta_sets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -639,9 +659,13 @@ impl<'a> std::fmt::Debug for MultiItemVariationData<'a> {
     }
 }
 
-impl<'a> MinByteRange for ConditionList<'a> {
+impl<'a> MinByteRange<'a> for ConditionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.condition_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

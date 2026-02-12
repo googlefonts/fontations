@@ -358,9 +358,13 @@ impl<'a> From<SelectionFlags> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for Os2<'a> {
+impl<'a> MinByteRange<'a> for Os2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.us_win_descent_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

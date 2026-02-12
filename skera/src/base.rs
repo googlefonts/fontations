@@ -14,7 +14,7 @@ use write_fonts::{
             BaseLangSysRecord, BaseScript, BaseScriptList, BaseScriptRecord, BaseValues,
             FeatMinMaxRecord, MinMax,
         },
-        FontData, FontRef, TopLevelTable,
+        FontData, FontRef, MinByteRange, TopLevelTable,
     },
     types::{GlyphId, MajorMinor, Offset16, Offset32},
     FontBuilder,

@@ -739,9 +739,13 @@ impl<'a> SomeRecord<'a> for SmallGlyphMetrics {
     }
 }
 
-impl<'a> MinByteRange for IndexSubtableList<'a> {
+impl<'a> MinByteRange<'a> for IndexSubtableList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.index_subtable_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -899,9 +903,13 @@ impl Format<u16> for IndexSubtable1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for IndexSubtable1<'a> {
+impl<'a> MinByteRange<'a> for IndexSubtable1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sbit_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1042,9 +1050,13 @@ impl Format<u16> for IndexSubtable2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for IndexSubtable2<'a> {
+impl<'a> MinByteRange<'a> for IndexSubtable2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.big_metrics_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1166,9 +1178,13 @@ impl Format<u16> for IndexSubtable3<'_> {
     const FORMAT: u16 = 3;
 }
 
-impl<'a> MinByteRange for IndexSubtable3<'a> {
+impl<'a> MinByteRange<'a> for IndexSubtable3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sbit_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1309,9 +1325,13 @@ impl Format<u16> for IndexSubtable4<'_> {
     const FORMAT: u16 = 4;
 }
 
-impl<'a> MinByteRange for IndexSubtable4<'a> {
+impl<'a> MinByteRange<'a> for IndexSubtable4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1478,9 +1498,13 @@ impl Format<u16> for IndexSubtable5<'_> {
     const FORMAT: u16 = 5;
 }
 
-impl<'a> MinByteRange for IndexSubtable5<'a> {
+impl<'a> MinByteRange<'a> for IndexSubtable5<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

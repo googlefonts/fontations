@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for BasicTable<'a> {
+impl<'a> MinByteRange<'a> for BasicTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.array_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -322,9 +326,13 @@ impl<'a> SomeRecord<'a> for ContainsOffsets {
     }
 }
 
-impl<'a> MinByteRange for VarLenItem<'a> {
+impl<'a> MinByteRange<'a> for VarLenItem<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

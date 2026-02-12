@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Colr<'a> {
+impl<'a> MinByteRange<'a> for Colr<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.num_layer_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -389,9 +393,13 @@ impl<'a> SomeRecord<'a> for Layer {
     }
 }
 
-impl<'a> MinByteRange for BaseGlyphList<'a> {
+impl<'a> MinByteRange<'a> for BaseGlyphList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_glyph_paint_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -525,9 +533,13 @@ impl<'a> SomeRecord<'a> for BaseGlyphPaint {
     }
 }
 
-impl<'a> MinByteRange for LayerList<'a> {
+impl<'a> MinByteRange<'a> for LayerList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.paint_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -618,9 +630,13 @@ impl<'a> std::fmt::Debug for LayerList<'a> {
     }
 }
 
-impl<'a> MinByteRange for ClipList<'a> {
+impl<'a> MinByteRange<'a> for ClipList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.clips_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -842,11 +858,17 @@ impl<'a> FontRead<'a> for ClipBox<'a> {
     }
 }
 
-impl MinByteRange for ClipBox<'_> {
+impl<'a> MinByteRange<'a> for ClipBox<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -882,9 +904,13 @@ impl Format<u8> for ClipBoxFormat1<'_> {
     const FORMAT: u8 = 1;
 }
 
-impl<'a> MinByteRange for ClipBoxFormat1<'a> {
+impl<'a> MinByteRange<'a> for ClipBoxFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.y_max_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1002,9 +1028,13 @@ impl Format<u8> for ClipBoxFormat2<'_> {
     const FORMAT: u8 = 2;
 }
 
-impl<'a> MinByteRange for ClipBoxFormat2<'a> {
+impl<'a> MinByteRange<'a> for ClipBoxFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1333,9 +1363,13 @@ impl<'a> SomeRecord<'a> for VarColorStop {
     }
 }
 
-impl<'a> MinByteRange for ColorLine<'a> {
+impl<'a> MinByteRange<'a> for ColorLine<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.color_stops_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1426,9 +1460,13 @@ impl<'a> std::fmt::Debug for ColorLine<'a> {
     }
 }
 
-impl<'a> MinByteRange for VarColorLine<'a> {
+impl<'a> MinByteRange<'a> for VarColorLine<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.color_stops_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1733,7 +1771,7 @@ impl<'a> FontRead<'a> for Paint<'a> {
     }
 }
 
-impl MinByteRange for Paint<'_> {
+impl<'a> MinByteRange<'a> for Paint<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::ColrLayers(item) => item.min_byte_range(),
@@ -1768,6 +1806,42 @@ impl MinByteRange for Paint<'_> {
             Self::SkewAroundCenter(item) => item.min_byte_range(),
             Self::VarSkewAroundCenter(item) => item.min_byte_range(),
             Self::Composite(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::ColrLayers(item) => item.min_table_bytes(),
+            Self::Solid(item) => item.min_table_bytes(),
+            Self::VarSolid(item) => item.min_table_bytes(),
+            Self::LinearGradient(item) => item.min_table_bytes(),
+            Self::VarLinearGradient(item) => item.min_table_bytes(),
+            Self::RadialGradient(item) => item.min_table_bytes(),
+            Self::VarRadialGradient(item) => item.min_table_bytes(),
+            Self::SweepGradient(item) => item.min_table_bytes(),
+            Self::VarSweepGradient(item) => item.min_table_bytes(),
+            Self::Glyph(item) => item.min_table_bytes(),
+            Self::ColrGlyph(item) => item.min_table_bytes(),
+            Self::Transform(item) => item.min_table_bytes(),
+            Self::VarTransform(item) => item.min_table_bytes(),
+            Self::Translate(item) => item.min_table_bytes(),
+            Self::VarTranslate(item) => item.min_table_bytes(),
+            Self::Scale(item) => item.min_table_bytes(),
+            Self::VarScale(item) => item.min_table_bytes(),
+            Self::ScaleAroundCenter(item) => item.min_table_bytes(),
+            Self::VarScaleAroundCenter(item) => item.min_table_bytes(),
+            Self::ScaleUniform(item) => item.min_table_bytes(),
+            Self::VarScaleUniform(item) => item.min_table_bytes(),
+            Self::ScaleUniformAroundCenter(item) => item.min_table_bytes(),
+            Self::VarScaleUniformAroundCenter(item) => item.min_table_bytes(),
+            Self::Rotate(item) => item.min_table_bytes(),
+            Self::VarRotate(item) => item.min_table_bytes(),
+            Self::RotateAroundCenter(item) => item.min_table_bytes(),
+            Self::VarRotateAroundCenter(item) => item.min_table_bytes(),
+            Self::Skew(item) => item.min_table_bytes(),
+            Self::VarSkew(item) => item.min_table_bytes(),
+            Self::SkewAroundCenter(item) => item.min_table_bytes(),
+            Self::VarSkewAroundCenter(item) => item.min_table_bytes(),
+            Self::Composite(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1833,9 +1907,13 @@ impl Format<u8> for PaintColrLayers<'_> {
     const FORMAT: u8 = 1;
 }
 
-impl<'a> MinByteRange for PaintColrLayers<'a> {
+impl<'a> MinByteRange<'a> for PaintColrLayers<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.first_layer_index_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1923,9 +2001,13 @@ impl Format<u8> for PaintSolid<'_> {
     const FORMAT: u8 = 2;
 }
 
-impl<'a> MinByteRange for PaintSolid<'a> {
+impl<'a> MinByteRange<'a> for PaintSolid<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.alpha_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2013,9 +2095,13 @@ impl Format<u8> for PaintVarSolid<'_> {
     const FORMAT: u8 = 3;
 }
 
-impl<'a> MinByteRange for PaintVarSolid<'a> {
+impl<'a> MinByteRange<'a> for PaintVarSolid<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2117,9 +2203,13 @@ impl Format<u8> for PaintLinearGradient<'_> {
     const FORMAT: u8 = 4;
 }
 
-impl<'a> MinByteRange for PaintLinearGradient<'a> {
+impl<'a> MinByteRange<'a> for PaintLinearGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.y2_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2288,9 +2378,13 @@ impl Format<u8> for PaintVarLinearGradient<'_> {
     const FORMAT: u8 = 5;
 }
 
-impl<'a> MinByteRange for PaintVarLinearGradient<'a> {
+impl<'a> MinByteRange<'a> for PaintVarLinearGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2479,9 +2573,13 @@ impl Format<u8> for PaintRadialGradient<'_> {
     const FORMAT: u8 = 6;
 }
 
-impl<'a> MinByteRange for PaintRadialGradient<'a> {
+impl<'a> MinByteRange<'a> for PaintRadialGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.radius1_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2650,9 +2748,13 @@ impl Format<u8> for PaintVarRadialGradient<'_> {
     const FORMAT: u8 = 7;
 }
 
-impl<'a> MinByteRange for PaintVarRadialGradient<'a> {
+impl<'a> MinByteRange<'a> for PaintVarRadialGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2839,9 +2941,13 @@ impl Format<u8> for PaintSweepGradient<'_> {
     const FORMAT: u8 = 8;
 }
 
-impl<'a> MinByteRange for PaintSweepGradient<'a> {
+impl<'a> MinByteRange<'a> for PaintSweepGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.end_angle_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2984,9 +3090,13 @@ impl Format<u8> for PaintVarSweepGradient<'_> {
     const FORMAT: u8 = 9;
 }
 
-impl<'a> MinByteRange for PaintVarSweepGradient<'a> {
+impl<'a> MinByteRange<'a> for PaintVarSweepGradient<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3145,9 +3255,13 @@ impl Format<u8> for PaintGlyph<'_> {
     const FORMAT: u8 = 10;
 }
 
-impl<'a> MinByteRange for PaintGlyph<'a> {
+impl<'a> MinByteRange<'a> for PaintGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_id_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3245,9 +3359,13 @@ impl Format<u8> for PaintColrGlyph<'_> {
     const FORMAT: u8 = 11;
 }
 
-impl<'a> MinByteRange for PaintColrGlyph<'a> {
+impl<'a> MinByteRange<'a> for PaintColrGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_id_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3322,9 +3440,13 @@ impl Format<u8> for PaintTransform<'_> {
     const FORMAT: u8 = 12;
 }
 
-impl<'a> MinByteRange for PaintTransform<'a> {
+impl<'a> MinByteRange<'a> for PaintTransform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.transform_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3431,9 +3553,13 @@ impl Format<u8> for PaintVarTransform<'_> {
     const FORMAT: u8 = 13;
 }
 
-impl<'a> MinByteRange for PaintVarTransform<'a> {
+impl<'a> MinByteRange<'a> for PaintVarTransform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.transform_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3536,9 +3662,13 @@ impl<'a> std::fmt::Debug for PaintVarTransform<'a> {
     }
 }
 
-impl<'a> MinByteRange for Affine2x3<'a> {
+impl<'a> MinByteRange<'a> for Affine2x3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.dy_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3666,9 +3796,13 @@ impl<'a> std::fmt::Debug for Affine2x3<'a> {
     }
 }
 
-impl<'a> MinByteRange for VarAffine2x3<'a> {
+impl<'a> MinByteRange<'a> for VarAffine2x3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3818,9 +3952,13 @@ impl Format<u8> for PaintTranslate<'_> {
     const FORMAT: u8 = 14;
 }
 
-impl<'a> MinByteRange for PaintTranslate<'a> {
+impl<'a> MinByteRange<'a> for PaintTranslate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.dy_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3931,9 +4069,13 @@ impl Format<u8> for PaintVarTranslate<'_> {
     const FORMAT: u8 = 15;
 }
 
-impl<'a> MinByteRange for PaintVarTranslate<'a> {
+impl<'a> MinByteRange<'a> for PaintVarTranslate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4060,9 +4202,13 @@ impl Format<u8> for PaintScale<'_> {
     const FORMAT: u8 = 16;
 }
 
-impl<'a> MinByteRange for PaintScale<'a> {
+impl<'a> MinByteRange<'a> for PaintScale<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.scale_y_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4173,9 +4319,13 @@ impl Format<u8> for PaintVarScale<'_> {
     const FORMAT: u8 = 17;
 }
 
-impl<'a> MinByteRange for PaintVarScale<'a> {
+impl<'a> MinByteRange<'a> for PaintVarScale<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4304,9 +4454,13 @@ impl Format<u8> for PaintScaleAroundCenter<'_> {
     const FORMAT: u8 = 18;
 }
 
-impl<'a> MinByteRange for PaintScaleAroundCenter<'a> {
+impl<'a> MinByteRange<'a> for PaintScaleAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.center_y_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4447,9 +4601,13 @@ impl Format<u8> for PaintVarScaleAroundCenter<'_> {
     const FORMAT: u8 = 19;
 }
 
-impl<'a> MinByteRange for PaintVarScaleAroundCenter<'a> {
+impl<'a> MinByteRange<'a> for PaintVarScaleAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4608,9 +4766,13 @@ impl Format<u8> for PaintScaleUniform<'_> {
     const FORMAT: u8 = 20;
 }
 
-impl<'a> MinByteRange for PaintScaleUniform<'a> {
+impl<'a> MinByteRange<'a> for PaintScaleUniform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.scale_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4707,9 +4869,13 @@ impl Format<u8> for PaintVarScaleUniform<'_> {
     const FORMAT: u8 = 21;
 }
 
-impl<'a> MinByteRange for PaintVarScaleUniform<'a> {
+impl<'a> MinByteRange<'a> for PaintVarScaleUniform<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4821,9 +4987,13 @@ impl Format<u8> for PaintScaleUniformAroundCenter<'_> {
     const FORMAT: u8 = 22;
 }
 
-impl<'a> MinByteRange for PaintScaleUniformAroundCenter<'a> {
+impl<'a> MinByteRange<'a> for PaintScaleUniformAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.center_y_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4950,9 +5120,13 @@ impl Format<u8> for PaintVarScaleUniformAroundCenter<'_> {
     const FORMAT: u8 = 23;
 }
 
-impl<'a> MinByteRange for PaintVarScaleUniformAroundCenter<'a> {
+impl<'a> MinByteRange<'a> for PaintVarScaleUniformAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5096,9 +5270,13 @@ impl Format<u8> for PaintRotate<'_> {
     const FORMAT: u8 = 24;
 }
 
-impl<'a> MinByteRange for PaintRotate<'a> {
+impl<'a> MinByteRange<'a> for PaintRotate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.angle_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5196,9 +5374,13 @@ impl Format<u8> for PaintVarRotate<'_> {
     const FORMAT: u8 = 25;
 }
 
-impl<'a> MinByteRange for PaintVarRotate<'a> {
+impl<'a> MinByteRange<'a> for PaintVarRotate<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5310,9 +5492,13 @@ impl Format<u8> for PaintRotateAroundCenter<'_> {
     const FORMAT: u8 = 26;
 }
 
-impl<'a> MinByteRange for PaintRotateAroundCenter<'a> {
+impl<'a> MinByteRange<'a> for PaintRotateAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.center_y_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5440,9 +5626,13 @@ impl Format<u8> for PaintVarRotateAroundCenter<'_> {
     const FORMAT: u8 = 27;
 }
 
-impl<'a> MinByteRange for PaintVarRotateAroundCenter<'a> {
+impl<'a> MinByteRange<'a> for PaintVarRotateAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5586,9 +5776,13 @@ impl Format<u8> for PaintSkew<'_> {
     const FORMAT: u8 = 28;
 }
 
-impl<'a> MinByteRange for PaintSkew<'a> {
+impl<'a> MinByteRange<'a> for PaintSkew<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.y_skew_angle_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5701,9 +5895,13 @@ impl Format<u8> for PaintVarSkew<'_> {
     const FORMAT: u8 = 29;
 }
 
-impl<'a> MinByteRange for PaintVarSkew<'a> {
+impl<'a> MinByteRange<'a> for PaintVarSkew<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5834,9 +6032,13 @@ impl Format<u8> for PaintSkewAroundCenter<'_> {
     const FORMAT: u8 = 30;
 }
 
-impl<'a> MinByteRange for PaintSkewAroundCenter<'a> {
+impl<'a> MinByteRange<'a> for PaintSkewAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.center_y_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5979,9 +6181,13 @@ impl Format<u8> for PaintVarSkewAroundCenter<'_> {
     const FORMAT: u8 = 31;
 }
 
-impl<'a> MinByteRange for PaintVarSkewAroundCenter<'a> {
+impl<'a> MinByteRange<'a> for PaintVarSkewAroundCenter<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_base_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -6142,9 +6348,13 @@ impl Format<u8> for PaintComposite<'_> {
     const FORMAT: u8 = 32;
 }
 
-impl<'a> MinByteRange for PaintComposite<'a> {
+impl<'a> MinByteRange<'a> for PaintComposite<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.backdrop_paint_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

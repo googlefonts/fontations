@@ -111,6 +111,12 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
         }
 
+        //impl<'a, #generic> FontTable<'a> for #raw_name<'a, #generic> {
+            //fn offset_data(&self) -> FontData<'a> {
+                //self.data
+            //}
+        //}
+
         #debug
     })
 }
@@ -801,14 +807,17 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
         }
     });
 
-    let min_byte_arms = item
+    let mut min_byte_arms = Vec::new();
+    let mut min_table_byte_arms = Vec::new();
+    for variant in item
         .variants
         .iter()
-        .filter(|variant| variant.attrs.write_only.is_none())
-        .map(|variant| {
-            let var_name: &syn::Ident = &variant.name;
-            quote!(Self::#var_name(item) => item.min_byte_range(), )
-        });
+        .filter(|v| v.attrs.write_only.is_none())
+    {
+        let var_name: &syn::Ident = &variant.name;
+        min_byte_arms.push(quote!(Self::#var_name(item) => item.min_byte_range(), ));
+        min_table_byte_arms.push(quote!(Self::#var_name(item) => item.min_table_bytes(), ));
+    }
 
     Ok(quote! {
         #( #docs )*
@@ -830,10 +839,15 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
             }
         }
 
-        impl MinByteRange for #name<'_> {
+        impl<'a> MinByteRange<'a> for #name<'a> {
             fn min_byte_range(&self) -> Range<usize> {
                 match self {
                     #( #min_byte_arms )*
+                }
+            }
+            fn min_table_bytes(&self) -> &'a [u8] {
+                match self {
+                    #( #min_table_byte_arms )*
                 }
             }
         }
@@ -963,9 +977,13 @@ impl Table {
 
         let fn_name = field.shape_byte_range_fn_name();
         Some(quote! {
-            impl<'a, #generic> MinByteRange for #name<'a, #generic> {
+            impl<'a, #generic> MinByteRange<'a> for #name<'a, #generic> {
                 fn min_byte_range(&self) -> Range<usize> {
                     0..self.#fn_name().end
+                }
+                fn min_table_bytes(&self) -> &'a [u8] {
+                    let range = self.min_byte_range();
+                    self.data.as_bytes().get(range).unwrap_or_default()
                 }
             }
         })

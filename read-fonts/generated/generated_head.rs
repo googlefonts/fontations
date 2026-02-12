@@ -692,9 +692,13 @@ impl<'a> From<Flags> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for Head<'a> {
+impl<'a> MinByteRange<'a> for Head<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_format_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

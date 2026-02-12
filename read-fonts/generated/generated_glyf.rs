@@ -54,9 +54,13 @@ impl<'a> std::fmt::Debug for Glyf<'a> {
     }
 }
 
-impl<'a> MinByteRange for SimpleGlyph<'a> {
+impl<'a> MinByteRange<'a> for SimpleGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -632,9 +636,13 @@ impl<'a> From<SimpleGlyphFlags> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for CompositeGlyph<'a> {
+impl<'a> MinByteRange<'a> for CompositeGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1215,11 +1223,17 @@ impl<'a> FontRead<'a> for Glyph<'a> {
     }
 }
 
-impl MinByteRange for Glyph<'_> {
+impl<'a> MinByteRange<'a> for Glyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Simple(item) => item.min_byte_range(),
             Self::Composite(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Simple(item) => item.min_table_bytes(),
+            Self::Composite(item) => item.min_table_bytes(),
         }
     }
 }

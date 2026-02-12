@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Feat<'a> {
+impl<'a> MinByteRange<'a> for Feat<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.names_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -206,9 +210,13 @@ impl<'a> SomeRecord<'a> for FeatureName {
     }
 }
 
-impl<'a> MinByteRange for SettingNameArray<'a> {
+impl<'a> MinByteRange<'a> for SettingNameArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.settings_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Gsub<'a> {
+impl<'a> MinByteRange<'a> for Gsub<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.lookup_list_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -295,11 +299,17 @@ impl<'a> FontRead<'a> for SingleSubst<'a> {
     }
 }
 
-impl MinByteRange for SingleSubst<'_> {
+impl<'a> MinByteRange<'a> for SingleSubst<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -335,9 +345,13 @@ impl Format<u16> for SingleSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for SingleSubstFormat1<'a> {
+impl<'a> MinByteRange<'a> for SingleSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.delta_glyph_id_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -435,9 +449,13 @@ impl Format<u16> for SingleSubstFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for SingleSubstFormat2<'a> {
+impl<'a> MinByteRange<'a> for SingleSubstFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.substitute_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -552,9 +570,13 @@ impl Format<u16> for MultipleSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for MultipleSubstFormat1<'a> {
+impl<'a> MinByteRange<'a> for MultipleSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sequence_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -683,9 +705,13 @@ impl<'a> std::fmt::Debug for MultipleSubstFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for Sequence<'a> {
+impl<'a> MinByteRange<'a> for Sequence<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.substitute_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -765,9 +791,13 @@ impl Format<u16> for AlternateSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for AlternateSubstFormat1<'a> {
+impl<'a> MinByteRange<'a> for AlternateSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.alternate_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -899,9 +929,13 @@ impl<'a> std::fmt::Debug for AlternateSubstFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for AlternateSet<'a> {
+impl<'a> MinByteRange<'a> for AlternateSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.alternate_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -980,9 +1014,13 @@ impl Format<u16> for LigatureSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for LigatureSubstFormat1<'a> {
+impl<'a> MinByteRange<'a> for LigatureSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ligature_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1111,9 +1149,13 @@ impl<'a> std::fmt::Debug for LigatureSubstFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for LigatureSet<'a> {
+impl<'a> MinByteRange<'a> for LigatureSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ligature_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1206,9 +1248,13 @@ impl<'a> std::fmt::Debug for LigatureSet<'a> {
     }
 }
 
-impl<'a> MinByteRange for Ligature<'a> {
+impl<'a> MinByteRange<'a> for Ligature<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1303,9 +1349,13 @@ impl Format<u16> for ExtensionSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a, T> MinByteRange for ExtensionSubstFormat1<'a, T> {
+impl<'a, T> MinByteRange<'a> for ExtensionSubstFormat1<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.extension_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1513,9 +1563,13 @@ impl Format<u16> for ReverseChainSingleSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for ReverseChainSingleSubstFormat1<'a> {
+impl<'a> MinByteRange<'a> for ReverseChainSingleSubstFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.substitute_glyph_ids_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
