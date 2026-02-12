@@ -26,6 +26,64 @@ use write_fonts::{
 };
 
 const FIXED_HEADER_SIZE: u32 = 20;
+
+/// Newtype wrapper for Vec<Tent> that implements ordering matching Harfbuzz:
+/// - Regular tuples (no intermediate) come before intermediate tuples
+/// - Within each group, sort by peak value ascending
+/// - Then sort by axis order (already maintained by iteration order)
+///
+/// Since we can't directly inspect Tent's intermediate field, we track whether
+/// this tuple has intermediate coordinates separately.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TupleSortKey {
+    tents: Vec<write_fonts::tables::gvar::Tent>,
+    has_intermediate: bool,
+}
+
+impl TupleSortKey {
+    fn new(tents: Vec<write_fonts::tables::gvar::Tent>) -> Self {
+        // We determine if this tuple has intermediate coordinates by examining
+        // how many tents it has and their structure. For now, we'll use a simple
+        // heuristic that we can refine later.
+        // Actually, we don't have a way to check this without serialize/deserialize
+        // Let's use a different approach - store this info when we create the tent.
+        Self {
+            tents,
+            has_intermediate: false,
+        }
+    }
+
+    fn with_intermediate_flag(mut self, has_intermediate: bool) -> Self {
+        self.has_intermediate = has_intermediate;
+        self
+    }
+}
+
+impl Ord for TupleSortKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+
+        // Regular tuples (no intermediate) < intermediate tuples
+        match (self.has_intermediate, other.has_intermediate) {
+            (false, true) => return Ordering::Less,
+            (true, false) => return Ordering::Greater,
+            _ => {}
+        }
+        // Lowest order first
+        if self.tents.len() != other.tents.len() {
+            self.tents.len().cmp(&other.tents.len())
+        } else {
+            self.tents.cmp(&other.tents)
+        }
+    }
+}
+
+impl PartialOrd for TupleSortKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 // reference: subset() for gvar table in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/63d09dbefcf7ad9f794ca96445d37b6d8c3c9124/src/hb-ot-var-gvar-table.hh#L411
 impl Subset for Gvar<'_> {
@@ -160,8 +218,11 @@ fn instantiate_tuple(
     // Point count includes all glyph points plus 4 phantom points
     let point_count = all_points.0.len();
 
-    // Collect all tuples and process them
-    let mut result_variations: Vec<GlyphDeltas> = Vec::new();
+    // First pass: collect all rebased tuples with their deltas
+    // Key is tents (normalized for comparison), value is accumulated deltas
+    // Use BTreeMap for deterministic ordering matching Harfbuzz
+    use std::collections::BTreeMap;
+    let mut tuple_map: BTreeMap<TupleSortKey, (Vec<f64>, Vec<f64>)> = BTreeMap::new();
 
     for tuple in tuples {
         // Change tuple variations axis limits (rebase using axis instantiation)
@@ -173,7 +234,7 @@ fn instantiate_tuple(
             axis_tags,
         );
 
-        for (scalar, tents) in processed {
+        for (scalar, tents, has_intermediate) in processed {
             // If all axes are pinned (empty tents), skip this tuple
             // The deltas would be baked into the base glyph coordinates
             if tents.is_empty() {
@@ -199,21 +260,40 @@ fn instantiate_tuple(
             // Calculate inferred deltas for unreferenced points using IUP
             calc_inferred_deltas(&mut deltas_x, &mut deltas_y, &mut has_delta, all_points);
 
-            // Convert to write-fonts format
+            // Merge with existing tuples that have the same tents
+            tuple_map
+                .entry(TupleSortKey {
+                    tents,
+                    has_intermediate,
+                })
+                .and_modify(|(accum_x, accum_y)| {
+                    for i in 0..point_count {
+                        accum_x[i] += deltas_x[i];
+                        accum_y[i] += deltas_y[i];
+                    }
+                })
+                .or_insert((deltas_x, deltas_y));
+        }
+    }
+
+    // Second pass: convert accumulated deltas to GlyphDeltas
+    let result_variations: Vec<GlyphDeltas> = tuple_map
+        .into_iter()
+        .map(|(sort_key, (deltas_x, deltas_y))| {
             let scaled_deltas: Vec<WriteGlyphDelta> = deltas_x
                 .into_iter()
                 .zip(deltas_y)
                 .map(|(x, y)| WriteGlyphDelta::new(x.round() as i16, y.round() as i16, true))
                 .collect();
+            GlyphDeltas::new(sort_key.tents, scaled_deltas)
+        })
+        .collect();
 
-            result_variations.push(GlyphDeltas::new(tents, scaled_deltas));
-        }
-    }
     result_variations
 }
 
-/// Result of rebasing a tuple: (scalar, tents)
-type RebasedTuples = Vec<(f32, Vec<write_fonts::tables::gvar::Tent>)>;
+/// Result of rebasing a tuple: (scalar, tents, has_intermediate_coords)
+type RebasedTuples = Vec<(f32, Vec<write_fonts::tables::gvar::Tent>, bool)>;
 
 /// Change tuple variations by instantiating at the given axis limits
 fn change_tuple_variations_axis_limits(
@@ -231,8 +311,8 @@ fn change_tuple_variations_axis_limits(
 
     // If no axes being instanced, return single result
     if normalized_axes_location.is_empty() {
-        let tents = convert_peak_to_tents(&peak, &inter_start, &inter_end);
-        return vec![(1.0, tents)];
+        let (tents, has_intermediate) = convert_peak_to_tents(&peak, &inter_start, &inter_end);
+        return vec![(1.0, tents, has_intermediate)];
     }
 
     // Sort axes for deterministic processing
@@ -291,7 +371,7 @@ fn change_tuple_variations_axis_limits(
             // First, remove any axes with zero peaks from current_tents
             let mut current_tents = current_tents;
             current_tents.retain(|_, tent| tent.middle.abs() >= 1e-6);
-            
+
             if let Some(axis_limit) = normalized_axes_location.get(axis_tag) {
                 let axis_distances = axes_triple_distances
                     .get(axis_tag)
@@ -352,19 +432,21 @@ fn change_tuple_variations_axis_limits(
     results
         .into_iter()
         .map(|(scalar, tent_map)| {
-            let tents = convert_tent_map_to_tents(axis_tags, tent_map);
-            (scalar, tents)
+            let (tents, has_intermediate) =
+                convert_tent_map_to_tents_with_flag(axis_tags, tent_map);
+            (scalar, tents, has_intermediate)
         })
         .collect()
 }
 
-/// Convert peak tuple and intermediate tuples to tents
+/// Convert peak tuple and intermediate tuples to tents, and determine if it has intermediate coords
 fn convert_peak_to_tents(
     peak: &skrifa::raw::tables::variations::Tuple<'_>,
     inter_start: &Option<skrifa::raw::tables::variations::Tuple<'_>>,
     inter_end: &Option<skrifa::raw::tables::variations::Tuple<'_>>,
-) -> Vec<write_fonts::tables::gvar::Tent> {
+) -> (Vec<write_fonts::tables::gvar::Tent>, bool) {
     let mut tents = Vec::new();
+    let mut has_intermediate = false;
 
     for idx in 0..peak.len() {
         if let Some(peak_val) = peak.get(idx) {
@@ -393,6 +475,7 @@ fn convert_peak_to_tents(
             let intermediate = if (min_val - inferred_min).abs() > 0.001
                 || (max_val - inferred_max).abs() > 0.001
             {
+                has_intermediate = true;
                 Some((min_f2dot14, max_f2dot14))
             } else {
                 None
@@ -405,15 +488,17 @@ fn convert_peak_to_tents(
         }
     }
 
-    tents
+    (tents, has_intermediate)
 }
 
-/// Convert a tent map back to tents vector
-fn convert_tent_map_to_tents(
+/// Convert a tent map back to tents vector, and determine if it has intermediate coordinates
+fn convert_tent_map_to_tents_with_flag(
     axis_tags: &[Tag],
     tent_map: FnvHashMap<Tag, Triple>,
-) -> Vec<write_fonts::tables::gvar::Tent> {
-    axis_tags
+) -> (Vec<write_fonts::tables::gvar::Tent>, bool) {
+    let mut has_intermediate = false;
+
+    let tents: Vec<_> = axis_tags
         .iter()
         .filter_map(|axis_tag| {
             tent_map.get(axis_tag).map(|tent| {
@@ -428,6 +513,7 @@ fn convert_tent_map_to_tents(
                 let intermediate = if (tent.minimum - inferred_min).abs() > 0.001
                     || (tent.maximum - inferred_max).abs() > 0.001
                 {
+                    has_intermediate = true;
                     Some((min, max))
                 } else {
                     None
@@ -436,7 +522,17 @@ fn convert_tent_map_to_tents(
                 write_fonts::tables::gvar::Tent::new(peak, intermediate)
             })
         })
-        .collect()
+        .collect();
+
+    (tents, has_intermediate)
+}
+
+/// Convert a tent map back to tents vector
+fn convert_tent_map_to_tents(
+    axis_tags: &[Tag],
+    tent_map: FnvHashMap<Tag, Triple>,
+) -> Vec<write_fonts::tables::gvar::Tent> {
+    convert_tent_map_to_tents_with_flag(axis_tags, tent_map).0
 }
 
 fn subset_with_offset_type<OffsetType: GvarOffset>(
