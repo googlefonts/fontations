@@ -22,6 +22,7 @@ impl TopLevelTable for Cpal<'_> {
 
 impl<'a> FontRead<'a> for Cpal<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

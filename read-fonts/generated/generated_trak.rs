@@ -22,6 +22,7 @@ impl TopLevelTable for Trak<'_> {
 
 impl<'a> FontRead<'a> for Trak<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -153,6 +154,7 @@ impl<'a> MinByteRange<'a> for TrackData<'a> {
 
 impl<'a> FontRead<'a> for TrackData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

@@ -22,6 +22,7 @@ impl TopLevelTable for Gpos<'_> {
 
 impl<'a> FontRead<'a> for Gpos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -720,6 +721,7 @@ impl<'a> MinByteRange<'a> for AnchorFormat1<'a> {
 
 impl<'a> FontRead<'a> for AnchorFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -814,6 +816,7 @@ impl<'a> MinByteRange<'a> for AnchorFormat2<'a> {
 
 impl<'a> FontRead<'a> for AnchorFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -922,6 +925,7 @@ impl<'a> MinByteRange<'a> for AnchorFormat3<'a> {
 
 impl<'a> FontRead<'a> for AnchorFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1064,6 +1068,7 @@ impl<'a> MinByteRange<'a> for MarkArray<'a> {
 
 impl<'a> FontRead<'a> for MarkArray<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1301,6 +1306,7 @@ impl<'a> MinByteRange<'a> for SinglePosFormat1<'a> {
 
 impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1427,6 +1433,7 @@ impl<'a> MinByteRange<'a> for SinglePosFormat2<'a> {
 
 impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1677,6 +1684,7 @@ impl<'a> MinByteRange<'a> for PairPosFormat1<'a> {
 
 impl<'a> FontRead<'a> for PairPosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1853,6 +1861,8 @@ impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
         args: &(ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
         let (value_format1, value_format2) = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -2086,6 +2096,7 @@ impl<'a> MinByteRange<'a> for PairPosFormat2<'a> {
 
 impl<'a> FontRead<'a> for PairPosFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -2493,6 +2504,7 @@ impl<'a> MinByteRange<'a> for CursivePosFormat1<'a> {
 
 impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -2693,6 +2705,7 @@ impl<'a> MinByteRange<'a> for MarkBasePosFormat1<'a> {
 
 impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -2873,6 +2886,8 @@ impl ReadArgs for BaseArray<'_> {
 impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -3078,6 +3093,7 @@ impl<'a> MinByteRange<'a> for MarkLigPosFormat1<'a> {
 
 impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -3258,6 +3274,8 @@ impl ReadArgs for LigatureArray<'_> {
 impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -3384,6 +3402,8 @@ impl ReadArgs for LigatureAttach<'_> {
 impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -3590,6 +3610,7 @@ impl<'a> MinByteRange<'a> for MarkMarkPosFormat1<'a> {
 
 impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -3770,6 +3791,8 @@ impl ReadArgs for Mark2Array<'_> {
 impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -3975,6 +3998,7 @@ impl<'a, T> MinByteRange<'a> for ExtensionPosFormat1<'a, T> {
 
 impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

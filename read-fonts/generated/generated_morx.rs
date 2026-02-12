@@ -22,6 +22,7 @@ impl TopLevelTable for Morx<'_> {
 
 impl<'a> FontRead<'a> for Morx<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -127,6 +128,7 @@ impl<'a> MinByteRange<'a> for Chain<'a> {
 
 impl<'a> FontRead<'a> for Chain<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -334,6 +336,7 @@ impl<'a> MinByteRange<'a> for Subtable<'a> {
 
 impl<'a> FontRead<'a> for Subtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

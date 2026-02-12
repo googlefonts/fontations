@@ -17,6 +17,7 @@ impl<'a> MinByteRange<'a> for TableDirectory<'a> {
 
 impl<'a> FontRead<'a> for TableDirectory<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -214,6 +215,7 @@ impl<'a> MinByteRange<'a> for TTCHeader<'a> {
 
 impl<'a> FontRead<'a> for TTCHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
