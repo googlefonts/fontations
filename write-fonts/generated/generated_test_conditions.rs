@@ -110,7 +110,6 @@ pub struct FlagDay {
     pub flags: GotFlags,
     pub foo: Option<u16>,
     pub bar: Option<u16>,
-    pub baz: Option<u16>,
 }
 
 impl FlagDay {
@@ -140,14 +139,6 @@ impl FontWrite for FlagDay {
                 .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
-        self.flags
-            .intersects(GotFlags::BAZ | GotFlags::FOO)
-            .then(|| {
-                self.baz
-                    .as_ref()
-                    .expect("missing conditional field should have failed validation")
-                    .write_into(writer)
-            });
     }
     fn table_type(&self) -> TableType {
         TableType::Named("FlagDay")
@@ -174,14 +165,6 @@ impl Validate for FlagDay {
                     ctx.report("BAR is set but 'bar' is None")
                 }
             });
-            ctx.in_field("baz", |ctx| {
-                if !(flags.intersects(GotFlags::BAZ | GotFlags::FOO)) && self.baz.is_some() {
-                    ctx.report("if_cond is not satisfied but 'baz' is present.");
-                }
-                if (flags.intersects(GotFlags::BAZ | GotFlags::FOO)) && self.baz.is_none() {
-                    ctx.report("if_cond is satisfied by 'baz' is not present.");
-                }
-            });
         })
     }
 }
@@ -193,7 +176,6 @@ impl<'a> FromObjRef<read_fonts::codegen_test::conditions::FlagDay<'a>> for FlagD
             flags: obj.flags(),
             foo: obj.foo(),
             bar: obj.bar(),
-            baz: obj.baz(),
         }
     }
 }
