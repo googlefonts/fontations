@@ -19,7 +19,7 @@ hashbrown = "0.15.1"
 log = "0.4.29"
 num-traits = "0.2.18"
 regex = "1.10.4"
-skrifa = { workspace = true }
+skrifa = { workspace = true, features = ["skera"] }
 thiserror = "2.0"
 write-fonts = { workspace = true, features = ["read"] }
 
