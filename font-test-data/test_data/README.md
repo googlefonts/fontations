@@ -132,6 +132,18 @@ Describes the provenance, usage and generation procedures for font data used for
   * font: Hand rolled cmap 10 subtable
   * usage: testing cmap format 10 mapping and iteration
 
+* type1/notoserif-regular.subset.pfa
+  * font: Noto Serif Regular
+  * source: https://fonts.google.com/noto/specimen/Noto+Serif
+  * license: [Open Font License][OFL]
+  * usage: testing PFA (Type1 ASCII font) parsing
+
+* type1/notoserif-regular.subset.pfb
+  * font: Noto Serif Regular
+  * source: https://fonts.google.com/noto/specimen/Noto+Serif
+  * license: [Open Font License][OFL]
+  * usage: testing PFB (Type1 binary font) parsing
+
 ## rebuilding
 To update the binaries and extracted data, run script located at `resources/test_fonts/rebuild.sh`
 This script will install the correct version of fonttools and FreeType, and then regenerate

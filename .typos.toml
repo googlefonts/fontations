@@ -32,6 +32,7 @@ typ = "typ"
 typs = "typs"
 typ_str = "typ_str"
 Vai = "Vai"
+ND = "ND"
 
 # Match Inside a Word - Case Insensitive
 [default.extend-words]

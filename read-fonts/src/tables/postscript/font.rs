@@ -1,6 +1,9 @@
 //! Model for PostScript fonts.
 
 mod cff;
+#[expect(unused)]
+#[cfg(feature = "std")]
+mod type1;
 
 pub use cff::{CffFontRef, CffSubfont};
 
