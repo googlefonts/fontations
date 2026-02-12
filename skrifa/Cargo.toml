@@ -27,6 +27,8 @@ autohint_shaping = []
 # as discussed at https://github.com/harfbuzz/boring-expansion-spec
 spec_next = ["read-fonts/spec_next"]
 libm = ["dep:core_maths", "read-fonts/libm"]
+# Allow to access low-level glyf delta computation functions
+skera = []
 
 [dependencies]
 read-fonts = { workspace = true, default-features = false }
