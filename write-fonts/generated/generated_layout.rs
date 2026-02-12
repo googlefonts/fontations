@@ -569,7 +569,6 @@ impl<T: Default> Lookup<T> {
 impl<T: Validate> Validate for Lookup<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Lookup", |ctx| {
-            let lookup_flag = self.lookup_flag;
             ctx.in_field("subtables", |ctx| {
                 if self.subtables.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");

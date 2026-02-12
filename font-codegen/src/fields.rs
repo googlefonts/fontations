@@ -8,20 +8,14 @@ use syn::spanned::Spanned;
 
 use super::parsing::{
     logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
-    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
+    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record,
 };
 
 impl Fields {
     pub(crate) fn new(fields: Vec<Field>) -> syn::Result<Self> {
-        let referenced_fields = fields
-            .iter()
-            .flat_map(Field::input_fields)
-            .collect::<ReferencedFields>();
-
         Ok(Fields {
             fields,
             read_args: None,
-            referenced_fields,
         })
     }
 
@@ -108,20 +102,6 @@ impl Fields {
 
     pub(crate) fn iter_compile_default_inits(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.fields.iter().filter_map(Field::compile_default_init)
-    }
-
-    /// return the names of any fields that are the inputs of a conditional statement
-    /// on another field.
-    pub(crate) fn conditional_input_idents(&self) -> Vec<syn::Ident> {
-        let mut result = self
-            .fields
-            .iter()
-            .flat_map(|fld| fld.attrs.conditional.as_ref())
-            .flat_map(|cond| cond.input_field())
-            .collect::<Vec<_>>();
-        result.sort();
-        result.dedup();
-        result
     }
 
     pub(crate) fn iter_constructor_info(&self) -> impl Iterator<Item = FieldConstructorInfo> + '_ {
@@ -311,15 +291,6 @@ impl Condition {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
-        }
-    }
-
-    /// the name of any fields that need to be instantiated to determine this condition
-    fn input_field(&self) -> Option<syn::Ident> {
-        match self {
-            // special case, we always treat a version field as input
-            Condition::SinceVersion(_) => None,
-            Condition::IfFlag { field, .. } => Some(field.clone()),
         }
     }
 }

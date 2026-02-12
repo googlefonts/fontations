@@ -148,7 +148,6 @@ impl FontWrite for FlagDay {
 impl Validate for FlagDay {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FlagDay", |ctx| {
-            let flags = self.flags;
             ctx.in_field("foo", |ctx| {
                 if !(self.flags.contains(GotFlags::FOO)) && self.foo.is_some() {
                     ctx.report("'foo' is present but FOO not set")
