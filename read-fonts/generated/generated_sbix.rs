@@ -313,9 +313,13 @@ impl<'a> From<HeaderFlags> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for Sbix<'a> {
+impl<'a> MinByteRange<'a> for Sbix<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.strike_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -463,9 +467,13 @@ impl<'a> std::fmt::Debug for Sbix<'a> {
     }
 }
 
-impl<'a> MinByteRange for Strike<'a> {
+impl<'a> MinByteRange<'a> for Strike<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -571,9 +579,13 @@ impl<'a> std::fmt::Debug for Strike<'a> {
     }
 }
 
-impl<'a> MinByteRange for GlyphData<'a> {
+impl<'a> MinByteRange<'a> for GlyphData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

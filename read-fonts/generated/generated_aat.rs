@@ -58,7 +58,7 @@ impl<'a> FontRead<'a> for Lookup<'a> {
     }
 }
 
-impl MinByteRange for Lookup<'_> {
+impl<'a> MinByteRange<'a> for Lookup<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format0(item) => item.min_byte_range(),
@@ -67,6 +67,16 @@ impl MinByteRange for Lookup<'_> {
             Self::Format6(item) => item.min_byte_range(),
             Self::Format8(item) => item.min_byte_range(),
             Self::Format10(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format0(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
+            Self::Format6(item) => item.min_table_bytes(),
+            Self::Format8(item) => item.min_table_bytes(),
+            Self::Format10(item) => item.min_table_bytes(),
         }
     }
 }
@@ -106,9 +116,13 @@ impl Format<u16> for Lookup0<'_> {
     const FORMAT: u16 = 0;
 }
 
-impl<'a> MinByteRange for Lookup0<'a> {
+impl<'a> MinByteRange<'a> for Lookup0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.values_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -185,9 +199,13 @@ impl Format<u16> for Lookup2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for Lookup2<'a> {
+impl<'a> MinByteRange<'a> for Lookup2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.segments_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -338,9 +356,13 @@ impl Format<u16> for Lookup4<'_> {
     const FORMAT: u16 = 4;
 }
 
-impl<'a> MinByteRange for Lookup4<'a> {
+impl<'a> MinByteRange<'a> for Lookup4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.segments_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -545,9 +567,13 @@ impl Format<u16> for Lookup6<'_> {
     const FORMAT: u16 = 6;
 }
 
-impl<'a> MinByteRange for Lookup6<'a> {
+impl<'a> MinByteRange<'a> for Lookup6<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entries_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -697,9 +723,13 @@ impl Format<u16> for Lookup8<'_> {
     const FORMAT: u16 = 8;
 }
 
-impl<'a> MinByteRange for Lookup8<'a> {
+impl<'a> MinByteRange<'a> for Lookup8<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.value_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -804,9 +834,13 @@ impl Format<u16> for Lookup10<'_> {
     const FORMAT: u16 = 10;
 }
 
-impl<'a> MinByteRange for Lookup10<'a> {
+impl<'a> MinByteRange<'a> for Lookup10<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.values_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -925,9 +959,13 @@ impl<'a> std::fmt::Debug for Lookup10<'a> {
     }
 }
 
-impl<'a> MinByteRange for StateHeader<'a> {
+impl<'a> MinByteRange<'a> for StateHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_table_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1055,9 +1093,13 @@ impl<'a> std::fmt::Debug for StateHeader<'a> {
     }
 }
 
-impl<'a> MinByteRange for ClassSubtable<'a> {
+impl<'a> MinByteRange<'a> for ClassSubtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.class_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1143,9 +1185,13 @@ impl<'a> std::fmt::Debug for ClassSubtable<'a> {
     }
 }
 
-impl<'a> MinByteRange for RawBytes<'a> {
+impl<'a> MinByteRange<'a> for RawBytes<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1203,9 +1249,13 @@ impl<'a> std::fmt::Debug for RawBytes<'a> {
     }
 }
 
-impl<'a> MinByteRange for StxHeader<'a> {
+impl<'a> MinByteRange<'a> for StxHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_table_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1332,9 +1382,13 @@ impl<'a> std::fmt::Debug for StxHeader<'a> {
     }
 }
 
-impl<'a> MinByteRange for RawWords<'a> {
+impl<'a> MinByteRange<'a> for RawWords<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

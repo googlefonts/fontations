@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for KindsOfOffsets<'a> {
+impl<'a> MinByteRange<'a> for KindsOfOffsets<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.record_array_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -268,9 +272,13 @@ impl<'a> std::fmt::Debug for KindsOfOffsets<'a> {
     }
 }
 
-impl<'a> MinByteRange for KindsOfArraysOfOffsets<'a> {
+impl<'a> MinByteRange<'a> for KindsOfArraysOfOffsets<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.nullable_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -484,9 +492,13 @@ impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
     }
 }
 
-impl<'a> MinByteRange for KindsOfArrays<'a> {
+impl<'a> MinByteRange<'a> for KindsOfArrays<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -636,9 +648,13 @@ impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
     }
 }
 
-impl<'a> MinByteRange for VarLenHaver<'a> {
+impl<'a> MinByteRange<'a> for VarLenHaver<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.other_field_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -725,9 +741,13 @@ impl<'a> std::fmt::Debug for VarLenHaver<'a> {
     }
 }
 
-impl<'a> MinByteRange for Dummy<'a> {
+impl<'a> MinByteRange<'a> for Dummy<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self._reserved_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

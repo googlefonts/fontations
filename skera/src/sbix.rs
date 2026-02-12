@@ -7,7 +7,7 @@ use write_fonts::{
     read::{
         tables::sbix::{Sbix, Strike},
         types::Offset32,
-        ArrayOfOffsets, FontRef, TopLevelTable,
+        ArrayOfOffsets, FontRef, MinByteRange, TopLevelTable,
     },
     FontBuilder,
 };

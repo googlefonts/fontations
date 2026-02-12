@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Fvar<'a> {
+impl<'a> MinByteRange<'a> for Fvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.instance_size_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -167,9 +171,13 @@ impl<'a> std::fmt::Debug for Fvar<'a> {
     }
 }
 
-impl<'a> MinByteRange for AxisInstanceArrays<'a> {
+impl<'a> MinByteRange<'a> for AxisInstanceArrays<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.instances_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

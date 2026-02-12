@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for TupleVariationHeader<'a> {
+impl<'a> MinByteRange<'a> for TupleVariationHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.intermediate_end_tuple_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -210,9 +214,13 @@ impl Format<u8> for DeltaSetIndexMapFormat0<'_> {
     const FORMAT: u8 = 0;
 }
 
-impl<'a> MinByteRange for DeltaSetIndexMapFormat0<'a> {
+impl<'a> MinByteRange<'a> for DeltaSetIndexMapFormat0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.map_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -317,9 +325,13 @@ impl Format<u8> for DeltaSetIndexMapFormat1<'_> {
     const FORMAT: u8 = 1;
 }
 
-impl<'a> MinByteRange for DeltaSetIndexMapFormat1<'a> {
+impl<'a> MinByteRange<'a> for DeltaSetIndexMapFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.map_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -473,11 +485,17 @@ impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
     }
 }
 
-impl MinByteRange for DeltaSetIndexMap<'_> {
+impl<'a> MinByteRange<'a> for DeltaSetIndexMap<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format0(item) => item.min_byte_range(),
             Self::Format1(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format0(item) => item.min_table_bytes(),
+            Self::Format1(item) => item.min_table_bytes(),
         }
     }
 }
@@ -820,9 +838,13 @@ impl<'a> From<EntryFormat> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for VariationRegionList<'a> {
+impl<'a> MinByteRange<'a> for VariationRegionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.variation_regions_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1043,9 +1065,13 @@ impl<'a> SomeRecord<'a> for RegionAxisCoordinates {
     }
 }
 
-impl<'a> MinByteRange for ItemVariationStore<'a> {
+impl<'a> MinByteRange<'a> for ItemVariationStore<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.item_variation_data_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1183,9 +1209,13 @@ impl<'a> std::fmt::Debug for ItemVariationStore<'a> {
     }
 }
 
-impl<'a> MinByteRange for ItemVariationData<'a> {
+impl<'a> MinByteRange<'a> for ItemVariationData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.delta_sets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
