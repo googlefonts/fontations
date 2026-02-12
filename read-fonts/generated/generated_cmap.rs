@@ -69,7 +69,7 @@ impl<'a> Cmap<'a> {
 
     pub fn encoding_records(&self) -> &'a [EncodingRecord] {
         let range = self.encoding_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -409,7 +409,7 @@ impl<'a> Cmap0<'a> {
     /// An array that maps character codes to glyph index values.
     pub fn glyph_id_array(&self) -> &'a [u8] {
         let range = self.glyph_id_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -514,7 +514,7 @@ impl<'a> Cmap2<'a> {
     /// index × 8.
     pub fn sub_header_keys(&self) -> &'a [BigEndian<u16>] {
         let range = self.sub_header_keys_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -771,31 +771,31 @@ impl<'a> Cmap4<'a> {
     /// End characterCode for each segment, last=0xFFFF.
     pub fn end_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.end_code_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Start character code for each segment.
     pub fn start_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.start_code_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Delta for all character codes in segment.
     pub fn id_delta(&self) -> &'a [BigEndian<i16>] {
         let range = self.id_delta_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Offsets into glyphIdArray or 0
     pub fn id_range_offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.id_range_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Glyph index array (arbitrary length)
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.glyph_id_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -936,7 +936,7 @@ impl<'a> Cmap6<'a> {
     /// Array of glyph index values for character codes in the range.
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.glyph_id_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1067,7 +1067,7 @@ impl<'a> Cmap8<'a> {
     /// 32-bit character code
     pub fn is32(&self) -> &'a [u8] {
         let range = self.is32_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Number of groupings which follow
@@ -1079,7 +1079,7 @@ impl<'a> Cmap8<'a> {
     /// Array of SequentialMapGroup records.
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.groups_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1286,7 +1286,7 @@ impl<'a> Cmap10<'a> {
     /// Array of glyph indices for the character codes covered
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.glyph_id_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1415,7 +1415,7 @@ impl<'a> Cmap12<'a> {
     /// Array of SequentialMapGroup records.
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.groups_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1550,7 +1550,7 @@ impl<'a> Cmap13<'a> {
     /// Array of ConstantMapGroup records.
     pub fn groups(&self) -> &'a [ConstantMapGroup] {
         let range = self.groups_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1715,7 +1715,7 @@ impl<'a> Cmap14<'a> {
     /// Array of VariationSelector records.
     pub fn var_selector(&self) -> &'a [VariationSelector] {
         let range = self.var_selector_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1884,7 +1884,7 @@ impl<'a> DefaultUvs<'a> {
     /// Array of UnicodeRange records.
     pub fn ranges(&self) -> &'a [UnicodeRange] {
         let range = self.ranges_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1966,7 +1966,7 @@ impl<'a> NonDefaultUvs<'a> {
 
     pub fn uvs_mapping(&self) -> &'a [UvsMapping] {
         let range = self.uvs_mapping_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

@@ -209,7 +209,7 @@ impl<'a> TrackData<'a> {
     /// Array of TrackTableEntry records.
     pub fn track_table(&self) -> &'a [TrackTableEntry] {
         let range = self.track_table_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

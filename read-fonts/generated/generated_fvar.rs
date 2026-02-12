@@ -246,7 +246,7 @@ impl<'a> AxisInstanceArrays<'a> {
     /// Variation axis record array.
     pub fn axes(&self) -> &'a [VariationAxisRecord] {
         let range = self.axes_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Instance record array.
@@ -254,7 +254,7 @@ impl<'a> AxisInstanceArrays<'a> {
         let range = self.instances_byte_range();
         self.data
             .read_with_args(range, &(self.axis_count(), self.instance_size()))
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub(crate) fn axis_count(&self) -> u16 {

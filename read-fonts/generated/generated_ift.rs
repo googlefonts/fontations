@@ -641,7 +641,7 @@ impl<'a> PatchMapFormat1<'a> {
 
     pub fn applied_entries_bitmap(&self) -> &'a [u8] {
         let range = self.applied_entries_bitmap_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub fn url_template_length(&self) -> u16 {
@@ -651,7 +651,7 @@ impl<'a> PatchMapFormat1<'a> {
 
     pub fn url_template(&self) -> &'a [u8] {
         let range = self.url_template_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Patch format number for patches referenced by this mapping.
@@ -822,7 +822,7 @@ impl<'a> GlyphMap<'a> {
         let range = self.entry_index_byte_range();
         self.data
             .read_with_args(range, &self.max_entry_index())
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub(crate) fn glyph_count(&self) -> Uint24 {
@@ -933,12 +933,12 @@ impl<'a> FeatureMap<'a> {
         let range = self.feature_records_byte_range();
         self.data
             .read_with_args(range, &self.max_entry_index())
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub fn entry_map_data(&self) -> &'a [u8] {
         let range = self.entry_map_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub(crate) fn max_entry_index(&self) -> u16 {
@@ -1324,7 +1324,7 @@ impl<'a> PatchMapFormat2<'a> {
 
     pub fn url_template(&self) -> &'a [u8] {
         let range = self.url_template_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub fn cff_charstrings_offset(&self) -> Option<u32> {
@@ -1443,7 +1443,7 @@ impl<'a> MappingEntries<'a> {
 
     pub fn entry_data(&self) -> &'a [u8] {
         let range = self.entry_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1621,11 +1621,6 @@ impl<'a> EntryData<'a> {
             .then(|| self.data.read_array(range).ok())
             .flatten()
     }
-
-    pub fn trailing_data(&self) -> &'a [u8] {
-        let range = self.trailing_data_byte_range();
-        self.data.read_array(range).ok()
-    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -1691,7 +1686,6 @@ impl<'a> SomeTable<'a> for EntryData<'a> {
             {
                 Some(Field::new("child_indices", self.child_indices().unwrap()))
             }
-            7usize => Some(Field::new("trailing_data", self.trailing_data())),
             _ => None,
         }
     }
@@ -2112,7 +2106,7 @@ impl<'a> IdStringData<'a> {
 
     pub fn id_data(&self) -> &'a [u8] {
         let range = self.id_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -2214,7 +2208,7 @@ impl<'a> TableKeyedPatch<'a> {
 
     pub fn patch_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.patch_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`patch_offsets`][Self::patch_offsets].
@@ -2334,7 +2328,7 @@ impl<'a> TablePatch<'a> {
 
     pub fn brotli_stream(&self) -> &'a [u8] {
         let range = self.brotli_stream_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -2759,7 +2753,7 @@ impl<'a> GlyphKeyedPatch<'a> {
 
     pub fn brotli_stream(&self) -> &'a [u8] {
         let range = self.brotli_stream_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -3192,17 +3186,19 @@ impl<'a> GlyphPatches<'a> {
 
     pub fn glyph_ids(&self) -> ComputedArray<'a, U16Or24> {
         let range = self.glyph_ids_byte_range();
-        self.data.read_with_args(range, &self.flags()).unwrap()
+        self.data
+            .read_with_args(range, &self.flags())
+            .unwrap_or_default()
     }
 
     pub fn tables(&self) -> &'a [BigEndian<Tag>] {
         let range = self.tables_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.glyph_data_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`glyph_data_offsets`][Self::glyph_data_offsets].
@@ -3289,7 +3285,7 @@ impl<'a> GlyphData<'a> {
 
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

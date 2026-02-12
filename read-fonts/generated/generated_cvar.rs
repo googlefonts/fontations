@@ -94,7 +94,7 @@ impl<'a> Cvar<'a> {
         self.data
             .split_off(range.start)
             .and_then(|d| VarLenArray::read(d).ok())
-            .unwrap()
+            .unwrap_or_default()
     }
 }
 

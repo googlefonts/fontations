@@ -38,8 +38,11 @@ impl Fields {
                 first_conditional = Some(i);
             }
 
-            if first_conditional.is_some() && !fld.is_conditional() && fld.is_zerocopy_compatible()
-            {
+            if first_conditional.is_some() && !fld.is_conditional() {
+                // allow one special case in the IFT module, which we have handled manually
+                if fld.name == "trailing_data" {
+                    continue;
+                }
                 return Err(logged_syn_error(
                     fld.name.span(),
                     "non-conditional fields cannot follow conditional fields",
@@ -765,15 +768,22 @@ impl Field {
         let is_var_array = self.is_var_array();
         let is_conditional = self.is_conditional();
         let maybe_unwrap = self.validated_at_parse.then(|| quote!( .unwrap() ));
+        // for fields that have lengths calculated based on other inputs,
+        // it's possible we don't have enough bytes and reading could fail.
+        // When these are non-optional, we use unwrap_or_default so that we
+        // are always returning a value.
+        let maybe_unwrap_or_def = self
+            .validated_at_parse
+            .then(|| quote!( .unwrap_or_default() ));
 
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args) #maybe_unwrap )
+            quote!( self.data.read_with_args(range, &#get_args) #maybe_unwrap_or_def )
         } else if is_var_array {
-            quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap )
+            quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
         } else if is_array {
-            quote!(self.data.read_array(range).ok() #maybe_unwrap)
+            quote!(self.data.read_array(range).ok() #maybe_unwrap_or_def)
         } else {
             quote!(self.data.read_at(range.start).ok() #maybe_unwrap)
         };

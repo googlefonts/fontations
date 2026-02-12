@@ -514,7 +514,7 @@ impl<'a> SingleSubstFormat2<'a> {
     /// Array of substitute glyph IDs — ordered by Coverage index
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.substitute_glyph_ids_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -632,7 +632,7 @@ impl<'a> MultipleSubstFormat1<'a> {
     /// of substitution subtable, ordered by Coverage index
     pub fn sequence_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.sequence_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`sequence_offsets`][Self::sequence_offsets].
@@ -732,7 +732,7 @@ impl<'a> Sequence<'a> {
     /// String of glyph IDs to substitute
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.substitute_glyph_ids_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -845,7 +845,7 @@ impl<'a> AlternateSubstFormat1<'a> {
     /// beginning of substitution subtable, ordered by Coverage index
     pub fn alternate_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.alternate_set_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`alternate_set_offsets`][Self::alternate_set_offsets].
@@ -947,7 +947,7 @@ impl<'a> AlternateSet<'a> {
     /// Array of alternate glyph IDs, in arbitrary order
     pub fn alternate_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.alternate_glyph_ids_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1060,7 +1060,7 @@ impl<'a> LigatureSubstFormat1<'a> {
     /// beginning of substitution subtable, ordered by Coverage index
     pub fn ligature_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.ligature_set_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`ligature_set_offsets`][Self::ligature_set_offsets].
@@ -1160,7 +1160,7 @@ impl<'a> LigatureSet<'a> {
     /// of LigatureSet table, ordered by preference.
     pub fn ligature_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.ligature_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`ligature_offsets`][Self::ligature_offsets].
@@ -1269,7 +1269,7 @@ impl<'a> Ligature<'a> {
     /// component, ordered in writing direction
     pub fn component_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.component_glyph_ids_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1623,7 +1623,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// glyph sequence order.
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.backtrack_coverage_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
@@ -1643,7 +1643,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// glyph sequence order.
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.lookahead_coverage_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
@@ -1662,7 +1662,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Array of substitute glyph IDs — ordered by Coverage index.
     pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.substitute_glyph_ids_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

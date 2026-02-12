@@ -50,7 +50,7 @@ impl<'a> CountAll16<'a> {
 
     pub fn remainder(&self) -> &'a [BigEndian<u16>] {
         let range = self.remainder_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -121,7 +121,7 @@ impl<'a> CountAll32<'a> {
 
     pub fn remainder(&self) -> &'a [BigEndian<u32>] {
         let range = self.remainder_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

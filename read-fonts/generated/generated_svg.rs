@@ -147,7 +147,7 @@ impl<'a> SVGDocumentList<'a> {
     /// Array of SVGDocumentRecords.
     pub fn document_records(&self) -> &'a [SVGDocumentRecord] {
         let range = self.document_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

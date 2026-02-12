@@ -82,7 +82,7 @@ impl<'a> Ltag<'a> {
     /// Range of each tag's string.
     pub fn tag_ranges(&self) -> &'a [FTStringRange] {
         let range = self.tag_ranges_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

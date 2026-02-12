@@ -352,7 +352,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     /// A normal array offset
     pub fn nonnullable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.nonnullable_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`nonnullable_offsets`][Self::nonnullable_offsets].
@@ -365,7 +365,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     /// An offset that is nullable, but always present
     pub fn nullable_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.nullable_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`nullable_offsets`][Self::nullable_offsets].
@@ -567,13 +567,13 @@ impl<'a> KindsOfArrays<'a> {
     /// an array of scalars
     pub fn scalars(&self) -> &'a [BigEndian<u16>] {
         let range = self.scalars_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// an array of records
     pub fn records(&self) -> &'a [Shmecord] {
         let range = self.records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// a versioned array of scalars
@@ -693,7 +693,7 @@ impl<'a> VarLenHaver<'a> {
         self.data
             .split_off(range.start)
             .and_then(|d| VarLenArray::read(d).ok())
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub fn other_field(&self) -> u32 {

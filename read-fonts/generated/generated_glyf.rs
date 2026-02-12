@@ -178,7 +178,7 @@ impl<'a> SimpleGlyph<'a> {
     /// in increasing numeric order
     pub fn end_pts_of_contours(&self) -> &'a [BigEndian<u16>] {
         let range = self.end_pts_of_contours_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Total number of bytes for instructions. If instructionLength is
@@ -192,13 +192,13 @@ impl<'a> SimpleGlyph<'a> {
     /// Array of instruction byte code for the glyph.
     pub fn instructions(&self) -> &'a [u8] {
         let range = self.instructions_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// the raw data for flags & x/y coordinates
     pub fn glyph_data(&self) -> &'a [u8] {
         let range = self.glyph_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -735,7 +735,7 @@ impl<'a> CompositeGlyph<'a> {
     /// glyph index of component
     pub fn component_data(&self) -> &'a [u8] {
         let range = self.component_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

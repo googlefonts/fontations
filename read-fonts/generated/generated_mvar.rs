@@ -111,7 +111,7 @@ impl<'a> Mvar<'a> {
     /// Array of value records that identify target items and the associated delta-set index for each. The valueTag records must be in binary order of their valueTag field.
     pub fn value_records(&self) -> &'a [ValueRecord] {
         let range = self.value_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

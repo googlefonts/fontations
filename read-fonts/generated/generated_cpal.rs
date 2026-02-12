@@ -144,7 +144,7 @@ impl<'a> Cpal<'a> {
     /// color record array.
     pub fn color_record_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.color_record_indices_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Offset from the beginning of CPAL table to the [Palette Types Array][].

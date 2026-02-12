@@ -82,7 +82,7 @@ impl<'a> Eblc<'a> {
     /// BitmapSize records array.
     pub fn bitmap_sizes(&self) -> &'a [BitmapSize] {
         let range = self.bitmap_sizes_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

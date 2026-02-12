@@ -108,7 +108,7 @@ impl<'a> Hdmx<'a> {
         let range = self.records_byte_range();
         self.data
             .read_with_args(range, &(self.num_glyphs(), self.size_device_record()))
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {

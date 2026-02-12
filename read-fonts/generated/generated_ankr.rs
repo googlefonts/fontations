@@ -171,7 +171,7 @@ impl<'a> GlyphDataEntry<'a> {
     /// Individual anchor points.
     pub fn anchor_points(&self) -> &'a [AnchorPoint] {
         let range = self.anchor_points_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

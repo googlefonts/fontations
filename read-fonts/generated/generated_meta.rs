@@ -89,7 +89,7 @@ impl<'a> Meta<'a> {
     /// Array of data map records.
     pub fn data_maps(&self) -> &'a [DataMapRecord] {
         let range = self.data_maps_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

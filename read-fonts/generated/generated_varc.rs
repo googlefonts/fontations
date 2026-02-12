@@ -264,7 +264,7 @@ impl<'a> MultiItemVariationStore<'a> {
 
     pub fn variation_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.variation_data_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`variation_data_offsets`][Self::variation_data_offsets].
@@ -363,7 +363,7 @@ impl<'a> SparseVariationRegionList<'a> {
 
     pub fn region_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.region_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`region_offsets`][Self::region_offsets].
@@ -456,7 +456,7 @@ impl<'a> SparseVariationRegion<'a> {
 
     pub fn region_axes(&self) -> &'a [SparseRegionAxisCoordinates] {
         let range = self.region_axes_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -606,12 +606,12 @@ impl<'a> MultiItemVariationData<'a> {
 
     pub fn region_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.region_indices_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub fn raw_delta_sets(&self) -> &'a [u8] {
         let range = self.raw_delta_sets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -684,7 +684,7 @@ impl<'a> ConditionList<'a> {
 
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.condition_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
