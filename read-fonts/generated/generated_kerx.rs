@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Kerx<'a> {
+impl<'a> MinByteRange<'a> for Kerx<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtables_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -111,9 +115,13 @@ impl<'a> std::fmt::Debug for Kerx<'a> {
     }
 }
 
-impl<'a> MinByteRange for Subtable<'a> {
+impl<'a> MinByteRange<'a> for Subtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -211,9 +219,13 @@ impl<'a> std::fmt::Debug for Subtable<'a> {
     }
 }
 
-impl<'a> MinByteRange for Subtable0<'a> {
+impl<'a> MinByteRange<'a> for Subtable0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pairs_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

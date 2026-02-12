@@ -26,7 +26,7 @@ use write_fonts::{
             },
         },
         types::{GlyphId, GlyphId16, NameId},
-        FontData, FontRead, FontRef, TopLevelTable,
+        FontData, FontRead, FontRef, MinByteRange, TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32, Tag},
 };

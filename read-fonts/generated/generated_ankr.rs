@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Ankr<'a> {
+impl<'a> MinByteRange<'a> for Ankr<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_table_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -124,9 +128,13 @@ impl<'a> std::fmt::Debug for Ankr<'a> {
     }
 }
 
-impl<'a> MinByteRange for GlyphDataEntry<'a> {
+impl<'a> MinByteRange<'a> for GlyphDataEntry<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.anchor_points_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

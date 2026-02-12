@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Stat<'a> {
+impl<'a> MinByteRange<'a> for Stat<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.offset_to_axis_value_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -256,9 +260,13 @@ impl<'a> SomeRecord<'a> for AxisRecord {
     }
 }
 
-impl<'a> MinByteRange for AxisValueArray<'a> {
+impl<'a> MinByteRange<'a> for AxisValueArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.axis_value_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -427,13 +435,21 @@ impl<'a> FontRead<'a> for AxisValue<'a> {
     }
 }
 
-impl MinByteRange for AxisValue<'_> {
+impl<'a> MinByteRange<'a> for AxisValue<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
             Self::Format4(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
         }
     }
 }
@@ -471,9 +487,13 @@ impl Format<u16> for AxisValueFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for AxisValueFormat1<'a> {
+impl<'a> MinByteRange<'a> for AxisValueFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.value_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -594,9 +614,13 @@ impl Format<u16> for AxisValueFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for AxisValueFormat2<'a> {
+impl<'a> MinByteRange<'a> for AxisValueFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.range_max_value_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -747,9 +771,13 @@ impl Format<u16> for AxisValueFormat3<'_> {
     const FORMAT: u16 = 3;
 }
 
-impl<'a> MinByteRange for AxisValueFormat3<'a> {
+impl<'a> MinByteRange<'a> for AxisValueFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.linked_value_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -884,9 +912,13 @@ impl Format<u16> for AxisValueFormat4<'_> {
     const FORMAT: u16 = 4;
 }
 
-impl<'a> MinByteRange for AxisValueFormat4<'a> {
+impl<'a> MinByteRange<'a> for AxisValueFormat4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.axis_values_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

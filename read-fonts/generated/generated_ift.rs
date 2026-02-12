@@ -83,11 +83,17 @@ impl<'a> FontRead<'a> for Ift<'a> {
     }
 }
 
-impl MinByteRange for Ift<'_> {
+impl<'a> MinByteRange<'a> for Ift<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -428,9 +434,13 @@ impl Format<u8> for PatchMapFormat1<'_> {
     const FORMAT: u8 = 1;
 }
 
-impl<'a> MinByteRange for PatchMapFormat1<'a> {
+impl<'a> MinByteRange<'a> for PatchMapFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.patch_format_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -745,9 +755,13 @@ impl<'a> std::fmt::Debug for PatchMapFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for GlyphMap<'a> {
+impl<'a> MinByteRange<'a> for GlyphMap<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_index_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -856,9 +870,13 @@ impl<'a> std::fmt::Debug for GlyphMap<'a> {
     }
 }
 
-impl<'a> MinByteRange for FeatureMap<'a> {
+impl<'a> MinByteRange<'a> for FeatureMap<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_map_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1138,9 +1156,13 @@ impl Format<u8> for PatchMapFormat2<'_> {
     const FORMAT: u8 = 2;
 }
 
-impl<'a> MinByteRange for PatchMapFormat2<'a> {
+impl<'a> MinByteRange<'a> for PatchMapFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.url_template_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1409,9 +1431,13 @@ impl<'a> std::fmt::Debug for PatchMapFormat2<'a> {
     }
 }
 
-impl<'a> MinByteRange for MappingEntries<'a> {
+impl<'a> MinByteRange<'a> for MappingEntries<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1468,9 +1494,13 @@ impl<'a> std::fmt::Debug for MappingEntries<'a> {
     }
 }
 
-impl<'a> MinByteRange for EntryData<'a> {
+impl<'a> MinByteRange<'a> for EntryData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.trailing_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2072,9 +2102,13 @@ impl<'a> SomeRecord<'a> for DesignSpaceSegment {
     }
 }
 
-impl<'a> MinByteRange for IdStringData<'a> {
+impl<'a> MinByteRange<'a> for IdStringData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.id_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2131,9 +2165,13 @@ impl<'a> std::fmt::Debug for IdStringData<'a> {
     }
 }
 
-impl<'a> MinByteRange for TableKeyedPatch<'a> {
+impl<'a> MinByteRange<'a> for TableKeyedPatch<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.patch_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2259,9 +2297,13 @@ impl<'a> std::fmt::Debug for TableKeyedPatch<'a> {
     }
 }
 
-impl<'a> MinByteRange for TablePatch<'a> {
+impl<'a> MinByteRange<'a> for TablePatch<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.brotli_stream_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2664,9 +2706,13 @@ impl<'a> From<TablePatchFlags> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for GlyphKeyedPatch<'a> {
+impl<'a> MinByteRange<'a> for GlyphKeyedPatch<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.brotli_stream_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3093,9 +3139,13 @@ impl<'a> From<GlyphKeyedFlags> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for GlyphPatches<'a> {
+impl<'a> MinByteRange<'a> for GlyphPatches<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3251,9 +3301,13 @@ impl<'a> std::fmt::Debug for GlyphPatches<'a> {
     }
 }
 
-impl<'a> MinByteRange for GlyphData<'a> {
+impl<'a> MinByteRange<'a> for GlyphData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

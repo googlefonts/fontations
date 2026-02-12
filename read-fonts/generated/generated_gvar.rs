@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Gvar<'a> {
+impl<'a> MinByteRange<'a> for Gvar<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_variation_data_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -498,9 +502,13 @@ impl<'a> From<GvarFlags> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for SharedTuples<'a> {
+impl<'a> MinByteRange<'a> for SharedTuples<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.tuples_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -600,9 +608,13 @@ impl<'a> std::fmt::Debug for SharedTuples<'a> {
     }
 }
 
-impl<'a> MinByteRange for GlyphVariationDataHeader<'a> {
+impl<'a> MinByteRange<'a> for GlyphVariationDataHeader<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.tuple_variation_headers_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

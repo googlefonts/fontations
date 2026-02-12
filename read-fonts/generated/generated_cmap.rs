@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Cmap<'a> {
+impl<'a> MinByteRange<'a> for Cmap<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.encoding_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -283,7 +287,7 @@ impl<'a> FontRead<'a> for CmapSubtable<'a> {
     }
 }
 
-impl MinByteRange for CmapSubtable<'_> {
+impl<'a> MinByteRange<'a> for CmapSubtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format0(item) => item.min_byte_range(),
@@ -295,6 +299,19 @@ impl MinByteRange for CmapSubtable<'_> {
             Self::Format12(item) => item.min_byte_range(),
             Self::Format13(item) => item.min_byte_range(),
             Self::Format14(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format0(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
+            Self::Format6(item) => item.min_table_bytes(),
+            Self::Format8(item) => item.min_table_bytes(),
+            Self::Format10(item) => item.min_table_bytes(),
+            Self::Format12(item) => item.min_table_bytes(),
+            Self::Format13(item) => item.min_table_bytes(),
+            Self::Format14(item) => item.min_table_bytes(),
         }
     }
 }
@@ -337,9 +354,13 @@ impl Format<u16> for Cmap0<'_> {
     const FORMAT: u16 = 0;
 }
 
-impl<'a> MinByteRange for Cmap0<'a> {
+impl<'a> MinByteRange<'a> for Cmap0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_id_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -441,9 +462,13 @@ impl Format<u16> for Cmap2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for Cmap2<'a> {
+impl<'a> MinByteRange<'a> for Cmap2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sub_header_keys_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -605,9 +630,13 @@ impl Format<u16> for Cmap4<'_> {
     const FORMAT: u16 = 4;
 }
 
-impl<'a> MinByteRange for Cmap4<'a> {
+impl<'a> MinByteRange<'a> for Cmap4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_id_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -835,9 +864,13 @@ impl Format<u16> for Cmap6<'_> {
     const FORMAT: u16 = 6;
 }
 
-impl<'a> MinByteRange for Cmap6<'a> {
+impl<'a> MinByteRange<'a> for Cmap6<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_id_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -970,9 +1003,13 @@ impl Format<u16> for Cmap8<'_> {
     const FORMAT: u16 = 8;
 }
 
-impl<'a> MinByteRange for Cmap8<'a> {
+impl<'a> MinByteRange<'a> for Cmap8<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.groups_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1178,9 +1215,13 @@ impl Format<u16> for Cmap10<'_> {
     const FORMAT: u16 = 10;
 }
 
-impl<'a> MinByteRange for Cmap10<'a> {
+impl<'a> MinByteRange<'a> for Cmap10<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_id_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1320,9 +1361,13 @@ impl Format<u16> for Cmap12<'_> {
     const FORMAT: u16 = 12;
 }
 
-impl<'a> MinByteRange for Cmap12<'a> {
+impl<'a> MinByteRange<'a> for Cmap12<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.groups_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1455,9 +1500,13 @@ impl Format<u16> for Cmap13<'_> {
     const FORMAT: u16 = 13;
 }
 
-impl<'a> MinByteRange for Cmap13<'a> {
+impl<'a> MinByteRange<'a> for Cmap13<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.groups_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1642,9 +1691,13 @@ impl Format<u16> for Cmap14<'_> {
     const FORMAT: u16 = 14;
 }
 
-impl<'a> MinByteRange for Cmap14<'a> {
+impl<'a> MinByteRange<'a> for Cmap14<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_selector_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1835,9 +1888,13 @@ impl<'a> SomeRecord<'a> for VariationSelector {
     }
 }
 
-impl<'a> MinByteRange for DefaultUvs<'a> {
+impl<'a> MinByteRange<'a> for DefaultUvs<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ranges_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1920,9 +1977,13 @@ impl<'a> std::fmt::Debug for DefaultUvs<'a> {
     }
 }
 
-impl<'a> MinByteRange for NonDefaultUvs<'a> {
+impl<'a> MinByteRange<'a> for NonDefaultUvs<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.uvs_mapping_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

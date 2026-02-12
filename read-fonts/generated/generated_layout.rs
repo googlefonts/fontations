@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for ScriptList<'a> {
+impl<'a> MinByteRange<'a> for ScriptList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.script_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -139,9 +143,13 @@ impl<'a> SomeRecord<'a> for ScriptRecord {
     }
 }
 
-impl<'a> MinByteRange for Script<'a> {
+impl<'a> MinByteRange<'a> for Script<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.lang_sys_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -296,9 +304,13 @@ impl<'a> SomeRecord<'a> for LangSysRecord {
     }
 }
 
-impl<'a> MinByteRange for LangSys<'a> {
+impl<'a> MinByteRange<'a> for LangSys<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.feature_indices_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -397,9 +409,13 @@ impl<'a> std::fmt::Debug for LangSys<'a> {
     }
 }
 
-impl<'a> MinByteRange for FeatureList<'a> {
+impl<'a> MinByteRange<'a> for FeatureList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.feature_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -533,9 +549,13 @@ impl<'a> SomeRecord<'a> for FeatureRecord {
     }
 }
 
-impl<'a> MinByteRange for Feature<'a> {
+impl<'a> MinByteRange<'a> for Feature<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.lookup_list_indices_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -655,9 +675,13 @@ impl<'a> std::fmt::Debug for Feature<'a> {
     }
 }
 
-impl<'a, T> MinByteRange for LookupList<'a, T> {
+impl<'a, T> MinByteRange<'a> for LookupList<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.lookup_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -778,9 +802,13 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a
     }
 }
 
-impl<'a, T> MinByteRange for Lookup<'a, T> {
+impl<'a, T> MinByteRange<'a> for Lookup<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtable_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -961,9 +989,13 @@ impl Format<u16> for CoverageFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for CoverageFormat1<'a> {
+impl<'a> MinByteRange<'a> for CoverageFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1052,9 +1084,13 @@ impl Format<u16> for CoverageFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for CoverageFormat2<'a> {
+impl<'a> MinByteRange<'a> for CoverageFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.range_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1236,11 +1272,17 @@ impl<'a> FontRead<'a> for CoverageTable<'a> {
     }
 }
 
-impl MinByteRange for CoverageTable<'_> {
+impl<'a> MinByteRange<'a> for CoverageTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1276,9 +1318,13 @@ impl Format<u16> for ClassDefFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for ClassDefFormat1<'a> {
+impl<'a> MinByteRange<'a> for ClassDefFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.class_value_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1380,9 +1426,13 @@ impl Format<u16> for ClassDefFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for ClassDefFormat2<'a> {
+impl<'a> MinByteRange<'a> for ClassDefFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.class_range_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1562,11 +1612,17 @@ impl<'a> FontRead<'a> for ClassDef<'a> {
     }
 }
 
-impl MinByteRange for ClassDef<'_> {
+impl<'a> MinByteRange<'a> for ClassDef<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1644,9 +1700,13 @@ impl Format<u16> for SequenceContextFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for SequenceContextFormat1<'a> {
+impl<'a> MinByteRange<'a> for SequenceContextFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.seq_rule_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1775,9 +1835,13 @@ impl<'a> std::fmt::Debug for SequenceContextFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for SequenceRuleSet<'a> {
+impl<'a> MinByteRange<'a> for SequenceRuleSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.seq_rule_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1870,9 +1934,13 @@ impl<'a> std::fmt::Debug for SequenceRuleSet<'a> {
     }
 }
 
-impl<'a> MinByteRange for SequenceRule<'a> {
+impl<'a> MinByteRange<'a> for SequenceRule<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.seq_lookup_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1984,9 +2052,13 @@ impl Format<u16> for SequenceContextFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for SequenceContextFormat2<'a> {
+impl<'a> MinByteRange<'a> for SequenceContextFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.class_seq_rule_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2145,9 +2217,13 @@ impl<'a> std::fmt::Debug for SequenceContextFormat2<'a> {
     }
 }
 
-impl<'a> MinByteRange for ClassSequenceRuleSet<'a> {
+impl<'a> MinByteRange<'a> for ClassSequenceRuleSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.class_seq_rule_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2243,9 +2319,13 @@ impl<'a> std::fmt::Debug for ClassSequenceRuleSet<'a> {
     }
 }
 
-impl<'a> MinByteRange for ClassSequenceRule<'a> {
+impl<'a> MinByteRange<'a> for ClassSequenceRule<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.seq_lookup_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2358,9 +2438,13 @@ impl Format<u16> for SequenceContextFormat3<'_> {
     const FORMAT: u16 = 3;
 }
 
-impl<'a> MinByteRange for SequenceContextFormat3<'a> {
+impl<'a> MinByteRange<'a> for SequenceContextFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.seq_lookup_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2540,12 +2624,19 @@ impl<'a> FontRead<'a> for SequenceContext<'a> {
     }
 }
 
-impl MinByteRange for SequenceContext<'_> {
+impl<'a> MinByteRange<'a> for SequenceContext<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
         }
     }
 }
@@ -2582,9 +2673,13 @@ impl Format<u16> for ChainedSequenceContextFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for ChainedSequenceContextFormat1<'a> {
+impl<'a> MinByteRange<'a> for ChainedSequenceContextFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.chained_seq_rule_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2719,9 +2814,13 @@ impl<'a> std::fmt::Debug for ChainedSequenceContextFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for ChainedSequenceRuleSet<'a> {
+impl<'a> MinByteRange<'a> for ChainedSequenceRuleSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.chained_seq_rule_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2817,9 +2916,13 @@ impl<'a> std::fmt::Debug for ChainedSequenceRuleSet<'a> {
     }
 }
 
-impl<'a> MinByteRange for ChainedSequenceRule<'a> {
+impl<'a> MinByteRange<'a> for ChainedSequenceRule<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.seq_lookup_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2993,9 +3096,13 @@ impl Format<u16> for ChainedSequenceContextFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for ChainedSequenceContextFormat2<'a> {
+impl<'a> MinByteRange<'a> for ChainedSequenceContextFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.chained_class_seq_rule_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3210,9 +3317,13 @@ impl<'a> std::fmt::Debug for ChainedSequenceContextFormat2<'a> {
     }
 }
 
-impl<'a> MinByteRange for ChainedClassSequenceRuleSet<'a> {
+impl<'a> MinByteRange<'a> for ChainedClassSequenceRuleSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.chained_class_seq_rule_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3311,9 +3422,13 @@ impl<'a> std::fmt::Debug for ChainedClassSequenceRuleSet<'a> {
     }
 }
 
-impl<'a> MinByteRange for ChainedClassSequenceRule<'a> {
+impl<'a> MinByteRange<'a> for ChainedClassSequenceRule<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.seq_lookup_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3487,9 +3602,13 @@ impl Format<u16> for ChainedSequenceContextFormat3<'_> {
     const FORMAT: u16 = 3;
 }
 
-impl<'a> MinByteRange for ChainedSequenceContextFormat3<'a> {
+impl<'a> MinByteRange<'a> for ChainedSequenceContextFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.seq_lookup_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3772,12 +3891,19 @@ impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
     }
 }
 
-impl MinByteRange for ChainedSequenceContext<'_> {
+impl<'a> MinByteRange<'a> for ChainedSequenceContext<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
         }
     }
 }
@@ -3864,9 +3990,13 @@ impl<'a> From<DeltaFormat> for FieldType<'a> {
     }
 }
 
-impl<'a> MinByteRange for Device<'a> {
+impl<'a> MinByteRange<'a> for Device<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.delta_value_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3968,9 +4098,13 @@ impl<'a> std::fmt::Debug for Device<'a> {
     }
 }
 
-impl<'a> MinByteRange for VariationIndex<'a> {
+impl<'a> MinByteRange<'a> for VariationIndex<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.delta_format_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4096,11 +4230,17 @@ impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
     }
 }
 
-impl MinByteRange for DeviceOrVariationIndex<'_> {
+impl<'a> MinByteRange<'a> for DeviceOrVariationIndex<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Device(item) => item.min_byte_range(),
             Self::VariationIndex(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Device(item) => item.min_table_bytes(),
+            Self::VariationIndex(item) => item.min_table_bytes(),
         }
     }
 }
@@ -4132,9 +4272,13 @@ impl<'a> SomeTable<'a> for DeviceOrVariationIndex<'a> {
     }
 }
 
-impl<'a> MinByteRange for FeatureVariations<'a> {
+impl<'a> MinByteRange<'a> for FeatureVariations<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.feature_variation_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4309,9 +4453,13 @@ impl<'a> SomeRecord<'a> for FeatureVariationRecord {
     }
 }
 
-impl<'a> MinByteRange for ConditionSet<'a> {
+impl<'a> MinByteRange<'a> for ConditionSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.condition_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4455,7 +4603,7 @@ impl<'a> FontRead<'a> for Condition<'a> {
     }
 }
 
-impl MinByteRange for Condition<'_> {
+impl<'a> MinByteRange<'a> for Condition<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1AxisRange(item) => item.min_byte_range(),
@@ -4463,6 +4611,15 @@ impl MinByteRange for Condition<'_> {
             Self::Format3And(item) => item.min_byte_range(),
             Self::Format4Or(item) => item.min_byte_range(),
             Self::Format5Negate(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1AxisRange(item) => item.min_table_bytes(),
+            Self::Format2VariableValue(item) => item.min_table_bytes(),
+            Self::Format3And(item) => item.min_table_bytes(),
+            Self::Format4Or(item) => item.min_table_bytes(),
+            Self::Format5Negate(item) => item.min_table_bytes(),
         }
     }
 }
@@ -4501,9 +4658,13 @@ impl Format<u16> for ConditionFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for ConditionFormat1<'a> {
+impl<'a> MinByteRange<'a> for ConditionFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.filter_range_max_value_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4614,9 +4775,13 @@ impl Format<u16> for ConditionFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for ConditionFormat2<'a> {
+impl<'a> MinByteRange<'a> for ConditionFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.var_index_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4704,9 +4869,13 @@ impl Format<u16> for ConditionFormat3<'_> {
     const FORMAT: u16 = 3;
 }
 
-impl<'a> MinByteRange for ConditionFormat3<'a> {
+impl<'a> MinByteRange<'a> for ConditionFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.condition_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4815,9 +4984,13 @@ impl Format<u16> for ConditionFormat4<'_> {
     const FORMAT: u16 = 4;
 }
 
-impl<'a> MinByteRange for ConditionFormat4<'a> {
+impl<'a> MinByteRange<'a> for ConditionFormat4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.condition_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -4926,9 +5099,13 @@ impl Format<u16> for ConditionFormat5<'_> {
     const FORMAT: u16 = 5;
 }
 
-impl<'a> MinByteRange for ConditionFormat5<'a> {
+impl<'a> MinByteRange<'a> for ConditionFormat5<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.condition_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5008,9 +5185,13 @@ impl<'a> std::fmt::Debug for ConditionFormat5<'a> {
     }
 }
 
-impl<'a> MinByteRange for FeatureTableSubstitution<'a> {
+impl<'a> MinByteRange<'a> for FeatureTableSubstitution<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.substitutions_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5154,9 +5335,13 @@ impl<'a> SomeRecord<'a> for FeatureTableSubstitutionRecord {
     }
 }
 
-impl<'a> MinByteRange for SizeParams<'a> {
+impl<'a> MinByteRange<'a> for SizeParams<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.range_end_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5289,9 +5474,13 @@ impl<'a> std::fmt::Debug for SizeParams<'a> {
     }
 }
 
-impl<'a> MinByteRange for StylisticSetParams<'a> {
+impl<'a> MinByteRange<'a> for StylisticSetParams<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ui_name_id_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -5372,9 +5561,13 @@ impl Format<u16> for CharacterVariantParams<'_> {
     const FORMAT: u16 = 0;
 }
 
-impl<'a> MinByteRange for CharacterVariantParams<'a> {
+impl<'a> MinByteRange<'a> for CharacterVariantParams<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.character_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Index1<'a> {
+impl<'a> MinByteRange<'a> for Index1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -108,9 +112,13 @@ impl<'a> std::fmt::Debug for Index1<'a> {
     }
 }
 
-impl<'a> MinByteRange for Index2<'a> {
+impl<'a> MinByteRange<'a> for Index2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -251,12 +259,19 @@ impl<'a> FontRead<'a> for FdSelect<'a> {
     }
 }
 
-impl MinByteRange for FdSelect<'_> {
+impl<'a> MinByteRange<'a> for FdSelect<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format0(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
             Self::Format4(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format0(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
         }
     }
 }
@@ -293,9 +308,13 @@ impl Format<u8> for FdSelectFormat0<'_> {
     const FORMAT: u8 = 0;
 }
 
-impl<'a> MinByteRange for FdSelectFormat0<'a> {
+impl<'a> MinByteRange<'a> for FdSelectFormat0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.fds_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -371,9 +390,13 @@ impl Format<u8> for FdSelectFormat3<'_> {
     const FORMAT: u8 = 3;
 }
 
-impl<'a> MinByteRange for FdSelectFormat3<'a> {
+impl<'a> MinByteRange<'a> for FdSelectFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sentinel_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -524,9 +547,13 @@ impl Format<u8> for FdSelectFormat4<'_> {
     const FORMAT: u8 = 4;
 }
 
-impl<'a> MinByteRange for FdSelectFormat4<'a> {
+impl<'a> MinByteRange<'a> for FdSelectFormat4<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.sentinel_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -713,12 +740,19 @@ impl<'a> FontRead<'a> for CustomCharset<'a> {
     }
 }
 
-impl MinByteRange for CustomCharset<'_> {
+impl<'a> MinByteRange<'a> for CustomCharset<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format0(item) => item.min_byte_range(),
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format0(item) => item.min_table_bytes(),
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -755,9 +789,13 @@ impl Format<u8> for CharsetFormat0<'_> {
     const FORMAT: u8 = 0;
 }
 
-impl<'a> MinByteRange for CharsetFormat0<'a> {
+impl<'a> MinByteRange<'a> for CharsetFormat0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -833,9 +871,13 @@ impl Format<u8> for CharsetFormat1<'_> {
     const FORMAT: u8 = 1;
 }
 
-impl<'a> MinByteRange for CharsetFormat1<'a> {
+impl<'a> MinByteRange<'a> for CharsetFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ranges_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -961,9 +1003,13 @@ impl Format<u8> for CharsetFormat2<'_> {
     const FORMAT: u8 = 2;
 }
 
-impl<'a> MinByteRange for CharsetFormat2<'a> {
+impl<'a> MinByteRange<'a> for CharsetFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ranges_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

@@ -18,7 +18,7 @@ use write_fonts::{
             layout::CoverageTable,
         },
         types::GlyphId,
-        FontRef, TopLevelTable,
+        FontRef, MinByteRange, TopLevelTable,
     },
     types::Offset16,
     FontBuilder,

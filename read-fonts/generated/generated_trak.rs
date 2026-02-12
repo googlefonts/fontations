@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Trak<'a> {
+impl<'a> MinByteRange<'a> for Trak<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.reserved_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -137,9 +141,13 @@ impl<'a> std::fmt::Debug for Trak<'a> {
     }
 }
 
-impl<'a> MinByteRange for TrackData<'a> {
+impl<'a> MinByteRange<'a> for TrackData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.track_table_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

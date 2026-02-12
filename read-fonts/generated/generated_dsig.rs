@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Dsig<'a> {
+impl<'a> MinByteRange<'a> for Dsig<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.signature_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -475,9 +479,13 @@ impl<'a> SomeRecord<'a> for SignatureRecord {
     }
 }
 
-impl<'a> MinByteRange for SignatureBlockFormat1<'a> {
+impl<'a> MinByteRange<'a> for SignatureBlockFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.signature_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

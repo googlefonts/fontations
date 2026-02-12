@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Maxp<'a> {
+impl<'a> MinByteRange<'a> for Maxp<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.num_glyphs_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

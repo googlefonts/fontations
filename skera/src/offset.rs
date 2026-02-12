@@ -3,7 +3,7 @@
 use crate::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
 use crate::{Plan, Serialize, SubsetTable};
 use write_fonts::{
-    read::{MinByteRange, TableRef},
+    read::MinByteRange,
     types::{FixedSize, Scalar},
 };
 
@@ -50,8 +50,8 @@ impl<O: Scalar> SerializeSubset for O {
 
 // this is trait is used to copy simple tables only which implemented MinByteRange trait
 pub(crate) trait SerializeCopy {
-    fn serialize_copy<T: MinByteRange>(
-        t: &TableRef<T>,
+    fn serialize_copy<'a, T: MinByteRange<'a>>(
+        t: &T,
         s: &mut Serializer,
         pos: usize,
     ) -> Result<(), SerializeErrorFlags>;
@@ -64,8 +64,8 @@ pub(crate) trait SerializeCopy {
 }
 
 impl<O: Scalar> SerializeCopy for O {
-    fn serialize_copy<T: MinByteRange>(
-        t: &TableRef<T>,
+    fn serialize_copy<'a, T: MinByteRange<'a>>(
+        t: &T,
         s: &mut Serializer,
         pos: usize,
     ) -> Result<(), SerializeErrorFlags> {

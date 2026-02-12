@@ -420,7 +420,7 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable<'a> {
     }
 }
 
-impl MinByteRange for IndexSubtable<'_> {
+impl<'a> MinByteRange<'a> for IndexSubtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
@@ -428,6 +428,16 @@ impl MinByteRange for IndexSubtable<'_> {
             Self::Format3(item) => item.min_byte_range(),
             Self::Format4(item) => item.min_byte_range(),
             Self::Format5(item) => item.min_byte_range(),
+        }
+    }
+
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
+            Self::Format5(item) => item.min_table_bytes(),
         }
     }
 }

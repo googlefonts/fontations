@@ -9,6 +9,7 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::gpos::{AnchorFormat1, AnchorFormat2, AnchorFormat3, AnchorTable},
+        MinByteRange,
     },
     types::Offset16,
 };

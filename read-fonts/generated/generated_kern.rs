@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for OtKern<'a> {
+impl<'a> MinByteRange<'a> for OtKern<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtable_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -92,9 +96,13 @@ impl<'a> std::fmt::Debug for OtKern<'a> {
     }
 }
 
-impl<'a> MinByteRange for AatKern<'a> {
+impl<'a> MinByteRange<'a> for AatKern<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtable_data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -179,9 +187,13 @@ impl<'a> std::fmt::Debug for AatKern<'a> {
     }
 }
 
-impl<'a> MinByteRange for OtSubtable<'a> {
+impl<'a> MinByteRange<'a> for OtSubtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -279,9 +291,13 @@ impl<'a> std::fmt::Debug for OtSubtable<'a> {
     }
 }
 
-impl<'a> MinByteRange for AatSubtable<'a> {
+impl<'a> MinByteRange<'a> for AatSubtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -379,9 +395,13 @@ impl<'a> std::fmt::Debug for AatSubtable<'a> {
     }
 }
 
-impl<'a> MinByteRange for Subtable0<'a> {
+impl<'a> MinByteRange<'a> for Subtable0<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pairs_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -500,9 +520,13 @@ impl<'a> std::fmt::Debug for Subtable0<'a> {
     }
 }
 
-impl<'a> MinByteRange for Subtable2ClassTable<'a> {
+impl<'a> MinByteRange<'a> for Subtable2ClassTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -587,9 +611,13 @@ impl<'a> std::fmt::Debug for Subtable2ClassTable<'a> {
     }
 }
 
-impl<'a> MinByteRange for Subtable3<'a> {
+impl<'a> MinByteRange<'a> for Subtable3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.kern_index_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 

@@ -5,9 +5,13 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl<'a> MinByteRange for Gpos<'a> {
+impl<'a> MinByteRange<'a> for Gpos<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.lookup_list_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -655,12 +659,19 @@ impl<'a> FontRead<'a> for AnchorTable<'a> {
     }
 }
 
-impl MinByteRange for AnchorTable<'_> {
+impl<'a> MinByteRange<'a> for AnchorTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
         }
     }
 }
@@ -697,9 +708,13 @@ impl Format<u16> for AnchorFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for AnchorFormat1<'a> {
+impl<'a> MinByteRange<'a> for AnchorFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.y_coordinate_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -787,9 +802,13 @@ impl Format<u16> for AnchorFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for AnchorFormat2<'a> {
+impl<'a> MinByteRange<'a> for AnchorFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.anchor_point_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -891,9 +910,13 @@ impl Format<u16> for AnchorFormat3<'_> {
     const FORMAT: u16 = 3;
 }
 
-impl<'a> MinByteRange for AnchorFormat3<'a> {
+impl<'a> MinByteRange<'a> for AnchorFormat3<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.y_device_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1029,9 +1052,13 @@ impl<'a> std::fmt::Debug for AnchorFormat3<'a> {
     }
 }
 
-impl<'a> MinByteRange for MarkArray<'a> {
+impl<'a> MinByteRange<'a> for MarkArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1216,11 +1243,17 @@ impl<'a> FontRead<'a> for SinglePos<'a> {
     }
 }
 
-impl MinByteRange for SinglePos<'_> {
+impl<'a> MinByteRange<'a> for SinglePos<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1256,9 +1289,13 @@ impl Format<u16> for SinglePosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for SinglePosFormat1<'a> {
+impl<'a> MinByteRange<'a> for SinglePosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.value_record_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1378,9 +1415,13 @@ impl Format<u16> for SinglePosFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for SinglePosFormat2<'a> {
+impl<'a> MinByteRange<'a> for SinglePosFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.value_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1578,11 +1619,17 @@ impl<'a> FontRead<'a> for PairPos<'a> {
     }
 }
 
-impl MinByteRange for PairPos<'_> {
+impl<'a> MinByteRange<'a> for PairPos<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::Format2(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1618,9 +1665,13 @@ impl Format<u16> for PairPosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for PairPosFormat1<'a> {
+impl<'a> MinByteRange<'a> for PairPosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pair_set_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -1782,9 +1833,13 @@ impl<'a> std::fmt::Debug for PairPosFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for PairSet<'a> {
+impl<'a> MinByteRange<'a> for PairSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pair_value_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2019,9 +2074,13 @@ impl Format<u16> for PairPosFormat2<'_> {
     const FORMAT: u16 = 2;
 }
 
-impl<'a> MinByteRange for PairPosFormat2<'a> {
+impl<'a> MinByteRange<'a> for PairPosFormat2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.class1_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2422,9 +2481,13 @@ impl Format<u16> for CursivePosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for CursivePosFormat1<'a> {
+impl<'a> MinByteRange<'a> for CursivePosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_exit_record_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2618,9 +2681,13 @@ impl Format<u16> for MarkBasePosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for MarkBasePosFormat1<'a> {
+impl<'a> MinByteRange<'a> for MarkBasePosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_array_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2789,9 +2856,13 @@ impl<'a> std::fmt::Debug for MarkBasePosFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for BaseArray<'a> {
+impl<'a> MinByteRange<'a> for BaseArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -2995,9 +3066,13 @@ impl Format<u16> for MarkLigPosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for MarkLigPosFormat1<'a> {
+impl<'a> MinByteRange<'a> for MarkLigPosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ligature_array_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3166,9 +3241,13 @@ impl<'a> std::fmt::Debug for MarkLigPosFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for LigatureArray<'a> {
+impl<'a> MinByteRange<'a> for LigatureArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ligature_attach_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3288,9 +3367,13 @@ impl<'a> std::fmt::Debug for LigatureArray<'a> {
     }
 }
 
-impl<'a> MinByteRange for LigatureAttach<'a> {
+impl<'a> MinByteRange<'a> for LigatureAttach<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3495,9 +3578,13 @@ impl Format<u16> for MarkMarkPosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a> MinByteRange for MarkMarkPosFormat1<'a> {
+impl<'a> MinByteRange<'a> for MarkMarkPosFormat1<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark2_array_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3666,9 +3753,13 @@ impl<'a> std::fmt::Debug for MarkMarkPosFormat1<'a> {
     }
 }
 
-impl<'a> MinByteRange for Mark2Array<'a> {
+impl<'a> MinByteRange<'a> for Mark2Array<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark2_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
@@ -3872,9 +3963,13 @@ impl Format<u16> for ExtensionPosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
-impl<'a, T> MinByteRange for ExtensionPosFormat1<'a, T> {
+impl<'a, T> MinByteRange<'a> for ExtensionPosFormat1<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.extension_offset_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
     }
 }
 
