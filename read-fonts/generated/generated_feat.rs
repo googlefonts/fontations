@@ -22,6 +22,7 @@ impl TopLevelTable for Feat<'_> {
 
 impl<'a> FontRead<'a> for Feat<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -227,6 +228,8 @@ impl ReadArgs for SettingNameArray<'_> {
 impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let n_settings = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

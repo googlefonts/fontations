@@ -22,6 +22,8 @@ impl ReadArgs for TupleVariationHeader<'_> {
 impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let axis_count = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -226,6 +228,7 @@ impl<'a> MinByteRange<'a> for DeltaSetIndexMapFormat0<'a> {
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -337,6 +340,7 @@ impl<'a> MinByteRange<'a> for DeltaSetIndexMapFormat1<'a> {
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -850,6 +854,7 @@ impl<'a> MinByteRange<'a> for VariationRegionList<'a> {
 
 impl<'a> FontRead<'a> for VariationRegionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1077,6 +1082,7 @@ impl<'a> MinByteRange<'a> for ItemVariationStore<'a> {
 
 impl<'a> FontRead<'a> for ItemVariationStore<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1221,6 +1227,7 @@ impl<'a> MinByteRange<'a> for ItemVariationData<'a> {
 
 impl<'a> FontRead<'a> for ItemVariationData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

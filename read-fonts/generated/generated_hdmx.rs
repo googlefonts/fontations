@@ -27,6 +27,8 @@ impl ReadArgs for Hdmx<'_> {
 impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

@@ -22,6 +22,7 @@ impl TopLevelTable for Kerx<'_> {
 
 impl<'a> FontRead<'a> for Kerx<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -127,6 +128,7 @@ impl<'a> MinByteRange<'a> for Subtable<'a> {
 
 impl<'a> FontRead<'a> for Subtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -231,6 +233,7 @@ impl<'a> MinByteRange<'a> for Subtable0<'a> {
 
 impl<'a> FontRead<'a> for Subtable0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

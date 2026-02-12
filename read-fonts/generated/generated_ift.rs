@@ -446,6 +446,7 @@ impl<'a> MinByteRange<'a> for PatchMapFormat1<'a> {
 
 impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -772,6 +773,8 @@ impl ReadArgs for GlyphMap<'_> {
 impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
     fn read_with_args(data: FontData<'a>, args: &(Uint24, u16)) -> Result<Self, ReadError> {
         let (glyph_count, max_entry_index) = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -887,6 +890,8 @@ impl ReadArgs for FeatureMap<'_> {
 impl<'a> FontReadWithArgs<'a> for FeatureMap<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let max_entry_index = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1168,6 +1173,7 @@ impl<'a> MinByteRange<'a> for PatchMapFormat2<'a> {
 
 impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1443,6 +1449,7 @@ impl<'a> MinByteRange<'a> for MappingEntries<'a> {
 
 impl<'a> FontRead<'a> for MappingEntries<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1506,6 +1513,7 @@ impl<'a> MinByteRange<'a> for EntryData<'a> {
 
 impl<'a> FontRead<'a> for EntryData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -2114,6 +2122,7 @@ impl<'a> MinByteRange<'a> for IdStringData<'a> {
 
 impl<'a> FontRead<'a> for IdStringData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -2177,6 +2186,7 @@ impl<'a> MinByteRange<'a> for TableKeyedPatch<'a> {
 
 impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -2309,6 +2319,7 @@ impl<'a> MinByteRange<'a> for TablePatch<'a> {
 
 impl<'a> FontRead<'a> for TablePatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -2718,6 +2729,7 @@ impl<'a> MinByteRange<'a> for GlyphKeyedPatch<'a> {
 
 impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -3156,6 +3168,8 @@ impl ReadArgs for GlyphPatches<'_> {
 impl<'a> FontReadWithArgs<'a> for GlyphPatches<'a> {
     fn read_with_args(data: FontData<'a>, args: &GlyphKeyedFlags) -> Result<Self, ReadError> {
         let flags = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -3313,6 +3327,7 @@ impl<'a> MinByteRange<'a> for GlyphData<'a> {
 
 impl<'a> FontRead<'a> for GlyphData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

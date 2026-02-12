@@ -17,6 +17,7 @@ impl<'a> MinByteRange<'a> for OtKern<'a> {
 
 impl<'a> FontRead<'a> for OtKern<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -108,6 +109,7 @@ impl<'a> MinByteRange<'a> for AatKern<'a> {
 
 impl<'a> FontRead<'a> for AatKern<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -199,6 +201,7 @@ impl<'a> MinByteRange<'a> for OtSubtable<'a> {
 
 impl<'a> FontRead<'a> for OtSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -303,6 +306,7 @@ impl<'a> MinByteRange<'a> for AatSubtable<'a> {
 
 impl<'a> FontRead<'a> for AatSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -407,6 +411,7 @@ impl<'a> MinByteRange<'a> for Subtable0<'a> {
 
 impl<'a> FontRead<'a> for Subtable0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -532,6 +537,7 @@ impl<'a> MinByteRange<'a> for Subtable2ClassTable<'a> {
 
 impl<'a> FontRead<'a> for Subtable2ClassTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -623,6 +629,7 @@ impl<'a> MinByteRange<'a> for Subtable3<'a> {
 
 impl<'a> FontRead<'a> for Subtable3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

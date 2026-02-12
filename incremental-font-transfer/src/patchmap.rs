@@ -194,7 +194,7 @@ fn intersect_format1_glyph_map_inner<const RECORD_INTERSECTION: bool>(
     entries: &mut BTreeMap<u16, SubsetDefinition>,
 ) -> Result<(), ReadError> {
     let glyph_map = map.glyph_map()?;
-    if glyph_map.shape().entry_index_byte_range().end > glyph_map.offset_data().len() {
+    if glyph_map.entry_index_byte_range().end > glyph_map.offset_data().len() {
         return Err(ReadError::OutOfBounds);
     }
     let first_gid = glyph_map.first_mapped_glyph() as u32;
@@ -243,7 +243,7 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
         4usize
     };
 
-    if feature_map.shape().feature_records_byte_range().end > feature_map.offset_data().len() {
+    if feature_map.feature_records_byte_range().end > feature_map.offset_data().len() {
         return Err(ReadError::OutOfBounds);
     }
 

@@ -756,6 +756,8 @@ impl ReadArgs for IndexSubtableList<'_> {
 impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
     fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
         let number_of_index_subtables = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -923,6 +925,8 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
         args: &(GlyphId16, GlyphId16),
     ) -> Result<Self, ReadError> {
         let (last_glyph_index, first_glyph_index) = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1062,6 +1066,7 @@ impl<'a> MinByteRange<'a> for IndexSubtable2<'a> {
 
 impl<'a> FontRead<'a> for IndexSubtable2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1198,6 +1203,8 @@ impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
         args: &(GlyphId16, GlyphId16),
     ) -> Result<Self, ReadError> {
         let (last_glyph_index, first_glyph_index) = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1337,6 +1344,7 @@ impl<'a> MinByteRange<'a> for IndexSubtable4<'a> {
 
 impl<'a> FontRead<'a> for IndexSubtable4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1510,6 +1518,7 @@ impl<'a> MinByteRange<'a> for IndexSubtable5<'a> {
 
 impl<'a> FontRead<'a> for IndexSubtable5<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
