@@ -62,6 +62,7 @@ impl<'a> Loca<'a> {
         }
     }
 
+    #[cfg(feature = "glyf")]
     pub fn get_glyf(
         &self,
         gid: GlyphId,

@@ -29,16 +29,13 @@ spec_next = ["read-fonts/spec_next"]
 libm = ["dep:core_maths", "read-fonts/libm"]
 
 [dependencies]
-read-fonts = { workspace = true, default-features = false }
+read-fonts = { workspace = true, default-features = false, features = ["all_tables"] }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
 
 [dev-dependencies]
 font-test-data = { workspace = true }
-read-fonts = { workspace = true, features = [
-    "scaler_test",
-    "serde",
-] }
+read-fonts = { workspace = true, features = ["scaler_test", "serde"] }
 serde = "1.0"
 serde_json = "1.0"
 pretty_assertions = "1.3.0"
