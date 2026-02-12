@@ -508,4 +508,12 @@ mod tests {
         // Just don't panic with overflow
         let _ = a.mul_div(Fixed::ONE, b);
     }
+
+    /// These identities should always hold; added as a failing test to
+    /// reproduce a bug.
+    #[test]
+    fn f26dot6_div_identity() {
+        assert_eq!(F26Dot6::ONE * F26Dot6::ONE, F26Dot6::ONE);
+        assert_eq!(F26Dot6::ONE / F26Dot6::ONE, F26Dot6::ONE);
+    }
 }
