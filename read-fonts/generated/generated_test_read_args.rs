@@ -77,7 +77,7 @@ impl<'a> BaseArray<'a> {
         let range = self.base_records_byte_range();
         self.data
             .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {

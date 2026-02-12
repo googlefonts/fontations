@@ -53,7 +53,7 @@ impl<'a> ScriptList<'a> {
     /// Array of ScriptRecords, listed alphabetically by script tag
     pub fn script_records(&self) -> &'a [ScriptRecord] {
         let range = self.script_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -207,7 +207,7 @@ impl<'a> Script<'a> {
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
     pub fn lang_sys_records(&self) -> &'a [LangSysRecord] {
         let range = self.lang_sys_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -364,7 +364,7 @@ impl<'a> LangSys<'a> {
     /// Array of indices into the FeatureList, in arbitrary order
     pub fn feature_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.feature_indices_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -446,7 +446,7 @@ impl<'a> FeatureList<'a> {
     /// FeatureIndex = 0), listed alphabetically by feature tag
     pub fn feature_records(&self) -> &'a [FeatureRecord] {
         let range = self.feature_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -618,7 +618,7 @@ impl<'a> Feature<'a> {
     /// lookup is LookupListIndex = 0)
     pub fn lookup_list_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.lookup_list_indices_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub(crate) fn feature_tag(&self) -> Tag {
@@ -729,7 +729,7 @@ impl<'a, T> LookupList<'a, T> {
     /// — zero based (first lookup is Lookup index = 0)
     pub fn lookup_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.lookup_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`lookup_offsets`][Self::lookup_offsets].
@@ -886,7 +886,7 @@ impl<'a, T> Lookup<'a, T> {
     /// table
     pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.subtable_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
@@ -1021,7 +1021,7 @@ impl<'a> CoverageFormat1<'a> {
     /// Array of glyph IDs — in numerical order
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.glyph_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1112,7 +1112,7 @@ impl<'a> CoverageFormat2<'a> {
     /// Array of glyph ranges — ordered by startGlyphID.
     pub fn range_records(&self) -> &'a [RangeRecord] {
         let range = self.range_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1348,7 +1348,7 @@ impl<'a> ClassDefFormat1<'a> {
     /// Array of Class Values — one per glyph ID
     pub fn class_value_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.class_value_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1441,7 +1441,7 @@ impl<'a> ClassDefFormat2<'a> {
     /// Array of ClassRangeRecords — ordered by startGlyphID
     pub fn class_range_records(&self) -> &'a [ClassRangeRecord] {
         let range = self.class_range_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1724,7 +1724,7 @@ impl<'a> SequenceContextFormat1<'a> {
     /// SequenceContextFormat1 table (offsets may be NULL)
     pub fn seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
@@ -1824,7 +1824,7 @@ impl<'a> SequenceRuleSet<'a> {
     /// SequenceRuleSet table
     pub fn seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.seq_rule_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_offsets`][Self::seq_rule_offsets].
@@ -1939,13 +1939,13 @@ impl<'a> SequenceRule<'a> {
     /// Array of input glyph IDs—starting with the second glyph
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.input_sequence_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Array of Sequence lookup records
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.seq_lookup_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -2085,7 +2085,7 @@ impl<'a> SequenceContextFormat2<'a> {
     /// of SequenceContextFormat2 table (may be NULL)
     pub fn class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.class_seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
@@ -2194,7 +2194,7 @@ impl<'a> ClassSequenceRuleSet<'a> {
     /// ClassSequenceRuleSet table
     pub fn class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.class_seq_rule_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
@@ -2313,13 +2313,13 @@ impl<'a> ClassSequenceRule<'a> {
     /// beginning with the second glyph position
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.input_sequence_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.seq_lookup_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -2439,7 +2439,7 @@ impl<'a> SequenceContextFormat3<'a> {
     /// SequenceContextFormat3 subtable
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.coverage_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
@@ -2452,7 +2452,7 @@ impl<'a> SequenceContextFormat3<'a> {
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.seq_lookup_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -2663,7 +2663,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     /// ChainedSequenceContextFormat1 table (may be NULL)
     pub fn chained_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.chained_seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
@@ -2768,7 +2768,7 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     /// of ChainedSequenceRuleSet table
     pub fn chained_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.chained_seq_rule_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
@@ -2908,7 +2908,7 @@ impl<'a> ChainedSequenceRule<'a> {
     /// Array of backtrack glyph IDs
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.backtrack_sequence_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Number of glyphs in the input sequence
@@ -2920,7 +2920,7 @@ impl<'a> ChainedSequenceRule<'a> {
     /// Array of input glyph IDs—start with second glyph
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.input_sequence_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Number of glyphs in the lookahead sequence
@@ -2932,7 +2932,7 @@ impl<'a> ChainedSequenceRule<'a> {
     /// Array of lookahead glyph IDs
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.lookahead_sequence_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Number of SequenceLookupRecords
@@ -2944,7 +2944,7 @@ impl<'a> ChainedSequenceRule<'a> {
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.seq_lookup_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -3136,7 +3136,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
     pub fn chained_class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.chained_class_seq_rule_set_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
@@ -3260,7 +3260,7 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     /// beginning of ChainedClassSequenceRuleSet
     pub fn chained_class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.chained_class_seq_rule_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
@@ -3401,7 +3401,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
     /// Array of backtrack-sequence classes
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.backtrack_sequence_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Total number of glyphs in the input sequence
@@ -3414,7 +3414,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
     /// glyph position
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.input_sequence_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Number of glyphs in the lookahead sequence
@@ -3426,7 +3426,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
     /// Array of lookahead-sequence classes
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
         let range = self.lookahead_sequence_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Number of SequenceLookupRecords
@@ -3438,7 +3438,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.seq_lookup_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -3591,7 +3591,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Array of offsets to coverage tables for the backtrack sequence
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.backtrack_coverage_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
@@ -3610,7 +3610,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Array of offsets to coverage tables for the input sequence
     pub fn input_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.input_coverage_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`input_coverage_offsets`][Self::input_coverage_offsets].
@@ -3629,7 +3629,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Array of offsets to coverage tables for the lookahead sequence
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.lookahead_coverage_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
@@ -3648,7 +3648,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecord] {
         let range = self.seq_lookup_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -3940,7 +3940,7 @@ impl<'a> Device<'a> {
     /// Array of compressed data
     pub fn delta_value(&self) -> &'a [BigEndian<u16>] {
         let range = self.delta_value_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -4193,7 +4193,7 @@ impl<'a> FeatureVariations<'a> {
     /// Array of feature variation records.
     pub fn feature_variation_records(&self) -> &'a [FeatureVariationRecord] {
         let range = self.feature_variation_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -4358,7 +4358,7 @@ impl<'a> ConditionSet<'a> {
     /// ConditionSet table.
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.condition_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
@@ -4764,7 +4764,7 @@ impl<'a> ConditionFormat3<'a> {
     /// Array of condition tables for this conjunction (AND) expression.
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.condition_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
@@ -4875,7 +4875,7 @@ impl<'a> ConditionFormat4<'a> {
     /// Array of condition tables for this disjunction (OR) expression.
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         let range = self.condition_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
@@ -5070,7 +5070,7 @@ impl<'a> FeatureTableSubstitution<'a> {
     /// Array of feature table substitution records.
     pub fn substitutions(&self) -> &'a [FeatureTableSubstitutionRecord] {
         let range = self.substitutions_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -5507,7 +5507,7 @@ impl<'a> CharacterVariantParams<'a> {
     /// feature provides glyph variants.
     pub fn character(&self) -> &'a [BigEndian<Uint24>] {
         let range = self.character_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

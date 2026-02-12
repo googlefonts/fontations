@@ -129,6 +129,18 @@ pub mod offsets_arrays {
             0xb01d
         );
     }
+
+    #[test]
+    fn versioned_array_bad_data() {
+        let buf = BeBuffer::new()
+            .push(1u16) // version
+            .push(1u16) // count
+            .push(2u16) // scalar array
+            .push(3u16)
+            .push(4u32); // shmecord array
+        let table = KindsOfArrays::read(buf.data().into()).unwrap();
+        assert!(table.versioned_scalars().is_none()); // should be there but isn't
+    }
 }
 
 pub mod flags {

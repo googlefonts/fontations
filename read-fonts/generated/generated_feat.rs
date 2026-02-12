@@ -84,7 +84,7 @@ impl<'a> Feat<'a> {
     /// The feature name array, sorted by feature type.
     pub fn names(&self) -> &'a [FeatureName] {
         let range = self.names_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -258,7 +258,7 @@ impl<'a> SettingNameArray<'a> {
     /// List of setting names for a feature.
     pub fn settings(&self) -> &'a [SettingName] {
         let range = self.settings_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub(crate) fn n_settings(&self) -> u16 {

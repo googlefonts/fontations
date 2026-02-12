@@ -797,7 +797,7 @@ impl<'a> IndexSubtableList<'a> {
     /// Array of IndexSubtableRecords.
     pub fn index_subtable_records(&self) -> &'a [IndexSubtableRecord] {
         let range = self.index_subtable_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub(crate) fn number_of_index_subtables(&self) -> u32 {
@@ -1002,7 +1002,7 @@ impl<'a> IndexSubtable1<'a> {
 
     pub fn sbit_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.sbit_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub(crate) fn last_glyph_index(&self) -> GlyphId16 {
@@ -1126,7 +1126,7 @@ impl<'a> IndexSubtable2<'a> {
     /// All glyphs have the same metrics; glyph data may be compressed, byte-aligned, or bit-aligned.
     pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
         let range = self.big_metrics_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1269,7 +1269,7 @@ impl<'a> IndexSubtable3<'a> {
 
     pub fn sbit_offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.sbit_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub(crate) fn last_glyph_index(&self) -> GlyphId16 {
@@ -1396,7 +1396,7 @@ impl<'a> IndexSubtable4<'a> {
     /// One per glyph.
     pub fn glyph_array(&self) -> &'a [GlyphIdOffsetPair] {
         let range = self.glyph_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1578,7 +1578,7 @@ impl<'a> IndexSubtable5<'a> {
     /// All glyphs have the same metrics.
     pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
         let range = self.big_metrics_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Array length.
@@ -1590,7 +1590,7 @@ impl<'a> IndexSubtable5<'a> {
     /// One per glyph, sorted by glyhph ID.
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.glyph_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

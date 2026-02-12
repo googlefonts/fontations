@@ -83,7 +83,7 @@ impl<'a> Dsig<'a> {
     /// Array of signature records
     pub fn signature_records(&self) -> &'a [SignatureRecord] {
         let range = self.signature_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -535,7 +535,7 @@ impl<'a> SignatureBlockFormat1<'a> {
     /// PKCS#7 packet
     pub fn signature(&self) -> &'a [u8] {
         let range = self.signature_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

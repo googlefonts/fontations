@@ -98,13 +98,13 @@ impl<'a> CffHeader<'a> {
     /// Padding bytes before the start of the Name INDEX.
     pub fn _padding(&self) -> &'a [u8] {
         let range = self._padding_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Remaining table data.
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.trailing_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

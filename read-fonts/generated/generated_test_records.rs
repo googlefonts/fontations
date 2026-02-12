@@ -73,7 +73,7 @@ impl<'a> BasicTable<'a> {
 
     pub fn simple_records(&self) -> &'a [SimpleRecord] {
         let range = self.simple_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub fn arrays_inner_count(&self) -> u16 {
@@ -90,7 +90,7 @@ impl<'a> BasicTable<'a> {
         let range = self.array_records_byte_range();
         self.data
             .read_with_args(range, &self.arrays_inner_count())
-            .unwrap()
+            .unwrap_or_default()
     }
 }
 
@@ -367,7 +367,7 @@ impl<'a> VarLenItem<'a> {
 
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

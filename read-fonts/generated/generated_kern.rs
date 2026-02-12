@@ -65,7 +65,7 @@ impl<'a> OtKern<'a> {
     /// Data for subtables, immediately following the header.
     pub fn subtable_data(&self) -> &'a [u8] {
         let range = self.subtable_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -152,7 +152,7 @@ impl<'a> AatKern<'a> {
     /// Data for subtables, immediately following the header.    
     pub fn subtable_data(&self) -> &'a [u8] {
         let range = self.subtable_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -251,7 +251,7 @@ impl<'a> OtSubtable<'a> {
     /// Subtable specific data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -351,7 +351,7 @@ impl<'a> AatSubtable<'a> {
     /// Subtable specific data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -464,7 +464,7 @@ impl<'a> Subtable0<'a> {
     /// Kerning records.
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.pairs_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -560,7 +560,7 @@ impl<'a> Subtable2ClassTable<'a> {
     /// The offsets array for all of the glyphs in the range.
     pub fn offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -711,25 +711,25 @@ impl<'a> Subtable3<'a> {
     /// The kerning values.
     pub fn kern_value(&self) -> &'a [BigEndian<i16>] {
         let range = self.kern_value_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// The left-hand classes.
     pub fn left_class(&self) -> &'a [u8] {
         let range = self.left_class_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// The right-hand classes.
     pub fn right_class(&self) -> &'a [u8] {
         let range = self.right_class_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// The indices into the kernValue array.
     pub fn kern_index(&self) -> &'a [u8] {
         let range = self.kern_index_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

@@ -1078,7 +1078,7 @@ impl<'a> MarkArray<'a> {
     /// associated mark Coverage table.
     pub fn mark_records(&self) -> &'a [MarkRecord] {
         let range = self.mark_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1340,7 +1340,7 @@ impl<'a> SinglePosFormat1<'a> {
         let range = self.value_record_byte_range();
         self.data
             .read_with_args(range, &self.value_format())
-            .unwrap()
+            .unwrap_or_default()
     }
 }
 
@@ -1477,7 +1477,7 @@ impl<'a> SinglePosFormat2<'a> {
         let range = self.value_records_byte_range();
         self.data
             .read_with_args(range, &self.value_format())
-            .unwrap()
+            .unwrap_or_default()
     }
 }
 
@@ -1727,7 +1727,7 @@ impl<'a> PairPosFormat1<'a> {
     /// of PairPos subtable, ordered by Coverage Index.
     pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.pair_set_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`pair_set_offsets`][Self::pair_set_offsets].
@@ -1869,7 +1869,7 @@ impl<'a> PairSet<'a> {
         let range = self.pair_value_records_byte_range();
         self.data
             .read_with_args(range, &(self.value_format1(), self.value_format2()))
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub(crate) fn value_format1(&self) -> ValueFormat {
@@ -2197,7 +2197,7 @@ impl<'a> PairPosFormat2<'a> {
                     self.value_format2(),
                 ),
             )
-            .unwrap()
+            .unwrap_or_default()
     }
 }
 
@@ -2500,7 +2500,7 @@ impl<'a> CursivePosFormat1<'a> {
     /// Array of EntryExit records, in Coverage index order.
     pub fn entry_exit_record(&self) -> &'a [EntryExitRecord] {
         let range = self.entry_exit_record_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -2862,7 +2862,7 @@ impl<'a> BaseArray<'a> {
         let range = self.base_records_byte_range();
         self.data
             .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -3236,7 +3236,7 @@ impl<'a> LigatureArray<'a> {
     /// index.
     pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.ligature_attach_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`ligature_attach_offsets`][Self::ligature_attach_offsets].
@@ -3362,7 +3362,7 @@ impl<'a> LigatureAttach<'a> {
         let range = self.component_records_byte_range();
         self.data
             .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -3739,7 +3739,7 @@ impl<'a> Mark2Array<'a> {
         let range = self.mark2_records_byte_range();
         self.data
             .read_with_args(range, &self.mark_class_count())
-            .unwrap()
+            .unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {

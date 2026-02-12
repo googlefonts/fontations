@@ -436,7 +436,7 @@ impl<'a> BaseGlyphList<'a> {
 
     pub fn base_glyph_paint_records(&self) -> &'a [BaseGlyphPaint] {
         let range = self.base_glyph_paint_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -572,7 +572,7 @@ impl<'a> LayerList<'a> {
     /// Offsets to Paint tables.
     pub fn paint_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.paint_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`paint_offsets`][Self::paint_offsets].
@@ -678,7 +678,7 @@ impl<'a> ClipList<'a> {
     /// Clip records. Sorted by startGlyphID.
     pub fn clips(&self) -> &'a [Clip] {
         let range = self.clips_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1392,7 +1392,7 @@ impl<'a> ColorLine<'a> {
 
     pub fn color_stops(&self) -> &'a [ColorStop] {
         let range = self.color_stops_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1486,7 +1486,7 @@ impl<'a> VarColorLine<'a> {
     /// Allows for variations.
     pub fn color_stops(&self) -> &'a [VarColorStop] {
         let range = self.color_stops_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

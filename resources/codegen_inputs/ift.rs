@@ -211,6 +211,8 @@ table EntryData {
   //
   // These remaining fields don't have well defined widths and are handling with
   // custom parsing.
+  #[skip_getter] // this is the only non-conditional field that occurs after a
+                 // conditional field, and codegen chokes on that.
   #[count(..)]
   trailing_data: [u8],
 }

@@ -151,7 +151,7 @@ impl<'a> Table2<'a> {
 
     pub fn values(&self) -> &'a [BigEndian<u16>] {
         let range = self.values_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
