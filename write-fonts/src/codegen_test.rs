@@ -126,24 +126,9 @@ pub mod conditions {
     }
 
     #[test]
-    #[should_panic(expected = "if_cond is not satisfied but 'baz' is present.")]
-    fn field_present_flag_missing_any_flag() {
-        let mut flags_are_wrong = FlagDay::new(42, GotFlags::empty());
-        flags_are_wrong.baz = Some(0xf00);
-        crate::dump_table(&flags_are_wrong).unwrap();
-    }
-
-    #[test]
     #[should_panic(expected = "FOO is set but 'foo' is None")]
     fn flag_present_field_missing() {
         let flags_are_wrong = FlagDay::new(42, GotFlags::FOO);
-        crate::dump_table(&flags_are_wrong).unwrap();
-    }
-
-    #[test]
-    #[should_panic(expected = "if_cond is satisfied by 'baz' is not present.")]
-    fn flag_present_field_missing_any_flags() {
-        let flags_are_wrong = FlagDay::new(42, GotFlags::BAZ);
         crate::dump_table(&flags_are_wrong).unwrap();
     }
 

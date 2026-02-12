@@ -247,20 +247,6 @@ pub(crate) struct FieldReadArgs {
 pub(crate) enum Condition {
     SinceVersion(VersionSpec),
     IfFlag { field: syn::Ident, flag: syn::Path },
-    IfCond { xform: IfTransform },
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum IfTransform {
-    /// any_flag(field, flag_a, ...):
-    ///
-    /// Evaluates to true if field has at least one of the input flags set.
-    AnyFlag(syn::Ident, Vec<syn::Path>),
-}
-
-enum IfArg {
-    Field(syn::Ident),
-    Path(syn::Path),
 }
 
 #[derive(Clone, Debug)]
@@ -1042,7 +1028,6 @@ static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
 static SINCE_VERSION: &str = "since_version";
-static IF_COND: &str = "if_cond";
 static IF_FLAG: &str = "if_flag";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
@@ -1105,9 +1090,6 @@ impl Parse for FieldAttrs {
                 this.checked_set_condition(ident, Condition::SinceVersion(spec))?;
             } else if ident == IF_FLAG {
                 let condition = parse_if_flag(&attr)?;
-                this.checked_set_condition(ident, condition)?;
-            } else if ident == IF_COND {
-                let condition = parse_if_cond(&attr)?;
                 this.checked_set_condition(ident, condition)?;
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
@@ -1828,92 +1810,6 @@ fn parse_if_flag(attr: &syn::Attribute) -> syn::Result<Condition> {
             syn::Error::new(
                 e.span(),
                 format!("expected #[if_flag($field_name, FlagType::SOME_FLAG)]: '{e}'"),
-            )
-        })
-}
-
-impl Parse for IfArg {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        if input.peek(Token![$]) {
-            input.parse::<Token![$]>()?;
-            input.parse().map(Self::Field)
-        } else {
-            input.parse().map(Self::Path)
-        }
-    }
-}
-
-impl Parse for IfTransform {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let ident = input.parse::<syn::Ident>()?;
-        let content;
-        let _ = parenthesized!(content in input);
-        let args: Vec<IfArg> = Punctuated::<IfArg, Token![,]>::parse_terminated(&content)?
-            .into_iter()
-            .collect();
-
-        IfTransform::from_args(&ident.to_string(), args)
-            .map_err(|err| syn::Error::new(ident.span(), err))
-    }
-}
-
-impl IfTransform {
-    fn from_args(s: &str, args: Vec<IfArg>) -> Result<Self, String> {
-        match s {
-            "any_flag" => Self::any_flag(args),
-            _ => Err(format!("invalid if_cond transform function: {}", s)),
-        }
-    }
-
-    fn any_flag(args: Vec<IfArg>) -> Result<Self, String> {
-        let Some(IfArg::Field(field)) = args.first() else {
-            return Err("First argument to any_flag must be a field name.".to_string());
-        };
-
-        let mut flags: Vec<syn::Path> = vec![];
-        for arg in args.iter().skip(1) {
-            let IfArg::Path(flag) = arg else {
-                return Err(
-                    "Arguments after the first argument to any_flag must be a flag names."
-                        .to_string(),
-                );
-            };
-            flags.push(flag.clone());
-        }
-
-        Ok(IfTransform::AnyFlag(field.clone(), flags))
-    }
-
-    pub(crate) fn input_field(&self) -> Vec<syn::Ident> {
-        match self {
-            IfTransform::AnyFlag(field, _) => vec![field.clone()],
-        }
-    }
-}
-
-fn parse_if_cond(attr: &syn::Attribute) -> syn::Result<Condition> {
-    struct If(IfTransform);
-    impl Parse for If {
-        fn parse(input: ParseStream) -> syn::Result<Self> {
-            // leading ident must be a function
-            if !input.peek(syn::Ident) {
-                return Err(syn::Error::new(
-                    input.span(),
-                    "Non identifier argument to if_cond().",
-                ));
-            }
-
-            let xform: IfTransform = input.parse()?;
-            Ok(If(xform))
-        }
-    }
-
-    attr.parse_args::<If>()
-        .map(|If(xform)| Condition::IfCond { xform })
-        .map_err(|e| {
-            syn::Error::new(
-                e.span(),
-                format!("expected #[if_cond(condition_function(...))]: '{e}'"),
             )
         })
 }

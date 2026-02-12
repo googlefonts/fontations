@@ -259,7 +259,6 @@ pub mod conditions {
         let table = FlagDay::read(data.data().into()).unwrap();
         assert_eq!(table.foo(), Some(0xf00));
         assert!(table.bar().is_none());
-        assert_eq!(table.baz(), Some(0xba2));
     }
 
     #[test]
@@ -268,16 +267,6 @@ pub mod conditions {
         let table = FlagDay::read(data.data().into()).unwrap();
         assert!(table.foo().is_none());
         assert_eq!(table.bar(), Some(0xba4));
-        assert!(table.baz().is_none());
-    }
-
-    #[test]
-    fn flags_baz() {
-        let data = make_flag_data(GotFlags::BAZ);
-        let table = FlagDay::read(data.data().into()).unwrap();
-        assert!(table.foo().is_none());
-        assert!(table.bar().is_none());
-        assert_eq!(table.baz(), Some(0xba2));
     }
 
     #[test]
@@ -286,7 +275,6 @@ pub mod conditions {
         let table = FlagDay::read(data.data().into()).unwrap();
         assert_eq!(table.foo(), Some(0xf00));
         assert_eq!(table.bar(), Some(0xba4));
-        assert_eq!(table.baz(), Some(0xba2));
     }
 
     #[test]
@@ -317,7 +305,7 @@ pub mod conditions {
         assert_eq!(table.always_here(), 1);
         assert_eq!(table.bar(), Some(0xba4));
         assert_eq!(table.also_always_here(), 2);
-        assert!(table.foo().is_none() && table.baz().is_none());
+        assert!(table.foo().is_none());
         assert_eq!(table.and_me_too(), 3);
     }
 
