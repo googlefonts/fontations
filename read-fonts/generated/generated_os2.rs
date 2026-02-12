@@ -791,7 +791,7 @@ impl<'a> Os2<'a> {
     /// character sets.
     pub fn panose_10(&self) -> &'a [u8] {
         let range = self.panose_10_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// [Unicode Character Range](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#ulunicoderange1-bits-031ulunicoderange2-bits-3263ulunicoderange3-bits-6495ulunicoderange4-bits-96127).

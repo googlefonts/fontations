@@ -99,7 +99,7 @@ impl<'a> Name<'a> {
     /// The name records where count is the number of records.
     pub fn name_record(&self) -> &'a [NameRecord] {
         let range = self.name_record_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Number of language-tag records.

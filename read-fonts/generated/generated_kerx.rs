@@ -81,7 +81,7 @@ impl<'a> Kerx<'a> {
         self.data
             .split_off(range.start)
             .and_then(|d| VarLenArray::read(d).ok())
-            .unwrap()
+            .unwrap_or_default()
     }
 }
 
@@ -183,7 +183,7 @@ impl<'a> Subtable<'a> {
     /// Subtable specific data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -296,7 +296,7 @@ impl<'a> Subtable0<'a> {
     /// Kerning records.
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.pairs_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

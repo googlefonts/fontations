@@ -285,7 +285,7 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
     /// The delta-set index mapping data. See details below.
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.map_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -392,7 +392,7 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
     /// The delta-set index mapping data. See details below.
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.map_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -885,7 +885,9 @@ impl<'a> VariationRegionList<'a> {
     /// Array of variation regions.
     pub fn variation_regions(&self) -> ComputedArray<'a, VariationRegion<'a>> {
         let range = self.variation_regions_byte_range();
-        self.data.read_with_args(range, &self.axis_count()).unwrap()
+        self.data
+            .read_with_args(range, &self.axis_count())
+            .unwrap_or_default()
     }
 }
 
@@ -1122,7 +1124,7 @@ impl<'a> ItemVariationStore<'a> {
     /// each item variation data subtable.
     pub fn item_variation_data_offsets(&self) -> &'a [BigEndian<Nullable<Offset32>>] {
         let range = self.item_variation_data_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`item_variation_data_offsets`][Self::item_variation_data_offsets].
@@ -1265,13 +1267,13 @@ impl<'a> ItemVariationData<'a> {
     /// referenced by this item variation data table.
     pub fn region_indexes(&self) -> &'a [BigEndian<u16>] {
         let range = self.region_indexes_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Delta-set rows.
     pub fn delta_sets(&self) -> &'a [u8] {
         let range = self.delta_sets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

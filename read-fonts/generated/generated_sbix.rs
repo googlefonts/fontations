@@ -409,7 +409,7 @@ impl<'a> Sbix<'a> {
     /// Offsets from the beginning of the 'sbix' table to data for each individual bitmap strike.
     pub fn strike_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.strike_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`strike_offsets`][Self::strike_offsets].
@@ -540,7 +540,7 @@ impl<'a> Strike<'a> {
     /// Offset from the beginning of the strike data header to bitmap data for an individual glyph ID.
     pub fn glyph_data_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.glyph_data_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {
@@ -643,7 +643,7 @@ impl<'a> GlyphData<'a> {
     /// The actual embedded graphic data. The total length is inferred from sequential entries in the glyphDataOffsets array and the fixed size (8 bytes) of the preceding fields.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

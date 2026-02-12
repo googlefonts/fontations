@@ -283,7 +283,7 @@ impl<'a> BaseTagList<'a> {
     /// alphabetical order
     pub fn baseline_tags(&self) -> &'a [BigEndian<Tag>] {
         let range = self.baseline_tags_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -359,7 +359,7 @@ impl<'a> BaseScriptList<'a> {
     /// baseScriptTag
     pub fn base_script_records(&self) -> &'a [BaseScriptRecord] {
         let range = self.base_script_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -532,7 +532,7 @@ impl<'a> BaseScript<'a> {
     /// BaseLangSysTag
     pub fn base_lang_sys_records(&self) -> &'a [BaseLangSysRecord] {
         let range = self.base_lang_sys_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -694,7 +694,7 @@ impl<'a> BaseValues<'a> {
     /// BaseTagList
     pub fn base_coord_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.base_coord_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`base_coord_offsets`][Self::base_coord_offsets].
@@ -833,7 +833,7 @@ impl<'a> MinMax<'a> {
     /// featureTableTag
     pub fn feat_min_max_records(&self) -> &'a [FeatMinMaxRecord] {
         let range = self.feat_min_max_records_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

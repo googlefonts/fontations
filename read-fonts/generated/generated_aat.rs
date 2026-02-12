@@ -155,7 +155,7 @@ impl<'a> Lookup0<'a> {
     /// Values, indexed by glyph index.
     pub fn values_data(&self) -> &'a [u8] {
         let range = self.values_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -303,7 +303,7 @@ impl<'a> Lookup2<'a> {
     /// Segments.
     pub fn segments_data(&self) -> &'a [u8] {
         let range = self.segments_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -453,7 +453,7 @@ impl<'a> Lookup4<'a> {
     /// Segments.
     pub fn segments(&self) -> &'a [LookupSegment4] {
         let range = self.segments_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -662,7 +662,7 @@ impl<'a> Lookup6<'a> {
     /// Values, indexed by glyph index.
     pub fn entries_data(&self) -> &'a [u8] {
         let range = self.entries_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -772,7 +772,7 @@ impl<'a> Lookup8<'a> {
     /// firstGlyph). Entries in the value array must be two bytes.
     pub fn value_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.value_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -896,7 +896,7 @@ impl<'a> Lookup10<'a> {
     /// firstGlyph).
     pub fn values_data(&self) -> &'a [u8] {
         let range = self.values_data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1116,7 +1116,7 @@ impl<'a> ClassSubtable<'a> {
     /// range from 0 to the value of stateSize minus 1.
     pub fn class_array(&self) -> &'a [u8] {
         let range = self.class_array_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1178,7 +1178,7 @@ impl<'a> RawBytes<'a> {
 
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1367,7 +1367,7 @@ impl<'a> RawWords<'a> {
 
     pub fn data(&self) -> &'a [BigEndian<u16>] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

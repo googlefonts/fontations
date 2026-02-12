@@ -81,7 +81,7 @@ impl<'a> Morx<'a> {
         self.data
             .split_off(range.start)
             .and_then(|d| VarLenArray::read(d).ok())
-            .unwrap()
+            .unwrap_or_default()
     }
 }
 
@@ -206,7 +206,7 @@ impl<'a> Chain<'a> {
     /// Feature entries for this chain.
     pub fn features(&self) -> &'a [Feature] {
         let range = self.features_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Array of chain subtables.
@@ -215,7 +215,7 @@ impl<'a> Chain<'a> {
         self.data
             .split_off(range.start)
             .and_then(|d| VarLenArray::read(d).ok())
-            .unwrap()
+            .unwrap_or_default()
     }
 }
 
@@ -386,7 +386,7 @@ impl<'a> Subtable<'a> {
     /// Data for specific subtable.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

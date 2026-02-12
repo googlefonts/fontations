@@ -342,7 +342,7 @@ impl<'a> AttachList<'a> {
     /// AttachList table-in Coverage Index order
     pub fn attach_point_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.attach_point_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`attach_point_offsets`][Self::attach_point_offsets].
@@ -440,7 +440,7 @@ impl<'a> AttachPoint<'a> {
     /// Array of contour point indices -in increasing numerical order
     pub fn point_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.point_indices_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -533,7 +533,7 @@ impl<'a> LigCaretList<'a> {
     /// LigCaretList table —in Coverage Index order
     pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.lig_glyph_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`lig_glyph_offsets`][Self::lig_glyph_offsets].
@@ -632,7 +632,7 @@ impl<'a> LigGlyph<'a> {
     /// LigGlyph table — in increasing coordinate order
     pub fn caret_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.caret_value_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`caret_value_offsets`][Self::caret_value_offsets].
@@ -1079,7 +1079,7 @@ impl<'a> MarkGlyphSets<'a> {
     /// start of the MarkGlyphSets table.
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.coverage_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].

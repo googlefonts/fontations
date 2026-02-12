@@ -74,13 +74,13 @@ impl<'a> Index1<'a> {
     /// Bytes containing `count + 1` offsets each of `off_size`.
     pub fn offsets(&self) -> &'a [u8] {
         let range = self.offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Array containing the object data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -177,13 +177,13 @@ impl<'a> Index2<'a> {
     /// Bytes containing `count + 1` offsets each of `off_size`.
     pub fn offsets(&self) -> &'a [u8] {
         let range = self.offsets_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Array containing the object data.
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -341,7 +341,7 @@ impl<'a> FdSelectFormat0<'a> {
     /// FD selector array (one entry for each glyph).
     pub fn fds(&self) -> &'a [u8] {
         let range = self.fds_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -437,7 +437,7 @@ impl<'a> FdSelectFormat3<'a> {
     /// Range3 array.
     pub fn ranges(&self) -> &'a [FdSelectRange3] {
         let range = self.ranges_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
@@ -590,7 +590,7 @@ impl<'a> FdSelectFormat4<'a> {
     /// Range4 array.
     pub fn ranges(&self) -> &'a [FdSelectRange4] {
         let range = self.ranges_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 
     /// Sentinel GID. Set equal to the number of glyphs in the font.
@@ -803,7 +803,7 @@ impl<'a> CharsetFormat0<'a> {
     /// Glyph name array.
     pub fn glyph(&self) -> &'a [BigEndian<u16>] {
         let range = self.glyph_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -882,7 +882,7 @@ impl<'a> CharsetFormat1<'a> {
     /// Range1 array.
     pub fn ranges(&self) -> &'a [CharsetRange1] {
         let range = self.ranges_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1010,7 +1010,7 @@ impl<'a> CharsetFormat2<'a> {
     /// Range2 array.
     pub fn ranges(&self) -> &'a [CharsetRange2] {
         let range = self.ranges_byte_range();
-        self.data.read_array(range).ok().unwrap()
+        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
