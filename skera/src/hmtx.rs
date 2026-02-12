@@ -1,13 +1,12 @@
 //! impl subset() for hmtx
 
-use crate::serialize::Serializer;
-use crate::{Plan, Subset, SubsetError, SubsetError::SubsetTableError};
-use write_fonts::types::{FWord, GlyphId, UfWord};
+use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetError::SubsetTableError};
 use write_fonts::{
     read::{
         tables::{hhea::Hhea, hmtx::Hmtx},
         FontRef, TableProvider, TopLevelTable,
     },
+    types::{FWord, GlyphId, UfWord},
     FontBuilder,
 };
 
@@ -35,18 +34,19 @@ impl Subset for Hmtx<'_> {
         s.allocate_size(hmtx_cap, false)
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?;
 
-        for (new_gid, old_gid) in &plan.new_to_old_gid_list {
-            let new_gid = new_gid.to_u32() as usize;
-            if new_gid < new_num_h_metrics {
-                let idx = 4 * new_gid;
-                let advance = UfWord::from(self.advance(*old_gid).unwrap_or(0));
+        for (new_gid, _old_gid) in &plan.new_to_old_gid_list {
+            let new_gid_usize = new_gid.to_u32() as usize;
+            if new_gid_usize < new_num_h_metrics {
+                let idx = 4 * new_gid_usize;
+                let advance =
+                    UfWord::from(plan.hmtx_map.get(&new_gid).map(|(aw, _)| *aw).unwrap_or(0));
                 s.copy_assign(idx, advance);
 
-                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap_or(0));
+                let lsb = FWord::from(plan.hmtx_map.get(new_gid).map(|(_, lsb)| *lsb).unwrap_or(0));
                 s.copy_assign(idx + 2, lsb);
             } else {
-                let idx = 4 * new_num_h_metrics + (new_gid - new_num_h_metrics) * 2;
-                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap_or(0));
+                let idx = 4 * new_num_h_metrics + (new_gid_usize - new_num_h_metrics) * 2;
+                let lsb = FWord::from(plan.hmtx_map.get(new_gid).map(|(_, lsb)| *lsb).unwrap_or(0));
                 s.copy_assign(idx, lsb);
             }
         }

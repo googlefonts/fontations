@@ -389,6 +389,10 @@ pub struct Plan {
     // new gids set for composite glyphs
     composite_new_gids: IntSet<GlyphId>,
     new_gid_instance_deltas_map: FnvHashMap<GlyphId, Vec<Point<f32>>>,
+    // hmtx metrics map: new gid->(advance, lsb)
+    hmtx_map: FnvHashMap<GlyphId, (u16, i16)>,
+    // vmtx metrics map: new gid->(advance, lsb)
+    vmtx_map: FnvHashMap<GlyphId, (u16, i16)>,
 
     // user specified axes range map
     user_axes_location: FnvHashMap<Tag, Triple<f64>>,
@@ -462,6 +466,7 @@ impl Plan {
         this.collect_base_var_indices(font);
         this.get_instance_glyphs_contour_points(font);
         this.get_instance_deltas(font);
+        this.collect_new_metrics(font);
         this
     }
 
@@ -1173,8 +1178,8 @@ impl Plan {
         let Ok(glyf) = font.glyf() else { return Ok(()) };
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
             let glyph = loca.get_glyf(*old_gid, &glyf).unwrap();
-
-            let coords = &self.normalized_coords;
+            let coords = &self.normalized_coords_16_16;
+            log::debug!("Instantiating at coords (16.16): {:?}", coords);
             match glyph {
                 Some(Glyph::Simple(simple_glyph)) => {
                     if simple_glyph.num_points() == 0 {
