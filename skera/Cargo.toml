@@ -14,10 +14,11 @@ repository.workspace = true
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
 fnv = "1.0.7"
+font-types = { workspace = true }
 hashbrown = "0.15.1"
 log = "0.4.29"
 regex = "1.10.4"
-skrifa = { workspace = true }
+skrifa = { workspace = true, features = ["skera"] }
 thiserror = "1.0.58"
 write-fonts = { workspace = true, features = ["read"] }
 
