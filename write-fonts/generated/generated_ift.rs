@@ -239,7 +239,6 @@ impl FontWrite for PatchMapFormat1 {
 impl Validate for PatchMapFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PatchMapFormat1", |ctx| {
-            let field_flags = self.field_flags;
             ctx.in_field("glyph_map", |ctx| {
                 self.glyph_map.validate_impl(ctx);
             });
@@ -252,28 +251,36 @@ impl Validate for PatchMapFormat1 {
                 }
             });
             ctx.in_field("cff_charstrings_offset", |ctx| {
-                if !(field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+                if !(self
+                    .field_flags
+                    .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
                     && self.cff_charstrings_offset.is_some()
                 {
                     ctx.report(
                         "'cff_charstrings_offset' is present but CFF_CHARSTRINGS_OFFSET not set",
                     )
                 }
-                if (field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+                if (self
+                    .field_flags
+                    .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
                     && self.cff_charstrings_offset.is_none()
                 {
                     ctx.report("CFF_CHARSTRINGS_OFFSET is set but 'cff_charstrings_offset' is None")
                 }
             });
             ctx.in_field("cff2_charstrings_offset", |ctx| {
-                if !(field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+                if !(self
+                    .field_flags
+                    .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
                     && self.cff2_charstrings_offset.is_some()
                 {
                     ctx.report(
                         "'cff2_charstrings_offset' is present but CFF2_CHARSTRINGS_OFFSET not set",
                     )
                 }
-                if (field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+                if (self
+                    .field_flags
+                    .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
                     && self.cff2_charstrings_offset.is_none()
                 {
                     ctx.report(
@@ -549,7 +556,6 @@ impl FontWrite for PatchMapFormat2 {
 impl Validate for PatchMapFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PatchMapFormat2", |ctx| {
-            let field_flags = self.field_flags;
             ctx.in_field("entries", |ctx| {
                 self.entries.validate_impl(ctx);
             });
@@ -562,28 +568,36 @@ impl Validate for PatchMapFormat2 {
                 }
             });
             ctx.in_field("cff_charstrings_offset", |ctx| {
-                if !(field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+                if !(self
+                    .field_flags
+                    .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
                     && self.cff_charstrings_offset.is_some()
                 {
                     ctx.report(
                         "'cff_charstrings_offset' is present but CFF_CHARSTRINGS_OFFSET not set",
                     )
                 }
-                if (field_flags.contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
+                if (self
+                    .field_flags
+                    .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
                     && self.cff_charstrings_offset.is_none()
                 {
                     ctx.report("CFF_CHARSTRINGS_OFFSET is set but 'cff_charstrings_offset' is None")
                 }
             });
             ctx.in_field("cff2_charstrings_offset", |ctx| {
-                if !(field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+                if !(self
+                    .field_flags
+                    .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
                     && self.cff2_charstrings_offset.is_some()
                 {
                     ctx.report(
                         "'cff2_charstrings_offset' is present but CFF2_CHARSTRINGS_OFFSET not set",
                     )
                 }
-                if (field_flags.contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
+                if (self
+                    .field_flags
+                    .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
                     && self.cff2_charstrings_offset.is_none()
                 {
                     ctx.report(
@@ -745,26 +759,33 @@ impl FontWrite for EntryData {
 impl Validate for EntryData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("EntryData", |ctx| {
-            let format_flags = self.format_flags;
             ctx.in_field("feature_count", |ctx| {
-                if !(format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if !(self
+                    .format_flags
+                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.feature_count.is_some()
                 {
                     ctx.report("'feature_count' is present but FEATURES_AND_DESIGN_SPACE not set")
                 }
-                if (format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if (self
+                    .format_flags
+                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.feature_count.is_none()
                 {
                     ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'feature_count' is None")
                 }
             });
             ctx.in_field("feature_tags", |ctx| {
-                if !(format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if !(self
+                    .format_flags
+                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.feature_tags.is_some()
                 {
                     ctx.report("'feature_tags' is present but FEATURES_AND_DESIGN_SPACE not set")
                 }
-                if (format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if (self
+                    .format_flags
+                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.feature_tags.is_none()
                 {
                     ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'feature_tags' is None")
@@ -776,28 +797,36 @@ impl Validate for EntryData {
                 }
             });
             ctx.in_field("design_space_count", |ctx| {
-                if !(format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if !(self
+                    .format_flags
+                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.design_space_count.is_some()
                 {
                     ctx.report(
                         "'design_space_count' is present but FEATURES_AND_DESIGN_SPACE not set",
                     )
                 }
-                if (format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if (self
+                    .format_flags
+                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.design_space_count.is_none()
                 {
                     ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'design_space_count' is None")
                 }
             });
             ctx.in_field("design_space_segments", |ctx| {
-                if !(format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if !(self
+                    .format_flags
+                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.design_space_segments.is_some()
                 {
                     ctx.report(
                         "'design_space_segments' is present but FEATURES_AND_DESIGN_SPACE not set",
                     )
                 }
-                if (format_flags.contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
+                if (self
+                    .format_flags
+                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
                     && self.design_space_segments.is_none()
                 {
                     ctx.report(
@@ -812,12 +841,12 @@ impl Validate for EntryData {
                 self.design_space_segments.validate_impl(ctx);
             });
             ctx.in_field("child_indices", |ctx| {
-                if !(format_flags.contains(EntryFormatFlags::CHILD_INDICES))
+                if !(self.format_flags.contains(EntryFormatFlags::CHILD_INDICES))
                     && self.child_indices.is_some()
                 {
                     ctx.report("'child_indices' is present but CHILD_INDICES not set")
                 }
-                if (format_flags.contains(EntryFormatFlags::CHILD_INDICES))
+                if (self.format_flags.contains(EntryFormatFlags::CHILD_INDICES))
                     && self.child_indices.is_none()
                 {
                     ctx.report("CHILD_INDICES is set but 'child_indices' is None")

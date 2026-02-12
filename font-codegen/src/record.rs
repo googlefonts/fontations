@@ -207,11 +207,6 @@ pub(crate) fn generate_compile_impl(
             }
         });
 
-    let conditional_inputs = fields
-        .conditional_input_idents()
-        .into_iter()
-        .map(|fld| quote!(let #fld = self.#fld;));
-
     let write_stmts = fields.iter_compile_write_stmts();
     let write_impl_params = generic_param.map(|t| quote! { <#t: FontWrite> });
     let validate_impl_params = generic_param.map(|t| quote! { <#t: Validate> });
@@ -232,7 +227,6 @@ pub(crate) fn generate_compile_impl(
             fn validate_impl(&self, ctx: &mut ValidationCtx) {
                 ctx.in_table(#name_string, |ctx| {
                     #version_decl
-                    #( #conditional_inputs )*
                     #( #validation_stmts)*
                 })
             }

@@ -229,59 +229,6 @@ impl MyTable<'_> {
 }
 ```
 
-In practice, what we generate is slightly different: instead of
-generating a struct for the table itself (and wrapping the data directly)
-we generate a 'marker' struct, which defines the type of the table, and then we
-combine it with the data via a `TableRef` struct.
-
-The `TableRef` struct looks like this:
-
-```rust
-/// Typed access to raw table data.
-pub struct TableRef<'a, T> {
-    shape: T,
-    data: FontData<'a>,
-}
-```
-
-And the definition of the table above, using a marker type, would look something
-like:
-
-```rust
-/// A marker type
-pub struct MyTableMarker;
-
-/// Instead of generating a struct for each table, we define a type alias
-pub type MyTable<'a> = TableRef<'a, MyTableMarker>;
-
-impl MyTableMarker {
-    fn format_byte_range(&self) -> Range<usize> {
-        0..u16::RAW_BYTE_LEN
-    }
-}
-
-impl MyTable<'_> {
-    fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start)
-    }
-}
-```
-
-To the user these two API are equivalent (you have a type `MyTable`, on which
-you can call methods to read fields) but the 'marker' pattern potentially allows
-for us to do some fancy things in the future (involving various cases where we
-want to store a type separate from a lifetime).
-
-> ***note:***
->
-> there are also downsides of the marker pattern; in particular, currently
-> the code we generate will only compile if it is part of the `read-fonts` crate
-> itself. This isn't a major limitation, except that it makes certain kinds of
-> testing harder to do, since we can't do fancy things like generate code that
-> treated as a separate compilation unit, e.g. for use with the [`trybuild`][]
-crate.
-
 #### <a id="font-read-args"></a> `FontRead` & `FontReadWithArgs`
 
 After generating the type definitions, the next thing we generate is an

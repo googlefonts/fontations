@@ -6,7 +6,7 @@ use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
 use write_fonts::{
     read::{
         tables::post::{Post, DEFAULT_GLYPH_NAMES},
-        FontRef, TopLevelTable,
+        FontRef, MinByteRange, TopLevelTable,
     },
     types::{GlyphId, Version16Dot16},
     FontBuilder,
@@ -31,10 +31,7 @@ impl Subset for Post<'_> {
             .contains(SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES);
         //version 3 does not have any glyph names
         if !glyph_names {
-            s.copy_assign(
-                self.shape().version_byte_range().start,
-                Version16Dot16::VERSION_3_0,
-            );
+            s.copy_assign(self.version_byte_range().start, Version16Dot16::VERSION_3_0);
         }
 
         if glyph_names && self.version() == Version16Dot16::VERSION_2_0 {

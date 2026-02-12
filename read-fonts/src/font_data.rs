@@ -8,7 +8,7 @@ use types::{BigEndian, FixedSize, Scalar};
 
 use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
-use crate::table_ref::TableRef;
+//use crate::table_ref::TableRef;
 use crate::FontRead;
 
 /// A reference to raw binary font data.
@@ -287,12 +287,6 @@ impl<'a> Cursor<'a> {
 
     pub fn is_empty(&self) -> bool {
         self.pos >= self.data.len()
-    }
-
-    pub(crate) fn finish<T>(self, shape: T) -> Result<TableRef<'a, T>, ReadError> {
-        let data = self.data;
-        data.check_in_bounds(self.pos)?;
-        Ok(TableRef { data, shape })
     }
 }
 
