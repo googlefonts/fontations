@@ -6,11 +6,14 @@ use crate::{
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
 };
+use font_types::Point;
 use skrifa::{
     prelude::{LocationRef, Size},
+    raw::{tables::glyf::CurvePoint, ReadError},
     MetadataProvider,
 };
 use write_fonts::{
+    from_obj::ToOwnedTable,
     read::{
         tables::{
             glyf::{
@@ -24,8 +27,11 @@ use write_fonts::{
         types::GlyphId,
         FontRef, TableProvider, TopLevelTable,
     },
-    FontBuilder,
+    tables::glyf::{Component, CompositeGlyph as WriteCompositeGlyph, Contour},
+    FontBuilder, TableWriter,
 };
+
+pub(crate) const PHANTOM_POINT_COUNT: usize = 4;
 
 // reference: subset() for glyf/loca/head in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/glyf/glyf.hh#L77
@@ -61,7 +67,12 @@ impl Subset for Glyf<'_> {
                         subset_glyphs.push(Vec::new());
                         continue;
                     };
-                    let subset_glyph = subset_glyph(&glyph, plan);
+                    let subset_glyph = if !plan.normalized_coords.is_empty() {
+                        instantiate_and_subset_glyph(glyph, plan, *new_gid)
+                            .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
+                    } else {
+                        subset_glyph(&glyph, plan)
+                    };
                     let trimmed_len = subset_glyph.len();
                     max_offset += padded_size(trimmed_len) as u32;
                     subset_glyphs.push(subset_glyph);
@@ -370,15 +381,129 @@ fn subset_head(head: &Head, loca_format: u8) -> Vec<u8> {
     out
 }
 
-#[derive(Debug)]
+fn instantiate_and_subset_glyph(
+    glyph: Glyph,
+    plan: &Plan,
+    new_gid: GlyphId,
+) -> Result<Vec<u8>, write_fonts::error::Error> {
+    let mut contour_points = plan
+        .new_gid_contour_points_map
+        .get(&new_gid)
+        .expect("BUG: contour points for the new gid should have been calculated in Plan::new()")
+        .clone();
+    let deltas = plan
+        .new_gid_instance_deltas_map
+        .get(&new_gid)
+        .expect("BUG: deltas for the new gid should have been calculated in Plan::new()");
+    contour_points.add_deltas(deltas);
+    let mut write_glyph: write_fonts::tables::glyf::Glyph = glyph.to_owned_table();
+    match write_glyph {
+        write_fonts::tables::glyf::Glyph::Empty => {}
+        write_fonts::tables::glyf::Glyph::Simple(ref mut simple_glyph) => {
+            if plan
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+            {
+                simple_glyph.instructions = vec![];
+            }
+            simple_glyph.contours = vec![];
+            let mut last_contour: Vec<CurvePoint> = vec![];
+            for point in contour_points.0 {
+                last_contour.push(CurvePoint {
+                    x: point.x as i16,
+                    y: point.y as i16,
+                    on_curve: point.is_on_curve,
+                });
+                if point.is_end_point {
+                    simple_glyph.contours.push(last_contour.into());
+                    last_contour = vec![];
+                }
+            }
+            // Remove the final four contours, they're just phantom points!
+            simple_glyph.contours.truncate(
+                simple_glyph
+                    .contours
+                    .len()
+                    .saturating_sub(PHANTOM_POINT_COUNT),
+            );
+            if plan
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
+            {
+                // Oops, write_fonts doesn't let us do this
+                // simple_glyph.flags.insert(SimpleGlyphFlags::OVERLAP_SIMPLE);
+            }
+            simple_glyph.recompute_bounding_box();
+        }
+        write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
+            let mut ix = 0;
+            // We can't mutate components, we have to rebuild the gyph
+            let mut new_components = vec![];
+            for component in composite_glyph.components().iter() {
+                let mut new_component = component.clone();
+                if let Anchor::Offset { x, y } = component.anchor {
+                    let delta = deltas.get(ix).unwrap_or(&Point { x: 0.0, y: 0.0 });
+                    new_component.anchor = Anchor::Offset {
+                        x: x + delta.x as i16,
+                        y: y + delta.y as i16,
+                    };
+                    ix += 1;
+                }
+                new_component.glyph = plan
+                    .new_to_old_gid_list
+                    .iter()
+                    .find_map(|(new, old)| {
+                        if *old == component.glyph {
+                            Some(*new)
+                        } else {
+                            None
+                        }
+                    })
+                    .expect("BUG: all component glyphs should have been mapped in Plan::new()")
+                    .try_into()
+                    .unwrap();
+                // XXX I'm not entirely sure what deltas are generated for other uses
+                new_components.push(new_component);
+            }
+            // XXX We also need to adjust the bounding box of the composite glyph.
+            // This is tricky because we don't know the new bounding boxes of the component glyphs until after subsetting them, but we need the composite glyph bounding box to subset the components...
+            if new_components.is_empty() {
+                // Not sure how this can happen but I don't really want to panic either
+                return Ok(vec![]);
+            }
+            let mut first = new_components.remove(0);
+            if plan
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
+            {
+                first.flags.overlap_compound = true;
+            }
+            let mut new_composite = WriteCompositeGlyph::new(first, composite_glyph.bbox);
+            for component in new_components {
+                new_composite.add_component(component, composite_glyph.bbox);
+            }
+            *composite_glyph = new_composite;
+        }
+    }
+
+    write_fonts::dump_table(&write_glyph)
+}
+
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct ContourPoint {
     pub x: f32,
     pub y: f32,
     pub is_end_point: bool,
+    pub is_on_curve: bool,
 }
 impl ContourPoint {
-    fn new(x: f32, y: f32, is_end_point: bool) -> Self {
-        Self { x, y, is_end_point }
+    fn new(x: f32, y: f32, is_on_curve: bool, is_end_point: bool) -> Self {
+        Self {
+            x,
+            y,
+            is_end_point,
+            is_on_curve,
+        }
     }
     fn add_delta(&mut self, delta_x: f32, delta_y: f32) {
         self.x += delta_x;
@@ -386,27 +511,16 @@ impl ContourPoint {
     }
 }
 
+#[derive(Debug, Clone, Default)]
 pub(crate) struct ContourPoints(pub Vec<ContourPoint>);
 impl ContourPoints {
     fn new() -> Self {
         Self(Vec::new())
     }
-    fn add_deltas(
-        &mut self,
-        deltas_x: &[f32],
-        deltas_y: &[f32],
-        indices: &[bool],
-    ) -> Result<(), SubsetError> {
-        if deltas_x.len() != deltas_y.len() || deltas_x.len() != indices.len() {
-            return Err(SubsetError::InvalidContourData);
+    fn add_deltas(&mut self, deltas: &[Point<f32>]) {
+        for i in 0..deltas.len() {
+            self.0[i].add_delta(deltas[i].x, deltas[i].y);
         }
-        for i in 0..deltas_x.len() {
-            if !indices[i] {
-                continue;
-            }
-            self.0[i].add_delta(deltas_x[i], deltas_y[i]);
-        }
-        Ok(())
     }
 }
 
@@ -417,14 +531,23 @@ impl ContourPoints {
         glyph_id: GlyphId,
     ) -> Self {
         let mut contour_points = ContourPoints::new();
-        let mut h_delta = 0;
         match glyph {
             Simple(simple_glyph) => {
-                contour_points.0.extend(
-                    simple_glyph
-                        .points()
-                        .map(|p| ContourPoint::new(p.x as f32, p.y as f32, false)),
-                );
+                let end_points = simple_glyph
+                    .end_pts_of_contours()
+                    .iter()
+                    .map(|e| e.get())
+                    .collect::<Vec<u16>>();
+                contour_points
+                    .0
+                    .extend(simple_glyph.points().enumerate().map(|(ix, p)| {
+                        ContourPoint::new(
+                            p.x as f32,
+                            p.y as f32,
+                            p.on_curve,
+                            end_points.contains(&(ix as u16)),
+                        )
+                    }));
                 for endpoint in simple_glyph.end_pts_of_contours().iter() {
                     contour_points.0[endpoint.get() as usize].is_end_point = true;
                 }
@@ -434,12 +557,14 @@ impl ContourPoints {
                     match composite.anchor {
                         Anchor::Point { .. } => {
                             // if (is_anchored ()) tx = ty = 0;
-                            contour_points.0.push(ContourPoint::new(0.0, 0.0, true));
+                            contour_points
+                                .0
+                                .push(ContourPoint::new(0.0, 0.0, false, true));
                         }
                         Anchor::Offset { x, y } => {
                             contour_points
                                 .0
-                                .push(ContourPoint::new(x as f32, y as f32, true));
+                                .push(ContourPoint::new(x as f32, y as f32, false, false));
                         }
                     }
                 }
@@ -451,13 +576,19 @@ impl ContourPoints {
         let aw = metrics.advance_width(glyph_id).unwrap_or(0.0);
         let h_delta = glyph.x_min() as f32 - lsb;
 
-        contour_points.0.push(ContourPoint::new(h_delta, 0.0, true));
         contour_points
             .0
-            .push(ContourPoint::new(h_delta + aw as f32, 0.0, true));
+            .push(ContourPoint::new(h_delta, 0.0, true, true));
+        contour_points
+            .0
+            .push(ContourPoint::new(h_delta + aw, 0.0, true, true));
         // XXX get vertical deltas
-        contour_points.0.push(ContourPoint::new(0.0, 0.0, true));
-        contour_points.0.push(ContourPoint::new(0.0, 0.0, true));
+        contour_points
+            .0
+            .push(ContourPoint::new(0.0, 0.0, true, true));
+        contour_points
+            .0
+            .push(ContourPoint::new(0.0, 0.0, true, true));
 
         contour_points
     }

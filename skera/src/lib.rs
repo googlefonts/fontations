@@ -38,10 +38,11 @@ mod vorg;
 mod vvar;
 
 use crate::{
-    glyf_loca::{ContourPoint, ContourPoints},
+    glyf_loca::{ContourPoint, ContourPoints, PHANTOM_POINT_COUNT},
     repack::resolve_overflows,
     variations::solver::{Triple, TripleDistances},
 };
+use font_types::Point;
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
@@ -57,9 +58,10 @@ use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::{
     instance::LocationRef,
+    outline::{composite_glyph_deltas, simple_glyph_deltas, SimpleGlyphForDeltas},
     prelude::Size,
     raw::{
-        tables::{avar::Avar, fvar::Fvar},
+        tables::{avar::Avar, fvar::Fvar, glyf::PointFlags},
         ReadError,
     },
     MetadataProvider,
@@ -376,6 +378,7 @@ pub struct Plan {
     new_gid_contour_points_map: FnvHashMap<GlyphId, ContourPoints>,
     // new gids set for composite glyphs
     composite_new_gids: IntSet<GlyphId>,
+    new_gid_instance_deltas_map: FnvHashMap<GlyphId, Vec<Point<f32>>>,
 
     // user specified axes range map
     user_axes_location: FnvHashMap<Tag, Triple>,
@@ -446,6 +449,7 @@ impl Plan {
         }
         this.collect_base_var_indices(font);
         this.get_instance_glyphs_contour_points(font);
+        this.get_instance_deltas(font);
         this
     }
 
@@ -931,10 +935,9 @@ impl Plan {
     }
 
     fn get_instance_glyphs_contour_points(&mut self, font: &FontRef) {
-        if self.user_axes_location.is_empty() || self.all_axes_pinned {
+        if self.user_axes_location.is_empty() {
             return;
         }
-
         let Ok(loca) = font.loca(None) else { return }; // Could be CFF
         let Ok(glyf) = font.glyf() else { return }; // loca but no glyf? No outlines for you.
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
@@ -953,21 +956,25 @@ impl Plan {
                     x: lsb,
                     y: 0.0,
                     is_end_point: true,
+                    is_on_curve: true,
                 });
                 contour_points.0.push(ContourPoint {
                     x: lsb + aw,
                     y: 0.0,
                     is_end_point: true,
+                    is_on_curve: true,
                 });
                 contour_points.0.push(ContourPoint {
                     x: 0.0,
                     y: 0.0,
                     is_end_point: true,
+                    is_on_curve: true,
                 });
                 contour_points.0.push(ContourPoint {
                     x: 0.0,
                     y: 0.0,
                     is_end_point: true,
+                    is_on_curve: true,
                 });
 
                 self.new_gid_contour_points_map
@@ -996,21 +1003,25 @@ impl Plan {
                         x: lsb,
                         y: 0.0,
                         is_end_point: true,
+                        is_on_curve: true,
                     });
                     contour_points.0.push(ContourPoint {
                         x: lsb + aw,
                         y: 0.0,
                         is_end_point: true,
+                        is_on_curve: true,
                     });
                     contour_points.0.push(ContourPoint {
                         x: 0.0,
                         y: 0.0,
                         is_end_point: true,
+                        is_on_curve: true,
                     });
                     contour_points.0.push(ContourPoint {
                         x: 0.0,
                         y: 0.0,
                         is_end_point: true,
+                        is_on_curve: true,
                     });
 
                     self.new_gid_contour_points_map
@@ -1075,6 +1086,80 @@ impl Plan {
             }
         }
         Ok(())
+    }
+
+    fn get_instance_deltas(&mut self, font: &FontRef) {
+        if self.user_axes_location.is_empty() {
+            return;
+        }
+        let Ok(gvar) = font.gvar() else { return };
+
+        let Ok(loca) = font.loca(None) else { return }; // Could be CFF
+        let Ok(glyf) = font.glyf() else { return };
+
+        for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
+            let glyph = loca.get_glyf(*old_gid, &glyf).unwrap();
+
+            let coords = &self.normalized_coords;
+            match glyph {
+                Some(Glyph::Simple(simple_glyph)) => {
+                    let mut points: Vec<Point<f32>> =
+                        vec![Point { x: 0.0, y: 0.0 }; simple_glyph.num_points()];
+                    let mut flags: Vec<PointFlags> =
+                        vec![PointFlags::default(); simple_glyph.num_points()];
+                    simple_glyph.read_points_fast(&mut points, &mut flags);
+                    let end_pts: Vec<u16> = simple_glyph
+                        .end_pts_of_contours()
+                        .iter()
+                        .map(|&i| i.get())
+                        .collect();
+                    // Add the four phantom points, steal from end of new_gid_contour_points_map
+                    let contour_points = self.new_gid_contour_points_map.get(new_gid).unwrap();
+                    let phantoms = contour_points
+                        .0
+                        .iter()
+                        .skip(contour_points.0.len() - PHANTOM_POINT_COUNT);
+                    for phantom in phantoms {
+                        points.push(Point {
+                            x: phantom.x,
+                            y: phantom.y,
+                        });
+                        flags.push(PointFlags::default());
+                    }
+                    let skrifa_simple_glyph = SimpleGlyphForDeltas {
+                        points: &points,
+                        flags: &mut flags,
+                        contours: &end_pts,
+                    };
+                    let mut deltas_buffer =
+                        vec![font_types::Point { x: 0.0, y: 0.0 }; points.len()];
+                    let mut iup_buffer = vec![font_types::Point { x: 0.0, y: 0.0 }; points.len()];
+                    simple_glyph_deltas(
+                        &gvar,
+                        *old_gid,
+                        coords,
+                        skrifa_simple_glyph,
+                        &mut iup_buffer,
+                        &mut deltas_buffer,
+                    );
+                    self.new_gid_instance_deltas_map
+                        .insert(*new_gid, deltas_buffer);
+                }
+                Some(Glyph::Composite(composite_glyph)) => {
+                    let delta_count =
+                        composite_glyph.components().count() + glyf_loca::PHANTOM_POINT_COUNT;
+                    let mut deltas_buffer = vec![font_types::Point { x: 0.0, y: 0.0 }; delta_count];
+                    composite_glyph_deltas(&gvar, *old_gid, coords, &mut deltas_buffer);
+
+                    self.new_gid_instance_deltas_map
+                        .insert(*new_gid, deltas_buffer);
+                }
+                None => {
+                    // Empty glyph, insert empty list
+                    self.new_gid_instance_deltas_map.insert(*new_gid, vec![]);
+                }
+            }
+        }
     }
 }
 
