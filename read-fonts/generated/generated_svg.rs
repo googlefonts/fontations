@@ -22,6 +22,7 @@ impl TopLevelTable for Svg<'_> {
 
 impl<'a> FontRead<'a> for Svg<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -115,6 +116,7 @@ impl<'a> MinByteRange<'a> for SVGDocumentList<'a> {
 
 impl<'a> FontRead<'a> for SVGDocumentList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

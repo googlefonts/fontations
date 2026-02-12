@@ -146,6 +146,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             impl<'a> FontReadWithArgs<'a> for #name<'a> {
                 fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
                     let #destructure_pattern = *args;
+                    #[allow(clippy::absurd_extreme_comparisons)] // if MIN_SIZE is 0
                     if data.len() < Self::MIN_SIZE {
                         return Err(ReadError::OutOfBounds);
                     }
@@ -173,6 +174,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         Ok(quote! {
             impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
                 fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+                    #[allow(clippy::absurd_extreme_comparisons)]
                     if data.len() < Self::MIN_SIZE {
                         return Err(ReadError::OutOfBounds);
                     }

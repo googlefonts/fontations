@@ -22,6 +22,7 @@ impl TopLevelTable for Cmap<'_> {
 
 impl<'a> FontRead<'a> for Cmap<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -366,6 +367,7 @@ impl<'a> MinByteRange<'a> for Cmap0<'a> {
 
 impl<'a> FontRead<'a> for Cmap0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -474,6 +476,7 @@ impl<'a> MinByteRange<'a> for Cmap2<'a> {
 
 impl<'a> FontRead<'a> for Cmap2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -642,6 +645,7 @@ impl<'a> MinByteRange<'a> for Cmap4<'a> {
 
 impl<'a> FontRead<'a> for Cmap4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -876,6 +880,7 @@ impl<'a> MinByteRange<'a> for Cmap6<'a> {
 
 impl<'a> FontRead<'a> for Cmap6<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1015,6 +1020,7 @@ impl<'a> MinByteRange<'a> for Cmap8<'a> {
 
 impl<'a> FontRead<'a> for Cmap8<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1227,6 +1233,7 @@ impl<'a> MinByteRange<'a> for Cmap10<'a> {
 
 impl<'a> FontRead<'a> for Cmap10<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1373,6 +1380,7 @@ impl<'a> MinByteRange<'a> for Cmap12<'a> {
 
 impl<'a> FontRead<'a> for Cmap12<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1512,6 +1520,7 @@ impl<'a> MinByteRange<'a> for Cmap13<'a> {
 
 impl<'a> FontRead<'a> for Cmap13<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1703,6 +1712,7 @@ impl<'a> MinByteRange<'a> for Cmap14<'a> {
 
 impl<'a> FontRead<'a> for Cmap14<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1900,6 +1910,7 @@ impl<'a> MinByteRange<'a> for DefaultUvs<'a> {
 
 impl<'a> FontRead<'a> for DefaultUvs<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1989,6 +2000,7 @@ impl<'a> MinByteRange<'a> for NonDefaultUvs<'a> {
 
 impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

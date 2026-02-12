@@ -22,6 +22,7 @@ impl TopLevelTable for Fvar<'_> {
 
 impl<'a> FontRead<'a> for Fvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -188,6 +189,8 @@ impl ReadArgs for AxisInstanceArrays<'_> {
 impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
         let (axis_count, instance_count, instance_size) = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

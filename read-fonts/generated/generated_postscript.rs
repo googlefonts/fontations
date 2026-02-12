@@ -17,6 +17,7 @@ impl<'a> MinByteRange<'a> for Index1<'a> {
 
 impl<'a> FontRead<'a> for Index1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -124,6 +125,7 @@ impl<'a> MinByteRange<'a> for Index2<'a> {
 
 impl<'a> FontRead<'a> for Index2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -320,6 +322,7 @@ impl<'a> MinByteRange<'a> for FdSelectFormat0<'a> {
 
 impl<'a> FontRead<'a> for FdSelectFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -402,6 +405,7 @@ impl<'a> MinByteRange<'a> for FdSelectFormat3<'a> {
 
 impl<'a> FontRead<'a> for FdSelectFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -559,6 +563,7 @@ impl<'a> MinByteRange<'a> for FdSelectFormat4<'a> {
 
 impl<'a> FontRead<'a> for FdSelectFormat4<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -801,6 +806,7 @@ impl<'a> MinByteRange<'a> for CharsetFormat0<'a> {
 
 impl<'a> FontRead<'a> for CharsetFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -883,6 +889,7 @@ impl<'a> MinByteRange<'a> for CharsetFormat1<'a> {
 
 impl<'a> FontRead<'a> for CharsetFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1015,6 +1022,7 @@ impl<'a> MinByteRange<'a> for CharsetFormat2<'a> {
 
 impl<'a> FontRead<'a> for CharsetFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

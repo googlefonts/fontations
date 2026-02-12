@@ -375,6 +375,7 @@ impl TopLevelTable for Os2<'_> {
 
 impl<'a> FontRead<'a> for Os2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

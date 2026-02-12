@@ -22,6 +22,7 @@ impl TopLevelTable for Gsub<'_> {
 
 impl<'a> FontRead<'a> for Gsub<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -357,6 +358,7 @@ impl<'a> MinByteRange<'a> for SingleSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -461,6 +463,7 @@ impl<'a> MinByteRange<'a> for SingleSubstFormat2<'a> {
 
 impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -582,6 +585,7 @@ impl<'a> MinByteRange<'a> for MultipleSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -717,6 +721,7 @@ impl<'a> MinByteRange<'a> for Sequence<'a> {
 
 impl<'a> FontRead<'a> for Sequence<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -803,6 +808,7 @@ impl<'a> MinByteRange<'a> for AlternateSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -941,6 +947,7 @@ impl<'a> MinByteRange<'a> for AlternateSet<'a> {
 
 impl<'a> FontRead<'a> for AlternateSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1026,6 +1033,7 @@ impl<'a> MinByteRange<'a> for LigatureSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1161,6 +1169,7 @@ impl<'a> MinByteRange<'a> for LigatureSet<'a> {
 
 impl<'a> FontRead<'a> for LigatureSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1260,6 +1269,7 @@ impl<'a> MinByteRange<'a> for Ligature<'a> {
 
 impl<'a> FontRead<'a> for Ligature<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1361,6 +1371,7 @@ impl<'a, T> MinByteRange<'a> for ExtensionSubstFormat1<'a, T> {
 
 impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -1575,6 +1586,7 @@ impl<'a> MinByteRange<'a> for ReverseChainSingleSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

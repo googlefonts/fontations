@@ -22,6 +22,7 @@ impl TopLevelTable for Ankr<'_> {
 
 impl<'a> FontRead<'a> for Ankr<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -140,6 +141,7 @@ impl<'a> MinByteRange<'a> for GlyphDataEntry<'a> {
 
 impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

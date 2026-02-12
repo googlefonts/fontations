@@ -27,6 +27,8 @@ impl ReadArgs for Vmtx<'_> {
 impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let number_of_long_ver_metrics = *args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }

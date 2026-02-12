@@ -22,6 +22,7 @@ impl TopLevelTable for Varc<'_> {
 
 impl<'a> FontRead<'a> for Varc<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -205,6 +206,7 @@ impl<'a> MinByteRange<'a> for MultiItemVariationStore<'a> {
 
 impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -338,6 +340,7 @@ impl<'a> MinByteRange<'a> for SparseVariationRegionList<'a> {
 
 impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -433,6 +436,7 @@ impl<'a> MinByteRange<'a> for SparseVariationRegion<'a> {
 
 impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -571,6 +575,7 @@ impl<'a> MinByteRange<'a> for MultiItemVariationData<'a> {
 
 impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
@@ -671,6 +676,7 @@ impl<'a> MinByteRange<'a> for ConditionList<'a> {
 
 impl<'a> FontRead<'a> for ConditionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
         }
