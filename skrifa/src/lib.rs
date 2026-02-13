@@ -37,7 +37,6 @@ pub mod instance;
 pub mod metrics;
 pub mod outline;
 
-pub mod setting;
 pub mod string;
 
 mod collections;

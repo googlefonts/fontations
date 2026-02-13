@@ -15,6 +15,7 @@ extern crate std;
 #[macro_use]
 extern crate core as std;
 
+mod attribute;
 mod bbox;
 mod fixed;
 mod fword;
@@ -25,6 +26,7 @@ mod name_id;
 mod offset;
 mod point;
 mod raw;
+mod setting;
 mod tag;
 mod uint24;
 mod version;
@@ -32,6 +34,7 @@ mod version;
 #[cfg(all(test, feature = "serde"))]
 mod serde_test;
 
+pub use attribute::{Stretch, Style, Weight};
 pub use bbox::BoundingBox;
 pub use fixed::{F26Dot6, F2Dot14, F4Dot12, F6Dot10, Fixed};
 pub use fword::{FWord, UfWord};
@@ -42,6 +45,7 @@ pub use name_id::NameId;
 pub use offset::{Nullable, Offset16, Offset24, Offset32};
 pub use point::Point;
 pub use raw::{BigEndian, FixedSize, Scalar};
+pub use setting::{Setting, VariationSetting};
 pub use tag::{InvalidTag, Tag};
 pub use uint24::Uint24;
 pub use version::{Compatible, MajorMinor, Version16Dot16};

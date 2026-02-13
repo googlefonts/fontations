@@ -87,7 +87,7 @@ impl<T: Copy> From<&(&str, T)> for Setting<T> {
 ///
 /// # Example
 /// ```
-/// use skrifa::{Tag, setting::VariationSetting};
+/// use font_types::{Tag, VariationSetting};
 ///
 /// // For convenience, a conversion from (&str, f32) is provided.
 /// let slightly_bolder: VariationSetting = ("wght", 720.0).into();
