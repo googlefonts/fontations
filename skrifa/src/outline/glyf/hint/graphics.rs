@@ -5,6 +5,7 @@ use super::{
     zone::{Zone, ZonePointer},
     F26Dot6, Point, Target,
 };
+use crate::outline::InterpreterVersion;
 use core::ops::{Deref, DerefMut};
 
 /// Describes the axis to which a measurement or point movement operation
@@ -262,14 +263,22 @@ pub struct RetainedGraphicsState {
     pub is_rotated: bool,
     /// True if a non-uniform scale is being applied.
     pub is_stretched: bool,
+    /// The interpreter version.
+    pub interpreter_version: InterpreterVersion,
 }
 
 impl RetainedGraphicsState {
-    pub fn new(scale: i32, ppem: i32, target: Target) -> Self {
+    pub fn new(
+        scale: i32,
+        ppem: i32,
+        target: Target,
+        interpreter_version: InterpreterVersion,
+    ) -> Self {
         Self {
             scale,
             ppem,
             target,
+            interpreter_version,
             ..Default::default()
         }
     }
@@ -297,6 +306,7 @@ impl Default for RetainedGraphicsState {
             ppem: 0,
             is_rotated: false,
             is_stretched: false,
+            interpreter_version: InterpreterVersion::default(),
         }
     }
 }

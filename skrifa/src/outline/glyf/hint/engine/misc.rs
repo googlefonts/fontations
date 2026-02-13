@@ -5,6 +5,7 @@
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#miscellaneous-instructions>
 
 use super::{Engine, OpResult};
+use crate::outline::InterpreterVersion;
 
 impl Engine<'_> {
     /// Get information.
@@ -27,7 +28,7 @@ impl Engine<'_> {
         let mut result = 0;
         // Interpreter version (selector bit: 0, result bits: 0-7)
         if (selector & VERSION_SELECTOR_BIT) != 0 {
-            result = 40;
+            result = self.graphics.interpreter_version as i32;
         }
         // Glyph rotated (selector bit: 1, result bit: 8)
         if (selector & GLYPH_ROTATED_SELECTOR_BIT) != 0 && self.graphics.is_rotated {
@@ -42,7 +43,9 @@ impl Engine<'_> {
             result |= FONT_VARIATIONS_RESULT_BIT;
         }
         // The following only apply for smooth hinting.
-        if self.graphics.target.is_smooth() {
+        if self.graphics.interpreter_version == InterpreterVersion::_40
+            && self.graphics.target.is_smooth()
+        {
             // Subpixel hinting [cleartype enabled] (selector bit: 6, result bit: 13)
             // (always enabled)
             if (selector & SUBPIXEL_HINTING_SELECTOR_BIT) != 0 {

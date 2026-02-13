@@ -11,6 +11,7 @@ use super::{
     },
     math, Engine, F26Dot6, HintErrorKind, OpResult,
 };
+use crate::outline::InterpreterVersion;
 
 impl Engine<'_> {
     /// Flip point.
@@ -33,7 +34,8 @@ impl Engine<'_> {
         self.graphics.loop_counter = 1;
         // In backward compatibility mode, don't flip points after IUP has
         // been done.
-        if self.graphics.backward_compatibility
+        if self.graphics.interpreter_version == InterpreterVersion::_40
+            && self.graphics.backward_compatibility
             && self.graphics.did_iup_x
             && self.graphics.did_iup_y
         {
@@ -229,7 +231,7 @@ impl Engine<'_> {
         let did_iup = gs.did_iup_x && gs.did_iup_y;
         for _ in 0..count {
             let p = self.value_stack.pop_usize()?;
-            if gs.backward_compatibility {
+            if gs.interpreter_version == InterpreterVersion::_40 && gs.backward_compatibility {
                 if in_twilight
                     || (!did_iup
                         && ((gs.is_composite && gs.freedom_vector.y != 0)
@@ -782,7 +784,7 @@ impl Engine<'_> {
         let mut run = true;
         // In backward compatibility mode, allow IUP until it has been done on
         // both axes.
-        if gs.backward_compatibility {
+        if gs.interpreter_version == InterpreterVersion::_40 && gs.backward_compatibility {
             if gs.did_iup_x && gs.did_iup_y {
                 run = false;
             }
@@ -842,7 +844,8 @@ impl Engine<'_> {
             .ok_or(HintErrorKind::InvalidPointIndex(high_point))?;
         // In backward compatibility mode, don't flip points after IUP has
         // been done.
-        if self.graphics.backward_compatibility
+        if self.graphics.interpreter_version == InterpreterVersion::_40
+            && self.graphics.backward_compatibility
             && self.graphics.did_iup_x
             && self.graphics.did_iup_y
         {
