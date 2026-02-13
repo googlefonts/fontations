@@ -50,7 +50,26 @@ impl<'a> FontRead<'a> for Index1<'a> {
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(offsets_byte_len);
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let data_byte_len = {
+            let count: usize = count as usize;
+            if count == 0 {
+                0usize
+            } else {
+                let off_size: usize = off_size as usize;
+                let offsets_end = cursor.position()?;
+                let last_offset_pos = offsets_end
+                    .checked_sub(off_size)
+                    .ok_or(ReadError::OutOfBounds)?;
+                let last_offset = match off_size {
+                    1 => data.read_at::<u8>(last_offset_pos)? as usize,
+                    2 => data.read_at::<u16>(last_offset_pos)? as usize,
+                    3 => data.read_at::<Uint24>(last_offset_pos)?.to_u32() as usize,
+                    4 => data.read_at::<u32>(last_offset_pos)? as usize,
+                    _ => return Err(ReadError::OutOfBounds),
+                };
+                last_offset.checked_sub(1).ok_or(ReadError::OutOfBounds)?
+            }
+        };
         cursor.advance_by(data_byte_len);
         cursor.finish(Index1Marker {
             offsets_byte_len,
@@ -158,7 +177,26 @@ impl<'a> FontRead<'a> for Index2<'a> {
             .checked_mul(u8::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(offsets_byte_len);
-        let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let data_byte_len = {
+            let count: usize = count as usize;
+            if count == 0 {
+                0usize
+            } else {
+                let off_size: usize = off_size as usize;
+                let offsets_end = cursor.position()?;
+                let last_offset_pos = offsets_end
+                    .checked_sub(off_size)
+                    .ok_or(ReadError::OutOfBounds)?;
+                let last_offset = match off_size {
+                    1 => data.read_at::<u8>(last_offset_pos)? as usize,
+                    2 => data.read_at::<u16>(last_offset_pos)? as usize,
+                    3 => data.read_at::<Uint24>(last_offset_pos)?.to_u32() as usize,
+                    4 => data.read_at::<u32>(last_offset_pos)? as usize,
+                    _ => return Err(ReadError::OutOfBounds),
+                };
+                last_offset.checked_sub(1).ok_or(ReadError::OutOfBounds)?
+            }
+        };
         cursor.advance_by(data_byte_len);
         cursor.finish(Index2Marker {
             offsets_byte_len,
