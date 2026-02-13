@@ -123,7 +123,9 @@ impl<'a> std::fmt::Debug for Dsig<'a> {
 }
 
 /// [Permission flags](https://learn.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure)
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct PermissionFlags {
@@ -427,7 +429,7 @@ impl<'a> From<PermissionFlags> for FieldType<'a> {
 }
 
 /// [Signature Record](https://learn.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure)
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SignatureRecord {

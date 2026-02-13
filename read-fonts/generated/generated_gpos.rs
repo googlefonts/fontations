@@ -258,7 +258,9 @@ impl std::fmt::Debug for PositionLookup<'_> {
 }
 
 /// See [ValueRecord]
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct ValueFormat {
@@ -1113,7 +1115,7 @@ impl<'a> std::fmt::Debug for MarkArray<'a> {
 }
 
 /// Part of [MarkArray]
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct MarkRecord {
@@ -2540,7 +2542,7 @@ impl<'a> std::fmt::Debug for CursivePosFormat1<'a> {
 }
 
 /// Part of [CursivePosFormat1]
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct EntryExitRecord {

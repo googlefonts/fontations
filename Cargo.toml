@@ -26,6 +26,7 @@ rust-version = "1.85"
 # note: bytemuck version must be available in all deployment environments, 
 # specifically the floor of the versions supported by google3 and Chrome
 bytemuck = "1.13.1"
+bytemuck_derive = "1"
 # dev dependencies
 env_logger = "0.11"
 pretty_assertions = "1.3.0"

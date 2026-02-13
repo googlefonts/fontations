@@ -493,7 +493,9 @@ impl<'a> std::fmt::Debug for FdSelectFormat3<'a> {
 }
 
 /// Range struct for FdSelect format 3.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FdSelectRange3 {
@@ -649,7 +651,9 @@ impl<'a> std::fmt::Debug for FdSelectFormat4<'a> {
 }
 
 /// Range struct for FdSelect format 4.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FdSelectRange4 {
@@ -935,7 +939,9 @@ impl<'a> std::fmt::Debug for CharsetFormat1<'a> {
 }
 
 /// Range struct for Charset format 1.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct CharsetRange1 {
@@ -1064,7 +1070,9 @@ impl<'a> std::fmt::Debug for CharsetFormat2<'a> {
 }
 
 /// Range struct for Charset format 2.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct CharsetRange2 {
