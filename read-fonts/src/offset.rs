@@ -55,11 +55,7 @@ pub trait ResolveNullableOffset {
 
 impl<O: Offset> ResolveNullableOffset for Nullable<O> {
     fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Option<Result<T, ReadError>> {
-        match self.offset().resolve(data) {
-            Ok(thing) => Some(Ok(thing)),
-            Err(ReadError::NullOffset) => None,
-            Err(e) => Some(Err(e)),
-        }
+        Some(T::read(data.with_offset(self.offset().non_null()?)))
     }
 
     fn resolve_with_args<'a, T: FontReadWithArgs<'a>>(
@@ -67,20 +63,16 @@ impl<O: Offset> ResolveNullableOffset for Nullable<O> {
         data: FontData<'a>,
         args: &T::Args,
     ) -> Option<Result<T, ReadError>> {
-        match self.offset().resolve_with_args(data, args) {
-            Ok(thing) => Some(Ok(thing)),
-            Err(ReadError::NullOffset) => None,
-            Err(e) => Some(Err(e)),
-        }
+        Some(T::read_with_args(
+            data.with_offset(self.offset().non_null()?),
+            args,
+        ))
     }
 }
 
 impl<O: Offset> ResolveOffset for O {
     fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Result<T, ReadError> {
-        self.non_null()
-            .ok_or(ReadError::NullOffset)
-            .and_then(|off| data.split_off(off).ok_or(ReadError::OutOfBounds))
-            .and_then(T::read)
+        T::read(data.with_offset(self.to_usize()))
     }
 
     fn resolve_with_args<'a, T: FontReadWithArgs<'a>>(
@@ -88,9 +80,6 @@ impl<O: Offset> ResolveOffset for O {
         data: FontData<'a>,
         args: &T::Args,
     ) -> Result<T, ReadError> {
-        self.non_null()
-            .ok_or(ReadError::NullOffset)
-            .and_then(|off| data.split_off(off).ok_or(ReadError::OutOfBounds))
-            .and_then(|data| T::read_with_args(data, args))
+        T::read_with_args(data.with_offset(self.to_usize()), args)
     }
 }
