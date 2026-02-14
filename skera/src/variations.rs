@@ -10,7 +10,8 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::variations::{
-            DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
+            DeltaSetIndexMap, ItemVariationData, ItemVariationStore, RegionAxisCoordinates,
+            VariationRegionList,
         },
     },
     types::{BigEndian, F2Dot14, FixedSize, Offset32},
@@ -46,7 +47,13 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
             }
             match var_data_array.get(i) {
                 Some(Ok(var_data)) => {
-                    collect_region_refs(&var_data, inner_map, &mut region_indices);
+                    collect_region_refs(
+                        &var_data,
+                        inner_map,
+                        &var_region_list,
+                        plan,
+                        &mut region_indices,
+                    );
                 }
                 None => continue,
                 Some(Err(_e)) => {
@@ -63,8 +70,13 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         let max_region_count = var_region_list.region_count();
         region_indices.remove_range(max_region_count..=u16::MAX);
 
-        let mut region_map: IncBiMap = IncBiMap::with_capacity(region_indices.len() as usize);
-        for region in region_indices.iter() {
+        // Deduplicate regions with identical axis coordinates after axis subsetting
+        // (This matches Harfbuzz's build_region_list behavior)
+        let deduped_region_indices = deduplicate_regions(&region_indices, &var_region_list, plan)?;
+
+        let mut region_map: IncBiMap =
+            IncBiMap::with_capacity(deduped_region_indices.len() as usize);
+        for region in deduped_region_indices.iter() {
             region_map.add(region as u32);
         }
 
@@ -110,32 +122,38 @@ impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         }
 
-        let subset_var_regions_size = var_region_size * region_count as usize;
-        let var_regions_pos = s.allocate_size(subset_var_regions_size, false)?;
+        if new_axis_count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
 
-        let src_region_count = self.region_count() as u32;
-        let Some(src_var_regions_bytes) = self
-            .offset_data()
-            .as_bytes()
-            .get(self.shape().variation_regions_byte_range())
-        else {
-            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        let regions = self.variation_regions();
+        let mut region_axes = vec![None; new_axis_count as usize];
+        let zero_axis = || RegionAxisCoordinates {
+            start_coord: BigEndian::from(F2Dot14::ZERO),
+            peak_coord: BigEndian::from(F2Dot14::ZERO),
+            end_coord: BigEndian::from(F2Dot14::ZERO),
         };
 
         for r in 0..region_count {
             let Some(backward) = region_map.get_backward(r as u32) else {
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
             };
-            if *backward >= src_region_count {
-                return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
-            }
-
-            let src_pos = (*backward as usize) * var_region_size;
-            let Some(src_bytes) = src_var_regions_bytes.get(src_pos..src_pos + var_region_size)
-            else {
+            let Ok(region_record) = regions.get(*backward as usize) else {
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
             };
-            s.copy_assign_from_bytes(var_regions_pos + r as usize * var_region_size, src_bytes);
+
+            for (old_idx, axis_coords) in region_record.region_axes().iter().enumerate() {
+                if let Some(new_idx) = plan.axes_index_map.get(&old_idx) {
+                    region_axes[*new_idx] = Some(*axis_coords);
+                }
+            }
+
+            for axis_coords in region_axes.iter_mut() {
+                let axis_coords = axis_coords.take().unwrap_or_else(zero_axis);
+                s.embed(axis_coords.start_coord())?;
+                s.embed(axis_coords.peak_coord())?;
+                s.embed(axis_coords.end_coord())?;
+            }
         }
         Ok(())
     }
@@ -211,6 +229,8 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
 
         let mut delta_sz = Vec::new();
         delta_sz.resize(ri_count, DeltaSize::Zero);
+        let mut include_region = Vec::new();
+        include_region.resize(ri_count, false);
         // maps new index to old index
         let mut ri_map = vec![0; ri_count];
 
@@ -218,6 +238,13 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
 
         let src_delta_bytes = self.delta_sets();
         let src_row_size = self.get_delta_row_len();
+        let src_region_indices = self.region_indexes();
+        for (r, src_idx) in src_region_indices.iter().enumerate() {
+            let old_r = src_idx.get();
+            if region_map.get(old_r as u32).is_some() {
+                include_region[r] = true;
+            }
+        }
 
         let src_word_delta_count = self.word_delta_count();
         let src_word_count = (src_word_delta_count & 0x7FFF) as usize;
@@ -241,6 +268,9 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
         let max_threshold = if has_long { 65535 } else { 127 };
 
         for (r, delta_size) in delta_sz.iter_mut().enumerate() {
+            if !include_region[r] {
+                continue;
+            }
             let short_circuit = src_long_words == has_long && src_word_count <= r;
             for item in inner_map.keys() {
                 let delta = get_item_delta(self, *item as usize, r, src_row_size, src_delta_bytes);
@@ -262,6 +292,9 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
         let mut new_ri_count: u16 = 0;
 
         for (r, delta_type) in delta_sz.iter().enumerate() {
+            if !include_region[r] {
+                continue;
+            }
             if *delta_type == DeltaSize::Zero {
                 continue;
             }
@@ -287,7 +320,6 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
         s.embed(new_ri_count)?;
 
         let region_indices_pos = s.allocate_size(new_ri_count as usize * 2, false)?;
-        let src_region_indices = self.region_indexes();
         for (idx, src_idx) in ri_map.iter().enumerate().take(new_ri_count as usize) {
             let Some(old_r) = src_region_indices.get(*src_idx) else {
                 return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
@@ -424,6 +456,8 @@ fn set_item_delta(
 fn collect_region_refs(
     var_data: &ItemVariationData,
     inner_map: &IncBiMap,
+    var_region_list: &VariationRegionList,
+    plan: &Plan,
     region_indices: &mut IntSet<u16>,
 ) {
     if inner_map.len() == 0 {
@@ -431,12 +465,22 @@ fn collect_region_refs(
     }
     let delta_bytes = var_data.delta_sets();
     let row_size = var_data.get_delta_row_len();
+    let regions = var_region_list.variation_regions();
 
-    let regions = var_data.region_indexes();
-    for (i, region) in regions.iter().enumerate() {
+    let region_indices_list = var_data.region_indexes();
+    for (i, region) in region_indices_list.iter().enumerate() {
         let region = region.get();
         if region_indices.contains(region) {
             continue;
+        }
+
+        if plan.all_axes_pinned && !plan.user_axes_location.is_empty() {
+            let Ok(region_record) = regions.get(region as usize) else {
+                continue;
+            };
+            if region_record.compute_scalar_f32(&plan.normalized_coords) == 0.0 {
+                continue;
+            }
         }
 
         for item in inner_map.keys() {
@@ -542,6 +586,68 @@ impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
 
         Ok(())
     }
+}
+
+/// Deduplicate regions that have identical axis coordinates after axis subsetting.
+/// This matches Harfbuzz's build_region_list behavior: regions that map to the same
+/// axis coordinate tuple after filtering should be merged, with only the first kept.
+/// Also filters out regions that are all-zero after axis subsetting.
+fn deduplicate_regions(
+    region_indices: &IntSet<u16>,
+    var_region_list: &VariationRegionList,
+    plan: &Plan,
+) -> Result<IntSet<u16>, SerializeErrorFlags> {
+    use std::collections::BTreeMap;
+
+    let regions = var_region_list.variation_regions();
+
+    // Build a map from canonical region representation to the first region index that maps to it
+    let mut canonical_to_first_region: BTreeMap<Vec<RegionAxisCoordinates>, u16> = BTreeMap::new();
+
+    let mut deduped = IntSet::empty();
+
+    for region_idx in region_indices.iter() {
+        let Ok(region_record) = regions.get(region_idx as usize) else {
+            // If we can't read the region, keep it anyway (fail safe)
+            deduped.insert(region_idx);
+            continue;
+        };
+
+        // Build the canonical representation: axis coordinates after filtering to active axes
+        let mut canonical = Vec::new();
+        for (old_idx, axis_coords) in region_record.region_axes().iter().enumerate() {
+            if let Some(new_idx) = plan.axes_index_map.get(&old_idx) {
+                // Pad with zeros if needed to maintain order
+                while canonical.len() <= *new_idx {
+                    canonical.push(RegionAxisCoordinates {
+                        start_coord: BigEndian::from(F2Dot14::ZERO),
+                        peak_coord: BigEndian::from(F2Dot14::ZERO),
+                        end_coord: BigEndian::from(F2Dot14::ZERO),
+                    });
+                }
+                canonical[*new_idx] = *axis_coords;
+            }
+        }
+
+        // Skip regions that are all-zero after axis subsetting
+        let is_all_zero = canonical.iter().all(|ac| {
+            ac.start_coord.get() == F2Dot14::ZERO
+                && ac.peak_coord.get() == F2Dot14::ZERO
+                && ac.end_coord.get() == F2Dot14::ZERO
+        });
+        if is_all_zero {
+            continue;
+        }
+
+        // If this canonical representation hasn't been seen, add this region
+        if !canonical_to_first_region.contains_key(&canonical) {
+            canonical_to_first_region.insert(canonical, region_idx);
+            deduped.insert(region_idx);
+        }
+        // else: we've already seen a region with these axis coordinates, skip this one
+    }
+
+    Ok(deduped)
 }
 
 #[cfg(test)]
