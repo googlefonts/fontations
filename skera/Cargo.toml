@@ -13,6 +13,7 @@ repository.workspace = true
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
+env_logger.workspace = true
 fnv = "1.0.7"
 font-types = { workspace = true }
 hashbrown = "0.15.1"

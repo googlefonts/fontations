@@ -113,6 +113,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
+    env_logger::init();
 
     let subset_flags = parse_subset_flags(&args);
     let gids = match populate_gids(&args.gids.unwrap_or_default()) {
