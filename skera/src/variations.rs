@@ -87,12 +87,16 @@ impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
 
     fn subset(
         &self,
-        _plan: &Plan,
+        plan: &Plan,
         s: &mut Serializer,
         region_map: &IncBiMap,
     ) -> Result<(), SerializeErrorFlags> {
-        let axis_count = self.axis_count();
-        s.embed(axis_count)?;
+        let new_axis_count = if plan.normalized_coords.is_empty() {
+            self.axis_count()
+        } else {
+            plan.axis_tags.len() as u16
+        };
+        s.embed(new_axis_count)?;
 
         let region_count = region_map.len() as u16;
         s.embed(region_count)?;
@@ -101,7 +105,7 @@ impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
             return Ok(());
         }
         //Fixed size of a VariationRegion
-        let var_region_size = 3 * axis_count as usize * F2Dot14::RAW_BYTE_LEN;
+        let var_region_size = 3 * new_axis_count as usize * F2Dot14::RAW_BYTE_LEN;
         if var_region_size.checked_mul(region_count as usize).is_none() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         }
