@@ -20,7 +20,7 @@ use write_fonts::{
         types::GlyphId,
         FontRef, TopLevelTable,
     },
-    types::Offset16,
+    types::{Offset16, Offset32},
     FontBuilder,
 };
 
@@ -86,8 +86,8 @@ fn subset_gdef(
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
             let snapshot_version2 = s.snapshot();
-            let var_store_offset_pos = s.embed(0_u16)?;
-            match Offset16::serialize_subset(
+            let var_store_offset_pos = s.embed(0_u32)?;
+            match Offset32::serialize_subset(
                 &var_store,
                 s,
                 plan,
