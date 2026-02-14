@@ -123,6 +123,6 @@ impl<'a> SubsetTable<'a> for MarkRecord {
             .mark_anchor(font_data)
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        Offset16::serialize_subset(&mark_anchor, s, plan, (), anchor_offset_pos)
+        Offset16::serialize_subset(&mark_anchor, s, plan, font_data, anchor_offset_pos)
     }
 }

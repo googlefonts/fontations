@@ -206,7 +206,7 @@ impl<'a> SubsetTable<'a> for BaseRecord<'_> {
             else {
                 continue;
             };
-            Offset16::serialize_subset(&base_anchor, s, plan, (), anchor_offset_pos)?;
+            Offset16::serialize_subset(&base_anchor, s, plan, font_data, anchor_offset_pos)?;
             if !has_effective_anchors {
                 has_effective_anchors = true;
             }
