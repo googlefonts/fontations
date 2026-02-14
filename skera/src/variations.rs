@@ -6,6 +6,7 @@ use crate::{
     Plan, SubsetTable,
 };
 use fnv::FnvHashMap;
+use font_types::FixedSize;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -14,7 +15,7 @@ use write_fonts::{
             VariationRegionList,
         },
     },
-    types::{BigEndian, F2Dot14, FixedSize, Offset32},
+    types::{BigEndian, F2Dot14, Offset32},
 };
 
 pub(crate) mod solver;
@@ -640,8 +641,10 @@ fn deduplicate_regions(
         }
 
         // If this canonical representation hasn't been seen, add this region
-        if !canonical_to_first_region.contains_key(&canonical) {
-            canonical_to_first_region.insert(canonical, region_idx);
+        if let std::collections::btree_map::Entry::Vacant(e) =
+            canonical_to_first_region.entry(canonical)
+        {
+            e.insert(region_idx);
             deduped.insert(region_idx);
         }
         // else: we've already seen a region with these axis coordinates, skip this one

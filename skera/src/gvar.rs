@@ -527,14 +527,6 @@ fn convert_tent_map_to_tents_with_flag(
     (tents, has_intermediate)
 }
 
-/// Convert a tent map back to tents vector
-fn convert_tent_map_to_tents(
-    axis_tags: &[Tag],
-    tent_map: FnvHashMap<Tag, Triple>,
-) -> Vec<write_fonts::tables::gvar::Tent> {
-    convert_tent_map_to_tents_with_flag(axis_tags, tent_map).0
-}
-
 fn subset_with_offset_type<OffsetType: GvarOffset>(
     gvar: &Gvar<'_>,
     plan: &Plan,

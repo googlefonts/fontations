@@ -24,6 +24,7 @@ use write_fonts::{
                 Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams, Subtables,
                 VariationIndex,
             },
+            variations::NO_VARIATION_INDEX,
         },
         types::{GlyphId, GlyphId16, NameId},
         FontData, FontRead, FontRef, TopLevelTable,
@@ -125,11 +126,12 @@ impl<'a> SubsetTable<'a> for VariationIndex<'a> {
     ) -> Result<(), SerializeErrorFlags> {
         let var_idx =
             ((self.delta_set_outer_index() as u32) << 16) + self.delta_set_inner_index() as u32;
-        let Some((new_idx, _)) = args.get(&var_idx) else {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
-        };
+        let new_idx = args
+            .get(&var_idx)
+            .map(|(new_idx, _)| *new_idx)
+            .unwrap_or(NO_VARIATION_INDEX);
 
-        s.embed(*new_idx)?;
+        s.embed(new_idx)?;
         s.embed(self.delta_format()).map(|_| ())
     }
 }

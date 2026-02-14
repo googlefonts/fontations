@@ -458,7 +458,7 @@ impl Plan {
         }
         this.collect_base_var_indices(font);
         this.get_instance_glyphs_contour_points(font);
-        this.get_instance_deltas(font);
+        let _ = this.get_instance_deltas(font); // Proper error handling later
         this.collect_new_metrics(font);
         this
     }
@@ -986,7 +986,7 @@ impl Plan {
                     is_on_curve: true,
                 });
                 contour_points.0.push(ContourPoint {
-                    x: lsb + aw,
+                    x: aw,
                     y: 0.0,
                     is_end_point: true,
                     is_on_curve: true,
@@ -1033,7 +1033,7 @@ impl Plan {
                         is_on_curve: true,
                     });
                     contour_points.0.push(ContourPoint {
-                        x: lsb + aw,
+                        x: aw,
                         y: 0.0,
                         is_end_point: true,
                         is_on_curve: true,
@@ -1115,14 +1115,16 @@ impl Plan {
         Ok(())
     }
 
-    fn get_instance_deltas(&mut self, font: &FontRef) {
+    fn get_instance_deltas(&mut self, font: &FontRef) -> Result<(), SubsetError> {
         if self.user_axes_location.is_empty() {
-            return;
+            return Ok(());
         }
-        let Ok(gvar) = font.gvar() else { return };
+        let Ok(gvar) = font.gvar() else { return Ok(()) };
 
-        let Ok(loca) = font.loca(None) else { return }; // Could be CFF
-        let Ok(glyf) = font.glyf() else { return };
+        let Ok(loca) = font.loca(None) else {
+            return Ok(());
+        }; // Could be CFF
+        let Ok(glyf) = font.glyf() else { return Ok(()) };
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
             let glyph = loca.get_glyf(*old_gid, &glyf).unwrap();
             let coords = &self.normalized_coords;
@@ -1132,7 +1134,9 @@ impl Plan {
                         vec![Point { x: 0.0, y: 0.0 }; simple_glyph.num_points()];
                     let mut flags: Vec<PointFlags> =
                         vec![PointFlags::default(); simple_glyph.num_points()];
-                    simple_glyph.read_points_fast(&mut points, &mut flags);
+                    simple_glyph
+                        .read_points_fast(&mut points, &mut flags)
+                        .map_err(SubsetError::ReadError)?;
                     let end_pts: Vec<u16> = simple_glyph
                         .end_pts_of_contours()
                         .iter()
@@ -1166,7 +1170,8 @@ impl Plan {
                         skrifa_simple_glyph,
                         &mut iup_buffer,
                         &mut deltas_buffer,
-                    );
+                    )
+                    .map_err(SubsetError::ReadError)?;
                     self.new_gid_instance_deltas_map
                         .insert(*new_gid, deltas_buffer);
                 }
@@ -1174,7 +1179,8 @@ impl Plan {
                     let delta_count =
                         composite_glyph.components().count() + glyf_loca::PHANTOM_POINT_COUNT;
                     let mut deltas_buffer = vec![font_types::Point { x: 0.0, y: 0.0 }; delta_count];
-                    composite_glyph_deltas(&gvar, *old_gid, coords, &mut deltas_buffer);
+                    composite_glyph_deltas(&gvar, *old_gid, coords, &mut deltas_buffer)
+                        .map_err(SubsetError::ReadError)?;
 
                     self.new_gid_instance_deltas_map
                         .insert(*new_gid, deltas_buffer);
@@ -1185,16 +1191,45 @@ impl Plan {
                 }
             }
         }
+        Ok(())
     }
 
     fn collect_new_metrics(&mut self, font: &FontRef) {
-        let location: LocationRef = LocationRef::new(&self.normalized_coords);
+        // Skrifa doesn't apply deltas to LSB, so we'll take the original LSB and add our own
+        // deltas from the phantom points.
+        let location: LocationRef = LocationRef::default();
         let glyph_metrics = font.glyph_metrics(Size::unscaled(), location);
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
-            let aw = glyph_metrics.advance_width(*old_gid).unwrap_or(0.0);
-            let ls = glyph_metrics.left_side_bearing(*old_gid).unwrap_or(0.0);
-            // XXX Skrifa is *wrong* here; it doesn't apply deltas for LSB.
-            // https://github.com/googlefonts/fontations/issues/1747
+            let instance_deltas = self.new_gid_instance_deltas_map.get(new_gid);
+            log::trace!(
+                "Phantom points: {:?}",
+                instance_deltas.map(|deltas| deltas
+                    .iter()
+                    .skip(deltas.len() - PHANTOM_POINT_COUNT)
+                    .collect::<Vec<_>>())
+            );
+            let lsb_delta = instance_deltas
+                .and_then(|deltas| {
+                    if deltas.len() > 4 {
+                        deltas.get(deltas.len() - 4)
+                    } else {
+                        None
+                    }
+                })
+                .map(|delta| delta.x)
+                .unwrap_or(0.0);
+            let aw_delta = instance_deltas
+                .and_then(|deltas| {
+                    if deltas.len() > 4 {
+                        deltas.get(deltas.len() - 3)
+                    } else {
+                        None
+                    }
+                })
+                .map(|delta| delta.x)
+                .unwrap_or(0.0);
+            let aw = glyph_metrics.advance_width(*old_gid).unwrap_or(0.0) + aw_delta;
+            let ls = glyph_metrics.left_side_bearing(*old_gid).unwrap_or(0.0) + lsb_delta;
             self.hmtx_map.insert(*new_gid, (aw as u16, ls as i16));
             // No vertical stuff in skrifa yet
         }
@@ -1409,6 +1444,9 @@ pub enum SubsetError {
 
     #[error("Invalid contour data in glyf table")]
     InvalidContourData,
+
+    #[error("Error reading font data: {0}")]
+    ReadError(ReadError),
 }
 
 pub trait NameIdClosure {
@@ -1594,10 +1632,15 @@ fn try_subset<'a>(
     table_len: u32,
     state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
+    log::info!("Subsetting table {:?}", table_tag);
+
     s.start_serialize()
         .map_err(|_| SubsetError::SubsetTableError(table_tag))?;
 
     let ret = subset_table(table_tag, font, plan, builder, s, state);
+    if let Err(ret) = ret.as_ref() {
+        log::warn!("Subsetting table {} failed with error {:?}", table_tag, ret);
+    }
     if !s.ran_out_of_room() {
         s.end_serialize();
         return ret;
