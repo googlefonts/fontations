@@ -37,8 +37,11 @@ mod vmtx;
 mod vorg;
 mod vvar;
 
+use std::cell::{Cell, RefCell};
+
 use crate::{
     glyf_loca::{ContourPoint, ContourPoints, PHANTOM_POINT_COUNT},
+    head::HeadMaxpInfo,
     repack::resolve_overflows,
     variations::solver::{Triple, TripleDistances},
 };
@@ -399,6 +402,8 @@ pub struct Plan {
     axes_index_map: FnvHashMap<usize, usize>,
     axis_tags: Vec<Tag>,
     axes_old_index_tag_map: FnvHashMap<usize, Tag>,
+
+    head_maxp_info: RefCell<HeadMaxpInfo>,
 }
 
 #[derive(Default)]
@@ -1666,6 +1671,7 @@ fn subset_table<'a>(
     if plan.no_subset_tables.contains(tag) {
         return passthrough_table(tag, font, s);
     }
+    log::debug!("Subsetting table {:?} with dependencies", tag);
 
     match tag {
         Avar::TAG => font
@@ -1738,12 +1744,10 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Hdmx::TAG))?
             .subset(plan, font, s, builder),
 
-        //handled by glyf table if exists
-        Head::TAG => font.glyf().map(|_| ()).or_else(|_| {
-            font.head()
-                .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?
-                .subset(plan, font, s, builder)
-        }),
+        Head::TAG => font
+            .head()
+            .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?
+            .subset(plan, font, s, builder),
 
         //Skip, handled by Hmtx
         Hhea::TAG => Ok(()),

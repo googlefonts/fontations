@@ -408,12 +408,20 @@ fn instantiate_and_subset_glyph(
             }
             simple_glyph.contours = vec![];
             let mut last_contour: Vec<CurvePoint> = vec![];
+            let mut x_min = 0;
+            let mut y_min = 0;
+            let mut x_max = 0;
+            let mut y_max = 0;
             for point in contour_points.0 {
                 last_contour.push(CurvePoint {
                     x: point.x as i16,
                     y: point.y as i16,
                     on_curve: point.is_on_curve,
                 });
+                x_min = x_min.min(point.x as i16);
+                y_min = y_min.min(point.y as i16);
+                x_max = x_max.max(point.x as i16);
+                y_max = y_max.max(point.y as i16);
                 if point.is_end_point {
                     simple_glyph.contours.push(last_contour.into());
                     last_contour = vec![];
@@ -433,6 +441,9 @@ fn instantiate_and_subset_glyph(
                 // Oops, write_fonts doesn't let us do this
                 // simple_glyph.flags.insert(SimpleGlyphFlags::OVERLAP_SIMPLE);
             }
+            plan.head_maxp_info
+                .borrow_mut()
+                .update_extrema(x_min, y_min, x_max, y_max);
             simple_glyph.recompute_bounding_box();
         }
         write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
