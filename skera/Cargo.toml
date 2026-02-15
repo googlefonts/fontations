@@ -17,6 +17,7 @@ env_logger.workspace = true
 fnv = "1.0.7"
 font-types = { workspace = true }
 hashbrown = "0.15.1"
+libtest-mimic = "0.8.1"
 log = "0.4.29"
 regex = "1.10.4"
 skrifa = { workspace = true, features = ["skera"] }
@@ -28,3 +29,8 @@ write-fonts = { workspace = true, features = ["read"] }
 diff = "0.1.13"
 tempdir = "0.3.7"
 font-test-data = { workspace = true }
+libtest-mimic = "0.8.1"
+
+[[test]]
+name = "integration_test"
+harness = false
