@@ -41,6 +41,7 @@ mod vvar;
 use crate::{
     bidi::UNICODE_BIDI_MIRRORED,
     glyf_loca::{ContourPoint, ContourPoints, PHANTOM_POINT_COUNT},
+    head::HeadMaxpInfo,
     repack::resolve_overflows,
     variations::solver::{Triple, TripleDistances},
 };
@@ -398,6 +399,8 @@ pub struct Plan {
     axes_index_map: FnvHashMap<usize, usize>,
     axis_tags: Vec<Tag>,
     axes_old_index_tag_map: FnvHashMap<usize, Tag>,
+
+    head_maxp_info: RefCell<HeadMaxpInfo>,
 }
 
 #[derive(Default)]
@@ -1814,6 +1817,7 @@ fn subset_table<'a>(
     if plan.no_subset_tables.contains(tag) {
         return passthrough_table(tag, font, s);
     }
+    // log::debug!("Subsetting table {:?} with dependencies", tag);
 
     match tag {
         Avar::TAG => {
@@ -1896,12 +1900,8 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Hdmx::TAG))?
             .subset(plan, font, s, builder),
 
-        //handled by glyf table if exists
-        Head::TAG => font.glyf().map(|_| ()).or_else(|_| {
-            font.head()
-                .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?
-                .subset(plan, font, s, builder)
-        }),
+        //Skip, handled by glyf
+        Head::TAG => Ok(()),
 
         //Skip, handled by Hmtx
         Hhea::TAG => Ok(()),
