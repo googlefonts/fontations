@@ -30,6 +30,9 @@ impl Subset for Hvar<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
+        if plan.all_axes_pinned {
+            return Ok(());
+        }
         let var_store = self
             .item_variation_store()
             .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
