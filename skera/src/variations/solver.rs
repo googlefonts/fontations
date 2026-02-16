@@ -1,4 +1,8 @@
-#[derive(Default, Clone, Copy, Debug, PartialEq)]
+use std::hash::Hasher;
+
+use font_types::F2Dot14;
+
+#[derive(Default, Clone, Copy, Debug)]
 pub(crate) struct Triple {
     pub(crate) minimum: f32,
     pub(crate) middle: f32,
@@ -34,6 +38,24 @@ impl Triple {
             middle: -self.middle,
             maximum: -self.minimum,
         }
+    }
+}
+
+impl std::hash::Hash for Triple {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.minimum.to_bits().hash(state);
+        self.middle.to_bits().hash(state);
+        self.maximum.to_bits().hash(state);
+    }
+}
+
+impl Eq for Triple {}
+
+impl PartialEq for Triple {
+    fn eq(&self, other: &Self) -> bool {
+        F2Dot14::from_f32(self.minimum) == F2Dot14::from_f32(other.minimum)
+            && F2Dot14::from_f32(self.middle) == F2Dot14::from_f32(other.middle)
+            && F2Dot14::from_f32(self.maximum) == F2Dot14::from_f32(other.maximum)
     }
 }
 

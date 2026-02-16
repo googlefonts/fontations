@@ -528,9 +528,21 @@ impl ContourPoints {
     fn new() -> Self {
         Self(Vec::new())
     }
-    fn add_deltas(&mut self, deltas: &[Point<f32>]) {
+    pub(crate) fn add_deltas(&mut self, deltas: &[Point<f32>]) {
         for i in 0..deltas.len() {
             self.0[i].add_delta(deltas[i].x, deltas[i].y);
+        }
+    }
+    pub(crate) fn add_deltas_with_indices(
+        &mut self,
+        deltas_x: &[f32],
+        deltas_y: &[f32],
+        indices: &[bool],
+    ) {
+        for i in 0..deltas_x.len() {
+            if indices[i] {
+                self.0[i].add_delta(deltas_x[i], deltas_y[i]);
+            }
         }
     }
 }
