@@ -501,7 +501,7 @@ fn convert_tent_map_to_tents_with_flag(
     let tents: Vec<_> = axis_tags
         .iter()
         .filter_map(|axis_tag| {
-            tent_map.get(axis_tag).map(|tent| {
+            if let Some(tent) = tent_map.get(axis_tag) {
                 let peak = F2Dot14::from_f32(tent.middle);
                 let min = F2Dot14::from_f32(tent.minimum);
                 let max = F2Dot14::from_f32(tent.maximum);
@@ -519,8 +519,10 @@ fn convert_tent_map_to_tents_with_flag(
                     None
                 };
 
-                write_fonts::tables::gvar::Tent::new(peak, intermediate)
-            })
+                Some(write_fonts::tables::gvar::Tent::new(peak, intermediate))
+            } else {
+                None
+            }
         })
         .collect();
 
