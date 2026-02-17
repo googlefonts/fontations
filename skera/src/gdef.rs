@@ -480,7 +480,7 @@ impl SubsetTable<'_> for CaretValueFormat3<'_> {
             &device,
             s,
             plan,
-            &plan.layout_varidx_delta_map,
+            &plan.layout_varidx_delta_map.borrow(),
             device_offset_pos,
         )
     }

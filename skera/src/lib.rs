@@ -375,7 +375,8 @@ pub struct Plan {
     base_varstore_inner_maps: Vec<IncBiMap>,
 
     //Old layout item variation index -> (New varidx, delta) mapping
-    layout_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
+    // Wrapped in RefCell to allow mutation during instantiation
+    layout_varidx_delta_map: RefCell<FnvHashMap<u32, (u32, i32)>>,
     //GDEF table varstore retained varidx mapping
     gdef_varstore_inner_maps: Vec<IncBiMap>,
 

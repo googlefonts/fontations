@@ -82,7 +82,7 @@ fn apply_coordinate_delta(
         // combine outer and inner indices as (outer << 16) | inner
         let combined_idx = ((varidx.delta_set_outer_index() as u32) << 16)
             | (varidx.delta_set_inner_index() as u32);
-        if let Some((_idx, delta)) = plan.layout_varidx_delta_map.get(&combined_idx) {
+        if let Some((_idx, delta)) = plan.layout_varidx_delta_map.borrow().get(&combined_idx) {
             return base_value.saturating_add(*delta as i16);
         }
     }
@@ -94,9 +94,13 @@ fn is_no_variation_index(varidx: Option<&VariationIndex<'_>>, plan: &Plan) -> bo
         Some(varidx) => {
             let combined_idx = ((varidx.delta_set_outer_index() as u32) << 16)
                 | (varidx.delta_set_inner_index() as u32);
-            let mapped_index = plan.layout_varidx_delta_map.get(&combined_idx);
+            let mapped_index = plan
+                .layout_varidx_delta_map
+                .borrow()
+                .get(&combined_idx)
+                .copied();
             match mapped_index {
-                Some((idx, _delta)) => *idx == NO_VARIATION_INDEX,
+                Some((idx, _delta)) => idx == NO_VARIATION_INDEX,
                 None => false,
             }
         }
@@ -141,6 +145,25 @@ impl<'a> SubsetTable<'a> for AnchorFormat3<'a> {
         s.embed(y_coord)?;
 
         // Check if devices should be kept during instancing based on variation index mapping
+        // println!("Looking at an anchor");
+        // println!("X device is some? {}", x_device.is_some());
+        // println!(
+        //     "X device isn't a variation index? {}",
+        //     !matches!(x_device, Some(DeviceOrVariationIndex::VariationIndex(_)))
+        // );
+        // println!(
+        //     "X device var index: {:?}",
+        //     x_var_index.map(|x| (x.delta_set_outer_index(), x.delta_set_inner_index()))
+        // );
+        // println!("Y device is some? {}", y_device.is_some());
+        // println!(
+        //     "Y device isn't a variation index? {}",
+        //     !matches!(y_device, Some(DeviceOrVariationIndex::VariationIndex(_)))
+        // );
+        // println!(
+        //     "Y device var index: {:?}",
+        //     y_var_index.map(|x| (x.delta_set_outer_index(), x.delta_set_inner_index()))
+        // );
         let no_downgrade = (
             // x is some and not a variation index, or is a variation index which maps to NO_VARIATION_INDEX
             (x_device.as_ref().is_some() &&!matches!(x_device, Some(DeviceOrVariationIndex::VariationIndex(varidx)))
@@ -148,6 +171,7 @@ impl<'a> SubsetTable<'a> for AnchorFormat3<'a> {
         ) || // similarly for y
             (y_device.as_ref().is_some() &&!matches!(y_device, Some(DeviceOrVariationIndex::VariationIndex(varidx)))
             || !is_no_variation_index(y_var_index, plan));
+        println!("  No downgrade for AnchorFormat3: {no_downgrade}");
         if !no_downgrade {
             // Set to format 1 and we're done
             s.copy_assign(format_pos, 1_u16);
@@ -164,7 +188,7 @@ impl<'a> SubsetTable<'a> for AnchorFormat3<'a> {
                 &x_device,
                 s,
                 plan,
-                &plan.layout_varidx_delta_map,
+                &plan.layout_varidx_delta_map.borrow(),
                 x_device_offset_pos,
             )?;
         }
@@ -179,7 +203,7 @@ impl<'a> SubsetTable<'a> for AnchorFormat3<'a> {
                 &y_device,
                 s,
                 plan,
-                &plan.layout_varidx_delta_map,
+                &plan.layout_varidx_delta_map.borrow(),
                 y_device_offset_pos,
             )?;
         }

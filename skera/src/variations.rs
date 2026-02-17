@@ -14,7 +14,7 @@ use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
     hash::{Hash, Hasher},
-    ops::AddAssign,
+    ops::{AddAssign, MulAssign},
 };
 use write_fonts::{
     read::{
@@ -30,8 +30,8 @@ pub(crate) mod solver;
 
 /// Hashable wrapper around a region (axis coordinates map).
 /// Implements Hash for use as a HashMap key by hashing entries in sorted order.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct Region(FnvHashMap<Tag, Triple>);
+#[derive(Clone, Debug, Default)]
+struct Region(FnvHashMap<Tag, Triple<f64>>);
 
 impl Hash for Region {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -40,7 +40,9 @@ impl Hash for Region {
         entries.sort_by_key(|&(tag, _)| tag);
         for (tag, triple) in entries {
             tag.hash(state);
-            triple.hash(state);
+            triple.minimum.to_bits().hash(state);
+            triple.middle.to_bits().hash(state);
+            triple.maximum.to_bits().hash(state);
         }
     }
 }
@@ -50,11 +52,11 @@ impl Region {
         Region(FnvHashMap::default())
     }
 
-    fn insert(&mut self, tag: Tag, triple: Triple) {
+    fn insert(&mut self, tag: Tag, triple: Triple<f64>) {
         self.0.insert(tag, triple);
     }
 
-    fn get(&self, tag: &Tag) -> Option<&Triple> {
+    fn get(&self, tag: &Tag) -> Option<&Triple<f64>> {
         self.0.get(tag)
     }
 
@@ -62,7 +64,7 @@ impl Region {
         self.0.contains_key(tag)
     }
 
-    fn remove(&mut self, tag: &Tag) -> Option<Triple> {
+    fn remove(&mut self, tag: &Tag) -> Option<Triple<f64>> {
         self.0.remove(tag)
     }
 
@@ -74,14 +76,27 @@ impl Region {
         self.0.is_empty()
     }
 
-    fn iter(&self) -> impl Iterator<Item = (&Tag, &Triple)> {
+    fn iter(&self) -> impl Iterator<Item = (&Tag, &Triple<f64>)> {
         self.0.iter()
     }
+}
 
-    fn clone_inner(&self) -> FnvHashMap<Tag, Triple> {
-        self.0.clone()
+impl PartialEq for Region {
+    fn eq(&self, other: &Self) -> bool {
+        if self.0.len() != other.0.len() {
+            return false;
+        }
+        for (tag, triple) in &self.0 {
+            match other.0.get(tag) {
+                Some(other_triple) if triple == other_triple => continue,
+                _ => return false,
+            }
+        }
+        true
     }
 }
+
+impl Eq for Region {}
 
 /// Represents a single tuple variation: region coordinates + deltas.
 /// Corresponds to Harfbuzz's tuple_delta_t.
@@ -91,18 +106,14 @@ struct TupleDelta {
     indices: Vec<bool>,
     deltas_x: Vec<f32>,
     deltas_y: Vec<f32>,
-    compiled_tuple_header: Vec<u8>,
-    compiled_deltas: Vec<u8>,
-    compiled_peak_coords: Vec<F2Dot14>,
-    compiled_interim_coords: Vec<F2Dot14>,
 }
 impl TupleDelta {
     // Ported directly from harfbuzz
     fn change_tuple_var_axis_limit(
         self,
         axis_tag: Tag,
-        axis_limit: Triple,
-        axis_triple_distances: &TripleDistances,
+        axis_limit: Triple<f64>,
+        axis_triple_distances: &TripleDistances<f64>,
     ) -> Option<Vec<TupleDelta>> {
         let mut out = vec![];
         let Some(tent) = self.axis_tuples.get(&axis_tag) else {
@@ -120,13 +131,14 @@ impl TupleDelta {
         }
 
         let solutions = rebase_tent(*tent, axis_limit, *axis_triple_distances);
-        for (_scalar, triple) in solutions.into_iter() {
-            let mut new_var = self.clone(); // Harfbuzz does a clever optimization to reuse self for the final iteration, we don't yet
+        for (scalar, triple) in solutions.into_iter() {
+            let mut new_var = self.clone();
             if triple == Triple::default() {
                 new_var.remove_axis(axis_tag);
             } else {
                 new_var.axis_tuples.insert(axis_tag, triple);
             }
+            new_var *= scalar;
             out.push(new_var);
         }
         Some(out)
@@ -171,8 +183,6 @@ impl TupleDelta {
             let mut j = start_point;
 
             if !(unref_count == 0 || unref_count > end_point - start_point) {
-                let prev;
-                let next;
                 let mut i;
                 loop {
                     i = j;
@@ -181,7 +191,7 @@ impl TupleDelta {
                         break;
                     }
                 }
-                prev = i;
+                let prev = i;
                 j = i;
                 loop {
                     i = j;
@@ -190,7 +200,7 @@ impl TupleDelta {
                         break;
                     }
                 }
-                next = j;
+                let next = j;
                 // Infer deltas for all unref points in the gap between prev and next
                 i = prev;
                 loop {
@@ -267,6 +277,17 @@ impl AddAssign<&TupleDelta> for TupleDelta {
     }
 }
 
+impl MulAssign<f64> for TupleDelta {
+    fn mul_assign(&mut self, scalar: f64) {
+        for delta in &mut self.deltas_x {
+            *delta = (*delta as f64 * scalar) as f32;
+        }
+        for delta in &mut self.deltas_y {
+            *delta = (*delta as f64 * scalar) as f32;
+        }
+    }
+}
+
 /// Collection of tuple variations for a VarData subtable.
 /// Corresponds to Harfbuzz's tuple_variations_t.
 #[derive(Debug, Clone)]
@@ -277,8 +298,8 @@ impl TupleVariations {
     // Ported directly from harfbuzz
     fn instantiate(
         &mut self,
-        normalized_axes_location: &FnvHashMap<Tag, Triple>,
-        axes_triple_distances: &FnvHashMap<Tag, TripleDistances>,
+        normalized_axes_location: &FnvHashMap<Tag, Triple<f64>>,
+        axes_triple_distances: &FnvHashMap<Tag, TripleDistances<f64>>,
         contour_points: Option<&mut ContourPoints>,
         optimize: bool,
     ) -> Result<(), SerializeErrorFlags> {
@@ -309,7 +330,7 @@ impl TupleVariations {
         // The pre-allocation is essential for address stability of pointers
         // we store in the hashmap.
         let mut m: HashMap<Region, usize> = HashMap::with_capacity(self.tuple_vars.len());
-        for var in self.tuple_vars.iter() {
+        for mut var in self.tuple_vars.iter().cloned() {
             // if all axes are pinned, drop the tuple variation
             if var.axis_tuples.is_empty() {
                 // if iup_delta_optimize is enabled, add deltas to contour coords
@@ -318,8 +339,31 @@ impl TupleVariations {
                 }
                 continue;
             }
+
+            // Clean up pinned axes (triple=(0,0,0)) from the region.
+            // These don't contribute any variation and should be removed.
+            let tags_to_remove: Vec<_> = var
+                .axis_tuples
+                .0
+                .iter()
+                .filter(|(_, triple)| {
+                    triple.minimum == 0.0 && triple.middle == 0.0 && triple.maximum == 0.0
+                })
+                .map(|(tag, _)| *tag)
+                .collect();
+
+            for tag in tags_to_remove {
+                var.axis_tuples.0.remove(&tag);
+            }
+
+            // After cleaning, check if any axes  remain
+            if var.axis_tuples.is_empty() {
+                // Fully pinned region after cleaning, drop it
+                continue;
+            }
+
             if let Some(idx) = m.get(&var.axis_tuples) {
-                new_vars[*idx] += var;
+                new_vars[*idx] += &var;
             } else {
                 new_vars.push(var.clone());
                 let new_idx = new_vars.len() - 1;
@@ -345,8 +389,8 @@ impl TupleVariations {
     // Ported directly from harfbuzz
     fn change_tuple_variations_axis_limits(
         &mut self,
-        normalized_axes_location: &FnvHashMap<Tag, Triple>,
-        axes_triple_distances: &FnvHashMap<Tag, TripleDistances>,
+        normalized_axes_location: &FnvHashMap<Tag, Triple<f64>>,
+        axes_triple_distances: &FnvHashMap<Tag, TripleDistances<f64>>,
     ) -> Result<(), SerializeErrorFlags> {
         // sort axis_tag/axis_limits, make result deterministic
         let mut axis_tags = normalized_axes_location.keys().copied().collect::<Vec<_>>();
@@ -397,9 +441,11 @@ impl TupleVariations {
         for r in 0..num_regions {
             /* In VarData, deltas are organized in rows, convert them into
              * column(region) based tuples, resize deltas_x first */
-            let mut tuple = TupleDelta::default();
-            tuple.indices = Vec::with_capacity(item_count);
-            tuple.deltas_x = Vec::with_capacity(item_count);
+            let mut tuple = TupleDelta {
+                indices: Vec::with_capacity(item_count),
+                deltas_x: Vec::with_capacity(item_count),
+                ..Default::default()
+            };
             for i in 0..item_count {
                 tuple.indices.push(true);
                 tuple.deltas_x.push(
@@ -490,14 +536,13 @@ impl DeltaRowEncoding {
 
         for row in &self.items {
             /* 0/1/2 byte encoding */
-            for i in 0..row.len() {
-                let v = row[i];
+            for (i, &v) in row.iter().enumerate() {
                 if v == 0 {
                     continue;
-                } else if v > 32767 || v < -32768 {
+                } else if !(-32768..=32767).contains(&v) {
                     long_words = true;
                     self.chars[i] = self.chars[i].max(4);
-                } else if v > 127 || v < -128 {
+                } else if !(-128..=127).contains(&v) {
                     self.chars[i] = self.chars[i].max(2);
                 } else {
                     self.chars[i] = self.chars[i].max(1);
@@ -694,9 +739,9 @@ impl ItemVariations {
                             Some((
                                 *axis_tag,
                                 Triple {
-                                    minimum: axis.start_coord().to_f32(),
-                                    middle: axis.peak_coord().to_f32(),
-                                    maximum: axis.end_coord().to_f32(),
+                                    minimum: axis.start_coord().to_f32().into(),
+                                    middle: axis.peak_coord().to_f32().into(),
+                                    maximum: axis.end_coord().to_f32().into(),
                                 },
                             ))
                         })
@@ -721,7 +766,7 @@ impl ItemVariations {
                 let (var_data_tuples, item_count) = TupleVariations::create_from_item_var_data(
                     var_data,
                     &orig_region_list,
-                    &axes_old_index_tag_map,
+                    axes_old_index_tag_map,
                     None,
                 )?;
                 var_data_num_rows.push(item_count);
@@ -740,7 +785,7 @@ impl ItemVariations {
                 let (var_data_tuples, item_count) = TupleVariations::create_from_item_var_data(
                     var_data,
                     &orig_region_list,
-                    &axes_old_index_tag_map,
+                    axes_old_index_tag_map,
                     Some(inner_map),
                 )?;
                 var_data_num_rows.push(item_count);
@@ -764,8 +809,8 @@ impl ItemVariations {
     /// Corresponds to Harfbuzz's instantiate_tuple_vars.
     fn instantiate_tuple_vars(
         &mut self,
-        normalized_axes_location: &FnvHashMap<Tag, Triple>,
-        axes_triple_distances: &FnvHashMap<Tag, TripleDistances>,
+        normalized_axes_location: &FnvHashMap<Tag, Triple<f64>>,
+        axes_triple_distances: &FnvHashMap<Tag, TripleDistances<f64>>,
     ) -> Result<(), SerializeErrorFlags> {
         for tuple_variations in &mut self.vars {
             tuple_variations.instantiate(
@@ -809,8 +854,8 @@ impl ItemVariations {
             return Ok(());
         }
 
-        // Allocatie all_region.len() in the region list.
-        self.region_list.reserve(all_regions.len() as usize);
+        // Allocate all_region.len() in the region list.
+        self.region_list.reserve(all_regions.len());
 
         let mut idx = 0;
         /* append the original regions that pre-existed */
@@ -894,7 +939,7 @@ impl ItemVariations {
                 for i in 0..num_rows {
                     let rounded_delta = tuple_var.deltas_x[i].round() as i32;
                     self.delta_rows[start_row + i][col_idx] += rounded_delta;
-                    self.has_long |= rounded_delta < -65536 || rounded_delta > 65535;
+                    self.has_long |= !(-65536..=65535).contains(&rounded_delta);
                 }
             }
 
@@ -1071,18 +1116,6 @@ impl ItemVariations {
     fn get_region_list(&self) -> &Vec<Region> {
         &self.region_list
     }
-
-    fn get_vardata_encodings(&self) -> &Vec<DeltaRowEncoding> {
-        &self.encodings
-    }
-
-    fn get_varidx_map(&self) -> &FnvHashMap<u32, u32> {
-        &self.varidx_map
-    }
-
-    fn has_long_word(&self) -> bool {
-        self.has_long
-    }
 }
 
 fn _cmp_row(a: &Vec<i32>, b: &Vec<i32>) -> Ordering {
@@ -1095,6 +1128,150 @@ fn _cmp_row(a: &Vec<i32>, b: &Vec<i32>) -> Ordering {
         }
     }
     Ordering::Equal
+}
+
+/// Convert ItemVariations (after instancing) into a write_fonts ItemVariationStore,
+/// then serialize it to bytes that can be parsed back as a read_fonts ItemVariationStore.
+///
+/// Returns both the serialized bytes and the variation index remapping that maps
+/// old variation indices to new ones after optimization.
+///
+/// This approach properly uses write_fonts infrastructure to handle the complex
+/// binary layout rather than manually writing bytes, which was causing corruption.
+fn itemvariations_to_varstore_bytes(
+    item_vars: &ItemVariations,
+) -> Result<(Vec<u8>, FnvHashMap<u32, u32>), SerializeErrorFlags> {
+    use write_fonts::{
+        dump_table,
+        tables::variations::{ivs_builder::VariationStoreBuilder, VariationRegion},
+    };
+
+    // If no regions, return early
+    if item_vars.region_list.is_empty() {
+        return Ok((Vec::new(), item_vars.varidx_map.clone()));
+    }
+
+    let axis_count = item_vars.region_list.first().map(|r| r.len()).unwrap_or(0) as u16;
+    let mut builder = VariationStoreBuilder::new(axis_count);
+
+    // Collect all rows that are actually in the encodings
+    // Skip all-zero rows that were filtered out during encoding
+    let mut rows_to_serialize = std::collections::HashSet::new();
+    for encoding in &item_vars.encodings {
+        for row in &encoding.items {
+            // Find the index of this row in delta_rows
+            for (idx, delta_row) in item_vars.delta_rows.iter().enumerate() {
+                if delta_row == row {
+                    rows_to_serialize.insert(idx);
+                    break;
+                }
+            }
+        }
+    }
+
+    // Add only the rows that are in the encodings
+    // Each row represents the deltas for one item across all regions
+    for (row_idx, row) in item_vars.delta_rows.iter().enumerate() {
+        if !rows_to_serialize.contains(&row_idx) {
+            continue; // Skip rows that aren't in the encodings (all-zero rows)
+        }
+
+        let mut deltas = Vec::new();
+
+        // For each region, collect the delta for this row
+        for (region_idx, &delta) in row.iter().enumerate() {
+            if region_idx < item_vars.region_list.len() {
+                let region = &item_vars.region_list[region_idx];
+
+                // Convert region to write_fonts VariationRegion format
+                // Create RegionAxisCoordinates structures (using inline construction)
+                let axis_coords: Vec<_> = region
+                    .iter()
+                    .map(|(_tag, triple)| {
+                        // Create a simple struct to hold the coordinates
+                        // This matches the RegionAxisCoordinates structure
+                        (
+                            F2Dot14::from_f32(triple.minimum as f32),
+                            F2Dot14::from_f32(triple.middle as f32),
+                            F2Dot14::from_f32(triple.maximum as f32),
+                        )
+                    })
+                    .collect();
+
+                // The VariationRegion::new expects a Vec of RegionAxisCoordinates,
+                // but we can work around by creating the region differently
+                // Actually, let's check what type VariationRegion actually is...
+                // For now, let's use a simpler approach - collect the raw coordinates
+                let var_region = VariationRegion::new(
+                    axis_coords
+                        .into_iter()
+                        .map(|(start, peak, end)| {
+                            // Create RegionAxisCoordinates-like value
+                            write_fonts::tables::variations::RegionAxisCoordinates {
+                                start_coord: start,
+                                peak_coord: peak,
+                                end_coord: end,
+                            }
+                        })
+                        .collect(),
+                );
+
+                deltas.push((var_region, delta));
+            }
+        }
+
+        // Add this delta set to the builder (with deduplication)
+        if !deltas.is_empty() {
+            builder.add_deltas(deltas);
+        }
+    }
+
+    // Build the ItemVariationStore and capture the remapping
+    let (store, _remapping) = builder.build();
+
+    // Serialize using write_fonts
+    let bytes = dump_table(&store).map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+
+    // Return bytes alongside the varidx_map for remapping
+    Ok((bytes, item_vars.varidx_map.clone()))
+}
+
+/// Apply variation index remapping after instantiation.
+/// Corresponds to Harfbuzz's remap_varidx_after_instantiation function.
+///
+/// This updates the layout_varidx_delta_map to use new variation indices after instantiation.
+/// For each old variation index in the map, we look it up in the varidx_map to get the new index.
+/// If the old index is not in varidx_map (meaning it was filtered out), we use NO_VARIATIONS_INDEX.
+fn remap_varidx_after_instantiation(
+    varidx_map: &FnvHashMap<u32, u32>,
+    layout_varidx_delta_map: &mut FnvHashMap<u32, (u32, i32)>,
+) {
+    // varidx_map is empty which means varstore is empty after instantiation,
+    // no variations, map all varidx to NO_VARIATIONS_INDEX (typically 0xFFFFFFFF or similar).
+    // varidx_map doesn't have original varidx, indicating delta row is all zeros,
+    // map varidx to NO_VARIATIONS_INDEX
+
+    // NO_VARIATIONS_INDEX is typically defined as u32::MAX or similar sentinel value
+    // In Harfbuzz it's HB_OT_LAYOUT_NO_VARIATIONS_INDEX
+    const NO_VARIATIONS_INDEX: u32 = u32::MAX;
+
+    // Update each entry in the delta map
+    let mut entries_to_update = Vec::new();
+    for (old_varidx, (old_new_varidx, delta)) in layout_varidx_delta_map.iter() {
+        // The old_new_varidx is from the initial subsetting pass
+        // We need to map it through the instantiation varidx_map
+        let remapped_varidx = if let Some(&new_varidx) = varidx_map.get(&old_new_varidx) {
+            new_varidx
+        } else {
+            NO_VARIATIONS_INDEX
+        };
+        entries_to_update.push((*old_varidx, (remapped_varidx, *delta)));
+    }
+
+    // Apply the updates
+    for (old_varidx, (new_varidx, delta)) in entries_to_update {
+        layout_varidx_delta_map.insert(old_varidx, (new_varidx, delta));
+    }
 }
 
 /// Evaluate a variation region at given normalized coordinates.
@@ -1154,21 +1331,49 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        log::warn!("Hello from subset IVS");
         let (inner_maps, keep_empty) = args;
         if !keep_empty && inner_maps.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
-        s.embed(self.format())?;
 
-        // Check if we need to do instancing (matching Harfbuzz's instantiate path)
+        // When we have instancing (normalized_coords), use the instancing path
+        // which handles instantiation and optimization all at once
         if !plan.normalized_coords.is_empty() {
-            return subset_itemvarstore_with_instancing(self, plan, s, inner_maps, keep_empty);
+            log::debug!("Using instancing path for ItemVariationStore");
+            let (bytes, varidx_map) =
+                subset_itemvarstore_with_instancing(self.clone(), plan, s, inner_maps, true)?;
+
+            // Apply the variation index remapping to the plan's layout_varidx_delta_map
+            // This remaps all variation indices used by layout tables (GPOS, GSUB, etc.)
+            // to account for the changes made during ItemVariationStore instantiation and optimization.
+            if !varidx_map.is_empty() {
+                remap_varidx_after_instantiation(
+                    &varidx_map,
+                    &mut plan.layout_varidx_delta_map.borrow_mut(),
+                );
+                log::debug!(
+                    "Applied variation index remapping with {} entries",
+                    varidx_map.len()
+                );
+            }
+
+            // The instancing path already serialized the bytes fully via itemvariations_to_varstore_bytes
+            // Just write them directly (they include format version)
+            log::debug!(
+                "Returning early from instancing path with fully-serialized ItemVariationStore"
+            );
+            s.embed_bytes(&bytes)?;
+            return Ok(());
         }
 
-        // Original subsetting path (no instancing)
+        // Non-instancing path: standard subsetting without instancing
+        log::debug!("Using standard subsetting path for ItemVariationStore");
+        s.embed(self.format())?;
+
         let var_region_list = self
             .variation_region_list()
-            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
+            .expect("Couldn't read var region list");
 
         let var_data_array = self.item_variation_data();
         let mut region_indices = IntSet::empty();
@@ -1182,6 +1387,7 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
                 }
                 None => continue,
                 Some(Err(_e)) => {
+                    log::warn!("Error reading VarData at index {}: {:?}", i, _e);
                     return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
                 }
             }
@@ -1217,16 +1423,21 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
 
 /// Instancing path for ItemVariationStore.
 /// Corresponds to Harfbuzz's item_variations_t::instantiate + serialize.
+/// Returns both the serialized bytes and the variation index mapping.
 fn subset_itemvarstore_with_instancing(
-    var_store: &ItemVariationStore,
+    var_store: ItemVariationStore,
     plan: &Plan,
-    s: &mut Serializer,
+    _s: &mut Serializer,
     inner_maps: &[IncBiMap],
     keep_empty: bool,
-) -> Result<(), SerializeErrorFlags> {
+) -> Result<(Vec<u8>, FnvHashMap<u32, u32>), SerializeErrorFlags> {
+    log::warn!(
+        "Instancing ItemVariationStore with location: {:?}",
+        plan.axes_location
+    );
     // Create intermediate tuple representation
     let mut item_vars = ItemVariations::create_from_item_varstore(
-        var_store,
+        &var_store,
         &plan.axes_old_index_tag_map,
         inner_maps,
     )?;
@@ -1242,98 +1453,15 @@ fn subset_itemvarstore_with_instancing(
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
     }
 
-    // Serialize ItemVariationStore header: regions offset + VarData count
-    let region_list_offset_pos = s.embed(0_u32)?;
+    // Use write_fonts infrastructure to properly serialize the ItemVariationStore
+    // instead of manually writing binary data - also get the remapping
+    let (varstore_bytes, varidx_map) = itemvariations_to_varstore_bytes(&item_vars)?;
 
-    let var_data_count = item_vars.encodings.len() as u16;
-    s.embed(var_data_count)?;
-
-    if var_data_count == 0 {
-        return Ok(());
+    if varstore_bytes.is_empty() && !keep_empty {
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
     }
 
-    // Allocate space for VarData offsets
-    let vardata_offsets_start = s.allocate_size(var_data_count as usize * 4, false)?;
-
-    // Serialize VarRegionList
-    let region_list_start = s.allocate_size(0, false)?;
-    let region_list_offset = (region_list_start - region_list_offset_pos) as u32;
-    s.copy_assign(region_list_offset_pos, region_list_offset);
-
-    // Axis count should match the length of axis_tuples in regions (all should be same length)
-    let new_axis_count = item_vars.region_list.first().map(|r| r.len()).unwrap_or(0) as u16;
-    let region_count = item_vars.region_list.len() as u16;
-    s.embed(new_axis_count)?;
-    s.embed(region_count)?;
-
-    // Serialize region axis coordinates
-    for region in &item_vars.region_list {
-        // Verify all regions have the same axis count
-        debug_assert_eq!(
-            region.len(),
-            new_axis_count as usize,
-            "All regions must have the same axis count"
-        );
-
-        for (_tag, triple) in region.0.iter() {
-            s.embed(F2Dot14::from_f32(triple.minimum as f32))?;
-            s.embed(F2Dot14::from_f32(triple.middle as f32))?;
-            s.embed(F2Dot14::from_f32(triple.maximum as f32))?;
-        }
-    }
-
-    // Serialize VarData tables from encodings
-    let mut cur_offset = 0_u32;
-    for (major_idx, encoding) in item_vars.encodings.iter().enumerate() {
-        s.copy_assign(vardata_offsets_start + major_idx * 4, cur_offset);
-
-        let var_data_size =
-            calculate_var_data_size(&encoding.items, region_count as usize, item_vars.has_long);
-        serialize_instanced_var_data(
-            s,
-            &encoding.items,
-            region_count as usize,
-            item_vars.has_long,
-        )?;
-        cur_offset += var_data_size;
-    }
-
-    Ok(())
-}
-
-/// Calculate the size of a VarData subtable
-fn calculate_var_data_size(delta_rows: &[Vec<i32>], num_regions: usize, has_long: bool) -> u32 {
-    if delta_rows.is_empty() {
-        return 6; // itemCount + wordSizeCount + regionIndexCount
-    }
-
-    let item_count = delta_rows.len();
-    let min_threshold = if has_long { -65536 } else { -128 };
-    let max_threshold = if has_long { 65535 } else { 127 };
-
-    let mut word_count = 0_u16;
-    for region_idx in 0..num_regions {
-        for row in delta_rows {
-            if let Some(&delta) = row.get(region_idx) {
-                if delta < min_threshold || delta > max_threshold {
-                    word_count += 1;
-                    break;
-                }
-            }
-        }
-    }
-
-    let word_size_count = if has_long {
-        word_count | 0x8000
-    } else {
-        word_count
-    };
-
-    let region_count = num_regions as u16;
-    let row_size = ItemVariationData::delta_row_len(word_size_count, region_count);
-
-    // itemCount(2) + wordSizeCount(2) + regionIndexCount(2) + regionIndices + delta_data
-    (6 + region_count * 2 + (item_count * row_size) as u16) as u32
+    Ok((varstore_bytes, varidx_map))
 }
 
 impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
@@ -1394,100 +1522,6 @@ impl<'a> SubsetTable<'a> for VariationRegionList<'a> {
         }
         Ok(())
     }
-}
-
-/// Serialize a VarData subtable from instanced delta rows.
-/// Corresponds to parts of Harfbuzz's VarData::serialize.
-fn serialize_instanced_var_data(
-    s: &mut Serializer,
-    delta_rows: &[Vec<i32>],
-    num_regions: usize,
-    has_long: bool,
-) -> Result<(), SerializeErrorFlags> {
-    let item_count = delta_rows.len() as u16;
-    s.embed(item_count)?;
-
-    if item_count == 0 {
-        // Empty VarData
-        s.embed(0_u16)?; // wordSizeCount
-        s.embed(0_u16)?; // regionIndexCount
-        return Ok(());
-    }
-
-    // Determine which regions need word (16-bit) vs byte (8-bit) encoding
-    let min_threshold = if has_long { -65536 } else { -128 };
-    let max_threshold = if has_long { 65535 } else { 127 };
-
-    let mut word_regions = vec![false; num_regions];
-    let mut word_count = 0_u16;
-
-    for region_idx in 0..num_regions {
-        for row in delta_rows {
-            if let Some(&delta) = row.get(region_idx) {
-                if delta < min_threshold || delta > max_threshold {
-                    word_regions[region_idx] = true;
-                    word_count += 1;
-                    break;
-                }
-            }
-        }
-    }
-
-    // Reorder regions: words first, then non-words
-    let mut region_index_map = vec![0_u16; num_regions];
-    let mut word_index = 0_u16;
-    let mut non_word_index = word_count;
-    let mut new_region_count = 0_u16;
-
-    for (old_idx, &is_word) in word_regions.iter().enumerate() {
-        let new_idx = if is_word {
-            let idx = word_index;
-            word_index += 1;
-            idx
-        } else {
-            let idx = non_word_index;
-            non_word_index += 1;
-            idx
-        };
-        region_index_map[old_idx] = new_idx;
-        new_region_count += 1;
-    }
-
-    let word_size_count = if has_long {
-        word_count | 0x8000
-    } else {
-        word_count
-    };
-    s.embed(word_size_count)?;
-    s.embed(new_region_count)?;
-
-    // Write region indices (just 0..new_region_count since we're already deduplicated)
-    for i in 0..new_region_count {
-        s.embed(i)?;
-    }
-
-    // Write delta data for all items
-    let row_size = ItemVariationData::delta_row_len(word_size_count, new_region_count);
-    let total_delta_bytes = row_size * item_count as usize;
-    let delta_bytes_start = s.allocate_size(total_delta_bytes, false)?;
-
-    for (item_idx, row) in delta_rows.iter().enumerate() {
-        for (old_region_idx, &delta) in row.iter().enumerate() {
-            let new_region_idx = region_index_map[old_region_idx] as usize;
-            set_item_delta(
-                s,
-                delta_bytes_start,
-                item_idx,
-                new_region_idx,
-                delta,
-                row_size,
-                has_long,
-                word_count as usize,
-            )?;
-        }
-    }
-
-    Ok(())
 }
 
 fn serialize_var_data_offset_array(
