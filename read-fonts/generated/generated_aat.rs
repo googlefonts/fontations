@@ -150,15 +150,12 @@ impl<'a> Lookup0<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn values_data_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 
     /// Format number is set to 0.
@@ -240,48 +237,42 @@ impl<'a> Lookup2<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn unit_size_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn n_units_byte_range(&self) -> Range<usize> {
         let start = self.unit_size_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.n_units_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn segments_data_byte_range(&self) -> Range<usize> {
         let unit_size = self.unit_size();
         let n_units = self.n_units();
         let start = self.range_shift_byte_range().end;
-        let end = start
-            + (transforms::add_multiply(unit_size, 0_usize, n_units))
-                .saturating_mul(u8::RAW_BYTE_LEN);
-        start..end
+        start
+            ..start
+                + (transforms::add_multiply(unit_size, 0_usize, n_units))
+                    .saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     /// Format number is set to 2.
@@ -398,45 +389,38 @@ impl<'a> Lookup4<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn unit_size_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn n_units_byte_range(&self) -> Range<usize> {
         let start = self.unit_size_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.n_units_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn segments_byte_range(&self) -> Range<usize> {
         let n_units = self.n_units();
         let start = self.range_shift_byte_range().end;
-        let end = start + (n_units as usize).saturating_mul(LookupSegment4::RAW_BYTE_LEN);
-        start..end
+        start..start + (n_units as usize).saturating_mul(LookupSegment4::RAW_BYTE_LEN)
     }
 
     /// Format number is set to 4.
@@ -609,48 +593,42 @@ impl<'a> Lookup6<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn unit_size_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn n_units_byte_range(&self) -> Range<usize> {
         let start = self.unit_size_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.n_units_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn entries_data_byte_range(&self) -> Range<usize> {
         let unit_size = self.unit_size();
         let n_units = self.n_units();
         let start = self.range_shift_byte_range().end;
-        let end = start
-            + (transforms::add_multiply(unit_size, 0_usize, n_units))
-                .saturating_mul(u8::RAW_BYTE_LEN);
-        start..end
+        start
+            ..start
+                + (transforms::add_multiply(unit_size, 0_usize, n_units))
+                    .saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     /// Format number is set to 6.
@@ -761,27 +739,23 @@ impl<'a> Lookup8<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn first_glyph_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn value_array_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        let end = start + (glyph_count as usize).saturating_mul(u16::RAW_BYTE_LEN);
-        start..end
+        start..start + (glyph_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
     }
 
     /// Format number is set to 8.
@@ -874,36 +848,32 @@ impl<'a> Lookup10<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn unit_size_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn first_glyph_byte_range(&self) -> Range<usize> {
         let start = self.unit_size_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn values_data_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let unit_size = self.unit_size();
         let start = self.glyph_count_byte_range().end;
-        let end = start
-            + (transforms::add_multiply(glyph_count, 0_usize, unit_size))
-                .saturating_mul(u8::RAW_BYTE_LEN);
-        start..end
+        start
+            ..start
+                + (transforms::add_multiply(glyph_count, 0_usize, unit_size))
+                    .saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     /// Format number is set to 10.
@@ -1001,26 +971,22 @@ impl<'a> StateHeader<'a> {
 
     pub fn state_size_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn class_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.state_size_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn state_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.class_table_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn entry_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.state_array_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     /// Size of a state, in bytes. The size is limited to 8 bits, although the
@@ -1133,21 +1099,18 @@ impl<'a> ClassSubtable<'a> {
 
     pub fn first_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn n_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn class_array_byte_range(&self) -> Range<usize> {
         let n_glyphs = self.n_glyphs();
         let start = self.n_glyphs_byte_range().end;
-        let end = start + (n_glyphs as usize).saturating_mul(u8::RAW_BYTE_LEN);
-        start..end
+        start..start + (n_glyphs as usize).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     /// Glyph index of the first glyph in the class table.
@@ -1226,9 +1189,7 @@ impl<'a> RawBytes<'a> {
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 
     pub fn data(&self) -> &'a [u8] {
@@ -1294,26 +1255,22 @@ impl<'a> StxHeader<'a> {
 
     pub fn n_classes_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn class_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.n_classes_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn state_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.class_table_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn entry_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.state_array_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     /// Number of classes, which is the number of 16-bit entry indices in a single line in the state array.
@@ -1425,9 +1382,7 @@ impl<'a> RawWords<'a> {
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end =
-            start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
     }
 
     pub fn data(&self) -> &'a [BigEndian<u16>] {

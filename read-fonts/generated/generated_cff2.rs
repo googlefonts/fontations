@@ -39,48 +39,39 @@ impl<'a> Cff2Header<'a> {
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn minor_version_byte_range(&self) -> Range<usize> {
         let start = self.major_version_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn header_size_byte_range(&self) -> Range<usize> {
         let start = self.minor_version_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn top_dict_length_byte_range(&self) -> Range<usize> {
         let start = self.header_size_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn _padding_byte_range(&self) -> Range<usize> {
         let header_size = self.header_size();
         let start = self.top_dict_length_byte_range().end;
-        let end =
-            start + (transforms::subtract(header_size, 5_usize)).saturating_mul(u8::RAW_BYTE_LEN);
-        start..end
+        start..start + (transforms::subtract(header_size, 5_usize)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn top_dict_data_byte_range(&self) -> Range<usize> {
         let top_dict_length = self.top_dict_length();
         let start = self._padding_byte_range().end;
-        let end = start + (top_dict_length as usize).saturating_mul(u8::RAW_BYTE_LEN);
-        start..end
+        start..start + (top_dict_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self.top_dict_data_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 
     /// Format major version (set to 2).

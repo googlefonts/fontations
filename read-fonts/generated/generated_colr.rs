@@ -47,72 +47,67 @@ impl<'a> Colr<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn num_base_glyph_records_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn base_glyph_records_offset_byte_range(&self) -> Range<usize> {
         let start = self.num_base_glyph_records_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn layer_records_offset_byte_range(&self) -> Range<usize> {
         let start = self.base_glyph_records_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn num_layer_records_byte_range(&self) -> Range<usize> {
         let start = self.layer_records_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn base_glyph_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.num_layer_records_byte_range().end;
-        let end = (self.version().compatible(1u16))
-            .then(|| start + Offset32::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible(1u16))
+                .then(|| start + Offset32::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn layer_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.base_glyph_list_offset_byte_range().end;
-        let end = (self.version().compatible(1u16))
-            .then(|| start + Offset32::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible(1u16))
+                .then(|| start + Offset32::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn clip_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.layer_list_offset_byte_range().end;
-        let end = (self.version().compatible(1u16))
-            .then(|| start + Offset32::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible(1u16))
+                .then(|| start + Offset32::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn var_index_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.clip_list_offset_byte_range().end;
-        let end = (self.version().compatible(1u16))
-            .then(|| start + Offset32::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible(1u16))
+                .then(|| start + Offset32::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.var_index_map_offset_byte_range().end;
-        let end = (self.version().compatible(1u16))
-            .then(|| start + Offset32::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible(1u16))
+                .then(|| start + Offset32::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     /// Table version number - set to 0 or 1.
@@ -427,16 +422,16 @@ impl<'a> BaseGlyphList<'a> {
 
     pub fn num_base_glyph_paint_records_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn base_glyph_paint_records_byte_range(&self) -> Range<usize> {
         let num_base_glyph_paint_records = self.num_base_glyph_paint_records();
         let start = self.num_base_glyph_paint_records_byte_range().end;
-        let end = start
-            + (num_base_glyph_paint_records as usize).saturating_mul(BaseGlyphPaint::RAW_BYTE_LEN);
-        start..end
+        start
+            ..start
+                + (num_base_glyph_paint_records as usize)
+                    .saturating_mul(BaseGlyphPaint::RAW_BYTE_LEN)
     }
 
     pub fn num_base_glyph_paint_records(&self) -> u32 {
@@ -568,15 +563,13 @@ impl<'a> LayerList<'a> {
 
     pub fn num_layers_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn paint_offsets_byte_range(&self) -> Range<usize> {
         let num_layers = self.num_layers();
         let start = self.num_layers_byte_range().end;
-        let end = start + (num_layers as usize).saturating_mul(Offset32::RAW_BYTE_LEN);
-        start..end
+        start..start + (num_layers as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 
     pub fn num_layers(&self) -> u32 {
@@ -666,21 +659,18 @@ impl<'a> ClipList<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn num_clips_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn clips_byte_range(&self) -> Range<usize> {
         let num_clips = self.num_clips();
         let start = self.num_clips_byte_range().end;
-        let end = start + (num_clips as usize).saturating_mul(Clip::RAW_BYTE_LEN);
-        start..end
+        start..start + (num_clips as usize).saturating_mul(Clip::RAW_BYTE_LEN)
     }
 
     /// Set to 1.
@@ -945,32 +935,27 @@ impl<'a> ClipBoxFormat1<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     /// Set to 1.
@@ -1071,38 +1056,32 @@ impl<'a> ClipBoxFormat2<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 2.
@@ -1402,21 +1381,18 @@ impl<'a> ColorLine<'a> {
 
     pub fn extend_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + Extend::RAW_BYTE_LEN;
-        start..end
+        start..start + Extend::RAW_BYTE_LEN
     }
 
     pub fn num_stops_byte_range(&self) -> Range<usize> {
         let start = self.extend_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn color_stops_byte_range(&self) -> Range<usize> {
         let num_stops = self.num_stops();
         let start = self.num_stops_byte_range().end;
-        let end = start + (num_stops as usize).saturating_mul(ColorStop::RAW_BYTE_LEN);
-        start..end
+        start..start + (num_stops as usize).saturating_mul(ColorStop::RAW_BYTE_LEN)
     }
 
     /// An Extend enum value.
@@ -1500,21 +1476,18 @@ impl<'a> VarColorLine<'a> {
 
     pub fn extend_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + Extend::RAW_BYTE_LEN;
-        start..end
+        start..start + Extend::RAW_BYTE_LEN
     }
 
     pub fn num_stops_byte_range(&self) -> Range<usize> {
         let start = self.extend_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn color_stops_byte_range(&self) -> Range<usize> {
         let num_stops = self.num_stops();
         let start = self.num_stops_byte_range().end;
-        let end = start + (num_stops as usize).saturating_mul(VarColorStop::RAW_BYTE_LEN);
-        start..end
+        start..start + (num_stops as usize).saturating_mul(VarColorStop::RAW_BYTE_LEN)
     }
 
     /// An Extend enum value.
@@ -1948,20 +1921,17 @@ impl<'a> PaintColrLayers<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn num_layers_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn first_layer_index_byte_range(&self) -> Range<usize> {
         let start = self.num_layers_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 1.
@@ -2043,20 +2013,17 @@ impl<'a> PaintSolid<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn palette_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn alpha_byte_range(&self) -> Range<usize> {
         let start = self.palette_index_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     /// Set to 2.
@@ -2139,26 +2106,22 @@ impl<'a> PaintVarSolid<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn palette_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn alpha_byte_range(&self) -> Range<usize> {
         let start = self.palette_index_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.alpha_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 3.
@@ -2254,50 +2217,42 @@ impl<'a> PaintLinearGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn x0_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y0_byte_range(&self) -> Range<usize> {
         let start = self.x0_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn x1_byte_range(&self) -> Range<usize> {
         let start = self.y0_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y1_byte_range(&self) -> Range<usize> {
         let start = self.x1_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn x2_byte_range(&self) -> Range<usize> {
         let start = self.y1_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y2_byte_range(&self) -> Range<usize> {
         let start = self.x2_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     /// Set to 4.
@@ -2431,56 +2386,47 @@ impl<'a> PaintVarLinearGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn x0_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y0_byte_range(&self) -> Range<usize> {
         let start = self.x0_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn x1_byte_range(&self) -> Range<usize> {
         let start = self.y0_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y1_byte_range(&self) -> Range<usize> {
         let start = self.x1_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn x2_byte_range(&self) -> Range<usize> {
         let start = self.y1_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y2_byte_range(&self) -> Range<usize> {
         let start = self.x2_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.y2_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 5.
@@ -2626,50 +2572,42 @@ impl<'a> PaintRadialGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn x0_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y0_byte_range(&self) -> Range<usize> {
         let start = self.x0_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn radius0_byte_range(&self) -> Range<usize> {
         let start = self.y0_byte_range().end;
-        let end = start + UfWord::RAW_BYTE_LEN;
-        start..end
+        start..start + UfWord::RAW_BYTE_LEN
     }
 
     pub fn x1_byte_range(&self) -> Range<usize> {
         let start = self.radius0_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y1_byte_range(&self) -> Range<usize> {
         let start = self.x1_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn radius1_byte_range(&self) -> Range<usize> {
         let start = self.y1_byte_range().end;
-        let end = start + UfWord::RAW_BYTE_LEN;
-        start..end
+        start..start + UfWord::RAW_BYTE_LEN
     }
 
     /// Set to 6.
@@ -2803,56 +2741,47 @@ impl<'a> PaintVarRadialGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn x0_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y0_byte_range(&self) -> Range<usize> {
         let start = self.x0_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn radius0_byte_range(&self) -> Range<usize> {
         let start = self.y0_byte_range().end;
-        let end = start + UfWord::RAW_BYTE_LEN;
-        start..end
+        start..start + UfWord::RAW_BYTE_LEN
     }
 
     pub fn x1_byte_range(&self) -> Range<usize> {
         let start = self.radius0_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn y1_byte_range(&self) -> Range<usize> {
         let start = self.x1_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn radius1_byte_range(&self) -> Range<usize> {
         let start = self.y1_byte_range().end;
-        let end = start + UfWord::RAW_BYTE_LEN;
-        start..end
+        start..start + UfWord::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.radius1_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 7.
@@ -2994,38 +2923,32 @@ impl<'a> PaintSweepGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn start_angle_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn end_angle_byte_range(&self) -> Range<usize> {
         let start = self.start_angle_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     /// Set to 8.
@@ -3145,44 +3068,37 @@ impl<'a> PaintVarSweepGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn start_angle_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn end_angle_byte_range(&self) -> Range<usize> {
         let start = self.start_angle_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.end_angle_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 9.
@@ -3306,20 +3222,17 @@ impl<'a> PaintGlyph<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + GlyphId16::RAW_BYTE_LEN;
-        start..end
+        start..start + GlyphId16::RAW_BYTE_LEN
     }
 
     /// Set to 10.
@@ -3410,14 +3323,12 @@ impl<'a> PaintColrGlyph<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + GlyphId16::RAW_BYTE_LEN;
-        start..end
+        start..start + GlyphId16::RAW_BYTE_LEN
     }
 
     /// Set to 11.
@@ -3493,20 +3404,17 @@ impl<'a> PaintTransform<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn transform_offset_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     /// Set to 12.
@@ -3607,20 +3515,17 @@ impl<'a> PaintVarTransform<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn transform_offset_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     /// Set to 13.
@@ -3721,38 +3626,32 @@ impl<'a> Affine2x3<'a> {
 
     pub fn xx_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn yx_byte_range(&self) -> Range<usize> {
         let start = self.xx_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn xy_byte_range(&self) -> Range<usize> {
         let start = self.yx_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn yy_byte_range(&self) -> Range<usize> {
         let start = self.xy_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn dx_byte_range(&self) -> Range<usize> {
         let start = self.yy_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn dy_byte_range(&self) -> Range<usize> {
         let start = self.dx_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     /// x-component of transformed x-basis vector.
@@ -3857,44 +3756,37 @@ impl<'a> VarAffine2x3<'a> {
 
     pub fn xx_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn yx_byte_range(&self) -> Range<usize> {
         let start = self.xx_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn xy_byte_range(&self) -> Range<usize> {
         let start = self.yx_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn yy_byte_range(&self) -> Range<usize> {
         let start = self.xy_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn dx_byte_range(&self) -> Range<usize> {
         let start = self.yy_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn dy_byte_range(&self) -> Range<usize> {
         let start = self.dx_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.dy_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// x-component of transformed x-basis vector. For variation, use
@@ -4009,26 +3901,22 @@ impl<'a> PaintTranslate<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn dx_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn dy_byte_range(&self) -> Range<usize> {
         let start = self.dx_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     /// Set to 14.
@@ -4130,32 +4018,27 @@ impl<'a> PaintVarTranslate<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn dx_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn dy_byte_range(&self) -> Range<usize> {
         let start = self.dx_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.dy_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 15.
@@ -4261,26 +4144,22 @@ impl<'a> PaintScale<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn scale_x_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn scale_y_byte_range(&self) -> Range<usize> {
         let start = self.scale_x_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     /// Set to 16.
@@ -4382,32 +4261,27 @@ impl<'a> PaintVarScale<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn scale_x_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn scale_y_byte_range(&self) -> Range<usize> {
         let start = self.scale_x_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.scale_y_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 17.
@@ -4519,38 +4393,32 @@ impl<'a> PaintScaleAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn scale_x_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn scale_y_byte_range(&self) -> Range<usize> {
         let start = self.scale_x_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.scale_y_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     /// Set to 18.
@@ -4668,44 +4536,37 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn scale_x_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn scale_y_byte_range(&self) -> Range<usize> {
         let start = self.scale_x_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.scale_y_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 19.
@@ -4828,20 +4689,17 @@ impl<'a> PaintScaleUniform<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn scale_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     /// Set to 20.
@@ -4933,26 +4791,22 @@ impl<'a> PaintVarScaleUniform<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn scale_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.scale_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 21.
@@ -5055,32 +4909,27 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn scale_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.scale_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     /// Set to 22.
@@ -5190,38 +5039,32 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn scale_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.scale_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 23.
@@ -5336,20 +5179,17 @@ impl<'a> PaintRotate<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     /// Set to 24.
@@ -5442,26 +5282,22 @@ impl<'a> PaintVarRotate<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.angle_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 25.
@@ -5564,32 +5400,27 @@ impl<'a> PaintRotateAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.angle_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     /// Set to 26.
@@ -5700,38 +5531,32 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.angle_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 27.
@@ -5847,26 +5672,22 @@ impl<'a> PaintSkew<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.x_skew_angle_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     /// Set to 28.
@@ -5970,32 +5791,27 @@ impl<'a> PaintVarSkew<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.x_skew_angle_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.y_skew_angle_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 29.
@@ -6109,38 +5925,32 @@ impl<'a> PaintSkewAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.x_skew_angle_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.y_skew_angle_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     /// Set to 30.
@@ -6260,44 +6070,37 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.x_skew_angle_byte_range().end;
-        let end = start + F2Dot14::RAW_BYTE_LEN;
-        start..end
+        start..start + F2Dot14::RAW_BYTE_LEN
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.y_skew_angle_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        let end = start + FWord::RAW_BYTE_LEN;
-        start..end
+        start..start + FWord::RAW_BYTE_LEN
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Set to 31.
@@ -6425,26 +6228,22 @@ impl<'a> PaintComposite<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn source_paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     pub fn composite_mode_byte_range(&self) -> Range<usize> {
         let start = self.source_paint_offset_byte_range().end;
-        let end = start + CompositeMode::RAW_BYTE_LEN;
-        start..end
+        start..start + CompositeMode::RAW_BYTE_LEN
     }
 
     pub fn backdrop_paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.composite_mode_byte_range().end;
-        let end = start + Offset24::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset24::RAW_BYTE_LEN
     }
 
     /// Set to 32.

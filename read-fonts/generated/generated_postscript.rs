@@ -38,30 +38,27 @@ impl<'a> Index1<'a> {
 
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn off_size_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn offsets_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let off_size = self.off_size();
         let start = self.off_size_byte_range().end;
-        let end = start
-            + (transforms::add_multiply(count, 1_usize, off_size)).saturating_mul(u8::RAW_BYTE_LEN);
-        start..end
+        start
+            ..start
+                + (transforms::add_multiply(count, 1_usize, off_size))
+                    .saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 
     /// Number of objects stored in INDEX.
@@ -146,30 +143,27 @@ impl<'a> Index2<'a> {
 
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn off_size_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn offsets_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let off_size = self.off_size();
         let start = self.off_size_byte_range().end;
-        let end = start
-            + (transforms::add_multiply(count, 1_usize, off_size)).saturating_mul(u8::RAW_BYTE_LEN);
-        start..end
+        start
+            ..start
+                + (transforms::add_multiply(count, 1_usize, off_size))
+                    .saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 
     /// Number of objects stored in INDEX.
@@ -343,15 +337,12 @@ impl<'a> FdSelectFormat0<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn fds_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 
     /// Format = 0.
@@ -426,27 +417,23 @@ impl<'a> FdSelectFormat3<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn n_ranges_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn ranges_byte_range(&self) -> Range<usize> {
         let n_ranges = self.n_ranges();
         let start = self.n_ranges_byte_range().end;
-        let end = start + (n_ranges as usize).saturating_mul(FdSelectRange3::RAW_BYTE_LEN);
-        start..end
+        start..start + (n_ranges as usize).saturating_mul(FdSelectRange3::RAW_BYTE_LEN)
     }
 
     pub fn sentinel_byte_range(&self) -> Range<usize> {
         let start = self.ranges_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     /// Format = 3.
@@ -584,27 +571,23 @@ impl<'a> FdSelectFormat4<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn n_ranges_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn ranges_byte_range(&self) -> Range<usize> {
         let n_ranges = self.n_ranges();
         let start = self.n_ranges_byte_range().end;
-        let end = start + (n_ranges as usize).saturating_mul(FdSelectRange4::RAW_BYTE_LEN);
-        start..end
+        start..start + (n_ranges as usize).saturating_mul(FdSelectRange4::RAW_BYTE_LEN)
     }
 
     pub fn sentinel_byte_range(&self) -> Range<usize> {
         let start = self.ranges_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     /// Format = 4.
@@ -827,15 +810,12 @@ impl<'a> CharsetFormat0<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn glyph_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
     }
 
     /// Format; =0
@@ -910,16 +890,15 @@ impl<'a> CharsetFormat1<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn ranges_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start
-            + self.data.len().saturating_sub(start) / CharsetRange1::RAW_BYTE_LEN
-                * CharsetRange1::RAW_BYTE_LEN;
-        start..end
+        start
+            ..start
+                + self.data.len().saturating_sub(start) / CharsetRange1::RAW_BYTE_LEN
+                    * CharsetRange1::RAW_BYTE_LEN
     }
 
     /// Format; =1
@@ -1043,16 +1022,15 @@ impl<'a> CharsetFormat2<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u8::RAW_BYTE_LEN;
-        start..end
+        start..start + u8::RAW_BYTE_LEN
     }
 
     pub fn ranges_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start
-            + self.data.len().saturating_sub(start) / CharsetRange2::RAW_BYTE_LEN
-                * CharsetRange2::RAW_BYTE_LEN;
-        start..end
+        start
+            ..start
+                + self.data.len().saturating_sub(start) / CharsetRange2::RAW_BYTE_LEN
+                    * CharsetRange2::RAW_BYTE_LEN
     }
 
     /// Format; =2

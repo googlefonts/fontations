@@ -43,27 +43,23 @@ impl<'a> Ltag<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn num_tags_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn tag_ranges_byte_range(&self) -> Range<usize> {
         let num_tags = self.num_tags();
         let start = self.num_tags_byte_range().end;
-        let end = start + (num_tags as usize).saturating_mul(FTStringRange::RAW_BYTE_LEN);
-        start..end
+        start..start + (num_tags as usize).saturating_mul(FTStringRange::RAW_BYTE_LEN)
     }
 
     /// Table version; currently 1.

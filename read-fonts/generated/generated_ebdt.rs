@@ -43,14 +43,12 @@ impl<'a> Ebdt<'a> {
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn minor_version_byte_range(&self) -> Range<usize> {
         let start = self.major_version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     /// Major version of the EBDT table, = 2.

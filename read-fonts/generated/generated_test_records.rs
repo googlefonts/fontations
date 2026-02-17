@@ -37,38 +37,34 @@ impl<'a> BasicTable<'a> {
 
     pub fn simple_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn simple_records_byte_range(&self) -> Range<usize> {
         let simple_count = self.simple_count();
         let start = self.simple_count_byte_range().end;
-        let end = start + (simple_count as usize).saturating_mul(SimpleRecord::RAW_BYTE_LEN);
-        start..end
+        start..start + (simple_count as usize).saturating_mul(SimpleRecord::RAW_BYTE_LEN)
     }
 
     pub fn arrays_inner_count_byte_range(&self) -> Range<usize> {
         let start = self.simple_records_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn array_records_count_byte_range(&self) -> Range<usize> {
         let start = self.arrays_inner_count_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn array_records_byte_range(&self) -> Range<usize> {
         let array_records_count = self.array_records_count();
         let start = self.array_records_count_byte_range().end;
-        let end = start
-            + (array_records_count as usize).saturating_mul(
-                <ContainsArrays as ComputeSize>::compute_size(&self.arrays_inner_count())
-                    .unwrap_or(0),
-            );
-        start..end
+        start
+            ..start
+                + (array_records_count as usize).saturating_mul(
+                    <ContainsArrays as ComputeSize>::compute_size(&self.arrays_inner_count())
+                        .unwrap_or(0),
+                )
     }
 
     pub fn simple_count(&self) -> u16 {
@@ -359,15 +355,12 @@ impl<'a> VarLenItem<'a> {
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 
     pub fn length(&self) -> u32 {

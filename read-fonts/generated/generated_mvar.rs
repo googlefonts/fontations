@@ -47,39 +47,33 @@ impl<'a> Mvar<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
-        start..end
+        start..start + MajorMinor::RAW_BYTE_LEN
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn value_record_size_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn value_record_count_byte_range(&self) -> Range<usize> {
         let start = self.value_record_size_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.value_record_count_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_records_byte_range(&self) -> Range<usize> {
         let value_record_count = self.value_record_count();
         let start = self.item_variation_store_offset_byte_range().end;
-        let end = start + (value_record_count as usize).saturating_mul(ValueRecord::RAW_BYTE_LEN);
-        start..end
+        start..start + (value_record_count as usize).saturating_mul(ValueRecord::RAW_BYTE_LEN)
     }
 
     /// Major version number of the horizontal metrics variations table — set to 1.

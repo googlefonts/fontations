@@ -47,34 +47,30 @@ impl<'a> Gpos<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
-        start..end
+        start..start + MajorMinor::RAW_BYTE_LEN
     }
 
     pub fn script_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn feature_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.script_list_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn lookup_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.feature_list_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn feature_variations_offset_byte_range(&self) -> Range<usize> {
         let start = self.lookup_list_offset_byte_range().end;
-        let end = (self.version().compatible((1u16, 1u16)))
-            .then(|| start + Offset32::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 1u16)))
+                .then(|| start + Offset32::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
@@ -742,20 +738,17 @@ impl<'a> AnchorFormat1<'a> {
 
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn x_coordinate_byte_range(&self) -> Range<usize> {
         let start = self.anchor_format_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_coordinate_byte_range(&self) -> Range<usize> {
         let start = self.x_coordinate_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     /// Format identifier, = 1
@@ -838,26 +831,22 @@ impl<'a> AnchorFormat2<'a> {
 
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn x_coordinate_byte_range(&self) -> Range<usize> {
         let start = self.anchor_format_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_coordinate_byte_range(&self) -> Range<usize> {
         let start = self.x_coordinate_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn anchor_point_byte_range(&self) -> Range<usize> {
         let start = self.y_coordinate_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     /// Format identifier, = 2
@@ -950,32 +939,27 @@ impl<'a> AnchorFormat3<'a> {
 
     pub fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn x_coordinate_byte_range(&self) -> Range<usize> {
         let start = self.anchor_format_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_coordinate_byte_range(&self) -> Range<usize> {
         let start = self.x_coordinate_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn x_device_offset_byte_range(&self) -> Range<usize> {
         let start = self.y_coordinate_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn y_device_offset_byte_range(&self) -> Range<usize> {
         let start = self.x_device_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     /// Format identifier, = 3
@@ -1089,15 +1073,13 @@ impl<'a> MarkArray<'a> {
 
     pub fn mark_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark_records_byte_range(&self) -> Range<usize> {
         let mark_count = self.mark_count();
         let start = self.mark_count_byte_range().end;
-        let end = start + (mark_count as usize).saturating_mul(MarkRecord::RAW_BYTE_LEN);
-        start..end
+        start..start + (mark_count as usize).saturating_mul(MarkRecord::RAW_BYTE_LEN)
     }
 
     /// Number of MarkRecords
@@ -1328,27 +1310,22 @@ impl<'a> SinglePosFormat1<'a> {
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.pos_format_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_format_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        let end = start + ValueFormat::RAW_BYTE_LEN;
-        start..end
+        start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn value_record_byte_range(&self) -> Range<usize> {
         let start = self.value_format_byte_range().end;
-        let end =
-            start + <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap_or(0);
-        start..end
+        start..start + <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap_or(0)
     }
 
     /// Format identifier: format = 1
@@ -1455,36 +1432,32 @@ impl<'a> SinglePosFormat2<'a> {
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.pos_format_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_format_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        let end = start + ValueFormat::RAW_BYTE_LEN;
-        start..end
+        start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn value_count_byte_range(&self) -> Range<usize> {
         let start = self.value_format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn value_records_byte_range(&self) -> Range<usize> {
         let value_count = self.value_count();
         let start = self.value_count_byte_range().end;
-        let end = start
-            + (value_count as usize).saturating_mul(
-                <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap_or(0),
-            );
-        start..end
+        start
+            ..start
+                + (value_count as usize).saturating_mul(
+                    <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap_or(0),
+                )
     }
 
     /// Format identifier: format = 2
@@ -1707,39 +1680,33 @@ impl<'a> PairPosFormat1<'a> {
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.pos_format_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_format1_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        let end = start + ValueFormat::RAW_BYTE_LEN;
-        start..end
+        start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn value_format2_byte_range(&self) -> Range<usize> {
         let start = self.value_format1_byte_range().end;
-        let end = start + ValueFormat::RAW_BYTE_LEN;
-        start..end
+        start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn pair_set_count_byte_range(&self) -> Range<usize> {
         let start = self.value_format2_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn pair_set_offsets_byte_range(&self) -> Range<usize> {
         let pair_set_count = self.pair_set_count();
         let start = self.pair_set_count_byte_range().end;
-        let end = start + (pair_set_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN);
-        start..end
+        start..start + (pair_set_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 
     /// Format identifier: format = 1
@@ -1902,22 +1869,21 @@ impl<'a> PairSet<'a> {
 
     pub fn pair_value_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn pair_value_records_byte_range(&self) -> Range<usize> {
         let pair_value_count = self.pair_value_count();
         let start = self.pair_value_count_byte_range().end;
-        let end = start
-            + (pair_value_count as usize).saturating_mul(
-                <PairValueRecord as ComputeSize>::compute_size(&(
-                    self.value_format1(),
-                    self.value_format2(),
-                ))
-                .unwrap_or(0),
-            );
-        start..end
+        start
+            ..start
+                + (pair_value_count as usize).saturating_mul(
+                    <PairValueRecord as ComputeSize>::compute_size(&(
+                        self.value_format1(),
+                        self.value_format2(),
+                    ))
+                    .unwrap_or(0),
+                )
     }
 
     /// Number of PairValueRecords
@@ -2122,65 +2088,57 @@ impl<'a> PairPosFormat2<'a> {
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.pos_format_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn value_format1_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        let end = start + ValueFormat::RAW_BYTE_LEN;
-        start..end
+        start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn value_format2_byte_range(&self) -> Range<usize> {
         let start = self.value_format1_byte_range().end;
-        let end = start + ValueFormat::RAW_BYTE_LEN;
-        start..end
+        start..start + ValueFormat::RAW_BYTE_LEN
     }
 
     pub fn class_def1_offset_byte_range(&self) -> Range<usize> {
         let start = self.value_format2_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn class_def2_offset_byte_range(&self) -> Range<usize> {
         let start = self.class_def1_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn class1_count_byte_range(&self) -> Range<usize> {
         let start = self.class_def2_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn class2_count_byte_range(&self) -> Range<usize> {
         let start = self.class1_count_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn class1_records_byte_range(&self) -> Range<usize> {
         let class1_count = self.class1_count();
         let start = self.class2_count_byte_range().end;
-        let end = start
-            + (class1_count as usize).saturating_mul(
-                <Class1Record as ComputeSize>::compute_size(&(
-                    self.class2_count(),
-                    self.value_format1(),
-                    self.value_format2(),
-                ))
-                .unwrap_or(0),
-            );
-        start..end
+        start
+            ..start
+                + (class1_count as usize).saturating_mul(
+                    <Class1Record as ComputeSize>::compute_size(&(
+                        self.class2_count(),
+                        self.value_format1(),
+                        self.value_format2(),
+                    ))
+                    .unwrap_or(0),
+                )
     }
 
     /// Format identifier: format = 2
@@ -2523,27 +2481,23 @@ impl<'a> CursivePosFormat1<'a> {
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.pos_format_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn entry_exit_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn entry_exit_record_byte_range(&self) -> Range<usize> {
         let entry_exit_count = self.entry_exit_count();
         let start = self.entry_exit_count_byte_range().end;
-        let end = start + (entry_exit_count as usize).saturating_mul(EntryExitRecord::RAW_BYTE_LEN);
-        start..end
+        start..start + (entry_exit_count as usize).saturating_mul(EntryExitRecord::RAW_BYTE_LEN)
     }
 
     /// Format identifier: format = 1
@@ -2729,38 +2683,32 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark_coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.pos_format_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn base_coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_coverage_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark_class_count_byte_range(&self) -> Range<usize> {
         let start = self.base_coverage_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_class_count_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn base_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_array_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     /// Format identifier: format = 1
@@ -2921,18 +2869,18 @@ impl<'a> BaseArray<'a> {
 
     pub fn base_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn base_records_byte_range(&self) -> Range<usize> {
         let base_count = self.base_count();
         let start = self.base_count_byte_range().end;
-        let end = start
-            + (base_count as usize).saturating_mul(
-                <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count()).unwrap_or(0),
-            );
-        start..end
+        start
+            ..start
+                + (base_count as usize).saturating_mul(
+                    <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count())
+                        .unwrap_or(0),
+                )
     }
 
     /// Number of BaseRecords
@@ -3117,38 +3065,32 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark_coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.pos_format_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn ligature_coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_coverage_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark_class_count_byte_range(&self) -> Range<usize> {
         let start = self.ligature_coverage_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_class_count_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn ligature_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_array_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     /// Format identifier: format = 1
@@ -3309,15 +3251,13 @@ impl<'a> LigatureArray<'a> {
 
     pub fn ligature_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn ligature_attach_offsets_byte_range(&self) -> Range<usize> {
         let ligature_count = self.ligature_count();
         let start = self.ligature_count_byte_range().end;
-        let end = start + (ligature_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN);
-        start..end
+        start..start + (ligature_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 
     /// Number of LigatureAttach table offsets
@@ -3437,19 +3377,18 @@ impl<'a> LigatureAttach<'a> {
 
     pub fn component_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn component_records_byte_range(&self) -> Range<usize> {
         let component_count = self.component_count();
         let start = self.component_count_byte_range().end;
-        let end = start
-            + (component_count as usize).saturating_mul(
-                <ComponentRecord as ComputeSize>::compute_size(&self.mark_class_count())
-                    .unwrap_or(0),
-            );
-        start..end
+        start
+            ..start
+                + (component_count as usize).saturating_mul(
+                    <ComponentRecord as ComputeSize>::compute_size(&self.mark_class_count())
+                        .unwrap_or(0),
+                )
     }
 
     /// Number of ComponentRecords in this ligature
@@ -3634,38 +3573,32 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark1_coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.pos_format_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark2_coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark1_coverage_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark_class_count_byte_range(&self) -> Range<usize> {
         let start = self.mark2_coverage_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark1_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_class_count_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn mark2_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark1_array_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     /// Format identifier: format = 1
@@ -3826,18 +3759,18 @@ impl<'a> Mark2Array<'a> {
 
     pub fn mark2_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn mark2_records_byte_range(&self) -> Range<usize> {
         let mark2_count = self.mark2_count();
         let start = self.mark2_count_byte_range().end;
-        let end = start
-            + (mark2_count as usize).saturating_mul(
-                <Mark2Record as ComputeSize>::compute_size(&self.mark_class_count()).unwrap_or(0),
-            );
-        start..end
+        start
+            ..start
+                + (mark2_count as usize).saturating_mul(
+                    <Mark2Record as ComputeSize>::compute_size(&self.mark_class_count())
+                        .unwrap_or(0),
+                )
     }
 
     /// Number of Mark2 records
@@ -4042,20 +3975,17 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn extension_lookup_type_byte_range(&self) -> Range<usize> {
         let start = self.pos_format_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn extension_offset_byte_range(&self) -> Range<usize> {
         let start = self.extension_lookup_type_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     /// Format identifier: format = 1

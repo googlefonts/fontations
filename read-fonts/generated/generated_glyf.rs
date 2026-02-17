@@ -93,59 +93,49 @@ impl<'a> SimpleGlyph<'a> {
 
     pub fn number_of_contours_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.number_of_contours_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
         let number_of_contours = self.number_of_contours();
         let start = self.y_max_byte_range().end;
-        let end = start + (number_of_contours as usize).saturating_mul(u16::RAW_BYTE_LEN);
-        start..end
+        start..start + (number_of_contours as usize).saturating_mul(u16::RAW_BYTE_LEN)
     }
 
     pub fn instruction_length_byte_range(&self) -> Range<usize> {
         let start = self.end_pts_of_contours_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn instructions_byte_range(&self) -> Range<usize> {
         let instruction_length = self.instruction_length();
         let start = self.instruction_length_byte_range().end;
-        let end = start + (instruction_length as usize).saturating_mul(u8::RAW_BYTE_LEN);
-        start..end
+        start..start + (instruction_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn glyph_data_byte_range(&self) -> Range<usize> {
         let start = self.instructions_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 
     /// If the number of contours is greater than or equal to zero,
@@ -675,39 +665,32 @@ impl<'a> CompositeGlyph<'a> {
 
     pub fn number_of_contours_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.number_of_contours_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn component_data_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 
     /// If the number of contours is greater than or equal to zero,

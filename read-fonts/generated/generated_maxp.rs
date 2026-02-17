@@ -43,118 +43,116 @@ impl<'a> Maxp<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + Version16Dot16::RAW_BYTE_LEN;
-        start..end
+        start..start + Version16Dot16::RAW_BYTE_LEN
     }
 
     pub fn num_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn max_points_byte_range(&self) -> Range<usize> {
         let start = self.num_glyphs_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_contours_byte_range(&self) -> Range<usize> {
         let start = self.max_points_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_composite_points_byte_range(&self) -> Range<usize> {
         let start = self.max_contours_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_composite_contours_byte_range(&self) -> Range<usize> {
         let start = self.max_composite_points_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_zones_byte_range(&self) -> Range<usize> {
         let start = self.max_composite_contours_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_twilight_points_byte_range(&self) -> Range<usize> {
         let start = self.max_zones_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_storage_byte_range(&self) -> Range<usize> {
         let start = self.max_twilight_points_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_function_defs_byte_range(&self) -> Range<usize> {
         let start = self.max_storage_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_instruction_defs_byte_range(&self) -> Range<usize> {
         let start = self.max_function_defs_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_stack_elements_byte_range(&self) -> Range<usize> {
         let start = self.max_instruction_defs_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_size_of_instructions_byte_range(&self) -> Range<usize> {
         let start = self.max_stack_elements_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_component_elements_byte_range(&self) -> Range<usize> {
         let start = self.max_size_of_instructions_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn max_component_depth_byte_range(&self) -> Range<usize> {
         let start = self.max_component_elements_byte_range().end;
-        let end = (self.version().compatible((1u16, 0u16)))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((1u16, 0u16)))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.
