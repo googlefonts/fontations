@@ -1,16 +1,17 @@
+use num_traits::Float;
 use std::hash::Hasher;
 
 use font_types::F2Dot14;
 
-#[derive(Default, Clone, Copy, Debug)]
-pub(crate) struct Triple {
-    pub(crate) minimum: f32,
-    pub(crate) middle: f32,
-    pub(crate) maximum: f32,
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Triple<F: Float + std::fmt::Debug + Copy + Default + PartialEq> {
+    pub(crate) minimum: F,
+    pub(crate) middle: F,
+    pub(crate) maximum: F,
 }
 
-impl Triple {
-    pub(crate) fn new(minimum: f32, middle: f32, maximum: f32) -> Self {
+impl<F: Float + std::fmt::Debug + Copy + Default + PartialEq> Triple<F> {
+    pub(crate) fn new(minimum: F, middle: F, maximum: F) -> Self {
         Self {
             minimum,
             middle,
@@ -18,7 +19,7 @@ impl Triple {
         }
     }
 
-    pub(crate) fn point(p: f32) -> Self {
+    pub(crate) fn point(p: F) -> Self {
         Self::new(p, p, p)
     }
 
@@ -28,7 +29,7 @@ impl Triple {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn contains(&self, value: f32) -> bool {
+    pub(crate) fn contains(&self, value: F) -> bool {
         self.minimum <= value && value <= self.maximum
     }
 
@@ -41,38 +42,22 @@ impl Triple {
     }
 }
 
-impl std::hash::Hash for Triple {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.minimum.to_bits().hash(state);
-        self.middle.to_bits().hash(state);
-        self.maximum.to_bits().hash(state);
-    }
-}
-
-impl Eq for Triple {}
-
-impl PartialEq for Triple {
-    fn eq(&self, other: &Self) -> bool {
-        F2Dot14::from_f32(self.minimum) == F2Dot14::from_f32(other.minimum)
-            && F2Dot14::from_f32(self.middle) == F2Dot14::from_f32(other.middle)
-            && F2Dot14::from_f32(self.maximum) == F2Dot14::from_f32(other.maximum)
-    }
-}
-
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
-pub(crate) struct TripleDistances {
-    pub(crate) negative: f32,
-    pub(crate) positive: f32,
+pub(crate) struct TripleDistances<F: Float + std::fmt::Debug + Copy + Default + PartialEq> {
+    pub(crate) negative: F,
+    pub(crate) positive: F,
 }
 
-impl TripleDistances {
-    pub(crate) fn new(negative: f32, positive: f32) -> Self {
+impl<F: Float + std::fmt::Debug + Copy + Default + PartialEq> TripleDistances<F> {
+    pub(crate) fn new(negative: F, positive: F) -> Self {
         Self { negative, positive }
     }
 }
 
-impl From<Triple> for TripleDistances {
-    fn from(triple: Triple) -> Self {
+impl<F: Float + std::fmt::Debug + Copy + Default + PartialEq> From<Triple<F>>
+    for TripleDistances<F>
+{
+    fn from(triple: Triple<F>) -> Self {
         TripleDistances {
             negative: triple.middle - triple.minimum,
             positive: triple.maximum - triple.middle,
@@ -80,32 +65,35 @@ impl From<Triple> for TripleDistances {
     }
 }
 
-type RebaseTentResultItem = (f32, Triple);
-type RebaseTentResult = Vec<RebaseTentResultItem>;
+type RebaseTentResultItem<F> = (F, Triple<F>);
+type RebaseTentResult<F> = Vec<RebaseTentResultItem<F>>;
 
-const EPSILON: f32 = 1.0 / (1 << 14) as f32;
-const MAX_F2DOT14: f32 = 0x7FFF as f32 / (1 << 14) as f32;
+const EPSILON_F64: f64 = 1.0 / (1 << 14) as f64;
+const MAX_F2DOT14_F64: f64 = 0x7FFF as f64 / (1 << 14) as f64;
 
 /// Evaluates a support scalar for a coordinate within a tent.
 /// Copied from VarRegionAxis::evaluate()
-fn support_scalar(coord: f32, tent: Triple) -> f32 {
+fn support_scalar<F: Float + std::fmt::Debug + Copy + Default + PartialEq>(
+    coord: F,
+    tent: Triple<F>,
+) -> F {
     let start = tent.minimum;
     let peak = tent.middle;
     let end = tent.maximum;
 
     if start > peak || peak > end {
-        return 1.0;
+        return F::one();
     }
-    if start < 0.0 && end > 0.0 && peak != 0.0 {
-        return 1.0;
+    if start < F::zero() && end > F::zero() && peak != F::zero() {
+        return F::one();
     }
 
-    if peak == 0.0 || coord == peak {
-        return 1.0;
+    if peak == F::zero() || coord == peak {
+        return F::one();
     }
 
     if coord <= start || end <= coord {
-        return 0.0;
+        return F::zero();
     }
 
     // Interpolate
@@ -120,12 +108,12 @@ fn support_scalar(coord: f32, tent: Triple) -> f32 {
 /// considering the prenormalized distances as well as the new axis limits.
 ///
 /// Ported from fonttools
-pub(crate) fn renormalize_value(
-    v: f32,
-    triple: Triple,
-    triple_distances: TripleDistances,
+pub(crate) fn renormalize_value<F: Float + std::fmt::Debug + Copy + Default + PartialEq>(
+    v: F,
+    triple: Triple<F>,
+    triple_distances: TripleDistances<F>,
     extrapolate: bool,
-) -> f32 {
+) -> F {
     let lower = triple.minimum;
     let def = triple.middle;
     let upper = triple.maximum;
@@ -138,10 +126,10 @@ pub(crate) fn renormalize_value(
     };
 
     if v == def {
-        return 0.0;
+        return F::zero();
     }
 
-    if def < 0.0 {
+    if def < F::zero() {
         return -renormalize_value(
             -v,
             triple.reverse_negate(),
@@ -159,14 +147,14 @@ pub(crate) fn renormalize_value(
     }
 
     // v < def
-    if lower >= 0.0 {
+    if lower >= F::zero() {
         return (v - def) / (def - lower);
     }
 
     // lower < 0 and v < default
     let total_distance = triple_distances.negative * (-lower) + triple_distances.positive * def;
 
-    let v_distance = if v >= 0.0 {
+    let v_distance = if v >= F::zero() {
         (def - v) * triple_distances.positive
     } else {
         (-v) * triple_distances.negative + triple_distances.positive * def
@@ -176,7 +164,11 @@ pub(crate) fn renormalize_value(
 }
 
 /// Internal solving function that processes one side of the axis transformation.
-fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
+fn solve<F: Float + std::fmt::Debug + Copy + Default + PartialEq>(
+    tent: Triple<F>,
+    axis_limit: Triple<F>,
+    negative: bool,
+) -> RebaseTentResult<F> {
     let mut out = Vec::new();
 
     let axis_min = axis_limit.minimum;
@@ -216,7 +208,7 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
 
         let mut sub_out = solve(new_tent, axis_limit, negative);
         for item in &mut sub_out {
-            item.0 *= mult;
+            item.0 = item.0 * mult;
         }
         return sub_out;
     }
@@ -231,14 +223,14 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
 
     // Case 3a/gain >= out_gain
     if gain >= out_gain {
-        let crossing = peak + (1.0 - gain) * (upper - peak);
+        let crossing = peak + (F::one() - gain) * (upper - peak);
         let loc = Triple {
             minimum: lower.max(axis_def),
             middle: peak,
             maximum: crossing,
         };
 
-        out.push((1.0 - gain, loc));
+        out.push((F::one() - gain, loc));
 
         // The part after the crossing point
         if upper >= axis_max {
@@ -251,7 +243,7 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
         } else {
             // A tent's peak cannot fall on axis default. Nudge it.
             if upper == axis_def {
-                upper += EPSILON;
+                upper = upper + F::from(EPSILON_F64).unwrap();
             }
 
             // Downslope
@@ -260,7 +252,7 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
                 middle: upper,
                 maximum: axis_max,
             };
-            out.push((0.0 - gain, loc1));
+            out.push((F::zero() - gain, loc1));
 
             // Eternity justify
             let loc2 = Triple {
@@ -268,7 +260,7 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
                 middle: axis_max,
                 maximum: axis_max,
             };
-            out.push((0.0 - gain, loc2));
+            out.push((F::zero() - gain, loc2));
         }
     } else {
         // Special-case if peak is at axis_max
@@ -277,16 +269,18 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
         }
 
         // Case 3: Scale the axis upper to achieve new tent
-        let new_upper = peak + (1.0 - gain) * (upper - peak);
+        let new_upper = peak + (F::one() - gain) * (upper - peak);
         debug_assert!(axis_max <= new_upper); // Because out_gain > gain
 
         // Note: The original C++ code has this disabled due to OTS compatibility
         // Keeping it disabled here as well
         #[allow(clippy::overly_complex_bool_expr)]
-        if false && (new_upper <= axis_def + (axis_max - axis_def) * 2.0) {
+        if false && (new_upper <= axis_def + (axis_max - axis_def) * F::from(2.0).unwrap()) {
             upper = new_upper;
-            if !negative && axis_def + (axis_max - axis_def) * MAX_F2DOT14 < upper {
-                upper = axis_def + (axis_max - axis_def) * MAX_F2DOT14;
+            if !negative
+                && axis_def + (axis_max - axis_def) * F::from(MAX_F2DOT14_F64).unwrap() < upper
+            {
+                upper = axis_def + (axis_max - axis_def) * F::from(MAX_F2DOT14_F64).unwrap();
                 debug_assert!(peak < upper);
             }
 
@@ -295,7 +289,7 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
                 middle: peak,
                 maximum: upper,
             };
-            out.push((1.0 - gain, loc));
+            out.push((F::one() - gain, loc));
         } else {
             // Case 4: Chop into two tents
             let loc1 = Triple {
@@ -303,7 +297,7 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
                 middle: peak,
                 maximum: axis_max,
             };
-            out.push((1.0 - gain, loc1));
+            out.push((F::one() - gain, loc1));
 
             let loc2 = Triple {
                 minimum: peak,
@@ -333,7 +327,7 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
         // Case 2neg: Lower is between axis_min and axis_def
         // A tent's peak cannot fall on axis default. Nudge it.
         if lower == axis_def {
-            lower -= EPSILON;
+            lower = lower - F::from(EPSILON_F64).unwrap();
         }
 
         // Downslope
@@ -342,7 +336,7 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
             middle: lower,
             maximum: axis_def,
         };
-        out.push((0.0 - gain, loc1));
+        out.push((F::zero() - gain, loc1));
 
         // Eternity justify
         let loc2 = Triple {
@@ -350,7 +344,7 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
             middle: axis_min,
             maximum: lower,
         };
-        out.push((0.0 - gain, loc2));
+        out.push((F::zero() - gain, loc2));
     }
 
     out
@@ -367,22 +361,22 @@ fn solve(tent: Triple, axis_limit: Triple, negative: bool) -> RebaseTentResult {
  * If tent value is Triple{}, that is a special deltaset that should
  * be always-enabled (called "gain").
  */
-pub(crate) fn rebase_tent(
-    tent: Triple,
-    axis_limit: Triple,
-    axis_triple_distances: TripleDistances,
-) -> RebaseTentResult {
-    debug_assert!(-1.0 <= axis_limit.minimum && axis_limit.minimum <= axis_limit.middle);
-    debug_assert!(axis_limit.middle <= axis_limit.maximum && axis_limit.maximum <= 1.0);
-    debug_assert!(-2.0 <= tent.minimum && tent.minimum <= tent.middle);
-    debug_assert!(tent.middle <= tent.maximum && tent.maximum <= 2.0);
-    debug_assert!(tent.middle.abs() >= f32::EPSILON, "tent middle was zero",);
+pub(crate) fn rebase_tent<F: Float + std::fmt::Debug + Copy + Default + PartialEq>(
+    tent: Triple<F>,
+    axis_limit: Triple<F>,
+    axis_triple_distances: TripleDistances<F>,
+) -> RebaseTentResult<F> {
+    debug_assert!(axis_limit.minimum <= axis_limit.middle);
+    debug_assert!(axis_limit.middle <= axis_limit.maximum);
+    debug_assert!(tent.minimum <= tent.middle);
+    debug_assert!(tent.middle <= tent.maximum);
+    debug_assert!(tent.middle != F::zero(), "tent middle was zero",);
 
     let sols = solve(tent, axis_limit, false);
 
     let mut out = Vec::new();
     for (scalar, sol_tent) in sols {
-        if scalar == 0.0 {
+        if scalar == F::zero() {
             continue;
         }
         if sol_tent == Triple::default() {
@@ -409,7 +403,7 @@ mod tests {
         (a - b).abs() < 0.000001
     }
 
-    fn approx_triple(a: Triple, b: Triple) -> bool {
+    fn approx_triple(a: Triple<f32>, b: Triple<f32>) -> bool {
         approx(a.minimum, b.minimum) && approx(a.middle, b.middle) && approx(a.maximum, b.maximum)
     }
 
@@ -936,7 +930,7 @@ mod tests {
         assert_triple_approx(&out[0].1, &Triple::new(0.5, 0.625, 0.75));
     }
 
-    fn assert_triple_approx(a: &Triple, b: &Triple) {
+    fn assert_triple_approx(a: &Triple<f32>, b: &Triple<f32>) {
         assert!(
             approx_triple(*a, *b),
             "Triples not approximately equal: {:?} vs {:?}",

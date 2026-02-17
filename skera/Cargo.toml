@@ -19,6 +19,7 @@ font-types = { workspace = true }
 hashbrown = "0.15.1"
 libtest-mimic = "0.8.1"
 log = "0.4.29"
+num-traits = "0.2.18"
 regex = "1.10.4"
 skrifa = { workspace = true, features = ["skera"] }
 thiserror = "1.0.58"

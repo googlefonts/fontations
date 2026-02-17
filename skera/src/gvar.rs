@@ -199,8 +199,8 @@ fn instantiate_gvar(
 
 fn instantiate_tuple(
     variation_data: TupleVariationData<'_, GlyphDelta>,
-    normalized_axes_location: &FnvHashMap<Tag, Triple>,
-    axes_triple_distances: &FnvHashMap<Tag, TripleDistances>,
+    normalized_axes_location: &FnvHashMap<Tag, Triple<f64>>,
+    axes_triple_distances: &FnvHashMap<Tag, TripleDistances<f64>>,
     axes_old_index_tag_map: &FnvHashMap<usize, Tag>,
     axis_tags: &[Tag],
     all_points: &ContourPoints,
@@ -298,8 +298,8 @@ type RebasedTuples = Vec<(f32, Vec<write_fonts::tables::gvar::Tent>, bool)>;
 /// Change tuple variations by instantiating at the given axis limits
 fn change_tuple_variations_axis_limits(
     tuple: &TupleVariation<'_, GlyphDelta>,
-    normalized_axes_location: &FnvHashMap<Tag, Triple>,
-    axes_triple_distances: &FnvHashMap<Tag, TripleDistances>,
+    normalized_axes_location: &FnvHashMap<Tag, Triple<f64>>,
+    axes_triple_distances: &FnvHashMap<Tag, TripleDistances<f64>>,
     axes_old_index_tag_map: &FnvHashMap<usize, Tag>,
     axis_tags: &[Tag],
 ) -> RebasedTuples {
@@ -323,7 +323,7 @@ fn change_tuple_variations_axis_limits(
     };
 
     // Start with the original tuple represented by one result
-    let mut results: Vec<(f32, FnvHashMap<Tag, Triple>)> = vec![(1.0, {
+    let mut results: Vec<(f32, FnvHashMap<Tag, Triple<f64>>)> = vec![(1.0, {
         let mut m = FnvHashMap::default();
         for idx in 0..peak.len() {
             let axis_tag = match axes_old_index_tag_map.get(&idx) {
@@ -357,7 +357,10 @@ fn change_tuple_variations_axis_limits(
                         }
                     });
 
-                m.insert(axis_tag, Triple::new(min_val, peak_val.to_f32(), max_val));
+                m.insert(
+                    axis_tag,
+                    Triple::new(min_val.into(), peak_val.to_f32().into(), max_val.into()),
+                );
             }
         }
         m
@@ -414,7 +417,7 @@ fn change_tuple_variations_axis_limits(
                         } else {
                             new_tents.insert(*axis_tag, new_tent);
                         }
-                        new_results.push((scalar * sub_scalar, new_tents));
+                        new_results.push((scalar * sub_scalar as f32, new_tents));
                     }
                 } else {
                     // Axis not in this tuple, keep as is
@@ -494,7 +497,7 @@ fn convert_peak_to_tents(
 /// Convert a tent map back to tents vector, and determine if it has intermediate coordinates
 fn convert_tent_map_to_tents_with_flag(
     axis_tags: &[Tag],
-    tent_map: FnvHashMap<Tag, Triple>,
+    tent_map: FnvHashMap<Tag, Triple<f64>>,
 ) -> (Vec<write_fonts::tables::gvar::Tent>, bool) {
     let mut has_intermediate = false;
 
@@ -502,9 +505,9 @@ fn convert_tent_map_to_tents_with_flag(
         .iter()
         .filter_map(|axis_tag| {
             if let Some(tent) = tent_map.get(axis_tag) {
-                let peak = F2Dot14::from_f32(tent.middle);
-                let min = F2Dot14::from_f32(tent.minimum);
-                let max = F2Dot14::from_f32(tent.maximum);
+                let peak = F2Dot14::from_f32(tent.middle as f32);
+                let min = F2Dot14::from_f32(tent.minimum as f32);
+                let max = F2Dot14::from_f32(tent.maximum as f32);
 
                 // Check if we need explicit intermediate values
                 let inferred_min = if tent.middle > 0.0 { 0.0 } else { tent.middle };

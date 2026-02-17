@@ -145,9 +145,9 @@ fn new_coords(
     Some(new_coords)
 }
 
-fn axis_coord_pinned_or_within_axis_range(coord: Option<Fixed>, axis_limit: &Triple) -> bool {
+fn axis_coord_pinned_or_within_axis_range(coord: Option<Fixed>, axis_limit: &Triple<f64>) -> bool {
     if let Some(coord) = coord {
-        let axis_coord = coord.to_f32();
+        let axis_coord = coord.to_f32() as f64;
         if axis_limit.is_point() {
             if axis_limit.minimum != axis_coord {
                 return false;
