@@ -1744,10 +1744,8 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Hdmx::TAG))?
             .subset(plan, font, s, builder),
 
-        Head::TAG => font
-            .head()
-            .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?
-            .subset(plan, font, s, builder),
+        //Skip, handled by glyf
+        Head::TAG => Ok(()),
 
         //Skip, handled by Hmtx
         Hhea::TAG => Ok(()),
