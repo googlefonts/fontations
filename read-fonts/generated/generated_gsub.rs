@@ -1702,7 +1702,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Number of glyphs in lookahead sequence.
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to coverage tables in lookahead sequence, in
@@ -1722,7 +1722,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Number of glyph IDs in the substituteGlyphIDs array.
     pub fn glyph_count(&self) -> u16 {
         let range = self.glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of substitute glyph IDs — ordered by Coverage index.

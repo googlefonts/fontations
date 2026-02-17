@@ -1116,7 +1116,7 @@ impl<'a> Cmap8<'a> {
     /// Number of groupings which follow
     pub fn num_groups(&self) -> u32 {
         let range = self.num_groups_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of SequentialMapGroup records.

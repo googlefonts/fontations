@@ -83,12 +83,12 @@ impl<'a> BasicTable<'a> {
 
     pub fn arrays_inner_count(&self) -> u16 {
         let range = self.arrays_inner_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn array_records_count(&self) -> u32 {
         let range = self.array_records_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {

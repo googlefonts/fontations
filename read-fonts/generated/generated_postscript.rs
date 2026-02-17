@@ -470,7 +470,7 @@ impl<'a> FdSelectFormat3<'a> {
     /// Sentinel GID. Set equal to the number of glyphs in the font.
     pub fn sentinel(&self) -> u16 {
         let range = self.sentinel_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 }
 
@@ -628,7 +628,7 @@ impl<'a> FdSelectFormat4<'a> {
     /// Sentinel GID. Set equal to the number of glyphs in the font.
     pub fn sentinel(&self) -> u32 {
         let range = self.sentinel_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 }
 

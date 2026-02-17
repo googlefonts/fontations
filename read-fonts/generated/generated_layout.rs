@@ -3039,7 +3039,7 @@ impl<'a> ChainedSequenceRule<'a> {
     /// Number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.input_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of input glyph IDs—start with second glyph
@@ -3051,7 +3051,7 @@ impl<'a> ChainedSequenceRule<'a> {
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of lookahead glyph IDs
@@ -3063,7 +3063,7 @@ impl<'a> ChainedSequenceRule<'a> {
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of SequenceLookupRecords
@@ -3547,7 +3547,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
     /// Total number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.input_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of input sequence classes, beginning with the second
@@ -3560,7 +3560,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of lookahead-sequence classes
@@ -3572,7 +3572,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of SequenceLookupRecords
@@ -3749,7 +3749,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.input_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to coverage tables for the input sequence
@@ -3768,7 +3768,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.lookahead_glyph_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of offsets to coverage tables for the lookahead sequence
@@ -3787,7 +3787,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
         let range = self.seq_lookup_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of SequenceLookupRecords
