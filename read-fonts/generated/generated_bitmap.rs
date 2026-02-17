@@ -1617,7 +1617,7 @@ impl<'a> IndexSubtable5<'a> {
     /// Array length.
     pub fn num_glyphs(&self) -> u32 {
         let range = self.num_glyphs_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// One per glyph, sorted by glyhph ID.

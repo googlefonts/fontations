@@ -192,7 +192,7 @@ impl<'a> SimpleGlyph<'a> {
     /// field is followed directly by the flags field.
     pub fn instruction_length(&self) -> u16 {
         let range = self.instruction_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     /// Array of instruction byte code for the glyph.

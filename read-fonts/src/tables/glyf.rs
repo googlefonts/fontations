@@ -1061,4 +1061,35 @@ mod tests {
         let midpoint = a.midpoint(b);
         assert_eq!(midpoint.to_bits(), expected);
     }
+
+    // SimpleGlyph should not panic on truncated data.
+    //
+    // SimpleGlyph has a variable-length array (end_pts_of_contours) followed
+    // by a scalar field (instruction_length). The MIN_SIZE validation only
+    // checks that the fixed-size fields fit, but doesn't account for the
+    // array's runtime length. This causes a panic when accessing fields
+    // that come after the array if the data is truncated.
+    #[test]
+    fn simple_glyph_truncated_data() {
+        use font_test_data::bebuffer::BeBuffer;
+
+        // Build a SimpleGlyph with number_of_contours = 100
+        // This means end_pts_of_contours should be 200 bytes,
+        // pushing instruction_length to offset 210.
+        // But we only provide 12 bytes (MIN_SIZE).
+        let buf = BeBuffer::new()
+            .push(100_i16) // number_of_contours = 100
+            .push(0_i16) // x_min
+            .push(0_i16) // y_min
+            .push(0_i16) // x_max
+            .push(0_i16) // y_max
+            .push(0_u16); // would be first element of end_pts_of_contours
+
+        // Parsing succeeds - we have MIN_SIZE (12) bytes
+        let glyph = SimpleGlyph::read(buf.data().into()).unwrap();
+        assert_eq!(glyph.number_of_contours(), 100);
+
+        // return default value instead of panicking
+        assert_eq!(glyph.instruction_length(), 0);
+    }
 }
