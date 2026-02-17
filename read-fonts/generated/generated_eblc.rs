@@ -43,27 +43,23 @@ impl<'a> Eblc<'a> {
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn minor_version_byte_range(&self) -> Range<usize> {
         let start = self.major_version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn num_sizes_byte_range(&self) -> Range<usize> {
         let start = self.minor_version_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
         let num_sizes = self.num_sizes();
         let start = self.num_sizes_byte_range().end;
-        let end = start + (num_sizes as usize).saturating_mul(BitmapSize::RAW_BYTE_LEN);
-        start..end
+        start..start + (num_sizes as usize).saturating_mul(BitmapSize::RAW_BYTE_LEN)
     }
 
     /// Major version of the EBLC table, = 2.

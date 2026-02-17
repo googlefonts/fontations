@@ -47,32 +47,27 @@ impl<'a> Trak<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
-        start..end
+        start..start + MajorMinor::RAW_BYTE_LEN
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn horiz_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn vert_offset_byte_range(&self) -> Range<usize> {
         let start = self.horiz_offset_byte_range().end;
-        let end = start + Offset16::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset16::RAW_BYTE_LEN
     }
 
     pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.vert_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     /// Version number of the tracking table (0x00010000 for the current version).
@@ -175,27 +170,23 @@ impl<'a> TrackData<'a> {
 
     pub fn n_tracks_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn n_sizes_byte_range(&self) -> Range<usize> {
         let start = self.n_tracks_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn size_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.n_sizes_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn track_table_byte_range(&self) -> Range<usize> {
         let n_tracks = self.n_tracks();
         let start = self.size_table_offset_byte_range().end;
-        let end = start + (n_tracks as usize).saturating_mul(TrackTableEntry::RAW_BYTE_LEN);
-        start..end
+        start..start + (n_tracks as usize).saturating_mul(TrackTableEntry::RAW_BYTE_LEN)
     }
 
     /// Number of separate tracks included in this table.

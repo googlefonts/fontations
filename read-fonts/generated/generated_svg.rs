@@ -43,20 +43,17 @@ impl<'a> Svg<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.svg_document_list_offset_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     /// Table version (starting at 0). Set to 0.
@@ -137,15 +134,13 @@ impl<'a> SVGDocumentList<'a> {
 
     pub fn num_entries_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn document_records_byte_range(&self) -> Range<usize> {
         let num_entries = self.num_entries();
         let start = self.num_entries_byte_range().end;
-        let end = start + (num_entries as usize).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN);
-        start..end
+        start..start + (num_entries as usize).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN)
     }
 
     /// Number of SVGDocumentRecords. Must be non-zero.

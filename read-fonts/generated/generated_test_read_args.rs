@@ -58,18 +58,18 @@ impl<'a> BaseArray<'a> {
 
     pub fn base_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn base_records_byte_range(&self) -> Range<usize> {
         let base_count = self.base_count();
         let start = self.base_count_byte_range().end;
-        let end = start
-            + (base_count as usize).saturating_mul(
-                <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count()).unwrap_or(0),
-            );
-        start..end
+        start
+            ..start
+                + (base_count as usize).saturating_mul(
+                    <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count())
+                        .unwrap_or(0),
+                )
     }
 
     /// Number of BaseRecords

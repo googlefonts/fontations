@@ -747,104 +747,87 @@ impl<'a> Head<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
-        start..end
+        start..start + MajorMinor::RAW_BYTE_LEN
     }
 
     pub fn font_revision_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Fixed::RAW_BYTE_LEN;
-        start..end
+        start..start + Fixed::RAW_BYTE_LEN
     }
 
     pub fn checksum_adjustment_byte_range(&self) -> Range<usize> {
         let start = self.font_revision_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn magic_number_byte_range(&self) -> Range<usize> {
         let start = self.checksum_adjustment_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.magic_number_byte_range().end;
-        let end = start + Flags::RAW_BYTE_LEN;
-        start..end
+        start..start + Flags::RAW_BYTE_LEN
     }
 
     pub fn units_per_em_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn created_byte_range(&self) -> Range<usize> {
         let start = self.units_per_em_byte_range().end;
-        let end = start + LongDateTime::RAW_BYTE_LEN;
-        start..end
+        start..start + LongDateTime::RAW_BYTE_LEN
     }
 
     pub fn modified_byte_range(&self) -> Range<usize> {
         let start = self.created_byte_range().end;
-        let end = start + LongDateTime::RAW_BYTE_LEN;
-        start..end
+        start..start + LongDateTime::RAW_BYTE_LEN
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.modified_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn mac_style_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
-        let end = start + MacStyle::RAW_BYTE_LEN;
-        start..end
+        start..start + MacStyle::RAW_BYTE_LEN
     }
 
     pub fn lowest_rec_ppem_byte_range(&self) -> Range<usize> {
         let start = self.mac_style_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn font_direction_hint_byte_range(&self) -> Range<usize> {
         let start = self.lowest_rec_ppem_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn index_to_loc_format_byte_range(&self) -> Range<usize> {
         let start = self.font_direction_hint_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     pub fn glyph_data_format_byte_range(&self) -> Range<usize> {
         let start = self.index_to_loc_format_byte_range().end;
-        let end = start + i16::RAW_BYTE_LEN;
-        start..end
+        start..start + i16::RAW_BYTE_LEN
     }
 
     /// Version number of the font header table, set to (1, 0)

@@ -48,38 +48,32 @@ impl<'a> Vvar<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
-        start..end
+        start..start + MajorMinor::RAW_BYTE_LEN
     }
 
     pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn advance_height_mapping_offset_byte_range(&self) -> Range<usize> {
         let start = self.item_variation_store_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn tsb_mapping_offset_byte_range(&self) -> Range<usize> {
         let start = self.advance_height_mapping_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn bsb_mapping_offset_byte_range(&self) -> Range<usize> {
         let start = self.tsb_mapping_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     pub fn v_org_mapping_offset_byte_range(&self) -> Range<usize> {
         let start = self.bsb_mapping_offset_byte_range().end;
-        let end = start + Offset32::RAW_BYTE_LEN;
-        start..end
+        start..start + Offset32::RAW_BYTE_LEN
     }
 
     /// Major version number of the horizontal metrics variations table — set to 1.

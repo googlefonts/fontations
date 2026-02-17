@@ -65,16 +65,13 @@ impl<'a> Vmtx<'a> {
     pub fn v_metrics_byte_range(&self) -> Range<usize> {
         let number_of_long_ver_metrics = self.number_of_long_ver_metrics();
         let start = 0;
-        let end =
-            start + (number_of_long_ver_metrics as usize).saturating_mul(LongMetric::RAW_BYTE_LEN);
-        start..end
+        start
+            ..start + (number_of_long_ver_metrics as usize).saturating_mul(LongMetric::RAW_BYTE_LEN)
     }
 
     pub fn top_side_bearings_byte_range(&self) -> Range<usize> {
         let start = self.v_metrics_byte_range().end;
-        let end =
-            start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
-        start..end
+        start..start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN
     }
 
     /// Paired advance height and top side bearing values for each

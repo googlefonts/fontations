@@ -44,33 +44,28 @@ impl<'a> Feat<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
-        start..end
+        start..start + MajorMinor::RAW_BYTE_LEN
     }
 
     pub fn feature_name_count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn _reserved1_byte_range(&self) -> Range<usize> {
         let start = self.feature_name_count_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn _reserved2_byte_range(&self) -> Range<usize> {
         let start = self._reserved1_byte_range().end;
-        let end = start + u32::RAW_BYTE_LEN;
-        start..end
+        start..start + u32::RAW_BYTE_LEN
     }
 
     pub fn names_byte_range(&self) -> Range<usize> {
         let feature_name_count = self.feature_name_count();
         let start = self._reserved2_byte_range().end;
-        let end = start + (feature_name_count as usize).saturating_mul(FeatureName::RAW_BYTE_LEN);
-        start..end
+        start..start + (feature_name_count as usize).saturating_mul(FeatureName::RAW_BYTE_LEN)
     }
 
     /// Version number of the feature name table (0x00010000 for the current
@@ -262,8 +257,7 @@ impl<'a> SettingNameArray<'a> {
     pub fn settings_byte_range(&self) -> Range<usize> {
         let n_settings = self.n_settings();
         let start = 0;
-        let end = start + (n_settings as usize).saturating_mul(SettingName::RAW_BYTE_LEN);
-        start..end
+        start..start + (n_settings as usize).saturating_mul(SettingName::RAW_BYTE_LEN)
     }
 
     /// List of setting names for a feature.

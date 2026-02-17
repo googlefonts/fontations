@@ -931,8 +931,7 @@ impl Table {
                 pub fn #fn_name(&self) -> Range<usize> {
                     #( #required_field_decls )*
                     let start = #prev_field_end_expr;
-                    let end = #end_expr;
-                    start..end
+                    start..#end_expr
                 }
             };
             prev_field_end_expr = quote!( self.#fn_name().end );

@@ -43,46 +43,42 @@ impl<'a> Avar<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + MajorMinor::RAW_BYTE_LEN;
-        start..end
+        start..start + MajorMinor::RAW_BYTE_LEN
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn axis_segment_maps_byte_range(&self) -> Range<usize> {
         let axis_count = self.axis_count();
         let start = self.axis_count_byte_range().end;
-        let end = start + {
+        start..start + {
             let data = self.data.split_off(start).unwrap_or_default();
             <SegmentMaps as VarSize>::total_len_for_count(data, axis_count as usize).unwrap_or(0)
-        };
-        start..end
+        }
     }
 
     pub fn axis_index_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.axis_segment_maps_byte_range().end;
-        let end = (self.version().compatible((2u16, 0u16)))
-            .then(|| start + Offset32::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((2u16, 0u16)))
+                .then(|| start + Offset32::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     pub fn var_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.axis_index_map_offset_byte_range().end;
-        let end = (self.version().compatible((2u16, 0u16)))
-            .then(|| start + Offset32::RAW_BYTE_LEN)
-            .unwrap_or(start);
-        start..end
+        start
+            ..(self.version().compatible((2u16, 0u16)))
+                .then(|| start + Offset32::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 
     /// Major version number of the axis variations table — set to 1 or 2.

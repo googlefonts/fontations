@@ -43,21 +43,18 @@ impl<'a> Gasp<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn num_ranges_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        let end = start + u16::RAW_BYTE_LEN;
-        start..end
+        start..start + u16::RAW_BYTE_LEN
     }
 
     pub fn gasp_ranges_byte_range(&self) -> Range<usize> {
         let num_ranges = self.num_ranges();
         let start = self.num_ranges_byte_range().end;
-        let end = start + (num_ranges as usize).saturating_mul(GaspRange::RAW_BYTE_LEN);
-        start..end
+        start..start + (num_ranges as usize).saturating_mul(GaspRange::RAW_BYTE_LEN)
     }
 
     /// Version number (set to 1)
