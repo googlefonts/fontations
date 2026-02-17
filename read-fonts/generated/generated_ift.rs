@@ -657,7 +657,7 @@ impl<'a> PatchMapFormat1<'a> {
 
     pub fn url_template_length(&self) -> u16 {
         let range = self.url_template_length_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn url_template(&self) -> &'a [u8] {
@@ -668,7 +668,7 @@ impl<'a> PatchMapFormat1<'a> {
     /// Patch format number for patches referenced by this mapping.
     pub fn patch_format(&self) -> u8 {
         let range = self.patch_format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 
     pub fn cff_charstrings_offset(&self) -> Option<u32> {

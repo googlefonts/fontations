@@ -1299,9 +1299,12 @@ impl Items {
             for field in fields.iter_mut() {
                 resolve_field(&known, field)?;
             }
+            // Mark fields as validated_at_parse if they have a known, fixed size
+            // and appear before any variable-length fields (arrays).
+            // Arrays return Some(empty token), so we stop when we see one.
             for field in fields
                 .iter_mut()
-                .take_while(|fld| fld.known_min_size_stmt().is_some())
+                .take_while(|fld| fld.known_min_size_stmt().is_some_and(|t| !t.is_empty()))
             {
                 field.validated_at_parse = true;
             }

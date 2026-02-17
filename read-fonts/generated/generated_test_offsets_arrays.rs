@@ -718,7 +718,7 @@ impl<'a> VarLenHaver<'a> {
 
     pub fn other_field(&self) -> u32 {
         let range = self.other_field_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        self.data.read_at(range.start).ok().unwrap_or_default()
     }
 }
 

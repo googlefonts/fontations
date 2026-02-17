@@ -522,10 +522,11 @@ impl Field {
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
                 Some(quote!(#typ :: RAW_BYTE_LEN))
             }
-            FieldType::Array { .. } | FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
-                Some(Default::default())
-            }
-            FieldType::Struct { typ } => Some(quote!( #typ :: MIN_SIZE  )),
+            FieldType::Array { .. }
+            | FieldType::ComputedArray(_)
+            | FieldType::VarLenArray(_)
+            | FieldType::Struct { .. } => Some(Default::default()),
+            //FieldType::Struct { typ } => Some(quote!( #typ :: MIN_SIZE  )),
             FieldType::PendingResolution { .. } => panic!("resolved before now"),
         }
     }
@@ -738,14 +739,17 @@ impl Field {
         let is_array = self.is_array();
         let is_var_array = self.is_var_array();
         let is_conditional = self.is_conditional();
+
+        //// if a field is non-conditional we will always return some value, even
+        //// if the data is malformed.
+        //let maybe_unwrap_or_def = (!is_conditional).then(|| quote!( .unwrap_or_default() ));
         let maybe_unwrap = self.validated_at_parse.then(|| quote!( .unwrap() ));
         // for fields that have lengths calculated based on other inputs,
         // it's possible we don't have enough bytes and reading could fail.
         // When these are non-optional, we use unwrap_or_default so that we
         // are always returning a value.
-        let maybe_unwrap_or_def = self
-            .validated_at_parse
-            .then(|| quote!( .unwrap_or_default() ));
+        let maybe_unwrap_or_def =
+            (maybe_unwrap.is_none() && !is_conditional).then(|| quote!( .unwrap_or_default() ));
 
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
@@ -756,7 +760,7 @@ impl Field {
         } else if is_array {
             quote!(self.data.read_array(range).ok() #maybe_unwrap_or_def)
         } else {
-            quote!(self.data.read_at(range.start).ok() #maybe_unwrap)
+            quote!(self.data.read_at(range.start).ok() #maybe_unwrap #maybe_unwrap_or_def)
         };
         if is_conditional {
             read_stmt = quote! { (!range.is_empty()).then(||#read_stmt).flatten() };
