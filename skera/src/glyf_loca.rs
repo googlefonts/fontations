@@ -87,7 +87,7 @@ impl Subset for Glyf<'_> {
         let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
         let loca_out = write_glyf_loca(font, plan, s, loca_format, &subset_glyphs)?;
 
-        let head_out = subset_head(&head, loca_format);
+        let head_out = crate::head::subset_head(&head, loca_format, plan);
 
         builder.add_raw(Loca::TAG, loca_out);
         builder.add_raw(Head::TAG, head_out);
@@ -371,14 +371,6 @@ fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
     }
     i += coord_bytes;
     i
-}
-
-fn subset_head(head: &Head, loca_format: u8) -> Vec<u8> {
-    let mut out = head.offset_data().as_bytes().to_owned();
-    out.get_mut(50..52)
-        .unwrap()
-        .copy_from_slice(&[0, loca_format]);
-    out
 }
 
 fn instantiate_and_subset_glyph(

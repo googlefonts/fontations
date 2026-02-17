@@ -45,37 +45,34 @@ impl HeadMaxpInfo {
     }
 }
 
-// reference: subset() for head in harfbuzz
-// https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-head-table.hh#L63
-impl Subset for Head<'_> {
-    fn subset(
-        &self,
-        plan: &Plan,
-        _font: &FontRef,
-        s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
-        s.embed_bytes(self.offset_data().as_bytes())
-            .map_err(|_| SubsetError::SubsetTableError(Head::TAG))?;
+pub(crate) fn subset_head(head: &Head, loca_format: u8, plan: &Plan) -> Vec<u8> {
+    let mut out = head.offset_data().as_bytes().to_owned();
+    if !plan.normalized_coords.is_empty() {
+        let x_min_start = head.shape().x_min_byte_range().start;
+        let x_min = plan.head_maxp_info.borrow().x_min;
 
-        if !plan.normalized_coords.is_empty() {
-            s.copy_assign(
-                self.shape().x_min_byte_range().start,
-                plan.head_maxp_info.borrow_mut().x_min,
-            );
-            s.copy_assign(
-                self.shape().x_max_byte_range().start,
-                plan.head_maxp_info.borrow_mut().x_max,
-            );
-            s.copy_assign(
-                self.shape().y_min_byte_range().start,
-                plan.head_maxp_info.borrow_mut().y_min,
-            );
-            s.copy_assign(
-                self.shape().y_max_byte_range().start,
-                plan.head_maxp_info.borrow_mut().y_max,
-            );
-        }
-        Ok(())
+        out.get_mut(x_min_start..x_min_start + 2)
+            .unwrap()
+            .copy_from_slice(&x_min.to_be_bytes());
+
+        let x_max_start = head.shape().x_max_byte_range().start;
+        let x_max = plan.head_maxp_info.borrow().x_max;
+        out.get_mut(x_max_start..x_max_start + 2)
+            .unwrap()
+            .copy_from_slice(&x_max.to_be_bytes());
+        let y_min_start = head.shape().y_min_byte_range().start;
+        let y_min = plan.head_maxp_info.borrow().y_min;
+        out.get_mut(y_min_start..y_min_start + 2)
+            .unwrap()
+            .copy_from_slice(&y_min.to_be_bytes());
+        let y_max_start = head.shape().y_max_byte_range().start;
+        let y_max = plan.head_maxp_info.borrow().y_max;
+        out.get_mut(y_max_start..y_max_start + 2)
+            .unwrap()
+            .copy_from_slice(&y_max.to_be_bytes());
     }
+    out.get_mut(50..52)
+        .unwrap()
+        .copy_from_slice(&[0, loca_format]);
+    out
 }
