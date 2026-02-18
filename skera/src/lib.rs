@@ -68,6 +68,7 @@ use skrifa::{
             avar::Avar,
             fvar::Fvar,
             glyf::PointFlags,
+            stat::Stat,
             variations::{DeltaSetIndex, ItemVariationStore, NO_VARIATION_INDEX},
         },
         ReadError,
@@ -1839,6 +1840,10 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Sbix::TAG))?
             .subset(plan, font, s, builder),
 
+        Stat::TAG => font
+            .stat()
+            .map_err(|_| SubsetError::SubsetTableError(Stat::TAG))?
+            .subset(plan, font, s, builder),
         Vorg::TAG => font
             .vorg()
             .map_err(|_| SubsetError::SubsetTableError(Vorg::TAG))?
