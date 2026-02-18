@@ -28,7 +28,7 @@ use write_fonts::{
         FontRef, TableProvider, TopLevelTable,
     },
     tables::glyf::{Component, CompositeGlyph as WriteCompositeGlyph, Contour},
-    FontBuilder, TableWriter,
+    FontBuilder, OtRound, TableWriter,
 };
 
 pub(crate) const PHANTOM_POINT_COUNT: usize = 4;
@@ -406,14 +406,14 @@ fn instantiate_and_subset_glyph(
             let mut y_max = 0;
             for point in contour_points.0 {
                 last_contour.push(CurvePoint {
-                    x: point.x as i16,
-                    y: point.y as i16,
+                    x: point.x.ot_round(),
+                    y: point.y.ot_round(),
                     on_curve: point.is_on_curve,
                 });
-                x_min = x_min.min(point.x as i16);
-                y_min = y_min.min(point.y as i16);
-                x_max = x_max.max(point.x as i16);
-                y_max = y_max.max(point.y as i16);
+                x_min = x_min.min(point.x.ot_round());
+                y_min = y_min.min(point.y.ot_round());
+                x_max = x_max.max(point.x.ot_round());
+                y_max = y_max.max(point.y.ot_round());
                 if point.is_end_point {
                     simple_glyph.contours.push(last_contour.into());
                     last_contour = vec![];
@@ -447,8 +447,8 @@ fn instantiate_and_subset_glyph(
                 if let Anchor::Offset { x, y } = component.anchor {
                     let delta = deltas.get(ix).unwrap_or(&Point { x: 0.0, y: 0.0 });
                     new_component.anchor = Anchor::Offset {
-                        x: x + delta.x as i16,
-                        y: y + delta.y as i16,
+                        x: (x as f32 + delta.x).ot_round(),
+                        y: (y as f32 + delta.y).ot_round(),
                     };
                     ix += 1;
                 }
