@@ -1702,10 +1702,15 @@ fn subset_table<'a>(
     log::debug!("Subsetting table {:?} with dependencies", tag);
 
     match tag {
-        Avar::TAG => font
-            .avar()
-            .map_err(|_| SubsetError::SubsetTableError(Avar::TAG))?
-            .subset(plan, font, s, builder),
+        Avar::TAG => {
+            if plan.axes_index_map.is_empty() {
+                passthrough_table(tag, font, s)
+            } else {
+                font.avar()
+                    .map_err(|_| SubsetError::SubsetTableError(Avar::TAG))?
+                    .subset(plan, font, s, builder)
+            }
+        }
 
         Base::TAG => font
             .base()
@@ -1737,10 +1742,15 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Cpal::TAG))?
             .subset(plan, font, s, builder),
 
-        Fvar::TAG => font
-            .fvar()
-            .map_err(|_| SubsetError::SubsetTableError(Fvar::TAG))?
-            .subset(plan, font, s, builder),
+        Fvar::TAG => {
+            if plan.axes_index_map.is_empty() {
+                passthrough_table(tag, font, s)
+            } else {
+                font.fvar()
+                    .map_err(|_| SubsetError::SubsetTableError(Fvar::TAG))?
+                    .subset(plan, font, s, builder)
+            }
+        }
 
         Gdef::TAG => font
             .gdef()
