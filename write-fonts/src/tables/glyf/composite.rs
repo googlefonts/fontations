@@ -190,6 +190,14 @@ impl CompositeGlyph {
     pub fn components(&self) -> &[Component] {
         &self.components
     }
+
+    pub fn add_instructions(&mut self, instructions: impl Into<Vec<u8>>) {
+        self._instructions.extend(instructions.into());
+    }
+
+    pub fn instructions(&self) -> &[u8] {
+        &self._instructions
+    }
 }
 
 impl FontWrite for CompositeGlyph {
