@@ -13,14 +13,24 @@ impl NameIdClosure for Fvar<'_> {
         let Ok(axis_instance_array) = self.axis_instance_arrays() else {
             return;
         };
-        plan.name_ids
-            .extend_unsorted(axis_instance_array.axes().iter().map(|x| x.axis_name_id()));
-
+        for axis in axis_instance_array.axes() {
+            let tag = axis.axis_tag();
+            if let Some(loc) = plan.user_axes_location.get(&tag) {
+                if loc.is_point() {
+                    continue;
+                }
+            }
+            plan.name_ids.insert(axis.axis_name_id());
+        }
+        let old_axis_count = self.axis_count();
         for instance_record in axis_instance_array
             .instances()
             .iter()
             .filter_map(|x| x.ok())
         {
+            if new_coords(&instance_record, plan, old_axis_count as usize).is_none() {
+                continue;
+            }
             plan.name_ids.insert(instance_record.subfamily_name_id);
             if let Some(name_id) = instance_record.post_script_name_id {
                 plan.name_ids.insert(name_id);
