@@ -6,17 +6,19 @@
 //! To generate the expected output files, pass GEN_EXPECTED_OUTPUTS=1 as an
 //! environment variable.
 
-use libtest_mimic::{Arguments, Failed, Trial};
+use libtest_mimic::{Arguments, Trial};
+use similar::TextDiff;
 use skera::{parse_unicodes, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES};
 use skrifa::GlyphId;
 use std::{
+    collections::{HashMap, HashSet},
     fmt::Write,
     fs,
     iter::Peekable,
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
-use tempdir::TempDir;
+use tempfile::Builder;
 use write_fonts::{
     read::{collections::IntSet, FontRef},
     types::{NameId, Tag},
@@ -350,14 +352,18 @@ impl SubsetTestCase {
     }
 
     fn gen_expected_output(&self) {
-        let output_temp_dir = TempDir::new_in(".", "skera_test").unwrap();
-        let output_dir = output_temp_dir.path();
+        let output_temp_dir = Builder::new().prefix("skera_test").tempdir_in(".").unwrap();
+        let output_dir = output_temp_dir.into_path();
         for font in &self.fonts {
             for profile in &self.profiles {
                 for subset in &self.subsets {
                     if self.instances.is_empty() {
                         self.gen_expected_output_for_one_test(
-                            font, subset, profile, None, output_dir,
+                            font,
+                            subset,
+                            profile,
+                            None,
+                            &output_dir,
                         );
                     } else {
                         for instance in &self.instances {
@@ -366,7 +372,7 @@ impl SubsetTestCase {
                                 subset,
                                 profile,
                                 Some(instance.as_str()),
-                                output_dir,
+                                &output_dir,
                             );
                         }
                     }
@@ -582,90 +588,64 @@ fn assert_check_ots(file: &Path) {
     )
 }
 
-fn write_lines(
-    f: &mut impl Write,
-    lines: &[&str],
-    line_num: usize,
-    current_table: Option<&str>,
-    prefix: char,
-) {
-    writeln!(f, "L{} <{}", line_num, current_table.unwrap_or("")).unwrap();
-    for line in lines {
-        writeln!(f, "{}  {}", prefix, line).unwrap();
-    }
-}
-
 fn diff_ttx(expected_ttx: &Path, output_ttx: &Path) -> String {
     let expected = fs::read_to_string(expected_ttx).unwrap();
     let output = fs::read_to_string(output_ttx).unwrap();
-    let lines = diff::lines(&expected, &output);
-
+    let expected_per_table: HashMap<String, Vec<String>> = split_into_tables(&expected);
+    let output_per_table: HashMap<String, Vec<String>> = split_into_tables(&output);
+    let all_tables = expected_per_table
+        .keys()
+        .chain(output_per_table.keys())
+        .collect::<HashSet<_>>();
     let mut result = String::new();
-    let mut temp: Vec<&str> = Vec::new();
-    let mut left_or_right = None;
-    let mut section_start = 0;
-    let mut current_table = None;
-
-    for (i, line) in lines.iter().enumerate() {
-        match line {
-            diff::Result::Left(line) => {
-                if line.contains("checkSumAdjustment value=") {
-                    continue;
+    for table in all_tables {
+        match (expected_per_table.get(table), output_per_table.get(table)) {
+            (Some(expected_lines), Some(output_lines)) => {
+                if expected_lines != output_lines {
+                    result += &(format!("\nDifference found in table '{table}':\n")
+                        + &TextDiff::from_lines(
+                            &expected_lines.join("\n"),
+                            &output_lines.join("\n"),
+                        )
+                        .unified_diff()
+                        .header("Expected", "Output")
+                        .to_string()
+                        + "\n\n");
                 }
-                if let Some(tag) = line.strip_prefix("  <") {
-                    if !tag.starts_with("/") {
-                        current_table = Some(tag);
-                    }
-                }
-                if left_or_right == Some('R') {
-                    write_lines(&mut result, &temp, section_start, current_table, '<');
-                    temp.clear();
-                } else if left_or_right != Some('L') {
-                    section_start = i;
-                }
-                temp.push(line);
-                left_or_right = Some('L');
             }
-            diff::Result::Right(line) => {
-                if line.contains("checkSumAdjustment value=") {
-                    continue;
-                }
-                if let Some(tag) = line.strip_prefix("  <") {
-                    if !tag.starts_with("/") {
-                        current_table = Some(tag);
-                    }
-                }
-                if left_or_right == Some('L') {
-                    write_lines(&mut result, &temp, section_start, current_table, '>');
-                    temp.clear();
-                } else if left_or_right != Some('R') {
-                    section_start = i;
-                }
-                temp.push(line);
-                left_or_right = Some('R');
+            (Some(_), None) => {
+                result += &format!("Output did not contain table {table}\n");
             }
-            diff::Result::Both(line, _line) => {
-                if let Some(tag) = line.strip_prefix("  <") {
-                    if !tag.starts_with("/") {
-                        current_table = Some(tag);
-                    }
-                }
-
-                match left_or_right.take() {
-                    Some('R') => write_lines(&mut result, &temp, section_start, current_table, '<'),
-                    Some('L') => write_lines(&mut result, &temp, section_start, current_table, '>'),
-                    _ => (),
-                }
-                temp.clear();
+            (None, Some(output_lines)) => {
+                result += &format!("Output contained extraneous table {table}\n",);
             }
+            (None, None) => unreachable!(),
         }
     }
-    match left_or_right.take() {
-        Some('R') => write_lines(&mut result, &temp, section_start, current_table, '<'),
-        Some('L') => write_lines(&mut result, &temp, section_start, current_table, '>'),
-        _ => (),
-    }
     result
+}
+
+fn split_into_tables(output: &str) -> HashMap<String, Vec<String>> {
+    let mut current_table = None;
+    let mut hashmap: HashMap<String, Vec<String>> = HashMap::new();
+    for line in output.lines() {
+        if line.contains("checkSumAdjustment") {
+            continue;
+        }
+        if let Some(table_name) = line.strip_prefix("  <") {
+            if table_name.starts_with('/') {
+                current_table = None;
+            } else {
+                current_table = Some(table_name.trim_end_matches('>'));
+            }
+        } else if let Some(table_name) = current_table {
+            hashmap
+                .entry(table_name.to_owned())
+                .or_default()
+                .push(line.to_owned());
+        }
+    }
+    hashmap
 }
 
 fn exclude_expected_failures(c: &mut Command) -> &mut Command {
@@ -762,7 +742,8 @@ fn regression_tests() -> Vec<Trial> {
             tests.push(Trial::test(
                 category.clone() + "-" + name.file_name().unwrap().to_str().unwrap(),
                 move || {
-                    let output_temp_dir = TempDir::new_in(".", "skera_test").unwrap();
+                    let output_temp_dir =
+                        Builder::new().prefix("skera_test").tempdir_in(".").unwrap();
                     let output_dir = output_temp_dir.path();
                     test.run(output_dir);
                     Ok(())
@@ -782,7 +763,10 @@ fn main() {
             test.gen_expected_output();
         }
     } else {
-        libtest_mimic::run(&args, regression_tests()).exit();
+        let mut tests = regression_tests();
+
+        let conclusion = libtest_mimic::run(&args, tests);
+        conclusion.exit();
     }
 }
 
