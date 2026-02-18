@@ -25,11 +25,33 @@ impl NameIdClosure for Stat<'_> {
             plan.name_ids
                 .extend_unsorted(axis_records.iter().map(|x| x.axis_name_id()));
         }
+        let should_keep = |axis_value: &AxisValue| match axis_value {
+            AxisValue::Format1(t) => should_keep_f1(
+                t,
+                &plan.user_axes_location,
+                self.design_axes().ok().unwrap_or(&[]),
+            ),
+            AxisValue::Format2(t) => should_keep_f2(
+                t,
+                &plan.user_axes_location,
+                self.design_axes().ok().unwrap_or(&[]),
+            ),
+            AxisValue::Format3(t) => should_keep_f3(
+                t,
+                &plan.user_axes_location,
+                self.design_axes().ok().unwrap_or(&[]),
+            ),
+            AxisValue::Format4(t) => should_keep_f4(
+                t,
+                &plan.user_axes_location,
+                self.design_axes().ok().unwrap_or(&[]),
+            ),
+        };
 
         if let Some(Ok(axis_values)) = self.offset_to_axis_values() {
             plan.name_ids
                 .extend_unsorted(axis_values.axis_values().iter().filter_map(|x| match x {
-                    Ok(axis_value) => Some(axis_value.value_name_id()),
+                    Ok(axis_value) if should_keep(&axis_value) => Some(axis_value.value_name_id()),
                     _ => None,
                 }));
         }
@@ -174,6 +196,70 @@ fn axis_value_is_outside_axis_range(
     axis_value_double < axis_range.minimum || axis_value_double > axis_range.maximum
 }
 
+fn should_keep_f1(
+    axis_value: &AxisValueFormat1,
+    user_axes_location: &FnvHashMap<Tag, Triple<f64>>,
+    axis_records: &[AxisRecord],
+) -> bool {
+    let axis_value_f32 = axis_value.value().to_f32();
+    let axis_tag = axis_records
+        .get(axis_value.axis_index() as usize)
+        .map(|x| x.axis_tag());
+    if let Some(axis_tag) = axis_tag {
+        return !axis_value_is_outside_axis_range(axis_tag, axis_value_f32, user_axes_location);
+    }
+    true
+}
+
+fn should_keep_f2(
+    axis_value: &AxisValueFormat2,
+    user_axes_location: &FnvHashMap<Tag, Triple<f64>>,
+    axis_records: &[AxisRecord],
+) -> bool {
+    let axis_value_f32 = axis_value.nominal_value().to_f32();
+    let axis_tag = axis_records
+        .get(axis_value.axis_index() as usize)
+        .map(|x| x.axis_tag());
+    if let Some(axis_tag) = axis_tag {
+        return !axis_value_is_outside_axis_range(axis_tag, axis_value_f32, user_axes_location);
+    }
+    true
+}
+
+fn should_keep_f3(
+    axis_value: &AxisValueFormat3,
+    user_axes_location: &FnvHashMap<Tag, Triple<f64>>,
+    axis_records: &[AxisRecord],
+) -> bool {
+    let axis_value_f32 = axis_value.value().to_f32();
+    let axis_tag = axis_records
+        .get(axis_value.axis_index() as usize)
+        .map(|x| x.axis_tag());
+    if let Some(axis_tag) = axis_tag {
+        return !axis_value_is_outside_axis_range(axis_tag, axis_value_f32, user_axes_location);
+    }
+    true
+}
+
+fn should_keep_f4(
+    axis_value: &AxisValueFormat4,
+    user_axes_location: &FnvHashMap<Tag, Triple<f64>>,
+    axis_records: &[AxisRecord],
+) -> bool {
+    for axis_value in axis_value.axis_values() {
+        let axis_value_f32 = axis_value.value().to_f32();
+        let axis_tag = axis_records
+            .get(axis_value.axis_index() as usize)
+            .map(|x| x.axis_tag());
+        if let Some(axis_tag) = axis_tag {
+            if axis_value_is_outside_axis_range(axis_tag, axis_value_f32, user_axes_location) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
 impl<'a> SubsetTable<'a> for AxisValueFormat1<'a> {
     type ArgsForSubset = &'a [AxisRecord];
     type Output = bool;
@@ -183,14 +269,7 @@ impl<'a> SubsetTable<'a> for AxisValueFormat1<'a> {
         s: &mut crate::serialize::Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        let axis_index = self.axis_index();
-        let axis_tag = args
-            .get(axis_index as usize)
-            .map(|x| x.axis_tag())
-            .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
-        let axis_value = self.value().to_f32();
-
-        if axis_value_is_outside_axis_range(axis_tag, axis_value, &plan.user_axes_location) {
+        if !should_keep_f1(self, &plan.user_axes_location, args) {
             return Ok(false);
         }
         s.embed_bytes(self.min_table_bytes())?;
@@ -207,14 +286,7 @@ impl<'a> SubsetTable<'a> for AxisValueFormat2<'a> {
         s: &mut crate::serialize::Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        let axis_index = self.axis_index();
-        let axis_tag = args
-            .get(axis_index as usize)
-            .map(|x| x.axis_tag())
-            .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
-        let axis_value = self.nominal_value().to_f32();
-
-        if axis_value_is_outside_axis_range(axis_tag, axis_value, &plan.user_axes_location) {
+        if !should_keep_f2(self, &plan.user_axes_location, args) {
             return Ok(false);
         }
         s.embed_bytes(self.min_table_bytes())?;
@@ -231,14 +303,7 @@ impl<'a> SubsetTable<'a> for AxisValueFormat3<'a> {
         s: &mut crate::serialize::Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        let axis_index = self.axis_index();
-        let axis_tag = args
-            .get(axis_index as usize)
-            .map(|x| x.axis_tag())
-            .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
-        let axis_value = self.value().to_f32();
-
-        if axis_value_is_outside_axis_range(axis_tag, axis_value, &plan.user_axes_location) {
+        if !should_keep_f3(self, &plan.user_axes_location, args) {
             return Ok(false);
         }
         s.embed_bytes(self.min_table_bytes())?;
@@ -254,18 +319,8 @@ impl<'a> SubsetTable<'a> for AxisValueFormat4<'a> {
         s: &mut crate::serialize::Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        let values = self.axis_values();
-        for (i, axis_value) in values.iter().enumerate() {
-            let axis_index = axis_value.axis_index();
-            let axis_tag = args
-                .get((axis_index + i as u16) as usize)
-                .map(|x| x.axis_tag())
-                .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
-            let axis_value_f32 = axis_value.value().to_f32();
-            if axis_value_is_outside_axis_range(axis_tag, axis_value_f32, &plan.user_axes_location)
-            {
-                return Ok(false);
-            }
+        if !should_keep_f4(self, &plan.user_axes_location, args) {
+            return Ok(false);
         }
         s.embed_bytes(self.min_table_bytes())?;
         Ok(true)
