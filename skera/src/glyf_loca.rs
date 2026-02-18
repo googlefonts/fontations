@@ -485,6 +485,12 @@ fn instantiate_and_subset_glyph(
             for component in new_components {
                 new_composite.add_component(component, composite_glyph.bbox);
             }
+            if !plan
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
+            {
+                new_composite.add_instructions(composite_glyph.instructions());
+            }
             *composite_glyph = new_composite;
         }
     }
