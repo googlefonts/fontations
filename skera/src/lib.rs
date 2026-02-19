@@ -1110,6 +1110,21 @@ impl Plan {
                         .insert(tag, Triple::point(font_axis.default_value().into()));
                 }
                 Some(parsing_util::AxisSpec::Range { min, def, max }) => {
+                    let min = if min.is_nan() {
+                        font_axis.min_value()
+                    } else {
+                        *min
+                    };
+                    let max = if max.is_nan() {
+                        font_axis.max_value()
+                    } else {
+                        *max
+                    };
+                    let def = if def.is_nan() {
+                        font_axis.default_value()
+                    } else {
+                        *def
+                    };
                     let new_min = min.clamp(font_axis.min_value(), font_axis.max_value());
                     let new_max = max.clamp(font_axis.min_value(), font_axis.max_value());
                     let new_def = def.clamp(new_min, new_max);
