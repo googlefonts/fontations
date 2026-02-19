@@ -87,6 +87,19 @@ impl Region {
         self.0.iter()
     }
 
+    /// Check if this region is inactive (all axes are at neutral 0,0,0).
+    /// An inactive region cannot contribute to any variation since the tensor evaluates to 0.
+    ///
+    /// Note: While Harfbuzz doesn't explicitly check for this, such regions can arise in skera
+    /// when axes are removed during instancing (change_tuple_var_axis_limit). A region that loses
+    /// all its axes ends up with only neutral 0,0,0 coordinates. We filter these out preemptively
+    /// to match Harfbuzz's observed behavior, since they can never contribute to variations.
+    fn is_inactive(&self) -> bool {
+        self.0
+            .values()
+            .all(|triple| triple.minimum == 0.0 && triple.middle == 0.0 && triple.maximum == 0.0)
+    }
+
     /// Maps axis indices to tags using the axes_old_index_tag_map
     fn from_readfonts_tuple<T: skrifa::raw::tables::variations::TupleDelta>(
         gvar_tuple: TupleVariation<'_, T>,
