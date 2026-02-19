@@ -28,7 +28,9 @@ impl NameIdClosure for Fvar<'_> {
             .iter()
             .filter_map(|x| x.ok())
         {
-            if new_coords(&instance_record, plan, old_axis_count as usize).is_none() {
+            if new_coords(&instance_record, plan, old_axis_count as usize).is_none()
+                && !plan.axes_location.is_empty()
+            {
                 continue;
             }
             plan.name_ids.insert(instance_record.subfamily_name_id);
