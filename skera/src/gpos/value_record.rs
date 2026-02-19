@@ -202,12 +202,12 @@ impl<'a> SubsetTable<'a> for ValueRecord {
         }
 
         if new_format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
+            let offset_pos = s.embed(0_u16)?;
             if let Some(device) = self
                 .x_placement_device(font_data)
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
-                let offset_pos = s.embed(0_u16)?;
                 Offset16::serialize_subset(
                     &device,
                     s,
@@ -219,12 +219,12 @@ impl<'a> SubsetTable<'a> for ValueRecord {
         }
 
         if new_format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
+            let offset_pos = s.embed(0_u16)?;
             if let Some(device) = self
                 .y_placement_device(font_data)
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
-                let offset_pos = s.embed(0_u16)?;
                 Offset16::serialize_subset(
                     &device,
                     s,
@@ -236,12 +236,12 @@ impl<'a> SubsetTable<'a> for ValueRecord {
         }
 
         if new_format.contains(ValueFormat::X_ADVANCE_DEVICE) {
+            let offset_pos = s.embed(0_u16)?;
             if let Some(device) = self
                 .x_advance_device(font_data)
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
-                let offset_pos = s.embed(0_u16)?;
                 Offset16::serialize_subset(
                     &device,
                     s,
@@ -253,12 +253,12 @@ impl<'a> SubsetTable<'a> for ValueRecord {
         }
 
         if new_format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
+            let offset_pos = s.embed(0_u16)?;
             if let Some(device) = self
                 .y_advance_device(font_data)
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
-                let offset_pos = s.embed(0_u16)?;
                 Offset16::serialize_subset(
                     &device,
                     s,
