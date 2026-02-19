@@ -1411,6 +1411,7 @@ fn _cmp_row(a: &Vec<i32>, b: &Vec<i32>) -> Ordering {
 /// binary layout rather than manually writing bytes, which was causing corruption.
 fn itemvariations_to_varstore_bytes(
     item_vars: &ItemVariations,
+    axis_order: &[Tag],
 ) -> Result<(Vec<u8>, FnvHashMap<u32, u32>), SerializeErrorFlags> {
     use write_fonts::{
         dump_table,
@@ -1422,7 +1423,7 @@ fn itemvariations_to_varstore_bytes(
         return Ok((Vec::new(), item_vars.varidx_map.clone()));
     }
 
-    let axis_count = item_vars.region_list.first().map(|r| r.len()).unwrap_or(0) as u16;
+    let axis_count = axis_order.len() as u16;
     let mut builder = VariationStoreBuilder::new(axis_count);
 
     // Collect all rows that are actually in the encodings
@@ -1453,39 +1454,19 @@ fn itemvariations_to_varstore_bytes(
         for (region_idx, &delta) in row.iter().enumerate() {
             if region_idx < item_vars.region_list.len() {
                 let region = &item_vars.region_list[region_idx];
-
-                // Convert region to write_fonts VariationRegion format
-                // Create RegionAxisCoordinates structures (using inline construction)
-                let axis_coords: Vec<_> = region
+                let axis_coords: Vec<_> = axis_order
                     .iter()
-                    .map(|(_tag, triple)| {
-                        // Create a simple struct to hold the coordinates
-                        // This matches the RegionAxisCoordinates structure
-                        (
-                            F2Dot14::from_f32(triple.minimum as f32),
-                            F2Dot14::from_f32(triple.middle as f32),
-                            F2Dot14::from_f32(triple.maximum as f32),
-                        )
+                    .map(|tag| {
+                        let triple = region.get(tag).copied().unwrap_or_default();
+                        write_fonts::tables::variations::RegionAxisCoordinates {
+                            start_coord: F2Dot14::from_f32(triple.minimum as f32),
+                            peak_coord: F2Dot14::from_f32(triple.middle as f32),
+                            end_coord: F2Dot14::from_f32(triple.maximum as f32),
+                        }
                     })
                     .collect();
 
-                // The VariationRegion::new expects a Vec of RegionAxisCoordinates,
-                // but we can work around by creating the region differently
-                // Actually, let's check what type VariationRegion actually is...
-                // For now, let's use a simpler approach - collect the raw coordinates
-                let var_region = VariationRegion::new(
-                    axis_coords
-                        .into_iter()
-                        .map(|(start, peak, end)| {
-                            // Create RegionAxisCoordinates-like value
-                            write_fonts::tables::variations::RegionAxisCoordinates {
-                                start_coord: start,
-                                peak_coord: peak,
-                                end_coord: end,
-                            }
-                        })
-                        .collect(),
-                );
+                let var_region = VariationRegion::new(axis_coords);
 
                 deltas.push((var_region, delta));
             }
@@ -1723,7 +1704,8 @@ pub fn subset_itemvarstore_with_instancing(
 
     // Use write_fonts infrastructure to properly serialize the ItemVariationStore
     // instead of manually writing binary data - also get the remapping
-    let (varstore_bytes, varidx_map) = itemvariations_to_varstore_bytes(&item_vars)?;
+    let (varstore_bytes, varidx_map) =
+        itemvariations_to_varstore_bytes(&item_vars, &plan.axis_tags)?;
 
     if varstore_bytes.is_empty() && !keep_empty {
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
