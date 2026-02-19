@@ -22,6 +22,7 @@ mod hvar;
 mod inc_bimap;
 mod layout;
 mod maxp;
+mod mvar;
 mod name;
 mod offset;
 mod offset_array;
@@ -69,6 +70,7 @@ use skrifa::{
             avar::Avar,
             fvar::Fvar,
             glyf::PointFlags,
+            mvar::Mvar,
             stat::Stat,
             variations::{DeltaSetIndex, ItemVariationStore, NO_VARIATION_INDEX},
         },
@@ -1852,6 +1854,15 @@ fn subset_table<'a>(
         //Skip, handled by Vmtx
         Vhea::TAG => Ok(()),
 
+        Mvar::TAG => {
+            if plan.axes_index_map.is_empty() && !plan.all_axes_pinned {
+                passthrough_table(tag, font, s)
+            } else {
+                font.mvar()
+                    .map_err(|_| SubsetError::SubsetTableError(Mvar::TAG))?
+                    .subset(plan, font, s, builder)
+            }
+        }
         Vmtx::TAG => font
             .vmtx()
             .map_err(|_| SubsetError::SubsetTableError(Vmtx::TAG))?
