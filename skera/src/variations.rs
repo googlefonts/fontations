@@ -226,11 +226,11 @@ impl TupleDelta {
         let mut deltas = vec![Point::new(0.0, 0.0); point_count];
         let mut indices = vec![true; point_count];
         if gvar_tuple.has_deltas_for_all_points() {
-            indices = vec![true; point_count];
             deltas = gvar_tuple
                 .deltas()
                 .map(|delta| Point::new(delta.x_delta as f32, delta.y_delta as f32))
                 .collect();
+            indices = vec![true; deltas.len()];
         } else {
             indices = vec![false; point_count];
             deltas = vec![Point::new(0.0, 0.0); point_count];
@@ -243,6 +243,7 @@ impl TupleDelta {
                 deltas[idx] = Point::new(delta.x_delta as f32, delta.y_delta as f32);
             }
         }
+
         let tuple = TupleDelta {
             axis_tuples: Region::from_readfonts_tuple(gvar_tuple, axes_old_index_tag_map)?,
             indices,
@@ -278,6 +279,7 @@ impl TupleDelta {
             }
             (deltas, indices)
         };
+
         Ok(TupleDelta {
             axis_tuples: Region::from_readfonts_tuple(cvar_tuple, axes_old_index_tag_map)?,
             indices,
@@ -291,7 +293,7 @@ impl TupleDelta {
         for i in 0..self.deltas_x.len() {
             deltas.push(WriteGlyphDelta::new(
                 self.deltas_x[i].ot_round(),
-                self.deltas_y[i].ot_round(),
+                self.deltas_y.get(i).copied().unwrap_or(0.0).ot_round(),
                 self.indices[i],
             ));
         }
