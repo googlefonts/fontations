@@ -8,13 +8,21 @@ use crate::{
     Plan, SubsetTable,
 };
 use fnv::FnvHashMap;
-use font_types::FixedSize;
-use skrifa::{raw::tables::variations::RegionAxisCoordinates, Tag};
+use font_types::{FixedSize, Point};
+use skrifa::{
+    raw::tables::{
+        cvar::CvtDelta,
+        gvar::GlyphDelta,
+        variations::{RegionAxisCoordinates, TupleVariation, TupleVariationData},
+    },
+    Tag,
+};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
     hash::{Hash, Hasher},
     ops::{AddAssign, MulAssign},
+    vec,
 };
 use write_fonts::{
     read::{
@@ -23,7 +31,9 @@ use write_fonts::{
             DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
         },
     },
+    tables::gvar::{GlyphDelta as WriteGlyphDelta, GlyphDeltas},
     types::{BigEndian, F2Dot14, Offset32},
+    OtRound,
 };
 
 pub(crate) mod solver;
@@ -79,6 +89,95 @@ impl Region {
     fn iter(&self) -> impl Iterator<Item = (&Tag, &Triple<f64>)> {
         self.0.iter()
     }
+
+    /// Maps axis indices to tags using the axes_old_index_tag_map
+    fn from_readfonts_tuple<T: skrifa::raw::tables::variations::TupleDelta>(
+        gvar_tuple: TupleVariation<'_, T>,
+        axes_old_index_tag_map: &FnvHashMap<usize, Tag>,
+    ) -> Result<Self, SerializeErrorFlags> {
+        let region = (0..axes_old_index_tag_map.len())
+            .map(|axis_index| {
+                let tag = axes_old_index_tag_map
+                    .get(&axis_index)
+                    .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
+                let peak = gvar_tuple
+                    .peak()
+                    .values
+                    .get(axis_index)
+                    .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                    .get()
+                    .to_f32() as f64;
+                let min_value = if let Some(start_tuple) = gvar_tuple.intermediate_start() {
+                    start_tuple
+                        .values
+                        .get(axis_index)
+                        .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                        .get()
+                        .to_f32() as f64
+                } else {
+                    // For positive peaks, inferred min is 0; for negative peaks, it's the peak itself
+                    if peak > 0.0 {
+                        0.0
+                    } else {
+                        peak
+                    }
+                };
+                let max_value = if let Some(end_tuple) = gvar_tuple.intermediate_end() {
+                    end_tuple
+                        .values
+                        .get(axis_index)
+                        .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                        .get()
+                        .to_f32() as f64
+                } else {
+                    // For negative peaks, inferred max is 0; for positive peaks, it's the peak itself
+                    if peak < 0.0 {
+                        0.0
+                    } else {
+                        peak
+                    }
+                };
+                Ok((
+                    *tag,
+                    Triple {
+                        minimum: min_value,
+                        middle: peak,
+                        maximum: max_value,
+                    },
+                ))
+            })
+            .collect::<Result<FnvHashMap<_, _>, SerializeErrorFlags>>()?;
+        Ok(Region(region))
+    }
+
+    fn to_tents(&self, axis_order: &[Tag]) -> Vec<write_fonts::tables::gvar::Tent> {
+        axis_order
+            .iter()
+            .filter_map(|axis_tag| {
+                if let Some(tent) = self.0.get(axis_tag) {
+                    let peak = F2Dot14::from_f32(tent.middle as f32);
+                    let min = F2Dot14::from_f32(tent.minimum as f32);
+                    let max = F2Dot14::from_f32(tent.maximum as f32);
+
+                    // Check if we need explicit intermediate values
+                    let inferred_min = if tent.middle > 0.0 { 0.0 } else { tent.middle };
+                    let inferred_max = if tent.middle < 0.0 { 0.0 } else { tent.middle };
+
+                    let intermediate = if (tent.minimum - inferred_min).abs() > 0.001
+                        || (tent.maximum - inferred_max).abs() > 0.001
+                    {
+                        Some((min, max))
+                    } else {
+                        None
+                    };
+
+                    Some(write_fonts::tables::gvar::Tent::new(peak, intermediate))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 }
 
 impl PartialEq for Region {
@@ -108,6 +207,103 @@ struct TupleDelta {
     deltas_y: Vec<f32>,
 }
 impl TupleDelta {
+    // Corresponds to create_from_tuple_var_data in hb-ot-var-common.hh
+    fn from_gvar_tuple(
+        gvar_tuple: TupleVariation<'_, GlyphDelta>,
+        point_count: usize,
+        axes_old_index_tag_map: &FnvHashMap<usize, Tag>,
+    ) -> Result<Self, SerializeErrorFlags> {
+        let mut deltas = vec![Point::new(0.0, 0.0); point_count];
+        let mut indices = vec![true; point_count];
+        if gvar_tuple.has_deltas_for_all_points() {
+            indices = vec![true; point_count];
+            deltas = gvar_tuple
+                .deltas()
+                .map(|delta| Point::new(delta.x_delta as f32, delta.y_delta as f32))
+                .collect();
+        } else {
+            indices = vec![false; point_count];
+            deltas = vec![Point::new(0.0, 0.0); point_count];
+            for delta in gvar_tuple.deltas() {
+                let idx = delta.position as usize;
+                if idx >= point_count {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                }
+                indices[idx] = true;
+                deltas[idx] = Point::new(delta.x_delta as f32, delta.y_delta as f32);
+            }
+        }
+        let tuple = TupleDelta {
+            axis_tuples: Region::from_readfonts_tuple(gvar_tuple, axes_old_index_tag_map)?,
+            indices,
+            deltas_x: deltas.iter().map(|p| p.x).collect(),
+            deltas_y: deltas.iter().map(|p| p.y).collect(),
+        };
+        log::debug!("from_gvar_tuple: {:?}", tuple);
+        Ok(tuple)
+    }
+
+    fn from_cvar_tuple(
+        cvar_tuple: TupleVariation<'_, CvtDelta>,
+        point_count: usize,
+        axes_old_index_tag_map: &FnvHashMap<usize, Tag>,
+    ) -> Result<Self, SerializeErrorFlags> {
+        let orig_deltas = cvar_tuple.deltas().collect::<Vec<_>>();
+
+        let (deltas, indices) = if cvar_tuple.has_deltas_for_all_points() {
+            (
+                orig_deltas.iter().map(|p| p.value as f32).collect(),
+                vec![true; orig_deltas.len()],
+            )
+        } else {
+            let mut indices = vec![false; point_count];
+            let mut deltas = vec![0.0; point_count];
+            for delta in orig_deltas {
+                let idx = delta.position as usize;
+                if idx >= point_count {
+                    return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+                }
+                indices[idx] = true;
+                deltas[idx] = delta.value as f32;
+            }
+            (deltas, indices)
+        };
+        Ok(TupleDelta {
+            axis_tuples: Region::from_readfonts_tuple(cvar_tuple, axes_old_index_tag_map)?,
+            indices,
+            deltas_x: deltas,
+            deltas_y: vec![],
+        })
+    }
+
+    fn to_glyph_deltas(&self, axis_tags: &[Tag]) -> GlyphDeltas {
+        let mut deltas = vec![];
+        for i in 0..self.deltas_x.len() {
+            deltas.push(WriteGlyphDelta::new(
+                self.deltas_x[i].ot_round(),
+                self.deltas_y[i].ot_round(),
+                self.indices[i],
+            ));
+        }
+        let tents = self.axis_tuples.to_tents(axis_tags);
+        log::debug!(
+            "to_glyph_deltas: axis_tuples has {} entries, tents has {} entries, axis_tags len={}",
+            self.axis_tuples.len(),
+            tents.len(),
+            axis_tags.len()
+        );
+        for (tag, triple) in self.axis_tuples.iter() {
+            log::debug!(
+                "  axis {:?}: min={:.4}, mid={:.4}, max={:.4}",
+                tag,
+                triple.minimum,
+                triple.middle,
+                triple.maximum
+            );
+        }
+        GlyphDeltas::new(tents, deltas)
+    }
+
     // Ported directly from harfbuzz
     fn change_tuple_var_axis_limit(
         self,
@@ -161,16 +357,19 @@ impl TupleDelta {
         let mut end_points = vec![];
         let mut inferred_indices = IntSet::empty();
         #[allow(clippy::indexing_slicing)] // We check bounds above
-        for point in orig_points {
+        for (i, point) in orig_points.iter().enumerate() {
+            ref_count += self.indices[i] as usize;
             if point.is_end_point {
-                end_points.push(ref_count);
+                end_points.push(i);
             }
-            ref_count += self.indices[ref_count] as usize;
         }
         if ref_count == point_count {
             // All points are referenced, nothing to do
             return Ok(());
         }
+        log::warn!("Inferring {} points", point_count - ref_count);
+        log::warn!("End points of countours: {:?}", end_points);
+
         let mut start_point = 0;
         for end_point in end_points {
             // Check the number of unreferenced points in a contour.
@@ -179,51 +378,62 @@ impl TupleDelta {
                 .iter()
                 .filter(|&&is_ref| !is_ref)
                 .count();
-            unref_count = (end_point - start_point + 1) - unref_count;
+            log::warn!(
+                "Considering contour from {} to {}, unref_count={}",
+                start_point,
+                end_point,
+                unref_count
+            );
             let mut j = start_point;
 
             if !(unref_count == 0 || unref_count > end_point - start_point) {
-                let mut i;
+                // Outer loop to process multiple gaps in this contour
                 loop {
-                    i = j;
-                    j = self.next_index(i, start_point, end_point);
-                    if self.indices[i] && !self.indices[j] {
-                        break;
+                    let mut i;
+                    loop {
+                        i = j;
+                        j = self.next_index(i, start_point, end_point);
+                        if self.indices[i] && !self.indices[j] {
+                            break;
+                        }
                     }
-                }
-                let prev = i;
-                j = i;
-                loop {
-                    i = j;
-                    j = self.next_index(i, start_point, end_point);
-                    if !self.indices[i] && self.indices[j] {
-                        break;
+                    let prev = i;
+                    j = i;
+                    loop {
+                        i = j;
+                        j = self.next_index(i, start_point, end_point);
+                        if !self.indices[i] && self.indices[j] {
+                            break;
+                        }
                     }
-                }
-                let next = j;
-                // Infer deltas for all unref points in the gap between prev and next
-                i = prev;
-                loop {
-                    i = self.next_index(i, start_point, end_point);
-                    if i == next {
-                        break;
+                    let next = j;
+                    // Infer deltas for all unref points in the gap between prev and next
+                    i = prev;
+                    loop {
+                        i = self.next_index(i, start_point, end_point);
+                        if i == next {
+                            break;
+                        }
+                        self.deltas_x[i] = infer_delta(
+                            orig_points[i].x,
+                            orig_points[prev].x,
+                            orig_points[next].x,
+                            self.deltas_x[prev],
+                            self.deltas_x[next],
+                        );
+                        self.deltas_y[i] = infer_delta(
+                            orig_points[i].y,
+                            orig_points[prev].y,
+                            orig_points[next].y,
+                            self.deltas_y[prev],
+                            self.deltas_y[next],
+                        );
+                        inferred_indices.insert(i as u32);
+                        unref_count -= 1;
+                        if unref_count == 0 {
+                            break;
+                        }
                     }
-                    self.deltas_x[i] = infer_delta(
-                        orig_points[i].x,
-                        orig_points[prev].x,
-                        orig_points[next].x,
-                        self.deltas_x[prev],
-                        self.deltas_x[next],
-                    );
-                    self.deltas_y[i] = infer_delta(
-                        orig_points[i].y,
-                        orig_points[prev].y,
-                        orig_points[next].y,
-                        self.deltas_y[prev],
-                        self.deltas_y[next],
-                    );
-                    inferred_indices.insert(i as u32);
-                    unref_count -= 1;
                     if unref_count == 0 {
                         break;
                     }
@@ -241,6 +451,8 @@ impl TupleDelta {
                 self.indices[i] = true;
             }
         }
+        log::debug!("Deltas X now: {:?}", self.deltas_x);
+        log::debug!("Deltas Y now: {:?}", self.deltas_x);
         Ok(())
     }
 
@@ -291,22 +503,61 @@ impl MulAssign<f64> for TupleDelta {
 /// Collection of tuple variations for a VarData subtable.
 /// Corresponds to Harfbuzz's tuple_variations_t.
 #[derive(Debug, Clone)]
-struct TupleVariations {
+pub(crate) struct TupleVariations {
     tuple_vars: Vec<TupleDelta>,
 }
 impl TupleVariations {
+    // Corresponds to harfbuzz decompile_tuple_variations
+    pub fn from_gvar(
+        value: TupleVariationData<'_, GlyphDelta>,
+        point_count: usize,
+        axes_old_index_tag_map: &FnvHashMap<usize, Tag>,
+    ) -> Result<Self, SerializeErrorFlags> {
+        Ok(TupleVariations {
+            tuple_vars: value
+                .tuples()
+                .map(|gvar_tuple| {
+                    TupleDelta::from_gvar_tuple(gvar_tuple, point_count, axes_old_index_tag_map)
+                })
+                .collect::<Result<Vec<_>, SerializeErrorFlags>>()?,
+        })
+    }
+
+    pub fn from_cvar(
+        value: TupleVariationData<'_, CvtDelta>,
+        point_count: usize,
+        axes_old_index_tag_map: &FnvHashMap<usize, Tag>,
+    ) -> Result<Self, SerializeErrorFlags> {
+        Ok(TupleVariations {
+            tuple_vars: value
+                .tuples()
+                .map(|cvar_tuple| {
+                    TupleDelta::from_cvar_tuple(cvar_tuple, point_count, axes_old_index_tag_map)
+                })
+                .collect::<Result<Vec<_>, SerializeErrorFlags>>()?,
+        })
+    }
     // Ported directly from harfbuzz
-    fn instantiate(
+    pub fn instantiate(
         &mut self,
         normalized_axes_location: &FnvHashMap<Tag, Triple<f64>>,
         axes_triple_distances: &FnvHashMap<Tag, TripleDistances<f64>>,
-        contour_points: Option<&mut ContourPoints>,
+        contour_points: Option<&ContourPoints>,
         optimize: bool,
     ) -> Result<(), SerializeErrorFlags> {
         if self.tuple_vars.is_empty() {
             return Ok(());
         }
+        log::debug!(
+            "TupleVariations::instantiate: {} tuples before rebasing",
+            self.tuple_vars.len()
+        );
         self.change_tuple_variations_axis_limits(normalized_axes_location, axes_triple_distances)?;
+        log::debug!(
+            "TupleVariations::instantiate: {} tuples after rebasing/axis limit changes",
+            self.tuple_vars.len()
+        );
+
         // compute inferred deltas only for gvar
         if let Some(ref cp) = contour_points {
             self.calc_inferred_deltas(&cp.0)?;
@@ -314,7 +565,12 @@ impl TupleVariations {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         }
 
-        self.merge_tuple_variations(if optimize { contour_points } else { None })?;
+        self.merge_tuple_variations(None)?;
+        log::debug!(
+            "TupleVariations::instantiate: {} tuples after merge",
+            self.tuple_vars.len()
+        );
+        // self.merge_tuple_variations(if optimize { contour_points } else { None })?;
 
         // if optimize {
         //     iup_optimize(contour_points)?;
@@ -473,6 +729,47 @@ impl TupleVariations {
             tuple_vars.push(tuple);
         }
         Ok((TupleVariations { tuple_vars }, item_count))
+    }
+
+    pub fn to_glyph_deltas(&self, axis_tags: &[Tag]) -> Vec<GlyphDeltas> {
+        self.tuple_vars
+            .iter()
+            .map(|t| t.to_glyph_deltas(axis_tags))
+            .collect()
+    }
+
+    /// Normalize all tuples to have the same set of axes.
+    /// For axes present in some tuples but not others, add neutral regions (min=-1, peak=0, max=1).
+    /// This is required for gvar serialization.
+    pub fn normalize_axes(&mut self) {
+        if self.tuple_vars.is_empty() {
+            return;
+        }
+
+        // Collect all axes that appear in any tuple
+        let mut all_axes = std::collections::BTreeSet::new();
+        for tuple in &self.tuple_vars {
+            for (tag, _) in tuple.axis_tuples.iter() {
+                all_axes.insert(*tag);
+            }
+        }
+
+        // Ensure every tuple has all axes
+        for tuple in &mut self.tuple_vars {
+            for axis_tag in &all_axes {
+                if !tuple.axis_tuples.contains_key(axis_tag) {
+                    // Add neutral region: doesn't affect this tuple
+                    tuple.axis_tuples.insert(
+                        *axis_tag,
+                        Triple {
+                            minimum: 0.0,
+                            middle: 0.0,
+                            maximum: 0.0,
+                        },
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -1930,7 +2227,10 @@ impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use skrifa::raw::{tables::hvar::Hvar, FontData, FontRead};
+    use skrifa::raw::{
+        tables::{cvar::Cvar, hvar::Hvar},
+        FontData, FontRead,
+    };
     #[test]
     fn test_subset_item_varstore() {
         use crate::DEFAULT_LAYOUT_FEATURES;
@@ -2062,5 +2362,132 @@ mod test {
             .as_item_varstore(false, true)
             .expect("Should be able to convert back to varstore");
         assert_eq!(item_vars.get_region_list().len(), 8);
+    }
+
+    #[test]
+    fn test_harfbuzz_tuple_variations() {
+        let axis_tag = Tag::new(b"wght");
+
+        const CVAR_DATA: [u8; 185] = [
+            0x0, 0x1, 0x0, 0x0, 0x0, 0x2, 0x0, 0x14, 0x0, 0x51, 0xa0, 0x0, 0xc0, 0x0, 0x0, 0x54,
+            0xa0, 0x0, 0x40, 0x0, 0x2a, 0x29, 0x17, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
+            0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
+            0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0xd, 0xff,
+            0x0, 0xfd, 0x1, 0x0, 0xff, 0x0, 0xfd, 0x1, 0x0, 0xdb, 0xdb, 0xe6, 0xe6, 0x82, 0x0,
+            0xfd, 0x84, 0x6, 0xfd, 0x0, 0x2, 0xe3, 0xe3, 0xec, 0xec, 0x82, 0x4, 0x1, 0xe3, 0xe3,
+            0xec, 0xec, 0x82, 0x0, 0x1, 0x2a, 0x29, 0x17, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
+            0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1,
+            0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0xd,
+            0x1, 0x0, 0x5, 0xfd, 0x0, 0x1, 0x0, 0x5, 0xfd, 0x0, 0x61, 0x61, 0x44, 0x44, 0x82, 0x0,
+            0x5, 0x81, 0x9, 0x1, 0xff, 0x1, 0x7, 0xff, 0xfb, 0x49, 0x49, 0x35, 0x35, 0x82, 0x4,
+            0xff, 0x49, 0x49, 0x35, 0x35, 0x82, 0x0, 0xff,
+        ];
+        let cvar = Cvar::read(FontData::new(&CVAR_DATA)).unwrap();
+        let vardata = cvar.variation_data(1).unwrap();
+        let axes_map = FnvHashMap::from_iter([(0, axis_tag)]);
+        let mut tuple_variations = TupleVariations::from_cvar(vardata, 65, &axes_map).unwrap();
+        assert_eq!(tuple_variations.tuple_vars.len(), 2);
+        for var in tuple_variations.tuple_vars.iter() {
+            assert_eq!(var.axis_tuples.len(), 1);
+            assert_eq!(var.indices.len(), 65);
+        }
+        assert_eq!(
+            tuple_variations.tuple_vars[0]
+                .axis_tuples
+                .get(&axis_tag)
+                .copied()
+                .unwrap(),
+            Triple::new(-1.0, -1.0, 0.0)
+        );
+        assert_eq!(
+            tuple_variations.tuple_vars[1]
+                .axis_tuples
+                .get(&axis_tag)
+                .copied()
+                .unwrap(),
+            Triple::new(0.0, 1.0, 1.0)
+        );
+
+        let deltas_1: [f32; 65] = [
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, -3.0, 1.0, 0.0, -1.0, 0.0, -3.0, 1.0, 0.0,
+            -37.0, -37.0, -26.0, -26.0, 0.0, 0.0, 0.0, -3.0, 0.0, 0.0, 0.0, 0.0, 0.0, -3.0, 0.0,
+            2.0, -29.0, -29.0, -20.0, -20.0, 0.0, 0.0, 0.0, 1.0, -29.0, -29.0, -20.0, -20.0, 0.0,
+            0.0, 0.0, 1.0,
+        ];
+        assert_eq!(tuple_variations.tuple_vars[0].deltas_x, deltas_1);
+        let deltas_2: [f32; 65] = [
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 5.0, -3.0, 0.0, 1.0, 0.0, 5.0, -3.0, 0.0, 97.0,
+            97.0, 68.0, 68.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 1.0, -1.0, 1.0, 7.0, -1.0, -5.0, 73.0,
+            73.0, 53.0, 53.0, 0.0, 0.0, 0.0, -1.0, 73.0, 73.0, 53.0, 53.0, 0.0, 0.0, 0.0, -1.0,
+        ];
+        assert_eq!(tuple_variations.tuple_vars[1].deltas_x, deltas_2);
+
+        /* partial instancing wght=300:800 */
+        let normalized_axes_location =
+            FnvHashMap::from_iter([(axis_tag, Triple::new(-0.512817, 0.0, 0.700012))]);
+        let axes_triple_distances =
+            FnvHashMap::from_iter([(axis_tag, TripleDistances::new(1.0, 1.0))]);
+        tuple_variations
+            .instantiate(
+                &normalized_axes_location,
+                &axes_triple_distances,
+                None,
+                false,
+            )
+            .unwrap();
+
+        assert_eq!(tuple_variations.tuple_vars[0].indices.len(), 65);
+        assert_eq!(tuple_variations.tuple_vars[1].indices.len(), 65);
+        assert_eq!(
+            tuple_variations.tuple_vars[0]
+                .axis_tuples
+                .get(&axis_tag)
+                .copied()
+                .unwrap(),
+            Triple::new(-1.0, -1.0, 0.0)
+        );
+        assert_eq!(
+            tuple_variations.tuple_vars[1]
+                .axis_tuples
+                .get(&axis_tag)
+                .copied()
+                .unwrap(),
+            Triple::new(0.0, 1.0, 1.0)
+        );
+
+        let rounded_deltas_1: [f32; 65] = [
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, -2.0, 1.0, 0.0, -1.0, 0.0, -2.0, 1.0, 0.0,
+            -19.0, -19.0, -13.0, -13.0, 0.0, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, 0.0, 0.0, -2.0, 0.0,
+            1.0, -15.0, -15.0, -10.0, -10.0, 0.0, 0.0, 0.0, 1.0, -15.0, -15.0, -10.0, -10.0, 0.0,
+            0.0, 0.0, 1.0,
+        ];
+
+        let rounded_deltas_2: [f32; 65] = [
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, -2.0, 0.0, 1.0, 0.0, 4.0, -2.0, 0.0, 68.0,
+            68.0, 48.0, 48.0, 0.0, 0.0, 0.0, 4.0, 0.0, 0.0, 1.0, -1.0, 1.0, 5.0, -1.0, -4.0, 51.0,
+            51.0, 37.0, 37.0, 0.0, 0.0, 0.0, -1.0, 51.0, 51.0, 37.0, 37.0, 0.0, 0.0, 0.0, -1.0,
+        ];
+
+        for i in 0..65 {
+            if i < 23 {
+                assert_eq!(tuple_variations.tuple_vars[0].indices[i], false);
+                assert_eq!(tuple_variations.tuple_vars[1].indices[i], false);
+            } else {
+                assert_eq!(tuple_variations.tuple_vars[0].indices[i], true);
+                assert_eq!(tuple_variations.tuple_vars[1].indices[i], true);
+                assert_eq!(
+                    (tuple_variations.tuple_vars[0].deltas_x[i]).round(),
+                    rounded_deltas_1[i]
+                );
+                assert_eq!(
+                    (tuple_variations.tuple_vars[1].deltas_x[i]).round(),
+                    rounded_deltas_2[i]
+                );
+            }
+        }
     }
 }
