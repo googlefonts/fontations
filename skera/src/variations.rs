@@ -58,10 +58,6 @@ impl Hash for Region {
 }
 
 impl Region {
-    fn new() -> Self {
-        Region(FnvHashMap::default())
-    }
-
     fn insert(&mut self, tag: Tag, triple: Triple<f64>) {
         self.0.insert(tag, triple);
     }
@@ -78,6 +74,7 @@ impl Region {
         self.0.remove(tag)
     }
 
+    #[cfg(test)]
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -242,6 +239,7 @@ impl TupleDelta {
         Ok(tuple)
     }
 
+    #[allow(dead_code)] // It'll live soon enough
     fn from_cvar_tuple(
         cvar_tuple: TupleVariation<'_, CvtDelta>,
         point_count: usize,
@@ -497,6 +495,7 @@ impl TupleVariations {
         })
     }
 
+    #[allow(dead_code)]
     pub fn from_cvar(
         value: TupleVariationData<'_, CvtDelta>,
         point_count: usize,
@@ -522,30 +521,16 @@ impl TupleVariations {
         if self.tuple_vars.is_empty() {
             return Ok(());
         }
-        log::debug!(
-            "TupleVariations::instantiate: {} tuples before rebasing",
-            self.tuple_vars.len()
-        );
         self.change_tuple_variations_axis_limits(normalized_axes_location, axes_triple_distances)?;
-        log::debug!(
-            "TupleVariations::instantiate: {} tuples after rebasing/axis limit changes",
-            self.tuple_vars.len()
-        );
 
         // compute inferred deltas only for gvar
-        if let Some(ref cp) = contour_points {
+        if let Some(cp) = contour_points {
             self.calc_inferred_deltas(&cp.0)?;
         } else if optimize {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         }
 
         self.merge_tuple_variations(None)?;
-        log::debug!(
-            "TupleVariations::instantiate: {} tuples after merge",
-            self.tuple_vars.len()
-        );
-        // self.merge_tuple_variations(if optimize { contour_points } else { None })?;
-
         // if optimize {
         //     iup_optimize(contour_points)?;
         // }
@@ -560,7 +545,7 @@ impl TupleVariations {
         // The pre-allocation is essential for address stability of pointers
         // we store in the hashmap.
         let mut m: HashMap<Region, usize> = HashMap::with_capacity(self.tuple_vars.len());
-        for mut var in self.tuple_vars.iter().cloned() {
+        for var in self.tuple_vars.iter_mut() {
             // if all axes are pinned, drop the tuple variation
             if var.axis_tuples.is_empty() {
                 // if iup_delta_optimize is enabled, add deltas to contour coords
@@ -1119,6 +1104,11 @@ impl ItemVariations {
                 all_unique_regions.push(r);
             }
         }
+        log::debug!(
+            "build_region_list: all_regions.len()={}, used_regions.len()={}",
+            all_regions.len(),
+            used_regions.len()
+        );
 
         /* regions are empty means no variation data, return true */
         if all_regions.is_empty() || all_unique_regions.is_empty() {
@@ -1151,6 +1141,7 @@ impl ItemVariations {
             all_regions.remove(&r);
             idx += 1;
         }
+        log::debug!("Final region_list.len()={}", self.region_list.len());
         Ok(())
     }
 
@@ -1337,11 +1328,11 @@ impl ItemVariations {
         }
 
         self.encodings.reserve(num_final_encodings);
-        for i in 0..encoding_objs.len() {
+        for (i, encoding) in encoding_objs.iter().enumerate() {
             if removed_todo_idxes.contains_key(&i) {
                 continue;
             }
-            self.encodings.push(encoding_objs[i].clone());
+            self.encodings.push(encoding.clone());
         }
 
         self.compile_varidx_map(front_mapping)
@@ -1384,11 +1375,13 @@ impl ItemVariations {
         Ok(())
     }
 
+    #[cfg(test)]
     fn get_region_list(&self) -> &Vec<Region> {
         &self.region_list
     }
 }
 
+#[allow(clippy::ptr_arg)] // sort_by won't slice them
 fn _cmp_row(a: &Vec<i32>, b: &Vec<i32>) -> Ordering {
     /* compare pointers of vectors(const hb_vector_t<int>*) that represent a row */
     for i in 0..b.len() {
@@ -1467,7 +1460,6 @@ fn itemvariations_to_varstore_bytes(
                     .collect();
 
                 let var_region = VariationRegion::new(axis_coords);
-
                 deltas.push((var_region, delta));
             }
         }
@@ -2427,11 +2419,11 @@ mod test {
 
         for i in 0..65 {
             if i < 23 {
-                assert_eq!(tuple_variations.tuple_vars[0].indices[i], false);
-                assert_eq!(tuple_variations.tuple_vars[1].indices[i], false);
+                assert!(!tuple_variations.tuple_vars[0].indices[i]);
+                assert!(!tuple_variations.tuple_vars[1].indices[i]);
             } else {
-                assert_eq!(tuple_variations.tuple_vars[0].indices[i], true);
-                assert_eq!(tuple_variations.tuple_vars[1].indices[i], true);
+                assert!(tuple_variations.tuple_vars[0].indices[i]);
+                assert!(tuple_variations.tuple_vars[1].indices[i]);
                 assert_eq!(
                     (tuple_variations.tuple_vars[0].deltas_x[i]).round(),
                     rounded_deltas_1[i]
