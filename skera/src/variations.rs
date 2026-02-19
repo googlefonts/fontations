@@ -543,7 +543,8 @@ impl TupleVariations {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         }
 
-        self.merge_tuple_variations(None)?;
+        let drop_neutral_axes = contour_points.is_some();
+        self.merge_tuple_variations(None, drop_neutral_axes)?;
         // if optimize {
         //     iup_optimize(contour_points)?;
         // }
@@ -553,6 +554,7 @@ impl TupleVariations {
     fn merge_tuple_variations(
         &mut self,
         mut contour_points: Option<&mut ContourPoints>,
+        drop_neutral_axes: bool,
     ) -> Result<(), SerializeErrorFlags> {
         let mut new_vars: Vec<TupleDelta> = Vec::with_capacity(self.tuple_vars.len());
         // The pre-allocation is essential for address stability of pointers
@@ -568,26 +570,28 @@ impl TupleVariations {
                 continue;
             }
 
-            // Clean up pinned axes (triple=(0,0,0)) from the region.
-            // These don't contribute any variation and should be removed.
-            let tags_to_remove: Vec<_> = var
-                .axis_tuples
-                .0
-                .iter()
-                .filter(|(_, triple)| {
-                    triple.minimum == 0.0 && triple.middle == 0.0 && triple.maximum == 0.0
-                })
-                .map(|(tag, _)| *tag)
-                .collect();
+            if drop_neutral_axes {
+                // Clean up pinned axes (triple=(0,0,0)) from the region.
+                // These don't contribute any variation and should be removed.
+                let tags_to_remove: Vec<_> = var
+                    .axis_tuples
+                    .0
+                    .iter()
+                    .filter(|(_, triple)| {
+                        triple.minimum == 0.0 && triple.middle == 0.0 && triple.maximum == 0.0
+                    })
+                    .map(|(tag, _)| *tag)
+                    .collect();
 
-            for tag in tags_to_remove {
-                var.axis_tuples.0.remove(&tag);
-            }
+                for tag in tags_to_remove {
+                    var.axis_tuples.0.remove(&tag);
+                }
 
-            // After cleaning, check if any axes  remain
-            if var.axis_tuples.is_empty() {
-                // Fully pinned region after cleaning, drop it
-                continue;
+                // After cleaning, check if any axes remain
+                if var.axis_tuples.is_empty() {
+                    // Fully pinned region after cleaning, drop it
+                    continue;
+                }
             }
 
             if let Some(idx) = m.get(&var.axis_tuples) {
@@ -1107,7 +1111,8 @@ impl ItemVariations {
                 if !used_regions.contains_key(r) {
                     // Oddly harfbuzz doesn't check deltas_y here.
                     let all_zeros = tuple_var.deltas_x.iter().all(|&d| d.round() == 0.0);
-                    if !all_zeros {
+                    let is_inactive = tuple_var.axis_tuples.is_inactive();
+                    if !all_zeros && !is_inactive {
                         used_regions.insert(r, 1);
                     }
                 }
