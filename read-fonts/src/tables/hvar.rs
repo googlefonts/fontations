@@ -31,7 +31,7 @@ impl Hvar<'_> {
         )
     }
 
-    /// Returns the left side bearing delta for the specified glyph identifier and
+    /// Returns the right side bearing delta for the specified glyph identifier and
     /// normalized variation coordinates.
     pub fn rsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
         variations::item_delta(
