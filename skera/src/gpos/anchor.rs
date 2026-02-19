@@ -171,7 +171,6 @@ impl<'a> SubsetTable<'a> for AnchorFormat3<'a> {
         ) || // similarly for y
             (y_device.as_ref().is_some() &&!matches!(y_device, Some(DeviceOrVariationIndex::VariationIndex(varidx)))
             || !is_no_variation_index(y_var_index, plan));
-        println!("  No downgrade for AnchorFormat3: {no_downgrade}");
         if !no_downgrade {
             // Set to format 1 and we're done
             s.copy_assign(format_pos, 1_u16);
