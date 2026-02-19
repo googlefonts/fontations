@@ -1105,6 +1105,7 @@ impl ItemVariations {
             for tuple_var in &tuple_variations.tuple_vars {
                 let r = &tuple_var.axis_tuples;
                 if !used_regions.contains_key(r) {
+                    // Oddly harfbuzz doesn't check deltas_y here.
                     let all_zeros = tuple_var.deltas_x.iter().all(|&d| d.round() == 0.0);
                     if !all_zeros {
                         used_regions.insert(r, 1);
