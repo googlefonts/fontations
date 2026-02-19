@@ -239,7 +239,6 @@ impl TupleDelta {
             deltas_x: deltas.iter().map(|p| p.x).collect(),
             deltas_y: deltas.iter().map(|p| p.y).collect(),
         };
-        log::debug!("from_gvar_tuple: {:?}", tuple);
         Ok(tuple)
     }
 
@@ -286,21 +285,6 @@ impl TupleDelta {
             ));
         }
         let tents = self.axis_tuples.to_tents(axis_tags);
-        log::debug!(
-            "to_glyph_deltas: axis_tuples has {} entries, tents has {} entries, axis_tags len={}",
-            self.axis_tuples.len(),
-            tents.len(),
-            axis_tags.len()
-        );
-        for (tag, triple) in self.axis_tuples.iter() {
-            log::debug!(
-                "  axis {:?}: min={:.4}, mid={:.4}, max={:.4}",
-                tag,
-                triple.minimum,
-                triple.middle,
-                triple.maximum
-            );
-        }
         GlyphDeltas::new(tents, deltas)
     }
 
@@ -367,8 +351,6 @@ impl TupleDelta {
             // All points are referenced, nothing to do
             return Ok(());
         }
-        log::warn!("Inferring {} points", point_count - ref_count);
-        log::warn!("End points of countours: {:?}", end_points);
 
         let mut start_point = 0;
         for end_point in end_points {
@@ -378,12 +360,6 @@ impl TupleDelta {
                 .iter()
                 .filter(|&&is_ref| !is_ref)
                 .count();
-            log::warn!(
-                "Considering contour from {} to {}, unref_count={}",
-                start_point,
-                end_point,
-                unref_count
-            );
             let mut j = start_point;
 
             if !(unref_count == 0 || unref_count > end_point - start_point) {
@@ -451,8 +427,6 @@ impl TupleDelta {
                 self.indices[i] = true;
             }
         }
-        log::debug!("Deltas X now: {:?}", self.deltas_x);
-        log::debug!("Deltas Y now: {:?}", self.deltas_x);
         Ok(())
     }
 
@@ -1628,7 +1602,6 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        log::warn!("Hello from subset IVS");
         let (inner_maps, keep_empty) = args;
         if !keep_empty && inner_maps.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -1637,7 +1610,6 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         // When we have instancing (normalized_coords), use the instancing path
         // which handles instantiation and optimization all at once
         if !plan.normalized_coords.is_empty() {
-            log::debug!("Using instancing path for ItemVariationStore");
             let (bytes, varidx_map) =
                 subset_itemvarstore_with_instancing(self.clone(), plan, s, inner_maps, true)?;
 
@@ -1665,7 +1637,6 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         }
 
         // Non-instancing path: standard subsetting without instancing
-        log::debug!("Using standard subsetting path for ItemVariationStore");
         s.embed(self.format())?;
 
         let var_region_list = self
