@@ -591,7 +591,8 @@ impl ContourPoints {
                 }
             }
         }
-        // Add phantom points
+        // Add phantom points. These are wrong for composites with use_my_metrics set. See
+        // Glyph.hh:436-452.
         let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
         let lsb = metrics.left_side_bearing(glyph_id).unwrap_or(0.0);
         let aw = metrics.advance_width(glyph_id).unwrap_or(0.0);
