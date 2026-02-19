@@ -22,12 +22,6 @@ pub(crate) fn compute_effective_format(
     font_data: FontData,
     plan: Option<&Plan>,
 ) -> ValueFormat {
-    log::info!(
-        "Computing effective format for ValueRecord: {:?}, strip_hints={}, strip_empty={}",
-        value_record,
-        strip_hints,
-        strip_empty
-    );
     let mut value_format = ValueFormat::empty();
 
     if let Some(x_placement) = value_record.x_placement {
@@ -58,25 +52,25 @@ pub(crate) fn compute_effective_format(
         // During instancing, don't include device format flags - deltas are already applied to base values
         if let Some(plan_ref) = plan {
             if !plan_ref.normalized_coords.is_empty() {
-                log::info!("X_PLACEMENT_DEVICE: not adding format bit during instancing");
+                // log::info!("X_PLACEMENT_DEVICE: not adding format bit during instancing");
                 // Skip device format during instancing
             } else {
                 value_format |= ValueFormat::X_PLACEMENT_DEVICE;
-                log::info!("X_PLACEMENT_DEVICE: keeping flag (not instancing)");
+                // log::info!("X_PLACEMENT_DEVICE: keeping flag (not instancing)");
             }
         } else {
             value_format |= ValueFormat::X_PLACEMENT_DEVICE;
-            log::info!("X_PLACEMENT_DEVICE: keeping flag (no plan)");
+            // log::info!("X_PLACEMENT_DEVICE: keeping flag (no plan)");
         }
     }
 
     if !value_record.y_placement_device.get().is_null() && !strip_hints {
         if let Some(plan_ref) = plan {
             if !plan_ref.normalized_coords.is_empty() {
-                log::info!("Y_PLACEMENT_DEVICE: not adding format bit during instancing");
+                // log::info!("Y_PLACEMENT_DEVICE: not adding format bit during instancing");
             } else {
                 value_format |= ValueFormat::Y_PLACEMENT_DEVICE;
-                log::info!("Y_PLACEMENT_DEVICE: keeping flag (not instancing)");
+                // log::info!("Y_PLACEMENT_DEVICE: keeping flag (not instancing)");
             }
         } else {
             value_format |= ValueFormat::Y_PLACEMENT_DEVICE;
