@@ -1692,7 +1692,7 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
 /// Instancing path for ItemVariationStore.
 /// Corresponds to Harfbuzz's item_variations_t::instantiate + serialize.
 /// Returns both the serialized bytes and the variation index mapping.
-fn subset_itemvarstore_with_instancing(
+pub fn subset_itemvarstore_with_instancing(
     var_store: ItemVariationStore,
     plan: &Plan,
     _s: &mut Serializer,
