@@ -415,7 +415,7 @@ impl<'a> Parser<'a> {
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psconv.c#L161>
 fn decode_int(bytes: &[u8]) -> Option<i64> {
-    let s = str::from_utf8(bytes).ok()?;
+    let s = std::str::from_utf8(bytes).ok()?;
     if let Some(hash_idx) = s.find('#') {
         if hash_idx == 1 || hash_idx == 2 {
             // It's a radix number, like 8#40.
