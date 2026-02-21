@@ -699,7 +699,7 @@ mod tests {
 
     fn parse_to_tokens(data: &'_ [u8]) -> Vec<Token<'_>> {
         let mut tokens = vec![];
-        let mut parser = Parser::new(data.as_ref());
+        let mut parser = Parser::new(data);
         while let Some(token) = parser.next() {
             tokens.push(token);
         }
