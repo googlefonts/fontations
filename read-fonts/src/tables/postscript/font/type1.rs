@@ -223,7 +223,7 @@ enum Token<'a> {
     Binary(&'a [u8]),
     /// Names, preceded by /
     Name(&'a [u8]),
-    /// All other raw tokens (identifiers and self-delimiting punctutation)
+    /// All other raw tokens (identifiers and self-delimiting punctuation)
     Raw(&'a [u8]),
 }
 
