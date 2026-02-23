@@ -37,7 +37,6 @@ impl Subset for Gdef<'_> {
     ) -> Result<(), SubsetError> {
         match subset_gdef(self, plan, s, state) {
             Ok(()) => Ok(()),
-            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => Ok(()),
             Err(_) => Err(SubsetError::SubsetTableError(Gdef::TAG)),
         }
     }
