@@ -1607,6 +1607,7 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
     for record in font.table_directory().table_records() {
         let tag = record.tag();
         if should_drop_table(tag, plan) {
+            log::info!("Dropping table {:?}", tag);
             continue;
         }
 
@@ -1635,7 +1636,6 @@ fn should_drop_table(tag: Tag, plan: &Plan) -> bool {
     match tag {
         // hint tables
         Cvar::TAG | CVT | FPGM | PREP | Hdmx::TAG | VDMX => no_hinting,
-        //TODO: drop var tables during instancing when all axes are pinned
         _ => false,
     }
 }
@@ -1721,7 +1721,7 @@ fn subset_table<'a>(
 
     match tag {
         Avar::TAG => {
-            if plan.axes_index_map.is_empty() {
+            if plan.axes_index_map.is_empty() && !plan.all_axes_pinned {
                 passthrough_table(tag, font, s)
             } else {
                 font.avar()
@@ -1761,7 +1761,7 @@ fn subset_table<'a>(
             .subset(plan, font, s, builder),
 
         Fvar::TAG => {
-            if plan.axes_index_map.is_empty() {
+            if plan.axes_index_map.is_empty() && !plan.all_axes_pinned {
                 passthrough_table(tag, font, s)
             } else {
                 font.fvar()
