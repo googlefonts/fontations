@@ -101,16 +101,28 @@ fn instantiate_gvar(
         plan.axes_triple_distances
     );
     for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
-        if let Some(glyph_var) = gvar
-            .glyph_variation_data(*old_gid)
-            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+        if let Some(glyph_var) = gvar.glyph_variation_data(*old_gid)
+        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            if let Some(all_points) = plan.new_gid_contour_points_map.get(new_gid) {
+            if new_gid == &GlyphId::new(0)
+                && !(plan
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE))
+            {
+                // Special handling for .notdef glyph
+                new_variations.push(GlyphVariations::new(*new_gid, vec![]));
+            } else if let Some(all_points) = plan.new_gid_contour_points_map.get(new_gid) {
+                log::info!(
+                    "Instantiating gvar for gid {:?} with {} points",
+                    new_gid,
+                    all_points.0.len()
+                );
                 let mut tuple_variations: TupleVariations = TupleVariations::from_gvar(
                     glyph_var,
                     all_points.0.len(),
                     &plan.axes_old_index_tag_map,
                 )?;
+
                 tuple_variations.instantiate(
                     &plan.axes_location,
                     &plan.axes_triple_distances,
@@ -125,7 +137,7 @@ fn instantiate_gvar(
                 ));
             } else {
                 // Can't happen
-                return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+                panic!("Can't find contour points for gid {:?} in plan, but it should be there as it's used in gvar", new_gid);
             }
         } else {
             // No variations for this glyph
