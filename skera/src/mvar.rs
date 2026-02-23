@@ -26,7 +26,7 @@ impl Subset for Mvar<'_> {
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
         if plan.all_axes_pinned {
-            return Ok(());
+            return Err(SubsetError::SubsetTableError(Mvar::TAG));
         }
         s.embed(self.version())
             .map_err(|_| SubsetError::SubsetTableError(Mvar::TAG))?;
