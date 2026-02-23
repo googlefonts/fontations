@@ -1,9 +1,6 @@
 //! impl subset() for head
-use crate::{serialize::Serializer, Plan, Subset, SubsetError};
-use write_fonts::{
-    read::{tables::head::Head, FontRef, TopLevelTable},
-    FontBuilder,
-};
+use crate::Plan;
+use write_fonts::read::tables::head::Head;
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct HeadMaxpInfo {

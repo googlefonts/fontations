@@ -19,7 +19,7 @@ pub(crate) fn compute_effective_format(
     value_record: &ValueRecord,
     strip_hints: bool,
     strip_empty: bool,
-    font_data: FontData,
+    _font_data: FontData,
     plan: Option<&Plan>,
 ) -> ValueFormat {
     let mut value_format = ValueFormat::empty();

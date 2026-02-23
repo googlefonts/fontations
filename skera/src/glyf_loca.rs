@@ -9,7 +9,7 @@ use crate::{
 use font_types::Point;
 use skrifa::{
     prelude::{LocationRef, Size},
-    raw::{tables::glyf::CurvePoint, ReadError},
+    raw::tables::glyf::CurvePoint,
     MetadataProvider,
 };
 use write_fonts::{
@@ -27,8 +27,8 @@ use write_fonts::{
         types::GlyphId,
         FontRef, TableProvider, TopLevelTable,
     },
-    tables::glyf::{Component, CompositeGlyph as WriteCompositeGlyph, Contour},
-    FontBuilder, OtRound, TableWriter,
+    tables::glyf::CompositeGlyph as WriteCompositeGlyph,
+    FontBuilder, OtRound,
 };
 
 pub(crate) const PHANTOM_POINT_COUNT: usize = 4;

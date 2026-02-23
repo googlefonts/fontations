@@ -1,7 +1,4 @@
 use num_traits::Float;
-use std::hash::Hasher;
-
-use font_types::F2Dot14;
 
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Triple<F: Float + std::fmt::Debug + Copy + Default + PartialEq> {

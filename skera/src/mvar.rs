@@ -1,9 +1,7 @@
 //! impl subset() for MVAR
 
 use crate::{
-    offset::SerializeCopy,
-    serialize::{SerializeErrorFlags, Serializer},
-    variations::subset_itemvarstore_with_instancing,
+    offset::SerializeCopy, serialize::Serializer, variations::subset_itemvarstore_with_instancing,
     IncBiMap, Plan, Subset, SubsetError,
 };
 use fnv::FnvHashMap;
@@ -11,13 +9,9 @@ use font_types::Offset16;
 use write_fonts::{
     read::{
         collections::IntSet,
-        tables::{
-            mvar::Mvar,
-            variations::{DeltaSetIndex, ItemVariationStore},
-        },
-        FontRef, ReadError, TopLevelTable,
+        tables::{mvar::Mvar, variations::DeltaSetIndex},
+        FontRef, TopLevelTable,
     },
-    types::Offset32,
     FontBuilder,
 };
 

@@ -166,10 +166,10 @@ impl<'a> SubsetTable<'a> for AnchorFormat3<'a> {
         // );
         let no_downgrade = (
             // x is some and not a variation index, or is a variation index which maps to NO_VARIATION_INDEX
-            (x_device.as_ref().is_some() &&!matches!(x_device, Some(DeviceOrVariationIndex::VariationIndex(varidx)))
+            (x_device.as_ref().is_some() &&!matches!(x_device, Some(DeviceOrVariationIndex::VariationIndex(_)))
             || !is_no_variation_index(x_var_index, plan))
         ) || // similarly for y
-            (y_device.as_ref().is_some() &&!matches!(y_device, Some(DeviceOrVariationIndex::VariationIndex(varidx)))
+            (y_device.as_ref().is_some() &&!matches!(y_device, Some(DeviceOrVariationIndex::VariationIndex(_)))
             || !is_no_variation_index(y_var_index, plan));
         if !no_downgrade {
             // Set to format 1 and we're done
