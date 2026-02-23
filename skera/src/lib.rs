@@ -980,12 +980,16 @@ impl Plan {
         );
     }
 
-    fn get_instance_glyphs_contour_points(&mut self, font: &FontRef) {
+    fn get_instance_glyphs_contour_points(&mut self, font: &FontRef) -> Result<(), SubsetError> {
         if self.user_axes_location.is_empty() {
-            return;
+            return Ok(());
         }
-        let Ok(loca) = font.loca(None) else { return }; // Could be CFF
-        let Ok(glyf) = font.glyf() else { return }; // loca but no glyf? No outlines for you.
+        let Ok(loca) = font.loca(None) else {
+            return Ok(());
+        }; // Could be CFF
+        let Ok(glyf) = font.glyf() else {
+            return Ok(());
+        }; // loca but no glyf? No outlines for you.
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
             if new_gid.to_u32() == 0
                 && !(self
@@ -1033,7 +1037,8 @@ impl Plan {
                 Ok(Some(glyph)) => {
                     self.new_gid_contour_points_map.insert(
                         *new_gid,
-                        ContourPoints::from_glyph_no_var(&glyph, font, *old_gid),
+                        ContourPoints::from_glyph_no_var(&glyph, font, *old_gid)
+                            .map_err(SubsetError::ReadError)?,
                     );
                     Some(glyph)
                 }
@@ -1089,6 +1094,7 @@ impl Plan {
                 self.composite_new_gids.insert(*new_gid);
             }
         }
+        Ok(())
     }
 
     fn apply_instancing_spec(

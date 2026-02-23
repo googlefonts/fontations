@@ -9,8 +9,8 @@ use crate::{
 use font_types::Point;
 use skrifa::{
     prelude::{LocationRef, Size},
-    raw::tables::glyf::CurvePoint,
-    MetadataProvider,
+    raw::{tables::glyf::CurvePoint, ReadError},
+    GlyphId16, MetadataProvider,
 };
 use write_fonts::{
     from_obj::ToOwnedTable,
@@ -546,12 +546,14 @@ impl ContourPoints {
 }
 
 impl ContourPoints {
-    pub(crate) fn from_glyph_no_var(
-        glyph: &Glyph<'_>,
-        font: &FontRef<'_>,
-        glyph_id: GlyphId,
-    ) -> Self {
-        let mut contour_points = ContourPoints::new();
+    fn get_points_and_metrics(
+        glyph: &Glyph,
+        gid: GlyphId,
+        font: &FontRef,
+    ) -> Result<(Vec<ContourPoint>, Option<GlyphId>, f32, f32), ReadError> {
+        let mut steal_metrics = None;
+        let mut contour_points = Vec::new();
+
         match glyph {
             Simple(simple_glyph) => {
                 let end_points = simple_glyph
@@ -559,43 +561,70 @@ impl ContourPoints {
                     .iter()
                     .map(|e| e.get())
                     .collect::<Vec<u16>>();
-                contour_points
-                    .0
-                    .extend(simple_glyph.points().enumerate().map(|(ix, p)| {
-                        ContourPoint::new(
-                            p.x as f32,
-                            p.y as f32,
-                            p.on_curve,
-                            end_points.contains(&(ix as u16)),
-                        )
-                    }));
+                contour_points.extend(simple_glyph.points().enumerate().map(|(ix, p)| {
+                    ContourPoint::new(
+                        p.x as f32,
+                        p.y as f32,
+                        p.on_curve,
+                        end_points.contains(&(ix as u16)),
+                    )
+                }));
                 for endpoint in simple_glyph.end_pts_of_contours().iter() {
-                    contour_points.0[endpoint.get() as usize].is_end_point = true;
+                    contour_points[endpoint.get() as usize].is_end_point = true;
                 }
             }
             Composite(composite_glyph) => {
+                if let Some((gid, flags)) = composite_glyph.component_glyphs_and_flags().next() {
+                    if flags.contains(CompositeGlyphFlags::USE_MY_METRICS) {
+                        steal_metrics = Some(GlyphId::from(gid));
+                    }
+                }
                 for composite in composite_glyph.components() {
                     match composite.anchor {
                         Anchor::Point { .. } => {
                             // if (is_anchored ()) tx = ty = 0;
-                            contour_points
-                                .0
-                                .push(ContourPoint::new(0.0, 0.0, false, true));
+                            contour_points.push(ContourPoint::new(0.0, 0.0, false, true));
                         }
                         Anchor::Offset { x, y } => {
                             contour_points
-                                .0
                                 .push(ContourPoint::new(x as f32, y as f32, false, false));
                         }
                     }
                 }
             }
         }
-        // Add phantom points. These are wrong for composites with use_my_metrics set. See
-        // Glyph.hh:436-452.
-        let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
-        let lsb = metrics.left_side_bearing(glyph_id).unwrap_or(0.0);
-        let aw = metrics.advance_width(glyph_id).unwrap_or(0.0);
+
+        let (lsb, aw) = if let Some(gid) = steal_metrics {
+            let loca = font.loca(None)?;
+            let glyf = font.glyf()?;
+            let other_glyph = loca.get_glyf(gid.into(), &glyf)?;
+            let glyph_ref = other_glyph.as_ref().unwrap_or(glyph);
+            let (_, _, aw, lsb) = ContourPoints::get_points_and_metrics(glyph_ref, gid, font)?;
+            (lsb, aw)
+        } else {
+            let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+            let lsb = metrics.left_side_bearing(gid.into()).unwrap_or(0.0);
+            let aw = metrics.advance_width(gid.into()).unwrap_or(0.0);
+
+            (lsb, aw)
+        };
+
+        // Now get metrics
+
+        Ok((contour_points, steal_metrics, lsb, aw))
+    }
+
+    pub(crate) fn from_glyph_no_var(
+        glyph: &Glyph<'_>,
+        font: &FontRef<'_>,
+        glyph_id: GlyphId,
+    ) -> Result<Self, ReadError> {
+        let (points, _steal_metrics, lsb, aw) =
+            ContourPoints::get_points_and_metrics(glyph, glyph_id, font)?;
+        let mut contour_points = ContourPoints::new();
+        contour_points.0.extend(points);
+
+        // Add phantom points.
         let h_delta = glyph.x_min() as f32 - lsb;
 
         contour_points
@@ -612,7 +641,7 @@ impl ContourPoints {
             .0
             .push(ContourPoint::new(0.0, 0.0, true, true));
 
-        contour_points
+        Ok(contour_points)
     }
 }
 
