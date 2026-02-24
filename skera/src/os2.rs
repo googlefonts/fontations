@@ -25,6 +25,16 @@ impl Subset for Os2<'_> {
         s.embed_bytes(self.offset_data().as_bytes())
             .map_err(|_| SubsetError::SubsetTableError(Os2::TAG))?;
 
+        if !plan.normalized_coords.is_empty() {
+            // I guess technically we should update this even if we aren't instantiating.
+            // But Harfbuzz doesn't, so I won't either.
+            let avg_char_width = calc_avg_char_width(plan.hmtx_map.borrow().values());
+            s.copy_assign(
+                self.shape().x_avg_char_width_byte_range().start,
+                avg_char_width,
+            );
+        }
+
         let us_first_char_index: u16 = plan.os2_info.min_cmap_codepoint.min(0xFFFF) as u16;
         s.copy_assign(
             self.shape().us_first_char_index_byte_range().start,
@@ -105,6 +115,22 @@ impl OS2Range {
         } else {
             Ordering::Less
         }
+    }
+}
+
+fn calc_avg_char_width<'a>(hmtx_map: impl Iterator<Item = &'a (u16, i16)>) -> u16 {
+    let mut total_width: i32 = 0;
+    let mut count: i32 = 0;
+    for (aw, _) in hmtx_map {
+        if *aw > 0 {
+            total_width += *aw as i32;
+            count += 1;
+        }
+    }
+    if count > 0 {
+        (total_width as f32 / count as f32).round() as u16
+    } else {
+        0
     }
 }
 
