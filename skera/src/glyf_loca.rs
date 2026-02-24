@@ -108,8 +108,15 @@ impl Subset for Glyf<'_> {
             }
         }
 
-        //TODO: support force_long_loca in the plan
-        let loca_format: u8 = if max_offset < 0x1FFFF { 0 } else { 1 };
+        let loca_format: u8 = if max_offset < 0x1FFFF
+            && !plan
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_FORCE_LONG_LOCA)
+        {
+            0
+        } else {
+            1
+        };
         let loca_out = write_glyf_loca(font, plan, s, loca_format, &subset_glyphs)?;
 
         let head_out = crate::head::subset_head(&head, loca_format, plan);
