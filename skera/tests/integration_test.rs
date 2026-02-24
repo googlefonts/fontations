@@ -263,6 +263,7 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
             "--layout-scripts-=*" => {
                 layout_scripts.clear();
             }
+            "--iftb-requirements" => subset_flag |= SubsetFlags::SUBSET_FLAGS_FORCE_LONG_LOCA,
             _ => continue,
         }
     }

@@ -267,6 +267,9 @@ impl SubsetFlags {
     //This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
 
+    //If set force the use of long format in the 'loca' table even if the offsets would fit in the short format.
+    pub const SUBSET_FLAGS_FORCE_LONG_LOCA: Self = Self(0x0800);
+
     /// Returns `true` if all of the flags in `other` are contained within `self`.
     #[inline]
     pub const fn contains(&self, other: Self) -> bool {
