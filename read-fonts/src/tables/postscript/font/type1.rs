@@ -1,5 +1,8 @@
 //! Type1 font parsing.
 
+use super::super::dict::FontMatrix;
+use types::Fixed;
+
 /// Raw dictionary data for a Type1 font.
 struct RawDicts<'a> {
     /// Data containing the base dicitionary.
@@ -411,6 +414,30 @@ impl<'a> Parser<'a> {
     }
 }
 
+impl<'a> Parser<'a> {
+    /// Parse a font matrix.
+    ///
+    /// Like FreeType, this is designed assuming a upem of 1000 and produces
+    /// an identity matrix in that case. This is, the result is scaled such
+    /// that 0.001 yields a value of 1.0.
+    fn read_font_matrix(&mut self) -> Option<FontMatrix> {
+        let mut components = [Fixed::ZERO; 6];
+        // skip [
+        self.next()?;
+        // read all components
+        for component in &mut components {
+            *component = match self.next()? {
+                Token::Int(int) => Fixed::from_i32((int as i32).checked_mul(1000)?),
+                Token::Raw(bytes) => decode_fixed(bytes, 3)?,
+                _ => return None,
+            }
+        }
+        // skip ]
+        self.next()?;
+        Some(FontMatrix(components))
+    }
+}
+
 /// Decode an integer, optionally with a base.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psconv.c#L161>
@@ -433,6 +460,115 @@ fn decode_int(bytes: &[u8]) -> Option<i64> {
     } else {
         s.parse::<i64>().ok()
     }
+}
+
+/// Decode an integer at the given position, returning the value and the
+/// index of the position following the decoded integer.
+fn decode_int_prefix(bytes: &[u8], start: usize) -> Option<(i64, usize)> {
+    let tail = bytes.get(start..)?;
+    let end = tail
+        .iter()
+        .position(|c| *c != b'-' && !c.is_ascii_digit())
+        .unwrap_or(tail.len());
+    let int = decode_int(tail.get(..end)?)?;
+    Some((int, start + end))
+}
+
+/// Decode a fixed point value, scaling to a specific power of
+/// ten.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psconv.c#L195>
+fn decode_fixed(bytes: &[u8], mut power_ten: i32) -> Option<Fixed> {
+    const LIMIT: i32 = 0xCCCCCCC;
+    let mut idx = 0;
+    let &first = bytes.get(idx)?;
+    let sign = if first == b'-' || first == b'+' {
+        idx += 1;
+        if first == b'-' {
+            -1
+        } else {
+            1
+        }
+    } else {
+        1
+    };
+    let overflow = || Some(Fixed::from_bits(0x7FFFFFFF * sign));
+    let mut integral = 0;
+    if *bytes.get(idx)? != b'.' {
+        let (int, end_idx) = decode_int_prefix(bytes, idx)?;
+        if int > 0x7FFF {
+            return overflow();
+        }
+        integral = (int << 16) as i32;
+        idx = end_idx;
+    }
+    let mut decimal = 0;
+    let mut divider = 1;
+    if bytes.get(idx) == Some(&b'.') {
+        idx += 1;
+        while let Some(byte) = bytes.get(idx).copied() {
+            if !byte.is_ascii_digit() {
+                break;
+            }
+            let digit = (byte - b'0') as i32;
+            if divider < LIMIT && decimal < LIMIT {
+                decimal = decimal * 10 + digit;
+                if integral == 0 && power_ten > 0 {
+                    power_ten -= 1;
+                } else {
+                    divider *= 10;
+                }
+            }
+            idx += 1;
+        }
+    }
+    if bytes.get(idx).map(|b| b.to_ascii_lowercase()) == Some(b'e') {
+        idx += 1;
+        let (exponent, _) = decode_int_prefix(bytes, idx)?;
+        if exponent > 1000 {
+            return overflow();
+        } else if exponent < -1000 {
+            // underflow
+            return Some(Fixed::ZERO);
+        } else {
+            power_ten = power_ten.checked_add(exponent as i32)?;
+        }
+    }
+    if integral == 0 && decimal == 0 {
+        return Some(Fixed::ZERO);
+    }
+    while power_ten > 0 {
+        if integral >= LIMIT {
+            return overflow();
+        }
+        integral *= 10;
+        if decimal >= LIMIT {
+            if divider == 1 {
+                return overflow();
+            }
+            divider /= 10;
+        } else {
+            decimal *= 10;
+        }
+        power_ten -= 1;
+    }
+    while power_ten < 0 {
+        integral /= 10;
+        if divider < LIMIT {
+            divider *= 10;
+        } else {
+            decimal /= 10;
+        }
+        if integral == 0 && decimal == 0 {
+            return Some(Fixed::ZERO);
+        }
+        power_ten += 1;
+    }
+    if decimal != 0 {
+        decimal = (Fixed::from_bits(decimal) / Fixed::from_bits(divider)).to_bits();
+        integral += decimal;
+    }
+    Some(Fixed::from_bits(integral * sign))
 }
 
 #[cfg(test)]
@@ -704,5 +840,64 @@ mod tests {
             tokens.push(token);
         }
         tokens
+    }
+
+    #[test]
+    fn parse_fixed() {
+        // Direct coversions (power_ten = 0)
+        assert_eq!(decode_fixed(b"42.5", 0).unwrap(), Fixed::from_f64(42.5));
+        assert_eq!(
+            decode_fixed(b"0.0015", 0).unwrap(),
+            Fixed::from_f64(0.001495361328125)
+        );
+        assert_eq!(
+            decode_fixed(b"425.000e-1", 0).unwrap(),
+            Fixed::from_f64(42.5)
+        );
+        assert_eq!(
+            decode_fixed(b"1.5e-3", 0).unwrap(),
+            Fixed::from_f64(0.001495361328125)
+        );
+        // Scaled by 1000 (power_ten = 3)
+        assert_eq!(decode_fixed(b"1.5", 3).unwrap(), Fixed::from_f64(1500.0));
+        assert_eq!(decode_fixed(b"0.001", 3).unwrap(), Fixed::from_f64(1.0));
+        assert_eq!(
+            decode_fixed(b"15000e-4", 3).unwrap(),
+            Fixed::from_f64(1500.0)
+        );
+        assert_eq!(decode_fixed(b"1.000e-3", 3).unwrap(), Fixed::from_f64(1.0));
+    }
+
+    #[test]
+    fn parse_font_matrix() {
+        // Standard matrix for 1000 upem
+        assert_eq!(
+            Parser::new(b"[0.001, 0, 0, 0.001, 0, 0]")
+                .read_font_matrix()
+                .unwrap(),
+            FontMatrix([
+                Fixed::ONE,
+                Fixed::ZERO,
+                Fixed::ZERO,
+                Fixed::ONE,
+                Fixed::ZERO,
+                Fixed::ZERO
+            ])
+        );
+        // Matrix with a stretch along the x axis and a small
+        // offset
+        assert_eq!(
+            Parser::new(b"[0.002, 0, 0, 0.001, 0.5, 2.0e-1]")
+                .read_font_matrix()
+                .unwrap(),
+            FontMatrix([
+                Fixed::from_i32(2),
+                Fixed::ZERO,
+                Fixed::ZERO,
+                Fixed::ONE,
+                Fixed::from_i32(500),
+                Fixed::from_i32(200)
+            ])
+        );
     }
 }
