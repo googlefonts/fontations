@@ -414,7 +414,7 @@ impl<'a> Parser<'a> {
     }
 }
 
-impl<'a> Parser<'a> {
+impl Parser<'_> {
     /// Parse a font matrix.
     ///
     /// Like FreeType, this is designed assuming a upem of 1000 and produces
