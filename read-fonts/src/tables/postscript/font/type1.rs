@@ -844,7 +844,7 @@ mod tests {
 
     #[test]
     fn parse_fixed() {
-        // Direct coversions (power_ten = 0)
+        // Direct conversions (power_ten = 0)
         assert_eq!(decode_fixed(b"42.5", 0).unwrap(), Fixed::from_f64(42.5));
         assert_eq!(
             decode_fixed(b"0.0015", 0).unwrap(),
