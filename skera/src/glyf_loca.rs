@@ -1,7 +1,12 @@
 //! impl subset() for glyf and loca
+use std::{collections::HashSet, fmt::Debug};
+
+use fnv::FnvHashMap;
+
 use crate::{
     estimate_subset_table_size,
-    serialize::Serializer,
+    head::HeadMaxpInfo,
+    serialize::{SerializeErrorFlags, Serializer},
     Plan, Subset,
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
@@ -847,28 +852,20 @@ impl ContourPoints {
 }
 
 impl ContourPoints {
-    /// Recursively gather contour points from a glyph and its components.
-    /// This faithfully follows the Harfbuzz algorithm in Glyph::get_points().
-    /// For simple glyphs: collects the contour points directly.
-    /// For composite glyphs: recursively gathers points from all components.
-    /// For empty glyphs: returns an empty vector.
-    fn get_points_and_metrics(
-        glyph: &Glyph,
-        gid: GlyphId,
-        font: &FontRef,
-    ) -> Result<(Vec<ContourPoint>, Option<GlyphId>, f32, f32), ReadError> {
-        let mut steal_metrics = None;
-        let mut contour_points = Vec::new();
-
+    pub(crate) fn get_all_points_without_var(
+        glyph: &Option<Glyph<'_>>,
+        font: &FontRef<'_>,
+        glyph_id: GlyphId,
+    ) -> Result<Self, ReadError> {
+        let mut points = Vec::new();
         match glyph {
-            Simple(simple_glyph) => {
-                // Collect contour points and mark end points
+            Some(Glyph::Simple(simple_glyph)) => {
                 let end_points = simple_glyph
                     .end_pts_of_contours()
                     .iter()
                     .map(|e| e.get())
                     .collect::<Vec<u16>>();
-                contour_points.extend(simple_glyph.points().enumerate().map(|(ix, p)| {
+                points.extend(simple_glyph.points().enumerate().map(|(ix, p)| {
                     ContourPoint::new(
                         p.x as f32,
                         p.y as f32,
@@ -877,133 +874,53 @@ impl ContourPoints {
                     )
                 }));
                 for endpoint in simple_glyph.end_pts_of_contours().iter() {
-                    contour_points[endpoint.get() as usize].is_end_point = true;
+                    points[endpoint.get() as usize].is_end_point = true;
                 }
             }
-            Composite(composite_glyph) => {
-                if let Some((gid, flags)) = composite_glyph.component_glyphs_and_flags().next() {
-                    if flags.contains(CompositeGlyphFlags::USE_MY_METRICS) {
-                        steal_metrics = Some(GlyphId::from(gid));
-                    }
-                }
-                for composite in composite_glyph.components() {
-                    match composite.anchor {
+            Some(Glyph::Composite(composite_glyph)) => {
+                for component in composite_glyph.components() {
+                    // The "points" here should be the transformations (CompositeGlyph.hh::get_points)
+                    match component.anchor {
                         Anchor::Point { .. } => {
                             // if (is_anchored ()) tx = ty = 0;
-                            contour_points.push(ContourPoint::new(0.0, 0.0, false, true));
+                            points.push(ContourPoint::new(0.0, 0.0, false, false));
                         }
                         Anchor::Offset { x, y } => {
-                            contour_points
-                                .push(ContourPoint::new(x as f32, y as f32, false, false));
+                            points.push(ContourPoint::new(x as f32, y as f32, false, false));
                         }
                     }
                 }
             }
-        }
-
-        // Get metrics for this glyph
-        let (lsb, aw) = if let Some(steal_gid) = steal_metrics {
-            // Steal metrics from the first component with USE_MY_METRICS flag
-            let loca = font.loca(None)?;
-            let glyf = font.glyf()?;
-            let other_glyph = loca.get_glyf(steal_gid, &glyf)?;
-            let glyph_ref = other_glyph.as_ref().unwrap_or(glyph);
-            let (_, _, aw, lsb) = ContourPoints::get_points_and_metrics(glyph_ref, gid, font)?;
-            (lsb, aw)
-        } else {
-            let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
-            let lsb = metrics.left_side_bearing(gid).unwrap_or(0.0);
-            let aw = metrics.advance_width(gid).unwrap_or(0.0);
-            (lsb, aw)
+            None => {}
         };
-
-        Ok((contour_points, steal_metrics, lsb, aw))
-    }
-
-    /// Apply component transformation and translation to gathered points.
-    /// This follows the Harfbuzz algorithm where component points are transformed
-    /// according to the component's anchor (translation) and optional transform matrix.
-    fn apply_component_transform(
-        points: &mut Vec<ContourPoint>,
-        component: &write_fonts::read::tables::glyf::Component,
-    ) {
-        // Get translation from component anchor
-        let (dx, dy) = match component.anchor {
-            Anchor::Point { .. } => {
-                // Anchor point mode doesn't translate points independently
-                (0.0, 0.0)
-            }
-            Anchor::Offset { x, y } => (x as f32, y as f32),
+        let x_min = match glyph {
+            Some(Glyph::Simple(simple_glyph)) => simple_glyph.x_min() as f32,
+            Some(Glyph::Composite(composite_glyph)) => composite_glyph.x_min() as f32,
+            None => 0.0, // empty glyph
         };
+        let y_max = match glyph {
+            Some(Glyph::Simple(simple_glyph)) => simple_glyph.y_max() as f32,
+            Some(Glyph::Composite(composite_glyph)) => composite_glyph.y_max() as f32,
+            None => 0.0, // empty glyph
+        };
+        // Init phantom points
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+        let h_adv = glyph_metrics.advance_width(glyph_id).unwrap_or(0.0);
+        let lsb = glyph_metrics.left_side_bearing(glyph_id).unwrap_or(0.0);
+        let h_delta = x_min - lsb;
+        let tsb = 0.0;
+        let v_adv = -(font.head().unwrap().units_per_em() as f32); // XXX use vmtx if available
+        let v_orig = y_max + tsb;
+        // Phantom left
+        points.push(ContourPoint::new(h_delta, 0.0, false, false));
+        // Phantom right
+        points.push(ContourPoint::new(h_adv + h_delta, 0.0, false, false));
+        // Phantom top
+        points.push(ContourPoint::new(0.0, v_orig, false, false));
+        // Phantom bottom
+        points.push(ContourPoint::new(0.0, v_orig - v_adv, false, false));
 
-        // Get scale/rotation from component transformation
-        // Default identity transform: [1, 0, 0, 1]
-        let transform = component.transform;
-        let scale_x = transform.xx.to_f32();
-        let scale_y = transform.yy.to_f32();
-        let skew_xy = transform.xy.to_f32();
-        let skew_yx = transform.yx.to_f32();
-
-        if points.len() > 0 {
-            debug!(
-                "Applying transform: dx={}, dy={}, scale_x={}, scale_y={}, skew_xy={}, skew_yx={}",
-                dx, dy, scale_x, scale_y, skew_xy, skew_yx
-            );
-            let first_point = &points[0];
-            debug!(
-                "First point before transform: x={}, y={}",
-                first_point.x, first_point.y
-            );
-        }
-
-        // Apply transformation and translation to each point (including phantom points)
-        // Phantom points carry metric information and must be transformed too
-        for point in points.iter_mut() {
-            let x = point.x;
-            let y = point.y;
-
-            // Apply 2x2 matrix transformation: [x', y'] = [[xx, xy], [yx, yy]] * [x, y] + [dx, dy]
-            point.x = x * scale_x + y * skew_xy + dx;
-            point.y = x * skew_yx + y * scale_y + dy;
-        }
-
-        if points.len() > 0 {
-            let first_point = &points[0];
-            debug!(
-                "First point after transform: x={}, y={}",
-                first_point.x, first_point.y
-            );
-        }
-    }
-
-    pub(crate) fn get_all_points_without_var(
-        glyph: &Option<Glyph<'_>>,
-        font: &FontRef<'_>,
-        glyph_id: GlyphId,
-    ) -> Result<Self, ReadError> {
-        let (points, _steal_metrics, lsb, aw) =
-            ContourPoints::get_points_and_metrics(glyph, glyph_id, font)?;
-        let mut contour_points = ContourPoints::new();
-        contour_points.0.extend(points);
-
-        // Add phantom points.
-        let h_delta = glyph.x_min() as f32 - lsb;
-
-        contour_points
-            .0
-            .push(ContourPoint::new(h_delta, 0.0, true, true));
-        contour_points
-            .0
-            .push(ContourPoint::new(h_delta + aw, 0.0, true, true));
-        // XXX get vertical deltas
-        contour_points
-            .0
-            .push(ContourPoint::new(0.0, 0.0, true, true));
-        contour_points
-            .0
-            .push(ContourPoint::new(0.0, 0.0, true, true));
-
-        Ok(contour_points)
+        Ok(Self(points))
     }
 
     fn get_bounds(&self) -> Bounds {

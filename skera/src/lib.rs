@@ -1082,7 +1082,7 @@ impl Plan {
                 Ok(glyph) => {
                     self.new_gid_contour_points_map.insert(
                         *new_gid,
-                        ContourPoints::from_glyph_no_var(&glyph, font, *old_gid)
+                        ContourPoints::get_all_points_without_var(&glyph, font, *old_gid)
                             .map_err(SubsetError::ReadError)?,
                     );
                     glyph
