@@ -10,7 +10,7 @@ use font_types::{F2Dot14, Point};
 use skrifa::{
     prelude::{LocationRef, Size},
     raw::{tables::glyf::CurvePoint, ReadError},
-    GlyphId16, MetadataProvider,
+    MetadataProvider,
 };
 use write_fonts::{
     from_obj::ToOwnedTable,
@@ -33,6 +33,31 @@ use write_fonts::{
 
 pub(crate) const PHANTOM_POINT_COUNT: usize = 4;
 
+#[derive(Debug, Clone, Copy)]
+struct Bounds {
+    x_min: f32,
+    y_min: f32,
+    x_max: f32,
+    y_max: f32,
+}
+
+impl Bounds {
+    fn is_empty(&self) -> bool {
+        self.x_min == 0.0 && self.y_min == 0.0 && self.x_max == 0.0 && self.y_max == 0.0
+    }
+}
+
+impl From<Bounds> for write_fonts::tables::glyf::Bbox {
+    fn from(val: Bounds) -> Self {
+        write_fonts::tables::glyf::Bbox {
+            x_min: val.x_min.ot_round(),
+            y_min: val.y_min.ot_round(),
+            x_max: val.x_max.ot_round(),
+            y_max: val.y_max.ot_round(),
+        }
+    }
+}
+
 // reference: subset() for glyf/loca/head in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/glyf/glyf.hh#L77
 impl Subset for Glyf<'_> {
@@ -50,27 +75,21 @@ impl Subset for Glyf<'_> {
         let mut subset_glyphs = Vec::with_capacity(num_output_glyphs);
         let mut max_offset: u32 = 0;
 
+        let glyf_accelerator = GlyfAccelerator::new(font, plan);
+
+        // _populate_subset_glyphs
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
             match loca.get_glyf(*old_gid, self) {
-                Ok(g) => {
-                    if *old_gid == GlyphId::NOTDEF
-                        && *new_gid == GlyphId::NOTDEF
-                        && !plan
-                            .subset_flags
-                            .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
-                    {
-                        // We still need to go through with this to set up the metrics,
-                        // so we need an empty glyph.
-                        maybe_glyph = None;
-                    }
-
-                    let Some(glyph) = g else {
-                        subset_glyphs.push(Vec::new());
-                        continue;
-                    };
+                Ok(maybe_glyph) => {
                     let subset_glyph = if !plan.normalized_coords.is_empty() {
-                        instantiate_and_subset_glyph(glyph, plan, *new_gid)
-                            .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
+                        // This is old_gid since we are pretending to be the old font when applying deltas
+                        compile_bytes_with_deltas(
+                            maybe_glyph.as_ref(),
+                            plan,
+                            &glyf_accelerator,
+                            *old_gid,
+                        )
+                        .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
                     } else {
                         let glyph_for_subset = if *old_gid == GlyphId::NOTDEF
                             && *new_gid == GlyphId::NOTDEF
@@ -84,6 +103,7 @@ impl Subset for Glyf<'_> {
                         };
                         subset_glyph(glyph_for_subset, plan)
                     };
+
                     let trimmed_len = subset_glyph.len();
                     max_offset += padded_size(trimmed_len) as u32;
                     subset_glyphs.push(subset_glyph);
@@ -473,8 +493,9 @@ impl<'a> GlyfAccelerator<'a> {
                 }
             }
         } else {
-            log::warn!(
-                "No deltas found for gid {}, not applying any gvar deltas",
+            log::error!(
+                "No deltas found for gid {} (old gid {}), but that's weird because we asserted there were some",
+                new_gid,
                 gid
             );
         }
@@ -482,22 +503,14 @@ impl<'a> GlyfAccelerator<'a> {
 }
 
 fn compile_bytes_with_deltas(
-    glyph: Glyph,
+    glyph: Option<&Glyph>,
     plan: &Plan,
     glyph_accelerator: &GlyfAccelerator,
     old_gid: GlyphId,
-) -> Result<Vec<u8>, write_fonts::error::Error> {
-    let mut contour_points = plan
-        .new_gid_contour_points_map
-        .get(&new_gid)
-        .expect("BUG: contour points for the new gid should have been calculated in Plan::new()")
-        .clone();
-    let deltas = plan
-        .new_gid_instance_deltas_map
-        .get(&new_gid)
-        .expect("BUG: deltas for the new gid should have been calculated in Plan::new()");
-    contour_points.add_deltas(deltas);
-    let mut write_glyph: write_fonts::tables::glyf::Glyph = glyph.to_owned_table();
+) -> Result<Vec<u8>, SerializeErrorFlags> {
+    let mut write_glyph: write_fonts::tables::glyf::Glyph = glyph
+        .map(|x| x.to_owned_table())
+        .unwrap_or(write_fonts::tables::glyf::Glyph::Empty);
     let head_maxp = if matches!(write_glyph, write_fonts::tables::glyf::Glyph::Empty)
         || (old_gid == GlyphId::NOTDEF
             && !plan
@@ -527,38 +540,26 @@ fn compile_bytes_with_deltas(
         write_glyph = write_fonts::tables::glyf::Glyph::Empty;
     }
 
-    if !plan.pinned_at_default {
-        match write_glyph {
-            write_fonts::tables::glyf::Glyph::Empty => {}
-            write_fonts::tables::glyf::Glyph::Simple(ref mut simple_glyph) => {
-                make_simple_glyph_with_deltas(
-                    simple_glyph,
-                    &all_points, // Not points with deltas, apparently.
-                    plan.subset_flags
-                        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING),
-                );
-            }
-            simple_glyph.contours = vec![];
-            let mut last_contour: Vec<CurvePoint> = vec![];
-            let mut x_min = 0;
-            let mut y_min = 0;
-            let mut x_max = 0;
-            let mut y_max = 0;
-            for point in contour_points.0 {
-                last_contour.push(CurvePoint {
-                    x: point.x.ot_round(),
-                    y: point.y.ot_round(),
-                    on_curve: point.is_on_curve,
-                });
-                x_min = x_min.min(point.x.ot_round());
-                y_min = y_min.min(point.y.ot_round());
-                x_max = x_max.max(point.x.ot_round());
-                y_max = y_max.max(point.y.ot_round());
-                if point.is_end_point {
-                    simple_glyph.contours.push(last_contour.into());
-                    last_contour = vec![];
-                }
-            }
+    // if !plan.pinned_at_default {
+    match write_glyph {
+        write_fonts::tables::glyf::Glyph::Empty => {}
+        write_fonts::tables::glyf::Glyph::Simple(ref mut simple_glyph) => {
+            make_simple_glyph_with_deltas(
+                simple_glyph,
+                &all_points, // Not points with deltas, apparently.
+                plan.subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING),
+            );
+            plan.head_maxp_info.borrow_mut().update_extrema(
+                simple_glyph.bbox.x_min,
+                simple_glyph.bbox.y_min,
+                simple_glyph.bbox.x_max,
+                simple_glyph.bbox.y_max,
+            );
+        }
+        write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
+            write_glyph =
+                make_composite_glyph_with_deltas(composite_glyph, points_with_deltas, plan);
         }
     }
     // }
@@ -585,81 +586,16 @@ fn compile_header_bytes(
     let bounds = points_without_phantoms.get_bounds_without_phantoms();
     match write_glyph {
         write_fonts::tables::glyf::Glyph::Empty => {}
-        write_fonts::tables::glyf::Glyph::Simple(simple_glyph) => {
-            simple_glyph.bbox = bounds.into();
-            plan.head_maxp_info.borrow_mut().update_extrema(
-                bounds.x_min as i16,
-                bounds.y_min as i16,
-                bounds.x_max as i16,
-                bounds.y_max as i16,
-            );
-        }
+        write_fonts::tables::glyf::Glyph::Simple(simple_glyph) => {}
         write_fonts::tables::glyf::Glyph::Composite(composite_glyph) => {
-            log::warn!(
-                "Setting bbox for composite glyph {} to {:?} based on points without phantoms",
-                new_gid,
-                bounds
+            composite_glyph.bbox = bounds.into();
+            log::debug!("Composite bbox is now {:?}", composite_glyph.bbox);
+            plan.head_maxp_info.borrow_mut().update_extrema(
+                composite_glyph.bbox.x_min,
+                composite_glyph.bbox.y_min,
+                composite_glyph.bbox.x_max,
+                composite_glyph.bbox.y_max,
             );
-            if plan
-                .subset_flags
-                .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
-            {
-                // Oops, write_fonts doesn't let us do this
-                // simple_glyph.flags.insert(SimpleGlyphFlags::OVERLAP_SIMPLE);
-            }
-            plan.head_maxp_info
-                .borrow_mut()
-                .update_extrema(x_min, y_min, x_max, y_max);
-            simple_glyph.recompute_bounding_box();
-        }
-        write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
-            let mut ix = 0;
-            // We can't mutate components, we have to rebuild the gyph
-            let mut new_components = vec![];
-            for component in composite_glyph.components().iter() {
-                let mut new_component = component.clone();
-                if let Anchor::Offset { x, y } = component.anchor {
-                    let delta = deltas.get(ix).unwrap_or(&Point { x: 0.0, y: 0.0 });
-                    new_component.anchor = Anchor::Offset {
-                        x: (x as f32 + delta.x).ot_round(),
-                        y: (y as f32 + delta.y).ot_round(),
-                    };
-                    ix += 1;
-                }
-                new_component.glyph = plan
-                    .new_to_old_gid_list
-                    .iter()
-                    .find_map(|(new, old)| {
-                        if *old == component.glyph {
-                            Some(*new)
-                        } else {
-                            None
-                        }
-                    })
-                    .expect("BUG: all component glyphs should have been mapped in Plan::new()")
-                    .try_into()
-                    .unwrap();
-                // XXX I'm not entirely sure what deltas are generated for other uses
-                new_components.push(new_component);
-            }
-            // XXX We also need to adjust the bounding box of the composite glyph.
-            // This is tricky because we don't know the new bounding boxes of the component glyphs until after subsetting them, but we need the composite glyph bounding box to subset the components...
-            if new_components.is_empty() {
-                // Not sure how this can happen but I don't really want to panic either
-                return Ok(vec![]);
-            }
-            let mut first = new_components.remove(0);
-            if plan
-                .subset_flags
-                .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
-            {
-                first.flags.overlap_compound = true;
-            }
-            let mut new_composite = WriteCompositeGlyph::new(first, composite_glyph.bbox);
-            for component in new_components {
-                new_composite.add_component(component, composite_glyph.bbox);
-            }
-            *composite_glyph = new_composite;
         }
     }
 }
@@ -865,14 +801,6 @@ impl From<CurvePoint> for ContourPoint {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ContourPoints(pub Vec<ContourPoint>);
 impl ContourPoints {
-    fn new() -> Self {
-        Self(Vec::new())
-    }
-    pub(crate) fn add_deltas(&mut self, deltas: &[Point<f32>]) {
-        for i in 0..deltas.len() {
-            self.0[i].add_delta(deltas[i].x, deltas[i].y);
-        }
-    }
     pub(crate) fn add_deltas_with_indices(
         &mut self,
         deltas_x: &[f32],
@@ -960,15 +888,14 @@ impl ContourPoints {
             // Steal metrics from the first component with USE_MY_METRICS flag
             let loca = font.loca(None)?;
             let glyf = font.glyf()?;
-            let other_glyph = loca.get_glyf(gid.into(), &glyf)?;
+            let other_glyph = loca.get_glyf(steal_gid, &glyf)?;
             let glyph_ref = other_glyph.as_ref().unwrap_or(glyph);
             let (_, _, aw, lsb) = ContourPoints::get_points_and_metrics(glyph_ref, gid, font)?;
             (lsb, aw)
         } else {
             let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
-            let lsb = metrics.left_side_bearing(gid.into()).unwrap_or(0.0);
-            let aw = metrics.advance_width(gid.into()).unwrap_or(0.0);
-
+            let lsb = metrics.left_side_bearing(gid).unwrap_or(0.0);
+            let aw = metrics.advance_width(gid).unwrap_or(0.0);
             (lsb, aw)
         };
 
@@ -1059,6 +986,125 @@ impl ContourPoints {
             .push(ContourPoint::new(0.0, 0.0, true, true));
 
         Ok(contour_points)
+    }
+
+    fn get_bounds(&self) -> Bounds {
+        let mut x_min = 0.0;
+        let mut x_max = 0.0;
+        let mut y_min = 0.0;
+        let mut y_max = 0.0;
+        if self.0.len() > 4 {
+            x_min = self.0[0].x;
+            x_max = self.0[0].x;
+            y_min = self.0[0].y;
+            y_max = self.0[0].y;
+
+            let count = self.0.len() - 4;
+            for i in 1..count {
+                let x = self.0[i].x;
+                let y = self.0[i].y;
+                x_min = x_min.min(x);
+                x_max = x_max.max(x);
+                y_min = y_min.min(y);
+                y_max = y_max.max(y);
+            }
+        }
+
+        // These are destined for storage in a 16 bit field to clamp the values to
+        // fit into a 16 bit signed integer.
+        Bounds {
+            x_min: x_min.round().clamp(-32768.0, 32767.0),
+            y_min: y_min.round().clamp(-32768.0, 32767.0),
+            x_max: x_max.round().clamp(-32768.0, 32767.0),
+            y_max: y_max.round().clamp(-32768.0, 32767.0),
+        }
+    }
+
+    fn get_bounds_without_phantoms(&self) -> Bounds {
+        let mut x_min = 0.0;
+        let mut x_max = 0.0;
+        let mut y_min = 0.0;
+        let mut y_max = 0.0;
+        if !self.0.is_empty() {
+            x_min = self.0[0].x;
+            x_max = self.0[0].x;
+            y_min = self.0[0].y;
+            y_max = self.0[0].y;
+
+            for point in self.0.iter().skip(1) {
+                let x = point.x;
+                let y = point.y;
+                x_min = x_min.min(x);
+                x_max = x_max.max(x);
+                y_min = y_min.min(y);
+                y_max = y_max.max(y);
+            }
+        }
+
+        // We don't round here because we're going to ot_round on save
+        Bounds {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+        }
+    }
+
+    fn phantom_bounds(&self) -> Option<(f32, f32, f32, f32)> {
+        if self.0.len() < 4 {
+            return None;
+        }
+        let phantom_points = &self.0[self.0.len() - PHANTOM_POINT_COUNT..];
+        let left_side_x = phantom_points[0].x;
+        let right_side_x = phantom_points[1].x;
+        let top_side_y = phantom_points[2].y;
+        let bottom_side_y = phantom_points[3].y;
+        Some((left_side_x, right_side_x, top_side_y, bottom_side_y))
+    }
+
+    fn update_mtx(&self, plan: &Plan, old_gid: GlyphId) {
+        let new_gid = plan
+            .glyph_map
+            .get(&old_gid)
+            .cloned()
+            .expect("BUG: all glyphs in the new font should have a mapping to the old font");
+        log::debug!(
+            "Updating metrics for glyph {}, is_empty: {}",
+            new_gid,
+            is_empty
+        );
+        // This does the calculation handed to update_mtx in Harfbuzz.
+        let bounds = self.get_bounds();
+
+        if let Some((left_side_x, right_side_x, top_side_y, bottom_side_y)) = self.phantom_bounds()
+        {
+            let hori_aw: u16 = (right_side_x - left_side_x).round() as u16;
+            let lsb: i16 = (bounds.x_min - left_side_x).round() as i16;
+            // log::debug!(
+            //     "Setting hmtx metrics for glyph {} (old_gid: {}), hori_aw: {} (unrounded: {}), lsb: {} (unrounded: {}), based on phantom points",
+            //     new_gid,
+            //     old_gid,
+            //     hori_aw,
+            //     right_side_x - left_side_x,
+            //     lsb,
+            //     bounds.x_min - left_side_x
+
+            // );
+
+            plan.hmtx_map.borrow_mut().insert(new_gid, (hori_aw, lsb));
+
+            if !bounds.is_empty() && bounds.x_min != lsb as f32 {
+                plan.head_maxp_info.borrow_mut().all_x_min_is_lsb = false;
+            }
+            let vert_aw: u16 = (top_side_y - bottom_side_y).ot_round();
+            let tsb: i16 = (bounds.y_max - top_side_y).ot_round();
+            plan.vmtx_map.borrow_mut().insert(new_gid, (vert_aw, tsb));
+        } else {
+            log::error!(
+                "Glyph {} does not have phantom points, cannot update metrics",
+                new_gid
+            );
+        }
     }
 }
 
