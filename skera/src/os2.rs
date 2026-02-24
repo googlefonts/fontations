@@ -2,6 +2,7 @@
 use crate::serialize::Serializer;
 use crate::SubsetFlags;
 use crate::{Plan, Subset, SubsetError};
+use skrifa::Tag;
 use std::cmp::Ordering;
 use write_fonts::{
     read::{
@@ -32,6 +33,19 @@ impl Subset for Os2<'_> {
             s.copy_assign(
                 self.shape().x_avg_char_width_byte_range().start,
                 avg_char_width,
+            );
+        }
+
+        if let Some(wght) = plan.user_axes_location.get(&Tag::new(b"wght")) {
+            s.copy_assign(
+                self.shape().us_weight_class_byte_range().start,
+                wght.middle.clamp(1.0, 1000.0) as u16,
+            );
+        }
+        if let Some(wdth) = plan.user_axes_location.get(&Tag::new(b"wdth")) {
+            s.copy_assign(
+                self.shape().us_width_class_byte_range().start,
+                map_wdth_to_widthclass(wdth.middle).round() as u16,
             );
         }
 
@@ -132,6 +146,53 @@ fn calc_avg_char_width<'a>(hmtx_map: impl Iterator<Item = &'a (u16, i16)>) -> u1
     } else {
         0
     }
+}
+
+fn map_wdth_to_widthclass(width: f64) -> f64 {
+    if width < 50.0 {
+        return 1.0;
+    }
+    if width > 200.0 {
+        return 9.0;
+    }
+
+    let ratio = (width - 50.0) / 12.5;
+    let mut a = ratio.floor() as i32;
+    let mut b = ratio.ceil() as i32;
+
+    /* follow this maping:
+     * https://docs.microsoft.com/en-us/typography/opentype/spec/os2#uswidthclass
+     */
+    if b <= 6 {
+        // 50-125
+        if a == b {
+            return a as f64 + 1.0;
+        }
+    } else if b == 7 {
+        // no mapping for 137.5
+        a = 6;
+        b = 8;
+    } else if b == 8 {
+        if a == b {
+            return 8.0;
+        }; // 150
+        a = 6;
+    } else {
+        if a == b && a == 12 {
+            return 9.0;
+        }; //200
+        b = 12;
+        a = 8;
+    }
+
+    let va = 50.0 + a as f64 * 12.5;
+    let vb = 50.0 + b as f64 * 12.5;
+
+    let mut ret = a as f64 + (width - va) / (vb - va);
+    if a <= 6 {
+        ret += 1.0;
+    }
+    ret
 }
 
 #[cfg(test)]
