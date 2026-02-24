@@ -1649,6 +1649,8 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
         // TODO: add more tags with dependencies for instancing
         match tag {
             Gpos::TAG => tags_with_dependencies.push((tag, record.length())),
+            Os2::TAG => tags_with_dependencies.push((tag, record.length())), // Must be done after glyf and MVAR
+            Hmtx::TAG | Vmtx::TAG => tags_with_dependencies.push((tag, record.length())),
             _ => subset(tag, font, plan, &mut builder, record.length(), &mut state)?,
         }
     }
