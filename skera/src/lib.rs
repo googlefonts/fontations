@@ -392,9 +392,9 @@ pub struct Plan {
     composite_new_gids: IntSet<GlyphId>,
     new_gid_instance_deltas_map: FnvHashMap<GlyphId, Vec<Point<f32>>>,
     // hmtx metrics map: new gid->(advance, lsb)
-    hmtx_map: FnvHashMap<GlyphId, (u16, i16)>,
+    hmtx_map: RefCell<FnvHashMap<GlyphId, (u16, i16)>>,
     // vmtx metrics map: new gid->(advance, lsb)
-    vmtx_map: FnvHashMap<GlyphId, (u16, i16)>,
+    vmtx_map: RefCell<FnvHashMap<GlyphId, (u16, i16)>>,
 
     // user specified axes range map
     user_axes_location: FnvHashMap<Tag, Triple<f64>>,
@@ -468,7 +468,6 @@ impl Plan {
         this.collect_base_var_indices(font);
         this.get_instance_glyphs_contour_points(font);
         let _ = this.get_instance_deltas(font); // Proper error handling later
-        this.collect_new_metrics(font);
         this
     }
 
@@ -1234,47 +1233,6 @@ impl Plan {
             }
         }
         Ok(())
-    }
-
-    fn collect_new_metrics(&mut self, font: &FontRef) {
-        // Skrifa doesn't apply deltas to LSB, so we'll take the original LSB and add our own
-        // deltas from the phantom points.
-        let location: LocationRef = LocationRef::default();
-        let glyph_metrics = font.glyph_metrics(Size::unscaled(), location);
-        for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
-            let instance_deltas = self.new_gid_instance_deltas_map.get(new_gid);
-            log::trace!(
-                "Phantom points: {:?}",
-                instance_deltas.map(|deltas| deltas
-                    .iter()
-                    .skip(deltas.len() - PHANTOM_POINT_COUNT)
-                    .collect::<Vec<_>>())
-            );
-            let lsb_delta = instance_deltas
-                .and_then(|deltas| {
-                    if deltas.len() > 4 {
-                        deltas.get(deltas.len() - 4)
-                    } else {
-                        None
-                    }
-                })
-                .map(|delta| delta.x)
-                .unwrap_or(0.0);
-            let aw_delta = instance_deltas
-                .and_then(|deltas| {
-                    if deltas.len() > 4 {
-                        deltas.get(deltas.len() - 3)
-                    } else {
-                        None
-                    }
-                })
-                .map(|delta| delta.x)
-                .unwrap_or(0.0);
-            let aw = glyph_metrics.advance_width(*old_gid).unwrap_or(0.0) + aw_delta;
-            let ls = glyph_metrics.left_side_bearing(*old_gid).unwrap_or(0.0) + lsb_delta;
-            self.hmtx_map.insert(*new_gid, (aw as u16, ls as i16));
-            // No vertical stuff in skrifa yet
-        }
     }
 }
 

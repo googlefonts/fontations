@@ -10,7 +10,7 @@ use font_types::Point;
 use skrifa::{
     prelude::{LocationRef, Size},
     raw::{tables::glyf::CurvePoint, ReadError},
-    GlyphId16, MetadataProvider,
+    MetadataProvider,
 };
 use write_fonts::{
     from_obj::ToOwnedTable,
@@ -33,6 +33,20 @@ use write_fonts::{
 
 pub(crate) const PHANTOM_POINT_COUNT: usize = 4;
 
+#[derive(Debug, Clone, Copy)]
+struct Bounds {
+    x_min: f32,
+    y_min: f32,
+    x_max: f32,
+    y_max: f32,
+}
+
+impl Bounds {
+    fn is_empty(&self) -> bool {
+        self.x_min == 0.0 && self.y_min == 0.0 && self.x_max == 0.0 && self.y_max == 0.0
+    }
+}
+
 // reference: subset() for glyf/loca/head in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/glyf/glyf.hh#L77
 impl Subset for Glyf<'_> {
@@ -51,8 +65,19 @@ impl Subset for Glyf<'_> {
         let mut max_offset: u32 = 0;
 
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
+            let contour_points = plan
+                .new_gid_contour_points_map
+                .get(new_gid)
+                .expect("BUG: contour points for the new gid should have been calculated in Plan::new()")
+                .clone();
             match loca.get_glyf(*old_gid, self) {
                 Ok(g) => {
+                    let Some(glyph) = g else {
+                        subset_glyphs.push(Vec::new());
+                        contour_points.update_mtx(plan, *new_gid);
+                        continue;
+                    };
+
                     if *old_gid == GlyphId::NOTDEF
                         && *new_gid == GlyphId::NOTDEF
                         && !plan
@@ -63,16 +88,13 @@ impl Subset for Glyf<'_> {
                         continue;
                     }
 
-                    let Some(glyph) = g else {
-                        subset_glyphs.push(Vec::new());
-                        continue;
-                    };
                     let subset_glyph = if !plan.normalized_coords.is_empty() {
-                        instantiate_and_subset_glyph(glyph, plan, *new_gid)
+                        instantiate_and_subset_glyph(glyph, contour_points, plan, *new_gid)
                             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
                     } else {
                         subset_glyph(&glyph, plan)
                     };
+
                     let trimmed_len = subset_glyph.len();
                     max_offset += padded_size(trimmed_len) as u32;
                     subset_glyphs.push(subset_glyph);
@@ -375,19 +397,17 @@ fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
 
 fn instantiate_and_subset_glyph(
     glyph: Glyph,
+    mut contour_points: ContourPoints,
     plan: &Plan,
     new_gid: GlyphId,
 ) -> Result<Vec<u8>, write_fonts::error::Error> {
-    let mut contour_points = plan
-        .new_gid_contour_points_map
-        .get(&new_gid)
-        .expect("BUG: contour points for the new gid should have been calculated in Plan::new()")
-        .clone();
     let deltas = plan
         .new_gid_instance_deltas_map
         .get(&new_gid)
         .expect("BUG: deltas for the new gid should have been calculated in Plan::new()");
     contour_points.add_deltas(deltas);
+    contour_points.update_mtx(plan, new_gid);
+
     let mut write_glyph: write_fonts::tables::glyf::Glyph = glyph.to_owned_table();
     match write_glyph {
         write_fonts::tables::glyf::Glyph::Empty => {}
@@ -400,10 +420,10 @@ fn instantiate_and_subset_glyph(
             }
             simple_glyph.contours = vec![];
             let mut last_contour: Vec<CurvePoint> = vec![];
-            let mut x_min = 0;
-            let mut y_min = 0;
-            let mut x_max = 0;
-            let mut y_max = 0;
+            let mut x_min: i16 = 0;
+            let mut y_min: i16 = 0;
+            let mut x_max: i16 = 0;
+            let mut y_max: i16 = 0;
             for point in contour_points.0 {
                 last_contour.push(CurvePoint {
                     x: point.x.ot_round(),
@@ -433,9 +453,6 @@ fn instantiate_and_subset_glyph(
                 // Oops, write_fonts doesn't let us do this
                 // simple_glyph.flags.insert(SimpleGlyphFlags::OVERLAP_SIMPLE);
             }
-            plan.head_maxp_info
-                .borrow_mut()
-                .update_extrema(x_min, y_min, x_max, y_max);
             simple_glyph.recompute_bounding_box();
         }
         write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
@@ -527,8 +544,8 @@ impl ContourPoints {
         Self(Vec::new())
     }
     pub(crate) fn add_deltas(&mut self, deltas: &[Point<f32>]) {
-        for i in 0..deltas.len() {
-            self.0[i].add_delta(deltas[i].x, deltas[i].y);
+        for (i, delta) in deltas.iter().enumerate() {
+            self.0[i].add_delta(delta.x, delta.y);
         }
     }
     pub(crate) fn add_deltas_with_indices(
@@ -597,14 +614,14 @@ impl ContourPoints {
         let (lsb, aw) = if let Some(gid) = steal_metrics {
             let loca = font.loca(None)?;
             let glyf = font.glyf()?;
-            let other_glyph = loca.get_glyf(gid.into(), &glyf)?;
+            let other_glyph = loca.get_glyf(gid, &glyf)?;
             let glyph_ref = other_glyph.as_ref().unwrap_or(glyph);
             let (_, _, aw, lsb) = ContourPoints::get_points_and_metrics(glyph_ref, gid, font)?;
             (lsb, aw)
         } else {
             let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
-            let lsb = metrics.left_side_bearing(gid.into()).unwrap_or(0.0);
-            let aw = metrics.advance_width(gid.into()).unwrap_or(0.0);
+            let lsb = metrics.left_side_bearing(gid).unwrap_or(0.0);
+            let aw = metrics.advance_width(gid).unwrap_or(0.0);
 
             (lsb, aw)
         };
@@ -642,6 +659,85 @@ impl ContourPoints {
             .push(ContourPoint::new(0.0, 0.0, true, true));
 
         Ok(contour_points)
+    }
+
+    fn get_bounds(&self) -> Bounds {
+        let mut x_min = 0.0;
+        let mut x_max = 0.0;
+        let mut y_min = 0.0;
+        let mut y_max = 0.0;
+        if self.0.len() > 4 {
+            x_min = self.0[0].x;
+            x_max = self.0[0].x;
+            y_min = self.0[0].y;
+            y_max = self.0[0].y;
+
+            let count = self.0.len() - 4;
+            for i in 1..count {
+                let x = self.0[i].x;
+                let y = self.0[i].y;
+                x_min = x_min.min(x);
+                x_max = x_max.max(x);
+                y_min = y_min.min(y);
+                y_max = y_max.max(y);
+            }
+        }
+
+        // These are destined for storage in a 16 bit field to clamp the values to
+        // fit into a 16 bit signed integer.
+        Bounds {
+            x_min: x_min.round().clamp(-32768.0, 32767.0),
+            y_min: y_min.round().clamp(-32768.0, 32767.0),
+            x_max: x_max.round().clamp(-32768.0, 32767.0),
+            y_max: y_max.round().clamp(-32768.0, 32767.0),
+        }
+    }
+
+    fn phantom_bounds(&self) -> Option<(f32, f32, f32, f32)> {
+        if self.0.len() < 4 {
+            return None;
+        }
+        let phantom_points = &self.0[self.0.len() - PHANTOM_POINT_COUNT..];
+        let left_side_x = phantom_points[0].x;
+        let right_side_x = phantom_points[1].x;
+        let top_side_y = phantom_points[2].y;
+        let bottom_side_y = phantom_points[3].y;
+        Some((left_side_x, right_side_x, top_side_y, bottom_side_y))
+    }
+
+    fn update_mtx(&self, plan: &Plan, new_gid: GlyphId) {
+        let bounds = self.get_bounds();
+
+        if let Some((left_side_x, right_side_x, top_side_y, bottom_side_y)) = self.phantom_bounds()
+        {
+            if bounds.is_empty() {
+                plan.hmtx_map
+                    .borrow_mut()
+                    .insert(new_gid, (right_side_x as u16, left_side_x as i16));
+                plan.vmtx_map
+                    .borrow_mut()
+                    .insert(new_gid, (top_side_y as u16, bottom_side_y as i16));
+                return;
+            }
+            plan.head_maxp_info.borrow_mut().update_extrema(
+                bounds.x_min as i16,
+                bounds.y_min as i16,
+                bounds.x_max as i16,
+                bounds.y_max as i16,
+            );
+
+            let hori_aw = (right_side_x - left_side_x).round().max(0.0);
+            let lsb = (bounds.x_min - left_side_x).round();
+            plan.hmtx_map
+                .borrow_mut()
+                .insert(new_gid, (hori_aw as u16, lsb as i16));
+
+            let vert_aw = (top_side_y - bottom_side_y).round().max(0.0);
+            let tsb = (bounds.y_max - top_side_y).round();
+            plan.vmtx_map
+                .borrow_mut()
+                .insert(new_gid, (vert_aw as u16, tsb as i16));
+        }
     }
 }
 
