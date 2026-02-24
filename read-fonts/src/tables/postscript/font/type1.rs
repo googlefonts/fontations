@@ -262,6 +262,10 @@ impl<'a> Parser<'a> {
                         self.skip_whitespace();
                     }
                     let end = self.pos;
+                    if self.data.get(end - 1) != Some(&b'}') {
+                        // unterminated procedure
+                        return None;
+                    }
                     return Some(Token::Proc(self.data.get(start + 1..end - 1)?));
                 }
                 // Literal strings
@@ -285,6 +289,10 @@ impl<'a> Parser<'a> {
                             _ => {}
                         }
                     }
+                    if nest_depth != 0 {
+                        // unterminated string
+                        return None;
+                    }
                     let end = self.pos;
                     self.pos += 1;
                     return Some(Token::LitString(self.data.get(start + 1..end - 1)?));
@@ -297,13 +305,14 @@ impl<'a> Parser<'a> {
                     // Hex string: hex digits and whitespace
                     while let Some(c) = self.next_byte() {
                         if !is_whitespace(c) && !c.is_ascii_hexdigit() {
-                            if c != b'>' {
-                                return None;
-                            }
                             break;
                         }
                     }
                     let end = self.pos;
+                    if self.data.get(end - 1) != Some(&b'>') {
+                        // unterminated hex string
+                        return None;
+                    }
                     return Some(Token::HexString(self.data.get(start + 1..end - 1)?));
                 }
                 b'>' => {
@@ -629,6 +638,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_unterminated_strings() {
+        check_tokens("(string (nested) 1", &[]);
+        check_tokens("<DEAD BEEF", &[]);
+    }
+
+    #[test]
     fn parse_procs() {
         check_tokens(
             "{a {nested 20} proc} % and a\n {simple proc}",
@@ -637,6 +652,11 @@ mod tests {
                 Token::Proc(b"simple proc"),
             ],
         );
+    }
+
+    #[test]
+    fn parse_unterminated_procs() {
+        check_tokens("{a {nested 20} proc", &[]);
     }
 
     #[test]
@@ -692,6 +712,7 @@ mod tests {
         );
     }
 
+    #[track_caller]
     fn check_tokens(source: &str, expected: &[Token]) {
         let ts = parse_to_tokens(source.as_bytes());
         assert_eq!(ts, expected);
