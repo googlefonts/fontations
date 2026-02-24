@@ -4,17 +4,17 @@ use write_fonts::read::tables::head::Head;
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct HeadMaxpInfo {
-    x_min: i16,
-    x_max: i16,
-    y_min: i16,
-    y_max: i16,
-    max_points: u16,
-    max_contours: u16,
-    max_composite_points: u16,
-    max_composite_contours: u16,
-    max_component_elements: u16,
-    max_component_depth: u16,
-    all_x_min_is_lsb: bool,
+    pub(crate) x_min: i16,
+    pub(crate) x_max: i16,
+    pub(crate) y_min: i16,
+    pub(crate) y_max: i16,
+    pub(crate) max_points: u16,
+    pub(crate) max_contours: u16,
+    pub(crate) max_composite_points: u16,
+    pub(crate) max_composite_contours: u16,
+    pub(crate) max_component_elements: u16,
+    pub(crate) max_component_depth: u16,
+    pub(crate) all_x_min_is_lsb: bool,
 }
 impl Default for HeadMaxpInfo {
     fn default() -> Self {
@@ -39,6 +39,25 @@ impl HeadMaxpInfo {
         self.y_min = self.y_min.min(y_min);
         self.x_max = self.x_max.max(x_max);
         self.y_max = self.y_max.max(y_max);
+    }
+
+    pub(crate) fn update_max_points(&mut self, points: u16) {
+        self.max_points = self.max_points.max(points);
+    }
+    pub(crate) fn update_max_contours(&mut self, contours: u16) {
+        self.max_contours = self.max_contours.max(contours);
+    }
+    pub(crate) fn update_max_component_depth(&mut self, depth: usize) {
+        self.max_component_depth = self.max_component_depth.max(depth as u16);
+    }
+    pub(crate) fn update_max_composite_points(&mut self, points: u16) {
+        self.max_composite_points = self.max_composite_points.max(points);
+    }
+    pub(crate) fn update_max_composite_contours(&mut self, contours: u16) {
+        self.max_composite_contours = self.max_composite_contours.max(contours);
+    }
+    pub(crate) fn update_max_component_elements(&mut self, elements: u16) {
+        self.max_component_elements = self.max_component_elements.max(elements);
     }
 }
 

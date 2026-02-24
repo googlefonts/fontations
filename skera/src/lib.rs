@@ -1036,8 +1036,13 @@ impl Plan {
                 Ok(Some(glyph)) => {
                     self.new_gid_contour_points_map.insert(
                         *new_gid,
-                        ContourPoints::from_glyph_no_var(&glyph, font, *old_gid)
-                            .map_err(SubsetError::ReadError)?,
+                        ContourPoints::from_glyph_no_var(
+                            &glyph,
+                            font,
+                            *old_gid,
+                            &mut self.head_maxp_info.borrow_mut(),
+                        )
+                        .map_err(SubsetError::ReadError)?,
                     );
                     Some(glyph)
                 }

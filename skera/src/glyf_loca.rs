@@ -1,6 +1,9 @@
 //! impl subset() for glyf and loca
+use std::collections::HashSet;
+
 use crate::{
     estimate_subset_table_size,
+    head::HeadMaxpInfo,
     serialize::Serializer,
     Plan, Subset,
     SubsetError::{self, SubsetTableError},
@@ -562,14 +565,24 @@ impl ContourPoints {
     }
 }
 
+#[derive(Debug, Clone, Default)]
+struct ContourPointState {
+    depth: usize,
+    decycler: HashSet<GlyphId>,
+    composite_contours: usize,
+}
+
 impl ContourPoints {
     fn get_points_and_metrics(
         glyph: &Glyph,
         gid: GlyphId,
         font: &FontRef,
+        head_maxp_info: &mut HeadMaxpInfo,
+        state: &mut ContourPointState,
     ) -> Result<(Vec<ContourPoint>, Option<GlyphId>, f32, f32), ReadError> {
         let mut steal_metrics = None;
         let mut contour_points = Vec::new();
+        head_maxp_info.update_max_component_depth(state.depth);
 
         match glyph {
             Simple(simple_glyph) => {
@@ -588,6 +601,13 @@ impl ContourPoints {
                 }));
                 for endpoint in simple_glyph.end_pts_of_contours().iter() {
                     contour_points[endpoint.get() as usize].is_end_point = true;
+                }
+                head_maxp_info.update_max_points(contour_points.len() as u16);
+                let num_contours = simple_glyph.number_of_contours() as u16;
+                if state.depth == 0 {
+                    head_maxp_info.update_max_contours(num_contours);
+                } else {
+                    state.composite_contours += num_contours as usize;
                 }
             }
             Composite(composite_glyph) => {
@@ -608,6 +628,10 @@ impl ContourPoints {
                         }
                     }
                 }
+                head_maxp_info.update_max_composite_contours(state.composite_contours as u16);
+                head_maxp_info.update_max_composite_points(contour_points.len() as u16);
+                head_maxp_info
+                    .update_max_component_elements(composite_glyph.components().count() as u16);
             }
         }
 
@@ -616,7 +640,20 @@ impl ContourPoints {
             let glyf = font.glyf()?;
             let other_glyph = loca.get_glyf(gid, &glyf)?;
             let glyph_ref = other_glyph.as_ref().unwrap_or(glyph);
-            let (_, _, aw, lsb) = ContourPoints::get_points_and_metrics(glyph_ref, gid, font)?;
+            log::warn!(
+                "Recursing to steal metrics from gid {} for gid {}",
+                gid,
+                gid
+            );
+            if state.decycler.contains(&gid) {
+                let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
+                let lsb = metrics.left_side_bearing(gid).unwrap_or(0.0);
+                let aw = metrics.advance_width(gid).unwrap_or(0.0);
+                return Ok((contour_points, steal_metrics, lsb, aw));
+            }
+            state.decycler.insert(gid);
+            let (_, _, aw, lsb) =
+                ContourPoints::get_points_and_metrics(glyph_ref, gid, font, head_maxp_info, state)?;
             (lsb, aw)
         } else {
             let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
@@ -635,9 +672,15 @@ impl ContourPoints {
         glyph: &Glyph<'_>,
         font: &FontRef<'_>,
         glyph_id: GlyphId,
+        head_maxp_info: &mut HeadMaxpInfo,
     ) -> Result<Self, ReadError> {
-        let (points, _steal_metrics, lsb, aw) =
-            ContourPoints::get_points_and_metrics(glyph, glyph_id, font)?;
+        let (points, _steal_metrics, lsb, aw) = ContourPoints::get_points_and_metrics(
+            glyph,
+            glyph_id,
+            font,
+            head_maxp_info,
+            &mut ContourPointState::default(),
+        )?;
         let mut contour_points = ContourPoints::new();
         contour_points.0.extend(points);
 
