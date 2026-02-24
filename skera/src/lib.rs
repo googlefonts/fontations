@@ -983,9 +983,6 @@ impl Plan {
     }
 
     fn get_instance_glyphs_contour_points(&mut self, font: &FontRef) -> Result<(), SubsetError> {
-        if self.user_axes_location.is_empty() {
-            return Ok(());
-        }
         let Ok(loca) = font.loca(None) else {
             return Ok(());
         }; // Could be CFF
@@ -1100,6 +1097,12 @@ impl Plan {
             {
                 self.composite_new_gids.insert(*new_gid);
             }
+        }
+        for (new_gid, _) in self.new_to_old_gid_list.iter() {
+            assert!(
+                self.new_gid_contour_points_map.contains_key(new_gid),
+                "Contour points should be collected for all glyphs when instancing, even empty or error glyphs, to ensure phantom points are available for delta calculations and metrics."
+            );
         }
         Ok(())
     }
