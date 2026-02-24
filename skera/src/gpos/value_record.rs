@@ -66,11 +66,8 @@ pub(crate) fn compute_effective_format(
 
     if !value_record.y_placement_device.get().is_null() && !strip_hints {
         if let Some(plan_ref) = plan {
-            if !plan_ref.normalized_coords.is_empty() {
-                // log::info!("Y_PLACEMENT_DEVICE: not adding format bit during instancing");
-            } else {
+            if plan_ref.normalized_coords.is_empty() {
                 value_format |= ValueFormat::Y_PLACEMENT_DEVICE;
-                // log::info!("Y_PLACEMENT_DEVICE: keeping flag (not instancing)");
             }
         } else {
             value_format |= ValueFormat::Y_PLACEMENT_DEVICE;
@@ -79,11 +76,8 @@ pub(crate) fn compute_effective_format(
 
     if !value_record.x_advance_device.get().is_null() && !strip_hints {
         if let Some(plan_ref) = plan {
-            if !plan_ref.normalized_coords.is_empty() {
-                log::info!("X_ADVANCE_DEVICE: not adding format bit during instancing");
-            } else {
+            if plan_ref.normalized_coords.is_empty() {
                 value_format |= ValueFormat::X_ADVANCE_DEVICE;
-                log::info!("X_ADVANCE_DEVICE: keeping flag (not instancing)");
             }
         } else {
             value_format |= ValueFormat::X_ADVANCE_DEVICE;
@@ -92,11 +86,8 @@ pub(crate) fn compute_effective_format(
 
     if !value_record.y_advance_device.get().is_null() && !strip_hints {
         if let Some(plan_ref) = plan {
-            if !plan_ref.normalized_coords.is_empty() {
-                log::info!("Y_ADVANCE_DEVICE: not adding format bit during instancing");
-            } else {
+            if plan_ref.normalized_coords.is_empty() {
                 value_format |= ValueFormat::Y_ADVANCE_DEVICE;
-                log::info!("Y_ADVANCE_DEVICE: keeping flag (not instancing)");
             }
         } else {
             value_format |= ValueFormat::Y_ADVANCE_DEVICE;
@@ -150,12 +141,6 @@ fn apply_value_delta(
         let combined_idx = ((varidx.delta_set_outer_index() as u32) << 16)
             | (varidx.delta_set_inner_index() as u32);
         if let Some((_idx, delta)) = plan.layout_varidx_delta_map.borrow().get(&combined_idx) {
-            log::info!(
-                "Applying value delta for {:?} with record: {:?}, delta {}",
-                which_one,
-                value_record,
-                delta
-            );
             return base.saturating_add(*delta as i16);
         }
     }

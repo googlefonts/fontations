@@ -1125,7 +1125,7 @@ impl ItemVariations {
                 all_unique_regions.push(r);
             }
         }
-        log::debug!(
+        log::trace!(
             "build_region_list: all_regions.len()={}, used_regions.len()={}",
             all_regions.len(),
             used_regions.len()
@@ -1162,7 +1162,7 @@ impl ItemVariations {
             all_regions.remove(&r);
             idx += 1;
         }
-        log::debug!("Final region_list.len()={}", self.region_list.len());
+        log::trace!("Final region_list.len()={}", self.region_list.len());
         Ok(())
     }
 
@@ -1615,7 +1615,7 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
                     &varidx_map,
                     &mut plan.layout_varidx_delta_map.borrow_mut(),
                 );
-                log::debug!(
+                log::trace!(
                     "Applied variation index remapping with {} entries",
                     varidx_map.len()
                 );
@@ -1623,7 +1623,7 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
 
             // The instancing path already serialized the bytes fully via itemvariations_to_varstore_bytes
             // Just write them directly (they include format version)
-            log::debug!(
+            log::trace!(
                 "Returning early from instancing path with fully-serialized ItemVariationStore"
             );
             s.embed_bytes(&bytes)?;

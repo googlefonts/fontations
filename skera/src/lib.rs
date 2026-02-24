@@ -1687,7 +1687,7 @@ fn subset_table<'a>(
     if plan.no_subset_tables.contains(tag) {
         return passthrough_table(tag, font, s);
     }
-    log::debug!("Subsetting table {:?} with dependencies", tag);
+    // log::debug!("Subsetting table {:?} with dependencies", tag);
 
     match tag {
         Avar::TAG => {

@@ -101,8 +101,9 @@ fn instantiate_gvar(
         plan.axes_triple_distances
     );
     for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
-        if let Some(glyph_var) = gvar.glyph_variation_data(*old_gid)
-        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+        if let Some(glyph_var) = gvar
+            .glyph_variation_data(*old_gid)
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
             if new_gid == &GlyphId::new(0)
                 && !(plan
@@ -112,7 +113,7 @@ fn instantiate_gvar(
                 // Special handling for .notdef glyph
                 new_variations.push(GlyphVariations::new(*new_gid, vec![]));
             } else if let Some(all_points) = plan.new_gid_contour_points_map.get(new_gid) {
-                log::info!(
+                log::trace!(
                     "Instantiating gvar for gid {:?} with {} points",
                     new_gid,
                     all_points.0.len()
