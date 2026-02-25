@@ -199,6 +199,261 @@ fn is_whitespace(c: u8) -> bool {
     false
 }
 
+/// Characters that always delimit tokens.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/include/freetype/internal/psaux.h#L1398>
+fn is_special(c: u8) -> bool {
+    matches!(
+        c,
+        b'(' | b')' | b'<' | b'>' | b'[' | b']' | b'{' | b'}' | b'/' | b'%'
+    )
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum Token<'a> {
+    /// Integers
+    Int(i64),
+    /// Literal strings, delimited by ()
+    LitString(&'a [u8]),
+    /// Hex strings, delimited by <>
+    HexString(&'a [u8]),
+    /// Procedures, delimited by {}
+    Proc(&'a [u8]),
+    /// Binary blobs
+    Binary(&'a [u8]),
+    /// Names, preceded by /
+    Name(&'a [u8]),
+    /// All other raw tokens (identifiers and self-delimiting punctuation)
+    Raw(&'a [u8]),
+}
+
+#[derive(Clone)]
+struct Parser<'a> {
+    data: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> Parser<'a> {
+    fn new(data: &'a [u8]) -> Self {
+        Self { data, pos: 0 }
+    }
+
+    fn next(&mut self) -> Option<Token<'a>> {
+        // Roughly follows the logic of ps_parser_skip_PS_token
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L482>
+        loop {
+            self.skip_whitespace()?;
+            let start = self.pos;
+            let c = self.next_byte()?;
+            match c {
+                // Line comment
+                b'%' => self.skip_line(),
+                // Procedures
+                b'{' => return self.read_proc(start),
+                // Literal strings
+                b'(' => return self.read_lit_string(start),
+                b'<' => {
+                    if self.peek_byte() == Some(b'<') {
+                        // Just ignore these
+                        self.pos += 1;
+                        continue;
+                    }
+                    // Hex string: hex digits and whitespace
+                    return self.read_hex_string(start);
+                }
+                b'>' => {
+                    // We consume single '>' when parsing hex strings so a
+                    // double >> is expected here
+                    if self.next_byte()? != b'>' {
+                        return None;
+                    }
+                }
+                // Name
+                b'/' => {
+                    if let Some(c) = self.peek_byte() {
+                        if is_whitespace(c) || is_special(c) {
+                            if !is_special(c) {
+                                self.pos += 1;
+                            }
+                            return Some(Token::Name(&[]));
+                        } else {
+                            let count = self.skip_until(|c| is_whitespace(c) || is_special(c));
+                            return self.data.get(start + 1..start + count).map(Token::Name);
+                        }
+                    }
+                }
+                // Brackets
+                b'[' | b']' => {
+                    let data = self.data.get(start..start + 1)?;
+                    return Some(Token::Raw(data));
+                }
+                _ => {
+                    let count = self.skip_until(|b| is_whitespace(b) || is_special(b));
+                    let content = self.data.get(start..start + count)?;
+                    // Look for numbers but don't try to parse fractional
+                    // values since we want to handle those with special
+                    // precision
+                    if (c.is_ascii_digit() || c == b'-') && !content.contains(&b'.') {
+                        if let Some(int) = decode_int(content) {
+                            // HACK: if we have an int followed by RD or -|
+                            // then is a binary blob in Type1. Hack because
+                            // this is not actually how PostScript works
+                            // but Type1 fonts define /RD procs and this
+                            // pattern is used by FreeType.
+                            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1351>
+                            if matches!(
+                                self.peek(),
+                                Some(Token::Raw(b"RD")) | Some(Token::Raw(b"-|"))
+                            ) {
+                                // skip the token
+                                self.next();
+                                // and a single space
+                                self.pos += 1;
+                                // read the internal data
+                                let data = self.read_bytes(int as usize)?;
+                                // and skip the terminator (usually ND, NP or |-)
+                                self.next();
+                                return Some(Token::Binary(data));
+                            }
+                            return Some(Token::Int(int));
+                        }
+                    }
+                    return Some(Token::Raw(content));
+                }
+            }
+        }
+        None
+    }
+
+    fn peek(&self) -> Option<Token<'a>> {
+        self.clone().next()
+    }
+
+    fn next_byte(&mut self) -> Option<u8> {
+        let byte = self.peek_byte()?;
+        self.pos += 1;
+        Some(byte)
+    }
+
+    fn peek_byte(&self) -> Option<u8> {
+        self.data.get(self.pos).copied()
+    }
+
+    fn read_bytes(&mut self, len: usize) -> Option<&'a [u8]> {
+        let end = self.pos.checked_add(len)?;
+        let content = self.data.get(self.pos..end)?;
+        self.pos = end;
+        Some(content)
+    }
+
+    fn skip_whitespace(&mut self) -> Option<()> {
+        while is_whitespace(*self.data.get(self.pos)?) {
+            self.pos += 1;
+        }
+        Some(())
+    }
+
+    fn skip_line(&mut self) {
+        while let Some(c) = self.next_byte() {
+            if c == b'\n' || c == b'\r' {
+                break;
+            }
+        }
+    }
+
+    fn skip_until(&mut self, f: impl Fn(u8) -> bool) -> usize {
+        let mut count = 0;
+        while let Some(byte) = self.peek_byte() {
+            if f(byte) {
+                break;
+            }
+            self.pos += 1;
+            count += 1;
+        }
+        count + 1
+    }
+
+    fn read_proc(&mut self, start: usize) -> Option<Token<'a>> {
+        while self.next_byte()? != b'}' {
+            // This handles nested procedures
+            self.next()?;
+            self.skip_whitespace();
+        }
+        let end = self.pos;
+        if self.data.get(end - 1) != Some(&b'}') {
+            // unterminated procedure
+            return None;
+        }
+        Some(Token::Proc(self.data.get(start + 1..end - 1)?))
+    }
+
+    fn read_lit_string(&mut self, start: usize) -> Option<Token<'a>> {
+        let mut nest_depth = 1;
+        while let Some(c) = self.next_byte() {
+            match c {
+                b'(' => nest_depth += 1,
+                b')' => {
+                    nest_depth -= 1;
+                    if nest_depth == 0 {
+                        break;
+                    }
+                }
+                // Escape sequence
+                b'\\' => {
+                    // Just eat the next byte. We only care
+                    // about avoiding \( and \) anyway.
+                    self.next_byte()?;
+                }
+                _ => {}
+            }
+        }
+        if nest_depth != 0 {
+            // unterminated string
+            return None;
+        }
+        let end = self.pos;
+        self.pos += 1;
+        Some(Token::LitString(self.data.get(start + 1..end - 1)?))
+    }
+
+    fn read_hex_string(&mut self, start: usize) -> Option<Token<'a>> {
+        while let Some(c) = self.next_byte() {
+            if !is_whitespace(c) && !c.is_ascii_hexdigit() {
+                break;
+            }
+        }
+        let end = self.pos;
+        if self.data.get(end - 1) != Some(&b'>') {
+            // unterminated hex string
+            return None;
+        }
+        Some(Token::HexString(self.data.get(start + 1..end - 1)?))
+    }
+}
+
+/// Decode an integer, optionally with a base.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psconv.c#L161>
+fn decode_int(bytes: &[u8]) -> Option<i64> {
+    let s = std::str::from_utf8(bytes).ok()?;
+    if let Some(hash_idx) = s.find('#') {
+        if hash_idx == 1 || hash_idx == 2 {
+            // It's a radix number, like 8#40.
+            let radix_str = s.get(0..hash_idx)?;
+            let number_str = s.get(hash_idx + 1..)?;
+            let radix = radix_str
+                .parse::<u32>()
+                .ok()
+                .filter(|n| (2..=36).contains(n))?;
+            i64::from_str_radix(number_str, radix).ok()
+        } else {
+            s.parse::<i64>().ok()
+        }
+    } else {
+        s.parse::<i64>().ok()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,5 +620,120 @@ mod tests {
 /BlueValues [0 0 536 536 714 714 770 770 ]ND
 /OtherSubrs"#;
         assert!(private.starts_with(EXPECTED_PREFIX.as_bytes()))
+    }
+
+    #[test]
+    fn parse_ints() {
+        check_tokens(
+            "% a comment\n20 -30 2#1011 10#-5 %another!\r 16#fC",
+            &[
+                Token::Int(20),
+                Token::Int(-30),
+                Token::Int(11),
+                Token::Int(-5),
+                Token::Int(252),
+            ],
+        );
+    }
+
+    #[test]
+    fn parse_strings() {
+        check_tokens(
+            "(string (nested) 1) % and a hex string:\n <DEAD BEEF>",
+            &[
+                Token::LitString(b"string (nested) 1"),
+                Token::HexString(b"DEAD BEEF"),
+            ],
+        );
+    }
+
+    #[test]
+    fn parse_unterminated_strings() {
+        check_tokens("(string (nested) 1", &[]);
+        check_tokens("<DEAD BEEF", &[]);
+    }
+
+    #[test]
+    fn parse_procs() {
+        check_tokens(
+            "{a {nested 20} proc } % and a\n {simple proc}",
+            &[
+                Token::Proc(b"a {nested 20} proc "),
+                Token::Proc(b"simple proc"),
+            ],
+        );
+    }
+
+    #[test]
+    fn parse_unterminated_procs() {
+        check_tokens("{a {nested 20} proc", &[]);
+    }
+
+    #[test]
+    fn parse_names() {
+        check_tokens(
+            "/FontMatrix\r %comment\n /CharStrings",
+            &[Token::Name(b"FontMatrix"), Token::Name(b"CharStrings")],
+        );
+    }
+
+    #[test]
+    fn parse_binary_blobs() {
+        check_tokens(
+            "/.notdef 4 RD abcd ND\n5 11\n \t-| a83jnshf7 3 -|",
+            &[
+                // simulates a charstring: name followed by data
+                Token::Name(b".notdef"),
+                Token::Binary(b"abcd"),
+                // simulates a subr: index followed by data
+                Token::Int(5),
+                Token::Binary(b"a83jnshf7 3"),
+            ],
+        )
+    }
+
+    #[test]
+    fn parse_base_dict_prefix() {
+        let dicts = RawDicts::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
+        let ts = parse_to_tokens(dicts.base);
+        assert_eq!(
+            &ts[..19],
+            &[
+                Token::Int(10),
+                Token::Raw(b"dict"),
+                Token::Raw(b"begin"),
+                Token::Name(b"FontType"),
+                Token::Int(1),
+                Token::Raw(b"def"),
+                Token::Name(b"FontMatrix"),
+                Token::Raw(b"["),
+                Token::Raw(b"0.001"),
+                Token::Int(0),
+                Token::Int(0),
+                Token::Raw(b"0.001"),
+                Token::Int(0),
+                Token::Int(0),
+                Token::Raw(b"]"),
+                Token::Raw(b"readonly"),
+                Token::Raw(b"def"),
+                Token::Name(b"FontName"),
+                Token::Name(b"NotoSerif-Regular"),
+            ]
+        );
+    }
+
+    #[track_caller]
+    fn check_tokens(source: &str, expected: &[Token]) {
+        let ts = parse_to_tokens(source.as_bytes());
+        assert_eq!(ts, expected);
+    }
+
+    fn parse_to_tokens(data: &'_ [u8]) -> Vec<Token<'_>> {
+        let mut tokens = vec![];
+        let mut parser = Parser::new(data);
+        while let Some(token) = parser.next() {
+            tokens.push(token);
+        }
+        tokens
     }
 }
