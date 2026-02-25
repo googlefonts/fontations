@@ -250,64 +250,19 @@ impl<'a> Parser<'a> {
             let c = self.next_byte()?;
             match c {
                 // Line comment
-                b'%' => {
-                    while let Some(c) = self.next_byte() {
-                        if c == b'\n' || c == b'\r' {
-                            break;
-                        }
-                    }
-                }
+                b'%' => self.skip_line(),
                 // Procedures
-                b'{' => {
-                    while self.next_byte()? != b'}' {
-                        // This handles nested procedures
-                        self.next()?;
-                        self.skip_whitespace();
-                    }
-                    let end = self.pos;
-                    return Some(Token::Proc(self.data.get(start + 1..end - 1)?));
-                }
+                b'{' => return self.read_proc(start),
                 // Literal strings
-                b'(' => {
-                    let mut nest_depth = 1;
-                    while let Some(c) = self.next_byte() {
-                        match c {
-                            b'(' => nest_depth += 1,
-                            b')' => {
-                                nest_depth -= 1;
-                                if nest_depth == 0 {
-                                    break;
-                                }
-                            }
-                            // Escape sequence
-                            b'\\' => {
-                                // Just eat the next byte. We only care
-                                // about avoiding \( and \) anyway.
-                                self.next_byte()?;
-                            }
-                            _ => {}
-                        }
-                    }
-                    let end = self.pos;
-                    self.pos += 1;
-                    return Some(Token::LitString(self.data.get(start + 1..end - 1)?));
-                }
+                b'(' => return self.read_lit_string(start),
                 b'<' => {
                     if self.peek_byte() == Some(b'<') {
                         // Just ignore these
+                        self.pos += 1;
                         continue;
                     }
                     // Hex string: hex digits and whitespace
-                    while let Some(c) = self.next_byte() {
-                        if !is_whitespace(c) && !c.is_ascii_hexdigit() {
-                            if c != b'>' {
-                                return None;
-                            }
-                            break;
-                        }
-                    }
-                    let end = self.pos;
-                    return Some(Token::HexString(self.data.get(start + 1..end - 1)?));
+                    return self.read_hex_string(start);
                 }
                 b'>' => {
                     // We consume single '>' when parsing hex strings so a
@@ -401,6 +356,14 @@ impl<'a> Parser<'a> {
         Some(())
     }
 
+    fn skip_line(&mut self) {
+        while let Some(c) = self.next_byte() {
+            if c == b'\n' || c == b'\r' {
+                break;
+            }
+        }
+    }
+
     fn skip_until(&mut self, f: impl Fn(u8) -> bool) -> usize {
         let mut count = 0;
         while let Some(byte) = self.peek_byte() {
@@ -411,6 +374,63 @@ impl<'a> Parser<'a> {
             count += 1;
         }
         count + 1
+    }
+
+    fn read_proc(&mut self, start: usize) -> Option<Token<'a>> {
+        while self.next_byte()? != b'}' {
+            // This handles nested procedures
+            self.next()?;
+            self.skip_whitespace();
+        }
+        let end = self.pos;
+        if self.data.get(end - 1) != Some(&b'}') {
+            // unterminated procedure
+            return None;
+        }
+        Some(Token::Proc(self.data.get(start + 1..end - 1)?))
+    }
+
+    fn read_lit_string(&mut self, start: usize) -> Option<Token<'a>> {
+        let mut nest_depth = 1;
+        while let Some(c) = self.next_byte() {
+            match c {
+                b'(' => nest_depth += 1,
+                b')' => {
+                    nest_depth -= 1;
+                    if nest_depth == 0 {
+                        break;
+                    }
+                }
+                // Escape sequence
+                b'\\' => {
+                    // Just eat the next byte. We only care
+                    // about avoiding \( and \) anyway.
+                    self.next_byte()?;
+                }
+                _ => {}
+            }
+        }
+        if nest_depth != 0 {
+            // unterminated string
+            return None;
+        }
+        let end = self.pos;
+        self.pos += 1;
+        Some(Token::LitString(self.data.get(start + 1..end - 1)?))
+    }
+
+    fn read_hex_string(&mut self, start: usize) -> Option<Token<'a>> {
+        while let Some(c) = self.next_byte() {
+            if !is_whitespace(c) && !c.is_ascii_hexdigit() {
+                break;
+            }
+        }
+        let end = self.pos;
+        if self.data.get(end - 1) != Some(&b'>') {
+            // unterminated hex string
+            return None;
+        }
+        Some(Token::HexString(self.data.get(start + 1..end - 1)?))
     }
 }
 
@@ -448,12 +468,11 @@ fn decode_int(bytes: &[u8]) -> Option<i64> {
             // It's a radix number, like 8#40.
             let radix_str = s.get(0..hash_idx)?;
             let number_str = s.get(hash_idx + 1..)?;
-            let radix = radix_str.parse::<u32>().ok()?;
-            if (2..=36).contains(&radix) {
-                i64::from_str_radix(number_str, radix).ok()
-            } else {
-                None
-            }
+            let radix = radix_str
+                .parse::<u32>()
+                .ok()
+                .filter(|n| (2..=36).contains(n))?;
+            i64::from_str_radix(number_str, radix).ok()
         } else {
             s.parse::<i64>().ok()
         }
@@ -765,14 +784,25 @@ mod tests {
     }
 
     #[test]
+    fn parse_unterminated_strings() {
+        check_tokens("(string (nested) 1", &[]);
+        check_tokens("<DEAD BEEF", &[]);
+    }
+
+    #[test]
     fn parse_procs() {
         check_tokens(
-            "{a {nested 20} proc} % and a\n {simple proc}",
+            "{a {nested 20} proc } % and a\n {simple proc}",
             &[
-                Token::Proc(b"a {nested 20} proc"),
+                Token::Proc(b"a {nested 20} proc "),
                 Token::Proc(b"simple proc"),
             ],
         );
+    }
+
+    #[test]
+    fn parse_unterminated_procs() {
+        check_tokens("{a {nested 20} proc", &[]);
     }
 
     #[test]
@@ -828,6 +858,7 @@ mod tests {
         );
     }
 
+    #[track_caller]
     fn check_tokens(source: &str, expected: &[Token]) {
         let ts = parse_to_tokens(source.as_bytes());
         assert_eq!(ts, expected);
