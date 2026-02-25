@@ -1123,7 +1123,10 @@ impl Plan {
                         .map(|&i| i.get())
                         .collect();
                     // Add the four phantom points, steal from end of new_gid_contour_points_map
-                    let contour_points = self.new_gid_contour_points_map.get(new_gid).unwrap();
+                    let Some(contour_points) = self.new_gid_contour_points_map.get(new_gid) else {
+                        log::warn!("Contour points not found for glyph id {:?}, skipping gvar delta calculation for this glyph", new_gid);
+                        continue;
+                    };
                     let phantoms = contour_points
                         .0
                         .iter()
