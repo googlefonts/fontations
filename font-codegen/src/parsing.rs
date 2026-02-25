@@ -137,10 +137,6 @@ pub(crate) struct VariantAttrs {
 }
 
 impl FormatVariant {
-    pub(crate) fn marker_name(&self) -> syn::Ident {
-        quote::format_ident!("{}Marker", &self.typ)
-    }
-
     pub(crate) fn type_name(&self) -> &syn::Ident {
         &self.typ
     }
@@ -151,11 +147,7 @@ pub(crate) struct Fields {
     // not parsed, but set when the table/record is parsed
     pub(crate) read_args: Option<TableReadArgs>,
     pub(crate) fields: Vec<Field>,
-    pub(crate) referenced_fields: ReferencedFields,
 }
-
-#[derive(Debug, Clone)]
-pub(crate) struct ReferencedFields(HashMap<syn::Ident, NeededWhen>);
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum NeededWhen {
@@ -169,12 +161,14 @@ pub(crate) struct Field {
     pub(crate) attrs: FieldAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) typ: FieldType,
-    /// `true` if this field is required to be read in order to parse subsequent
-    /// fields.
+    /// `true` if the presence of this field is guaranteed if the containing
+    /// table parses successfully.
     ///
-    /// For instance: in a versioned table, the version must be read to determine
-    /// whether to expect version-dependent fields.
-    pub(crate) read_at_parse_time: bool,
+    /// This is true for fields at the start of a table, up to the first conditional.
+    ///
+    /// These fields must be present, which means reads can unwrap (and could even
+    /// be unsafe.)
+    pub(crate) validated_at_parse: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -755,7 +749,7 @@ impl Parse for Field {
             name,
             typ,
             // computed later
-            read_at_parse_time: false,
+            validated_at_parse: false,
         })
     }
 }
@@ -1302,10 +1296,20 @@ impl Items {
                 Item::Table(item) => &mut item.fields.fields,
                 _ => continue,
             };
-            for field in fields {
+            for field in fields.iter_mut() {
                 resolve_field(&known, field)?;
             }
+            // Mark fields as validated_at_parse if they have a known, fixed size
+            // and appear before any variable-length fields (arrays).
+            // Arrays return Some(empty token), so we stop when we see one.
+            for field in fields
+                .iter_mut()
+                .take_while(|fld| fld.known_min_size_stmt().is_some_and(|t| !t.is_empty()))
+            {
+                field.validated_at_parse = true;
+            }
         }
+
         Ok(())
     }
 
@@ -1709,32 +1713,6 @@ fn replace_field_with_compile_field(captures: &Captures) -> String {
     format!("&self.{ident}")
 }
 
-impl NeededWhen {
-    fn at_parsetime(&self) -> bool {
-        matches!(self, NeededWhen::Parse | NeededWhen::Both)
-    }
-
-    fn at_runtime(&self) -> bool {
-        matches!(self, NeededWhen::Runtime | NeededWhen::Both)
-    }
-}
-
-impl ReferencedFields {
-    pub(crate) fn needs_at_parsetime(&self, ident: &syn::Ident) -> bool {
-        self.0
-            .get(ident)
-            .map(NeededWhen::at_parsetime)
-            .unwrap_or(false)
-    }
-
-    pub(crate) fn needs_at_runtime(&self, ident: &syn::Ident) -> bool {
-        self.0
-            .get(ident)
-            .map(NeededWhen::at_runtime)
-            .unwrap_or(false)
-    }
-}
-
 impl OffsetTarget {
     pub(crate) fn getter_return_type(&self, is_generic: bool) -> TokenStream {
         match self {
@@ -1759,22 +1737,6 @@ impl OffsetTarget {
                 quote!(Vec<#cooked>)
             }
         }
-    }
-}
-
-impl FromIterator<(syn::Ident, NeededWhen)> for ReferencedFields {
-    fn from_iter<T: IntoIterator<Item = (syn::Ident, NeededWhen)>>(iter: T) -> Self {
-        let mut map = HashMap::new();
-        for (key, new_val) in iter {
-            let value = map.entry(key).or_insert(new_val);
-            // if a value is referenced by multiple fields, we combine them
-            *value = match (*value, new_val) {
-                (NeededWhen::Parse, NeededWhen::Parse) => NeededWhen::Parse,
-                (NeededWhen::Runtime, NeededWhen::Runtime) => NeededWhen::Runtime,
-                _ => NeededWhen::Both,
-            };
-        }
-        Self(map)
     }
 }
 

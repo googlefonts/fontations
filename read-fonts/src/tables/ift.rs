@@ -166,6 +166,13 @@ impl U16Or24 {
     }
 }
 
+impl<'a> EntryData<'a> {
+    pub fn trailing_data(&self) -> &'a [u8] {
+        let range = self.trailing_data_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+}
+
 impl<'a> PatchMapFormat1<'a> {
     pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
         GidToEntryIter {

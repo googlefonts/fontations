@@ -8,32 +8,40 @@ use syn::spanned::Spanned;
 
 use super::parsing::{
     logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
-    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
+    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record,
 };
 
 impl Fields {
-    pub(crate) fn new(mut fields: Vec<Field>) -> syn::Result<Self> {
-        let referenced_fields = fields
-            .iter()
-            .flat_map(Field::input_fields)
-            .collect::<ReferencedFields>();
-
-        for field in fields.iter_mut() {
-            field.read_at_parse_time =
-                field.attrs.version.is_some() || referenced_fields.needs_at_parsetime(&field.name);
-        }
-
+    pub(crate) fn new(fields: Vec<Field>) -> syn::Result<Self> {
         Ok(Fields {
             fields,
             read_args: None,
-            referenced_fields,
         })
     }
 
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         let mut custom_offset_data_fld: Option<&Field> = None;
         let mut normal_offset_data_fld = None;
+        // our simple bounds checking just sums the sizes of fields up to the
+        // first conditional. If there is a non-conditional field after that
+        // which is always present (which does not currently exist in the spec)
+        // then our logic is broken.
+        let mut first_conditional = None;
         for (i, fld) in self.fields.iter().enumerate() {
+            if fld.is_conditional() && first_conditional.is_none() {
+                first_conditional = Some(i);
+            }
+
+            if first_conditional.is_some() && !fld.is_conditional() {
+                // allow one special case in the IFT module, which we have handled manually
+                if fld.name == "trailing_data" {
+                    continue;
+                }
+                return Err(logged_syn_error(
+                    fld.name.span(),
+                    "non-conditional fields cannot follow conditional fields",
+                ));
+            }
             if let Some(attr) = fld.attrs.offset_data.as_ref() {
                 if let Some(prev_field) = custom_offset_data_fld.replace(fld) {
                     if prev_field.attrs.offset_data.as_ref().unwrap().attr != attr.attr {
@@ -94,20 +102,6 @@ impl Fields {
 
     pub(crate) fn iter_compile_default_inits(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.fields.iter().filter_map(Field::compile_default_init)
-    }
-
-    /// return the names of any fields that are the inputs of a conditional statement
-    /// on another field.
-    pub(crate) fn conditional_input_idents(&self) -> Vec<syn::Ident> {
-        let mut result = self
-            .fields
-            .iter()
-            .flat_map(|fld| fld.attrs.conditional.as_ref())
-            .flat_map(|cond| cond.input_field())
-            .collect::<Vec<_>>();
-        result.sort();
-        result.dedup();
-        result
     }
 
     pub(crate) fn iter_constructor_info(&self) -> impl Iterator<Item = FieldConstructorInfo> + '_ {
@@ -193,7 +187,7 @@ impl Fields {
                 .as_ref()
                 .filter(|_| !is_single_nullable_offset)
                 .map(|attr| {
-                    let condition = attr.condition_tokens_for_read();
+                    let condition = attr.condition_tokens_for_write();
                     match &attr.attr {
                         Condition::SinceVersion(_) => quote! {
                             if #condition && self.#name.is_none() {
@@ -286,10 +280,10 @@ impl Fields {
 }
 
 impl Condition {
-    fn condition_tokens_for_read(&self) -> TokenStream {
+    pub(crate) fn condition_tokens_for_read(&self) -> TokenStream {
         match self {
-            Condition::SinceVersion(version) => quote!(version.compatible(#version)),
-            Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
+            Condition::SinceVersion(version) => quote!(self.version().compatible(#version)),
+            Condition::IfFlag { field, flag } => quote!(self.#field().contains(#flag)),
         }
     }
 
@@ -297,15 +291,6 @@ impl Condition {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
-        }
-    }
-
-    /// the name of any fields that need to be instantiated to determine this condition
-    fn input_field(&self) -> Vec<syn::Ident> {
-        match self {
-            // special case, we always treat a version field as input
-            Condition::SinceVersion(_) => vec![],
-            Condition::IfFlag { field, .. } => vec![field.clone()],
         }
     }
 }
@@ -531,13 +516,19 @@ impl Field {
         quote::format_ident!("{}_byte_range", &self.name)
     }
 
-    pub(crate) fn shape_byte_len_field_name(&self) -> syn::Ident {
-        quote::format_ident!("{}_byte_len", &self.name)
-    }
-
-    pub(crate) fn shape_byte_start_field_name(&self) -> syn::Ident {
-        // used when fields are optional
-        quote::format_ident!("{}_byte_start", &self.name)
+    pub(crate) fn known_min_size_stmt(&self) -> Option<TokenStream> {
+        match &self.typ {
+            _ if self.is_conditional() => None,
+            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
+                Some(quote!(#typ :: RAW_BYTE_LEN))
+            }
+            FieldType::Array { .. }
+            | FieldType::ComputedArray(_)
+            | FieldType::VarLenArray(_)
+            | FieldType::Struct { .. } => Some(Default::default()),
+            //FieldType::Struct { typ } => Some(quote!( #typ :: MIN_SIZE  )),
+            FieldType::PendingResolution { .. } => panic!("resolved before now"),
+        }
     }
 
     pub(crate) fn is_zerocopy_compatible(&self) -> bool {
@@ -648,38 +639,13 @@ impl Field {
         self.attrs.format.is_some() || self.attrs.compile.is_some()
     }
 
-    pub(crate) fn validate_at_parse(&self) -> bool {
-        false
-        //FIXME: validate fields?
-        //self.attrs.format.is_some()
-    }
-
     pub(crate) fn has_getter(&self) -> bool {
         self.attrs.skip_getter.is_none()
     }
 
-    pub(crate) fn shape_len_expr(&self) -> TokenStream {
-        // is this a scalar/offset? then it's just 'RAW_BYTE_LEN'
-        // is this computed? then it is stored
-        match &self.typ {
-            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
-                quote!(#typ::RAW_BYTE_LEN)
-            }
-            FieldType::Struct { .. }
-            | FieldType::Array { .. }
-            | FieldType::ComputedArray { .. }
-            | FieldType::VarLenArray(_) => {
-                let len_field = self.shape_byte_len_field_name();
-                let try_op = self.is_conditional().then(|| quote!(?));
-                quote!(self.#len_field #try_op)
-            }
-            FieldType::PendingResolution { .. } => panic!("Should have resolved {self:?}"),
-        }
-    }
-
     /// iterate the names of fields that are required for parsing or instantiating
     /// this field.
-    fn input_fields(&self) -> Vec<(syn::Ident, NeededWhen)> {
+    pub(crate) fn input_fields(&self) -> Vec<(syn::Ident, NeededWhen)> {
         let mut result = Vec::new();
         if let Some(count) = self.attrs.count.as_ref() {
             result.extend(
@@ -687,11 +653,6 @@ impl Field {
                     .iter_referenced_fields()
                     .map(|fld| (fld.clone(), NeededWhen::Parse)),
             );
-        }
-        if let Some(flds) = self.attrs.conditional.as_ref().map(|c| c.input_field()) {
-            for fld in flds {
-                result.push((fld, NeededWhen::Parse))
-            }
         }
 
         if let Some(read_with) = self.attrs.read_with_args.as_ref() {
@@ -777,21 +738,32 @@ impl Field {
         let name = &self.name;
         let is_array = self.is_array();
         let is_var_array = self.is_var_array();
-        let is_versioned = self.is_conditional();
+        let is_conditional = self.is_conditional();
+
+        //// if a field is non-conditional we will always return some value, even
+        //// if the data is malformed.
+        //let maybe_unwrap_or_def = (!is_conditional).then(|| quote!( .unwrap_or_default() ));
+        let maybe_unwrap = self.validated_at_parse.then(|| quote!( .unwrap() ));
+        // for fields that have lengths calculated based on other inputs,
+        // it's possible we don't have enough bytes and reading could fail.
+        // When these are non-optional, we use unwrap_or_default so that we
+        // are always returning a value.
+        let maybe_unwrap_or_def =
+            (maybe_unwrap.is_none() && !is_conditional).then(|| quote!( .unwrap_or_default() ));
 
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args).unwrap() )
+            quote!( self.data.read_with_args(range, &#get_args) #maybe_unwrap_or_def )
         } else if is_var_array {
-            quote!(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
+            quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
         } else if is_array {
-            quote!(self.data.read_array(range).unwrap())
+            quote!(self.data.read_array(range).ok() #maybe_unwrap_or_def)
         } else {
-            quote!(self.data.read_at(range.start).unwrap())
+            quote!(self.data.read_at(range.start).ok() #maybe_unwrap #maybe_unwrap_or_def)
         };
-        if is_versioned {
-            read_stmt = quote!(Some(#read_stmt));
+        if is_conditional {
+            read_stmt = quote! { (!range.is_empty()).then(||#read_stmt).flatten() };
         }
 
         let docs = &self.attrs.docs;
@@ -854,8 +826,7 @@ impl Field {
 
     fn getter_range_stmt(&self) -> TokenStream {
         let shape_range_fn_name = self.shape_byte_range_fn_name();
-        let try_op = self.is_conditional().then(|| quote!(?));
-        quote!( self.shape.#shape_range_fn_name() #try_op )
+        quote!( self.#shape_range_fn_name()  )
     }
 
     fn typed_offset_getter_docs(&self, has_data_arg: bool) -> TokenStream {
@@ -1026,85 +997,33 @@ impl Field {
         }
     }
 
-    /// the code generated for this field to validate data at parse time.
-    pub(crate) fn field_parse_validation_stmts(&self) -> TokenStream {
-        let name = &self.name;
-        // handle the trivial case
-        if !self.read_at_parse_time
-            && !self.has_computed_len()
-            && !self.validate_at_parse()
-            && !self.is_conditional()
-        {
+    /// The expression for evaluating the length in bytes of this field
+    pub(crate) fn field_len_expr(&self) -> TokenStream {
+        let len_expr = self.computed_len_expr(true).unwrap_or_else(|| {
             let typ = self.typ.cooked_type_tokens();
-            return quote!( cursor.advance::<#typ>(); );
-        }
-
-        let conditional_field_start = self.attrs.conditional.as_ref().map(|condition| {
-            let field_start_name = self.shape_byte_start_field_name();
-            let condition = condition.condition_tokens_for_read();
-            quote! ( let #field_start_name = #condition.then(|| cursor.position()).transpose()?; )
+            quote!( #typ::RAW_BYTE_LEN )
         });
-
-        let other_stuff = if self.has_computed_len() {
-            let len_expr = self.computed_len_expr().unwrap();
-            let len_field_name = self.shape_byte_len_field_name();
-
-            match &self.attrs.conditional {
-                Some(condition) => {
-                    let condition = condition.condition_tokens_for_read();
-                    quote! {
-                        let #len_field_name = #condition.then_some(#len_expr);
-                        if let Some(value) = #len_field_name {
-                            cursor.advance_by(value);
-                        }
-                    }
-                }
-                None => quote! {
-                    let #len_field_name = #len_expr;
-                    cursor.advance_by(#len_field_name);
-                },
-            }
-        } else if let Some(condition) = &self.attrs.conditional {
-            assert!(!self.is_array());
-            let typ = self.typ.cooked_type_tokens();
-            let condition = condition.condition_tokens_for_read();
-            if self.read_at_parse_time {
-                quote! {
-                    let #name = #condition.then(|| cursor.read::<#typ>()).transpose()?.unwrap_or_default();
-                }
-            } else {
-                quote! {
-                    #condition.then(|| cursor.advance::<#typ>());
-                }
-            }
-        } else if self.read_at_parse_time {
-            let typ = self.typ.cooked_type_tokens();
-            quote! ( let #name: #typ = cursor.read()?; )
-        } else {
-            panic!("who wrote this garbage anyway?");
-        };
-
-        quote! {
-            #conditional_field_start
-            #other_stuff
-        }
+        len_expr
     }
 
     /// The computed length of this field, if it is not a scalar/offset
-    fn computed_len_expr(&self) -> Option<TokenStream> {
+    ///
+    /// 'has_self_param' is true when this is used in a method with &self,
+    /// instead of in the ComputeSize trait.
+    fn computed_len_expr(&self, has_self_param: bool) -> Option<TokenStream> {
         if !self.has_computed_len() {
             return None;
         }
 
-        assert!(!self.read_at_parse_time, "i did not expect this to happen");
-        let read_args = self
-            .attrs
-            .read_with_args
-            .as_deref()
-            .map(FieldReadArgs::to_tokens_for_validation);
+        let read_args = self.attrs.read_with_args.as_deref();
+        let read_args = if has_self_param {
+            read_args.map(FieldReadArgs::to_tokens_for_table_getter)
+        } else {
+            read_args.map(FieldReadArgs::to_tokens_for_validation)
+        };
 
         if let FieldType::Struct { typ } = &self.typ {
-            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)? ));
+            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args).unwrap_or(0) ));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
             panic!("Should have resolved {self:?}")
@@ -1117,9 +1036,9 @@ impl Field {
                         // Make sure the remaining byte size is a multiple of
                         // the requested element type size.
                         // See <https://github.com/googlefonts/fontations/issues/797>
-                        quote!(cursor.remaining_bytes() / #inner_typ::RAW_BYTE_LEN * #inner_typ::RAW_BYTE_LEN)
+                        quote!(self.data.len().saturating_sub(start) / #inner_typ::RAW_BYTE_LEN * #inner_typ::RAW_BYTE_LEN)
                     }
-                    _ => quote!(cursor.remaining_bytes()),
+                    _ => quote!(self.data.len().saturating_sub(start)),
                 }
             }
             Some(other) => {
@@ -1131,14 +1050,14 @@ impl Field {
                     }
                     FieldType::ComputedArray(array) => {
                         let inner = array.raw_inner_type();
-                        quote!( <#inner as ComputeSize>::compute_size(&#read_args)? )
+                        quote!( <#inner as ComputeSize>::compute_size(&#read_args).unwrap_or(0) )
                     }
                     FieldType::VarLenArray(array) => {
                         let inner = array.raw_inner_type();
                         return Some(quote! {
                             {
-                                let data = cursor.remaining().ok_or(ReadError::OutOfBounds)?;
-                                <#inner as VarSize>::total_len_for_count(data, #count_expr)?
+                                let data = self.data.split_off(start).unwrap_or_default();
+                                <#inner as VarSize>::total_len_for_count(data, #count_expr).unwrap_or(0)
                             }
                         });
                     }
@@ -1150,7 +1069,7 @@ impl Field {
                         size_expr
                     }
                     _ => {
-                        quote!(  (#count_expr).checked_mul(#size_expr).ok_or(ReadError::OutOfBounds)? )
+                        quote!(  (#count_expr).saturating_mul(#size_expr) )
                     }
                 }
             }
@@ -1160,7 +1079,7 @@ impl Field {
     }
 
     pub(crate) fn record_len_expr(&self) -> TokenStream {
-        self.computed_len_expr().unwrap_or_else(|| {
+        self.computed_len_expr(false).unwrap_or_else(|| {
             let cooked = self.typ.cooked_type_tokens();
             quote!(#cooked::RAW_BYTE_LEN)
         })

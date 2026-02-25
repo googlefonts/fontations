@@ -160,7 +160,7 @@ table PatchMapFormat2 {
 
   #[nullable]
   entry_id_string_data_offset: Offset32<IdStringData>,
-  
+
   // URI Template String (UTF-8 Encoded)
   url_template_length: u16,
   #[count($url_template_length)]
@@ -211,6 +211,8 @@ table EntryData {
   //
   // These remaining fields don't have well defined widths and are handling with
   // custom parsing.
+  #[skip_getter] // this is the only non-conditional field that occurs after a
+                 // conditional field, and codegen chokes on that.
   #[count(..)]
   trailing_data: [u8],
 }

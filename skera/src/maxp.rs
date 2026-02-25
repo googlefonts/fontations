@@ -19,7 +19,7 @@ impl Subset for Maxp<'_> {
         let num_glyphs = plan.num_output_glyphs.min(0xFFFF) as u16;
         s.embed_bytes(self.offset_data().as_bytes())
             .map_err(|_| SubsetError::SubsetTableError(Maxp::TAG))?;
-        s.copy_assign(self.shape().num_glyphs_byte_range().start, num_glyphs);
+        s.copy_assign(self.num_glyphs_byte_range().start, num_glyphs);
 
         //drop hints
         if self.version() == Version16Dot16::VERSION_1_0
@@ -28,35 +28,14 @@ impl Subset for Maxp<'_> {
                 .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
         {
             //maxZones
-            s.copy_assign_from_bytes(self.shape().max_zones_byte_range().unwrap().start, &[0, 1]);
+            s.copy_assign_from_bytes(self.max_zones_byte_range().start, &[0, 1]);
             //maxTwilightPoints..maxSizeOfInstructions
-            s.copy_assign(
-                self.shape().max_twilight_points_byte_range().unwrap().start,
-                0_u16,
-            );
-            s.copy_assign(self.shape().max_storage_byte_range().unwrap().start, 0_u16);
-            s.copy_assign(
-                self.shape().max_function_defs_byte_range().unwrap().start,
-                0_u16,
-            );
-            s.copy_assign(
-                self.shape()
-                    .max_instruction_defs_byte_range()
-                    .unwrap()
-                    .start,
-                0_u16,
-            );
-            s.copy_assign(
-                self.shape().max_stack_elements_byte_range().unwrap().start,
-                0_u16,
-            );
-            s.copy_assign(
-                self.shape()
-                    .max_size_of_instructions_byte_range()
-                    .unwrap()
-                    .start,
-                0_u16,
-            );
+            s.copy_assign(self.max_twilight_points_byte_range().start, 0_u16);
+            s.copy_assign(self.max_storage_byte_range().start, 0_u16);
+            s.copy_assign(self.max_function_defs_byte_range().start, 0_u16);
+            s.copy_assign(self.max_instruction_defs_byte_range().start, 0_u16);
+            s.copy_assign(self.max_stack_elements_byte_range().start, 0_u16);
+            s.copy_assign(self.max_size_of_instructions_byte_range().start, 0_u16);
         }
         Ok(())
     }

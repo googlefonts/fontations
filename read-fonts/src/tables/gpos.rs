@@ -164,7 +164,7 @@ impl PairPosFormat2<'_> {
         // Compute an offset into the 2D array of positioning records
         let record_offset = (class1 as usize * record_size * self.class2_count() as usize)
             + (class2 as usize * record_size)
-            + self.shape().class1_records_byte_range().start;
+            + self.class1_records_byte_range().start;
         Ok([
             Value::read(data, record_offset, format1, context)?,
             Value::read(data, record_offset + format1_len, format2, context)?,

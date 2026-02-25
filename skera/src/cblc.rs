@@ -14,7 +14,7 @@ use write_fonts::{
             cbdt::Cbdt,
             cblc::Cblc,
         },
-        FontRef, TableProvider, TopLevelTable,
+        FontRef, MinByteRange, TableProvider, TopLevelTable,
     },
     types::{FixedSize, GlyphId, Offset32},
     FontBuilder,
@@ -48,7 +48,7 @@ impl Subset for Cblc<'_> {
         let bitmapsize_bytes = self
             .offset_data()
             .as_bytes()
-            .get(self.shape().bitmap_sizes_byte_range())
+            .get(self.bitmap_sizes_byte_range())
             .unwrap();
 
         // cbdt out
