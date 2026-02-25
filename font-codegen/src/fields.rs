@@ -8,8 +8,7 @@ use syn::spanned::Spanned;
 
 use super::parsing::{
     logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
-    FieldType, FieldValidation, Fields, IfTransform, NeededWhen, OffsetTarget, Phase, Record,
-    ReferencedFields,
+    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
 };
 
 impl Fields {
@@ -214,22 +213,6 @@ impl Fields {
                                 }
                             }
                         }
-                        Condition::IfCond { xform } => match xform {
-                            IfTransform::AnyFlag(_, _) => {
-                                let condition_not_set_message =
-                                    format!("if_cond is not satisfied but '{name}' is present.");
-                                let condition_set_message =
-                                    format!("if_cond is satisfied by '{name}' is not present.");
-                                quote! {
-                                    if !(#condition) && self.#name.is_some() {
-                                        ctx.report(#condition_not_set_message);
-                                    }
-                                    if (#condition) && self.#name.is_none() {
-                                        ctx.report(#condition_set_message);
-                                    }
-                                }
-                            }
-                        },
                     }
                 });
 
@@ -302,24 +285,11 @@ impl Fields {
     }
 }
 
-fn if_expression(xform: &IfTransform, add_self: bool) -> TokenStream {
-    match xform {
-        IfTransform::AnyFlag(field, flags) => {
-            if add_self {
-                quote!(self.#field.intersects(#(#flags)|*))
-            } else {
-                quote!(#field.intersects(#(#flags)|*))
-            }
-        }
-    }
-}
-
 impl Condition {
     fn condition_tokens_for_read(&self) -> TokenStream {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
-            Condition::IfCond { xform } => if_expression(xform, false),
         }
     }
 
@@ -327,7 +297,6 @@ impl Condition {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
-            Condition::IfCond { xform } => if_expression(xform, true),
         }
     }
 
@@ -337,7 +306,6 @@ impl Condition {
             // special case, we always treat a version field as input
             Condition::SinceVersion(_) => vec![],
             Condition::IfFlag { field, .. } => vec![field.clone()],
-            Condition::IfCond { xform } => xform.input_field(),
         }
     }
 }
