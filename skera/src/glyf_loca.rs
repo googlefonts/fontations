@@ -474,12 +474,6 @@ impl<'a> GlyfAccelerator<'a> {
             if apply_len == 0 {
                 return;
             }
-            log::debug!(
-                "Applying {} deltas to {} points for gid {}",
-                apply_len,
-                target_points.0.len(),
-                gid
-            );
             for (point, delta) in target_points
                 .0
                 .iter_mut()
@@ -516,12 +510,6 @@ fn compile_bytes_with_deltas(
     };
     let (all_points, points_with_deltas) =
         get_points(&glyph, plan, glyph_accelerator, new_gid, head_maxp).unwrap();
-    log::debug!(
-        "Got {} total points and {} points with deltas for gid {}",
-        all_points.len(),
-        points_with_deltas.as_ref().map(|p| p.len()).unwrap_or(0),
-        new_gid
-    );
     // .notdef, set type to empty so we only update metrics and don't compile bytes for
     // it
     if new_gid == GlyphId::NOTDEF
@@ -1152,8 +1140,6 @@ impl ContourPoints {
 
         if let Some((left_side_x, right_side_x, top_side_y, bottom_side_y)) = self.phantom_bounds()
         {
-            log::debug!("Phantom bounds for GID {}: left_side_x={}, right_side_x={}, top_side_y={}, bottom_side_y={}",
-                new_gid, left_side_x, right_side_x, top_side_y, bottom_side_y);
             if bounds.is_empty() {
                 plan.hmtx_map
                     .borrow_mut()
@@ -1170,23 +1156,13 @@ impl ContourPoints {
                 bounds.y_max as i16,
             );
 
-            let mut hori_aw: u16 = (right_side_x - left_side_x).ot_round();
+            let hori_aw: u16 = (right_side_x - left_side_x).ot_round();
             let lsb: i16 = (bounds.x_min - left_side_x).ot_round();
-            plan.hmtx_map
-                .borrow_mut()
-                .insert(new_gid, (hori_aw as u16, lsb as i16));
-            log::debug!(
-                "Storing hmtx for gid {}: aw={}, lsb={}",
-                new_gid,
-                hori_aw as u16,
-                lsb as i16
-            );
+            plan.hmtx_map.borrow_mut().insert(new_gid, (hori_aw, lsb));
 
-            let vert_aw = (top_side_y - bottom_side_y).round().max(0.0);
-            let tsb = (bounds.y_max - top_side_y).round();
-            plan.vmtx_map
-                .borrow_mut()
-                .insert(new_gid, (vert_aw as u16, tsb as i16));
+            let vert_aw: u16 = (top_side_y - bottom_side_y).ot_round();
+            let tsb: i16 = (bounds.y_max - top_side_y).ot_round();
+            plan.vmtx_map.borrow_mut().insert(new_gid, (vert_aw, tsb));
         }
     }
 }
@@ -1499,19 +1475,6 @@ fn get_points_harfbuzz_standalone(
             point.x -= shift;
         }
     }
-
-    log::debug!(
-        "Phantom points at end of get_points: left={}, right={}",
-        phantoms[0].x,
-        phantoms[1].x
-    );
-
-    log::debug!(
-        "Returning {} points and {} points with deltas from depth {}",
-        all_points.len(),
-        points_with_deltas.as_ref().map_or(0, |v| v.len()),
-        depth
-    );
 
     Ok((all_points, points_with_deltas))
 }
