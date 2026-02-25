@@ -100,6 +100,15 @@ fn instantiate_gvar(
         plan.axes_location,
         plan.axes_triple_distances
     );
+
+    let retained_axis_tags = plan
+        .axis_tags
+        .iter()
+        .enumerate()
+        .filter(|(ix, _)| plan.axes_index_map.contains_key(ix))
+        .map(|(_, tag)| *tag)
+        .collect::<Vec<_>>();
+
     for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
         if let Some(glyph_var) = gvar
             .glyph_variation_data(*old_gid)
@@ -131,7 +140,7 @@ fn instantiate_gvar(
                     optimize,
                 )?;
                 // Normalize axes: ensure all tuples have the same set of axes
-                tuple_variations.normalize_axes();
+                tuple_variations.normalize_axes(&retained_axis_tags);
                 new_variations.push(GlyphVariations::new(
                     *new_gid,
                     tuple_variations.to_glyph_deltas(&plan.axis_tags),
@@ -144,6 +153,13 @@ fn instantiate_gvar(
             // No variations for this glyph
             new_variations.push(GlyphVariations::new(*new_gid, vec![]));
         }
+    }
+    if new_variations.is_empty() {
+        // No variations at all, we can skip the gvar table
+        log::trace!(
+            "Removing gvar, because there are no variations for any glyph after instantiation."
+        );
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
     }
     let new_gvar = WriteGvar::new(new_variations, new_axis_count)
         .expect("Can't write gvar table with new variations"); // This should never fail, as we're not doing any complex serialization here

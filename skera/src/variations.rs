@@ -90,7 +90,6 @@ impl Region {
         self.0.remove(tag)
     }
 
-    #[cfg(test)]
     fn len(&self) -> usize {
         self.0.len()
     }
@@ -758,8 +757,9 @@ impl TupleVariations {
 
     /// Normalize all tuples to have the same set of axes.
     /// For axes present in some tuples but not others, add neutral regions (min=-1, peak=0, max=1).
-    /// This is required for gvar serialization.
-    pub fn normalize_axes(&mut self) {
+    /// This is required for gvar serialization; it's an artefact of what write_fonts
+    /// expects (full regions for all axes)
+    pub fn normalize_axes(&mut self, retained_axis_tags: &[Tag]) {
         if self.tuple_vars.is_empty() {
             return;
         }
@@ -785,6 +785,25 @@ impl TupleVariations {
                             maximum: 0.0,
                         },
                     );
+                }
+                if tuple.axis_tuples.len() != retained_axis_tags.len() {
+                    log::warn!(
+                        "Tuple has {} axes, expected {}, filling in",
+                        tuple.axis_tuples.len(),
+                        retained_axis_tags.len()
+                    );
+                    for axis_tag in retained_axis_tags {
+                        if !tuple.axis_tuples.contains_key(axis_tag) {
+                            tuple.axis_tuples.insert(
+                                *axis_tag,
+                                Triple {
+                                    minimum: 0.0,
+                                    middle: 0.0,
+                                    maximum: 0.0,
+                                },
+                            );
+                        }
+                    }
                 }
             }
         }
