@@ -1022,7 +1022,7 @@ impl ContourPoints {
                     match component.anchor {
                         Anchor::Point { .. } => {
                             // if (is_anchored ()) tx = ty = 0;
-                            points.push(ContourPoint::new(0.0, 0.0, false, true));
+                            points.push(ContourPoint::new(0.0, 0.0, false, false));
                         }
                         Anchor::Offset { x, y } => {
                             points.push(ContourPoint::new(x as f32, y as f32, false, false));
@@ -1051,13 +1051,13 @@ impl ContourPoints {
         let v_adv = -(font.head().unwrap().units_per_em() as f32); // XXX use vmtx if available
         let v_orig = y_max + tsb;
         // Phantom left
-        points.push(ContourPoint::new(h_delta, 0.0, false, true));
+        points.push(ContourPoint::new(h_delta, 0.0, false, false));
         // Phantom right
-        points.push(ContourPoint::new(h_adv + h_delta, 0.0, false, true));
+        points.push(ContourPoint::new(h_adv + h_delta, 0.0, false, false));
         // Phantom top
-        points.push(ContourPoint::new(0.0, v_orig, false, true));
+        points.push(ContourPoint::new(0.0, v_orig, false, false));
         // Phantom bottom
-        points.push(ContourPoint::new(0.0, v_orig - v_adv, false, true));
+        points.push(ContourPoint::new(0.0, v_orig - v_adv, false, false));
 
         Ok(Self(points))
     }
@@ -1257,7 +1257,7 @@ fn get_points_harfbuzz_standalone(
             for component in composite_glyph.components() {
                 match component.anchor {
                     Anchor::Point { .. } => {
-                        target_points.push(ContourPoint::new(0.0, 0.0, false, true));
+                        target_points.push(ContourPoint::new(0.0, 0.0, false, false));
                     }
                     Anchor::Offset { x, y } => {
                         target_points.push(ContourPoint::new(x as f32, y as f32, false, false));
@@ -1295,10 +1295,10 @@ fn get_points_harfbuzz_standalone(
 
     // Set phantom point coordinates (PHANTOM_LEFT, PHANTOM_RIGHT, PHANTOM_TOP, PHANTOM_BOTTOM)
     let phantoms_start = target_points.len();
-    target_points.push(ContourPoint::new(h_delta, 0.0, false, true));
-    target_points.push(ContourPoint::new(h_adv + h_delta, 0.0, false, true));
-    target_points.push(ContourPoint::new(0.0, v_orig, false, true));
-    target_points.push(ContourPoint::new(0.0, v_orig - v_adv, false, true));
+    target_points.push(ContourPoint::new(h_delta, 0.0, false, false));
+    target_points.push(ContourPoint::new(h_adv + h_delta, 0.0, false, false));
+    target_points.push(ContourPoint::new(0.0, v_orig, false, false));
+    target_points.push(ContourPoint::new(0.0, v_orig - v_adv, false, false));
     let mut phantoms = target_points[phantoms_start..phantoms_start + PHANTOM_POINT_COUNT].to_vec();
 
     // ========== SECTION 3: Apply gvar deltas to just-added points ==========
