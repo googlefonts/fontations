@@ -431,7 +431,21 @@ impl BaseScriptRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_base_script`][Self::read_base_script],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn base_script<'a>(&self, data: FontData<'a>) -> Result<BaseScript<'a>, ReadError> {
+        self.base_script_offset().resolve(data)
+    }
+
+    /// Offset to BaseScript table, from beginning of BaseScriptList
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_base_script<'a>(
+        &self,
+        source: &BaseScriptList<'a>,
+    ) -> Result<BaseScript<'a>, ReadError> {
+        let data = source.offset_data();
         self.base_script_offset().resolve(data)
     }
 }
@@ -618,7 +632,18 @@ impl BaseLangSysRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_min_max`][Self::read_min_max],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn min_max<'a>(&self, data: FontData<'a>) -> Result<MinMax<'a>, ReadError> {
+        self.min_max_offset().resolve(data)
+    }
+
+    /// Offset to MinMax table, from beginning of BaseScript table
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_min_max<'a>(&self, source: &BaseScript<'a>) -> Result<MinMax<'a>, ReadError> {
+        let data = source.offset_data();
         self.min_max_offset().resolve(data)
     }
 }
@@ -932,7 +957,22 @@ impl FeatMinMaxRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_min_coord`][Self::read_min_coord],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn min_coord<'a>(&self, data: FontData<'a>) -> Option<Result<BaseCoord<'a>, ReadError>> {
+        self.min_coord_offset().resolve(data)
+    }
+
+    /// Offset to BaseCoord table that defines the minimum extent
+    /// value, from beginning of MinMax table (may be NULL)
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_min_coord<'a>(
+        &self,
+        source: &MinMax<'a>,
+    ) -> Option<Result<BaseCoord<'a>, ReadError>> {
+        let data = source.offset_data();
         self.min_coord_offset().resolve(data)
     }
 
@@ -947,7 +987,22 @@ impl FeatMinMaxRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_max_coord`][Self::read_max_coord],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn max_coord<'a>(&self, data: FontData<'a>) -> Option<Result<BaseCoord<'a>, ReadError>> {
+        self.max_coord_offset().resolve(data)
+    }
+
+    /// Offset to BaseCoord table that defines the maximum extent
+    /// value, from beginning of MinMax table (may be NULL)
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_max_coord<'a>(
+        &self,
+        source: &MinMax<'a>,
+    ) -> Option<Result<BaseCoord<'a>, ReadError>> {
+        let data = source.offset_data();
         self.max_coord_offset().resolve(data)
     }
 }

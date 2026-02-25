@@ -154,7 +154,19 @@ impl DataMapRecord {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_data`][Self::read_data],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn data<'a>(&self, data: FontData<'a>) -> Result<Metadata<'a>, ReadError> {
+        let args = (self.tag(), self.data_length());
+        self.data_offset().resolve_with_args(data, &args)
+    }
+
+    /// Offset in bytes from the beginning of the metadata table to the data for this tag.
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_data<'a>(&self, source: &Meta<'a>) -> Result<Metadata<'a>, ReadError> {
+        let data = source.offset_data();
         let args = (self.tag(), self.data_length());
         self.data_offset().resolve_with_args(data, &args)
     }

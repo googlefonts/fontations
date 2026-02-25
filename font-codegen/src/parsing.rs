@@ -188,6 +188,7 @@ pub(crate) struct FieldAttrs {
     /// optionally a method on the parent type used to generate the offset data
     /// source for this item.
     pub(crate) offset_data: Option<Attr<syn::Ident>>,
+    pub(crate) offset_from: Option<Attr<syn::Ident>>,
     /// If present, argument is an expression that evaluates to a u32, and is
     /// used to adjust the write position of offsets.
     //TODO: this could maybe be combined with offset_data?
@@ -1033,6 +1034,7 @@ static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static OFFSET_GETTER: &str = "offset_getter";
 static OFFSET_DATA: &str = "offset_data_method";
+static OFFSET_FROM: &str = "offset_from";
 static OFFSET_ADJUSTMENT: &str = "offset_adjustment";
 static COMPILE: &str = "compile";
 static COMPILE_WITH: &str = "compile_with";
@@ -1067,6 +1069,8 @@ impl Parse for FieldAttrs {
                 this.offset_getter = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == OFFSET_DATA {
                 this.offset_data = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == OFFSET_FROM {
+                this.offset_from = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == OFFSET_ADJUSTMENT {
                 this.offset_adjustment = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == VERSION {

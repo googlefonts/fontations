@@ -288,7 +288,18 @@ impl ContainsOffsets {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_array`][Self::read_array],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn array<'a>(&self, data: FontData<'a>) -> Result<&'a [SimpleRecord], ReadError> {
+        let args = self.off_array_count();
+        self.array_offset().resolve_with_args(data, &args)
+    }
+
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_array<'a>(&self, source: &BasicTable<'a>) -> Result<&'a [SimpleRecord], ReadError> {
+        let data = source.offset_data();
         let args = self.off_array_count();
         self.array_offset().resolve_with_args(data, &args)
     }
@@ -300,7 +311,17 @@ impl ContainsOffsets {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_other`][Self::read_other],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn other<'a>(&self, data: FontData<'a>) -> Result<BasicTable<'a>, ReadError> {
+        self.other_offset().resolve(data)
+    }
+
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_other<'a>(&self, source: &BasicTable<'a>) -> Result<BasicTable<'a>, ReadError> {
+        let data = source.offset_data();
         self.other_offset().resolve(data)
     }
 }

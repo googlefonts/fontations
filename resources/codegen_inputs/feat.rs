@@ -31,6 +31,7 @@ record FeatureName {
     /// setting name array. The actual type of record this offset refers 
     /// to will depend on the exclusivity value, as described below.
     #[read_offset_with($n_settings)]
+    #[offset_from(Feat)]
     setting_table_offset: Offset32<SettingNameArray>,
     /// Flags associated with the feature type.
     feature_flags: u16,
