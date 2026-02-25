@@ -141,7 +141,9 @@ impl<'a> std::fmt::Debug for TableDirectory<'a> {
 }
 
 /// Record for a table in a font.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct TableRecord {

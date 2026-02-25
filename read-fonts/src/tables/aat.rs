@@ -32,7 +32,7 @@ impl Lookup0<'_> {
 }
 
 /// Lookup segment for format 2.
-#[derive(Copy, Clone, bytemuck::AnyBitPattern)]
+#[derive(Copy, Clone, bytemuck_derive::AnyBitPattern)]
 #[repr(C, packed)]
 pub struct LookupSegment2<T>
 where
@@ -112,7 +112,7 @@ impl Lookup4<'_> {
 }
 
 /// Lookup single record for format 6.
-#[derive(Copy, Clone, bytemuck::AnyBitPattern)]
+#[derive(Copy, Clone, bytemuck_derive::AnyBitPattern)]
 #[repr(C, packed)]
 pub struct LookupSingle<T>
 where
@@ -276,7 +276,7 @@ pub type LookupGlyphId<'a> = TypedLookup<'a, GlyphId16>;
 /// Note: this type is only intended for use as the type parameter for
 /// `StateEntry`. The inner field is private and this type cannot be
 /// constructed outside of this module.
-#[derive(Copy, Clone, bytemuck::AnyBitPattern, Debug)]
+#[derive(Copy, Clone, bytemuck_derive::AnyBitPattern, Debug)]
 pub struct NoPayload(());
 
 impl FixedSize for NoPayload {
@@ -753,7 +753,7 @@ mod tests {
         assert_eq!(entry.payload.current_index, 0);
     }
 
-    #[derive(Copy, Clone, Debug, bytemuck::AnyBitPattern)]
+    #[derive(Copy, Clone, Debug, bytemuck_derive::AnyBitPattern)]
     #[repr(C, packed)]
     struct ContextualData {
         _mark_index: BigEndian<u16>,

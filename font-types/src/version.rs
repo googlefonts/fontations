@@ -7,7 +7,7 @@
 /// [spec]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-version-numbers
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck_derive::AnyBitPattern))]
 #[repr(transparent)]
 pub struct Version16Dot16(u32);
 
@@ -21,7 +21,7 @@ pub struct Version16Dot16(u32);
 /// [spec]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-version-numbers
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck_derive::AnyBitPattern))]
 #[repr(C)]
 pub struct MajorMinor {
     /// The major version number

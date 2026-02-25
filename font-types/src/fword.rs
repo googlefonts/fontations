@@ -5,14 +5,14 @@ use super::Fixed;
 /// 16-bit signed quantity in font design units.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck_derive::AnyBitPattern))]
 #[repr(transparent)]
 pub struct FWord(i16);
 
 /// 16-bit unsigned quantity in font design units.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck_derive::AnyBitPattern))]
 #[repr(transparent)]
 pub struct UfWord(u16);
 

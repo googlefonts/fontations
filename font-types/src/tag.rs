@@ -18,7 +18,7 @@ use std::{
 ///
 /// [spec]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#data-types
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck_derive::AnyBitPattern))]
 #[repr(transparent)]
 pub struct Tag([u8; 4]);
 

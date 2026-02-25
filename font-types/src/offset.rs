@@ -5,7 +5,7 @@ use crate::{Scalar, Uint24};
 /// An offset of a given width for which NULL (zero) is a valid value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck_derive::AnyBitPattern))]
 #[repr(transparent)]
 pub struct Nullable<T>(T);
 
@@ -65,7 +65,7 @@ macro_rules! impl_offset {
         /// the `None` case.
         #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
         #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-        #[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+        #[cfg_attr(feature = "bytemuck", derive(bytemuck_derive::AnyBitPattern))]
         #[repr(transparent)]
         pub struct $name($rawty);
 
