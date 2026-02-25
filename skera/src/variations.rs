@@ -20,6 +20,7 @@ use skrifa::{
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
+    fmt::Debug,
     hash::{Hash, Hasher},
     ops::{AddAssign, MulAssign},
     vec,
@@ -40,7 +41,7 @@ pub(crate) mod solver;
 
 /// Hashable wrapper around a region (axis coordinates map).
 /// Implements Hash for use as a HashMap key by hashing entries in sorted order.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 struct Region(FnvHashMap<Tag, Triple<f64>>);
 
 impl Hash for Region {
@@ -54,6 +55,21 @@ impl Hash for Region {
             triple.middle.to_bits().hash(state);
             triple.maximum.to_bits().hash(state);
         }
+    }
+}
+impl Debug for Region {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut entries: Vec<_> = self.0.iter().collect();
+        entries.sort_by_key(|&(tag, _)| tag);
+        f.write_str("{")?;
+        for (axis_tag, triple) in entries {
+            f.write_fmt(format_args!(
+                "{}=({:.3}, {:.3}, {:.3}) ",
+                axis_tag, triple.minimum, triple.middle, triple.maximum
+            ))?;
+        }
+        f.write_str("}")?;
+        Ok(())
     }
 }
 
@@ -209,12 +225,36 @@ impl Eq for Region {}
 
 /// Represents a single tuple variation: region coordinates + deltas.
 /// Corresponds to Harfbuzz's tuple_delta_t.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 struct TupleDelta {
     axis_tuples: Region,
     indices: Vec<bool>,
     deltas_x: Vec<f32>,
     deltas_y: Vec<f32>,
+}
+
+impl Debug for TupleDelta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!("TupleDelta< {:?} ", &self.axis_tuples))?;
+
+        for (i, &is_ref) in self.indices.iter().enumerate() {
+            if is_ref {
+                f.debug_tuple("")
+                    .field(&self.deltas_x[i])
+                    .field(&self.deltas_y.get(i).copied().unwrap_or(0.0))
+                    .finish()?;
+            } else {
+                f.debug_tuple("*")
+                    .field(&self.deltas_x[i])
+                    .field(&self.deltas_y.get(i).copied().unwrap_or(0.0))
+                    .finish()?;
+            }
+            f.write_str(", ")?;
+        }
+        f.write_str(">")?;
+
+        Ok(())
+    }
 }
 impl TupleDelta {
     // Corresponds to create_from_tuple_var_data in hb-ot-var-common.hh
