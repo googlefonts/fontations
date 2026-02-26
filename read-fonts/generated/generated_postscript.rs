@@ -46,8 +46,8 @@ impl<'a> FontRead<'a> for Index1<'a> {
         let mut cursor = data.cursor();
         let count: u16 = cursor.read()?;
         let off_size: u8 = cursor.read()?;
-        let offsets_byte_len = (transforms::add_multiply(count, 1_usize, off_size))
-            .checked_mul(u8::RAW_BYTE_LEN)
+        let offsets_byte_len = (transforms::add(count, 1_usize))
+            .checked_mul(<VarOffset as ComputeSize>::compute_size(&off_size)?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(offsets_byte_len);
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
@@ -77,9 +77,9 @@ impl<'a> Index1<'a> {
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
-    pub fn offsets(&self) -> &'a [u8] {
+    pub fn offsets(&self) -> ComputedArray<'a, VarOffset> {
         let range = self.shape.offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_with_args(range, &self.off_size()).unwrap()
     }
 
     /// Array containing the object data.
@@ -98,7 +98,14 @@ impl<'a> SomeTable<'a> for Index1<'a> {
         match idx {
             0usize => Some(Field::new("count", self.count())),
             1usize => Some(Field::new("off_size", self.off_size())),
-            2usize => Some(Field::new("offsets", self.offsets())),
+            2usize => Some(Field::new(
+                "offsets",
+                traversal::FieldType::computed_array(
+                    "VarOffset",
+                    self.offsets(),
+                    self.offset_data(),
+                ),
+            )),
             3usize => Some(Field::new("data", self.data())),
             _ => None,
         }
@@ -154,8 +161,8 @@ impl<'a> FontRead<'a> for Index2<'a> {
         let mut cursor = data.cursor();
         let count: u32 = cursor.read()?;
         let off_size: u8 = cursor.read()?;
-        let offsets_byte_len = (transforms::add_multiply(count, 1_usize, off_size))
-            .checked_mul(u8::RAW_BYTE_LEN)
+        let offsets_byte_len = (transforms::add(count, 1_usize))
+            .checked_mul(<VarOffset as ComputeSize>::compute_size(&off_size)?)
             .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(offsets_byte_len);
         let data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
@@ -185,9 +192,9 @@ impl<'a> Index2<'a> {
     }
 
     /// Bytes containing `count + 1` offsets each of `off_size`.
-    pub fn offsets(&self) -> &'a [u8] {
+    pub fn offsets(&self) -> ComputedArray<'a, VarOffset> {
         let range = self.shape.offsets_byte_range();
-        self.data.read_array(range).unwrap()
+        self.data.read_with_args(range, &self.off_size()).unwrap()
     }
 
     /// Array containing the object data.
@@ -206,7 +213,14 @@ impl<'a> SomeTable<'a> for Index2<'a> {
         match idx {
             0usize => Some(Field::new("count", self.count())),
             1usize => Some(Field::new("off_size", self.off_size())),
-            2usize => Some(Field::new("offsets", self.offsets())),
+            2usize => Some(Field::new(
+                "offsets",
+                traversal::FieldType::computed_array(
+                    "VarOffset",
+                    self.offsets(),
+                    self.offset_data(),
+                ),
+            )),
             3usize => Some(Field::new("data", self.data())),
             _ => None,
         }

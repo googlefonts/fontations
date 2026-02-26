@@ -110,6 +110,65 @@ impl Default for Index<'_> {
     }
 }
 
+/// An offset that can be encoded using 1-4 bytes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VarOffset(u32);
+
+impl ReadArgs for VarOffset {
+    type Args = u8;
+}
+
+impl ComputeSize for VarOffset {
+    fn compute_size(args: &Self::Args) -> Result<usize, ReadError> {
+        Ok(*args as usize)
+    }
+}
+
+impl FontReadWithArgs<'_> for VarOffset {
+    fn read_with_args(data: FontData<'_>, args: &Self::Args) -> Result<Self, ReadError> {
+        // There are actually count + 1 entries in the offset array.
+        //
+        // "Offsets in the offset array are relative to the byte that precedes
+        // the object data. Therefore the first element of the offset array is
+        // always 1. (This ensures that every object has a corresponding offset
+        // which is always nonzero and permits the efficient implementation of
+        // dynamic object loading.)"
+        //
+        // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-7-index-format>
+        let raw = match *args {
+            1 => data.read_at::<u8>(0).map(|x| x as _),
+            2 => data.read_at::<u16>(0).map(|x| x as _),
+            3 => data.read_at::<Uint24>(0).map(|x| x.to_u32()),
+            4 => data.read_at::<u32>(0),
+            _ => Err(ReadError::MalformedData("invalid cff index offset len")),
+        }?;
+
+        raw.checked_sub(1)
+            .ok_or(ReadError::OutOfBounds)
+            .map(VarOffset)
+    }
+}
+
+impl VarOffset {
+    pub fn to_u32(self) -> u32 {
+        self.0
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for VarOffset {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "VarOffset",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("offset", self.0)),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
 impl<'a> Index1<'a> {
     /// Returns the total size in bytes of the index table.
     pub fn size_in_bytes(&self) -> Result<usize, ReadError> {
@@ -130,12 +189,10 @@ impl<'a> Index1<'a> {
 
     /// Returns the offset of the object at the given index.
     pub fn get_offset(&self, index: usize) -> Result<usize, Error> {
-        read_offset(
-            index,
-            self.count() as usize,
-            self.off_size(),
-            self.offsets(),
-        )
+        self.offsets()
+            .get(index)
+            .map(|idx| idx.0 as usize)
+            .map_err(|_| Error::ZeroOffsetInIndex)
     }
 
     /// Returns the data for the object at the given index.
@@ -166,12 +223,10 @@ impl<'a> Index2<'a> {
 
     /// Returns the offset of the object at the given index.
     pub fn get_offset(&self, index: usize) -> Result<usize, Error> {
-        read_offset(
-            index,
-            self.count() as usize,
-            self.off_size(),
-            self.offsets(),
-        )
+        self.offsets()
+            .get(index)
+            .map(|idx| idx.0 as usize)
+            .map_err(|_| Error::ZeroOffsetInIndex)
     }
 
     /// Returns the data for the object at the given index.
@@ -180,39 +235,6 @@ impl<'a> Index2<'a> {
             .get(self.get_offset(index)?..self.get_offset(index + 1)?)
             .ok_or(ReadError::OutOfBounds.into())
     }
-}
-
-/// Reads an offset which is encoded as a variable sized integer.
-fn read_offset(
-    index: usize,
-    count: usize,
-    offset_size: u8,
-    offset_data: &[u8],
-) -> Result<usize, Error> {
-    // There are actually count + 1 entries in the offset array.
-    //
-    // "Offsets in the offset array are relative to the byte that precedes
-    // the object data. Therefore the first element of the offset array is
-    // always 1. (This ensures that every object has a corresponding offset
-    // which is always nonzero and permits the efficient implementation of
-    // dynamic object loading.)"
-    //
-    // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-7-index-format>
-    if index > count {
-        Err(ReadError::OutOfBounds)?;
-    }
-    let data_offset = index * offset_size as usize;
-    let offset_data = FontData::new(offset_data);
-    match offset_size {
-        1 => offset_data.read_at::<u8>(data_offset)? as usize,
-        2 => offset_data.read_at::<u16>(data_offset)? as usize,
-        3 => offset_data.read_at::<Uint24>(data_offset)?.to_u32() as usize,
-        4 => offset_data.read_at::<u32>(data_offset)? as usize,
-        _ => return Err(Error::InvalidIndexOffsetSize(offset_size)),
-    }
-    // As above, subtract one to get the actual offset.
-    .checked_sub(1)
-    .ok_or(Error::ZeroOffsetInIndex)
 }
 
 #[cfg(test)]

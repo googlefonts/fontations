@@ -1,30 +1,44 @@
 #![parse_module(read_fonts::tables::postscript)]
 
 /// An array of variable-sized objects in a `CFF` table.
+#[skip_font_write]
 table Index1 {
     /// Number of objects stored in INDEX.
+    #[compile(skip)]
     count: u16,
     /// Object array element size.
+    #[compile(skip)]
     off_size: u8,
     /// Bytes containing `count + 1` offsets each of `off_size`.
-    #[count(add_multiply($count, 1, $off_size))]
-    offsets: [u8],
+    #[count(add($count, 1))]
+    #[read_with($off_size)]
+    #[compile(skip)]
+    offsets: ComputedArray<VarOffset>,
     /// Array containing the object data.
     #[count(..)]
+    #[compile_type(Vec<Vec<u8>>)]
+    #[to_owned(convert_objects_f1(obj))]
     data: [u8],
 }
 
 /// An array of variable-sized objects in a `CFF2` table.
+#[skip_font_write]
 table Index2 {
     /// Number of objects stored in INDEX.
+    #[compile(skip)]
     count: u32,
     /// Object array element size.
+    #[compile(skip)]
     off_size: u8,
     /// Bytes containing `count + 1` offsets each of `off_size`.
-    #[count(add_multiply($count, 1, $off_size))]
-    offsets: [u8],
+    #[count(add($count, 1))]
+    #[read_with($off_size)]
+    #[compile(skip)]
+    offsets: ComputedArray<VarOffset>,
     /// Array containing the object data.
     #[count(..)]
+    #[compile_type(Vec<Vec<u8>>)]
+    #[to_owned(convert_objects_f2(obj))]
     data: [u8],
 }
 

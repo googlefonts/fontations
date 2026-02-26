@@ -573,6 +573,13 @@ impl Field {
         self.attrs.conditional.is_some()
     }
 
+    fn skip_compile(&self) -> bool {
+        if let Some(compile) = self.attrs.compile.as_ref() {
+            return matches!(&compile.attr, CustomCompile::Skip);
+        }
+        false
+    }
+
     /// Sanity check we are in a sane state for the end of phase
     fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         check_resolution(phase, &self.typ)?;
@@ -1366,7 +1373,7 @@ impl Field {
     #[allow(clippy::wrong_self_convention)]
     fn from_obj_requires_offset_data(&self, in_record: bool) -> bool {
         match &self.typ {
-            _ if self.attrs.to_owned.is_some() => false,
+            _ if self.attrs.to_owned.is_some() || self.skip_compile() => false,
             FieldType::Offset {
                 target: OffsetTarget::Array(_),
                 ..
