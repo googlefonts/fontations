@@ -248,6 +248,7 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
             "--glyph-names" => subset_flag |= SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES,
             "--name-legacy" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NAME_LEGACY,
             "--no-layout-closure" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE,
+            "--no-bidi-closure" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE,
             "--no-prune-unicode-ranges" => {
                 subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
             }

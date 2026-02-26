@@ -2,6 +2,7 @@
 //! TODO: make it generic for all tables
 mod avar;
 mod base;
+mod bidi;
 mod cblc;
 mod cmap;
 mod colr;
@@ -41,6 +42,7 @@ mod vvar;
 use std::cell::RefCell;
 
 use crate::{
+    bidi::UNICODE_BIDI_MIRRORED,
     glyf_loca::{ContourPoint, ContourPoints, PHANTOM_POINT_COUNT},
     head::HeadMaxpInfo,
     repack::resolve_overflows,
@@ -269,6 +271,9 @@ impl SubsetFlags {
 
     //If set force the use of long format in the 'loca' table even if the offsets would fit in the short format.
     pub const SUBSET_FLAGS_FORCE_LONG_LOCA: Self = Self(0x0800);
+
+    //If set do not pull mirrored versions of input codepoints into the subset
+    pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x1000);
 
     /// Returns `true` if all of the flags in `other` are contained within `self`.
     #[inline]
@@ -586,6 +591,12 @@ impl Plan {
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
     ) {
+        let input_unicodes = self.unicode_closure(
+            input_unicodes,
+            !self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE),
+        );
         let charmap = font.charmap();
         if input_gids.is_empty() && input_unicodes.len() < (self.font_num_glyphs as u64) {
             let cap: usize = input_unicodes.len().try_into().unwrap_or(usize::MAX);
@@ -656,9 +667,26 @@ impl Plan {
         self.os2_info.min_cmap_codepoint = self.unicodes.first().unwrap_or(0xFFFF_u32);
         self.os2_info.max_cmap_codepoint = self.unicodes.last().unwrap_or(0xFFFF_u32);
 
-        self.collect_variation_selectors(font, input_unicodes);
+        self.collect_variation_selectors(font, &input_unicodes);
     }
 
+    fn unicode_closure(&self, input_unicodes: &IntSet<u32>, do_bidi_closure: bool) -> IntSet<u32> {
+        let mut unicodes = input_unicodes.clone();
+        if do_bidi_closure {
+            let mut to_add = fnv::FnvHashSet::default();
+            // Glyphsets are unbounded, bidi glyphs are small, so apply it the other way around
+            for (&orig, &mirrored_cp) in UNICODE_BIDI_MIRRORED.iter() {
+                if unicodes.contains(orig) {
+                    to_add.insert(mirrored_cp);
+                }
+                if unicodes.contains(mirrored_cp) {
+                    to_add.insert(orig);
+                }
+            }
+            unicodes.extend(to_add);
+        }
+        unicodes
+    }
     fn collect_variation_selectors(&mut self, font: &FontRef, input_unicodes: &IntSet<u32>) {
         if let Ok(cmap) = font.cmap() {
             let encoding_records = cmap.encoding_records();
@@ -1662,6 +1690,11 @@ fn try_subset<'a>(
         s.end_serialize();
         return ret;
     }
+    log::warn!(
+        "Subsetting table {:?} ran out of room, needed at least {} bytes",
+        table_tag,
+        s.allocated()
+    );
 
     // ran out of room, reallocate more bytes
     let buf_size = s.allocated() * 2 + 16;
@@ -1781,7 +1814,7 @@ fn subset_table<'a>(
         Vhea::TAG => Ok(()),
 
         Mvar::TAG => {
-            if plan.axes_index_map.is_empty() {
+            if plan.axes_index_map.is_empty() && !plan.all_axes_pinned {
                 passthrough_table(tag, font, s)
             } else {
                 font.mvar()
