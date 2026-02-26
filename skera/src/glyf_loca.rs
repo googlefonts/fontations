@@ -452,7 +452,7 @@ impl<'a> GlyfAccelerator<'a> {
         self.hmtx.advance(gid).unwrap_or(0) as f32
     }
 
-    fn get_glyph(&self, gid: GlyphId) -> Option<Glyph> {
+    fn get_glyph(&self, gid: GlyphId) -> Option<Glyph<'_>> {
         self.loca.get_glyf(gid, &self.glyf).ok()?
     }
 
@@ -567,6 +567,23 @@ fn compile_header_bytes(
                 bounds
             );
             composite_glyph.bbox = bounds.into()
+        }
+    }
+    // Overlap bits
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
+    {
+        match write_glyph {
+            write_fonts::tables::glyf::Glyph::Empty => {}
+            write_fonts::tables::glyf::Glyph::Simple(simple_glyph) => {
+                simple_glyph.overlaps = true;
+            }
+            write_fonts::tables::glyf::Glyph::Composite(composite_glyph) => {
+                if let Some(c) = composite_glyph.components_mut().iter_mut().next() {
+                    c.flags.overlap_compound = true
+                }
+            }
         }
     }
 }
