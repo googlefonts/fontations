@@ -19,6 +19,7 @@ pub struct SimpleGlyph {
     pub bbox: Bbox,
     pub contours: Vec<Contour>,
     pub instructions: Vec<u8>,
+    pub overlaps: bool,
 }
 
 /// A single contour, comprising only line and quadratic bezier segments
@@ -251,6 +252,7 @@ impl FromObjRef<read_fonts::tables::glyf::SimpleGlyph<'_>> for SimpleGlyph {
             bbox,
             contours,
             instructions: from.instructions().to_owned(),
+            overlaps: from.has_overlapping_contours(),
         }
     }
 }
@@ -283,7 +285,12 @@ impl FontWrite for SimpleGlyph {
         (self.instructions.len() as u16).write_into(writer);
         self.instructions.write_into(writer);
 
-        let deltas = self.compute_point_deltas().collect::<Vec<_>>();
+        let mut deltas = self.compute_point_deltas().collect::<Vec<_>>();
+        if self.overlaps {
+            if let Some((flags, _, _)) = deltas.first_mut() {
+                flags.insert(SimpleGlyphFlags::OVERLAP_SIMPLE);
+            }
+        }
         RepeatableFlag::iter_from_flags(deltas.iter().map(|(flag, _, _)| *flag))
             .for_each(|flag| flag.write_into(writer));
         deltas.iter().for_each(|(_, x, _)| x.write_into(writer));
@@ -612,6 +619,7 @@ fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, Malfo
             bbox: path.control_box().into(),
             contours,
             instructions: Default::default(),
+            overlaps: false,
         })
     }
 
