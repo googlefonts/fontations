@@ -36,25 +36,27 @@ impl Subset for Hmtx<'_> {
 
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
             let new_gid_usize = new_gid.to_u32() as usize;
+            let old_lsb = self.side_bearing(*old_gid).unwrap_or(0);
             let lsb = if plan.normalized_coords.is_empty() {
-                self.side_bearing(*old_gid).unwrap_or(0)
+                old_lsb
             } else {
                 plan.hmtx_map
                     .borrow()
                     .get(new_gid)
                     .map(|(_, lsb)| *lsb)
-                    .unwrap_or(0)
+                    .unwrap_or(old_lsb)
             };
             if new_gid_usize < new_num_h_metrics {
                 let idx = 4 * new_gid_usize;
+                let old_advance = self.advance(*old_gid).unwrap_or(0);
                 let advance = if plan.normalized_coords.is_empty() {
-                    self.advance(*old_gid).unwrap_or(0)
+                    old_advance
                 } else {
                     plan.hmtx_map
                         .borrow()
                         .get(new_gid)
                         .map(|(aw, _)| *aw)
-                        .unwrap_or(0)
+                        .unwrap_or(old_advance)
                 };
                 s.copy_assign(idx, UfWord::from(advance));
 

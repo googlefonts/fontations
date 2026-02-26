@@ -85,28 +85,29 @@ impl Subset for Glyf<'_> {
         // _populate_subset_glyphs
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
             match loca.get_glyf(*old_gid, self) {
-                Ok(g) => {
-                    let Some(glyph) = g else {
-                        subset_glyphs.push(Vec::new());
-                        continue;
-                    };
-
+                Ok(mut maybe_glyph) => {
                     if *old_gid == GlyphId::NOTDEF
                         && *new_gid == GlyphId::NOTDEF
                         && !plan
                             .subset_flags
                             .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
                     {
-                        subset_glyphs.push(Vec::new());
-                        continue;
+                        // We still need to go through with this to set up the metrics,
+                        // so we need an empty glyph.
+                        maybe_glyph = None;
                     }
 
                     let subset_glyph = if !plan.normalized_coords.is_empty() {
                         // This is old_gid since we are pretending to be the old font when applying deltas
-                        compile_bytes_with_deltas(glyph, plan, &glyf_accelerator, *old_gid)
-                            .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
+                        compile_bytes_with_deltas(
+                            maybe_glyph.as_ref(),
+                            plan,
+                            &glyf_accelerator,
+                            *old_gid,
+                        )
+                        .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
                     } else {
-                        subset_glyph(&glyph, plan)
+                        subset_glyph(maybe_glyph.as_ref(), plan)
                     };
 
                     let trimmed_len = subset_glyph.len();
@@ -228,10 +229,11 @@ fn write_glyf_loca(
     Ok(loca_out)
 }
 
-fn subset_glyph(glyph: &Glyph, plan: &Plan) -> Vec<u8> {
+fn subset_glyph(glyph: Option<&Glyph>, plan: &Plan) -> Vec<u8> {
     match glyph {
-        Composite(comp_g) => subset_composite_glyph(comp_g, plan),
-        Simple(simple_g) => subset_simple_glyph(simple_g, plan),
+        Some(Composite(comp_g)) => subset_composite_glyph(comp_g, plan),
+        Some(Simple(simple_g)) => subset_simple_glyph(simple_g, plan),
+        None => Vec::new(),
     }
 }
 
@@ -500,12 +502,14 @@ impl<'a> GlyfAccelerator<'a> {
 }
 
 fn compile_bytes_with_deltas(
-    glyph: Glyph,
+    glyph: Option<&Glyph>,
     plan: &Plan,
     glyph_accelerator: &GlyfAccelerator,
     old_gid: GlyphId,
-) -> Result<Vec<u8>, write_fonts::error::Error> {
-    let mut write_glyph: write_fonts::tables::glyf::Glyph = glyph.to_owned_table();
+) -> Result<Vec<u8>, SerializeErrorFlags> {
+    let mut write_glyph: write_fonts::tables::glyf::Glyph = glyph
+        .map(|x| x.to_owned_table())
+        .unwrap_or(write_fonts::tables::glyf::Glyph::Empty);
     let head_maxp = if matches!(write_glyph, write_fonts::tables::glyf::Glyph::Empty)
         || (old_gid == GlyphId::NOTDEF
             && !plan
@@ -516,7 +520,7 @@ fn compile_bytes_with_deltas(
     } else {
         plan.head_maxp_info.try_borrow_mut().ok()
     };
-    if let Glyph::Composite(glyph) = &glyph {
+    if let Some(Glyph::Composite(glyph)) = &glyph {
         log::debug!(
             "Component glyph {} anchors: {:?}",
             old_gid,
@@ -524,7 +528,7 @@ fn compile_bytes_with_deltas(
         );
     }
     let (all_points, points_with_deltas) =
-        get_points(&glyph, plan, glyph_accelerator, old_gid, head_maxp).unwrap();
+        get_points(glyph, plan, glyph_accelerator, old_gid, head_maxp)?;
     // .notdef, set type to empty so we only update metrics and don't compile bytes for
     // it
     if old_gid == GlyphId::NOTDEF
@@ -553,7 +557,7 @@ fn compile_bytes_with_deltas(
         }
     }
     compile_header_bytes(&mut write_glyph, plan, all_points, old_gid);
-    write_fonts::dump_table(&write_glyph)
+    write_fonts::dump_table(&write_glyph).map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)
 }
 
 fn compile_header_bytes(
@@ -584,11 +588,6 @@ fn compile_header_bytes(
             );
         }
         write_fonts::tables::glyf::Glyph::Composite(composite_glyph) => {
-            log::warn!(
-                "Setting bbox for composite glyph {} to {:?} based on points without phantoms",
-                new_gid,
-                bounds
-            );
             composite_glyph.bbox = bounds.into();
             plan.head_maxp_info.borrow_mut().update_extrema(
                 bounds.x_min as i16,
@@ -598,6 +597,7 @@ fn compile_header_bytes(
             );
         }
     }
+
     // Overlap bits
     if plan
         .subset_flags
@@ -685,7 +685,7 @@ fn make_composite_glyph_with_deltas(
 /// Wrapper around get_points_harfbuzz_standalone that returns point data in the format expected by subsetting code
 /// Returns: (all_points, ContourPoints with deltas, composite_contours_count)
 fn get_points(
-    read_glyph: &Glyph,
+    read_glyph: Option<&Glyph>,
     plan: &Plan,
     glyph_accelerator: &GlyfAccelerator,
     gid: GlyphId,
@@ -702,7 +702,7 @@ fn get_points(
     let mut comp_points_scratch: Vec<ContourPoint> = Vec::new();
     let mut composite_contours: usize = 0;
     get_points_harfbuzz_standalone(
-        Some(read_glyph),
+        read_glyph,
         gid,
         glyph_accelerator,
         &mut head_maxp_opt,
@@ -970,13 +970,6 @@ impl ContourPoints {
 
         if let Some((left_side_x, right_side_x, top_side_y, bottom_side_y)) = self.phantom_bounds()
         {
-            plan.head_maxp_info.borrow_mut().update_extrema(
-                bounds.x_min as i16,
-                bounds.y_min as i16,
-                bounds.x_max as i16,
-                bounds.y_max as i16,
-            );
-
             let hori_aw: u16 = (right_side_x - left_side_x).ot_round();
             let lsb: i16 = (bounds.x_min - left_side_x).ot_round();
             log::warn!(
@@ -988,6 +981,9 @@ impl ContourPoints {
 
             plan.hmtx_map.borrow_mut().insert(new_gid, (hori_aw, lsb));
 
+            if !bounds.is_empty() && bounds.x_min != lsb as f32 {
+                plan.head_maxp_info.borrow_mut().all_x_min_is_lsb = false;
+            }
             let vert_aw: u16 = (top_side_y - bottom_side_y).ot_round();
             let tsb: i16 = (bounds.y_max - top_side_y).ot_round();
             plan.vmtx_map.borrow_mut().insert(new_gid, (vert_aw, tsb));
@@ -1014,7 +1010,7 @@ fn get_points_harfbuzz_standalone(
     decycler: &mut HashSet<GlyphId>,
     composite_contours: &mut usize,
 ) -> Result<(Vec<ContourPoint>, Option<Vec<ContourPoint>>), SerializeErrorFlags> {
-    // log::debug!("Getting points for gid {} at depth {}", gid, depth);
+    log::debug!("Getting points for gid {} at depth {}", gid, depth);
     let mut all_points = Vec::new();
     let mut points_with_deltas = None;
     const HB_MAX_NESTING_LEVEL: usize = 100;
@@ -1038,9 +1034,9 @@ fn get_points_harfbuzz_standalone(
     }
 
     // Select target buffer based on glyph type
-    // Simple glyphs → all_points, Composite glyphs → comp_points_scratch (anchors only)
+    // Simple glyphs / empty → all_points, Composite glyphs → comp_points_scratch (anchors only)
     // We use a scratch buffer since we're going to be accumulating them recursively.
-    let is_simple = matches!(glyph, Some(Glyph::Simple(_)));
+    let is_simple = matches!(glyph, Some(Glyph::Simple(_)) | None);
     let target_points: &mut Vec<ContourPoint> = if is_simple {
         &mut all_points
     } else {
@@ -1325,7 +1321,7 @@ mod test {
         let glyf = font.glyf().unwrap();
         let glyph = loca.get_glyf(GlyphId::from(1_u16), &glyf).unwrap().unwrap();
 
-        let subset_output = subset_glyph(&glyph, &plan);
+        let subset_output = subset_glyph(Some(&glyph), &plan);
         assert_eq!(subset_output.len(), 23);
         assert_eq!(
             subset_output,
@@ -1347,7 +1343,7 @@ mod test {
         plan.glyph_map
             .insert(GlyphId::from(1_u16), GlyphId::from(2_u16));
 
-        let subset_glyph = subset_glyph(&glyph, &plan);
+        let subset_glyph = subset_glyph(Some(&glyph), &plan);
         assert_eq!(subset_glyph.len(), 20);
         assert_eq!(
             subset_glyph,
