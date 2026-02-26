@@ -421,6 +421,7 @@ struct GlyfAccelerator<'a> {
     hmtx: skrifa::raw::tables::hmtx::Hmtx<'a>,
     vmtx: Option<skrifa::raw::tables::vmtx::Vmtx<'a>>,
     glyf: Glyf<'a>,
+    glyph_map: &'a FnvHashMap<GlyphId, GlyphId>,
 }
 
 impl<'a> GlyfAccelerator<'a> {
@@ -440,6 +441,7 @@ impl<'a> GlyfAccelerator<'a> {
             vmtx,
             glyf,
             instance_deltas: &plan.new_gid_instance_deltas_map,
+            glyph_map: &plan.glyph_map,
         }
     }
 
@@ -467,8 +469,14 @@ impl<'a> GlyfAccelerator<'a> {
     ) {
         // Harfbuzz has to do this in a generic way, but we only care about deltas at the
         // point of instantiation, which are known and collected in the plan in advance. The
-        // Deltas in the plan are keyed by new gid; apply them directly (including phantom deltas).
-        if let Some(deltas) = self.instance_deltas.get(&gid) {
+        // Deltas in the plan are keyed by new gid. But at this stage we're pretending to be the
+        // old font.
+        let new_gid = self
+            .glyph_map
+            .get(&gid)
+            .cloned()
+            .expect("BUG: all glyphs in the new font should have a mapping to the old font");
+        if let Some(deltas) = self.instance_deltas.get(&new_gid) {
             let apply_len = deltas.len().min(target_points.0.len());
             if apply_len == 0 {
                 return;
@@ -482,8 +490,9 @@ impl<'a> GlyfAccelerator<'a> {
                 point.add_delta(delta.x, delta.y);
             }
         } else {
-            log::warn!(
-                "No deltas found for gid {}, not applying any gvar deltas",
+            log::error!(
+                "No deltas found for gid {} (old gid {}), but that's weird because we asserted there were some",
+                new_gid,
                 gid
             );
         }
@@ -507,6 +516,13 @@ fn compile_bytes_with_deltas(
     } else {
         plan.head_maxp_info.try_borrow_mut().ok()
     };
+    if let Glyph::Composite(glyph) = &glyph {
+        log::debug!(
+            "Component glyph {} anchors: {:?}",
+            new_gid,
+            glyph.components().map(|c| c.anchor).collect::<Vec<_>>(),
+        );
+    }
     let (all_points, points_with_deltas) =
         get_points(&glyph, plan, glyph_accelerator, new_gid, head_maxp).unwrap();
     // .notdef, set type to empty so we only update metrics and don't compile bytes for
@@ -594,6 +610,7 @@ fn make_composite_glyph_with_deltas(
 ) -> write_fonts::tables::glyf::Glyph {
     // We can't mutate components, we have to rebuild the glyph
     let Some(points_with_deltas) = points_with_deltas else {
+        log::warn!("We don't have any deltas for composite glyph?!");
         return write_fonts::tables::glyf::Glyph::Composite(composite_glyph.clone());
     };
     let mut new_components = vec![];
@@ -607,6 +624,10 @@ fn make_composite_glyph_with_deltas(
         .into_iter()
         .take(component_count)
         .collect();
+    log::debug!(
+        "After delta application our points are: {:?}",
+        points_without_phantoms
+    );
 
     for (component, transform) in composite_glyph
         .components()
