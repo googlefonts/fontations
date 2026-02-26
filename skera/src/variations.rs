@@ -784,8 +784,8 @@ impl TupleVariations {
                         },
                     );
                 }
-                if tuple.axis_tuples.len() != retained_axis_tags.len() {
-                    log::warn!(
+                if tuple.axis_tuples.len() < retained_axis_tags.len() {
+                    log::trace!(
                         "Tuple has {} axes, expected {}, filling in",
                         tuple.axis_tuples.len(),
                         retained_axis_tags.len()
