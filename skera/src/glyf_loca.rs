@@ -102,7 +102,7 @@ impl Subset for Glyf<'_> {
                     }
 
                     let subset_glyph = if !plan.normalized_coords.is_empty() {
-                        // I *presume* this is old_gid since we are pretending to be the old font when applying deltas, but this is a bit awkward and should be cleaned up.
+                        // This is old_gid since we are pretending to be the old font when applying deltas
                         compile_bytes_with_deltas(glyph, plan, &glyf_accelerator, *old_gid)
                             .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
                     } else {
@@ -503,11 +503,11 @@ fn compile_bytes_with_deltas(
     glyph: Glyph,
     plan: &Plan,
     glyph_accelerator: &GlyfAccelerator,
-    new_gid: GlyphId,
+    old_gid: GlyphId,
 ) -> Result<Vec<u8>, write_fonts::error::Error> {
     let mut write_glyph: write_fonts::tables::glyf::Glyph = glyph.to_owned_table();
     let head_maxp = if matches!(write_glyph, write_fonts::tables::glyf::Glyph::Empty)
-        || (new_gid == GlyphId::NOTDEF
+        || (old_gid == GlyphId::NOTDEF
             && !plan
                 .subset_flags
                 .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE))
@@ -519,15 +519,15 @@ fn compile_bytes_with_deltas(
     if let Glyph::Composite(glyph) = &glyph {
         log::debug!(
             "Component glyph {} anchors: {:?}",
-            new_gid,
+            old_gid,
             glyph.components().map(|c| c.anchor).collect::<Vec<_>>(),
         );
     }
     let (all_points, points_with_deltas) =
-        get_points(&glyph, plan, glyph_accelerator, new_gid, head_maxp).unwrap();
+        get_points(&glyph, plan, glyph_accelerator, old_gid, head_maxp).unwrap();
     // .notdef, set type to empty so we only update metrics and don't compile bytes for
     // it
-    if new_gid == GlyphId::NOTDEF
+    if old_gid == GlyphId::NOTDEF
         && !plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
@@ -552,7 +552,7 @@ fn compile_bytes_with_deltas(
             }
         }
     }
-    compile_header_bytes(&mut write_glyph, plan, all_points, new_gid);
+    compile_header_bytes(&mut write_glyph, plan, all_points, old_gid);
     write_fonts::dump_table(&write_glyph)
 }
 
@@ -574,14 +574,28 @@ fn compile_header_bytes(
     let bounds = points_without_phantoms.get_bounds_without_phantoms();
     match write_glyph {
         write_fonts::tables::glyf::Glyph::Empty => {}
-        write_fonts::tables::glyf::Glyph::Simple(simple_glyph) => simple_glyph.bbox = bounds.into(),
+        write_fonts::tables::glyf::Glyph::Simple(simple_glyph) => {
+            simple_glyph.bbox = bounds.into();
+            plan.head_maxp_info.borrow_mut().update_extrema(
+                bounds.x_min as i16,
+                bounds.y_min as i16,
+                bounds.x_max as i16,
+                bounds.y_max as i16,
+            );
+        }
         write_fonts::tables::glyf::Glyph::Composite(composite_glyph) => {
             log::warn!(
                 "Setting bbox for composite glyph {} to {:?} based on points without phantoms",
                 new_gid,
                 bounds
             );
-            composite_glyph.bbox = bounds.into()
+            composite_glyph.bbox = bounds.into();
+            plan.head_maxp_info.borrow_mut().update_extrema(
+                bounds.x_min as i16,
+                bounds.y_min as i16,
+                bounds.x_max as i16,
+                bounds.y_max as i16,
+            );
         }
     }
     // Overlap bits
@@ -736,51 +750,6 @@ fn make_simple_glyph_with_deltas(
         }
     }
 }
-
-// Pieces of the compile_header_bytes function. Will put them together later.
-//
-//     match write_glyph {
-//         write_fonts::tables::glyf::Glyph::Empty => {}
-//         write_fonts::tables::glyf::Glyph::Simple(ref mut simple_glyph) => {
-//             if plan
-//                 .subset_flags
-//                 .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
-//             {
-//                 // Oops, write_fonts doesn't let us do this
-//                 // simple_glyph.flags.insert(SimpleGlyphFlags::OVERLAP_SIMPLE);
-//             }
-//             simple_glyph.recompute_bounding_box();
-//         }
-//         write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
-//
-//             }
-//             if new_components.is_empty() {
-//                 // Not sure how this can happen but I don't really want to panic either
-//                 return Ok(vec![]);
-//             }
-//             let mut first = new_components.remove(0);
-//             if plan
-//                 .subset_flags
-//                 .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
-//             {
-//                 first.flags.overlap_compound = true;
-//             }
-//             let mut new_composite = WriteCompositeGlyph::new(first, composite_glyph.bbox);
-//             for component in new_components {
-//                 new_composite.add_component(component, composite_glyph.bbox);
-//             }
-//             if !plan
-//                 .subset_flags
-//                 .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
-//             {
-//                 new_composite.add_instructions(composite_glyph.instructions());
-//             }
-//             *composite_glyph = new_composite;
-//         }
-//     }
-
-//     write_fonts::dump_table(&write_glyph)
-// }
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ContourPoint {
@@ -990,20 +959,17 @@ impl ContourPoints {
         Some((left_side_x, right_side_x, top_side_y, bottom_side_y))
     }
 
-    fn update_mtx(&self, plan: &Plan, new_gid: GlyphId) {
+    fn update_mtx(&self, plan: &Plan, old_gid: GlyphId) {
+        let new_gid = plan
+            .glyph_map
+            .get(&old_gid)
+            .cloned()
+            .expect("BUG: all glyphs in the new font should have a mapping to the old font");
+        // This does the calculation handed to update_mtx in Harfbuzz.
         let bounds = self.get_bounds();
 
         if let Some((left_side_x, right_side_x, top_side_y, bottom_side_y)) = self.phantom_bounds()
         {
-            if bounds.is_empty() {
-                plan.hmtx_map
-                    .borrow_mut()
-                    .insert(new_gid, (right_side_x as u16, left_side_x as i16));
-                plan.vmtx_map
-                    .borrow_mut()
-                    .insert(new_gid, (top_side_y as u16, bottom_side_y as i16));
-                return;
-            }
             plan.head_maxp_info.borrow_mut().update_extrema(
                 bounds.x_min as i16,
                 bounds.y_min as i16,
@@ -1013,11 +979,23 @@ impl ContourPoints {
 
             let hori_aw: u16 = (right_side_x - left_side_x).ot_round();
             let lsb: i16 = (bounds.x_min - left_side_x).ot_round();
+            log::warn!(
+                "Setting hmtx metrics for glyph {}, hori_aw: {}, lsb: {}, based on phantom points",
+                new_gid,
+                hori_aw,
+                lsb
+            );
+
             plan.hmtx_map.borrow_mut().insert(new_gid, (hori_aw, lsb));
 
             let vert_aw: u16 = (top_side_y - bottom_side_y).ot_round();
             let tsb: i16 = (bounds.y_max - top_side_y).ot_round();
             plan.vmtx_map.borrow_mut().insert(new_gid, (vert_aw, tsb));
+        } else {
+            log::error!(
+                "Glyph {} does not have phantom points, cannot update metrics",
+                new_gid
+            );
         }
     }
 }
@@ -1036,7 +1014,7 @@ fn get_points_harfbuzz_standalone(
     decycler: &mut HashSet<GlyphId>,
     composite_contours: &mut usize,
 ) -> Result<(Vec<ContourPoint>, Option<Vec<ContourPoint>>), SerializeErrorFlags> {
-    log::debug!("Getting points for gid {} at depth {}", gid, depth);
+    // log::debug!("Getting points for gid {} at depth {}", gid, depth);
     let mut all_points = Vec::new();
     let mut points_with_deltas = None;
     const HB_MAX_NESTING_LEVEL: usize = 100;
@@ -1106,10 +1084,10 @@ fn get_points_harfbuzz_standalone(
         Some(Glyph::Composite(composite_glyph)) => {
             // Collect composite anchor points (these hold transformation info)
             // equivalent of item.get_points() in Harfbuzz's CompositeGlyph.hh
-            log::debug!(
-                "Adding points to the target for a composite glyph with {} components",
-                composite_glyph.components().count()
-            );
+            // log::debug!(
+            //     "Adding points to the target for a composite glyph with {} components",
+            //     composite_glyph.components().count()
+            // );
             for component in composite_glyph.components() {
                 match component.anchor {
                     Anchor::Point { .. } => {
