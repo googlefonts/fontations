@@ -682,6 +682,8 @@ fn make_composite_glyph_with_deltas(
     for component in new_components {
         new_composite.add_component(component, composite_glyph.bbox);
     }
+    // Copy instructions
+    new_composite.add_instructions(composite_glyph.instructions());
     // We fix up the header stuff later
     write_fonts::tables::glyf::Glyph::Composite(new_composite)
 }
