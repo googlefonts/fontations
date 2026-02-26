@@ -2,6 +2,10 @@
 use crate::serialize::Serializer;
 use crate::SubsetFlags;
 use crate::{Plan, Subset, SubsetError};
+use skrifa::raw::tables::mvar::tags::{
+    CPHT, HASC, HCLA, HCLD, HDSC, HLGP, SBXO, SBXS, SBYO, SBYS, SPXO, SPXS, SPYO, SPYS, STRO, STRS,
+    XHGT,
+};
 use skrifa::Tag;
 use std::cmp::Ordering;
 use write_fonts::{
@@ -66,6 +70,81 @@ impl Subset for Os2<'_> {
             .contains(SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES)
         {
             update_unicode_ranges(&plan.unicodes, s.get_mut_data(42..58).unwrap());
+        }
+
+        if !plan.normalized_coords.is_empty() {
+            s.copy_assign(
+                self.shape().s_typo_ascender_byte_range().start,
+                plan.add_mvar_delta(self.s_typo_ascender(), HASC),
+            );
+            s.copy_assign(
+                self.shape().s_typo_descender_byte_range().start,
+                plan.add_mvar_delta(self.s_typo_descender(), HDSC),
+            );
+            s.copy_assign(
+                self.shape().s_typo_line_gap_byte_range().start,
+                plan.add_mvar_delta(self.s_typo_line_gap(), HLGP),
+            );
+            s.copy_assign(
+                self.shape().us_win_ascent_byte_range().start,
+                plan.add_mvar_delta(self.us_win_ascent(), HCLA),
+            );
+            s.copy_assign(
+                self.shape().us_win_descent_byte_range().start,
+                plan.add_mvar_delta(self.us_win_descent(), HCLD),
+            );
+            s.copy_assign(
+                self.shape().y_subscript_x_size_byte_range().start,
+                plan.add_mvar_delta(self.y_subscript_x_size(), SBXS),
+            );
+            s.copy_assign(
+                self.shape().y_subscript_y_size_byte_range().start,
+                plan.add_mvar_delta(self.y_subscript_y_size(), SBYS),
+            );
+            s.copy_assign(
+                self.shape().y_subscript_x_offset_byte_range().start,
+                plan.add_mvar_delta(self.y_subscript_x_offset(), SBXO),
+            );
+            s.copy_assign(
+                self.shape().y_subscript_y_offset_byte_range().start,
+                plan.add_mvar_delta(self.y_subscript_y_offset(), SBYO),
+            );
+            s.copy_assign(
+                self.shape().y_superscript_x_size_byte_range().start,
+                plan.add_mvar_delta(self.y_superscript_x_size(), SPXS),
+            );
+            s.copy_assign(
+                self.shape().y_superscript_y_size_byte_range().start,
+                plan.add_mvar_delta(self.y_superscript_y_size(), SPYS),
+            );
+            s.copy_assign(
+                self.shape().y_superscript_x_offset_byte_range().start,
+                plan.add_mvar_delta(self.y_superscript_x_offset(), SPXO),
+            );
+            s.copy_assign(
+                self.shape().y_superscript_y_offset_byte_range().start,
+                plan.add_mvar_delta(self.y_superscript_y_offset(), SPYO),
+            );
+            s.copy_assign(
+                self.shape().y_strikeout_position_byte_range().start,
+                plan.add_mvar_delta(self.y_strikeout_position(), STRO),
+            );
+            s.copy_assign(
+                self.shape().y_strikeout_size_byte_range().start,
+                plan.add_mvar_delta(self.y_strikeout_size(), STRS),
+            );
+            if let Some(sx_height_range) = self.shape().sx_height_byte_range() {
+                s.copy_assign(
+                    sx_height_range.start,
+                    plan.add_mvar_delta(self.sx_height().unwrap(), XHGT),
+                );
+            }
+            if let Some(scap_height_range) = self.shape().s_cap_height_byte_range() {
+                s.copy_assign(
+                    scap_height_range.start,
+                    plan.add_mvar_delta(self.s_cap_height().unwrap(), CPHT),
+                );
+            }
         }
         Ok(())
     }

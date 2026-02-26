@@ -398,6 +398,10 @@ pub struct Plan {
     hmtx_map: RefCell<FnvHashMap<GlyphId, (u16, i16)>>,
     // vmtx metrics map: new gid->(advance, lsb)
     vmtx_map: RefCell<FnvHashMap<GlyphId, (u16, i16)>>,
+    //boundsWidth map: new gid->boundsWidth, boundWidth=xMax - xMin; _vec kept for HB compat
+    bounds_width_vec: RefCell<FnvHashMap<GlyphId, u32>>,
+    //boundsHeight map: new gid->boundsHeight, boundsHeight=yMax - yMin
+    bounds_height_vec: RefCell<FnvHashMap<GlyphId, u32>>,
 
     // user specified axes range map
     user_axes_location: FnvHashMap<Tag, Triple<f64>>,
@@ -411,6 +415,8 @@ pub struct Plan {
     axes_old_index_tag_map: FnvHashMap<usize, Tag>,
 
     head_maxp_info: RefCell<HeadMaxpInfo>,
+
+    mvar_entries: FnvHashMap<Tag, f32>,
 }
 
 #[derive(Default)]
@@ -470,7 +476,10 @@ impl Plan {
         }
         this.collect_base_var_indices(font);
         this.get_instance_glyphs_contour_points(font);
-        let _ = this.get_instance_deltas(font); // Proper error handling later
+        this.get_instance_deltas(font)
+            .expect("Could not get instance deltas");
+        this.collect_mvar_entries(font);
+
         this
     }
 
@@ -983,12 +992,18 @@ impl Plan {
     }
 
     fn get_instance_glyphs_contour_points(&mut self, font: &FontRef) -> Result<(), SubsetError> {
-        if self.normalized_coords.is_empty() || self.all_axes_pinned {
-            // Per harfbuzz:
-            // contour_points vector only needed for updating gvar table (infer delta and
-            // iup delta optimization) during partial instancing
+        // Harfbuzz says:
+        // contour_points vector only needed for updating gvar table (infer delta and
+        // iup delta optimization) during partial instancing
+        //
+        // Which is fine. But we are a bit sneaky; we use this mapping to make the deltas
+        // which we then use later to fully instance the glyphs. So we need to do this even
+        // in the full instancing case.
+
+        if self.normalized_coords.is_empty() {
             return Ok(());
         }
+
         let Ok(loca) = font.loca(None) else {
             return Ok(());
         }; // Could be CFF
@@ -1127,6 +1142,16 @@ impl Plan {
                         log::warn!("Contour points not found for glyph id {:?}, skipping gvar delta calculation for this glyph", new_gid);
                         continue;
                     };
+                    if contour_points.0.is_empty()
+                        && new_gid == &GlyphId::NOTDEF
+                        && !(self
+                            .subset_flags
+                            .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE))
+                    {
+                        // Glyph becomes empty and has no deltas
+                        self.new_gid_instance_deltas_map.insert(*new_gid, vec![]);
+                        continue;
+                    }
                     let phantoms = contour_points
                         .0
                         .iter()
@@ -1143,6 +1168,10 @@ impl Plan {
                         flags: &mut flags,
                         contours: &end_pts,
                     };
+                    assert_eq!(
+                        points.len(),
+                        simple_glyph.num_points() as usize + PHANTOM_POINT_COUNT
+                    );
                     let mut deltas_buffer =
                         vec![font_types::Point { x: 0.0, y: 0.0 }; points.len()];
                     let mut iup_buffer = vec![font_types::Point { x: 0.0, y: 0.0 }; points.len()];
@@ -1154,7 +1183,8 @@ impl Plan {
                         &mut iup_buffer,
                         &mut deltas_buffer,
                     )
-                    .map_err(SubsetError::ReadError)?;
+                    .expect("Couldn't read simple deltas");
+                    // .map_err(SubsetError::ReadError)?;
                     self.new_gid_instance_deltas_map
                         .insert(*new_gid, deltas_buffer);
                 }
@@ -1163,7 +1193,8 @@ impl Plan {
                         composite_glyph.components().count() + glyf_loca::PHANTOM_POINT_COUNT;
                     let mut deltas_buffer = vec![font_types::Point { x: 0.0, y: 0.0 }; delta_count];
                     composite_glyph_deltas(&gvar, *old_gid, coords, &mut deltas_buffer)
-                        .map_err(SubsetError::ReadError)?;
+                        .expect("Couldn't read composite deltas");
+                    // .map_err(SubsetError::ReadError)?;
 
                     self.new_gid_instance_deltas_map
                         .insert(*new_gid, deltas_buffer);
@@ -1174,7 +1205,35 @@ impl Plan {
                 }
             }
         }
+        // Assert all new glyphs have instance deltas
+        for (new_gid, _) in self.new_to_old_gid_list.iter() {
+            assert!(
+                self.new_gid_instance_deltas_map.contains_key(new_gid),
+                "Instance deltas not found for new glyph id {:?}",
+                new_gid
+            );
+        }
         Ok(())
+    }
+
+    fn collect_mvar_entries(&mut self, font: &FontRef) -> Result<(), ReadError> {
+        if self.user_axes_location.is_empty() {
+            return Ok(());
+        }
+        let Ok(mvar) = font.mvar() else {
+            return Ok(());
+        };
+        for tag in mvar.value_records().iter().map(|vr| vr.value_tag()) {
+            self.mvar_entries.insert(
+                tag,
+                mvar.metric_delta(tag, &self.normalized_coords)?.to_f32(),
+            );
+        }
+        Ok(())
+    }
+
+    pub fn add_mvar_delta(&self, orig: impl Into<f32>, tag: Tag) -> i16 {
+        (self.mvar_entries.get(&tag).copied().unwrap_or(0.0) + orig.into()).round() as i16
     }
 }
 

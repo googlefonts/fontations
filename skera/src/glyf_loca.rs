@@ -567,7 +567,11 @@ fn compile_header_bytes(
     new_gid: GlyphId,
 ) {
     let points = ContourPoints(all_points);
-    points.update_mtx(plan, new_gid);
+    points.update_mtx(
+        plan,
+        new_gid,
+        matches!(write_glyph, write_fonts::tables::glyf::Glyph::Empty),
+    );
     let Some(points_without_phantoms) = points.without_phantoms() else {
         if let write_fonts::tables::glyf::Glyph::Simple(simple_glyph) = write_glyph {
             simple_glyph.recompute_bounding_box()
@@ -959,7 +963,7 @@ impl ContourPoints {
         Some((left_side_x, right_side_x, top_side_y, bottom_side_y))
     }
 
-    fn update_mtx(&self, plan: &Plan, old_gid: GlyphId) {
+    fn update_mtx(&self, plan: &Plan, old_gid: GlyphId, is_empty: bool) {
         let new_gid = plan
             .glyph_map
             .get(&old_gid)
@@ -967,6 +971,15 @@ impl ContourPoints {
             .expect("BUG: all glyphs in the new font should have a mapping to the old font");
         // This does the calculation handed to update_mtx in Harfbuzz.
         let bounds = self.get_bounds();
+        if !is_empty {
+            // These are rounded already
+            plan.bounds_width_vec
+                .borrow_mut()
+                .insert(new_gid, (bounds.x_max - bounds.x_min) as u32);
+            plan.bounds_height_vec
+                .borrow_mut()
+                .insert(new_gid, (bounds.y_max - bounds.y_min) as u32);
+        }
 
         if let Some((left_side_x, right_side_x, top_side_y, bottom_side_y)) = self.phantom_bounds()
         {
