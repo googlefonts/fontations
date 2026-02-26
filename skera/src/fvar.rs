@@ -94,9 +94,9 @@ fn subset_fvar(
         }
         s.embed(axis.axis_tag())?;
         if let Some(restricted_location) = plan.user_axes_location.get(&axis.axis_tag()) {
-            s.embed(Fixed::from_f64(restricted_location.minimum as f64))?;
-            s.embed(Fixed::from_f64(restricted_location.middle as f64))?;
-            s.embed(Fixed::from_f64(restricted_location.maximum as f64))?;
+            s.embed(Fixed::from_f64(restricted_location.minimum))?;
+            s.embed(Fixed::from_f64(restricted_location.middle))?;
+            s.embed(Fixed::from_f64(restricted_location.maximum))?;
         } else {
             s.embed(axis.axis_tag())?;
             s.embed(axis.min_value())?;

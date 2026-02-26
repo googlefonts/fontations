@@ -636,7 +636,7 @@ impl TupleVariations {
             }
 
             if let Some(idx) = m.get(&var.axis_tuples) {
-                new_vars[*idx] += &var;
+                new_vars[*idx] += var;
             } else {
                 new_vars.push(var.clone());
                 let new_idx = new_vars.len() - 1;
@@ -1584,7 +1584,7 @@ fn remap_varidx_after_instantiation(
     for (old_varidx, (old_new_varidx, delta)) in layout_varidx_delta_map.iter() {
         // The old_new_varidx is from the initial subsetting pass
         // We need to map it through the instantiation varidx_map
-        let remapped_varidx = if let Some(&new_varidx) = varidx_map.get(&old_new_varidx) {
+        let remapped_varidx = if let Some(&new_varidx) = varidx_map.get(old_new_varidx) {
             new_varidx
         } else {
             NO_VARIATIONS_INDEX
