@@ -68,6 +68,7 @@ struct SubsetInput {
     pub gids: IntSet<GlyphId>,
     pub layout_scripts: IntSet<Tag>,
     pub layout_features: IntSet<Tag>,
+    pub drop_tables: IntSet<Tag>,
 }
 
 #[derive(Default)]
@@ -230,6 +231,8 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
 
     let mut gids = IntSet::empty();
 
+    let mut drop_tables = IntSet::<Tag>::empty();
+
     let mut layout_scripts = IntSet::<Tag>::empty();
     layout_scripts.invert();
 
@@ -274,6 +277,11 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
                 layout_scripts.clear();
             }
             "--iftb-requirements" => subset_flag |= SubsetFlags::SUBSET_FLAGS_FORCE_LONG_LOCA,
+            "--drop-tables+=GSUB,GPOS,GDEF" => {
+                drop_tables.insert(Tag::new(b"GSUB"));
+                drop_tables.insert(Tag::new(b"GPOS"));
+                drop_tables.insert(Tag::new(b"GDEF"));
+            }
             _ => continue,
         }
     }
@@ -284,6 +292,7 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
         gids,
         layout_scripts,
         layout_features,
+        drop_tables,
     }
 }
 
@@ -483,6 +492,9 @@ fn gen_subset_font_file(
     let mut drop_tables = IntSet::empty();
     for str in drop_tables_str.split(',') {
         let tag = Tag::new_checked(str.as_bytes()).unwrap();
+        drop_tables.insert(tag);
+    }
+    for tag in profile.drop_tables.iter() {
         drop_tables.insert(tag);
     }
 
