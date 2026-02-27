@@ -1759,6 +1759,97 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
     }
 }
 
+/// A wrapper for subsetting subtables as Extension lookups (GPOS type 9, GSUB type 7).
+pub(crate) struct ExtensionSubtable<'a, T> {
+    subtable: T,
+    extension_lookup_type: u16,
+    _phantom: std::marker::PhantomData<&'a ()>,
+}
+
+impl<T> ExtensionSubtable<'_, T> {
+    pub fn new(subtable: T, extension_lookup_type: u16) -> Self {
+        Self {
+            subtable,
+            extension_lookup_type,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, T> SubsetTable<'a> for ExtensionSubtable<'a, T>
+where
+    T: SubsetTable<'a>,
+{
+    type ArgsForSubset = T::ArgsForSubset;
+    type Output = T::Output;
+
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        // Format identifier = 1
+        s.embed(1_u16)?;
+        s.embed(self.extension_lookup_type)?;
+        let extension_offset_pos = s.embed(0_u32)?;
+        // Serialize the actual subtable at the 32-bit offset
+        let result =
+            Offset32::serialize_subset(&self.subtable, s, plan, args, extension_offset_pos);
+        log::trace!(
+            "ExtensionSubtable: serialized subtable, result: {:?}",
+            result.is_ok()
+        );
+        result
+    }
+}
+
+/// Helper function to subset Subtables as Extension lookups.
+///
+/// This iterates over subtables and wraps each in an ExtensionSubtable structure,
+/// using 16-bit offsets to the extension wrappers (per spec).
+pub(crate) fn subset_subtables_as_extension<'a, T, Ext>(
+    subtables: &Subtables<'a, T, Ext>,
+    extension_lookup_type: u16,
+    plan: &Plan,
+    s: &mut Serializer,
+    args: T::ArgsForSubset,
+) -> Result<u16, SerializeErrorFlags>
+where
+    T: SubsetTable<
+            'a,
+            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+        > + Intersect
+        + FontRead<'a>
+        + 'a,
+    Ext: ExtensionLookup<'a, T> + 'a,
+{
+    let mut count = 0_u16;
+    for sub in subtables.iter() {
+        let sub = sub.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        if !sub
+            .intersects(&plan.glyphset_gsub)
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        {
+            continue;
+        }
+        let snap = s.snapshot();
+        let offset_pos = s.embed(0_u16)?;
+
+        let wrapper = ExtensionSubtable::new(sub, extension_lookup_type);
+        match Offset16::serialize_subset(&wrapper, s, plan, args, offset_pos) {
+            Ok(_) => count += 1,
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
+            Err(e) => {
+                s.revert_snapshot(snap);
+                return Err(e);
+            }
+        }
+    }
+    Ok(count)
+}
+
 impl<'a, T, Ext> SubsetTable<'a> for Subtables<'a, T, Ext>
 where
     T: SubsetTable<
