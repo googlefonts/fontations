@@ -731,10 +731,10 @@ fn make_simple_glyph_with_deltas(
     let mut y_max: i16 = i16::MIN;
     // unsigned num_points = all_points.length - 4; ->
     // last 4 points in points_with_deltas are phantom points and should not be included
-    log::debug!(
-        "Points with deltas for simple glyph: {:?}",
-        points_with_deltas
-    );
+    // log::debug!(
+    //     "Points with deltas for simple glyph: {:?}",
+    //     points_with_deltas
+    // );
     for (ix, point) in points_with_deltas.iter().enumerate() {
         if ix >= points_with_deltas.len() - 4 {
             break;
@@ -992,6 +992,11 @@ impl ContourPoints {
             .get(&old_gid)
             .cloned()
             .expect("BUG: all glyphs in the new font should have a mapping to the old font");
+        log::debug!(
+            "Updating metrics for glyph {}, is_empty: {}",
+            new_gid,
+            is_empty
+        );
         // This does the calculation handed to update_mtx in Harfbuzz.
         let bounds = self.get_bounds();
         if !is_empty {
@@ -1046,7 +1051,7 @@ fn get_points_harfbuzz_standalone(
     decycler: &mut HashSet<GlyphId>,
     composite_contours: &mut usize,
 ) -> Result<(Vec<ContourPoint>, Option<Vec<ContourPoint>>), SerializeErrorFlags> {
-    log::debug!("Getting points for gid {} at depth {}", gid, depth);
+    // log::debug!("Getting points for gid {} at depth {}", gid, depth);
     let mut all_points = Vec::new();
     let mut points_with_deltas = None;
     const HB_MAX_NESTING_LEVEL: usize = 100;

@@ -94,12 +94,12 @@ fn instantiate_gvar(
     let optimize = plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS);
-    log::debug!(
-        "Instantiating gvar with normalized coords {:?}, axes_location {:?} and axes_triple_distances: {:?}",
-        plan.normalized_coords,
-        plan.axes_location,
-        plan.axes_triple_distances
-    );
+    // log::debug!(
+    //     "Instantiating gvar with normalized coords {:?}, axes_location {:?} and axes_triple_distances: {:?}",
+    //     plan.normalized_coords,
+    //     plan.axes_location,
+    //     plan.axes_triple_distances
+    // );
 
     let retained_axis_tags = plan
         .axis_tags
@@ -109,6 +109,7 @@ fn instantiate_gvar(
         .map(|(_, tag)| *tag)
         .collect::<Vec<_>>();
 
+    let mut any_deltas = false;
     for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
         if let Some(glyph_var) = gvar
             .glyph_variation_data(*old_gid)
@@ -141,6 +142,10 @@ fn instantiate_gvar(
                 )?;
                 // Normalize axes: ensure all tuples have the same set of axes
                 tuple_variations.normalize_axes(&retained_axis_tags);
+                let deltas = tuple_variations.to_glyph_deltas(&plan.axis_tags);
+                if !deltas.is_empty() {
+                    any_deltas = true;
+                }
                 new_variations.push(GlyphVariations::new(
                     *new_gid,
                     tuple_variations.to_glyph_deltas(&plan.axis_tags),
@@ -161,9 +166,13 @@ fn instantiate_gvar(
         );
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
     }
+    // log::debug!(
+    //     "Finished instantiating gvar, new axis count: {}, new variations count: {}",
+    //     new_axis_count,
+    //     new_variations.len()
+    // );
     let new_gvar = WriteGvar::new(new_variations, new_axis_count)
-        .expect("Can't write gvar table with new variations"); // This should never fail, as we're not doing any complex serialization here
-                                                               // .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
 
     builder
         .add_table(&new_gvar)
