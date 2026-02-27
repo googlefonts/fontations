@@ -5,7 +5,10 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetTable,
 };
-use skrifa::raw::tables::gpos::DeviceOrVariationIndex;
+use skrifa::raw::{
+    tables::{gpos::DeviceOrVariationIndex, variations::NO_VARIATION_INDEX},
+    ReadError,
+};
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -19,7 +22,7 @@ pub(crate) fn compute_effective_format(
     value_record: &ValueRecord,
     strip_hints: bool,
     strip_empty: bool,
-    _font_data: FontData,
+    font_data: FontData,
     plan: Option<&Plan>,
 ) -> ValueFormat {
     let mut value_format = ValueFormat::empty();
@@ -49,53 +52,84 @@ pub(crate) fn compute_effective_format(
     }
 
     if !value_record.x_placement_device.get().is_null() && !strip_hints {
-        // During instancing, don't include device format flags - deltas are already applied to base values
-        if let Some(plan_ref) = plan {
-            if !plan_ref.normalized_coords.is_empty() {
-                // log::info!("X_PLACEMENT_DEVICE: not adding format bit during instancing");
-                // Skip device format during instancing
-            } else {
-                value_format |= ValueFormat::X_PLACEMENT_DEVICE;
-                // log::info!("X_PLACEMENT_DEVICE: keeping flag (not instancing)");
-            }
-        } else {
-            value_format |= ValueFormat::X_PLACEMENT_DEVICE;
-            // log::info!("X_PLACEMENT_DEVICE: keeping flag (no plan)");
-        }
+        update_var_flag(
+            value_record.x_placement_device(font_data),
+            ValueFormat::X_PLACEMENT_DEVICE,
+            &mut value_format,
+            plan,
+        );
     }
 
     if !value_record.y_placement_device.get().is_null() && !strip_hints {
-        if let Some(plan_ref) = plan {
-            if plan_ref.normalized_coords.is_empty() {
-                value_format |= ValueFormat::Y_PLACEMENT_DEVICE;
-            }
-        } else {
-            value_format |= ValueFormat::Y_PLACEMENT_DEVICE;
-        }
+        update_var_flag(
+            value_record.y_placement_device(font_data),
+            ValueFormat::Y_PLACEMENT_DEVICE,
+            &mut value_format,
+            plan,
+        );
     }
 
     if !value_record.x_advance_device.get().is_null() && !strip_hints {
-        if let Some(plan_ref) = plan {
-            if plan_ref.normalized_coords.is_empty() {
-                value_format |= ValueFormat::X_ADVANCE_DEVICE;
-            }
-        } else {
-            value_format |= ValueFormat::X_ADVANCE_DEVICE;
-        }
+        update_var_flag(
+            value_record.x_advance_device(font_data),
+            ValueFormat::X_ADVANCE_DEVICE,
+            &mut value_format,
+            plan,
+        );
     }
 
     if !value_record.y_advance_device.get().is_null() && !strip_hints {
-        if let Some(plan_ref) = plan {
-            if plan_ref.normalized_coords.is_empty() {
-                value_format |= ValueFormat::Y_ADVANCE_DEVICE;
-            }
-        } else {
-            value_format |= ValueFormat::Y_ADVANCE_DEVICE;
-        }
+        update_var_flag(
+            value_record.y_advance_device(font_data),
+            ValueFormat::Y_ADVANCE_DEVICE,
+            &mut value_format,
+            plan,
+        );
     }
     value_format
 }
 
+fn update_var_flag(
+    value: Option<Result<DeviceOrVariationIndex<'_>, ReadError>>,
+    flag: ValueFormat,
+    format: &mut ValueFormat,
+    plan: Option<&Plan>,
+) {
+    if let Some(plan_ref) = plan {
+        let varidx_map = plan_ref.layout_varidx_delta_map.borrow();
+
+        if let Some(varidx) = value.transpose().ok().flatten() {
+            {
+                match varidx {
+                    DeviceOrVariationIndex::Device(_device) => {
+                        // For device tables, we conservatively assume they may have non-zero deltas and keep the flag
+                        *format |= flag;
+                        log::debug!("Device table found, keeping format flag {:?} for now", flag);
+                    }
+                    DeviceOrVariationIndex::VariationIndex(varidx) => {
+                        let ix = varidx.delta_set_inner_index() as u32
+                            | ((varidx.delta_set_outer_index() as u32) << 16);
+                        if let Some((first, _)) = varidx_map.get(&ix) {
+                            if *first != NO_VARIATION_INDEX {
+                                log::debug!(
+                                "Variation index has non-zero delta , keeping format flag {:?}.",
+                                flag
+                            );
+                                *format |= flag;
+                                return;
+                            }
+                        } else {
+                            log::debug!("Variation index not found in delta map, clearing format flag {:?} to be safe.", flag);
+                        }
+                    }
+                }
+            }
+            *format &= !flag;
+        }
+    } else {
+        *format |= flag;
+    }
+}
 /// Apply delta to a base value if applicable during instancing.
 /// For now, we don't apply deltas at the base value level as the device/varidx handling
 /// is done through the Device subset logic. This is a placeholder for future enhancements.
