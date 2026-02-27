@@ -2,12 +2,11 @@
 
 use crate::serialize::Serializer;
 use crate::{Plan, Subset, SubsetError, SubsetError::SubsetTableError};
+use skrifa::raw::tables::mvar::tags::{VCOF, VCRN, VCRS};
+use write_fonts::from_obj::ToOwnedTable;
 use write_fonts::types::{FWord, GlyphId, UfWord};
 use write_fonts::{
-    read::{
-        tables::{vhea::Vhea, vmtx::Vmtx},
-        FontRef, TableProvider, TopLevelTable,
-    },
+    read::{tables::vmtx::Vmtx, FontRef, TableProvider, TopLevelTable},
     FontBuilder,
 };
 
@@ -72,14 +71,42 @@ impl Subset for Vmtx<'_> {
             return Ok(());
         };
 
-        let mut vhea_out = vhea.offset_data().as_bytes().to_owned();
-        let new_num_v_metrics = (new_num_v_metrics as u16).to_be_bytes();
-        vhea_out
-            .get_mut(34..36)
-            .unwrap()
-            .copy_from_slice(&new_num_v_metrics);
+        let mut vhea_out: write_fonts::tables::vhea::Vhea = vhea.to_owned_table();
+        vhea_out.number_of_long_ver_metrics = new_num_v_metrics as u16;
 
-        builder.add_raw(Vhea::TAG, vhea_out);
+        if !plan.normalized_coords.is_empty() {
+            vhea_out.caret_slope_rise +=
+                plan.mvar_entries.get(&VCRS).cloned().unwrap_or(0.0) as i16;
+            vhea_out.caret_slope_run += plan.mvar_entries.get(&VCRN).cloned().unwrap_or(0.0) as i16;
+            vhea_out.caret_offset += plan.mvar_entries.get(&VCOF).cloned().unwrap_or(0.0) as i16;
+
+            let mut empty = true;
+            let mut min_tsb = 0x7FFF;
+            let mut min_bsb: i16 = 0x7FFF;
+            let mut max_extent = -0x7FFF;
+            let mut max_adv = 0;
+            let bounds = plan.bounds_width_vec.borrow();
+            for (gid, &(advance, tsb)) in plan.hmtx_map.borrow().iter() {
+                max_adv = max_adv.max(advance);
+                if let Some(&bound_width) = bounds.get(gid) {
+                    empty = false;
+                    let bsb: i16 = (advance as i16) - tsb - (bound_width as i16);
+                    let extent = tsb + (bound_width as i16);
+                    min_tsb = min_tsb.min(tsb);
+                    min_bsb = min_bsb.min(bsb);
+                    max_extent = max_extent.max(extent);
+                }
+            }
+            vhea_out.advance_height_max = UfWord::new(max_adv);
+            if !empty {
+                vhea_out.min_top_side_bearing = FWord::new(min_tsb);
+                vhea_out.min_bottom_side_bearing = FWord::new(min_bsb);
+                vhea_out.y_max_extent = FWord::new(max_extent);
+            }
+        }
+        builder
+            .add_table(&vhea_out)
+            .map_err(|_| SubsetTableError(Vmtx::TAG))?;
         Ok(())
     }
 }

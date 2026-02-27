@@ -862,6 +862,8 @@ impl ContourPoints {
         glyph_id: GlyphId,
     ) -> Result<Self, ReadError> {
         let mut points = Vec::new();
+        let default_plan = Plan::default();
+        let glyf_accelerator = GlyfAccelerator::new(font, &default_plan);
         match glyph {
             Some(Glyph::Simple(simple_glyph)) => {
                 let end_points = simple_glyph
@@ -912,8 +914,8 @@ impl ContourPoints {
         let h_adv = glyph_metrics.advance_width(glyph_id).unwrap_or(0.0);
         let lsb = glyph_metrics.left_side_bearing(glyph_id).unwrap_or(0.0);
         let h_delta = x_min - lsb;
-        let tsb = 0.0;
-        let v_adv = -(font.head().unwrap().units_per_em() as f32); // XXX use vmtx if available
+        let tsb = glyf_accelerator.top_side_bearing(glyph_id);
+        let v_adv = glyf_accelerator.vertical_advance(glyph_id);
         let v_orig = y_max + tsb;
         // Phantom left
         points.push(ContourPoint::new(h_delta, 0.0, false, false));
@@ -1041,7 +1043,7 @@ impl ContourPoints {
                 plan.head_maxp_info.borrow_mut().all_x_min_is_lsb = false;
             }
             let vert_aw: u16 = (top_side_y - bottom_side_y).ot_round();
-            let tsb: i16 = (bounds.y_max - top_side_y).ot_round();
+            let tsb: i16 = (top_side_y - bounds.y_max).ot_round();
             plan.vmtx_map.borrow_mut().insert(new_gid, (vert_aw, tsb));
         } else {
             log::error!(
