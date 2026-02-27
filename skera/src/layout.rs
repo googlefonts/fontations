@@ -894,7 +894,7 @@ pub(crate) fn find_duplicate_features(
     feature_indices: IntSet<u16>,
 ) -> FnvHashMap<u16, u16> {
     let mut out = FnvHashMap::default();
-    if lookup_indices.is_empty() {
+    if feature_indices.is_empty() {
         return out;
     }
 
