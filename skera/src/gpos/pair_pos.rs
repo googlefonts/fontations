@@ -10,6 +10,7 @@ use crate::{
 };
 
 use fnv::FnvHashMap;
+use skrifa::GlyphId16;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -219,10 +220,12 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        for i in pairset_idxes.iter() {
+        let mut new_glyphs: Vec<GlyphId> = Vec::new(); // See dagger operator in PairPosFormat1_3::subset
+        for (i, glyph_id) in pairset_idxes.iter().zip(glyphs.iter()) {
             match pair_sets.subset_offset(i as usize, s, plan, (new_format1, new_format2)) {
                 Ok(()) => {
                     pairset_count += 1;
+                    new_glyphs.push(*glyph_id);
                 }
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
                 Err(e) => {
@@ -232,10 +235,26 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
         }
 
         s.copy_assign(pairset_count_pos, pairset_count);
-        Offset16::serialize_serialize::<CoverageTable>(s, &glyphs, cov_offset_pos)
+        Offset16::serialize_serialize::<CoverageTable>(s, &new_glyphs, cov_offset_pos)
     }
 }
 
+fn flat_coverage(coverage: &CoverageTable) -> Vec<GlyphId> {
+    match coverage {
+        CoverageTable::Format1(table_ref) => table_ref
+            .glyph_array()
+            .iter()
+            .map(|r| GlyphId::from(r.get().to_u16()))
+            .collect::<Vec<_>>(),
+        CoverageTable::Format2(table_ref) => table_ref
+            .range_records()
+            .into_iter()
+            .map(|r| r.start_glyph_id().to_u16()..r.end_glyph_id().to_u16())
+            .flatten()
+            .map(GlyphId::from)
+            .collect::<Vec<_>>(),
+    }
+}
 fn compute_effective_pair_formats_2(
     pair_pos: &PairPosFormat2,
     class1_idxes: &[u16],
