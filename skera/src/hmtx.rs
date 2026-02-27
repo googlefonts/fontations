@@ -72,34 +72,37 @@ impl Subset for Hmtx<'_> {
 
         let mut hhea_out: write_fonts::tables::hhea::Hhea = hhea.to_owned_table();
         hhea_out.number_of_h_metrics = new_num_h_metrics as u16;
-        hhea_out.caret_slope_rise += plan.mvar_entries.get(&HCRS).cloned().unwrap_or(0.0) as i16;
-        hhea_out.caret_slope_run += plan.mvar_entries.get(&HCOF).cloned().unwrap_or(0.0) as i16;
-        hhea_out.caret_offset += plan.mvar_entries.get(&HCRN).cloned().unwrap_or(0.0) as i16;
 
-        let mut empty = true;
-        let mut min_lsb = 0x7FFF;
-        let mut min_rsb: i16 = 0x7FFF;
-        let mut max_extent = -0x7FFF;
-        let mut max_adv = 0;
-        let bounds = plan.bounds_width_vec.borrow();
-        for (gid, &(advance, lsb)) in plan.hmtx_map.borrow().iter() {
-            max_adv = max_adv.max(advance);
-            if let Some(&bound_width) = bounds.get(&gid) {
-                empty = false;
-                let rsb: i16 = (advance as i16) - lsb - (bound_width as i16);
-                let extent = lsb + (bound_width as i16);
-                min_lsb = min_lsb.min(lsb);
-                min_rsb = min_rsb.min(rsb);
-                max_extent = max_extent.max(extent);
+        if !plan.normalized_coords.is_empty() {
+            hhea_out.caret_slope_rise +=
+                plan.mvar_entries.get(&HCRS).cloned().unwrap_or(0.0) as i16;
+            hhea_out.caret_slope_run += plan.mvar_entries.get(&HCRN).cloned().unwrap_or(0.0) as i16;
+            hhea_out.caret_offset += plan.mvar_entries.get(&HCOF).cloned().unwrap_or(0.0) as i16;
+
+            let mut empty = true;
+            let mut min_lsb = 0x7FFF;
+            let mut min_rsb: i16 = 0x7FFF;
+            let mut max_extent = -0x7FFF;
+            let mut max_adv = 0;
+            let bounds = plan.bounds_width_vec.borrow();
+            for (gid, &(advance, lsb)) in plan.hmtx_map.borrow().iter() {
+                max_adv = max_adv.max(advance);
+                if let Some(&bound_width) = bounds.get(gid) {
+                    empty = false;
+                    let rsb: i16 = (advance as i16) - lsb - (bound_width as i16);
+                    let extent = lsb + (bound_width as i16);
+                    min_lsb = min_lsb.min(lsb);
+                    min_rsb = min_rsb.min(rsb);
+                    max_extent = max_extent.max(extent);
+                }
+            }
+            hhea_out.advance_width_max = UfWord::new(max_adv);
+            if !empty {
+                hhea_out.min_left_side_bearing = FWord::new(min_lsb);
+                hhea_out.min_right_side_bearing = FWord::new(min_rsb);
+                hhea_out.x_max_extent = FWord::new(max_extent);
             }
         }
-        hhea_out.advance_width_max = UfWord::new(max_adv);
-        if !empty {
-            hhea_out.min_left_side_bearing = FWord::new(min_lsb);
-            hhea_out.min_right_side_bearing = FWord::new(min_rsb);
-            hhea_out.x_max_extent = FWord::new(max_extent);
-        }
-
         builder
             .add_table(&hhea_out)
             .map_err(|_| SubsetTableError(Hmtx::TAG))?;
