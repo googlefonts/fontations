@@ -216,6 +216,10 @@ fn is_special(c: u8) -> bool {
     )
 }
 
+fn is_special_or_whitespace(c: u8) -> bool {
+    is_special(c) || is_whitespace(c)
+}
+
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum Token<'a> {
     /// Integers
@@ -257,6 +261,80 @@ impl Subrs {
         self.data.get(self.index.get(entry_idx)?.1.clone())
     }
 }
+
+struct CharstringEntry {
+    name: Range<usize>,
+    data: Range<usize>,
+}
+
+/// Collection of charstrings.
+#[derive(Default)]
+struct Charstrings {
+    /// Packed data for all charstrings.
+    data: Vec<u8>,
+    /// Packed data for all glyph names.
+    names: Vec<u8>,
+    /// Index containing all charstrings.
+    index: Vec<CharstringEntry>,
+    /// If notdef was remapped, holds the original index of the notdef
+    /// charstring.
+    orig_notdef_index: Option<usize>,
+}
+
+impl Charstrings {
+    fn num_glyphs(&self) -> u32 {
+        self.index.len() as u32
+    }
+
+    fn get(&self, index: u32) -> Option<&[u8]> {
+        self.data.get(self.index.get(index as usize)?.data.clone())
+    }
+
+    fn name(&self, index: u32) -> Option<&str> {
+        core::str::from_utf8(
+            self.names
+                .get(self.index.get(index as usize)?.name.clone())?,
+        )
+        .ok()
+    }
+
+    fn index_for_name(&self, name: &str) -> Option<u32> {
+        let name = name.as_bytes();
+        for (idx, entry) in self.index.iter().enumerate() {
+            if self.names.get(entry.name.clone()) == Some(name) {
+                return Some(idx as u32);
+            }
+        }
+        None
+    }
+
+    fn push(&mut self, name: &[u8], data: &[u8], len_iv: i64) {
+        let start = self.data.len();
+        if len_iv >= 0 {
+            // use decryption; skip first len_iv bytes
+            self.data
+                .extend(decrypt(data.iter().copied(), CHARSTRING_SEED).skip(len_iv as usize));
+        } else {
+            // just add the data
+            self.data.extend_from_slice(data);
+        }
+        let end = self.data.len();
+        let name_start = self.names.len();
+        self.names.extend_from_slice(name);
+        let name_end = self.names.len();
+        self.index.push(CharstringEntry {
+            name: name_start..name_end,
+            data: start..end,
+        });
+    }
+}
+
+/// Simulated .notdef glyph, same as FreeType:
+///
+/// 0 333 hsbw endchar
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L2192>
+const NOTDEF_GLYPH: &[u8] = &[0x8B, 0xF7, 0xE1, 0x0D, 0x0E];
 
 #[derive(Clone)]
 struct Parser<'a> {
@@ -549,6 +627,85 @@ impl Parser<'_> {
         subrs.data.shrink_to_fit();
         subrs.index.shrink_to_fit();
         Some(subrs)
+    }
+
+    /// Parse the set of charstrings.
+    ///
+    /// The `len_iv` parameter defines the number of prefix padding bytes for
+    /// encrypted data. If < 0, then the data is not encrypted.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1919>
+    fn read_charstrings(&mut self, len_iv: i64) -> Option<Charstrings> {
+        let mut charstrings = Charstrings::default();
+        let num_glyphs: usize = match self.next()? {
+            Token::Int(n) => n.try_into().ok()?,
+            _ => return None,
+        };
+        let mut notdef_idx = None;
+        while let Some(token) = self.next() {
+            let name = match token {
+                // Stop when we find a `def` or `end` keyword.
+                // The ugliness matches the FT logic to handle some malformed
+                // fonts:
+                // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L2006>
+                Token::Raw(b"end") => {
+                    if self
+                        .peek_byte()
+                        .map(is_special_or_whitespace)
+                        .unwrap_or_default()
+                    {
+                        break;
+                    } else {
+                        continue;
+                    }
+                }
+                Token::Raw(b"def") => {
+                    // but ignore `def` if no charstring has been seen
+                    if self
+                        .peek_byte()
+                        .map(is_special_or_whitespace)
+                        .unwrap_or_default()
+                        && !charstrings.index.is_empty()
+                    {
+                        break;
+                    } else {
+                        continue;
+                    }
+                }
+                Token::Name(name) => name,
+                _ => continue,
+            };
+            if name == b".notdef" {
+                notdef_idx = Some(charstrings.index.len());
+            }
+            let Token::Binary(data) = self.next()? else {
+                return None;
+            };
+            charstrings.push(name, data, len_iv);
+        }
+        match notdef_idx {
+            Some(0) => {
+                // .notdef found and at correct location
+            }
+            Some(idx) => {
+                // .notdef found but at incorrect location. Swap with the
+                // glyph at 0
+                charstrings.index.swap(0, idx);
+                charstrings.orig_notdef_index = Some(idx);
+            }
+            None => {
+                // .notdef not found. Add it to the end and then swap with
+                // the glyph at 0
+                let idx = charstrings.index.len();
+                charstrings.push(b".notdef", NOTDEF_GLYPH, -1);
+                charstrings.index.swap(0, idx);
+                charstrings.orig_notdef_index = Some(idx);
+            }
+        }
+        charstrings.data.shrink_to_fit();
+        charstrings.names.shrink_to_fit();
+        charstrings.index.shrink_to_fit();
+        Some(charstrings)
     }
 }
 
@@ -1076,5 +1233,83 @@ mod tests {
     #[test]
     fn parse_malformed_subrs() {
         assert!(Parser::new(b" 20 \nND\n").read_subrs(4).is_none());
+    }
+
+    #[test]
+    fn parse_charstrings() {
+        let dicts = RawDicts::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
+        let mut parser = Parser::new(&dicts.private);
+        let mut charstrings = None;
+        while let Some(token) = parser.next() {
+            if let Token::Name(b"CharStrings") = token {
+                charstrings = parser.read_charstrings(4);
+                break;
+            }
+        }
+        let mut charstrings = charstrings.unwrap();
+        assert_eq!(charstrings.num_glyphs(), 9);
+        assert!(charstrings.orig_notdef_index.is_none());
+        let expected_names = [
+            ".notdef",
+            "H",
+            "f",
+            "i",
+            "x",
+            "f_f.liga",
+            "f_f_i.liga",
+            "f_i.liga",
+            "H.c2sc",
+        ];
+        let names = (0..charstrings.num_glyphs())
+            .map(|idx| charstrings.name(idx).unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(names, expected_names);
+        /// Prefix (up to 8 bytes), extracted from FreeType
+        let expected_charstrings_prefix: [&[u8]; 9] = [
+            &[139, 248, 236, 13, 14],
+            &[177, 249, 173, 13, 139, 4, 247, 183],
+            &[166, 248, 5, 13, 139, 4, 247, 201],
+            &[162, 247, 212, 13, 247, 30, 249, 16],
+            &[144, 248, 214, 13, 139, 4, 247, 130],
+            &[166, 249, 88, 13, 139, 4, 247, 181],
+            &[166, 250, 126, 13, 139, 4, 247, 181],
+            &[166, 249, 43, 13, 139, 4, 247, 181],
+            &[180, 249, 60, 13, 139, 4, 247, 141],
+        ];
+        for (idx, &expected) in expected_charstrings_prefix.iter().enumerate() {
+            let charstring = charstrings.get(idx as u32).unwrap();
+            assert_eq!(&charstring[..expected.len()], expected);
+        }
+    }
+
+    #[test]
+    fn parse_charstrings_missing_notdef() {
+        let mut parser = Parser::new(b"1 /H 2 RD ab ND /B 2 RD xy ND");
+        let charstrings = parser.read_charstrings(-1).unwrap();
+        assert_eq!(charstrings.num_glyphs(), 3);
+        assert_eq!(charstrings.orig_notdef_index, Some(2));
+        let expected_glyphs: &[(&str, &[u8])] =
+            &[(".notdef", NOTDEF_GLYPH), ("B", b"xy"), ("H", b"ab")];
+        check_charstrings(&charstrings, expected_glyphs);
+    }
+
+    #[test]
+    fn parse_charstrings_notdef_moved() {
+        let mut parser = Parser::new(b"1 /H 2 RD ab ND /.notdef 2 RD nd ND /B 2 RD xy ND");
+        let charstrings = parser.read_charstrings(-1).unwrap();
+        assert_eq!(charstrings.num_glyphs(), 3);
+        assert_eq!(charstrings.orig_notdef_index, Some(1));
+        let expected_glyphs: &[(&str, &[u8])] = &[(".notdef", b"nd"), ("H", b"ab"), ("B", b"xy")];
+        check_charstrings(&charstrings, expected_glyphs);
+    }
+
+    #[track_caller]
+    fn check_charstrings(charstrings: &Charstrings, expected_glyphs: &[(&str, &[u8])]) {
+        for (idx, expected) in expected_glyphs.iter().enumerate() {
+            let idx = idx as u32;
+            let name = charstrings.name(idx).unwrap();
+            let data = charstrings.get(idx).unwrap();
+            assert_eq!((name, data), *expected);
+        }
     }
 }
