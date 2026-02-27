@@ -134,6 +134,12 @@ fn compute_new_num_h_metrics(hmtx: &Hmtx, plan: &Plan) -> usize {
 }
 
 fn get_new_gid_advance(hmtx: &Hmtx, new_gid: GlyphId, plan: &Plan) -> u16 {
+    if !plan.normalized_coords.is_empty() {
+        if let Some((advance, _)) = plan.hmtx_map.borrow().get(&new_gid) {
+            return *advance;
+        }
+    }
+
     let Some(old_gid) = plan.reverse_glyph_map.get(&new_gid) else {
         return 0;
     };
