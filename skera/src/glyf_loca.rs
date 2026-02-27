@@ -1,5 +1,5 @@
 //! impl subset() for glyf and loca
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt::Debug};
 
 use fnv::FnvHashMap;
 
@@ -32,7 +32,7 @@ use write_fonts::{
         types::GlyphId,
         FontRef, TableProvider, TopLevelTable,
     },
-    tables::glyf::CompositeGlyph as WriteCompositeGlyph,
+    tables::glyf::{Bbox, CompositeGlyph as WriteCompositeGlyph},
     FontBuilder, OtRound,
 };
 
@@ -55,10 +55,10 @@ impl Bounds {
 impl From<Bounds> for write_fonts::tables::glyf::Bbox {
     fn from(val: Bounds) -> Self {
         write_fonts::tables::glyf::Bbox {
-            x_min: val.x_min.round() as i16,
-            y_min: val.y_min.round() as i16,
-            x_max: val.x_max.round() as i16,
-            y_max: val.y_max.round() as i16,
+            x_min: val.x_min.ot_round(),
+            y_min: val.y_min.ot_round(),
+            x_max: val.x_max.ot_round(),
+            y_max: val.y_max.ot_round(),
         }
     }
 }
@@ -549,6 +549,12 @@ fn compile_bytes_with_deltas(
                     plan.subset_flags
                         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING),
                 );
+                plan.head_maxp_info.borrow_mut().update_extrema(
+                    simple_glyph.bbox.x_min,
+                    simple_glyph.bbox.y_min,
+                    simple_glyph.bbox.x_max,
+                    simple_glyph.bbox.y_max,
+                );
             }
             write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
                 write_glyph =
@@ -556,6 +562,7 @@ fn compile_bytes_with_deltas(
             }
         }
     }
+
     compile_header_bytes(&mut write_glyph, plan, all_points, old_gid);
     write_fonts::dump_table(&write_glyph).map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)
 }
@@ -582,23 +589,11 @@ fn compile_header_bytes(
     let bounds = points_without_phantoms.get_bounds_without_phantoms();
     match write_glyph {
         write_fonts::tables::glyf::Glyph::Empty => {}
-        write_fonts::tables::glyf::Glyph::Simple(simple_glyph) => {
-            simple_glyph.bbox = bounds.into();
-            plan.head_maxp_info.borrow_mut().update_extrema(
-                bounds.x_min as i16,
-                bounds.y_min as i16,
-                bounds.x_max as i16,
-                bounds.y_max as i16,
-            );
-        }
+        write_fonts::tables::glyf::Glyph::Simple(simple_glyph) => {}
         write_fonts::tables::glyf::Glyph::Composite(composite_glyph) => {
+            log::debug!("Setting composite glyph {} bbox to {:?}", new_gid, bounds);
             composite_glyph.bbox = bounds.into();
-            plan.head_maxp_info.borrow_mut().update_extrema(
-                bounds.x_min as i16,
-                bounds.y_min as i16,
-                bounds.x_max as i16,
-                bounds.y_max as i16,
-            );
+            log::debug!("Composite bbox is now {:?}", composite_glyph.bbox);
         }
     }
 
@@ -655,8 +650,8 @@ fn make_composite_glyph_with_deltas(
         let mut new_component = component.clone();
         if let Anchor::Offset { .. } = component.anchor {
             new_component.anchor = Anchor::Offset {
-                x: transform.x.ot_round(),
-                y: transform.y.ot_round(),
+                x: transform.x.round() as i16,
+                y: transform.y.round() as i16,
             };
         }
         // Harfbuzz creates an intermediate SubsetGlyph which remaps the glyph IDs.
@@ -684,7 +679,6 @@ fn make_composite_glyph_with_deltas(
     }
     // Copy instructions
     new_composite.add_instructions(composite_glyph.instructions());
-    // We fix up the header stuff later
     write_fonts::tables::glyf::Glyph::Composite(new_composite)
 }
 
@@ -731,39 +725,65 @@ fn make_simple_glyph_with_deltas(
     }
     simple_glyph.contours = vec![];
     let mut last_contour: Vec<CurvePoint> = vec![];
-    let mut x_min: i16 = 0;
-    let mut y_min: i16 = 0;
-    let mut x_max: i16 = 0;
-    let mut y_max: i16 = 0;
+    let mut x_min: i16 = i16::MAX;
+    let mut y_min: i16 = i16::MAX;
+    let mut x_max: i16 = i16::MIN;
+    let mut y_max: i16 = i16::MIN;
     // unsigned num_points = all_points.length - 4; ->
     // last 4 points in points_with_deltas are phantom points and should not be included
+    log::debug!(
+        "Points with deltas for simple glyph: {:?}",
+        points_with_deltas
+    );
     for (ix, point) in points_with_deltas.iter().enumerate() {
         if ix >= points_with_deltas.len() - 4 {
             break;
         }
+        let x_otround: i16 = point.x.ot_round();
+        let y_otround: i16 = point.y.ot_round();
+
         last_contour.push(CurvePoint {
-            x: point.x.ot_round(),
-            y: point.y.ot_round(),
+            x: x_otround,
+            y: y_otround,
             on_curve: point.is_on_curve,
         });
-        x_min = x_min.min(point.x.ot_round());
-        y_min = y_min.min(point.y.ot_round());
-        x_max = x_max.max(point.x.ot_round());
-        y_max = y_max.max(point.y.ot_round());
+        x_min = x_min.min(x_otround);
+        y_min = y_min.min(y_otround);
+        x_max = x_max.max(x_otround);
+        y_max = y_max.max(y_otround);
         if point.is_end_point {
             simple_glyph.contours.push(last_contour.into());
             last_contour = vec![];
         }
     }
+    simple_glyph.bbox = Bbox {
+        x_min,
+        y_min,
+        x_max,
+        y_max,
+    };
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub(crate) struct ContourPoint {
     pub x: f32,
     pub y: f32,
     pub is_end_point: bool,
     pub is_on_curve: bool,
 }
+
+impl Debug for ContourPoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!(
+            "CP({}, {}{}{})",
+            self.x,
+            self.y,
+            if self.is_on_curve { "*" } else { "" },
+            if self.is_end_point { " (end)" } else { "" }
+        ))
+    }
+}
+
 impl ContourPoint {
     fn new(x: f32, y: f32, is_on_curve: bool, is_end_point: bool) -> Self {
         Self {
@@ -945,11 +965,12 @@ impl ContourPoints {
             }
         }
 
+        // We don't round here because we're going to ot_round on save
         Bounds {
-            x_min: x_min.round().clamp(-32768.0, 32767.0),
-            y_min: y_min.round().clamp(-32768.0, 32767.0),
-            x_max: x_max.round().clamp(-32768.0, 32767.0),
-            y_max: y_max.round().clamp(-32768.0, 32767.0),
+            x_min,
+            y_min,
+            x_max,
+            y_max,
         }
     }
 
@@ -1029,18 +1050,26 @@ fn get_points_harfbuzz_standalone(
     let mut all_points = Vec::new();
     let mut points_with_deltas = None;
     const HB_MAX_NESTING_LEVEL: usize = 100;
-    const HB_MAX_GRAPH_EDGE_COUNT: usize = 10000;
+    // const HB_MAX_GRAPH_EDGE_COUNT: usize = 10000;
 
-    // Edge counter for cycle detection in the point graph
-    static mut EDGE_COUNT: usize = 0;
-    unsafe {
-        if EDGE_COUNT > HB_MAX_GRAPH_EDGE_COUNT {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW);
-        }
-        EDGE_COUNT += 1;
-    }
+    // // Edge counter for cycle detection in the point graph
+    // static mut EDGE_COUNT: usize = 0;
+    // unsafe {
+    //     if EDGE_COUNT > HB_MAX_GRAPH_EDGE_COUNT {
+    //         log::error!(
+    //             "Exceeded maximum graph edge count of {}",
+    //             HB_MAX_GRAPH_EDGE_COUNT
+    //         );
+    //         return Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW);
+    //     }
+    //     EDGE_COUNT += 1;
+    // }
 
     if depth > HB_MAX_NESTING_LEVEL {
+        log::error!(
+            "Exceeded maximum glyph nesting level of {}",
+            HB_MAX_NESTING_LEVEL
+        );
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW);
     }
 

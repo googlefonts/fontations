@@ -394,6 +394,7 @@ pub struct Plan {
     // normalized axes range map
     axes_location: FnvHashMap<Tag, Triple<f64>>,
     normalized_coords: Vec<F2Dot14>,
+    normalized_coords_16_16: Vec<F2Dot14>,
     //map: new_gid -> contour points vector
     new_gid_contour_points_map: FnvHashMap<GlyphId, ContourPoints>,
     // new gids set for composite glyphs
@@ -499,7 +500,11 @@ impl Plan {
         let mut normalized_mins = vec![];
         let mut normalized_defaults = vec![];
         let mut normalized_maxs = vec![];
+        let mut normalized_mins_16_16 = vec![];
+        let mut normalized_defaults_16_16 = vec![];
+        let mut normalized_maxs_16_16 = vec![];
         self.normalized_coords = vec![F2Dot14::ZERO; axes.len()];
+        let mut normalized_coords_16_16 = vec![0i32; axes.len()];
         for (i, axis) in axes.iter().enumerate() {
             let axis_tag = axis.tag();
             self.axes_old_index_tag_map.insert(i, axis_tag);
@@ -531,13 +536,24 @@ impl Plan {
                 let normalized_min = normalize_axis_value(&axis, axis_range.minimum as f32);
                 let normalized_default = normalize_axis_value(&axis, axis_range.middle as f32);
                 let normalized_max = normalize_axis_value(&axis, axis_range.maximum as f32);
+
+                // Compute 16.16 values BEFORE rounding to 2.14 (from original unrounded floats)
+                let normalized_min_16_16 = (normalized_min * 65536.0).round() as i32;
+                let normalized_default_16_16 = (normalized_default * 65536.0).round() as i32;
+                let normalized_max_16_16 = (normalized_max * 65536.0).round() as i32;
+
+                // Round to 2.14 for 2.14 path
                 let normalized_min = (normalized_min * 16384.0).round() / 16384.0;
                 let normalized_default = (normalized_default * 16384.0).round() / 16384.0;
                 let normalized_max = (normalized_max * 16384.0).round() / 16384.0;
+
                 if has_avar {
                     normalized_mins.push(normalized_min);
                     normalized_defaults.push(normalized_default);
                     normalized_maxs.push(normalized_max);
+                    normalized_mins_16_16.push(normalized_min_16_16);
+                    normalized_defaults_16_16.push(normalized_default_16_16);
+                    normalized_maxs_16_16.push(normalized_max_16_16);
                 } else {
                     self.axes_location.insert(
                         axis_tag,
@@ -548,6 +564,7 @@ impl Plan {
                         ),
                     );
                     self.normalized_coords[i] = F2Dot14::from_f32(normalized_default);
+                    normalized_coords_16_16[i] = normalized_default_16_16;
                     if normalized_default != 0.0 {
                         self.pinned_at_default = false;
                     }
@@ -563,6 +580,31 @@ impl Plan {
             normalized_mins = avar::map_coords_2_14(&avar, normalized_mins)?;
             normalized_defaults = avar::map_coords_2_14(&avar, normalized_defaults)?;
             normalized_maxs = avar::map_coords_2_14(&avar, normalized_maxs)?;
+
+            // Apply avar mapping to 16.16 coordinates as well
+            // Convert 16.16 to floats for avar processing
+            let mins_16_16_float: Vec<f32> = normalized_mins_16_16
+                .iter()
+                .map(|&v| v as f32 / 65536.0)
+                .collect();
+            let defaults_16_16_float: Vec<f32> = normalized_defaults_16_16
+                .iter()
+                .map(|&v| v as f32 / 65536.0)
+                .collect();
+            let maxs_16_16_float: Vec<f32> = normalized_maxs_16_16
+                .iter()
+                .map(|&v| v as f32 / 65536.0)
+                .collect();
+
+            let mins_16_16_float = avar::map_coords_2_14(&avar, mins_16_16_float)?;
+            let defaults_16_16_float = avar::map_coords_2_14(&avar, defaults_16_16_float)?;
+            let maxs_16_16_float = avar::map_coords_2_14(&avar, maxs_16_16_float)?;
+
+            // Convert back to 16.16 format
+            for (i, val) in defaults_16_16_float.iter().enumerate() {
+                normalized_defaults_16_16[i] = (val * 65536.0).round() as i32;
+            }
+
             for (i, axis) in axes.iter().enumerate() {
                 let axis_tag = axis.tag();
                 if self.user_axes_location.contains_key(&axis_tag) {
@@ -574,13 +616,37 @@ impl Plan {
                             normalized_maxs[i].into(),
                         ),
                     );
-                    self.normalized_coords[i] = F2Dot14::from_f32(normalized_defaults[i]);
+                    self.normalized_coords[i] =
+                        F2Dot14::from_bits((normalized_defaults[i] * 16384.0).round() as i16);
+                    normalized_coords_16_16[i] = normalized_defaults_16_16[i];
+                    log::debug!(
+                        "Axis {:?} normalized default: {}, f2dot14: {:?}, (converted) 16.16: {:?}",
+                        axis_tag,
+                        normalized_defaults[i],
+                        (normalized_defaults[i] * 16384.0).round(),
+                        ((normalized_defaults_16_16[i] + 2) >> 2),
+                    );
                     if normalized_defaults[i] != 0.0 {
                         self.pinned_at_default = false;
                     }
                 }
             }
         }
+
+        // Convert 16.16 coords to F2DOT14.
+        log::debug!(
+            "Normalized coords (16.16) before rounding {:?}",
+            normalized_coords_16_16
+        );
+        self.normalized_coords_16_16 = normalized_coords_16_16
+            .iter()
+            .map(|&v| F2Dot14::from_bits(((v + 2) >> 2).try_into().unwrap_or(i16::MAX)))
+            .collect();
+        log::debug!("Normalized coords (f2dot14): {:?}", self.normalized_coords);
+        log::debug!(
+            "Normalized coords (16.16): {:?}",
+            self.normalized_coords_16_16
+        );
 
         Ok(())
     }
@@ -1150,7 +1216,8 @@ impl Plan {
         let Ok(glyf) = font.glyf() else { return Ok(()) };
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
             let glyph = loca.get_glyf(*old_gid, &glyf).unwrap();
-            let coords = &self.normalized_coords;
+            let coords = &self.normalized_coords_16_16;
+            log::debug!("Instantiating at coords (16.16): {:?}", coords);
             match glyph {
                 Some(Glyph::Simple(simple_glyph)) => {
                     let mut points: Vec<Point<f32>> =
@@ -1212,6 +1279,7 @@ impl Plan {
                         &mut deltas_buffer,
                     )
                     .expect("Couldn't read simple deltas");
+                    log::debug!("Deltas for glyph id {:?}: {:?}", new_gid, deltas_buffer);
                     // .map_err(SubsetError::ReadError)?;
                     self.new_gid_instance_deltas_map
                         .insert(*new_gid, deltas_buffer);
