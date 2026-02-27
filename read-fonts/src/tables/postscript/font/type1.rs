@@ -518,10 +518,7 @@ impl Parser<'_> {
         self.expect(Token::Raw(b"array"))?;
         let mut is_dense = true;
         // The pattern for each subroutine is `dup <subr_num> <data>`
-        loop {
-            if !self.accept(Token::Raw(b"dup")) {
-                break;
-            }
+        while self.accept(Token::Raw(b"dup")) {
             let (Token::Int(n), Token::Binary(data)) = (self.next()?, self.next()?) else {
                 return None;
             };
