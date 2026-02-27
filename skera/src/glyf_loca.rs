@@ -450,8 +450,23 @@ impl<'a> GlyfAccelerator<'a> {
         self.hmtx.side_bearing(gid).unwrap_or(0) as f32
     }
 
+    fn top_side_bearing(&self, gid: GlyphId) -> f32 {
+        self.vmtx
+            .as_ref()
+            .map_or(0.0, |vmtx| vmtx.side_bearing(gid).unwrap_or(0) as f32)
+    }
+
     fn advance_width(&self, gid: GlyphId) -> f32 {
         self.hmtx.advance(gid).unwrap_or(0) as f32
+    }
+
+    fn vertical_advance(&self, gid: GlyphId) -> f32 {
+        let default = -self.units_per_em();
+        if let Some(vmtx) = &self.vmtx {
+            vmtx.advance(gid).map(|x| x as f32).unwrap_or(default)
+        } else {
+            default
+        }
     }
 
     fn get_glyph(&self, gid: GlyphId) -> Option<Glyph<'_>> {
@@ -593,7 +608,7 @@ fn compile_header_bytes(
     let bounds = points_without_phantoms.get_bounds_without_phantoms();
     match write_glyph {
         write_fonts::tables::glyf::Glyph::Empty => {}
-        write_fonts::tables::glyf::Glyph::Simple(simple_glyph) => {}
+        write_fonts::tables::glyf::Glyph::Simple(_simple_glyph) => {}
         write_fonts::tables::glyf::Glyph::Composite(composite_glyph) => {
             composite_glyph.bbox = bounds.into();
             log::debug!("Composite bbox is now {:?}", composite_glyph.bbox);
@@ -1185,9 +1200,9 @@ fn get_points_harfbuzz_standalone(
     let h_adv = glyph_accelerator.advance_width(gid);
     let h_delta = x_min - lsb;
 
-    let tsb = 0.0; // TODO: use vmtx if available
+    let tsb = glyph_accelerator.top_side_bearing(gid);
     let v_orig = y_max + tsb;
-    let v_adv = -glyph_accelerator.units_per_em(); // TODO: use vmtx if available
+    let v_adv = glyph_accelerator.vertical_advance(gid);
 
     // Set phantom point coordinates (PHANTOM_LEFT, PHANTOM_RIGHT, PHANTOM_TOP, PHANTOM_BOTTOM)
     let phantoms_start = target_points.len();
