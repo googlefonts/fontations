@@ -549,7 +549,6 @@ impl TupleVariations {
         })
     }
 
-    #[allow(dead_code)]
     pub fn from_cvar(
         value: TupleVariationData<'_, CvtDelta>,
         point_count: usize,
@@ -804,6 +803,28 @@ impl TupleVariations {
                             );
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// Check if there are no tuple variations
+    pub fn is_empty(&self) -> bool {
+        self.tuple_vars.is_empty()
+    }
+
+    /// Iterate over tuple variations
+    pub fn iter(&self) -> impl Iterator<Item = &TupleDelta> {
+        self.tuple_vars.iter()
+    }
+
+    /// Apply instantiated cvar deltas to the CVT values in-place.
+    pub fn apply_cvt_deltas(&self, cvt_values: &mut [i16]) {
+        for tuple_var in &self.tuple_vars {
+            for (idx, is_active) in tuple_var.indices.iter().enumerate() {
+                if *is_active && idx < cvt_values.len() {
+                    let delta = tuple_var.deltas_x[idx].round() as i16;
+                    cvt_values[idx] = cvt_values[idx].saturating_add(delta);
                 }
             }
         }

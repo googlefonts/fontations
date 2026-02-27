@@ -7,6 +7,7 @@ mod cblc;
 mod cmap;
 mod colr;
 mod cpal;
+mod cvar;
 mod fvar;
 mod gdef;
 mod glyf_loca;
@@ -1826,6 +1827,16 @@ fn subset_table<'a>(
             .cpal()
             .map_err(|_| SubsetError::SubsetTableError(Cpal::TAG))?
             .subset(plan, font, s, builder),
+
+        Cvar::TAG => {
+            if plan.axes_index_map.is_empty() && !plan.all_axes_pinned {
+                passthrough_table(tag, font, s)
+            } else {
+                font.cvar()
+                    .map_err(|_| SubsetError::SubsetTableError(Cvar::TAG))?
+                    .subset(plan, font, s, builder)
+            }
+        }
 
         Fvar::TAG => {
             if plan.axes_index_map.is_empty() && !plan.all_axes_pinned {
