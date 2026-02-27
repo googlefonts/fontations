@@ -1035,12 +1035,9 @@ mod tests {
         let mut parser = Parser::new(&dicts.private);
         let mut subrs = None;
         while let Some(token) = parser.next() {
-            match token {
-                Token::Name(b"Subrs") => {
-                    subrs = parser.read_subrs(4);
-                    break;
-                }
-                _ => {}
+            if let Token::Name(b"Subrs") = token {
+                subrs = parser.read_subrs(4);
+                break;
             }
         }
         let mut subrs = subrs.unwrap();
