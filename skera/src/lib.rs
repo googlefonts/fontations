@@ -1279,9 +1279,8 @@ impl Plan {
                         &mut iup_buffer,
                         &mut deltas_buffer,
                     )
-                    .expect("Couldn't read simple deltas");
-                    log::debug!("Deltas for glyph id {:?}: {:?}", new_gid, deltas_buffer);
-                    // .map_err(SubsetError::ReadError)?;
+                    .map_err(SubsetError::ReadError)?;
+                    // log::debug!("Deltas for glyph id {:?}: {:?}", new_gid, deltas_buffer);
                     self.new_gid_instance_deltas_map
                         .insert(*new_gid, deltas_buffer);
                 }
@@ -1297,8 +1296,28 @@ impl Plan {
                         .insert(*new_gid, deltas_buffer);
                 }
                 None => {
-                    // Empty glyph, insert empty list
-                    self.new_gid_instance_deltas_map.insert(*new_gid, vec![]);
+                    // Empty glyph, still needs deltas for phantom points if it's not .notdef with no outline, otherwise it can be safely skipped
+                    let Some(contour_points) = self.new_gid_contour_points_map.get(new_gid) else {
+                        log::warn!("Contour points not found for glyph id {:?}, skipping gvar delta calculation for this glyph", new_gid);
+                        continue;
+                    };
+                    let mut points: Vec<Point<f32>> = Vec::new();
+                    let mut flags: Vec<PointFlags> = Vec::new();
+                    // Add the four phantom points, steal from end of new_gid_contour_points_map
+                    for phantom in contour_points.0.iter() {
+                        points.push(Point {
+                            x: phantom.x,
+                            y: phantom.y,
+                        });
+                        flags.push(PointFlags::default());
+                    }
+                    let mut deltas_buffer =
+                        vec![font_types::Point { x: 0.0, y: 0.0 }; PHANTOM_POINT_COUNT];
+                    composite_glyph_deltas(&gvar, *old_gid, coords, &mut deltas_buffer)
+                        .map_err(SubsetError::ReadError)?;
+                    // log::debug!("Deltas for glyph id {:?}: {:?}", new_gid, deltas_buffer);
+                    self.new_gid_instance_deltas_map
+                        .insert(*new_gid, deltas_buffer);
                 }
             }
         }
