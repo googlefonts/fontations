@@ -1,6 +1,7 @@
 //! Type1 font parsing.
 
 use super::super::dict::FontMatrix;
+use core::ops::Range;
 use types::Fixed;
 
 /// Raw dictionary data for a Type1 font.
@@ -183,6 +184,9 @@ fn decode_hex(mut bytes: impl Iterator<Item = u8>) -> impl Iterator<Item = u8> {
 /// Decryption seed for eexec segment.
 const EEXEC_SEED: u32 = 55665;
 
+/// Decryption seed for charstring (and subroutine) data.
+const CHARSTRING_SEED: u32 = 4330;
+
 /// Returns an iterator yielding the decrypted bytes.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psconv.c#L557>
@@ -228,6 +232,30 @@ enum Token<'a> {
     Name(&'a [u8]),
     /// All other raw tokens (identifiers and self-delimiting punctuation)
     Raw(&'a [u8]),
+}
+
+/// Collection of subroutines.
+#[derive(Default)]
+struct Subrs {
+    /// Packed data for all subroutines.
+    data: Vec<u8>,
+    /// Index mapping subroutine number to range in the packed data. Sorted
+    /// by subroutine number.
+    index: Vec<(u32, Range<usize>)>,
+    /// If true, subroutine number == index so we don't need to
+    /// bsearch.
+    is_dense: bool,
+}
+
+impl Subrs {
+    fn get(&self, index: u32) -> Option<&[u8]> {
+        let entry_idx = if self.is_dense {
+            index as usize
+        } else {
+            self.index.binary_search_by_key(&index, |e| e.0).ok()?
+        };
+        self.data.get(self.index.get(entry_idx)?.1.clone())
+    }
 }
 
 #[derive(Clone)]
@@ -330,6 +358,19 @@ impl<'a> Parser<'a> {
 
     fn peek(&self) -> Option<Token<'a>> {
         self.clone().next()
+    }
+
+    fn accept(&mut self, token: Token) -> bool {
+        if self.peek() == Some(token) {
+            self.next();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn expect(&mut self, token: Token) -> Option<()> {
+        (self.next()? == token).then_some(())
     }
 
     fn next_byte(&mut self) -> Option<u8> {
@@ -455,6 +496,62 @@ impl Parser<'_> {
         // skip ]
         self.next()?;
         Some(FontMatrix(components))
+    }
+
+    /// Parse the set of subroutines.
+    ///
+    /// The `len_iv` parameter defines the number of prefix padding bytes for
+    /// encrypted data. If < 0, then the data is not encrypted.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1720>
+    fn read_subrs(&mut self, len_iv: i64) -> Option<Subrs> {
+        let mut subrs = Subrs::default();
+        let num_subrs: usize = match self.next()? {
+            Token::Raw(b"[") => {
+                // Just an empty array
+                self.expect(Token::Raw(b"]"))?;
+                return Some(subrs);
+            }
+            Token::Int(n) => n.try_into().ok()?,
+            _ => return None,
+        };
+        self.expect(Token::Raw(b"array"))?;
+        let mut is_dense = true;
+        // The pattern for each subroutine is `dup <subr_num> <data>`
+        loop {
+            if !self.accept(Token::Raw(b"dup")) {
+                break;
+            }
+            let (Token::Int(n), Token::Binary(data)) = (self.next()?, self.next()?) else {
+                return None;
+            };
+            // There might be an additional put token following the binary data
+            self.accept(Token::Raw(b"put"));
+            let subr_num: u32 = n.try_into().ok()?;
+            if subr_num as usize != subrs.index.len() {
+                is_dense = false;
+            }
+            let start = subrs.data.len();
+            if len_iv >= 0 {
+                // use decryption; skip first len_iv bytes
+                subrs
+                    .data
+                    .extend(decrypt(data.iter().copied(), CHARSTRING_SEED).skip(len_iv as usize));
+            } else {
+                // just add the data
+                subrs.data.extend_from_slice(data);
+            }
+            let end = subrs.data.len();
+            subrs.index.push((subr_num, start..end));
+        }
+        // If we don't have a dense set, sort the index by number
+        if !is_dense {
+            subrs.index.sort_unstable_by_key(|(n, ..)| *n);
+        }
+        subrs.is_dense = is_dense;
+        subrs.data.shrink_to_fit();
+        subrs.index.shrink_to_fit();
+        Some(subrs)
     }
 }
 
@@ -930,5 +1027,60 @@ mod tests {
                 Fixed::from_i32(200)
             ])
         );
+    }
+
+    #[test]
+    fn parse_subrs() {
+        let dicts = RawDicts::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
+        let mut parser = Parser::new(&dicts.private);
+        let mut subrs = None;
+        while let Some(token) = parser.next() {
+            match token {
+                Token::Name(b"Subrs") => {
+                    subrs = parser.read_subrs(4);
+                    break;
+                }
+                _ => {}
+            }
+        }
+        let mut subrs = subrs.unwrap();
+        // The decrypted subroutines extracted from FreeType
+        let expected_subrs: [&[u8]; 5] = [
+            &[142, 139, 12, 16, 12, 17, 12, 17, 12, 33, 11],
+            &[139, 140, 12, 16, 11],
+            &[139, 141, 12, 16, 11],
+            &[11],
+            &[140, 142, 12, 16, 12, 17, 10, 11],
+        ];
+        assert_eq!(subrs.index.len(), expected_subrs.len());
+        assert!(subrs.is_dense);
+        // These subrs are densely allocated but check binary search mode
+        // as well
+        for is_dense in [true, false] {
+            subrs.is_dense = is_dense;
+            for (idx, &expected) in expected_subrs.iter().enumerate() {
+                let subr = subrs.get(idx as u32).unwrap();
+                assert_eq!(subr, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn parse_empty_array_subrs() {
+        let subrs = Parser::new(b"[ ]").read_subrs(4).unwrap();
+        assert!(subrs.data.is_empty());
+        assert!(subrs.index.is_empty());
+    }
+
+    #[test]
+    fn parse_empty_subrs() {
+        let subrs = Parser::new(b" 0 array\nND\n").read_subrs(4).unwrap();
+        assert!(subrs.data.is_empty());
+        assert!(subrs.index.is_empty());
+    }
+
+    #[test]
+    fn parse_malformed_subrs() {
+        assert!(Parser::new(b" 20 \nND\n").read_subrs(4).is_none());
     }
 }
