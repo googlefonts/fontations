@@ -213,7 +213,8 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
         let subtables = self
             .subtables()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let lookup_type: u16 = match subtables {
+
+        let mut lookup_type: u16 = match subtables {
             SubstitutionSubtables::Single(_) => 1,
             SubstitutionSubtables::Multiple(_) => 2,
             SubstitutionSubtables::Alternate(_) => 3,
@@ -222,12 +223,25 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
             SubstitutionSubtables::ChainContextual(_) => 6,
             SubstitutionSubtables::Reverse(_) => 8,
         };
+
+        let is_extension = matches!(self, SubstitutionLookup::Extension(_));
+        if is_extension {
+            lookup_type = 7; // extension lookup type
+        }
+
         s.embed(lookup_type)?;
 
         let lookup_flag = self.lookup_flag();
         let lookup_flag_pos = s.embed(lookup_flag)?;
         let lookup_count_pos = s.embed(0_u16)?;
-        let lookup_count = subtables.subset(plan, s, args)?;
+
+        // For extension lookups, wrap each subtable in an ExtensionSubtable structure
+        let lookup_count = if is_extension {
+            subset_substitution_subtables_as_extension(&subtables, plan, s, args)?
+        } else {
+            subtables.subset(plan, s, args)?
+        };
+
         s.copy_assign(lookup_count_pos, lookup_count);
 
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/a790c38b782f9d8e6f0299d2837229e5726fc669/src/hb-ot-layout-common.hh#L1385>
@@ -244,7 +258,6 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
     }
 }
 
-// TODO: support extension lookup type
 impl<'a> SubsetTable<'a> for SubstitutionSubtables<'a> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = u16;
@@ -262,6 +275,43 @@ impl<'a> SubsetTable<'a> for SubstitutionSubtables<'a> {
             SubstitutionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
             SubstitutionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
             SubstitutionSubtables::Reverse(subtables) => subtables.subset(plan, s, args),
+        }
+    }
+}
+
+/// Helper function to subset SubstitutionSubtables as Extension lookups (type 7).
+///
+/// This wraps each subtable in an ExtensionSubtable structure with the appropriate
+/// extension lookup type.
+fn subset_substitution_subtables_as_extension<'a>(
+    subtables: &SubstitutionSubtables<'a>,
+    plan: &Plan,
+    s: &mut Serializer,
+    args: (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+) -> Result<u16, SerializeErrorFlags> {
+    use crate::layout::subset_subtables_as_extension;
+
+    match subtables {
+        SubstitutionSubtables::Single(subtables) => {
+            subset_subtables_as_extension(subtables, 1, plan, s, args)
+        }
+        SubstitutionSubtables::Multiple(subtables) => {
+            subset_subtables_as_extension(subtables, 2, plan, s, args)
+        }
+        SubstitutionSubtables::Alternate(subtables) => {
+            subset_subtables_as_extension(subtables, 3, plan, s, args)
+        }
+        SubstitutionSubtables::Ligature(subtables) => {
+            subset_subtables_as_extension(subtables, 4, plan, s, args)
+        }
+        SubstitutionSubtables::Contextual(subtables) => {
+            subset_subtables_as_extension(subtables, 5, plan, s, args)
+        }
+        SubstitutionSubtables::ChainContextual(subtables) => {
+            subset_subtables_as_extension(subtables, 6, plan, s, args)
+        }
+        SubstitutionSubtables::Reverse(subtables) => {
+            subset_subtables_as_extension(subtables, 8, plan, s, args)
         }
     }
 }
