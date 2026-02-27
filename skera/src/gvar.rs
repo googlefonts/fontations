@@ -1,15 +1,21 @@
 //! impl subset() for gvar table
 use std::mem::size_of;
 
-use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
+use crate::{
+    serialize::{SerializeErrorFlags, Serializer},
+    variations::TupleVariations,
+    Plan, Subset, SubsetError, SubsetFlags,
+};
 
 use write_fonts::{
     read::{tables::gvar::Gvar, types::GlyphId, FontRef, TopLevelTable},
+    tables::gvar::{GlyphVariations, Gvar as WriteGvar},
     types::Scalar,
     FontBuilder,
 };
 
 const FIXED_HEADER_SIZE: u32 = 20;
+
 // reference: subset() for gvar table in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/63d09dbefcf7ad9f794ca96445d37b6d8c3c9124/src/hb-ot-var-gvar-table.hh#L411
 impl Subset for Gvar<'_> {
@@ -18,8 +24,18 @@ impl Subset for Gvar<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
+        builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
+        if plan.all_axes_pinned {
+            // it's not an error, we just don't need it
+            log::trace!("Removing gvar, because all axes are pinned and there is no variation data to subset.");
+            return Err(SubsetError::SubsetTableError(Gvar::TAG));
+        }
+        if !plan.normalized_coords.is_empty() {
+            // Instantiate instead
+            return instantiate_gvar(self, plan, builder)
+                .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG));
+        }
         //table header: from version to sharedTuplesOffset
         s.embed_bytes(self.offset_data().as_bytes().get(0..12).unwrap())
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
@@ -66,6 +82,103 @@ impl Subset for Gvar<'_> {
 
         Ok(())
     }
+}
+
+fn instantiate_gvar(
+    gvar: &Gvar<'_>,
+    plan: &Plan,
+    builder: &mut FontBuilder,
+) -> Result<(), SerializeErrorFlags> {
+    let mut new_variations = vec![];
+    let new_axis_count = plan.axes_index_map.len() as u16;
+    let optimize = plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS);
+    // log::debug!(
+    //     "Instantiating gvar with normalized coords {:?}, axes_location {:?} and axes_triple_distances: {:?}",
+    //     plan.normalized_coords,
+    //     plan.axes_location,
+    //     plan.axes_triple_distances
+    // );
+
+    let retained_axis_tags = plan
+        .axis_tags
+        .iter()
+        .enumerate()
+        .filter(|(ix, _)| plan.axes_index_map.contains_key(ix))
+        .map(|(_, tag)| *tag)
+        .collect::<Vec<_>>();
+
+    let mut any_deltas = false;
+    for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
+        if let Some(glyph_var) = gvar
+            .glyph_variation_data(*old_gid)
+            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+        {
+            if new_gid == &GlyphId::new(0)
+                && !(plan
+                    .subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE))
+            {
+                // Special handling for .notdef glyph
+                new_variations.push(GlyphVariations::new(*new_gid, vec![]));
+            } else if let Some(all_points) = plan.new_gid_contour_points_map.get(new_gid) {
+                log::trace!(
+                    "Instantiating gvar for gid {:?} with {} points",
+                    new_gid,
+                    all_points.0.len()
+                );
+                let mut tuple_variations: TupleVariations = TupleVariations::from_gvar(
+                    glyph_var,
+                    all_points.0.len(),
+                    &plan.axes_old_index_tag_map,
+                )?;
+
+                tuple_variations.instantiate(
+                    &plan.axes_location,
+                    &plan.axes_triple_distances,
+                    Some(all_points), // I don't think we need to instantiate the contour here, we do it in the plan already
+                    optimize,
+                )?;
+                // Normalize axes: ensure all tuples have the same set of axes
+                tuple_variations.normalize_axes(&retained_axis_tags);
+                let deltas = tuple_variations.to_glyph_deltas(&plan.axis_tags);
+                if !deltas.is_empty() {
+                    any_deltas = true;
+                }
+                new_variations.push(GlyphVariations::new(
+                    *new_gid,
+                    tuple_variations.to_glyph_deltas(&plan.axis_tags),
+                ));
+            } else {
+                // Can't happen
+                panic!("Can't find contour points for gid {:?} in plan, but it should be there as it's used in gvar", new_gid);
+            }
+        } else {
+            // No variations for this glyph
+            new_variations.push(GlyphVariations::new(*new_gid, vec![]));
+        }
+    }
+    if new_variations.is_empty() {
+        // No variations at all, we can skip the gvar table
+        log::trace!(
+            "Removing gvar, because there are no variations for any glyph after instantiation."
+        );
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+    }
+    // log::debug!(
+    //     "Finished instantiating gvar, new axis count: {}, new variations count: {}",
+    //     new_axis_count,
+    //     new_variations.len()
+    // );
+    let new_gvar = WriteGvar::new(new_variations, new_axis_count)
+        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+
+    builder
+        .add_table(&new_gvar)
+        .expect("Can't add gvar table to font builder"); // This should never fail, as we're not doing any complex serialization here
+                                                         // .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+    Ok(())
 }
 
 fn subset_with_offset_type<OffsetType: GvarOffset>(

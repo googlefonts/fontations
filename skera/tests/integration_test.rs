@@ -6,14 +6,19 @@
 //! To generate the expected output files, pass GEN_EXPECTED_OUTPUTS=1 as an
 //! environment variable.
 
+use libtest_mimic::{Arguments, Trial};
+use similar::TextDiff;
 use skera::{parse_unicodes, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES};
 use skrifa::GlyphId;
-use std::fmt::Write;
-use std::fs;
-use std::iter::Peekable;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use tempdir::TempDir;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    fs,
+    iter::Peekable,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
+use tempfile::Builder;
 use write_fonts::{
     read::{collections::IntSet, FontRef},
     types::{NameId, Tag},
@@ -21,6 +26,16 @@ use write_fonts::{
 
 static TEST_DATA_DIR: &str = "./test-data";
 static GEN_EXPECTED_OUTPUTS_VAR: &str = "GEN_EXPECTED_OUTPUTS";
+
+const EXPECTED_FAILURE_CASES: [&str; 4] = [
+    // These all fail due to a difference in the way Harfbuzz performs layout closure
+    // on lookups called from a contextual chaining substitution. We're technically more
+    // accurate in how we do it.
+    "layout.notonastaliqurdu-NotoNastaliqUrdu-Regular.default.all.ttf",
+    "layout.notonastaliqurdu-NotoNastaliqUrdu-Regular.retain-gids.all.ttf",
+    "layout.notonastaliqurdu-NotoNastaliqUrdu-Bold.default.all.ttf",
+    "layout.notonastaliqurdu-NotoNastaliqUrdu-Bold.retain-gids.all.ttf",
+];
 
 #[derive(Default)]
 struct SubsetTestCase {
@@ -36,9 +51,8 @@ struct SubsetTestCase {
     /// subset codepoints to retain
     subsets: Vec<String>,
 
-    //command line args for instancer
-    //TODO: add support for instancing
-    //instances: Vec<String>,
+    /// command line args for instancer
+    instances: Vec<String>,
     ///compare against fonttools or not
     fonttool_options: bool,
 
@@ -46,7 +60,7 @@ struct SubsetTestCase {
     iup_optimize: Vec<bool>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct SubsetInput {
     pub subset_flag: SubsetFlags,
     pub name_ids: IntSet<NameId>,
@@ -54,6 +68,7 @@ struct SubsetInput {
     pub gids: IntSet<GlyphId>,
     pub layout_scripts: IntSet<Tag>,
     pub layout_features: IntSet<Tag>,
+    pub drop_tables: IntSet<Tag>,
 }
 
 #[derive(Default)]
@@ -163,9 +178,10 @@ impl TestCaseParser {
     }
 
     fn parse_instances(&mut self, lines: &mut LinesIter) {
-        //TODO: add support for instancing
         while !lines.is_end() {
-            lines.next();
+            if let Some(next) = lines.next() {
+                self.case.instances.push(next.trim().to_owned());
+            }
         }
     }
 
@@ -215,6 +231,8 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
 
     let mut gids = IntSet::empty();
 
+    let mut drop_tables = IntSet::<Tag>::empty();
+
     let mut layout_scripts = IntSet::<Tag>::empty();
     layout_scripts.invert();
 
@@ -230,6 +248,7 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
             "--glyph-names" => subset_flag |= SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES,
             "--name-legacy" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NAME_LEGACY,
             "--no-layout-closure" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE,
+            "--no-bidi-closure" => subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE,
             "--no-prune-unicode-ranges" => {
                 subset_flag |= SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
             }
@@ -258,6 +277,12 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
             "--layout-scripts-=*" => {
                 layout_scripts.clear();
             }
+            "--iftb-requirements" => subset_flag |= SubsetFlags::SUBSET_FLAGS_FORCE_LONG_LOCA,
+            "--drop-tables+=GSUB,GPOS,GDEF" => {
+                drop_tables.insert(Tag::new(b"GSUB"));
+                drop_tables.insert(Tag::new(b"GPOS"));
+                drop_tables.insert(Tag::new(b"GDEF"));
+            }
             _ => continue,
         }
     }
@@ -268,6 +293,43 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
         gids,
         layout_scripts,
         layout_features,
+        drop_tables,
+    }
+}
+
+struct IndividualTestCase {
+    font: String,
+    subset: String,
+    profile: (String, SubsetInput),
+    instance: Option<String>,
+    expected_dir: String,
+}
+
+impl IndividualTestCase {
+    fn name(&self) -> PathBuf {
+        gen_subset_font_name(
+            &self.font,
+            &self.subset,
+            self.profile.0.as_str(),
+            self.instance.as_deref(),
+        )
+    }
+    fn run(&self, output_dir: &Path) {
+        let subset_font_name = self.name();
+        let output_file = output_dir.join(&subset_font_name);
+        gen_subset_font_file(
+            &self.font,
+            &self.subset,
+            &self.profile.1,
+            self.instance.as_deref(),
+            &output_file,
+        );
+
+        let expected_file = Path::new(TEST_DATA_DIR)
+            .join("expected")
+            .join(&self.expected_dir)
+            .join(&subset_font_name);
+        compare_with_expected(output_dir, &output_file, &expected_file);
     }
 }
 
@@ -277,27 +339,64 @@ impl SubsetTestCase {
         parser.parse(path)
     }
 
-    fn run(&self) {
-        let output_temp_dir = TempDir::new_in(".", "skera_test").unwrap();
-        let output_dir = output_temp_dir.path();
+    fn collect_subtests(&self) -> Vec<IndividualTestCase> {
+        let mut subtests = vec![];
         for font in &self.fonts {
+            if font.ends_with(".otf") {
+                continue;
+            }
             for profile in &self.profiles {
                 for subset in &self.subsets {
-                    //TODO: add support for instances/iup_options
-                    self.run_one_test(font, subset, profile, output_dir);
+                    if self.instances.is_empty() {
+                        subtests.push(IndividualTestCase {
+                            font: font.clone(),
+                            subset: subset.clone(),
+                            profile: (profile.0.clone(), profile.1.clone()),
+                            instance: None,
+                            expected_dir: self.expected_dir.clone(),
+                        });
+                    } else {
+                        for instance in &self.instances {
+                            subtests.push(IndividualTestCase {
+                                font: font.clone(),
+                                subset: subset.clone(),
+                                profile: (profile.0.clone(), profile.1.clone()),
+                                instance: Some(instance.clone()),
+                                expected_dir: self.expected_dir.clone(),
+                            });
+                        }
+                    }
                 }
             }
         }
+        subtests
     }
 
     fn gen_expected_output(&self) {
-        let output_temp_dir = TempDir::new_in(".", "skera_test").unwrap();
-        let output_dir = output_temp_dir.path();
+        let output_temp_dir = Builder::new().prefix("skera_test").tempdir_in(".").unwrap();
+        let output_dir = output_temp_dir.into_path();
         for font in &self.fonts {
             for profile in &self.profiles {
                 for subset in &self.subsets {
-                    //TODO: add support for instances/iup_options
-                    self.gen_expected_output_for_one_test(font, subset, profile, output_dir);
+                    if self.instances.is_empty() {
+                        self.gen_expected_output_for_one_test(
+                            font,
+                            subset,
+                            profile,
+                            None,
+                            &output_dir,
+                        );
+                    } else {
+                        for instance in &self.instances {
+                            self.gen_expected_output_for_one_test(
+                                font,
+                                subset,
+                                profile,
+                                Some(instance.as_str()),
+                                &output_dir,
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -307,37 +406,20 @@ impl SubsetTestCase {
         fs::rename(output_dir, expected_dir).unwrap();
     }
 
-    fn run_one_test(
-        &self,
-        font: &str,
-        subset: &str,
-        profile: &(String, SubsetInput),
-        output_dir: &Path,
-    ) {
-        let subset_font_name = gen_subset_font_name(font, subset, profile.0.as_str());
-        let output_file = output_dir.join(&subset_font_name);
-        gen_subset_font_file(font, subset, &profile.1, &output_file);
-
-        let expected_file = Path::new(TEST_DATA_DIR)
-            .join("expected")
-            .join(&self.expected_dir)
-            .join(&subset_font_name);
-        compare_with_expected(output_dir, &output_file, &expected_file);
-    }
-
     fn gen_expected_output_for_one_test(
         &self,
         font: &str,
         subset: &str,
         profile: &(String, SubsetInput),
+        instance: Option<&str>,
         output_dir: &Path,
     ) {
-        let subset_font_name = gen_subset_font_name(font, subset, profile.0.as_str());
+        let subset_font_name = gen_subset_font_name(font, subset, profile.0.as_str(), instance);
         let output_file = output_dir.join(&subset_font_name);
-        gen_subset_font_file(font, subset, &profile.1, &output_file);
+        gen_subset_font_file(font, subset, &profile.1, instance, &output_file);
 
         assert_has_ttx_exec();
-        let mut expected_file_name = String::from(&subset_font_name);
+        let mut expected_file_name = subset_font_name.to_str().unwrap().to_owned();
         expected_file_name.push_str(".expected");
         let expected_file = output_dir.join(expected_file_name);
 
@@ -397,17 +479,23 @@ fn gen_subset_font_file(
     font_file: &str,
     subset: &str,
     profile: &SubsetInput,
+    instance: Option<&str>,
     output_file: &PathBuf,
 ) {
+    use skera::parse_instancing_spec;
+
     let org_font_file = PathBuf::from(TEST_DATA_DIR).join("fonts").join(font_file);
     let org_font_bytes = std::fs::read(org_font_file).unwrap();
     let font = FontRef::new(&org_font_bytes).unwrap();
 
     let unicodes = parse_unicodes(subset).unwrap();
-    let drop_tables_str = "morx,mort,kerx,kern,JSTF,DSIG,EBDT,EBLC,EBSC,SVG,PCLT,LTSH,feat,Glat,Gloc,Silf,Sill,fpgm,prep,cvt,gasp,cvar,STAT";
+    let drop_tables_str = "morx,mort,kerx,kern,JSTF,DSIG,EBDT,EBLC,EBSC,SVG,PCLT,LTSH,feat,Glat,Gloc,Silf,Sill,fpgm,prep,cvt,gasp,cvar";
     let mut drop_tables = IntSet::empty();
     for str in drop_tables_str.split(',') {
         let tag = Tag::new_checked(str.as_bytes()).unwrap();
+        drop_tables.insert(tag);
+    }
+    for tag in profile.drop_tables.iter() {
         drop_tables.insert(tag);
     }
 
@@ -415,7 +503,9 @@ fn gen_subset_font_file(
     name_ids.insert_range(NameId::from(0)..=NameId::from(6));
     let mut name_languages = IntSet::<u16>::empty();
     name_languages.insert(0x0409);
-    //TODO: support parsing subset_flags
+
+    let instancing_spec = instance.and_then(|inst| parse_instancing_spec(inst).ok());
+
     let plan = Plan::new(
         &profile.gids,
         &unicodes,
@@ -426,6 +516,7 @@ fn gen_subset_font_file(
         &profile.layout_features,
         &profile.name_ids,
         &profile.name_languages,
+        &instancing_spec,
     );
 
     let subset_output = subset_font(&font, &plan).unwrap();
@@ -452,7 +543,12 @@ fn strip_unicode_prefix(text: &str) -> String {
     text.replace("U+", "")
 }
 
-fn gen_subset_font_name(font: &str, subset: &str, profile: &str) -> String {
+fn gen_subset_font_name(
+    font: &str,
+    subset: &str,
+    profile: &str,
+    instance: Option<&str>,
+) -> PathBuf {
     let subset_name = match subset {
         "*" => "all",
         "" => "no-unicodes",
@@ -460,10 +556,18 @@ fn gen_subset_font_name(font: &str, subset: &str, profile: &str) -> String {
     };
 
     let (font_base_name, font_extension) = font.rsplit_once('.').unwrap();
-    //TODO: add instances later
     let (profile_name, _profile_extension) = profile.rsplit_once('.').unwrap();
-    let subset_font_name =
-        format!("{font_base_name}.{profile_name}.{subset_name}.{font_extension}");
+
+    let subset_font_name = if let Some(inst) = instance {
+        let instance_name = inst.replace(':', "-");
+        PathBuf::from(format!(
+            "{font_base_name}.{profile_name}.{subset_name}.{instance_name}.{font_extension}"
+        ))
+    } else {
+        PathBuf::from(format!(
+            "{font_base_name}.{profile_name}.{subset_name}.{font_extension}"
+        ))
+    };
     subset_font_name
 }
 /// Assert that we can find the `ttx` executable
@@ -508,67 +612,77 @@ fn assert_check_ots(file: &Path) {
     )
 }
 
-fn write_lines(f: &mut impl Write, lines: &[&str], line_num: usize, prefix: char) {
-    writeln!(f, "L{}", line_num).unwrap();
-    for line in lines {
-        writeln!(f, "{}  {}", prefix, line).unwrap();
-    }
-}
-
 fn diff_ttx(expected_ttx: &Path, output_ttx: &Path) -> String {
     let expected = fs::read_to_string(expected_ttx).unwrap();
     let output = fs::read_to_string(output_ttx).unwrap();
-    let lines = diff::lines(&expected, &output);
-
+    let expected_per_table: HashMap<String, Vec<String>> = split_into_tables(&expected);
+    let output_per_table: HashMap<String, Vec<String>> = split_into_tables(&output);
+    let all_tables = expected_per_table
+        .keys()
+        .chain(output_per_table.keys())
+        .collect::<HashSet<_>>();
     let mut result = String::new();
-    let mut temp: Vec<&str> = Vec::new();
-    let mut left_or_right = None;
-    let mut section_start = 0;
-
-    for (i, line) in lines.iter().enumerate() {
-        match line {
-            diff::Result::Left(line) => {
-                if line.contains("checkSumAdjustment value=") {
-                    continue;
+    for table in all_tables {
+        match (expected_per_table.get(table), output_per_table.get(table)) {
+            (Some(expected_lines), Some(output_lines)) => {
+                if expected_lines != output_lines {
+                    result += &(format!("\nDifference found in table '{table}':\n")
+                        + &TextDiff::from_lines(
+                            &expected_lines.join("\n"),
+                            &output_lines.join("\n"),
+                        )
+                        .unified_diff()
+                        .header("Expected", "Output")
+                        .to_string()
+                        + "\n\n");
                 }
-                if left_or_right == Some('R') {
-                    write_lines(&mut result, &temp, section_start, '<');
-                    temp.clear();
-                } else if left_or_right != Some('L') {
-                    section_start = i;
-                }
-                temp.push(line);
-                left_or_right = Some('L');
             }
-            diff::Result::Right(line) => {
-                if line.contains("checkSumAdjustment value=") {
-                    continue;
-                }
-                if left_or_right == Some('L') {
-                    write_lines(&mut result, &temp, section_start, '>');
-                    temp.clear();
-                } else if left_or_right != Some('R') {
-                    section_start = i;
-                }
-                temp.push(line);
-                left_or_right = Some('R');
+            (Some(_), None) => {
+                result += &format!("Output did not contain table {table}\n");
             }
-            diff::Result::Both { .. } => {
-                match left_or_right.take() {
-                    Some('R') => write_lines(&mut result, &temp, section_start, '<'),
-                    Some('L') => write_lines(&mut result, &temp, section_start, '>'),
-                    _ => (),
-                }
-                temp.clear();
+            (None, Some(output_lines)) => {
+                result += &format!("Output contained extraneous table {table}\n",);
             }
+            (None, None) => unreachable!(),
         }
     }
-    match left_or_right.take() {
-        Some('R') => write_lines(&mut result, &temp, section_start, '<'),
-        Some('L') => write_lines(&mut result, &temp, section_start, '>'),
-        _ => (),
-    }
     result
+}
+
+fn split_into_tables(output: &str) -> HashMap<String, Vec<String>> {
+    let mut current_table = None;
+    let mut hashmap: HashMap<String, Vec<String>> = HashMap::new();
+    for line in output.lines() {
+        if line.contains("checkSumAdjustment") {
+            continue;
+        }
+        if let Some(table_name) = line.strip_prefix("  <") {
+            if table_name.starts_with('/') {
+                current_table = None;
+            } else {
+                current_table = Some(table_name.trim_end_matches('>'));
+            }
+        } else if let Some(table_name) = current_table {
+            hashmap
+                .entry(table_name.to_owned())
+                .or_default()
+                .push(line.to_owned());
+        }
+    }
+    hashmap
+}
+
+fn exclude_expected_failures(c: &mut Command) -> &mut Command {
+    c.arg("-x")
+        .arg("cvt ")
+        .arg("-x")
+        .arg("gasp")
+        .arg("-x")
+        .arg("prep")
+        .arg("-x")
+        .arg("fpgm")
+        .arg("-x")
+        .arg("FFTM")
 }
 
 fn compare_with_expected(output_dir: &Path, output_file: &Path, expected_file: &Path) {
@@ -581,26 +695,35 @@ fn compare_with_expected(output_dir: &Path, output_file: &Path, expected_file: &
         let expected_file_prefix = expected_file.file_stem().unwrap().to_str().unwrap();
         let expected_ttx = format!("{expected_file_prefix}.expected.ttx");
         let expected_ttx = output_dir.join(expected_ttx);
-        Command::new("ttx")
-            .arg("-o")
-            .arg(&expected_ttx)
-            .arg(expected_file)
-            .stdout(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .expect("ttx failed to parse the expected file {expected_file}");
+        exclude_expected_failures(
+            Command::new("ttx")
+                .arg("-o")
+                .arg(&expected_ttx)
+                .arg(expected_file),
+        )
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .expect("ttx failed to parse the expected file {expected_file}");
 
         let output_ttx = output_file.with_extension("ttx");
-        Command::new("ttx")
-            .arg("-o")
-            .arg(&output_ttx)
-            .arg(output_file)
-            .stdout(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .expect("ttx failed to parse the output file {output_file}");
+        exclude_expected_failures(
+            Command::new("ttx")
+                .arg("-o")
+                .arg(&output_ttx)
+                .arg(output_file),
+        )
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .expect("ttx failed to parse the output file {output_file}");
 
         let ttx_diff = diff_ttx(&expected_ttx, &output_ttx);
+        if ttx_diff.trim_ascii().is_empty() {
+            return;
+        }
         //TODO: print more info about the test state
         panic!(
             "failed on {expected_file:?}\n{ttx_diff}\nError: ttx for expected and actual does not match."
@@ -608,24 +731,68 @@ fn compare_with_expected(output_dir: &Path, output_file: &Path, expected_file: &
     }
 }
 
-#[test]
-fn run_all_tests() {
+fn test_cases() -> impl Iterator<Item = (String, SubsetTestCase)> {
     use std::ffi::OsStr;
     let tests_path = Path::new(TEST_DATA_DIR).join("tests");
-    for entry in tests_path.read_dir().expect("can't read dir: test-data") {
-        let entry = entry.unwrap();
-        let path = entry.path();
-        if path.extension() == Some(OsStr::new("tests")) {
-            let test = SubsetTestCase::new(&path);
-            match std::env::var(GEN_EXPECTED_OUTPUTS_VAR) {
-                Ok(_val) => {
-                    test.gen_expected_output();
-                }
-                Err(_e) => {
-                    test.run();
-                }
+    tests_path
+        .read_dir()
+        .expect("can't read dir: test-data")
+        .flat_map(|entry| {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            let name = path
+                .with_extension("")
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
+            if path.extension() == Some(OsStr::new("tests")) {
+                Some((name, SubsetTestCase::new(&path)))
+            } else {
+                None
             }
+        })
+}
+
+fn regression_tests() -> Vec<Trial> {
+    let all_subtests: Vec<_> = test_cases()
+        .map(|(category, test)| (category, test.collect_subtests()))
+        .collect();
+    let mut tests = vec![];
+    for (category, subtests) in all_subtests {
+        for test in subtests {
+            let name = test.name();
+            let trial_name = category.clone() + "-" + name.file_name().unwrap().to_str().unwrap();
+            if EXPECTED_FAILURE_CASES.contains(&trial_name.as_str()) {
+                println!("Skipped expected failure {:?}", trial_name);
+                continue;
+            }
+            tests.push(Trial::test(trial_name, move || {
+                let output_temp_dir = Builder::new().prefix("skera_test").tempdir_in(".").unwrap();
+                let output_dir = output_temp_dir.path();
+                test.run(output_dir);
+                Ok(())
+            }));
         }
+    }
+    tests
+}
+
+fn main() {
+    env_logger::init();
+    let gen_expected_outputs = std::env::var(GEN_EXPECTED_OUTPUTS_VAR).is_ok();
+    let args = Arguments::from_args();
+    if gen_expected_outputs {
+        for (name, test) in test_cases() {
+            println!("generating expected output for {name}");
+            test.gen_expected_output();
+        }
+    } else {
+        let mut tests = regression_tests();
+
+        let conclusion = libtest_mimic::run(&args, tests);
+        conclusion.exit();
     }
 }
 

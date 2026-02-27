@@ -1,13 +1,11 @@
 //! impl subset() for hmtx
 
-use crate::serialize::Serializer;
-use crate::{Plan, Subset, SubsetError, SubsetError::SubsetTableError};
-use write_fonts::types::{FWord, GlyphId, UfWord};
+use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetError::SubsetTableError};
+use skrifa::raw::tables::mvar::tags::{HCOF, HCRN, HCRS};
 use write_fonts::{
-    read::{
-        tables::{hhea::Hhea, hmtx::Hmtx},
-        FontRef, TableProvider, TopLevelTable,
-    },
+    from_obj::ToOwnedTable,
+    read::{tables::hmtx::Hmtx, FontRef, TableProvider, TopLevelTable},
+    types::{FWord, GlyphId, UfWord},
     FontBuilder,
 };
 
@@ -36,18 +34,35 @@ impl Subset for Hmtx<'_> {
             .map_err(|_| SubsetError::SubsetTableError(Hmtx::TAG))?;
 
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
-            let new_gid = new_gid.to_u32() as usize;
-            if new_gid < new_num_h_metrics {
-                let idx = 4 * new_gid;
-                let advance = UfWord::from(self.advance(*old_gid).unwrap_or(0));
-                s.copy_assign(idx, advance);
-
-                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap_or(0));
-                s.copy_assign(idx + 2, lsb);
+            let new_gid_usize = new_gid.to_u32() as usize;
+            let old_lsb = self.side_bearing(*old_gid).unwrap_or(0);
+            let lsb = if plan.normalized_coords.is_empty() {
+                old_lsb
             } else {
-                let idx = 4 * new_num_h_metrics + (new_gid - new_num_h_metrics) * 2;
-                let lsb = FWord::from(self.side_bearing(*old_gid).unwrap_or(0));
-                s.copy_assign(idx, lsb);
+                plan.hmtx_map
+                    .borrow()
+                    .get(new_gid)
+                    .map(|(_, lsb)| *lsb)
+                    .unwrap_or(old_lsb)
+            };
+            if new_gid_usize < new_num_h_metrics {
+                let idx = 4 * new_gid_usize;
+                let old_advance = self.advance(*old_gid).unwrap_or(0);
+                let advance = if plan.normalized_coords.is_empty() {
+                    old_advance
+                } else {
+                    plan.hmtx_map
+                        .borrow()
+                        .get(new_gid)
+                        .map(|(aw, _)| *aw)
+                        .unwrap_or(old_advance)
+                };
+                s.copy_assign(idx, UfWord::from(advance));
+
+                s.copy_assign(idx + 2, FWord::from(lsb));
+            } else {
+                let idx = 4 * new_num_h_metrics + (new_gid_usize - new_num_h_metrics) * 2;
+                s.copy_assign(idx, FWord::from(lsb));
             }
         }
 
@@ -55,14 +70,42 @@ impl Subset for Hmtx<'_> {
             return Ok(());
         };
 
-        let mut hhea_out = hhea.offset_data().as_bytes().to_owned();
-        let new_num_h_metrics = (new_num_h_metrics as u16).to_be_bytes();
-        hhea_out
-            .get_mut(34..36)
-            .unwrap()
-            .copy_from_slice(&new_num_h_metrics);
+        let mut hhea_out: write_fonts::tables::hhea::Hhea = hhea.to_owned_table();
+        hhea_out.number_of_h_metrics = new_num_h_metrics as u16;
 
-        builder.add_raw(Hhea::TAG, hhea_out);
+        if !plan.normalized_coords.is_empty() {
+            hhea_out.caret_slope_rise +=
+                plan.mvar_entries.get(&HCRS).cloned().unwrap_or(0.0) as i16;
+            hhea_out.caret_slope_run += plan.mvar_entries.get(&HCRN).cloned().unwrap_or(0.0) as i16;
+            hhea_out.caret_offset += plan.mvar_entries.get(&HCOF).cloned().unwrap_or(0.0) as i16;
+
+            let mut empty = true;
+            let mut min_lsb = 0x7FFF;
+            let mut min_rsb: i16 = 0x7FFF;
+            let mut max_extent = -0x7FFF;
+            let mut max_adv = 0;
+            let bounds = plan.bounds_width_vec.borrow();
+            for (gid, &(advance, lsb)) in plan.hmtx_map.borrow().iter() {
+                max_adv = max_adv.max(advance);
+                if let Some(&bound_width) = bounds.get(gid) {
+                    empty = false;
+                    let rsb: i16 = (advance as i16) - lsb - (bound_width as i16);
+                    let extent = lsb + (bound_width as i16);
+                    min_lsb = min_lsb.min(lsb);
+                    min_rsb = min_rsb.min(rsb);
+                    max_extent = max_extent.max(extent);
+                }
+            }
+            hhea_out.advance_width_max = UfWord::new(max_adv);
+            if !empty {
+                hhea_out.min_left_side_bearing = FWord::new(min_lsb);
+                hhea_out.min_right_side_bearing = FWord::new(min_rsb);
+                hhea_out.x_max_extent = FWord::new(max_extent);
+            }
+        }
+        builder
+            .add_table(&hhea_out)
+            .map_err(|_| SubsetTableError(Hmtx::TAG))?;
         Ok(())
     }
 }

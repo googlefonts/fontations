@@ -1,8 +1,24 @@
 //! subsetter input parsing util functions
-use write_fonts::read::collections::{int_set::Domain, IntSet};
-use write_fonts::types::{GlyphId, NameId, Tag};
+use std::collections::BTreeMap;
+
+use write_fonts::{
+    read::collections::{int_set::Domain, IntSet},
+    types::{GlyphId, NameId, Tag},
+};
 
 use crate::SubsetError;
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct InstancingSpec {
+    pub pin_all_axes_to_default: bool,
+    pub axes: BTreeMap<Tag, AxisSpec>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AxisSpec {
+    PinToDefault,
+    Range { min: f32, def: f32, max: f32 },
+}
 
 pub fn populate_gids(gid_str: &str) -> Result<IntSet<GlyphId>, SubsetError> {
     if gid_str.trim() == "*" {
@@ -104,6 +120,93 @@ pub fn parse_name_languages(input_str: &str) -> Result<IntSet<u16>, SubsetError>
         raw.parse::<u16>()
             .map_err(|_| SubsetError::InvalidId(raw.to_owned()))
     })
+}
+
+/// Parse a HarfBuzz-style instancing spec string, returning the parsed axis settings.
+pub fn parse_instancing_spec(input_str: &str) -> Result<InstancingSpec, SubsetError> {
+    let mut spec = InstancingSpec::default();
+    if input_str.trim().is_empty() {
+        return Ok(spec);
+    }
+
+    for part in input_str
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|raw| !raw.is_empty())
+    {
+        let (raw_axis, raw_value) = part
+            .split_once('=')
+            .ok_or_else(|| SubsetError::InvalidId(part.to_owned()))?;
+
+        if raw_axis == "*" {
+            if raw_value != "drop" {
+                return Err(SubsetError::InvalidId(raw_value.to_owned()));
+            }
+            spec.pin_all_axes_to_default = true;
+            continue;
+        }
+
+        let axis_tag = parse_axis_tag(raw_axis)?;
+        if raw_value == "drop" {
+            spec.axes.insert(axis_tag, AxisSpec::PinToDefault);
+            continue;
+        }
+
+        let (min, def, max) = parse_axis_range_from_string(raw_value)?;
+        spec.axes
+            .insert(axis_tag, AxisSpec::Range { min, def, max });
+    }
+
+    Ok(spec)
+}
+
+fn parse_axis_tag(raw: &str) -> Result<Tag, SubsetError> {
+    let bytes = raw.as_bytes();
+    if bytes.is_empty() || bytes.len() > 4 {
+        return Err(SubsetError::InvalidTag(raw.to_owned()));
+    }
+
+    let mut padded = [b' '; 4];
+    padded[..bytes.len()].copy_from_slice(bytes);
+    Ok(Tag::new(&padded))
+}
+
+fn parse_axis_range_from_string(raw: &str) -> Result<(f32, f32, f32), SubsetError> {
+    if raw == "drop" {
+        return Ok((f32::NAN, f32::NAN, f32::NAN));
+    }
+
+    let parts: Vec<&str> = raw.split(':').collect();
+    match parts.len() {
+        1 => {
+            let value = parse_axis_value(parts[0])?;
+            Ok((value, value, value))
+        }
+        2 => {
+            let min = parse_axis_value_or_nan(parts[0])?;
+            let max = parse_axis_value_or_nan(parts[1])?;
+            Ok((min, f32::NAN, max))
+        }
+        3 => {
+            let min = parse_axis_value_or_nan(parts[0])?;
+            let def = parse_axis_value_or_nan(parts[1])?;
+            let max = parse_axis_value_or_nan(parts[2])?;
+            Ok((min, def, max))
+        }
+        _ => Err(SubsetError::InvalidId(raw.to_owned())),
+    }
+}
+
+fn parse_axis_value(raw: &str) -> Result<f32, SubsetError> {
+    raw.parse::<f32>()
+        .map_err(|_| SubsetError::InvalidId(raw.to_owned()))
+}
+
+fn parse_axis_value_or_nan(raw: &str) -> Result<f32, SubsetError> {
+    if raw.is_empty() {
+        return Ok(f32::NAN);
+    }
+
+    parse_axis_value(raw)
 }
 
 #[test]

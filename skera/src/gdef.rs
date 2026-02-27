@@ -20,7 +20,7 @@ use write_fonts::{
         types::GlyphId,
         FontRef, TopLevelTable,
     },
-    types::Offset16,
+    types::{Offset16, Offset32},
     FontBuilder,
 };
 
@@ -35,7 +35,10 @@ impl Subset for Gdef<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        subset_gdef(self, plan, s, state).map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))
+        match subset_gdef(self, plan, s, state) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(SubsetError::SubsetTableError(Gdef::TAG)),
+        }
     }
 }
 
@@ -45,6 +48,10 @@ fn subset_gdef(
     s: &mut Serializer,
     state: &mut SubsetState,
 ) -> Result<(), SerializeErrorFlags> {
+    let log_err = |label: &'static str, err: SerializeErrorFlags| {
+        log::warn!("GDEF subset failed at {}: {:?}", label, err);
+        err
+    };
     let version = gdef.version();
     // major version
     s.embed(version.major)?;
@@ -86,8 +93,8 @@ fn subset_gdef(
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
             let snapshot_version2 = s.snapshot();
-            let var_store_offset_pos = s.embed(0_u16)?;
-            match Offset16::serialize_subset(
+            let var_store_offset_pos = s.embed(0_u32)?;
+            match Offset32::serialize_subset(
                 &var_store,
                 s,
                 plan,
@@ -99,9 +106,7 @@ fn subset_gdef(
                     s.revert_snapshot(snapshot_version2);
                     false
                 }
-                Err(e) => {
-                    return Err(e);
-                }
+                Err(e) => return Err(log_err("var_store", e)),
             }
         } else {
             false
@@ -125,9 +130,7 @@ fn subset_gdef(
             ) {
                 Ok(()) => true,
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => false,
-                Err(e) => {
-                    return Err(e);
-                }
+                Err(e) => return Err(log_err("mark_glyph_sets_def", e)),
             }
         } else {
             false
@@ -165,9 +168,7 @@ fn subset_gdef(
         ) {
             Ok(_) => true,
             Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => false,
-            Err(e) => {
-                return Err(e);
-            }
+            Err(e) => return Err(log_err("mark_attach_class_def", e)),
         }
     } else {
         false
@@ -181,9 +182,7 @@ fn subset_gdef(
         match Offset16::serialize_subset(&ligcaret_list, s, plan, (), ligcaret_list_offset_pos) {
             Ok(_) => true,
             Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => false,
-            Err(e) => {
-                return Err(e);
-            }
+            Err(e) => return Err(log_err("lig_caret_list", e)),
         }
     } else {
         false
@@ -197,9 +196,7 @@ fn subset_gdef(
         match Offset16::serialize_subset(&attach_list, s, plan, (), attachlist_offset_pos) {
             Ok(_) => true,
             Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => false,
-            Err(e) => {
-                return Err(e);
-            }
+            Err(e) => return Err(log_err("attach_list", e)),
         }
     } else {
         false
@@ -224,9 +221,7 @@ fn subset_gdef(
         ) {
             Ok(_) => true,
             Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => false,
-            Err(e) => {
-                return Err(e);
-            }
+            Err(e) => return Err(log_err("glyph_class_def", e)),
         }
     } else {
         false
@@ -484,7 +479,7 @@ impl SubsetTable<'_> for CaretValueFormat3<'_> {
             &device,
             s,
             plan,
-            &plan.layout_varidx_delta_map,
+            &plan.layout_varidx_delta_map.borrow(),
             device_offset_pos,
         )
     }

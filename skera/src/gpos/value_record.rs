@@ -5,6 +5,10 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetTable,
 };
+use skrifa::raw::{
+    tables::{gpos::DeviceOrVariationIndex, variations::NO_VARIATION_INDEX},
+    ReadError,
+};
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -18,6 +22,8 @@ pub(crate) fn compute_effective_format(
     value_record: &ValueRecord,
     strip_hints: bool,
     strip_empty: bool,
+    font_data: FontData,
+    plan: Option<&Plan>,
 ) -> ValueFormat {
     let mut value_format = ValueFormat::empty();
 
@@ -46,21 +52,133 @@ pub(crate) fn compute_effective_format(
     }
 
     if !value_record.x_placement_device.get().is_null() && !strip_hints {
-        value_format |= ValueFormat::X_PLACEMENT_DEVICE;
+        update_var_flag(
+            value_record.x_placement_device(font_data),
+            ValueFormat::X_PLACEMENT_DEVICE,
+            &mut value_format,
+            plan,
+        );
     }
 
     if !value_record.y_placement_device.get().is_null() && !strip_hints {
-        value_format |= ValueFormat::Y_PLACEMENT_DEVICE;
+        update_var_flag(
+            value_record.y_placement_device(font_data),
+            ValueFormat::Y_PLACEMENT_DEVICE,
+            &mut value_format,
+            plan,
+        );
     }
 
     if !value_record.x_advance_device.get().is_null() && !strip_hints {
-        value_format |= ValueFormat::X_ADVANCE_DEVICE;
+        update_var_flag(
+            value_record.x_advance_device(font_data),
+            ValueFormat::X_ADVANCE_DEVICE,
+            &mut value_format,
+            plan,
+        );
     }
 
     if !value_record.y_advance_device.get().is_null() && !strip_hints {
-        value_format |= ValueFormat::Y_ADVANCE_DEVICE;
+        update_var_flag(
+            value_record.y_advance_device(font_data),
+            ValueFormat::Y_ADVANCE_DEVICE,
+            &mut value_format,
+            plan,
+        );
     }
     value_format
+}
+
+fn update_var_flag(
+    value: Option<Result<DeviceOrVariationIndex<'_>, ReadError>>,
+    flag: ValueFormat,
+    format: &mut ValueFormat,
+    plan: Option<&Plan>,
+) {
+    if let Some(plan_ref) = plan {
+        let varidx_map = plan_ref.layout_varidx_delta_map.borrow();
+
+        if let Some(varidx) = value.transpose().ok().flatten() {
+            {
+                match varidx {
+                    DeviceOrVariationIndex::Device(_device) => {
+                        // For device tables, we conservatively assume they may have non-zero deltas and keep the flag
+                        *format |= flag;
+                        log::debug!("Device table found, keeping format flag {:?} for now", flag);
+                    }
+                    DeviceOrVariationIndex::VariationIndex(varidx) => {
+                        let ix = varidx.delta_set_inner_index() as u32
+                            | ((varidx.delta_set_outer_index() as u32) << 16);
+                        if let Some((first, _)) = varidx_map.get(&ix) {
+                            if *first != NO_VARIATION_INDEX {
+                                log::debug!(
+                                "Variation index has non-zero delta , keeping format flag {:?}.",
+                                flag
+                            );
+                                *format |= flag;
+                                return;
+                            }
+                        } else {
+                            log::debug!("Variation index not found in delta map, clearing format flag {:?} to be safe.", flag);
+                        }
+                    }
+                }
+            }
+            *format &= !flag;
+        }
+    } else {
+        *format |= flag;
+    }
+}
+/// Apply delta to a base value if applicable during instancing.
+/// For now, we don't apply deltas at the base value level as the device/varidx handling
+/// is done through the Device subset logic. This is a placeholder for future enhancements.
+fn apply_value_delta(
+    value_record: &ValueRecord,
+    which_one: ValueFormat,
+    font_data: FontData,
+    plan: &Plan,
+) -> i16 {
+    let base = match which_one {
+        ValueFormat::X_PLACEMENT => value_record.x_placement.unwrap_or_default().get(),
+        ValueFormat::Y_PLACEMENT => value_record.y_placement.unwrap_or_default().get(),
+        ValueFormat::X_ADVANCE => value_record.x_advance.unwrap_or_default().get(),
+        ValueFormat::Y_ADVANCE => value_record.y_advance.unwrap_or_default().get(),
+        _ => 0, // For device/varidx fields, the deltas are handled in the device subset logic}
+    };
+    let device_offset = match which_one {
+        ValueFormat::X_PLACEMENT => value_record
+            .x_placement_device(font_data)
+            .transpose()
+            .ok()
+            .flatten(),
+        ValueFormat::Y_PLACEMENT => value_record
+            .y_placement_device(font_data)
+            .transpose()
+            .ok()
+            .flatten(),
+        ValueFormat::X_ADVANCE => value_record
+            .x_advance_device(font_data)
+            .transpose()
+            .ok()
+            .flatten(),
+        ValueFormat::Y_ADVANCE => value_record
+            .y_advance_device(font_data)
+            .transpose()
+            .ok()
+            .flatten(),
+        _ => None,
+    };
+    if let Some(DeviceOrVariationIndex::VariationIndex(varidx)) = device_offset {
+        // Encode the two-level variation index as a single u32:
+        // combine outer and inner indices as (outer << 16) | inner
+        let combined_idx = ((varidx.delta_set_outer_index() as u32) << 16)
+            | (varidx.delta_set_inner_index() as u32);
+        if let Some((_idx, delta)) = plan.layout_varidx_delta_map.borrow().get(&combined_idx) {
+            return base.saturating_add(*delta as i16);
+        }
+    }
+    base
 }
 
 impl<'a> SubsetTable<'a> for ValueRecord {
@@ -69,7 +187,7 @@ impl<'a> SubsetTable<'a> for ValueRecord {
 
     fn subset(
         &self,
-        plan: &Plan,
+        _plan: &Plan,
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
@@ -79,19 +197,23 @@ impl<'a> SubsetTable<'a> for ValueRecord {
         }
 
         if new_format.contains(ValueFormat::X_PLACEMENT) {
-            s.embed(self.x_placement().unwrap_or(0))?;
+            let value = apply_value_delta(self, ValueFormat::X_PLACEMENT, font_data, _plan);
+            s.embed(value)?;
         }
 
         if new_format.contains(ValueFormat::Y_PLACEMENT) {
-            s.embed(self.y_placement().unwrap_or(0))?;
+            let value = apply_value_delta(self, ValueFormat::Y_PLACEMENT, font_data, _plan);
+            s.embed(value)?;
         }
 
         if new_format.contains(ValueFormat::X_ADVANCE) {
-            s.embed(self.x_advance().unwrap_or(0))?;
+            let value = apply_value_delta(self, ValueFormat::X_ADVANCE, font_data, _plan);
+            s.embed(value)?;
         }
 
         if new_format.contains(ValueFormat::Y_ADVANCE) {
-            s.embed(self.y_advance().unwrap_or(0))?;
+            let value = apply_value_delta(self, ValueFormat::Y_ADVANCE, font_data, _plan);
+            s.embed(value)?;
         }
 
         if !new_format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
@@ -108,8 +230,8 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                 Offset16::serialize_subset(
                     &device,
                     s,
-                    plan,
-                    &plan.layout_varidx_delta_map,
+                    _plan,
+                    &_plan.layout_varidx_delta_map.borrow(),
                     offset_pos,
                 )?;
             }
@@ -125,8 +247,8 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                 Offset16::serialize_subset(
                     &device,
                     s,
-                    plan,
-                    &plan.layout_varidx_delta_map,
+                    _plan,
+                    &_plan.layout_varidx_delta_map.borrow(),
                     offset_pos,
                 )?;
             }
@@ -142,8 +264,8 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                 Offset16::serialize_subset(
                     &device,
                     s,
-                    plan,
-                    &plan.layout_varidx_delta_map,
+                    _plan,
+                    &_plan.layout_varidx_delta_map.borrow(),
                     offset_pos,
                 )?;
             }
@@ -159,12 +281,13 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                 Offset16::serialize_subset(
                     &device,
                     s,
-                    plan,
-                    &plan.layout_varidx_delta_map,
+                    _plan,
+                    &_plan.layout_varidx_delta_map.borrow(),
                     offset_pos,
                 )?;
             }
         }
+
         Ok(())
     }
 }
