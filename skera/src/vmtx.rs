@@ -36,18 +36,35 @@ impl Subset for Vmtx<'_> {
             .map_err(|_| SubsetError::SubsetTableError(Vmtx::TAG))?;
 
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
-            let new_gid = new_gid.to_u32() as usize;
-            if new_gid < new_num_v_metrics {
-                let idx = 4 * new_gid;
-                let advance = UfWord::from(self.advance(*old_gid).unwrap_or(0));
-                s.copy_assign(idx, advance);
-
-                let tsb = FWord::from(self.side_bearing(*old_gid).unwrap_or(0));
-                s.copy_assign(idx + 2, tsb);
+            let new_gid_usize = new_gid.to_u32() as usize;
+            let old_tsb = self.side_bearing(*old_gid).unwrap_or(0);
+            let tsb = if plan.normalized_coords.is_empty() {
+                old_tsb
             } else {
-                let idx = 4 * new_num_v_metrics + (new_gid - new_num_v_metrics) * 2;
-                let tsb = FWord::from(self.side_bearing(*old_gid).unwrap_or(0));
-                s.copy_assign(idx, tsb);
+                plan.vmtx_map
+                    .borrow()
+                    .get(new_gid)
+                    .map(|(_, tsb)| *tsb)
+                    .unwrap_or(old_tsb)
+            };
+            if new_gid_usize < new_num_v_metrics {
+                let idx = 4 * new_gid_usize;
+                let old_advance = self.advance(*old_gid).unwrap_or(0);
+                let advance = if plan.normalized_coords.is_empty() {
+                    old_advance
+                } else {
+                    plan.vmtx_map
+                        .borrow()
+                        .get(new_gid)
+                        .map(|(aw, _)| *aw)
+                        .unwrap_or(old_advance)
+                };
+                s.copy_assign(idx, UfWord::from(advance));
+
+                s.copy_assign(idx + 2, FWord::from(tsb));
+            } else {
+                let idx = 4 * new_num_v_metrics + (new_gid_usize - new_num_v_metrics) * 2;
+                s.copy_assign(idx, FWord::from(tsb));
             }
         }
 
