@@ -307,6 +307,26 @@ impl Charstrings {
         }
         None
     }
+
+    fn push(&mut self, name: &[u8], data: &[u8], len_iv: i64) {
+        let start = self.data.len();
+        if len_iv >= 0 {
+            // use decryption; skip first len_iv bytes
+            self.data
+                .extend(decrypt(data.iter().copied(), CHARSTRING_SEED).skip(len_iv as usize));
+        } else {
+            // just add the data
+            self.data.extend_from_slice(data);
+        }
+        let end = self.data.len();
+        let name_start = self.names.len();
+        self.names.extend_from_slice(name);
+        let name_end = self.names.len();
+        self.index.push(CharstringEntry {
+            name: name_start..name_end,
+            data: start..end,
+        });
+    }
 }
 
 /// Simulated .notdef glyph, same as FreeType:
@@ -661,24 +681,7 @@ impl Parser<'_> {
             let Token::Binary(data) = self.next()? else {
                 return None;
             };
-            let start = charstrings.data.len();
-            if len_iv >= 0 {
-                // use decryption; skip first len_iv bytes
-                charstrings
-                    .data
-                    .extend(decrypt(data.iter().copied(), CHARSTRING_SEED).skip(len_iv as usize));
-            } else {
-                // just add the data
-                charstrings.data.extend_from_slice(data);
-            }
-            let end = charstrings.data.len();
-            let name_start = charstrings.names.len();
-            charstrings.names.extend_from_slice(name);
-            let name_end = charstrings.names.len();
-            charstrings.index.push(CharstringEntry {
-                name: name_start..name_end,
-                data: start..end,
-            });
+            charstrings.push(name, data, len_iv);
         }
         match notdef_idx {
             Some(0) => {
@@ -693,17 +696,8 @@ impl Parser<'_> {
             None => {
                 // .notdef not found. Add it to the end and then swap with
                 // the glyph at 0
-                let start = charstrings.data.len();
-                charstrings.data.extend_from_slice(NOTDEF_GLYPH);
-                let end = charstrings.data.len();
-                let name_start = charstrings.names.len();
-                charstrings.names.extend_from_slice(b".notdef");
-                let name_end = charstrings.names.len();
                 let idx = charstrings.index.len();
-                charstrings.index.push(CharstringEntry {
-                    name: name_start..name_end,
-                    data: start..end,
-                });
+                charstrings.push(b".notdef", NOTDEF_GLYPH, -1);
                 charstrings.index.swap(0, idx);
                 charstrings.orig_notdef_index = Some(idx);
             }
