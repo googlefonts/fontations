@@ -609,6 +609,12 @@ fn compile_header_bytes(
             log::debug!("Setting composite glyph {} bbox to {:?}", new_gid, bounds);
             composite_glyph.bbox = bounds.into();
             log::debug!("Composite bbox is now {:?}", composite_glyph.bbox);
+            plan.head_maxp_info.borrow_mut().update_extrema(
+                composite_glyph.bbox.x_min,
+                composite_glyph.bbox.y_min,
+                composite_glyph.bbox.x_max,
+                composite_glyph.bbox.y_max,
+            );
         }
     }
 
