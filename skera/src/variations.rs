@@ -37,6 +37,7 @@ use write_fonts::{
     OtRound,
 };
 
+pub(crate) mod featurevar;
 pub(crate) mod solver;
 
 /// Hashable wrapper around a region (axis coordinates map).
