@@ -357,6 +357,18 @@ pub struct Plan {
     gsub_features_w_duplicates: FnvHashMap<u16, u16>,
     gpos_features_w_duplicates: FnvHashMap<u16, u16>,
 
+    // active feature variation records/condition index with variations
+    gsub_feature_record_cond_idx_map: FnvHashMap<u16, IntSet<u16>>,
+    gpos_feature_record_cond_idx_map: FnvHashMap<u16, IntSet<u16>>,
+
+    // feature index-> address of substitution feature table mapping with
+    // variations
+    // We may need our own representation of Feature to make this work.
+    // gsub_feature_substitutes_map: FnvHashMap<u16, Feature>,
+    // gpos_feature_substitutes_map: FnvHashMap<u16, Feature>,
+    gsub_catch_all_record_feature_idx: IntSet<u16>,
+    gpos_catch_all_record_feature_idx: IntSet<u16>,
+
     // active old->new lookup index map
     gsub_lookups: FnvHashMap<u16, u16>,
     gpos_lookups: FnvHashMap<u16, u16>,
