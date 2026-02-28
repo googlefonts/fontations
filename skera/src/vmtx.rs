@@ -126,6 +126,12 @@ fn compute_new_num_v_metrics(vmtx: &Vmtx, plan: &Plan) -> usize {
 }
 
 fn get_new_gid_advance(vmtx: &Vmtx, new_gid: GlyphId, plan: &Plan) -> u16 {
+    if !plan.normalized_coords.is_empty() {
+        if let Some((advance, _)) = plan.vmtx_map.borrow().get(&new_gid) {
+            return *advance;
+        }
+    }
+
     let Some(old_gid) = plan.reverse_glyph_map.get(&new_gid) else {
         return 0;
     };
