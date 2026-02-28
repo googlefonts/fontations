@@ -1290,7 +1290,13 @@ fn get_points_harfbuzz_standalone(
                 all_points.append(&mut child_points);
 
                 // Copy USE_MY_METRICS phantoms if needed
-                if use_my_metrics && comp_points_len >= PHANTOM_POINT_COUNT {
+                // NOTE: According to Harfbuzz behavior and testing, USE_MY_METRICS affects
+                // rasterizer behavior but does NOT change which phantom points are used for
+                // the final metrics table. The composite glyph's own phantom points (after
+                // applying the composite's gvar deltas) should be used, not the component's.
+                // Copying the component's phantoms here causes incorrect advance widths.
+                // See: https://github.com/harfbuzz/harfbuzz/blob/main/src/OT/glyf/Glyph.hh
+                if false && use_my_metrics && comp_points_len >= PHANTOM_POINT_COUNT {
                     let comp_phantom_start = all_points.len() - PHANTOM_POINT_COUNT;
                     phantoms[..PHANTOM_POINT_COUNT].copy_from_slice(
                         &all_points[comp_phantom_start..(PHANTOM_POINT_COUNT + comp_phantom_start)],
