@@ -85,18 +85,7 @@ impl Subset for Glyf<'_> {
         // _populate_subset_glyphs
         for (new_gid, old_gid) in &plan.new_to_old_gid_list {
             match loca.get_glyf(*old_gid, self) {
-                Ok(mut maybe_glyph) => {
-                    if *old_gid == GlyphId::NOTDEF
-                        && *new_gid == GlyphId::NOTDEF
-                        && !plan
-                            .subset_flags
-                            .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
-                    {
-                        // We still need to go through with this to set up the metrics,
-                        // so we need an empty glyph.
-                        maybe_glyph = None;
-                    }
-
+                Ok(maybe_glyph) => {
                     let subset_glyph = if !plan.normalized_coords.is_empty() {
                         // This is old_gid since we are pretending to be the old font when applying deltas
                         compile_bytes_with_deltas(
@@ -107,7 +96,17 @@ impl Subset for Glyf<'_> {
                         )
                         .map_err(|_| SubsetError::SubsetTableError(Glyf::TAG))?
                     } else {
-                        subset_glyph(maybe_glyph.as_ref(), plan)
+                        let glyph_for_subset = if *old_gid == GlyphId::NOTDEF
+                            && *new_gid == GlyphId::NOTDEF
+                            && !plan
+                                .subset_flags
+                                .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
+                        {
+                            None
+                        } else {
+                            maybe_glyph.as_ref()
+                        };
+                        subset_glyph(glyph_for_subset, plan)
                     };
 
                     let trimmed_len = subset_glyph.len();
@@ -498,13 +497,20 @@ impl<'a> GlyfAccelerator<'a> {
             if apply_len == 0 {
                 return;
             }
-            for (point, delta) in target_points
-                .0
-                .iter_mut()
-                .zip(deltas.iter())
-                .take(apply_len)
-            {
-                point.add_delta(delta.x, delta.y);
+            if apply_len == PHANTOM_POINT_COUNT && target_points.0.len() > PHANTOM_POINT_COUNT {
+                let start = target_points.0.len() - PHANTOM_POINT_COUNT;
+                for (point, delta) in target_points.0[start..].iter_mut().zip(deltas.iter()) {
+                    point.add_delta(delta.x, delta.y);
+                }
+            } else {
+                for (point, delta) in target_points
+                    .0
+                    .iter_mut()
+                    .zip(deltas.iter())
+                    .take(apply_len)
+                {
+                    point.add_delta(delta.x, delta.y);
+                }
             }
         } else {
             log::error!(
@@ -586,14 +592,12 @@ fn compile_header_bytes(
     write_glyph: &mut write_fonts::tables::glyf::Glyph,
     plan: &Plan,
     all_points: Vec<ContourPoint>,
-    new_gid: GlyphId,
+    old_gid: GlyphId,
 ) {
     let points = ContourPoints(all_points);
-    points.update_mtx(
-        plan,
-        new_gid,
-        matches!(write_glyph, write_fonts::tables::glyf::Glyph::Empty),
-    );
+    let is_empty = matches!(write_glyph, write_fonts::tables::glyf::Glyph::Empty);
+
+    points.update_mtx(plan, old_gid, is_empty);
     let Some(points_without_phantoms) = points.without_phantoms() else {
         if let write_fonts::tables::glyf::Glyph::Simple(simple_glyph) = write_glyph {
             simple_glyph.recompute_bounding_box()
@@ -606,7 +610,6 @@ fn compile_header_bytes(
         write_fonts::tables::glyf::Glyph::Empty => {}
         write_fonts::tables::glyf::Glyph::Simple(_simple_glyph) => {}
         write_fonts::tables::glyf::Glyph::Composite(composite_glyph) => {
-            log::debug!("Setting composite glyph {} bbox to {:?}", new_gid, bounds);
             composite_glyph.bbox = bounds.into();
             log::debug!("Composite bbox is now {:?}", composite_glyph.bbox);
             plan.head_maxp_info.borrow_mut().update_extrema(
@@ -653,6 +656,10 @@ fn make_composite_glyph_with_deltas(
         "There should be at least as many points with deltas ({}) as there are components plus the phantom points ({})",
         points_with_deltas.len(),
         component_count + PHANTOM_POINT_COUNT,
+    );
+    log::debug!(
+        "Points with deltas for composite glyph: {:?}",
+        points_with_deltas
     );
     let points_without_phantoms: Vec<ContourPoint> = points_with_deltas
         .into_iter()
@@ -752,10 +759,10 @@ fn make_simple_glyph_with_deltas(
     let mut y_max: i16 = i16::MIN;
     // unsigned num_points = all_points.length - 4; ->
     // last 4 points in points_with_deltas are phantom points and should not be included
-    // log::debug!(
-    //     "Points with deltas for simple glyph: {:?}",
-    //     points_with_deltas
-    // );
+    log::debug!(
+        "Points with deltas for simple glyph: {:?}",
+        points_with_deltas
+    );
     for (ix, point) in points_with_deltas.iter().enumerate() {
         if ix >= points_with_deltas.len() - 4 {
             break;
@@ -1034,13 +1041,17 @@ impl ContourPoints {
 
         if let Some((left_side_x, right_side_x, top_side_y, bottom_side_y)) = self.phantom_bounds()
         {
-            let hori_aw: u16 = (right_side_x - left_side_x).ot_round();
-            let lsb: i16 = (bounds.x_min - left_side_x).ot_round();
+            let hori_aw: u16 = (right_side_x - left_side_x).round() as u16;
+            let lsb: i16 = (bounds.x_min - left_side_x).round() as i16;
             log::warn!(
-                "Setting hmtx metrics for glyph {}, hori_aw: {}, lsb: {}, based on phantom points",
+                "Setting hmtx metrics for glyph {} (old_gid: {}), hori_aw: {} (unrounded: {}), lsb: {} (unrounded: {}), based on phantom points",
                 new_gid,
+                old_gid,
                 hori_aw,
-                lsb
+                right_side_x - left_side_x,
+                lsb,
+                bounds.x_min - left_side_x
+
             );
 
             plan.hmtx_map.borrow_mut().insert(new_gid, (hori_aw, lsb));
@@ -1252,6 +1263,14 @@ fn get_points_harfbuzz_standalone(
         }
         Some(Glyph::Composite(composite_glyph)) => {
             // Harfbuzz lines ~419-467: This is the complex recursive section
+
+            if depth == 0 && !coords.is_empty() {
+                log::warn!(
+                    "Composite glyph {} phantoms before component processing: {:?}",
+                    gid,
+                    &phantoms
+                );
+            }
 
             for (comp_index, component) in composite_glyph.components().enumerate() {
                 let item_gid = component.glyph.into();

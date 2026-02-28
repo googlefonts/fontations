@@ -51,11 +51,20 @@ impl Subset for Hmtx<'_> {
                 let advance = if plan.normalized_coords.is_empty() {
                     old_advance
                 } else {
-                    plan.hmtx_map
-                        .borrow()
-                        .get(new_gid)
-                        .map(|(aw, _)| *aw)
-                        .unwrap_or(old_advance)
+                    if let Some((aw, _)) = plan.hmtx_map.borrow().get(new_gid) {
+                        if new_gid.to_u32() == 0 {
+                            log::warn!("notdef: from hmtx_map, advance={}", aw);
+                        }
+                        *aw
+                    } else {
+                        if new_gid.to_u32() == 0 {
+                            log::warn!(
+                                "notdef: NOT in hmtx_map, using old_advance={}",
+                                old_advance
+                            );
+                        }
+                        old_advance
+                    }
                 };
                 s.copy_assign(idx, UfWord::from(advance));
 

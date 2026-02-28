@@ -1282,18 +1282,6 @@ impl Plan {
                         &mut deltas_buffer,
                     )
                     .map_err(SubsetError::ReadError)?;
-                    if *new_gid == GlyphId::NOTDEF
-                        && !self
-                            .subset_flags
-                            .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
-                        && deltas_buffer.len() >= PHANTOM_POINT_COUNT
-                    {
-                        deltas_buffer = deltas_buffer
-                            .iter()
-                            .skip(deltas_buffer.len() - PHANTOM_POINT_COUNT)
-                            .cloned()
-                            .collect();
-                    }
                     // log::debug!("Deltas for glyph id {:?}: {:?}", new_gid, deltas_buffer);
                     self.new_gid_instance_deltas_map
                         .insert(*new_gid, deltas_buffer);
