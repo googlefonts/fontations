@@ -1106,16 +1106,6 @@ impl Plan {
             return Ok(());
         }; // loca but no glyf? No outlines for you.
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
-            if new_gid.to_u32() == 0
-                && !(self
-                    .subset_flags
-                    .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE))
-            {
-                // .notdef with no outline. Get an empty entry. No phantom points, cope with that elsewhere.
-                self.new_gid_contour_points_map
-                    .insert(*new_gid, ContourPoints::default());
-                continue;
-            }
             let glyph_result = loca.get_glyf(*old_gid, &glyf);
 
             let glyph = match glyph_result {
@@ -1221,6 +1211,16 @@ impl Plan {
             log::debug!("Instantiating at coords (16.16): {:?}", coords);
             match glyph {
                 Some(Glyph::Simple(simple_glyph)) => {
+                    if simple_glyph.num_points() == 0 {
+                        let mut deltas_buffer =
+                            vec![font_types::Point { x: 0.0, y: 0.0 }; PHANTOM_POINT_COUNT];
+                        composite_glyph_deltas(&gvar, *old_gid, coords, &mut deltas_buffer)
+                            .map_err(SubsetError::ReadError)?;
+                        self.new_gid_instance_deltas_map
+                            .insert(*new_gid, deltas_buffer);
+                        continue;
+                    }
+
                     let mut points: Vec<Point<f32>> =
                         vec![Point { x: 0.0, y: 0.0 }; simple_glyph.num_points()];
                     let mut flags: Vec<PointFlags> =
@@ -1238,16 +1238,6 @@ impl Plan {
                         log::warn!("Contour points not found for glyph id {:?}, skipping gvar delta calculation for this glyph", new_gid);
                         continue;
                     };
-                    if contour_points.0.is_empty()
-                        && new_gid == &GlyphId::NOTDEF
-                        && !(self
-                            .subset_flags
-                            .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE))
-                    {
-                        // Glyph becomes empty and has no deltas
-                        self.new_gid_instance_deltas_map.insert(*new_gid, vec![]);
-                        continue;
-                    }
                     let phantoms = contour_points
                         .0
                         .iter()
@@ -1266,7 +1256,7 @@ impl Plan {
                     };
                     assert_eq!(
                         points.len(),
-                        simple_glyph.num_points() as usize + PHANTOM_POINT_COUNT
+                        simple_glyph.num_points() + PHANTOM_POINT_COUNT
                     );
                     let mut deltas_buffer =
                         vec![font_types::Point { x: 0.0, y: 0.0 }; points.len()];
@@ -1280,6 +1270,18 @@ impl Plan {
                         &mut deltas_buffer,
                     )
                     .map_err(SubsetError::ReadError)?;
+                    if *new_gid == GlyphId::NOTDEF
+                        && !self
+                            .subset_flags
+                            .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
+                        && deltas_buffer.len() >= PHANTOM_POINT_COUNT
+                    {
+                        deltas_buffer = deltas_buffer
+                            .iter()
+                            .skip(deltas_buffer.len() - PHANTOM_POINT_COUNT)
+                            .cloned()
+                            .collect();
+                    }
                     // log::debug!("Deltas for glyph id {:?}: {:?}", new_gid, deltas_buffer);
                     self.new_gid_instance_deltas_map
                         .insert(*new_gid, deltas_buffer);
