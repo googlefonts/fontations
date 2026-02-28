@@ -1302,7 +1302,7 @@ fn get_points_harfbuzz_standalone(
 
                     let anchor_point = anchor_points
                         .as_ref()
-                        .and_then(|points| points.get(comp_index))
+                        .and_then(|points| points.get(old_length + comp_index))
                         .copied()
                         .unwrap_or_else(|| ContourPoint::new(0.0, 0.0, false, false));
                     let (dx, dy) = (anchor_point.x, anchor_point.y);
