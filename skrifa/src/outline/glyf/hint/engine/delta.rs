@@ -5,6 +5,7 @@
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-exceptions>
 
 use super::{super::graphics::CoordAxis, Engine, F26Dot6, OpResult};
+use crate::outline::InterpreterVersion;
 use read_fonts::tables::glyf::bytecode::Opcode;
 
 impl Engine<'_> {
@@ -41,6 +42,7 @@ impl Engine<'_> {
             Opcode::DELTAP3 => 32,
             _ => 0,
         } + gs.delta_base as u32;
+        let iv = gs.interpreter_version;
         let back_compat = gs.backward_compatibility;
         let did_iup = gs.did_iup_x && gs.did_iup_y;
         for _ in 0..n {
@@ -63,7 +65,7 @@ impl Engine<'_> {
                 }
                 b *= 1 << (6 - gs.delta_shift as i32);
                 let distance = F26Dot6::from_bits(b);
-                if back_compat {
+                if iv == InterpreterVersion::_40 && back_compat {
                     if !did_iup
                         && ((gs.is_composite && gs.freedom_vector.y != 0)
                             || gs.zp0().is_touched(point_ix, CoordAxis::Y)?)

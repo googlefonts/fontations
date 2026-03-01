@@ -10,6 +10,10 @@ use super::{
 use crate::alloc::{boxed::Box, vec::Vec};
 use raw::types::Fixed;
 
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::CoreFloat;
+
 /// Configuration settings for a hinting instance.
 #[derive(Clone, Default, Debug)]
 pub struct HintingOptions {
@@ -84,6 +88,64 @@ impl From<Engine> for HintingOptions {
             engine: value,
             target: Default::default(),
         }
+    }
+}
+
+/// The TrueType interpreter version.
+///
+/// If the `std` feature is enabled, this type should be instantiated with the
+/// [`InterpreterVersion::from_environment`] function.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
+#[repr(i32)]
+pub enum InterpreterVersion {
+    /// Version 35 corresponds to MS rasterizer v.1.7 as used e.g. in Windows 98;
+    /// only grayscale and B/W rasterizing is supported.
+    _35 = 35,
+    /// Version 40 corresponds to MS rasterizer v.2.1; it is roughly equivalent to
+    /// the hinting provided by DirectWrite ClearType (as can be found, for example,
+    /// in Microsoft's Edge Browser on Windows 10).
+    ///
+    /// This is the value returned by `Default::default`.
+    #[default]
+    _40 = 40,
+}
+
+impl InterpreterVersion {
+    /// Loads the interpreter version from the environment.
+    ///
+    /// The interpreter version is read from the `FREETYPE_PROPERTIES` environment
+    /// variable as described in the [freetype documentation].
+    ///
+    /// [freetype documentation]: https://freetype.org/freetype2/docs/reference/ft2-properties.html#interpreter-version
+    #[cfg(feature = "std")]
+    pub fn from_environment() -> Self {
+        const FREETYPE_PROPERTIES: &str = "FREETYPE_PROPERTIES";
+        const TRUETYPE: &str = "truetype";
+        const INTERPRETER_VERSION: &str = "interpreter-version";
+        let Ok(var) = std::env::var(FREETYPE_PROPERTIES) else {
+            return Self::default();
+        };
+        let mut iv = Self::default();
+        for setting in var.split_ascii_whitespace() {
+            let Some((module, module_setting)) = setting.split_once(':') else {
+                continue;
+            };
+            if module != TRUETYPE {
+                continue;
+            }
+            let Some((property, value)) = module_setting.split_once('=') else {
+                continue;
+            };
+            if property != INTERPRETER_VERSION {
+                continue;
+            }
+            match value {
+                "35" => iv = InterpreterVersion::_35,
+                "40" => iv = InterpreterVersion::_40,
+                _ => {}
+            }
+        }
+        iv
     }
 }
 
@@ -281,23 +343,27 @@ pub struct HintingInstance {
     size: Size,
     coords: Vec<NormalizedCoord>,
     target: Target,
+    interpreter_version: InterpreterVersion,
     kind: HinterKind,
 }
 
 impl HintingInstance {
     /// Creates a new embedded hinting instance for the given outline
-    /// collection, size, location in variation space and hinting mode.
+    /// collection, size, location in variation space, hinting mode and
+    /// interpreter version.
     pub fn new<'a>(
         outline_glyphs: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
         options: impl Into<HintingOptions>,
+        interpreter_version: InterpreterVersion,
     ) -> Result<Self, DrawError> {
         let options = options.into();
         let mut hinter = Self {
             size: Size::unscaled(),
             coords: vec![],
             target: options.target,
+            interpreter_version,
             kind: HinterKind::None,
         };
         hinter.reconfigure(outline_glyphs, size, location, options)?;
@@ -324,10 +390,15 @@ impl HintingInstance {
     pub fn reconfigure<'a>(
         &mut self,
         outlines: &OutlineGlyphCollection,
-        size: Size,
+        mut size: Size,
         location: impl Into<LocationRef<'a>>,
         options: impl Into<HintingOptions>,
     ) -> Result<(), DrawError> {
+        if self.interpreter_version == InterpreterVersion::_35 {
+            if let Some(ppem) = size.ppem() {
+                size = Size::new(ppem.round());
+            }
+        }
         self.size = size;
         self.coords.clear();
         self.coords
@@ -359,6 +430,7 @@ impl HintingInstance {
                         scale,
                         rounded_ppem,
                         self.target,
+                        self.interpreter_version,
                         &self.coords,
                     )?;
                     self.kind = HinterKind::Glyf(hint_instance);
@@ -573,6 +645,7 @@ mod tests {
             Size::new(font_size as f32),
             LocationRef::default(),
             HintingOptions::default(),
+            InterpreterVersion::default(),
         )
         .unwrap();
         let HinterKind::Glyf(tt_hinter) = &hinter.kind else {
@@ -603,8 +676,14 @@ mod tests {
         let gid = font.charmap().map('"').unwrap();
         let size = Size::new(16.0);
         let location = LocationRef::default();
-        let mut hinter =
-            HintingInstance::new(&outlines, size, location, HintingOptions::default()).unwrap();
+        let mut hinter = HintingInstance::new(
+            &outlines,
+            size,
+            location,
+            HintingOptions::default(),
+            InterpreterVersion::default(),
+        )
+        .unwrap();
         let HinterKind::Glyf(tt_hinter) = &mut hinter.kind else {
             panic!("this is definitely a TrueType hinter");
         };
@@ -630,8 +709,14 @@ mod tests {
         let gid = GlyphId::new(1); // was 85 in the original font
         let size = Size::new(24.8);
         let location = LocationRef::default();
-        let hinter =
-            HintingInstance::new(&outlines, size, location, HintingOptions::default()).unwrap();
+        let hinter = HintingInstance::new(
+            &outlines,
+            size,
+            location,
+            HintingOptions::default(),
+            InterpreterVersion::_40,
+        )
+        .unwrap();
         let outline = outlines.get(gid).unwrap();
         let mut pen = SvgPen::new();
         outline.draw(&hinter, &mut pen).unwrap();

@@ -13,7 +13,7 @@ pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
 use raw::{FontRef, ReadError};
 
-use super::{DrawError, GlyphHMetrics, Hinting};
+use super::{DrawError, GlyphHMetrics, Hinting, InterpreterVersion};
 use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
 use memory::{FreeTypeOutlineMemory, HarfBuzzOutlineMemory};
 
@@ -468,13 +468,15 @@ impl<'a> FreeTypeScaler<'a> {
         // Use hdmx if hinting is requested and backward compatibility mode
         // is not enabled.
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/truetype/ttgload.c#L2559>
-        let hdmx_width = if self.is_hinted
-            && self
-                .hinter
-                .as_ref()
-                .map(|hinter| !hinter.backward_compatibility())
-                .unwrap_or(true)
-        {
+        let back_compat = self
+            .hinter
+            .as_ref()
+            .map(|hinter| {
+                hinter.interpreter_version() == InterpreterVersion::_40
+                    && hinter.backward_compatibility()
+            })
+            .unwrap_or(false);
+        let hdmx_width = if self.is_hinted && !back_compat {
             self.outlines.hdmx_width(self.ppem, glyph_id)
         } else {
             None
@@ -722,7 +724,9 @@ impl Scaler for FreeTypeScaler<'_> {
                 if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
                     return Err(e)?;
                 }
-            } else if !hinter.backward_compatibility() {
+            } else if !(hinter.interpreter_version() == InterpreterVersion::_40
+                && hinter.backward_compatibility())
+            {
                 // Even when missing instructions, FreeType uses rounded
                 // phantom points when hinting is requested and backward
                 // compatibility mode is disabled.
@@ -887,6 +891,11 @@ impl Scaler for FreeTypeScaler<'_> {
                                 .flags
                                 .contains(CompositeGlyphFlags::ROUND_XY_TO_GRID)
                         {
+                            if let Some(hinter) = self.hinter {
+                                if hinter.interpreter_version() == InterpreterVersion::_35 {
+                                    offset.x = offset.x.round();
+                                }
+                            }
                             // Only round the y-coordinate, per FreeType.
                             offset.y = offset.y.round();
                         }

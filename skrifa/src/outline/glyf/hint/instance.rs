@@ -1,7 +1,7 @@
 //! Instance state for TrueType hinting.
 
 use super::{
-    super::Outlines,
+    super::{super::InterpreterVersion, Outlines},
     cow_slice::CowSlice,
     definition::{Definition, DefinitionMap, DefinitionState},
     engine::Engine,
@@ -39,6 +39,7 @@ impl HintInstance {
         scale: i32,
         ppem: i32,
         target: Target,
+        interpreter_version: InterpreterVersion,
         coords: &[F2Dot14],
     ) -> Result<(), HintError> {
         self.setup(outlines, scale, coords);
@@ -53,7 +54,7 @@ impl HintInstance {
         let glyph = Zone::default();
         let mut stack_buf = vec![0; self.max_stack];
         let value_stack = ValueStack::new(&mut stack_buf, false);
-        let graphics = RetainedGraphicsState::new(scale, ppem, target);
+        let graphics = RetainedGraphicsState::new(scale, ppem, target, interpreter_version);
         let mut engine = Engine::new(
             outlines,
             ProgramState::new(outlines.fpgm, outlines.prep, &[], Program::Font),
@@ -91,14 +92,22 @@ impl HintInstance {
     /// Returns true if backward compatibility mode has been activated
     /// by the hinter settings or the `prep` table.
     pub fn backward_compatibility(&self) -> bool {
-        // Set backward compatibility mode
-        if self.graphics.target.preserve_linear_metrics() {
-            true
-        } else if self.graphics.target.is_smooth() {
-            (self.graphics.instruct_control & 0x4) == 0
+        if self.graphics.interpreter_version == InterpreterVersion::_40 {
+            // Set backward compatibility mode
+            if self.graphics.target.preserve_linear_metrics() {
+                true
+            } else if self.graphics.target.is_smooth() {
+                (self.graphics.instruct_control & 0x4) == 0
+            } else {
+                false
+            }
         } else {
             false
         }
+    }
+
+    pub fn interpreter_version(&self) -> InterpreterVersion {
+        self.graphics.interpreter_version
     }
 
     pub fn hint(
@@ -261,7 +270,14 @@ mod tests {
         // ppem * 64 / upem
         let scale = 67109;
         instance
-            .reconfigure(&outlines, scale, ppem, Default::default(), &coords)
+            .reconfigure(
+                &outlines,
+                scale,
+                ppem,
+                Default::default(),
+                Default::default(),
+                &coords,
+            )
             .unwrap();
         let expected = [
             778, 10, 731, 0, 731, 10, 549, 10, 0, 0, 0, -10, 0, -10, -256, -10, 0, 0, 0, 0, 0, 0,

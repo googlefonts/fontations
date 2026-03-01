@@ -3,6 +3,7 @@
 use read_fonts::tables::glyf::bytecode::Opcode;
 
 use super::{super::program::Program, Engine, HintError, HintErrorKind, Instruction};
+use crate::outline::InterpreterVersion;
 
 /// Maximum number of instructions we will execute in `Engine::run()`. This
 /// is used to ensure termination of a hinting program.
@@ -39,11 +40,15 @@ impl<'a> Engine<'a> {
                     self.graphics.reset_retained();
                 }
                 // Set backward compatibility mode
-                if self.graphics.target.preserve_linear_metrics() {
-                    self.graphics.backward_compatibility = true;
-                } else if self.graphics.target.is_smooth() {
-                    self.graphics.backward_compatibility =
-                        (self.graphics.instruct_control & 0x4) == 0;
+                if self.graphics.interpreter_version == InterpreterVersion::_40 {
+                    if self.graphics.target.preserve_linear_metrics() {
+                        self.graphics.backward_compatibility = true;
+                    } else if self.graphics.target.is_smooth() {
+                        self.graphics.backward_compatibility =
+                            (self.graphics.instruct_control & 0x4) == 0;
+                    } else {
+                        self.graphics.backward_compatibility = false;
+                    }
                 } else {
                     self.graphics.backward_compatibility = false;
                 }

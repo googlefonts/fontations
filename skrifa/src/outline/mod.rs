@@ -97,7 +97,8 @@ pub mod pen;
 
 pub use autohint::GlyphStyles;
 pub use hint::{
-    Engine, HintingInstance, HintingMode, HintingOptions, LcdLayout, SmoothMode, Target,
+    Engine, HintingInstance, HintingMode, HintingOptions, InterpreterVersion, LcdLayout,
+    SmoothMode, Target,
 };
 use metrics::GlyphHMetrics;
 use raw::FontRef;
@@ -1447,6 +1448,7 @@ mod tests {
             Size::new(16.0),
             LocationRef::default(),
             HintingOptions::default(),
+            InterpreterVersion::default(),
         )
         .unwrap();
         let glyph = glyphs.get(GlyphId::new(1)).unwrap();
@@ -1484,6 +1486,7 @@ mod tests {
             Size::new(24.0),
             LocationRef::new(&coords),
             HintingOptions::default(),
+            InterpreterVersion::default(),
         )
         .unwrap();
         let gid = font.charmap().map(' ').unwrap();
@@ -1507,6 +1510,7 @@ mod tests {
             Size::new(24.8),
             LocationRef::default(),
             HintingOptions::default(),
+            InterpreterVersion::_40,
         )
         .unwrap();
         let gid = GlyphId::new(2);
