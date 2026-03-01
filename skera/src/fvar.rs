@@ -10,6 +10,9 @@ use write_fonts::{read::tables::fvar::Fvar, types::Fixed};
 impl NameIdClosure for Fvar<'_> {
     //TODO: support partial-instancing
     fn collect_name_ids(&self, plan: &mut Plan) {
+        if plan.all_axes_pinned {
+            return;
+        }
         let Ok(axis_instance_array) = self.axis_instance_arrays() else {
             return;
         };

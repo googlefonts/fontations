@@ -102,7 +102,8 @@ fn subset_gdef(
                 var_store_offset_pos,
             ) {
                 Ok(()) => true,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
+                | Err(SerializeErrorFlags::SERIALIZE_ERROR_NONE) => {
                     s.revert_snapshot(snapshot_version2);
                     false
                 }
