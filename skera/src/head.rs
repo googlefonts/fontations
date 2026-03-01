@@ -1,5 +1,6 @@
 //! impl subset() for head
 use crate::Plan;
+use skrifa::raw::tables::head;
 use write_fonts::read::tables::head::Head;
 
 #[derive(Copy, Clone, Debug)]
@@ -29,7 +30,7 @@ impl Default for HeadMaxpInfo {
             max_composite_contours: 0,
             max_component_elements: 0,
             max_component_depth: 0,
-            all_x_min_is_lsb: false,
+            all_x_min_is_lsb: true,
         }
     }
 }
@@ -86,6 +87,17 @@ pub(crate) fn subset_head(head: &Head, loca_format: u8, plan: &Plan) -> Vec<u8> 
         out.get_mut(y_max_start..y_max_start + 2)
             .unwrap()
             .copy_from_slice(&y_max.to_be_bytes());
+
+        let flag_before = head.flags();
+        let flags = if plan.head_maxp_info.borrow().all_x_min_is_lsb {
+            flag_before | head::Flags::LSB_AT_X_0
+        } else {
+            flag_before & !head::Flags::LSB_AT_X_0
+        };
+        let flags_start = head.shape().flags_byte_range().start;
+        out.get_mut(flags_start..flags_start + 2)
+            .unwrap()
+            .copy_from_slice(&(flags.bits().to_be_bytes()));
     }
     out.get_mut(50..52)
         .unwrap()

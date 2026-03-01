@@ -560,29 +560,29 @@ fn compile_bytes_with_deltas(
         write_glyph = write_fonts::tables::glyf::Glyph::Empty;
     }
 
-    if !plan.pinned_at_default {
-        match write_glyph {
-            write_fonts::tables::glyf::Glyph::Empty => {}
-            write_fonts::tables::glyf::Glyph::Simple(ref mut simple_glyph) => {
-                make_simple_glyph_with_deltas(
-                    simple_glyph,
-                    &all_points, // Not points with deltas, apparently.
-                    plan.subset_flags
-                        .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING),
-                );
-                plan.head_maxp_info.borrow_mut().update_extrema(
-                    simple_glyph.bbox.x_min,
-                    simple_glyph.bbox.y_min,
-                    simple_glyph.bbox.x_max,
-                    simple_glyph.bbox.y_max,
-                );
-            }
-            write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
-                write_glyph =
-                    make_composite_glyph_with_deltas(composite_glyph, points_with_deltas, plan);
-            }
+    // if !plan.pinned_at_default {
+    match write_glyph {
+        write_fonts::tables::glyf::Glyph::Empty => {}
+        write_fonts::tables::glyf::Glyph::Simple(ref mut simple_glyph) => {
+            make_simple_glyph_with_deltas(
+                simple_glyph,
+                &all_points, // Not points with deltas, apparently.
+                plan.subset_flags
+                    .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING),
+            );
+            plan.head_maxp_info.borrow_mut().update_extrema(
+                simple_glyph.bbox.x_min,
+                simple_glyph.bbox.y_min,
+                simple_glyph.bbox.x_max,
+                simple_glyph.bbox.y_max,
+            );
+        }
+        write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
+            write_glyph =
+                make_composite_glyph_with_deltas(composite_glyph, points_with_deltas, plan);
         }
     }
+    // }
 
     compile_header_bytes(&mut write_glyph, plan, all_points, old_gid);
     write_fonts::dump_table(&write_glyph).map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)
