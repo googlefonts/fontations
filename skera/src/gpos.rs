@@ -137,8 +137,9 @@ impl LayoutClosure for Gpos<'_> {
 
         // Store results in plan AFTER extracting what we need
         let record_cond_idx_map = feature_substitutes.record_cond_idx_map.clone();
-        plan.gsub_feature_record_cond_idx_map = record_cond_idx_map.clone();
-        plan.gsub_old_features = feature_substitutes.catch_all_record_feature_indices.clone();
+        plan.gpos_feature_record_cond_idx_map = record_cond_idx_map.clone();
+        plan.gpos_feature_substitutes_map = feature_substitutes.feature_substitutes_lookup_map.clone();
+        plan.gpos_old_features = feature_substitutes.catch_all_record_feature_indices.clone();
 
         // Collect lookups, using substitutes where available
         let mut lookup_indices = collect_lookups_with_substitutes(
@@ -156,7 +157,7 @@ impl LayoutClosure for Gpos<'_> {
                         lookup_indices.insert(lookup_idx.get());
                     }
                     let tag = record.feature_tag();
-                    plan.gsub_old_feature_idx_tag_map
+                    plan.gpos_old_feature_idx_tag_map
                         .insert(feature_index as usize, (tag, record.feature_offset()));
                 }
             }
@@ -243,6 +244,8 @@ fn subset_gpos(
         .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
     let mut c = SubsetLayoutContext::new(Gpos::TAG);
+    c.feature_record_cond_idx_map = plan.gpos_feature_record_cond_idx_map.clone();
+    c.catch_all_record_feature_idxes = plan.gpos_old_features.clone();
     Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
 
     // feature list

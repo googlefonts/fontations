@@ -98,6 +98,12 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
 
         let variation_records = self.feature_variation_records();
         for i in 0..num_retained_records {
+            if !c.feature_record_cond_idx_map.is_empty()
+                && !c.feature_record_cond_idx_map.contains_key(&(i as u16))
+            {
+                continue;
+            }
+            c.cur_feature_var_record_idx = i as u16;
             variation_records[i as usize].subset(
                 plan,
                 s,
@@ -221,9 +227,10 @@ impl<'a> SubsetTable<'a> for ConditionSet<'a> {
             }
         }
 
-        if count != 0 {
-            s.copy_assign(count_pos, count);
+        if count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
+        s.copy_assign(count_pos, count);
         Ok(())
     }
 }
@@ -372,7 +379,7 @@ impl KeepWithVariations for ConditionFormat1<'_> {
 
         let (axis_range, set_by_user): (Triple<f64>, bool) =
             if let Some(axis_limit) = ctx.axes_location.get(axis_tag) {
-                (axis_limit.clone(), true)
+                (*axis_limit, true)
             } else {
                 (Triple::default(), false)
             };
@@ -384,7 +391,11 @@ impl KeepWithVariations for ConditionFormat1<'_> {
         let filter_min_val = self.filter_range_min_value().to_f32() as f64;
         let filter_max_val = self.filter_range_max_value().to_f32() as f64;
 
+        // log::debug!("Filter min/max: {filter_min_val}, {filter_max_val}");
+        // log::debug!("Axis min/default/max: {axis_min_val}, {axis_default_val}, {axis_max_val}");
+
         if axis_default_val < filter_min_val || axis_default_val > filter_max_val {
+            // log::debug!("  Don't apply");
             ctx.apply = false;
         }
 
@@ -393,11 +404,13 @@ impl KeepWithVariations for ConditionFormat1<'_> {
             || axis_max_val < filter_min_val
             || filter_min_val > filter_max_val
         {
+            // log::debug!("  Condition not met, drop the record");
             return CondWithVar::DropRecord;
         }
 
         //condition met and axis pinned, drop the condition
         if set_by_user && axis_range.is_point() {
+            // log::debug!("  Condition met and axis pinned, drop the condition");
             return CondWithVar::DropCondition;
         }
 
@@ -409,6 +422,7 @@ impl KeepWithVariations for ConditionFormat1<'_> {
             let val: u32 = ((int_filter_max_val as u32) << 16) + (int_filter_min_val as u32);
 
             map.0.insert(axis_index, val);
+            // log::debug!("  Condition met, keep the condition");
             return CondWithVar::KeepCondition;
         }
 
@@ -441,9 +455,10 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
             }
         }
 
-        if subs_count != 0 {
-            s.copy_assign(subs_count_pos, subs_count);
+        if subs_count == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
+        s.copy_assign(subs_count_pos, subs_count);
         Ok(())
     }
 }
@@ -472,7 +487,7 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
         s.embed(*new_feature_indx)?;
 
         let feature_offset_pos = s.embed(0_u32)?;
-        Offset32::serialize_subset(&alternate_feature, s, plan, c, feature_offset_pos)
+        Offset32::serialize_subset(&alternate_feature, s, plan, (c, None), feature_offset_pos)
     }
 }
 
@@ -493,6 +508,11 @@ pub(crate) fn collect_feature_substitutes_with_variations(
         // varRecords[i].collect_feature_substitutes_with_variations (c, this)
         if let Some(Ok(cond_set)) = record.condition_set(data) {
             keep_with_variations(cond_set, ctx).map_err(|e| SubsetError::ReadError(e))?;
+            // log::debug!(
+            //     "Record {}: kept conditions {:?} after applying variations",
+            //     record_idx,
+            //     &ctx.record_cond_idx_map.get(&ctx.cur_record_idx)
+            // );
 
             if ctx.apply && !ctx.variation_applied {
                 // Extract feature substitutes from FeatureTableSubstitution
@@ -503,7 +523,9 @@ pub(crate) fn collect_feature_substitutes_with_variations(
                         let feature_index = sub_rec.feature_index();
                         if ctx.feature_indices.contains(feature_index) {
                             // Extract lookup indices from the substitute feature
-                            if let Ok(alternate_feature) = sub_rec.alternate_feature(data) {
+                            if let Ok(alternate_feature) =
+                                sub_rec.alternate_feature(subs.offset_data())
+                            {
                                 let mut lookups = IntSet::default();
                                 for lookup_idx in alternate_feature.lookup_list_indices() {
                                     lookups.insert(lookup_idx.get());

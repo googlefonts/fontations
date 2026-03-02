@@ -1418,13 +1418,13 @@ impl<'a> SubsetTable<'a> for FeatureList<'_> {
         } else {
             &plan.gpos_features
         };
-        for (_, feature_record) in self
+        for (i, feature_record) in self
             .feature_records()
             .iter()
             .enumerate()
             .filter(|&(i, _)| feature_index_map.contains_key(&(i as u16)))
         {
-            feature_record.subset(plan, s, (c, font_data))?;
+            feature_record.subset(plan, s, (i, c, font_data))?;
             num_records += 1;
         }
         if num_records != 0 {
@@ -1435,7 +1435,7 @@ impl<'a> SubsetTable<'a> for FeatureList<'_> {
 }
 
 impl<'a> SubsetTable<'a> for FeatureRecord {
-    type ArgsForSubset = (&'a mut SubsetLayoutContext, FontData<'a>);
+    type ArgsForSubset = (usize, &'a mut SubsetLayoutContext, FontData<'a>);
     type Output = ();
     fn subset(
         &self,
@@ -1447,24 +1447,31 @@ impl<'a> SubsetTable<'a> for FeatureRecord {
         s.embed(tag)?;
         let feature_offset_pos = s.embed(0_u16)?;
 
-        let (c, font_data) = args;
+        let (feature_index, c, font_data) = args;
         let Ok(feature) = self.feature(font_data) else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
 
-        Offset16::serialize_subset(&feature, s, plan, c, feature_offset_pos)
+        let substitute_lookups = if c.table_tag == Gsub::TAG {
+            plan.gsub_feature_substitutes_map.get(&(feature_index as u16))
+        } else {
+            plan.gpos_feature_substitutes_map.get(&(feature_index as u16))
+        };
+
+        Offset16::serialize_subset(&feature, s, plan, (c, substitute_lookups), feature_offset_pos)
     }
 }
 
 impl<'a> SubsetTable<'a> for Feature<'_> {
-    type ArgsForSubset = &'a mut SubsetLayoutContext;
+    type ArgsForSubset = (&'a mut SubsetLayoutContext, Option<&'a IntSet<u16>>);
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        c: &mut SubsetLayoutContext,
+        args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        let (c, substitute_lookups) = args;
         //FeatureParams offset
         let feature_params_offset_pos = s.embed(0_u16)?;
         let lookup_count_pos = s.embed(0_u16)?;
@@ -1475,16 +1482,29 @@ impl<'a> SubsetTable<'a> for Feature<'_> {
             &plan.gpos_lookups
         };
 
-        for idx in self
-            .lookup_list_indices()
-            .iter()
-            .filter_map(|i| lookup_index_map.get(&i.get()))
-        {
-            if !c.visit_lookup() {
-                break;
+        if let Some(substitute_lookups) = substitute_lookups {
+            for lookup_index in substitute_lookups.iter() {
+                let Some(idx) = lookup_index_map.get(&lookup_index) else {
+                    continue;
+                };
+                if !c.visit_lookup() {
+                    break;
+                }
+                s.embed(*idx)?;
+                lookup_count += 1;
             }
-            s.embed(*idx)?;
-            lookup_count += 1;
+        } else {
+            for idx in self
+                .lookup_list_indices()
+                .iter()
+                .filter_map(|i| lookup_index_map.get(&i.get()))
+            {
+                if !c.visit_lookup() {
+                    break;
+                }
+                s.embed(*idx)?;
+                lookup_count += 1;
+            }
         }
 
         if lookup_count != 0 {

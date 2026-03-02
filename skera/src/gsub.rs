@@ -121,6 +121,10 @@ impl LayoutClosure for Gsub<'_> {
 
             if let Some(Ok(feature_variations)) = self.feature_variations() {
                 collect_feature_substitutes_with_variations(&feature_variations, &mut ctx)?;
+                log::debug!(
+                    "After collect_feature_substitutes_with_variations, feature indices: {:?}",
+                    ctx.feature_indices
+                );
                 ctx.into()
             } else {
                 FeatureSubstituteCollectionResult::empty()
@@ -132,6 +136,8 @@ impl LayoutClosure for Gsub<'_> {
         // Store results in plan AFTER extracting what we need
         let record_cond_idx_map = feature_substitutes.record_cond_idx_map.clone();
         plan.gsub_feature_record_cond_idx_map = record_cond_idx_map.clone();
+        plan.gsub_feature_substitutes_map =
+            feature_substitutes.feature_substitutes_lookup_map.clone();
         plan.gsub_old_features = feature_substitutes.catch_all_record_feature_indices.clone();
 
         // Collect lookups, using substitutes where available
@@ -141,18 +147,14 @@ impl LayoutClosure for Gsub<'_> {
             &feature_substitutes,
         )?;
 
-        // Collect lookups from catch-all features and store their offsets
+        // Store feature offset info for catch-all features (those with universal variations)
+        // Note: their substitute lookups were already collected in collect_lookups_with_substitutes()
         for feature_index in feature_substitutes.catch_all_record_feature_indices.iter() {
             let featurelist = self.feature_list().map_err(SubsetError::ReadError)?;
             if let Some(record) = featurelist.feature_records().get(feature_index as usize) {
-                if let Ok(feature) = record.feature(featurelist.offset_data()) {
-                    for lookup_idx in feature.lookup_list_indices() {
-                        lookup_indices.insert(lookup_idx.get());
-                    }
-                    let tag = record.feature_tag();
-                    plan.gsub_old_feature_idx_tag_map
-                        .insert(feature_index as usize, (tag, record.feature_offset()));
-                }
+                let tag = record.feature_tag();
+                plan.gsub_old_feature_idx_tag_map
+                    .insert(feature_index as usize, (tag, record.feature_offset()));
             }
         }
 
@@ -166,6 +168,8 @@ impl LayoutClosure for Gsub<'_> {
                 &mut lookup_indices,
             )?;
         }
+
+        log::debug!("After collection, lookup indices: {:?}", lookup_indices);
 
         let Ok(_) = self.closure_glyphs(&lookup_indices, &mut plan.glyphset_gsub) else {
             return Ok(());
@@ -239,6 +243,8 @@ fn subset_gsub(
         .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
     let mut c = SubsetLayoutContext::new(Gsub::TAG);
+    c.feature_record_cond_idx_map = plan.gsub_feature_record_cond_idx_map.clone();
+    c.catch_all_record_feature_idxes = plan.gsub_old_features.clone();
     Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
 
     // feature list

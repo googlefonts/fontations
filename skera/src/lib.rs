@@ -359,11 +359,9 @@ pub struct Plan {
     gsub_feature_record_cond_idx_map: FnvHashMap<u16, IntSet<u16>>,
     gpos_feature_record_cond_idx_map: FnvHashMap<u16, IntSet<u16>>,
 
-    // feature index-> address of substitution feature table mapping with
-    // variations
-    // Offset is from start of the FeatureTableSubstitution table.
-    gsub_feature_substitutes_map: FnvHashMap<u16, Offset32>,
-    gpos_feature_substitutes_map: FnvHashMap<u16, Offset32>,
+    // feature index -> substituted lookup indices collected from feature variations
+    gsub_feature_substitutes_map: FnvHashMap<u16, IntSet<u16>>,
+    gpos_feature_substitutes_map: FnvHashMap<u16, IntSet<u16>>,
 
     // old feature_indexes set, used to reinstate the old features
     gsub_old_features: IntSet<u16>,
@@ -503,7 +501,7 @@ impl Plan {
         this.get_instance_deltas(font)
             .expect("Could not get instance deltas");
         this.collect_mvar_entries(font);
-        log::debug!("Name IDS: {:?}", this.name_ids);
+        // log::debug!("Name IDS: {:?}", this.name_ids);
 
         this
     }
@@ -653,19 +651,19 @@ impl Plan {
         }
 
         // Convert 16.16 coords to F2DOT14.
-        log::debug!(
-            "Normalized coords (16.16) before rounding {:?}",
-            normalized_coords_16_16
-        );
+        // log::debug!(
+        //     "Normalized coords (16.16) before rounding {:?}",
+        //     normalized_coords_16_16
+        // );
         self.normalized_coords_16_16 = normalized_coords_16_16
             .iter()
             .map(|&v| F2Dot14::from_bits(((v + 2) >> 2).try_into().unwrap_or(i16::MAX)))
             .collect();
-        log::debug!("Normalized coords (f2dot14): {:?}", self.normalized_coords);
-        log::debug!(
-            "Normalized coords (16.16): {:?}",
-            self.normalized_coords_16_16
-        );
+        // log::debug!("Normalized coords (f2dot14): {:?}", self.normalized_coords);
+        // log::debug!(
+        //     "Normalized coords (16.16): {:?}",
+        //     self.normalized_coords_16_16
+        // );
 
         Ok(())
     }
@@ -1226,7 +1224,7 @@ impl Plan {
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
             let glyph = loca.get_glyf(*old_gid, &glyf).unwrap();
             let coords = &self.normalized_coords_16_16;
-            log::debug!("Instantiating at coords (16.16): {:?}", coords);
+            // log::debug!("Instantiating at coords (16.16): {:?}", coords);
             match glyph {
                 Some(Glyph::Simple(simple_glyph)) => {
                     if simple_glyph.num_points() == 0 {
