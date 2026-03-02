@@ -44,12 +44,12 @@ use std::cell::RefCell;
 
 use crate::{
     bidi::UNICODE_BIDI_MIRRORED,
-    glyf_loca::{ContourPoint, ContourPoints, PHANTOM_POINT_COUNT},
+    glyf_loca::{ContourPoints, PHANTOM_POINT_COUNT},
     head::HeadMaxpInfo,
     repack::resolve_overflows,
     variations::solver::{Triple, TripleDistances},
 };
-use font_types::Point;
+use font_types::{Offset16, Offset32, Point};
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
@@ -64,9 +64,7 @@ pub use parsing_util::{
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::{
-    instance::LocationRef,
     outline::{composite_glyph_deltas, simple_glyph_deltas, SimpleGlyphForDeltas},
-    prelude::Size,
     raw::{
         tables::{
             avar::Avar,
@@ -363,11 +361,18 @@ pub struct Plan {
 
     // feature index-> address of substitution feature table mapping with
     // variations
-    // We may need our own representation of Feature to make this work.
-    // gsub_feature_substitutes_map: FnvHashMap<u16, Feature>,
-    // gpos_feature_substitutes_map: FnvHashMap<u16, Feature>,
-    gsub_catch_all_record_feature_idx: IntSet<u16>,
-    gpos_catch_all_record_feature_idx: IntSet<u16>,
+    // Offset is from start of the FeatureTableSubstitution table.
+    gsub_feature_substitutes_map: FnvHashMap<u16, Offset32>,
+    gpos_feature_substitutes_map: FnvHashMap<u16, Offset32>,
+
+    // old feature_indexes set, used to reinstate the old features
+    gsub_old_features: IntSet<u16>,
+    gpos_old_features: IntSet<u16>,
+
+    //feature_index->pair of (address of old feature, feature tag), used for inserting a catch all record
+    //if necessary
+    gsub_old_feature_idx_tag_map: FnvHashMap<usize, (Tag, Offset16)>,
+    gpos_old_feature_idx_tag_map: FnvHashMap<usize, (Tag, Offset16)>,
 
     // active old->new lookup index map
     gsub_lookups: FnvHashMap<u16, u16>,
@@ -498,6 +503,7 @@ impl Plan {
         this.get_instance_deltas(font)
             .expect("Could not get instance deltas");
         this.collect_mvar_entries(font);
+        log::debug!("Name IDS: {:?}", this.name_ids);
 
         this
     }
@@ -596,22 +602,22 @@ impl Plan {
 
             // Apply avar mapping to 16.16 coordinates as well
             // Convert 16.16 to floats for avar processing
-            let mins_16_16_float: Vec<f32> = normalized_mins_16_16
-                .iter()
-                .map(|&v| v as f32 / 65536.0)
-                .collect();
+            // let mins_16_16_float: Vec<f32> = normalized_mins_16_16
+            //     .iter()
+            //     .map(|&v| v as f32 / 65536.0)
+            //     .collect();
             let defaults_16_16_float: Vec<f32> = normalized_defaults_16_16
                 .iter()
                 .map(|&v| v as f32 / 65536.0)
                 .collect();
-            let maxs_16_16_float: Vec<f32> = normalized_maxs_16_16
-                .iter()
-                .map(|&v| v as f32 / 65536.0)
-                .collect();
+            // let maxs_16_16_float: Vec<f32> = normalized_maxs_16_16
+            //     .iter()
+            //     .map(|&v| v as f32 / 65536.0)
+            //     .collect();
 
-            let mins_16_16_float = avar::map_coords_2_14(&avar, mins_16_16_float)?;
+            // let mins_16_16_float = avar::map_coords_2_14(&avar, mins_16_16_float)?;
             let defaults_16_16_float = avar::map_coords_2_14(&avar, defaults_16_16_float)?;
-            let maxs_16_16_float = avar::map_coords_2_14(&avar, maxs_16_16_float)?;
+            // let maxs_16_16_float = avar::map_coords_2_14(&avar, maxs_16_16_float)?;
 
             // Convert back to 16.16 format
             for (i, val) in defaults_16_16_float.iter().enumerate() {
@@ -1615,7 +1621,7 @@ pub(crate) trait LayoutClosure {
         layout_scripts: &IntSet<Tag>,
     ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>);
 
-    fn closure_glyphs_lookups_features(&self, plan: &mut Plan);
+    fn closure_glyphs_lookups_features(&self, plan: &mut Plan) -> Result<(), SubsetError>;
 }
 
 pub const CVT: Tag = Tag::new(b"cvt ");
