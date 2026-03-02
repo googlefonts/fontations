@@ -72,7 +72,7 @@ impl Subset for Base<'_> {
                     &var_store,
                     s,
                     plan,
-                    (&plan.base_varstore_inner_maps, false),
+                    (&plan.base_varstore_inner_maps, false, true, true),
                     varstore_offset_pos,
                 ) {
                     Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => Ok(()),

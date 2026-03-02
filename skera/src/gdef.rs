@@ -94,11 +94,19 @@ fn subset_gdef(
         {
             let snapshot_version2 = s.snapshot();
             let var_store_offset_pos = s.embed(0_u32)?;
+            // When instancing, keep varstore even if all regions collapse
+            // because rebased deltas may still be present in the instanced data.
+            let keep_empty_for_instancing = !plan.normalized_coords.is_empty();
             match Offset32::serialize_subset(
                 &var_store,
                 s,
                 plan,
-                (&plan.gdef_varstore_inner_maps, false),
+                (
+                    &plan.gdef_varstore_inner_maps,
+                    keep_empty_for_instancing,
+                    true,
+                    true,
+                ),
                 var_store_offset_pos,
             ) {
                 Ok(()) => true,

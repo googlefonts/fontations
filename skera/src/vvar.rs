@@ -2,8 +2,9 @@
 
 use crate::{
     hvar::{serialize_index_maps, HvarVvarSubsetPlan, ListupIndexMaps},
-    offset::SerializeSubset,
+    offset::{SerializeCopy, SerializeSubset},
     serialize::Serializer,
+    variations::subset_itemvarstore_with_instancing,
     Plan, Subset, SubsetError,
 };
 use write_fonts::{
@@ -33,7 +34,7 @@ impl Subset for Vvar<'_> {
             .listup_index_maps()
             .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
 
-        let vvar_subset_plan = HvarVvarSubsetPlan::new(plan, &var_store, &index_maps)
+        let mut vvar_subset_plan = HvarVvarSubsetPlan::new(plan, &var_store, &index_maps)
             .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
 
         s.embed(self.version())
@@ -43,14 +44,41 @@ impl Subset for Vvar<'_> {
             .embed(0_u32)
             .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
 
-        Offset32::serialize_subset(
-            &var_store,
-            s,
-            plan,
-            (vvar_subset_plan.inner_maps(), true),
-            var_store_offset_pos,
-        )
-        .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
+        if !plan.normalized_coords.is_empty() {
+            let (bytes, varidx_map) = subset_itemvarstore_with_instancing(
+                var_store.clone(),
+                plan,
+                s,
+                vvar_subset_plan.inner_maps(),
+                true,
+                index_maps[0].is_some(),
+                false,
+            )
+            .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
+
+            if index_maps[0].is_some()
+                && !vvar_subset_plan.remap_index_map_plans(plan, &varidx_map)
+            {
+                return Err(SubsetError::SubsetTableError(Vvar::TAG));
+            }
+
+            Offset32::serialize_copy_from_bytes(&bytes, s, var_store_offset_pos)
+                .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
+        } else {
+            Offset32::serialize_subset(
+                &var_store,
+                s,
+                plan,
+                (
+                    vvar_subset_plan.inner_maps(),
+                    true,
+                    index_maps[0].is_some(),
+                    false,
+                ),
+                var_store_offset_pos,
+            )
+            .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
+        }
 
         serialize_index_maps(
             s,
