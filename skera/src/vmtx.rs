@@ -85,13 +85,13 @@ impl Subset for Vmtx<'_> {
             let mut min_bsb: i16 = 0x7FFF;
             let mut max_extent = -0x7FFF;
             let mut max_adv = 0;
-            let bounds = plan.bounds_width_vec.borrow();
-            for (gid, &(advance, tsb)) in plan.hmtx_map.borrow().iter() {
+            let bounds = plan.bounds_height_vec.borrow();
+            for (gid, &(advance, tsb)) in plan.vmtx_map.borrow().iter() {
                 max_adv = max_adv.max(advance);
-                if let Some(&bound_width) = bounds.get(gid) {
+                if let Some(&bound_height) = bounds.get(gid) {
                     empty = false;
-                    let bsb: i16 = (advance as i16) - tsb - (bound_width as i16);
-                    let extent = tsb + (bound_width as i16);
+                    let bsb: i16 = (advance as i16) - tsb - (bound_height as i16);
+                    let extent = tsb + (bound_height as i16);
                     min_tsb = min_tsb.min(tsb);
                     min_bsb = min_bsb.min(bsb);
                     max_extent = max_extent.max(extent);
