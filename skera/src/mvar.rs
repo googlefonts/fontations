@@ -72,6 +72,8 @@ impl Subset for Mvar<'_> {
                     s,
                     &inner_maps,
                     true,
+                    true,
+                    true,
                 )
                 .map_err(|_| SubsetError::SubsetTableError(Mvar::TAG))?;
                 varidx_map = new_varidx_map;

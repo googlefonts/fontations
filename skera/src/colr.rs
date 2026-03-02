@@ -69,7 +69,7 @@ impl Subset for Colr<'_> {
                 &var_store,
                 s,
                 plan,
-                (&plan.colr_varstore_inner_maps, false),
+                (&plan.colr_varstore_inner_maps, false, true, true),
                 30,
             ) {
                 Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),

@@ -125,11 +125,7 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
             c.cur_feature_var_record_idx = num_retained_records as u16;
             // Use the first variation record as a template, but serialize differently
             if num_retained_records > 0 {
-                variation_records[0].subset(
-                    plan,
-                    s,
-                    (font_data, feature_index_map, c, true),
-                )?;
+                variation_records[0].subset(plan, s, (font_data, feature_index_map, c, true))?;
             }
         }
         Ok(())
@@ -184,8 +180,6 @@ impl<'a> SubsetTable<'a> for EmptyConditionSet {
     }
 }
 
-
-
 // Empty Feature with no lookups
 struct EmptyFeature;
 
@@ -198,7 +192,7 @@ impl<'a> SubsetTable<'a> for EmptyFeature {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        s.embed(0_u16)?; // FeatureParams offset (null)            
+        s.embed(0_u16)?; // FeatureParams offset (null)
         s.embed(0_u16)?; // LookupCount = 0
         Ok(())
     }
@@ -271,7 +265,8 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
 
         Ok(())
     }
-}impl<'a> SubsetTable<'a> for ConditionSet<'a> {
+}
+impl<'a> SubsetTable<'a> for ConditionSet<'a> {
     type ArgsForSubset = (&'a mut SubsetLayoutContext, bool);
     type Output = ();
     fn subset(
@@ -336,13 +331,7 @@ impl<'a> SubsetTable<'a> for CatchAllFeatureTableSubst<'a> {
 
                 // Serialize Feature via Offset32
                 let feature_offset_pos = s.embed(0_u32)?;
-                Offset32::serialize_subset(
-                    &EmptyFeature,
-                    s,
-                    plan,
-                    (),
-                    feature_offset_pos,
-                )?;
+                Offset32::serialize_subset(&EmptyFeature, s, plan, (), feature_offset_pos)?;
             }
         }
         Ok(())

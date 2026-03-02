@@ -138,7 +138,8 @@ impl LayoutClosure for Gpos<'_> {
         // Store results in plan AFTER extracting what we need
         let record_cond_idx_map = feature_substitutes.record_cond_idx_map.clone();
         plan.gpos_feature_record_cond_idx_map = record_cond_idx_map.clone();
-        plan.gpos_feature_substitutes_map = feature_substitutes.feature_substitutes_lookup_map.clone();
+        plan.gpos_feature_substitutes_map =
+            feature_substitutes.feature_substitutes_lookup_map.clone();
         plan.gpos_old_features = feature_substitutes.catch_all_record_feature_indices.clone();
 
         // Collect lookups, using substitutes where available

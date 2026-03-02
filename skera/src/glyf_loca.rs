@@ -541,13 +541,13 @@ fn compile_bytes_with_deltas(
     } else {
         plan.head_maxp_info.try_borrow_mut().ok()
     };
-    if let Some(Glyph::Composite(glyph)) = &glyph {
-        log::debug!(
-            "Component glyph {} anchors: {:?}",
-            old_gid,
-            glyph.components().map(|c| c.anchor).collect::<Vec<_>>(),
-        );
-    }
+    // if let Some(Glyph::Composite(glyph)) = &glyph {
+    //     log::debug!(
+    //         "Component glyph {} anchors: {:?}",
+    //         old_gid,
+    //         glyph.components().map(|c| c.anchor).collect::<Vec<_>>(),
+    //     );
+    // }
     let (all_points, points_with_deltas) =
         get_points(glyph, plan, glyph_accelerator, old_gid, head_maxp)?;
     // .notdef, set type to empty so we only update metrics and don't compile bytes for
@@ -611,7 +611,7 @@ fn compile_header_bytes(
         write_fonts::tables::glyf::Glyph::Simple(_simple_glyph) => {}
         write_fonts::tables::glyf::Glyph::Composite(composite_glyph) => {
             composite_glyph.bbox = bounds.into();
-            log::debug!("Composite bbox is now {:?}", composite_glyph.bbox);
+            // log::debug!("Composite bbox is now {:?}", composite_glyph.bbox);
             plan.head_maxp_info.borrow_mut().update_extrema(
                 composite_glyph.bbox.x_min,
                 composite_glyph.bbox.y_min,
@@ -657,18 +657,18 @@ fn make_composite_glyph_with_deltas(
         points_with_deltas.len(),
         component_count + PHANTOM_POINT_COUNT,
     );
-    log::debug!(
-        "Points with deltas for composite glyph: {:?}",
-        points_with_deltas
-    );
+    // log::debug!(
+    //     "Points with deltas for composite glyph: {:?}",
+    //     points_with_deltas
+    // );
     let points_without_phantoms: Vec<ContourPoint> = points_with_deltas
         .into_iter()
         .take(component_count)
         .collect();
-    log::debug!(
-        "After delta application our points are: {:?}",
-        points_without_phantoms
-    );
+    // log::debug!(
+    //     "After delta application our points are: {:?}",
+    //     points_without_phantoms
+    // );
 
     for (component, transform) in composite_glyph
         .components()
@@ -759,10 +759,10 @@ fn make_simple_glyph_with_deltas(
     let mut y_max: i16 = i16::MIN;
     // unsigned num_points = all_points.length - 4; ->
     // last 4 points in points_with_deltas are phantom points and should not be included
-    log::debug!(
-        "Points with deltas for simple glyph: {:?}",
-        points_with_deltas
-    );
+    // log::debug!(
+    //     "Points with deltas for simple glyph: {:?}",
+    //     points_with_deltas
+    // );
     for (ix, point) in points_with_deltas.iter().enumerate() {
         if ix >= points_with_deltas.len() - 4 {
             break;
@@ -1022,11 +1022,11 @@ impl ContourPoints {
             .get(&old_gid)
             .cloned()
             .expect("BUG: all glyphs in the new font should have a mapping to the old font");
-        log::debug!(
-            "Updating metrics for glyph {}, is_empty: {}",
-            new_gid,
-            is_empty
-        );
+        // log::debug!(
+        //     "Updating metrics for glyph {}, is_empty: {}",
+        //     new_gid,
+        //     is_empty
+        // );
         // This does the calculation handed to update_mtx in Harfbuzz.
         let bounds = self.get_bounds();
         if !is_empty {
