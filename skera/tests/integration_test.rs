@@ -283,6 +283,10 @@ fn parse_profile_options(file_name: &str) -> SubsetInput {
                 drop_tables.insert(Tag::new(b"GPOS"));
                 drop_tables.insert(Tag::new(b"GDEF"));
             }
+            "--layout-features-=*" | "--layout-features=*" => {
+                layout_features.clear();
+                layout_features.invert();
+            }
             _ => continue,
         }
     }

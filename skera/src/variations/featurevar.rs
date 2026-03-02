@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use fnv::FnvHashMap;
-use font_types::{F2Dot14, Offset32};
+use font_types::{F2Dot14, MajorMinor, Offset16, Offset32};
 use skrifa::{
     raw::{
         collections::IntSet,
@@ -92,7 +92,13 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
         }
 
         s.embed(self.version())?;
-        s.embed(num_retained_records)?;
+        // Add 1 to count if we're inserting a catch-all record at the end
+        let total_records = if insert_catch_all {
+            num_retained_records + 1
+        } else {
+            num_retained_records
+        };
+        s.embed(total_records)?;
 
         let font_data = self.offset_data();
 
@@ -107,8 +113,21 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
             variation_records[i as usize].subset(
                 plan,
                 s,
-                (font_data, feature_index_map, c, insert_catch_all),
+                (font_data, feature_index_map, c, false),
             )?;
+        }
+
+        // Insert catch-all record at the end if needed
+        if insert_catch_all {
+            c.cur_feature_var_record_idx = num_retained_records as u16;
+            // Use the first variation record as a template, but serialize differently
+            if num_retained_records > 0 {
+                variation_records[0].subset(
+                    plan,
+                    s,
+                    (font_data, feature_index_map, c, true),
+                )?;
+            }
         }
         Ok(())
     }
@@ -145,6 +164,43 @@ fn num_variation_record_to_retain(
     Ok(0)
 }
 
+// Empty ConditionSet for catch-all record
+struct EmptyConditionSet;
+
+impl<'a> SubsetTable<'a> for EmptyConditionSet {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        _plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        s.embed(0_u16)?; // ConditionCount = 0
+        Ok(())
+    }
+}
+
+
+
+// Empty Feature with no lookups
+struct EmptyFeature;
+
+impl<'a> SubsetTable<'a> for EmptyFeature {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        _plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        s.embed(0_u16)?; // FeatureParams offset (null)            
+        s.embed(0_u16)?; // LookupCount = 0
+        Ok(())
+    }
+}
+
 impl<'a> SubsetTable<'a> for FeatureVariationRecord {
     type ArgsForSubset = (
         FontData<'a>,
@@ -176,7 +232,27 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
         }
 
         let feature_substitutions_offset_pos = s.embed(0_u32)?;
-        if let Some(feature_subs) = self
+        if insert_catch_all {
+            // When inserting a catch-all record, serialize custom structure with empty features
+            let old_features = if c.table_tag == Gsub::TAG {
+                &plan.gsub_old_features
+            } else {
+                &plan.gpos_old_features
+            };
+
+            let catch_all_subst = CatchAllFeatureTableSubst {
+                old_features,
+                feature_index_map,
+            };
+
+            Offset32::serialize_subset(
+                &catch_all_subst,
+                s,
+                plan,
+                (),
+                feature_substitutions_offset_pos,
+            )?;
+        } else if let Some(feature_subs) = self
             .feature_table_substitution(font_data)
             .transpose()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
@@ -192,9 +268,7 @@ impl<'a> SubsetTable<'a> for FeatureVariationRecord {
 
         Ok(())
     }
-}
-
-impl<'a> SubsetTable<'a> for ConditionSet<'a> {
+}impl<'a> SubsetTable<'a> for ConditionSet<'a> {
     type ArgsForSubset = (&'a mut SubsetLayoutContext, bool);
     type Output = ();
     fn subset(
@@ -231,6 +305,43 @@ impl<'a> SubsetTable<'a> for ConditionSet<'a> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         s.copy_assign(count_pos, count);
+        Ok(())
+    }
+}
+
+// Wrapper for catch-all FeatureTableSubstitution
+struct CatchAllFeatureTableSubst<'a> {
+    old_features: &'a IntSet<u16>,
+    feature_index_map: &'a FnvHashMap<u16, u16>,
+}
+
+impl<'a> SubsetTable<'a> for CatchAllFeatureTableSubst<'a> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        s.embed(MajorMinor::VERSION_1_0)?;
+        s.embed(self.old_features.len() as u16)?; // SubstitutionCount
+
+        for feature_index in self.old_features.iter() {
+            if let Some(&new_idx) = self.feature_index_map.get(&feature_index) {
+                s.embed(new_idx)?; // FeatureIndex
+
+                // Serialize Feature via Offset32
+                let feature_offset_pos = s.embed(0_u32)?;
+                Offset32::serialize_subset(
+                    &EmptyFeature,
+                    s,
+                    plan,
+                    (),
+                    feature_offset_pos,
+                )?;
+            }
+        }
         Ok(())
     }
 }

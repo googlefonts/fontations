@@ -147,11 +147,17 @@ impl LayoutClosure for Gsub<'_> {
             &feature_substitutes,
         )?;
 
-        // Store feature offset info for catch-all features (those with universal variations)
-        // Note: their substitute lookups were already collected in collect_lookups_with_substitutes()
+        // Collect lookups from catch-all features and store their offsets.
+        // This matches HarfBuzz behavior and keeps old-feature lookups available
+        // when a catch-all feature variation record is inserted.
         for feature_index in feature_substitutes.catch_all_record_feature_indices.iter() {
             let featurelist = self.feature_list().map_err(SubsetError::ReadError)?;
             if let Some(record) = featurelist.feature_records().get(feature_index as usize) {
+                if let Ok(feature) = record.feature(featurelist.offset_data()) {
+                    for lookup_idx in feature.lookup_list_indices() {
+                        lookup_indices.insert(lookup_idx.get());
+                    }
+                }
                 let tag = record.feature_tag();
                 plan.gsub_old_feature_idx_tag_map
                     .insert(feature_index as usize, (tag, record.feature_offset()));
@@ -274,11 +280,12 @@ fn subset_gsub(
     {
         let snap = s.snapshot();
         let feature_vars_offset_pos = s.embed(0_u32)?;
+        let insert_catch_all = !plan.gsub_old_features.is_empty();
         match Offset32::serialize_subset(
             &feature_variations,
             s,
             plan,
-            (&mut c, false),
+            (&mut c, insert_catch_all),
             feature_vars_offset_pos,
         ) {
             Ok(()) => (),
