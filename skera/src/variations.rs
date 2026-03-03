@@ -30,7 +30,6 @@ use write_fonts::{
         collections::IntSet,
         tables::variations::{
             DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
-            NO_VARIATION_INDEX,
         },
     },
     tables::gvar::{GlyphDelta as WriteGlyphDelta, GlyphDeltas},
