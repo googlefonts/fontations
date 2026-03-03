@@ -2384,15 +2384,16 @@ impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
 
         let be_byte_index_start = 4 - width as usize;
         for i in 0..map_count {
-            let v = output_map.get(&i).copied().unwrap_or(NO_VARIATION_INDEX);
-            let data_bytes = if v == NO_VARIATION_INDEX {
-                [0xFF_u8; 4]
-            } else {
-                let outer = v >> 16;
-                let inner = v & 0xFFFF;
-                let u = (outer << inner_bit_count) | inner;
-                u.to_be_bytes()
+            let Some(v) = output_map.get(&i) else {
+                continue;
             };
+            if *v == 0 {
+                continue;
+            }
+            let outer = v >> 16;
+            let inner = v & 0xFFFF;
+            let u = (outer << inner_bit_count) | inner;
+            let data_bytes = u.to_be_bytes();
             let data_pos = mapdata_pos + (i as usize) * width as usize;
             s.copy_assign_from_bytes(data_pos, data_bytes.get(be_byte_index_start..4).unwrap());
         }
