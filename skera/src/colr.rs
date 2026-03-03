@@ -3,11 +3,11 @@ use crate::{
     offset::{SerializeCopy, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, Serializer},
-    variations::{subset_itemvarstore_with_instancing, DeltaSetIndexMapSerializePlan},
+    variations::{itemvariations_to_varstore_bytes, DeltaSetIndexMapSerializePlan, ItemVariations},
     Plan, Subset, SubsetError, SubsetTable,
 };
 use fnv::FnvHashMap;
-use font_types::F2Dot14;
+use font_types::{F2Dot14, FWord};
 use skrifa::raw::{tables::colr::Affine2x3, ResolveOffset};
 use write_fonts::{
     read::{
@@ -26,7 +26,9 @@ use write_fonts::{
                 PaintVarSkewAroundCenter, PaintVarSolid, PaintVarSweepGradient, PaintVarTransform,
                 PaintVarTranslate, VarAffine2x3, VarColorLine, VarColorStop,
             },
-            variations::NO_VARIATION_INDEX,
+            variations::{
+                DeltaSetIndexMap, FloatItemDelta, FloatItemDeltaTarget, NO_VARIATION_INDEX,
+            },
         },
         FontRef, TopLevelTable,
     },
@@ -37,19 +39,26 @@ use write_fonts::{
 /// Helper for applying deltas during COLR instantiation
 #[derive(Clone, Copy)]
 pub struct ColrInstancer<'a> {
-    delta_map: &'a FnvHashMap<u32, (u32, i32)>,
+    delta_map: &'a FnvHashMap<u32, (u32, FloatItemDelta)>,
+    old_to_new_deltaset_map: &'a FnvHashMap<u32, u32>,
+    delta_set_index_map: Option<&'a DeltaSetIndexMap<'a>>,
     has_variations: bool,
     all_axes_pinned: bool,
 }
 
 impl<'a> ColrInstancer<'a> {
     pub fn new(
-        delta_map: &'a FnvHashMap<u32, (u32, i32)>,
+        delta_map: &'a FnvHashMap<u32, (u32, FloatItemDelta)>,
+        old_to_new_deltaset_map: &'a FnvHashMap<u32, u32>,
+        delta_set_index_map: Option<&'a DeltaSetIndexMap<'a>>,
         has_variations: bool,
         all_axes_pinned: bool,
+        _has_delta_set_index_map: bool,
     ) -> Self {
         Self {
             delta_map,
+            old_to_new_deltaset_map,
+            delta_set_index_map,
             has_variations,
             all_axes_pinned,
         }
@@ -60,38 +69,50 @@ impl<'a> ColrInstancer<'a> {
             return NO_VARIATION_INDEX;
         }
 
-        // The delta_map stores pre-filter indices (not old paint varidx values).
-        // For paint VarIdxBase values, we need to remap them through the varidx_map.
-        // Since we don't have direct access to varidx_map here, we check if the index
-        // appears in our delta_map. If it does, use the mapped value; otherwise keep original.
-        // This works when ColorStop.varidx_base values match those collected during planning.
-        if let Some((new_varidx, _)) = self.delta_map.get(&old_varidx) {
+        if self.delta_set_index_map.is_some() {
+            if let Some(new_deltaset_idx) = self.old_to_new_deltaset_map.get(&old_varidx) {
+                *new_deltaset_idx
+            } else {
+                NO_VARIATION_INDEX
+            }
+        } else if let Some((new_varidx, _)) = self.delta_map.get(&old_varidx) {
             *new_varidx
         } else {
-            // Not found in collected indices - may be because not all indices were collected,
-            // or this is a different subsetting context
             old_varidx
         }
     }
 
-    /// Get delta for a given variation index and field index.
-    /// Scales the delta appropriately for the field type.
-    pub fn get_delta(&self, var_idx: u32, field_idx: usize) -> f32 {
+    fn get_float_delta(&self, var_idx: u32, field_idx: usize) -> FloatItemDelta {
         if !self.has_variations || var_idx == NO_VARIATION_INDEX || field_idx > 15 {
-            return 0.0;
+            return FloatItemDelta::ZERO;
         }
 
-        // Calculate the actual variation index: base + field offset
         let actual_idx = var_idx.wrapping_add(field_idx as u32);
+        let lookup_idx = if let Some(map) = self.delta_set_index_map {
+            let Ok(mapped_entry) = map.get(actual_idx) else {
+                return FloatItemDelta::ZERO;
+            };
+            let mapped = ((mapped_entry.outer as u32) << 16) + mapped_entry.inner as u32;
+            if mapped == NO_VARIATION_INDEX {
+                return FloatItemDelta::ZERO;
+            }
+            mapped
+        } else {
+            actual_idx
+        };
 
-        let raw_delta = self.delta_map
-            .get(&actual_idx)
+        self.delta_map
+            .get(&lookup_idx)
             .map(|(_, delta)| *delta)
-            .unwrap_or(0);
-        
-        // Scale the delta: F2Dot14 values use 16384 units per 1.0
-        // so delta in raw units should be divided by 16384
-        (raw_delta as f32) / 16384.0
+            .unwrap_or(FloatItemDelta::ZERO)
+    }
+
+    pub fn get_design_delta(&self, var_idx: u32, field_idx: usize) -> f32 {
+        FWord::new(0).apply_float_delta(self.get_float_delta(var_idx, field_idx))
+    }
+
+    pub fn get_f2dot14_delta(&self, var_idx: u32, field_idx: usize) -> f32 {
+        F2Dot14::from_bits(0).apply_float_delta(self.get_float_delta(var_idx, field_idx))
     }
 }
 
@@ -121,75 +142,25 @@ impl Subset for Colr<'_> {
         // set version to 1, format pos = 0
         s.copy_assign(0, 1_u16);
 
-        // Handle instantiation of ItemVariationStore if needed
-        let (var_store_bytes, final_delta_map, post_filter_varidx_map) =
-            if !plan.normalized_coords.is_empty() {
-                if let Some(var_store) = self
-                    .item_variation_store()
-                    .transpose()
-                    .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
-                {
-                    let (bytes, post_filter_map) = subset_itemvarstore_with_instancing(
-                        var_store.clone(),
-                        plan,
-                        s,
-                        &plan.colr_varstore_inner_maps,
-                        true,
-                        self.var_index_map()
-                            .transpose()
-                            .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
-                            .is_some(),
-                        true,
-                    )
-                    .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
+        // subset ItemVariationStore first, cause varidx_map needs to be updated
+        // after instancing
+        subset_varstore(self, plan, s).map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
 
-                    log::warn!("COLR instancing: original delta_map has {} entries", plan.colr_varidx_delta_map.len());
-                    log::warn!("COLR instancing: post_filter_map has {} entries", post_filter_map.len());
-
-                    // When post_filter_map is empty, all delta rows were filtered out.
-                    // The ItemVariationStore is now empty, so VarIndexBase values are meaningless.
-                    // However, we keep them with their deltas applied - don't try to remap them.
-                    // Overwrite each entry's first value (new_varidx) with the old_varidx itself,
-                    // so remap_varidx() returns it unchanged. This effectively disables remapping.
-                    if post_filter_map.is_empty() {
-                        // Keep original indices unchanged (they point to non-existent ItemVariationStore)
-                        let mut composed_delta_map = FnvHashMap::default();
-                        for (old_idx, (_pre_filter_idx, delta)) in plan.colr_varidx_delta_map.iter() {
-                            // Use old_idx as the "new" index so remap returns it unchanged
-                            composed_delta_map.insert(*old_idx, (*old_idx, *delta));
-                        }
-                        (Some(bytes), composed_delta_map, Some(post_filter_map))
-                    } else {
-                        // Compose maps: old_idx -> (pre_filter_idx, delta) + pre_filter_idx -> post_filter_idx
-                        // Result: old_idx -> (post_filter_idx, delta)
-                        let mut composed_delta_map = FnvHashMap::default();
-                        for (old_idx, (pre_filter_idx, delta)) in plan.colr_varidx_delta_map.iter() {
-                            let post_filter_idx = post_filter_map
-                                .get(pre_filter_idx)
-                                .copied()
-                                .unwrap_or(NO_VARIATION_INDEX);
-                            composed_delta_map.insert(*old_idx, (post_filter_idx, *delta));
-                        }
-                        log::warn!("COLR instancing: composed_delta_map has {} entries", composed_delta_map.len());
-                        (Some(bytes), composed_delta_map, Some(post_filter_map))
-                    }
-                } else {
-                    // No ItemVariationStore in original COLR, so don't compose maps.
-                    // The var paints will use their embedded deltas; plan.colr_varidx_delta_map
-                    // will have NO entries anyway since there was nothing to collect.
-                    log::info!("COLR instancing: no ItemVariationStore in original, using original delta_map");
-                    (None, plan.colr_varidx_delta_map.clone(), None)
-                }
-            } else {
-                (None, plan.colr_varidx_delta_map.clone(), None)
-            };
+        let delta_set_index_map = self
+            .var_index_map()
+            .transpose()
+            .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
 
         // Create instancer for applying deltas to Paint structures
-        let instancer = if !plan.normalized_coords.is_empty() {
-            ColrInstancer::new(&final_delta_map, true, plan.all_axes_pinned)
-        } else {
-            ColrInstancer::new(&final_delta_map, false, false)
-        };
+        let has_delta_set_index_map = delta_set_index_map.is_some();
+        let instancer = ColrInstancer::new(
+            &plan.colr_varidx_delta_map,
+            &plan.colr_old_to_new_deltaset_idx_map,
+            delta_set_index_map.as_ref(),
+            true,
+            !plan.normalized_coords.is_empty() && plan.all_axes_pinned,
+            has_delta_set_index_map,
+        );
 
         // BaseGlyphList offset pos = 14
         Offset32::serialize_subset(&base_glyph_list.unwrap(), s, plan, instancer, 14)
@@ -224,69 +195,112 @@ impl Subset for Colr<'_> {
             }
         }
 
-        // Omit var machinery only when all axes are pinned and COLR is fully materialized.
-        if plan.normalized_coords.is_empty() || !plan.all_axes_pinned {
-            let mut remapped_deltaset_idx_varidx_map = None;
-            if let Some(remap) = post_filter_varidx_map.as_ref() {
-                let mut remapped = FnvHashMap::default();
-                for (idx, old_varidx) in plan.colr_new_deltaset_idx_varidx_map.iter() {
-                    let mapped = remap.get(old_varidx).copied().unwrap_or(NO_VARIATION_INDEX);
-                    remapped.insert(*idx, mapped);
-                }
-                remapped_deltaset_idx_varidx_map = Some(remapped);
-            }
-
-            //varIndexMap offset pos = 26
-            if let Some(var_index_map) = self
-                .var_index_map()
-                .transpose()
-                .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
-            {
-                let deltaset_plan =
-                    if let Some(remapped) = remapped_deltaset_idx_varidx_map.as_ref() {
-                        create_deltaset_index_map_subset_plan_from_map(remapped)
-                    } else {
-                        create_deltaset_index_map_subset_plan(plan)
-                    };
-
-                if let Some(deltaset_index_map_subset_plan) = deltaset_plan {
-                    Offset32::serialize_subset(
-                        &var_index_map,
-                        s,
-                        plan,
-                        &deltaset_index_map_subset_plan,
-                        26,
-                    )
-                    .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
-                }
-            }
-
-            // var_store offset pos = 30
-            if let Some(bytes) = var_store_bytes {
-                if !bytes.is_empty() {
-                    Offset32::serialize_copy_from_bytes(&bytes, s, 30)
-                        .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
-                }
-            } else if let Some(var_store) = self
-                .item_variation_store()
-                .transpose()
-                .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
-            {
-                match Offset32::serialize_subset(
-                    &var_store,
-                    s,
-                    plan,
-                    (&plan.colr_varstore_inner_maps, false, true, true),
-                    30,
-                ) {
-                    Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                    Err(_) => return Err(SubsetError::SubsetTableError(Colr::TAG)),
-                }
-            }
-        }
+        subset_delta_set_index_map(self, plan, s)?;
 
         Ok(())
     }
+}
+
+fn subset_varstore(
+    colr: &Colr<'_>,
+    plan: &Plan,
+    s: &mut Serializer,
+) -> Result<(), SerializeErrorFlags> {
+    let Some(varstore) = colr
+        .item_variation_store()
+        .transpose()
+        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+    else {
+        return Ok(());
+    };
+
+    if !plan.normalized_coords.is_empty() {
+        // turn off varstore optimization when varIdxMap is null, so we maintain
+        // original var_idx sequence
+        let optimize = colr.var_index_map().is_some();
+        let mut item_vars = ItemVariations::create_from_item_varstore(
+            &varstore,
+            &plan.axes_old_index_tag_map,
+            &plan.colr_varstore_inner_maps,
+        )?;
+        item_vars.instantiate_tuple_vars(&plan.axes_location, &plan.axes_triple_distances)?;
+        item_vars.as_item_varstore(optimize, optimize)?;
+        // do not serialize varStore if there's no variation data after
+        // instancing: region_list or var_data is empty
+        if !item_vars.get_region_list().is_empty() && !item_vars.get_vardata_encodings().is_empty()
+        {
+            let (varstore_bytes, _varidx_map) =
+                itemvariations_to_varstore_bytes(&item_vars, &plan.axis_tags)?;
+            if !varstore_bytes.is_empty() {
+                Offset32::serialize_copy_from_bytes(&varstore_bytes, s, 30)?;
+            }
+        }
+
+        /* if varstore is optimized, update colrv1_new_deltaset_idx_varidx_map in
+         * subset plan.
+         * If varstore is empty after instancing, varidx_map would be empty and
+         * all var_idxes will be updated to VarIdx::NO_VARIATION */
+        if optimize {
+            let varidx_map = item_vars.get_varidx_map();
+            for new_varidx in plan
+                .colr_new_deltaset_idx_varidx_map
+                .borrow_mut()
+                .values_mut()
+            {
+                let old_varidx = *new_varidx;
+                if let Some(&mapped_varidx) = varidx_map.get(&old_varidx) {
+                    *new_varidx = mapped_varidx;
+                } else {
+                    *new_varidx = NO_VARIATION_INDEX;
+                }
+            }
+        }
+        Ok(())
+    } else {
+        // Just serialize as is
+        Offset32::serialize_subset(
+            &varstore,
+            s,
+            plan,
+            (&plan.colr_varstore_inner_maps, false, true, true),
+            30,
+        )
+    }
+}
+
+fn subset_delta_set_index_map(
+    colr: &Colr<'_>,
+    plan: &Plan,
+    s: &mut Serializer,
+) -> Result<(), SubsetError> {
+    if colr.var_index_map().is_none()
+        || plan.all_axes_pinned
+        || plan.colr_new_deltaset_idx_varidx_map.borrow().is_empty()
+    {
+        return Ok(());
+    }
+
+    //varIndexMap offset pos = 26
+    if let Some(var_index_map) = colr
+        .var_index_map()
+        .transpose()
+        .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
+    {
+        let map = plan.colr_new_deltaset_idx_varidx_map.borrow().clone();
+        let deltaset_plan = create_deltaset_index_map_subset_plan_from_map(&map);
+
+        if let Some(deltaset_index_map_subset_plan) = deltaset_plan {
+            Offset32::serialize_subset(
+                &var_index_map,
+                s,
+                plan,
+                &deltaset_index_map_subset_plan,
+                26,
+            )
+            .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
+        }
+    }
+    Ok(())
 }
 
 // serialize header and V0 tables, format is decided by subset_to_v0 flag
@@ -714,23 +728,24 @@ impl<'a> SubsetTable<'a> for ClipBoxFormat2<'_> {
     }
 }
 
-fn create_deltaset_index_map_subset_plan(plan: &Plan) -> Option<DeltaSetIndexMapSerializePlan<'_>> {
-    create_deltaset_index_map_subset_plan_from_map(&plan.colr_new_deltaset_idx_varidx_map)
-}
-
 fn create_deltaset_index_map_subset_plan_from_map(
     deltaset_idx_varidx_map: &FnvHashMap<u32, u32>,
 ) -> Option<DeltaSetIndexMapSerializePlan<'_>> {
-    let count = deltaset_idx_varidx_map.len();
-    if count == 0 {
+    if deltaset_idx_varidx_map.is_empty() {
         return None;
     }
 
-    let mut last_idx = count as u32 - 1;
-    let last_varidx = deltaset_idx_varidx_map.get(&last_idx).unwrap();
+    let mut last_idx = deltaset_idx_varidx_map.keys().copied().max()?;
+    let last_varidx = deltaset_idx_varidx_map
+        .get(&last_idx)
+        .copied()
+        .unwrap_or(NO_VARIATION_INDEX);
 
     for i in (0..last_idx).rev() {
-        let var_idx = deltaset_idx_varidx_map.get(&i).unwrap();
+        let var_idx = deltaset_idx_varidx_map
+            .get(&i)
+            .copied()
+            .unwrap_or(NO_VARIATION_INDEX);
         if var_idx != last_varidx {
             break;
         }
@@ -741,7 +756,10 @@ fn create_deltaset_index_map_subset_plan_from_map(
     let mut inner_bit_count = 1;
 
     for idx in 0..map_count {
-        let var_idx = deltaset_idx_varidx_map.get(&idx).unwrap();
+        let var_idx = deltaset_idx_varidx_map
+            .get(&idx)
+            .copied()
+            .unwrap_or(NO_VARIATION_INDEX);
 
         let outer = var_idx >> 16;
         let bit_count = 32 - outer.leading_zeros();
@@ -790,15 +808,17 @@ impl<'a> SubsetTable<'a> for VarColorStop {
         instancer: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
         let varidx_base = self.var_index_base();
-        
-        // Apply deltas if this is a variable ColorStop with active instancer
+
         let stop_offset = if instancer.has_variations && varidx_base != NO_VARIATION_INDEX {
-            self.stop_offset().to_f32() + instancer.get_delta(varidx_base, 0)
+            let bits = self.stop_offset().to_bits() as f32
+                + instancer.get_f2dot14_delta(varidx_base, 0) * 16384.0;
+            let bits = bits.clamp(i16::MIN as f32, i16::MAX as f32).round() as i16;
+            F2Dot14::from_bits(bits)
         } else {
-            self.stop_offset().to_f32()
+            self.stop_offset()
         };
-        s.embed(F2Dot14::from_f32(stop_offset))?;
-        
+        s.embed(stop_offset)?;
+
         let palette_idx = self.palette_index();
         let Some(new_idx) = plan.colr_palettes.get(&palette_idx) else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
@@ -806,11 +826,14 @@ impl<'a> SubsetTable<'a> for VarColorStop {
         s.embed(*new_idx)?;
 
         let alpha = if instancer.has_variations && varidx_base != NO_VARIATION_INDEX {
-            self.alpha().to_f32() + instancer.get_delta(varidx_base, 1)
+            let bits = self.alpha().to_bits() as f32
+                + instancer.get_f2dot14_delta(varidx_base, 1) * 16384.0;
+            let bits = bits.clamp(i16::MIN as f32, i16::MAX as f32).round() as i16;
+            F2Dot14::from_bits(bits)
         } else {
-            self.alpha().to_f32()
+            self.alpha()
         };
-        s.embed(F2Dot14::from_f32(alpha))?;
+        s.embed(alpha)?;
 
         // Emit as non-var ColorStop only when all axes are pinned.
         if instancer.all_axes_pinned {
@@ -1025,12 +1048,12 @@ impl<'a> SubsetTable<'a> for PaintVarLinearGradient<'_> {
 
         let varidx_base = self.var_index_base();
         if instancer.has_variations && varidx_base != NO_VARIATION_INDEX {
-            let x0 = self.x0().to_i16() as f32 + instancer.get_delta(varidx_base, 0);
-            let y0 = self.y0().to_i16() as f32 + instancer.get_delta(varidx_base, 1);
-            let x1 = self.x1().to_i16() as f32 + instancer.get_delta(varidx_base, 2);
-            let y1 = self.y1().to_i16() as f32 + instancer.get_delta(varidx_base, 3);
-            let x2 = self.x2().to_i16() as f32 + instancer.get_delta(varidx_base, 4);
-            let y2 = self.y2().to_i16() as f32 + instancer.get_delta(varidx_base, 5);
+            let x0 = self.x0().to_i16() as f32 + instancer.get_design_delta(varidx_base, 0);
+            let y0 = self.y0().to_i16() as f32 + instancer.get_design_delta(varidx_base, 1);
+            let x1 = self.x1().to_i16() as f32 + instancer.get_design_delta(varidx_base, 2);
+            let y1 = self.y1().to_i16() as f32 + instancer.get_design_delta(varidx_base, 3);
+            let x2 = self.x2().to_i16() as f32 + instancer.get_design_delta(varidx_base, 4);
+            let y2 = self.y2().to_i16() as f32 + instancer.get_design_delta(varidx_base, 5);
 
             s.copy_assign(
                 start_pos + self.shape().x0_byte_range().start,
@@ -1114,12 +1137,14 @@ impl<'a> SubsetTable<'a> for PaintVarRadialGradient<'_> {
 
         let varidx_base = self.var_index_base();
         if instancer.has_variations && varidx_base != NO_VARIATION_INDEX {
-            let x0 = self.x0().to_i16() as f32 + instancer.get_delta(varidx_base, 0);
-            let y0 = self.y0().to_i16() as f32 + instancer.get_delta(varidx_base, 1);
-            let radius0 = self.radius0().to_u16() as f32 + instancer.get_delta(varidx_base, 2);
-            let x1 = self.x1().to_i16() as f32 + instancer.get_delta(varidx_base, 3);
-            let y1 = self.y1().to_i16() as f32 + instancer.get_delta(varidx_base, 4);
-            let radius1 = self.radius1().to_u16() as f32 + instancer.get_delta(varidx_base, 5);
+            let x0 = self.x0().to_i16() as f32 + instancer.get_design_delta(varidx_base, 0);
+            let y0 = self.y0().to_i16() as f32 + instancer.get_design_delta(varidx_base, 1);
+            let radius0 =
+                self.radius0().to_u16() as f32 + instancer.get_design_delta(varidx_base, 2);
+            let x1 = self.x1().to_i16() as f32 + instancer.get_design_delta(varidx_base, 3);
+            let y1 = self.y1().to_i16() as f32 + instancer.get_design_delta(varidx_base, 4);
+            let radius1 =
+                self.radius1().to_u16() as f32 + instancer.get_design_delta(varidx_base, 5);
 
             s.copy_assign(
                 start_pos + self.shape().x0_byte_range().start,
