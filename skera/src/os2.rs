@@ -238,7 +238,7 @@ fn map_wdth_to_widthclass(width: f64) -> f64 {
     let mut a = ratio.floor() as i32;
     let mut b = ratio.ceil() as i32;
 
-    /* follow this maping:
+    /* follow this mapping:
      * https://docs.microsoft.com/en-us/typography/opentype/spec/os2#uswidthclass
      */
     if b <= 6 {

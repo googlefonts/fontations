@@ -353,7 +353,7 @@ fn solve<F: Float + std::fmt::Debug + Copy + Default + PartialEq>(
  * -1,0,+1 coordinate system. Tent values can be outside this range.
  *
  * Return value: a list of tuples. Each tuple is of the form
- * (scalar,tent), where scalar is a multipler to multiply any
+ * (scalar,tent), where scalar is a multiplier to multiply any
  * delta-sets by, and tent is a new tent for that output delta-set.
  * If tent value is Triple{}, that is a special deltaset that should
  * be always-enabled (called "gain").

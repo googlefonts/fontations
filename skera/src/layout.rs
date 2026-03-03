@@ -1453,12 +1453,20 @@ impl<'a> SubsetTable<'a> for FeatureRecord {
         };
 
         let substitute_lookups = if c.table_tag == Gsub::TAG {
-            plan.gsub_feature_substitutes_map.get(&(feature_index as u16))
+            plan.gsub_feature_substitutes_map
+                .get(&(feature_index as u16))
         } else {
-            plan.gpos_feature_substitutes_map.get(&(feature_index as u16))
+            plan.gpos_feature_substitutes_map
+                .get(&(feature_index as u16))
         };
 
-        Offset16::serialize_subset(&feature, s, plan, (c, substitute_lookups), feature_offset_pos)
+        Offset16::serialize_subset(
+            &feature,
+            s,
+            plan,
+            (c, substitute_lookups),
+            feature_offset_pos,
+        )
     }
 }
 

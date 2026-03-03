@@ -56,8 +56,7 @@ impl Subset for Vvar<'_> {
             )
             .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
 
-            if index_maps[0].is_some()
-                && !vvar_subset_plan.remap_index_map_plans(plan, &varidx_map)
+            if index_maps[0].is_some() && !vvar_subset_plan.remap_index_map_plans(plan, &varidx_map)
             {
                 return Err(SubsetError::SubsetTableError(Vvar::TAG));
             }
