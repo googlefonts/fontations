@@ -51,7 +51,7 @@ impl Subset for Hvar<'_> {
             .embed(0_u32)
             .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
 
-        log::debug!("HVAR inner maps: {:?}", hvar_subset_plan.inner_maps());
+        // log::debug!("HVAR inner maps: {:?}", hvar_subset_plan.inner_maps());
 
         if !plan.normalized_coords.is_empty() {
             let (bytes, varidx_map) = subset_itemvarstore_with_instancing(
@@ -65,8 +65,7 @@ impl Subset for Hvar<'_> {
             )
             .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
 
-            if index_maps[0].is_some()
-                && !hvar_subset_plan.remap_index_map_plans(plan, &varidx_map)
+            if index_maps[0].is_some() && !hvar_subset_plan.remap_index_map_plans(plan, &varidx_map)
             {
                 return Err(SubsetError::SubsetTableError(Hvar::TAG));
             }

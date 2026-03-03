@@ -104,22 +104,22 @@ fn update_var_flag(
                     DeviceOrVariationIndex::Device(_device) => {
                         // For device tables, we conservatively assume they may have non-zero deltas and keep the flag
                         *format |= flag;
-                        log::debug!("Device table found, keeping format flag {:?} for now", flag);
+                        // log::debug!("Device table found, keeping format flag {:?} for now", flag);
                     }
                     DeviceOrVariationIndex::VariationIndex(varidx) => {
                         let ix = varidx.delta_set_inner_index() as u32
                             | ((varidx.delta_set_outer_index() as u32) << 16);
                         if let Some((first, _)) = varidx_map.get(&ix) {
                             if *first != NO_VARIATION_INDEX {
-                                log::debug!(
-                                "Variation index has non-zero delta , keeping format flag {:?}.",
-                                flag
-                            );
+                                //     log::debug!(
+                                //     "Variation index has non-zero delta , keeping format flag {:?}.",
+                                //     flag
+                                // );
                                 *format |= flag;
                                 return;
                             }
                         } else {
-                            log::debug!("Variation index not found in delta map, clearing format flag {:?} to be safe.", flag);
+                            // log::debug!("Variation index not found in delta map, clearing format flag {:?} to be safe.", flag);
                         }
                     }
                 }
