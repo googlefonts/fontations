@@ -1246,7 +1246,7 @@ fn get_points_harfbuzz_standalone(
         }
     }
 
-    let mut shift: f32 = 0.0;
+    let shift: f32;
 
     match glyph {
         Some(Glyph::Simple(_)) => {
@@ -1285,7 +1285,7 @@ fn get_points_harfbuzz_standalone(
                 let old_count = all_points.len();
 
                 // Recursively get points for this component (with deltas applied at ITS level)
-                let use_my_metrics = component
+                let _use_my_metrics = component
                     .flags
                     .contains(CompositeGlyphFlags::USE_MY_METRICS);
 
@@ -1315,12 +1315,12 @@ fn get_points_harfbuzz_standalone(
                 // applying the composite's gvar deltas) should be used, not the component's.
                 // Copying the component's phantoms here causes incorrect advance widths.
                 // See: https://github.com/harfbuzz/harfbuzz/blob/main/src/OT/glyf/Glyph.hh
-                if false && use_my_metrics && comp_points_len >= PHANTOM_POINT_COUNT {
-                    let comp_phantom_start = all_points.len() - PHANTOM_POINT_COUNT;
-                    phantoms[..PHANTOM_POINT_COUNT].copy_from_slice(
-                        &all_points[comp_phantom_start..(PHANTOM_POINT_COUNT + comp_phantom_start)],
-                    );
-                }
+                // if use_my_metrics && comp_points_len >= PHANTOM_POINT_COUNT {
+                //     let comp_phantom_start = all_points.len() - PHANTOM_POINT_COUNT;
+                //     phantoms[..PHANTOM_POINT_COUNT].copy_from_slice(
+                //         &all_points[comp_phantom_start..(PHANTOM_POINT_COUNT + comp_phantom_start)],
+                //     );
+                // }
 
                 // ========== Apply component transformation ==========
                 // Harfbuzz lines ~467-475: Component points are transformed by matrix + translation

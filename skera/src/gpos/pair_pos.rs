@@ -10,7 +10,6 @@ use crate::{
 };
 
 use fnv::FnvHashMap;
-use skrifa::GlyphId16;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -239,22 +238,6 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
     }
 }
 
-fn flat_coverage(coverage: &CoverageTable) -> Vec<GlyphId> {
-    match coverage {
-        CoverageTable::Format1(table_ref) => table_ref
-            .glyph_array()
-            .iter()
-            .map(|r| GlyphId::from(r.get().to_u16()))
-            .collect::<Vec<_>>(),
-        CoverageTable::Format2(table_ref) => table_ref
-            .range_records()
-            .into_iter()
-            .map(|r| r.start_glyph_id().to_u16()..r.end_glyph_id().to_u16())
-            .flatten()
-            .map(GlyphId::from)
-            .collect::<Vec<_>>(),
-    }
-}
 fn compute_effective_pair_formats_2(
     pair_pos: &PairPosFormat2,
     class1_idxes: &[u16],

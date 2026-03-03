@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use fnv::FnvHashMap;
-use font_types::{F2Dot14, MajorMinor, Offset16, Offset32};
+use font_types::{F2Dot14, MajorMinor, Offset32};
 use skrifa::{
     raw::{
         collections::IntSet,
@@ -158,23 +158,6 @@ fn num_variation_record_to_retain(
         }
     }
     Ok(0)
-}
-
-// Empty ConditionSet for catch-all record
-struct EmptyConditionSet;
-
-impl<'a> SubsetTable<'a> for EmptyConditionSet {
-    type ArgsForSubset = ();
-    type Output = ();
-    fn subset(
-        &self,
-        _plan: &Plan,
-        s: &mut Serializer,
-        _args: Self::ArgsForSubset,
-    ) -> Result<Self::Output, SerializeErrorFlags> {
-        s.embed(0_u16)?; // ConditionCount = 0
-        Ok(())
-    }
 }
 
 // Empty Feature with no lookups
@@ -607,7 +590,7 @@ pub(crate) fn collect_feature_substitutes_with_variations(
 
         // varRecords[i].collect_feature_substitutes_with_variations (c, this)
         if let Some(Ok(cond_set)) = record.condition_set(data) {
-            keep_with_variations(cond_set, ctx).map_err(|e| SubsetError::ReadError(e))?;
+            keep_with_variations(cond_set, ctx).map_err(SubsetError::ReadError)?;
             // log::debug!(
             //     "Record {}: kept conditions {:?} after applying variations",
             //     record_idx,
@@ -656,7 +639,6 @@ pub(crate) struct FeatureSubstituteCollectionResult {
     pub(crate) catch_all_record_feature_indices: IntSet<u16>,
     /// For each feature index that has a substitute, store the lookup indices from that substitute
     pub(crate) feature_substitutes_lookup_map: FnvHashMap<u16, IntSet<u16>>,
-    pub(crate) variation_applied: bool,
     pub(crate) record_cond_idx_map: FnvHashMap<u16, IntSet<u16>>,
 }
 impl FeatureSubstituteCollectionResult {
@@ -664,19 +646,17 @@ impl FeatureSubstituteCollectionResult {
         Self {
             catch_all_record_feature_indices: IntSet::default(),
             feature_substitutes_lookup_map: FnvHashMap::default(),
-            variation_applied: false,
             record_cond_idx_map: FnvHashMap::default(),
         }
     }
 }
 
-impl Into<FeatureSubstituteCollectionResult> for CollectFeatureSubstitutesContext<'_> {
-    fn into(self) -> FeatureSubstituteCollectionResult {
+impl From<CollectFeatureSubstitutesContext<'_>> for FeatureSubstituteCollectionResult {
+    fn from(val: CollectFeatureSubstitutesContext<'_>) -> Self {
         FeatureSubstituteCollectionResult {
-            catch_all_record_feature_indices: self.catch_all_record_feature_indices,
-            feature_substitutes_lookup_map: self.feature_substitutes_lookup_map,
-            variation_applied: self.variation_applied,
-            record_cond_idx_map: self.record_cond_idx_map,
+            catch_all_record_feature_indices: val.catch_all_record_feature_indices,
+            feature_substitutes_lookup_map: val.feature_substitutes_lookup_map,
+            record_cond_idx_map: val.record_cond_idx_map,
         }
     }
 }

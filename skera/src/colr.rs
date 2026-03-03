@@ -709,7 +709,7 @@ impl<'a> SubsetTable<'a> for ClipBoxFormat2<'_> {
 
     fn subset(
         &self,
-        plan: &Plan,
+        _plan: &Plan,
         s: &mut Serializer,
         instancer: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
@@ -1303,7 +1303,7 @@ impl<'a> SubsetTable<'a> for VarAffine2x3<'_> {
 
     fn subset(
         &self,
-        plan: &Plan,
+        _plan: &Plan,
         s: &mut Serializer,
         instancer: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {

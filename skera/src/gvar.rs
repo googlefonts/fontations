@@ -109,7 +109,6 @@ fn instantiate_gvar(
         .map(|(_, tag)| *tag)
         .collect::<Vec<_>>();
 
-    let mut any_deltas = false;
     for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
         if let Some(glyph_var) = gvar
             .glyph_variation_data(*old_gid)
@@ -142,10 +141,6 @@ fn instantiate_gvar(
                 )?;
                 // Normalize axes: ensure all tuples have the same set of axes
                 tuple_variations.normalize_axes(&retained_axis_tags);
-                let deltas = tuple_variations.to_glyph_deltas(&plan.axis_tags);
-                if !deltas.is_empty() {
-                    any_deltas = true;
-                }
                 new_variations.push(GlyphVariations::new(
                     *new_gid,
                     tuple_variations.to_glyph_deltas(&plan.axis_tags),

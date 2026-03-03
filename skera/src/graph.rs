@@ -658,10 +658,7 @@ impl Graph {
         }
 
         visited.invert();
-        loop {
-            let Some(next) = roots.first() else {
-                break;
-            };
+        while let Some(next) = roots.first() {
             let mut connected_roots = IntSet::empty();
             self.find_connected_nodes(
                 next as usize,

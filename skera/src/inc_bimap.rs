@@ -14,7 +14,7 @@ pub(crate) struct IncBiMap {
 impl Debug for IncBiMap {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_map()
-            .entries(self.forw_map.iter().map(|(k, v)| (k, v)))
+            .entries(self.forw_map.iter())
             .finish()
     }
 }

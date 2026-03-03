@@ -13,7 +13,7 @@ use skrifa::{
     raw::tables::{
         cvar::CvtDelta,
         gvar::GlyphDelta,
-        variations::{RegionAxisCoordinates, TupleVariation, TupleVariationData},
+        variations::{TupleVariation, TupleVariationData},
     },
     Tag,
 };
@@ -102,19 +102,6 @@ impl Region {
 
     fn iter(&self) -> impl Iterator<Item = (&Tag, &Triple<f64>)> {
         self.0.iter()
-    }
-
-    /// Check if this region is inactive (all axes are at neutral 0,0,0).
-    /// An inactive region cannot contribute to any variation since the tensor evaluates to 0.
-    ///
-    /// Note: While Harfbuzz doesn't explicitly check for this, such regions can arise in skera
-    /// when axes are removed during instancing (change_tuple_var_axis_limit). A region that loses
-    /// all its axes ends up with only neutral 0,0,0 coordinates. We filter these out preemptively
-    /// to match Harfbuzz's observed behavior, since they can never contribute to variations.
-    fn is_inactive(&self) -> bool {
-        self.0
-            .values()
-            .all(|triple| triple.minimum == 0.0 && triple.middle == 0.0 && triple.maximum == 0.0)
     }
 
     /// Maps axis indices to tags using the axes_old_index_tag_map
@@ -816,11 +803,6 @@ impl TupleVariations {
     /// Check if there are no tuple variations
     pub fn is_empty(&self) -> bool {
         self.tuple_vars.is_empty()
-    }
-
-    /// Iterate over tuple variations
-    pub fn iter(&self) -> impl Iterator<Item = &TupleDelta> {
-        self.tuple_vars.iter()
     }
 
     /// Apply instantiated cvar deltas to the CVT values in-place.
@@ -1581,7 +1563,7 @@ pub(crate) fn itemvariations_to_varstore_bytes(
 
     fn push_f2dot14(buf: &mut Vec<u8>, value: f64) {
         let fixed = F2Dot14::from_f32(value as f32);
-        push_i16(buf, fixed.to_bits() as i16);
+        push_i16(buf, fixed.to_bits());
     }
 
     fn serialize_var_data(
@@ -1806,53 +1788,6 @@ fn remap_varidx_after_instantiation(
     for (old_varidx, (new_varidx, delta)) in entries_to_update {
         layout_varidx_delta_map.insert(old_varidx, (new_varidx, delta));
     }
-}
-
-/// Evaluate a variation region at given normalized coordinates.
-/// Returns the scalar multiplier for deltas in this region.
-/// Corresponds to Harfbuzz's VarRegionList::evaluate.
-fn evaluate_region(axis_tuples: &[RegionAxisCoordinates], normalized_coords: &[F2Dot14]) -> f32 {
-    let mut scalar = 1.0f32;
-
-    for (axis_idx, coords) in axis_tuples.iter().enumerate() {
-        if axis_idx >= normalized_coords.len() {
-            break;
-        }
-
-        let coord = normalized_coords[axis_idx].to_f32();
-        let start = coords.start_coord.get().to_f32();
-        let peak = coords.peak_coord.get().to_f32();
-        let end = coords.end_coord.get().to_f32();
-
-        // Harfbuzz's VarRegionAxis::evaluate logic
-        if start > peak || peak > end {
-            continue;
-        }
-        if start < 0.0 && end > 0.0 && peak != 0.0 {
-            continue;
-        }
-
-        if peak == 0.0 || coord == peak {
-            continue;
-        }
-
-        if coord < start || coord > end {
-            scalar = 0.0;
-            break;
-        }
-
-        if coord < peak {
-            if start != peak {
-                scalar *= (coord - start) / (peak - start);
-            }
-        } else {
-            if peak != end {
-                scalar *= (end - coord) / (end - peak);
-            }
-        }
-    }
-
-    scalar
 }
 
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {

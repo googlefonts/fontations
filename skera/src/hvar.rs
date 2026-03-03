@@ -196,17 +196,13 @@ impl IndexMapSubsetPlan {
         }
         this.map_count = (last_gid.unwrap().to_u32() + 1) as u16;
 
-        if index_map.is_none() {
-            outer_map.add(0);
-            inner_sets[0].extend(plan.glyphset.iter().map(|g| g.to_u32() as u16));
-            this.max_inners[0] = plan.new_to_old_gid_list.iter().last().unwrap().1.to_u32() as u16;
-        } else {
+        if let Some(ix_map) = index_map {
             for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
                 if new_gid.to_u32() >= this.map_count as u32 {
                     break;
                 }
 
-                let v = index_map.unwrap().get(old_gid.to_u32())?;
+                let v = ix_map.get(old_gid.to_u32())?;
                 let outer = v.outer as usize;
                 if outer >= this.max_inners.len() {
                     break;
@@ -219,6 +215,10 @@ impl IndexMapSubsetPlan {
 
                 inner_sets[outer].insert(v.inner);
             }
+        } else {
+            outer_map.add(0);
+            inner_sets[0].extend(plan.glyphset.iter().map(|g| g.to_u32() as u16));
+            this.max_inners[0] = plan.new_to_old_gid_list.iter().last().unwrap().1.to_u32() as u16;
         }
 
         Ok(this)

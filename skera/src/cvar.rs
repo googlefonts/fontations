@@ -73,7 +73,7 @@ fn instantiate_cvar_fully(
 
     // Get the cvar variation data
     let axis_count = plan.axis_tags.len() as u16;
-    if let Some(tuple_var_data) = cvar.variation_data(axis_count).ok() {
+    if let Ok(tuple_var_data) = cvar.variation_data(axis_count) {
         let mut tuple_variations: TupleVariations = TupleVariations::from_cvar(
             tuple_var_data,
             num_cvt_items,

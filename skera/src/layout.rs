@@ -19,13 +19,11 @@ use write_fonts::{
             gsub::Gsub,
             layout::{
                 CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
-                ClassRangeRecord, Condition, ConditionFormat1, ConditionSet, CoverageFormat1,
-                CoverageFormat2, CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex,
-                ExtensionLookup, Feature, FeatureList, FeatureParams, FeatureRecord,
-                FeatureTableSubstitution, FeatureTableSubstitutionRecord, FeatureVariationRecord,
-                FeatureVariations, Intersect, LangSys, LangSysRecord, LookupList, RangeRecord,
-                Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams, Subtables,
-                VariationIndex,
+                ClassRangeRecord, CoverageFormat1, CoverageFormat2, CoverageTable, DeltaFormat,
+                Device, DeviceOrVariationIndex, ExtensionLookup, Feature, FeatureList,
+                FeatureParams, FeatureRecord, FeatureVariations, Intersect, LangSys, LangSysRecord,
+                LookupList, RangeRecord, Script, ScriptList, ScriptRecord, SizeParams,
+                StylisticSetParams, Subtables, VariationIndex,
             },
             variations::NO_VARIATION_INDEX,
         },
@@ -336,7 +334,7 @@ impl<'a> SubsetTable<'a> for ClassDefFormat2<'a> {
             }
         }
 
-        new_gid_classes.sort_by(|a, b| a.0.cmp(&b.0));
+        new_gid_classes.sort_by_key(|a| a.0);
         let use_class_zero = if args.use_class_zero {
             let glyph_count = if let Some(glyph_filter) = args.glyph_filter {
                 glyph_map
@@ -1135,7 +1133,7 @@ pub(crate) struct SubsetLayoutContext {
     pub(crate) table_tag: Tag,
     pub(crate) feature_record_cond_idx_map: FnvHashMap<u16, IntSet<u16>>,
     pub(crate) catch_all_record_feature_idxes: IntSet<u16>,
-    pub(crate) cur_script_index: u16,
+    // pub(crate) cur_script_index: u16,
     pub(crate) cur_feature_var_record_idx: u16,
 }
 
@@ -1146,7 +1144,7 @@ impl SubsetLayoutContext {
             langsys_count: 0,
             feature_index_count: 0,
             lookup_count: 0,
-            cur_script_index: 0,
+            // cur_script_index: 0,
             cur_feature_var_record_idx: 0,
             feature_record_cond_idx_map: FnvHashMap::default(),
             catch_all_record_feature_idxes: IntSet::empty(),
@@ -1608,8 +1606,8 @@ where
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
         // Format identifier = 1
-        let format_pos = s.embed(1_u16)?;
-        let type_pos = s.embed(self.extension_lookup_type)?;
+        let _format_pos = s.embed(1_u16)?;
+        let _type_pos = s.embed(self.extension_lookup_type)?;
         let extension_offset_pos = s.embed(0_u32)?;
         // Serialize the actual subtable at the 32-bit offset
         let result =

@@ -219,7 +219,3 @@ pub static UNICODE_BIDI_MIRRORED: LazyLock<FnvHashMap<u32, u32>> = LazyLock::new
         (0xFF62, 0xFF63),
     ])
 });
-
-pub fn get_mirrored(c: u32) -> Option<u32> {
-    UNICODE_BIDI_MIRRORED.get(&c).copied()
-}

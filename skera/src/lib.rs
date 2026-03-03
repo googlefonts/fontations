@@ -49,7 +49,7 @@ use crate::{
     repack::resolve_overflows,
     variations::solver::{Triple, TripleDistances},
 };
-use font_types::{Offset16, Offset32, Point};
+use font_types::{Offset16, Point};
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
@@ -488,7 +488,8 @@ impl Plan {
 
         let _ = this.normalize_axes_location(font); // Proper error handling later
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
-        this.populate_gids_to_retain(font);
+        this.populate_gids_to_retain(font)
+            .expect("Could not populate gids to retain");
         this.create_old_gid_to_new_gid_map();
 
         this.create_glyph_map_gsub();
@@ -500,11 +501,12 @@ impl Plan {
             this.unicode_to_new_gid_list[i].1 = *new_gid;
         }
         this.collect_base_var_indices(font);
-        this.get_instance_glyphs_contour_points(font);
+        this.get_instance_glyphs_contour_points(font)
+            .expect("Could not get contour points for instance glyphs");
         this.get_instance_deltas(font)
             .expect("Could not get instance deltas");
-        this.collect_mvar_entries(font);
-        // log::debug!("Name IDS: {:?}", this.name_ids);
+        this.collect_mvar_entries(font)
+            .expect("Could not collect MVAR entries");
 
         this
     }
@@ -816,7 +818,7 @@ impl Plan {
         }
     }
 
-    fn populate_gids_to_retain(&mut self, font: &FontRef) {
+    fn populate_gids_to_retain(&mut self, font: &FontRef) -> Result<(), SubsetError> {
         //not-def
         self.glyphset_gsub.insert(GlyphId::NOTDEF);
 
@@ -827,7 +829,7 @@ impl Plan {
         remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
 
         // layout closure
-        self.layout_populate_gids_to_retain(font);
+        self.layout_populate_gids_to_retain(font)?;
 
         //skip glyph closure for MATH table, it's not supported yet
 
@@ -861,20 +863,22 @@ impl Plan {
 
         self.nameid_closure(font);
         self.collect_layout_var_indices(font);
+        Ok(())
     }
 
-    fn layout_populate_gids_to_retain(&mut self, font: &FontRef) {
+    fn layout_populate_gids_to_retain(&mut self, font: &FontRef) -> Result<(), SubsetError> {
         if !self.drop_tables.contains(Tag::new(b"GSUB")) {
             if let Ok(gsub) = font.gsub() {
-                gsub.closure_glyphs_lookups_features(self);
+                gsub.closure_glyphs_lookups_features(self)?;
             }
         }
 
         if !self.drop_tables.contains(Tag::new(b"GPOS")) {
             if let Ok(gpos) = font.gpos() {
-                gpos.closure_glyphs_lookups_features(self);
+                gpos.closure_glyphs_lookups_features(self)?;
             }
         }
+        Ok(())
     }
 
     fn create_old_gid_to_new_gid_map(&mut self) {
@@ -1520,16 +1524,13 @@ fn generate_varstore_inner_maps(
         inner_maps[major as usize].add(minor);
     }
 }
-//
+type VarIdxMap = FnvHashMap<u32, u32>;
+
 fn remap_delta_set_indices(
     delta_set_indices: &IntSet<u32>,
-    deltaset_idx_var_idx_map: &FnvHashMap<u32, u32>,
+    deltaset_idx_var_idx_map: &VarIdxMap,
     varidx_delta_map: &FnvHashMap<u32, (u32, FloatItemDelta)>,
-) -> (
-    FnvHashMap<u32, u32>,
-    FnvHashMap<u32, u32>,
-    FnvHashMap<u32, (u32, FloatItemDelta)>,
-) {
+) -> (VarIdxMap, VarIdxMap, FnvHashMap<u32, (u32, FloatItemDelta)>) {
     let mut new_deltaset_idx_varidx_map = FnvHashMap::default();
     let mut old_to_new_deltaset_idx_map = FnvHashMap::default();
     let mut deltaset_idx_delta_map = FnvHashMap::default();
