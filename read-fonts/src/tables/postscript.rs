@@ -25,6 +25,7 @@ pub use string::{Latin1String, StringId, STANDARD_STRINGS};
 /// Errors that are specific to PostScript processing.
 #[derive(Clone, Debug)]
 pub enum Error {
+    InvalidFontFormat,
     InvalidIndexOffsetSize(u8),
     ZeroOffsetInIndex,
     InvalidVariationStoreIndex(u16),
@@ -55,6 +56,9 @@ impl From<ReadError> for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidFontFormat => {
+                write!(f, "invalid font format")
+            }
             Self::InvalidIndexOffsetSize(size) => {
                 write!(f, "invalid offset size of {size} for INDEX (expected 1-4)")
             }
