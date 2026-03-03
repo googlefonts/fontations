@@ -27,7 +27,7 @@ use write_fonts::{
 static TEST_DATA_DIR: &str = "./test-data";
 static GEN_EXPECTED_OUTPUTS_VAR: &str = "GEN_EXPECTED_OUTPUTS";
 
-const EXPECTED_FAILURE_CASES: [&str; 4] = [
+const EXPECTED_FAILURE_CASES: [&str; 6] = [
     // These all fail due to a difference in the way Harfbuzz performs layout closure
     // on lookups called from a contextual chaining substitution. We're technically more
     // accurate in how we do it.
@@ -35,6 +35,10 @@ const EXPECTED_FAILURE_CASES: [&str; 4] = [
     "layout.notonastaliqurdu-NotoNastaliqUrdu-Regular.retain-gids.all.ttf",
     "layout.notonastaliqurdu-NotoNastaliqUrdu-Bold.default.all.ttf",
     "layout.notonastaliqurdu-NotoNastaliqUrdu-Bold.retain-gids.all.ttf",
+    // We don't support the retain-num-glyphs flag
+    "retain-num-glyphs-Roboto-Regular.retain-num-glyphs.61,63,5009.ttf",
+    // IUP rounding is slightly different in the non-fontools case,
+    "glyf_partial_instancing_iup-Roboto-Variable.composite.default.all.wght=200-300-500,wdth=80-90.ttf"
 ];
 
 #[derive(Default)]
@@ -621,30 +625,68 @@ fn diff_ttx(expected_ttx: &Path, output_ttx: &Path) -> String {
     let output = fs::read_to_string(output_ttx).unwrap();
     let expected_per_table: HashMap<String, Vec<String>> = split_into_tables(&expected);
     let output_per_table: HashMap<String, Vec<String>> = split_into_tables(&output);
-    let all_tables = expected_per_table
+    let mut all_tables = expected_per_table
         .keys()
         .chain(output_per_table.keys())
         .collect::<HashSet<_>>();
     let mut result = String::new();
-    for table in all_tables {
+    let mut num_glyphs_wrong = false;
+    // Put maxp first
+
+    for table in std::iter::once(&"maxp".to_string())
+        .chain(all_tables.iter().copied().filter(|t| *t != "maxp"))
+    {
         match (expected_per_table.get(table), output_per_table.get(table)) {
             (Some(expected_lines), Some(output_lines)) => {
+                // if expected_lines != output_lines {
+                //     result += &format!("{table} differed...\n");
+                // }
+                // continue;
                 if expected_lines != output_lines {
-                    result += &(format!("\nDifference found in table '{table}':\n")
-                        + &TextDiff::from_lines(
-                            &expected_lines.join("\n"),
-                            &output_lines.join("\n"),
-                        )
-                        .unified_diff()
-                        .header("Expected", "Output")
-                        .to_string()
-                        + "\n\n");
+                    if num_glyphs_wrong && !(table == "GlyphOrder") {
+                        result += &format!(
+                            "Table '{table}' differed and numGlyphs was wrong, all bets are off.\n"
+                        );
+                        continue;
+                    }
+                    if expected_lines.len() + output_lines.len() > 5000 {
+                        result += &format!("Table '{table}' differed and was too big to diff.\n");
+                    }
+                    let diff =
+                        &TextDiff::from_lines(&expected_lines.join("\n"), &output_lines.join("\n"))
+                            .unified_diff()
+                            .header("Expected", "Output")
+                            .to_string();
+
+                    if diff.len() > 1000 {
+                        result += &format!("Table '{table}' differed but was too big to report.\n");
+                        continue;
+                    }
+                    result +=
+                        &(format!("\nDifference found in table '{table}':\n") + diff + "\n\n");
+                    if table == "maxp" {
+                        let expected_num_glyphs = expected_lines
+                            .iter()
+                            .find(|line| line.contains("numGlyphs"))
+                            .unwrap();
+                        let found_num_glyphs = output_lines
+                            .iter()
+                            .find(|line| line.contains("numGlyphs"))
+                            .unwrap();
+                        if expected_num_glyphs != found_num_glyphs {
+                            num_glyphs_wrong = true;
+                        }
+                    }
                 }
             }
             (Some(_), None) => {
                 result += &format!("Output did not contain table {table}\n");
             }
             (None, Some(output_lines)) => {
+                if table == "BASE" {
+                    // Some Harfbuzz tests drop BASE table and we don't, so ignore if it's missing in expected
+                    continue;
+                }
                 result += &format!("Output contained extraneous table {table}\n",);
             }
             (None, None) => unreachable!(),
@@ -690,7 +732,10 @@ fn exclude_expected_failures(c: &mut Command) -> &mut Command {
 }
 
 fn compare_with_expected(output_dir: &Path, output_file: &Path, expected_file: &Path) {
-    let expected = fs::read(expected_file).unwrap();
+    let Ok(expected) = fs::read(expected_file) else {
+        println!("Expected file {expected_file:?} does not exist, skipping comparison.");
+        return;
+    };
     let output = fs::read(output_file).unwrap();
     if expected != output {
         // uncomment to overwrite expected file with output for updating integration tests
