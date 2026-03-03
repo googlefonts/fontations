@@ -39,8 +39,8 @@ core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 font-test-data = { workspace = true }
-criterion = "0.3.0"
 rand = "0.8.5"
 serde_json = { workspace = true }
 
