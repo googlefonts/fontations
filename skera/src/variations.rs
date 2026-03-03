@@ -1269,6 +1269,18 @@ impl ItemVariations {
     ) -> Result<(), SerializeErrorFlags> {
         /* return true if no variation data */
         if self.region_list.is_empty() {
+            // When all regions collapse after instancing, map all indices to NO_VARIATION_INDEX
+            // because there are no variation regions left - all values are now constants.
+            if use_no_variation_idx || (optimize && self.encodings.is_empty()) {
+                // Map all collected variation indices to NO_VARIATION_INDEX (0xFFFFFFFF)
+                for major in 0..self.vars.len() {
+                    let num_rows = self.var_data_num_rows[major];
+                    for minor in 0..num_rows {
+                        let old_varidx = ((major as u32) << 16)+ minor as u32;
+                        self.varidx_map.insert(old_varidx, 0xFFFFFFFF);
+                    }
+                }
+            }
             return Ok(());
         }
         let num_cols = self.region_list.len();
@@ -1538,7 +1550,7 @@ fn _cmp_row(a: &Vec<i32>, b: &Vec<i32>) -> Ordering {
 ///
 /// This mirrors HarfBuzz's ItemVariationStore::serialize behavior closely, preserving
 /// VarData grouping and row order from `item_vars.encodings`.
-/// 
+///
 /// When region_list is empty after instantiation, serializes a trivial varstore with
 /// empty region list but preserves the delta structure (rebased deltas become constants).
 fn itemvariations_to_varstore_bytes(
@@ -1587,14 +1599,14 @@ fn itemvariations_to_varstore_bytes(
         // (rebased values from instantiation). Encode as all-zero VarData.
         if num_regions == 0 {
             let row_count = rows.len();
-            let item_count_u16 =
-                u16::try_from(row_count).map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW)?;
+            let item_count_u16 = u16::try_from(row_count)
+                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW)?;
 
             let mut out = Vec::with_capacity(6);
             push_u16(&mut out, item_count_u16);
             push_u16(&mut out, 0); // wordSizeCount = 0
             push_u16(&mut out, 0); // regionIndexCount = 0
-            // No delta bytes needed when regionIndexCount is 0
+                                   // No delta bytes needed when regionIndexCount is 0
             return Ok(out);
         }
 

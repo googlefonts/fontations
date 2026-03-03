@@ -647,7 +647,7 @@ fn make_composite_glyph_with_deltas(
 ) -> write_fonts::tables::glyf::Glyph {
     // We can't mutate components, we have to rebuild the glyph
     let Some(points_with_deltas) = points_with_deltas else {
-        log::warn!("We don't have any deltas for composite glyph?!");
+        log::debug!("We don't have any deltas for composite glyph?!");
         return write_fonts::tables::glyf::Glyph::Composite(composite_glyph.clone());
     };
     let mut new_components = vec![];
@@ -1043,16 +1043,16 @@ impl ContourPoints {
         {
             let hori_aw: u16 = (right_side_x - left_side_x).round() as u16;
             let lsb: i16 = (bounds.x_min - left_side_x).round() as i16;
-            log::warn!(
-                "Setting hmtx metrics for glyph {} (old_gid: {}), hori_aw: {} (unrounded: {}), lsb: {} (unrounded: {}), based on phantom points",
-                new_gid,
-                old_gid,
-                hori_aw,
-                right_side_x - left_side_x,
-                lsb,
-                bounds.x_min - left_side_x
+            // log::debug!(
+            //     "Setting hmtx metrics for glyph {} (old_gid: {}), hori_aw: {} (unrounded: {}), lsb: {} (unrounded: {}), based on phantom points",
+            //     new_gid,
+            //     old_gid,
+            //     hori_aw,
+            //     right_side_x - left_side_x,
+            //     lsb,
+            //     bounds.x_min - left_side_x
 
-            );
+            // );
 
             plan.hmtx_map.borrow_mut().insert(new_gid, (hori_aw, lsb));
 
@@ -1265,11 +1265,11 @@ fn get_points_harfbuzz_standalone(
             // Harfbuzz lines ~419-467: This is the complex recursive section
 
             if depth == 0 && !coords.is_empty() {
-                log::warn!(
-                    "Composite glyph {} phantoms before component processing: {:?}",
-                    gid,
-                    &phantoms
-                );
+                // log::debug!(
+                //     "Composite glyph {} phantoms before component processing: {:?}",
+                //     gid,
+                //     &phantoms
+                // );
             }
 
             for (comp_index, component) in composite_glyph.components().enumerate() {
