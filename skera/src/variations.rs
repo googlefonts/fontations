@@ -576,7 +576,7 @@ impl TupleVariations {
         if self.tuple_vars.is_empty() {
             return Ok(());
         }
-        log::debug!("Before instantiation: {:?}", self.tuple_vars);
+        // log::debug!("Before instantiation: {:?}", self.tuple_vars);
 
         self.change_tuple_variations_axis_limits(normalized_axes_location, axes_triple_distances)?;
 
@@ -589,7 +589,7 @@ impl TupleVariations {
 
         let drop_neutral_axes = contour_points.is_some();
         self.merge_tuple_variations(None, drop_neutral_axes)?;
-        log::debug!("After instantiation and merging: {:?}", self.tuple_vars);
+        // log::debug!("After instantiation and merging: {:?}", self.tuple_vars);
         // if optimize {
         //     iup_optimize(contour_points)?;
         // }
