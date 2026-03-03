@@ -74,15 +74,9 @@ fn subset_avar(
                     }
                     let mapping_to = mapping.to_coordinate().to_f32() as f64;
                     let new_mapping = (
-                        renormalize_value(
-                            mapping_from,
-                            unmapped_range,
-                            TripleDistances::from(unmapped_range),
-                            false,
-                        ),
+                        renormalize_value(mapping_from, unmapped_range, triple_distances, false),
                         renormalize_value(mapping_to, axis_range, triple_distances, false),
                     );
-
                     if must_include(new_mapping) {
                         continue;
                     }
