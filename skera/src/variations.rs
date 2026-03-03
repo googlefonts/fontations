@@ -30,6 +30,7 @@ use write_fonts::{
         collections::IntSet,
         tables::variations::{
             DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
+            NO_VARIATION_INDEX,
         },
     },
     tables::gvar::{GlyphDelta as WriteGlyphDelta, GlyphDeltas},
@@ -43,7 +44,7 @@ pub(crate) mod solver;
 /// Hashable wrapper around a region (axis coordinates map).
 /// Implements Hash for use as a HashMap key by hashing entries in sorted order.
 #[derive(Clone, Default)]
-struct Region(FnvHashMap<Tag, Triple<f64>>);
+pub(crate) struct Region(FnvHashMap<Tag, Triple<f64>>);
 
 impl Hash for Region {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -95,7 +96,7 @@ impl Region {
         self.0.len()
     }
 
-    fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
@@ -867,7 +868,7 @@ fn infer_delta(
 
 /* ported from fonttools (class _Encoding) */
 #[derive(Debug, Clone)]
-struct DeltaRowEncoding {
+pub(crate) struct DeltaRowEncoding {
     /* each byte represents a region, value is one of 0/1/2/4, which means bytes
      * needed for this region */
     chars: Vec<u8>,
@@ -995,7 +996,7 @@ impl DeltaRowEncoding {
         self.items.push(row);
     }
 
-    fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 }
@@ -1046,7 +1047,7 @@ impl CombinedGainIdxTuple {
 /// Intermediate representation for ItemVariationStore during instancing.
 /// Corresponds to Harfbuzz's item_variations_t.
 #[derive(Debug)]
-struct ItemVariations {
+pub(crate) struct ItemVariations {
     /// All tuple variations, one per VarData subtable
     vars: Vec<TupleVariations>,
     /// Number of items (rows) in each VarData
@@ -1071,7 +1072,7 @@ struct ItemVariations {
 impl ItemVariations {
     /// Convert ItemVariationStore to tuple representation.
     /// Corresponds to Harfbuzz's create_from_item_varstore.
-    fn create_from_item_varstore(
+    pub(crate) fn create_from_item_varstore(
         var_store: &ItemVariationStore,
         axes_old_index_tag_map: &FnvHashMap<usize, Tag>,
         inner_maps: &[IncBiMap],
@@ -1172,7 +1173,7 @@ impl ItemVariations {
 
     /// Apply instancing: evaluate regions at pinned coordinates and transform deltas.
     /// Corresponds to Harfbuzz's instantiate_tuple_vars.
-    fn instantiate_tuple_vars(
+    pub(crate) fn instantiate_tuple_vars(
         &mut self,
         normalized_axes_location: &FnvHashMap<Tag, Triple<f64>>,
         axes_triple_distances: &FnvHashMap<Tag, TripleDistances<f64>>,
@@ -1260,13 +1261,15 @@ impl ItemVariations {
 
     /// Convert back to ItemVariationStore format with deduplication.
     /// Corresponds to Harfbuzz's as_item_varstore.
-    fn as_item_varstore(
+    pub(crate) fn as_item_varstore(
         &mut self,
         optimize: bool,
         use_no_variation_idx: bool,
     ) -> Result<(), SerializeErrorFlags> {
         /* return true if no variation data */
         if self.region_list.is_empty() {
+            // When all regions collapse after instancing, return without populating varidx_map.
+            // Leave it empty so that paint code knows no remapping is available and keeps originals.
             return Ok(());
         }
         let num_cols = self.region_list.len();
@@ -1513,9 +1516,16 @@ impl ItemVariations {
         Ok(())
     }
 
-    #[cfg(test)]
-    fn get_region_list(&self) -> &Vec<Region> {
+    pub(crate) fn get_region_list(&self) -> &Vec<Region> {
         &self.region_list
+    }
+
+    pub(crate) fn get_vardata_encodings(&self) -> &Vec<DeltaRowEncoding> {
+        &self.encodings
+    }
+
+    pub(crate) fn get_varidx_map(&self) -> &FnvHashMap<u32, u32> {
+        &self.varidx_map
     }
 }
 
@@ -1536,10 +1546,10 @@ fn _cmp_row(a: &Vec<i32>, b: &Vec<i32>) -> Ordering {
 ///
 /// This mirrors HarfBuzz's ItemVariationStore::serialize behavior closely, preserving
 /// VarData grouping and row order from `item_vars.encodings`.
-/// 
+///
 /// When region_list is empty after instantiation, serializes a trivial varstore with
 /// empty region list but preserves the delta structure (rebased deltas become constants).
-fn itemvariations_to_varstore_bytes(
+pub(crate) fn itemvariations_to_varstore_bytes(
     item_vars: &ItemVariations,
     axis_order: &[Tag],
 ) -> Result<(Vec<u8>, FnvHashMap<u32, u32>), SerializeErrorFlags> {
@@ -1585,14 +1595,14 @@ fn itemvariations_to_varstore_bytes(
         // (rebased values from instantiation). Encode as all-zero VarData.
         if num_regions == 0 {
             let row_count = rows.len();
-            let item_count_u16 =
-                u16::try_from(row_count).map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW)?;
+            let item_count_u16 = u16::try_from(row_count)
+                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW)?;
 
             let mut out = Vec::with_capacity(6);
             push_u16(&mut out, item_count_u16);
             push_u16(&mut out, 0); // wordSizeCount = 0
             push_u16(&mut out, 0); // regionIndexCount = 0
-            // No delta bytes needed when regionIndexCount is 0
+                                   // No delta bytes needed when regionIndexCount is 0
             return Ok(out);
         }
 
@@ -2437,17 +2447,15 @@ impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
 
         let be_byte_index_start = 4 - width as usize;
         for i in 0..map_count {
-            let Some(v) = output_map.get(&i) else {
-                continue;
+            let v = output_map.get(&i).copied().unwrap_or(NO_VARIATION_INDEX);
+            let data_bytes = if v == NO_VARIATION_INDEX {
+                [0xFF_u8; 4]
+            } else {
+                let outer = v >> 16;
+                let inner = v & 0xFFFF;
+                let u = (outer << inner_bit_count) | inner;
+                u.to_be_bytes()
             };
-            if *v == 0 {
-                continue;
-            }
-
-            let outer = v >> 16;
-            let inner = v & 0xFFFF;
-            let u = (outer << inner_bit_count) | inner;
-            let data_bytes = u.to_be_bytes();
             let data_pos = mapdata_pos + (i as usize) * width as usize;
             s.copy_assign_from_bytes(data_pos, data_bytes.get(be_byte_index_start..4).unwrap());
         }
