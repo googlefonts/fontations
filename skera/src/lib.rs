@@ -601,6 +601,20 @@ impl Plan {
             normalized_defaults = avar::map_coords_2_14(&avar, normalized_defaults)?;
             normalized_maxs = avar::map_coords_2_14(&avar, normalized_maxs)?;
 
+            // Round avar-mapped values back to 2.14 precision
+            normalized_mins = normalized_mins
+                .iter()
+                .map(|&v| (v * 16384.0).round() / 16384.0)
+                .collect();
+            normalized_defaults = normalized_defaults
+                .iter()
+                .map(|&v| (v * 16384.0).round() / 16384.0)
+                .collect();
+            normalized_maxs = normalized_maxs
+                .iter()
+                .map(|&v| (v * 16384.0).round() / 16384.0)
+                .collect();
+
             // Apply avar mapping to 16.16 coordinates as well
             // Convert 16.16 to floats for avar processing
             // let mins_16_16_float: Vec<f32> = normalized_mins_16_16
@@ -2208,5 +2222,30 @@ mod test {
         assert!(plan.glyphset.contains(GlyphId::new(2)));
         assert!(plan.glyphset.contains(GlyphId::new(4)));
         assert!(plan.glyphset.contains(GlyphId::new(7)));
+    }
+
+    #[test]
+    fn test_axes_location() {
+        let mut plan = Plan::default();
+        let font = FontRef::new(include_bytes!("../test-data/fonts/NotoSans-VF.abc.ttf")).unwrap();
+        let spec = parse_instancing_spec("wdth=80:90").unwrap();
+        plan.apply_instancing_spec(&spec, &font);
+        plan.normalize_axes_location(&font).unwrap();
+        let triple = plan.axes_location.get(&Tag::new(b"wdth")).unwrap();
+        assert!(
+            (triple.minimum - -0.566650).abs() < 0.00001,
+            "Expected minimum to be approximately -0.566650, got {}",
+            triple.minimum
+        );
+        assert!(
+            (triple.middle - -0.293335).abs() < 0.00001,
+            "Expected middle to be approximately -0.293335, got {}",
+            triple.middle
+        );
+        assert!(
+            (triple.maximum - -0.293335).abs() < 0.00001,
+            "Expected maximum to be approximately -0.293335, got {}",
+            triple.maximum
+        );
     }
 }
