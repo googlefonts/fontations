@@ -464,7 +464,7 @@ impl<'a> Parser<'a> {
                     return Some(Token::Raw(data));
                 }
                 _ => {
-                    let count = self.skip_until(|b| is_whitespace(b) || is_special(b));
+                    let count = self.skip_until(is_special_or_whitespace);
                     let content = self.data.get(start..start + count)?;
                     // Look for numbers but don't try to parse fractional
                     // values since we want to handle those with special
@@ -637,8 +637,10 @@ impl Parser<'_> {
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1403>
     fn read_font_matrix(&mut self) -> Option<ScaledFontMatrix> {
         let mut components = [Fixed::ZERO; 6];
-        // skip [
-        self.next()?;
+        // accept [ or { to match FreeType
+        if !self.accept(Token::Raw(b"[")) {
+            self.expect(Token::Raw(b"{"))?;
+        }
         // read all components
         for component in &mut components {
             *component = match self.next()? {
@@ -647,7 +649,7 @@ impl Parser<'_> {
                 _ => return None,
             }
         }
-        // skip ]
+        // FreeType doesn't validate the closing delimiter, so just skip
         self.next()?;
         let temp_scale = components[3].abs();
         if temp_scale == Fixed::ZERO {
