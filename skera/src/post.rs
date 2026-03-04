@@ -3,6 +3,11 @@
 use std::collections::HashMap;
 
 use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
+use font_types::Fixed;
+use skrifa::{
+    raw::tables::mvar::tags::{UNDO, UNDS},
+    Tag,
+};
 use write_fonts::{
     read::{
         tables::post::{Post, DEFAULT_GLYPH_NAMES},
@@ -26,6 +31,23 @@ impl Subset for Post<'_> {
         s.embed_bytes(self.min_table_bytes())
             .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;
 
+        // Update underline position/thickness if needed
+        s.copy_assign(
+            self.shape().underline_position_byte_range().start,
+            plan.add_mvar_delta(self.underline_position().to_i16(), UNDO),
+        );
+        s.copy_assign(
+            self.shape().underline_thickness_byte_range().start,
+            plan.add_mvar_delta(self.underline_thickness().to_i16(), UNDS),
+        );
+        // If we have a slnt axis, set italic angle
+        if let Some(range) = plan.user_axes_location.get(&Tag::new(b"slnt")) {
+            let italic_angle = range.middle.clamp(-90.0, 90.0);
+            s.copy_assign(
+                self.shape().italic_angle_byte_range().start,
+                Fixed::from_f64(italic_angle),
+            );
+        }
         let glyph_names = plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_GLYPH_NAMES);

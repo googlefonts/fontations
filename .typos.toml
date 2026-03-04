@@ -46,3 +46,5 @@ Trak = "Trak"
 
 # Possible typos that are more specific to this codebase.
 sftn = "sfnt"
+ABD = "ABD"
+playwrite = "playwrite"

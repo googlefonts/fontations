@@ -107,17 +107,16 @@ fn serialize_name_records(
             .ok_or(SubsetTableError(Name::TAG))?;
         s.embed_bytes(str_bytes)
             .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
-        let obj_idx = s
-            .pop_pack(true)
-            .ok_or(SubsetError::SubsetTableError(Name::TAG))?;
-        s.add_link(
-            offset_pos..offset_pos + 2,
-            obj_idx,
-            OffsetWhence::Tail,
-            0,
-            false,
-        )
-        .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
+        if let Some(obj_idx) = s.pop_pack(true) {
+            s.add_link(
+                offset_pos..offset_pos + 2,
+                obj_idx,
+                OffsetWhence::Tail,
+                0,
+                false,
+            )
+            .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
+        }
     }
     Ok(())
 }

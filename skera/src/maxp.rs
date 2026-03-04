@@ -21,6 +21,12 @@ impl Subset for Maxp<'_> {
             .map_err(|_| SubsetError::SubsetTableError(Maxp::TAG))?;
         s.copy_assign(self.shape().num_glyphs_byte_range().start, num_glyphs);
 
+        if !plan.normalized_coords.is_empty() {
+            // Again I think we could do this when subsetting, not just instancing, but
+            // Harfbuzz doesn't. So we only update these fields when instancing.
+            update_instancing_fields(self, plan, s)?;
+        }
+
         //drop hints
         if self.version() == Version16Dot16::VERSION_1_0
             && plan
@@ -60,4 +66,47 @@ impl Subset for Maxp<'_> {
         }
         Ok(())
     }
+}
+
+fn update_instancing_fields(
+    maxp: &Maxp<'_>,
+    plan: &Plan,
+    s: &mut Serializer,
+) -> Result<(), SubsetError> {
+    let head_maxp_info = plan.head_maxp_info.borrow();
+    s.copy_assign(
+        maxp.shape().max_points_byte_range().unwrap().start,
+        head_maxp_info.max_points,
+    );
+    s.copy_assign(
+        maxp.shape().max_contours_byte_range().unwrap().start,
+        head_maxp_info.max_contours,
+    );
+    s.copy_assign(
+        maxp.shape()
+            .max_composite_points_byte_range()
+            .unwrap()
+            .start,
+        head_maxp_info.max_composite_points,
+    );
+    s.copy_assign(
+        maxp.shape()
+            .max_composite_contours_byte_range()
+            .unwrap()
+            .start,
+        head_maxp_info.max_composite_contours,
+    );
+    s.copy_assign(
+        maxp.shape()
+            .max_component_elements_byte_range()
+            .unwrap()
+            .start,
+        head_maxp_info.max_component_elements,
+    );
+    s.copy_assign(
+        maxp.shape().max_component_depth_byte_range().unwrap().start,
+        head_maxp_info.max_component_depth,
+    );
+
+    Ok(())
 }

@@ -10,6 +10,11 @@ use crate::{
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
+    variations::featurevar::{
+        collect_feature_substitutes_with_variations, collect_lookups_with_substitutes,
+        feature_variation_collect_lookups, CollectFeatureSubstitutesContext,
+        FeatureSubstituteCollectionResult,
+    },
     LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError,
     SubsetLayoutContext, SubsetState, SubsetTable,
 };
@@ -91,21 +96,92 @@ impl LayoutClosure for Gsub<'_> {
         c.prune_langsys(&script_list, layout_scripts)
     }
 
-    fn closure_glyphs_lookups_features(&self, plan: &mut Plan) {
+    fn closure_glyphs_lookups_features(&self, plan: &mut Plan) -> Result<(), SubsetError> {
         let Ok(feature_indices) =
             self.collect_features(&plan.layout_scripts, &IntSet::all(), &plan.layout_features)
         else {
-            return;
+            return Ok(());
         };
 
-        let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
-            return;
+        // Collect feature substitutes with variations
+        let feature_substitutes = if !plan.user_axes_location.is_empty() {
+            let mut ctx = CollectFeatureSubstitutesContext {
+                axes_index_tag_map: &plan.axes_old_index_tag_map,
+                axes_location: &plan.axes_location,
+                record_cond_idx_map: FnvHashMap::default(),
+                catch_all_record_feature_indices: IntSet::default(),
+                feature_indices: feature_indices.clone(),
+                apply: false,
+                variation_applied: false,
+                universal: false,
+                cur_record_idx: 0,
+                conditionset_map: FnvHashMap::default(),
+                feature_substitutes_lookup_map: FnvHashMap::default(),
+            };
+
+            if let Some(Ok(feature_variations)) = self.feature_variations() {
+                collect_feature_substitutes_with_variations(&feature_variations, &mut ctx)?;
+                log::debug!(
+                    "After collect_feature_substitutes_with_variations, feature indices: {:?}",
+                    ctx.feature_indices
+                );
+                ctx.into()
+            } else {
+                FeatureSubstituteCollectionResult::empty()
+            }
+        } else {
+            FeatureSubstituteCollectionResult::empty()
         };
+
+        // Store results in plan AFTER extracting what we need
+        let record_cond_idx_map = feature_substitutes.record_cond_idx_map.clone();
+        plan.gsub_feature_record_cond_idx_map = record_cond_idx_map.clone();
+        plan.gsub_feature_substitutes_map =
+            feature_substitutes.feature_substitutes_lookup_map.clone();
+        plan.gsub_old_features = feature_substitutes.catch_all_record_feature_indices.clone();
+
+        // Collect lookups, using substitutes where available
+        let mut lookup_indices = collect_lookups_with_substitutes(
+            self.feature_list().map_err(SubsetError::ReadError)?,
+            &feature_indices,
+            &feature_substitutes,
+        )?;
+
+        // Collect lookups from catch-all features and store their offsets.
+        // This matches HarfBuzz behavior and keeps old-feature lookups available
+        // when a catch-all feature variation record is inserted.
+        for feature_index in feature_substitutes.catch_all_record_feature_indices.iter() {
+            let featurelist = self.feature_list().map_err(SubsetError::ReadError)?;
+            if let Some(record) = featurelist.feature_records().get(feature_index as usize) {
+                if let Ok(feature) = record.feature(featurelist.offset_data()) {
+                    for lookup_idx in feature.lookup_list_indices() {
+                        lookup_indices.insert(lookup_idx.get());
+                    }
+                }
+                let tag = record.feature_tag();
+                plan.gsub_old_feature_idx_tag_map
+                    .insert(feature_index as usize, (tag, record.feature_offset()));
+            }
+        }
+
+        // If all axes are pinned then all feature variations will be dropped so there's no need
+        // to collect lookups from them.
+        if !plan.all_axes_pinned {
+            feature_variation_collect_lookups_gsub(
+                self,
+                &feature_indices,
+                &record_cond_idx_map,
+                &mut lookup_indices,
+            )?;
+        }
+
+        log::debug!("After collection, lookup indices: {:?}", lookup_indices);
+
         let Ok(_) = self.closure_glyphs(&lookup_indices, &mut plan.glyphset_gsub) else {
-            return;
+            return Ok(());
         };
         let Ok(_) = self.closure_lookups(&plan.glyphset_gsub, &mut lookup_indices) else {
-            return;
+            return Ok(());
         };
 
         let feature_indices = self.prune_features(&lookup_indices, feature_indices);
@@ -119,9 +195,29 @@ impl LayoutClosure for Gsub<'_> {
         (plan.gsub_features, plan.gsub_features_w_duplicates) =
             remap_feature_indices(&feature_indices, &duplicate_feature_index_map);
         plan.gsub_script_langsys = script_langsys_map;
+        Ok(())
     }
 }
 
+fn feature_variation_collect_lookups_gsub(
+    gsub: &Gsub,
+    feature_indices: &IntSet<u16>,
+    feature_record_cond_idx_map: &FnvHashMap<u16, IntSet<u16>>,
+    lookup_indices: &mut IntSet<u16>,
+) -> Result<(), SubsetError> {
+    let Some(feature_variations) = gsub.feature_variations() else {
+        return Ok(());
+    };
+    let feature_variations = feature_variations.map_err(SubsetError::ReadError)?;
+
+    feature_variation_collect_lookups(
+        &feature_variations,
+        gsub.offset_data(),
+        feature_indices,
+        feature_record_cond_idx_map,
+        lookup_indices,
+    )
+}
 impl Subset for Gsub<'_> {
     fn subset_with_state(
         &self,
@@ -153,6 +249,8 @@ fn subset_gsub(
         .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
     let mut c = SubsetLayoutContext::new(Gsub::TAG);
+    c.feature_record_cond_idx_map = plan.gsub_feature_record_cond_idx_map.clone();
+    c.catch_all_record_feature_idxes = plan.gsub_old_features.clone();
     Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
 
     // feature list
@@ -182,11 +280,12 @@ fn subset_gsub(
     {
         let snap = s.snapshot();
         let feature_vars_offset_pos = s.embed(0_u32)?;
+        let insert_catch_all = !plan.gsub_old_features.is_empty();
         match Offset32::serialize_subset(
             &feature_variations,
             s,
             plan,
-            &mut c,
+            (&mut c, insert_catch_all),
             feature_vars_offset_pos,
         ) {
             Ok(()) => (),
@@ -213,7 +312,8 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
         let subtables = self
             .subtables()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let lookup_type: u16 = match subtables {
+
+        let mut lookup_type: u16 = match subtables {
             SubstitutionSubtables::Single(_) => 1,
             SubstitutionSubtables::Multiple(_) => 2,
             SubstitutionSubtables::Alternate(_) => 3,
@@ -222,12 +322,25 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
             SubstitutionSubtables::ChainContextual(_) => 6,
             SubstitutionSubtables::Reverse(_) => 8,
         };
+
+        let is_extension = matches!(self, SubstitutionLookup::Extension(_));
+        if is_extension {
+            lookup_type = 7; // extension lookup type
+        }
+
         s.embed(lookup_type)?;
 
         let lookup_flag = self.lookup_flag();
         let lookup_flag_pos = s.embed(lookup_flag)?;
         let lookup_count_pos = s.embed(0_u16)?;
-        let lookup_count = subtables.subset(plan, s, args)?;
+
+        // For extension lookups, wrap each subtable in an ExtensionSubtable structure
+        let lookup_count = if is_extension {
+            subset_substitution_subtables_as_extension(&subtables, plan, s, args)?
+        } else {
+            subtables.subset(plan, s, args)?
+        };
+
         s.copy_assign(lookup_count_pos, lookup_count);
 
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/a790c38b782f9d8e6f0299d2837229e5726fc669/src/hb-ot-layout-common.hh#L1385>
@@ -244,7 +357,6 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
     }
 }
 
-// TODO: support extension lookup type
 impl<'a> SubsetTable<'a> for SubstitutionSubtables<'a> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = u16;
@@ -262,6 +374,43 @@ impl<'a> SubsetTable<'a> for SubstitutionSubtables<'a> {
             SubstitutionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
             SubstitutionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
             SubstitutionSubtables::Reverse(subtables) => subtables.subset(plan, s, args),
+        }
+    }
+}
+
+/// Helper function to subset SubstitutionSubtables as Extension lookups (type 7).
+///
+/// This wraps each subtable in an ExtensionSubtable structure with the appropriate
+/// extension lookup type.
+fn subset_substitution_subtables_as_extension<'a>(
+    subtables: &SubstitutionSubtables<'a>,
+    plan: &Plan,
+    s: &mut Serializer,
+    args: (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+) -> Result<u16, SerializeErrorFlags> {
+    use crate::layout::subset_subtables_as_extension;
+
+    match subtables {
+        SubstitutionSubtables::Single(subtables) => {
+            subset_subtables_as_extension(subtables, 1, plan, s, args)
+        }
+        SubstitutionSubtables::Multiple(subtables) => {
+            subset_subtables_as_extension(subtables, 2, plan, s, args)
+        }
+        SubstitutionSubtables::Alternate(subtables) => {
+            subset_subtables_as_extension(subtables, 3, plan, s, args)
+        }
+        SubstitutionSubtables::Ligature(subtables) => {
+            subset_subtables_as_extension(subtables, 4, plan, s, args)
+        }
+        SubstitutionSubtables::Contextual(subtables) => {
+            subset_subtables_as_extension(subtables, 5, plan, s, args)
+        }
+        SubstitutionSubtables::ChainContextual(subtables) => {
+            subset_subtables_as_extension(subtables, 6, plan, s, args)
+        }
+        SubstitutionSubtables::Reverse(subtables) => {
+            subset_subtables_as_extension(subtables, 8, plan, s, args)
         }
     }
 }

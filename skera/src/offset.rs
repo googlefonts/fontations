@@ -93,6 +93,7 @@ impl<O: Scalar> SerializeCopy for O {
         s.embed_bytes(src_bytes)?;
 
         let Some(obj_idx) = s.pop_pack(true) else {
+            log::error!("serialize_copy_from_bytes: failed to pop_pack after embedding bytes");
             return Err(s.error());
         };
         s.add_link(

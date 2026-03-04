@@ -6,9 +6,9 @@
 
 use clap::Parser;
 use skera::{
-    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
-    subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC, JSTF, KERN,
-    KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
+    parse_instancing_spec, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
+    populate_gids, subset_font, Plan, SubsetFlags, DEFAULT_LAYOUT_FEATURES, DSIG, EBSC, GLAT, GLOC,
+    JSTF, KERN, KERX, LTSH, MORT, MORX, PCLT, SILF, SILL,
 };
 use write_fonts::read::{
     collections::IntSet,
@@ -105,10 +105,15 @@ struct Args {
     ///run subsetter N times
     #[arg(short, long)]
     num_iterations: Option<u32>,
+
+    /// Partially/fully instantiate a variable font
+    #[arg(long)]
+    variations: Option<String>,
 }
 
 fn main() {
     let args = Args::parse();
+    env_logger::init();
 
     let subset_flags = parse_subset_flags(&args);
     let gids = match populate_gids(&args.gids.unwrap_or_default()) {
@@ -125,6 +130,17 @@ fn main() {
             eprintln!("{e}");
             std::process::exit(1);
         }
+    };
+
+    let instancing_spec = match &args.variations {
+        Some(variations_input) => match parse_instancing_spec(variations_input) {
+            Ok(instancing_spec) => Some(instancing_spec),
+            Err(e) => {
+                eprintln!("{e}");
+                std::process::exit(1);
+            }
+        },
+        None => None,
     };
 
     let font_bytes = std::fs::read(&args.path)
@@ -244,6 +260,7 @@ fn main() {
             &layout_features,
             &name_ids,
             &name_languages,
+            &instancing_spec,
         );
         match subset_font(&font, &plan) {
             Ok(out) => {
