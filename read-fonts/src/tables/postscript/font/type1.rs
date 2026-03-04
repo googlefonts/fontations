@@ -1,8 +1,75 @@
 //! Type1 font parsing.
 
-use super::super::dict::FontMatrix;
+use super::super::{
+    dict::{FontMatrix, ScaledFontMatrix},
+    Error,
+};
 use core::ops::Range;
-use types::Fixed;
+use types::{Fixed, GlyphId};
+
+/// A Type1 font.
+pub struct Type1Font {
+    matrix: Option<ScaledFontMatrix>,
+    charstrings: Charstrings,
+    subrs: Subrs,
+}
+
+impl Type1Font {
+    /// Creates a new Type1 font from the given data.
+    pub fn new(data: &[u8]) -> Result<Self, Error> {
+        // Any failure to parse is simply represented by an invalid font format
+        // error
+        Self::new_impl(data).ok_or(Error::InvalidFontFormat)
+    }
+
+    fn new_impl(data: &[u8]) -> Option<Self> {
+        let raw_dicts = RawDicts::new(data)?;
+        let mut font = Type1Font {
+            matrix: None,
+            charstrings: Charstrings::default(),
+            subrs: Subrs::default(),
+        };
+        // Read base dict entries
+        let mut parser = Parser::new(raw_dicts.base);
+        while let Some(token) = parser.next() {
+            if let Token::Name(b"FontMatrix") = token {
+                font.matrix = Some(parser.read_font_matrix()?);
+            }
+        }
+        // Read private dict entries
+        let mut parser = Parser::new(&raw_dicts.private);
+        // Default value if not present
+        let mut len_iv = 4;
+        while let Some(token) = parser.next() {
+            match token {
+                Token::Name(b"lenIV") => len_iv = parser.read_int()?,
+                Token::Name(b"Subrs") => font.subrs = parser.read_subrs(len_iv)?,
+                Token::Name(b"CharStrings") => {
+                    font.charstrings = parser.read_charstrings(len_iv)?
+                }
+                _ => {}
+            }
+        }
+        Some(font)
+    }
+
+    /// Returns the number of glyphs in the Type1 font.
+    pub fn num_glyphs(&self) -> u32 {
+        self.charstrings.num_glyphs()
+    }
+
+    /// Returns the top level font matrix.
+    pub fn matrix(&self) -> Option<&ScaledFontMatrix> {
+        self.matrix.as_ref()
+    }
+
+    /// Returns an iterator over the pairs of glyph ids and associated names in
+    /// the Type1 font.
+    pub fn glyph_names(&self) -> impl Iterator<Item = (GlyphId, &str)> {
+        (0..self.num_glyphs())
+            .filter_map(|idx| Some((GlyphId::new(idx), self.charstrings.name(idx)?)))
+    }
+}
 
 /// Raw dictionary data for a Type1 font.
 struct RawDicts<'a> {
@@ -397,7 +464,7 @@ impl<'a> Parser<'a> {
                     return Some(Token::Raw(data));
                 }
                 _ => {
-                    let count = self.skip_until(|b| is_whitespace(b) || is_special(b));
+                    let count = self.skip_until(is_special_or_whitespace);
                     let content = self.data.get(start..start + count)?;
                     // Look for numbers but don't try to parse fractional
                     // values since we want to handle those with special
@@ -551,6 +618,13 @@ impl<'a> Parser<'a> {
         }
         Some(Token::HexString(self.data.get(start + 1..end - 1)?))
     }
+
+    fn read_int(&mut self) -> Option<i64> {
+        self.next().and_then(|t| match t {
+            Token::Int(n) => Some(n),
+            _ => None,
+        })
+    }
 }
 
 impl Parser<'_> {
@@ -559,10 +633,14 @@ impl Parser<'_> {
     /// Like FreeType, this is designed assuming a upem of 1000 and produces
     /// an identity matrix in that case. This is, the result is scaled such
     /// that 0.001 yields a value of 1.0.
-    fn read_font_matrix(&mut self) -> Option<FontMatrix> {
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1403>
+    fn read_font_matrix(&mut self) -> Option<ScaledFontMatrix> {
         let mut components = [Fixed::ZERO; 6];
-        // skip [
-        self.next()?;
+        // accept [ or { to match FreeType
+        if !self.accept(Token::Raw(b"[")) {
+            self.expect(Token::Raw(b"{"))?;
+        }
         // read all components
         for component in &mut components {
             *component = match self.next()? {
@@ -571,9 +649,39 @@ impl Parser<'_> {
                 _ => return None,
             }
         }
-        // skip ]
+        // FreeType doesn't validate the closing delimiter, so just skip
         self.next()?;
-        Some(FontMatrix(components))
+        let temp_scale = components[3].abs();
+        if temp_scale == Fixed::ZERO {
+            return None;
+        }
+        let mut upem = 1000;
+        if temp_scale != Fixed::ONE {
+            upem = (Fixed::from_bits(1000) / temp_scale).to_bits();
+            components[0] /= temp_scale;
+            components[1] /= temp_scale;
+            components[2] /= temp_scale;
+            // don't scale components[3]
+            components[4] /= temp_scale;
+            components[5] /= temp_scale;
+            if components[3] < Fixed::ZERO {
+                components[3] = -Fixed::ONE;
+            } else {
+                components[3] = Fixed::ONE;
+            }
+        }
+        // offsets must be expressed in integer font units
+        for offset in components.iter_mut().skip(4) {
+            *offset = Fixed::from_bits(offset.to_bits() >> 16);
+        }
+        let matrix = FontMatrix(components);
+        if matrix.is_degenerate() {
+            return None;
+        }
+        Some(ScaledFontMatrix {
+            matrix,
+            scale: upem,
+        })
     }
 
     /// Parse the set of subroutines.
@@ -1154,9 +1262,10 @@ mod tests {
     fn parse_font_matrix() {
         // Standard matrix for 1000 upem
         assert_eq!(
-            Parser::new(b"[0.001, 0, 0, 0.001, 0, 0]")
+            Parser::new(b"[0.001 0 0 0.001 0 0]")
                 .read_font_matrix()
-                .unwrap(),
+                .unwrap()
+                .matrix,
             FontMatrix([
                 Fixed::ONE,
                 Fixed::ZERO,
@@ -1169,17 +1278,35 @@ mod tests {
         // Matrix with a stretch along the x axis and a small
         // offset
         assert_eq!(
-            Parser::new(b"[0.002, 0, 0, 0.001, 0.5, 2.0e-1]")
+            Parser::new(b"[0.002 0 0 0.001 1 2e1]")
                 .read_font_matrix()
-                .unwrap(),
+                .unwrap()
+                .matrix,
             FontMatrix([
                 Fixed::from_i32(2),
                 Fixed::ZERO,
                 Fixed::ZERO,
                 Fixed::ONE,
-                Fixed::from_i32(500),
-                Fixed::from_i32(200)
+                Fixed::from_bits(1000),
+                Fixed::from_bits(20000)
             ])
+        );
+        // Matrix with modified upem
+        assert_eq!(
+            Parser::new(b"[0.001 0 0 0.0005 0.0 0.0]")
+                .read_font_matrix()
+                .unwrap(),
+            ScaledFontMatrix {
+                matrix: FontMatrix([
+                    Fixed::from_i32(2),
+                    Fixed::ZERO,
+                    Fixed::ZERO,
+                    Fixed::ONE,
+                    Fixed::from_i32(0),
+                    Fixed::from_i32(0)
+                ]),
+                scale: 2000,
+            }
         );
     }
 
@@ -1311,5 +1438,37 @@ mod tests {
             let data = charstrings.get(idx).unwrap();
             assert_eq!((name, data), *expected);
         }
+    }
+
+    #[test]
+    fn parse_type1_font_pfb() {
+        check_type1_font(
+            &Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFB).unwrap(),
+        );
+    }
+
+    #[test]
+    fn parse_type1_font_pfa() {
+        check_type1_font(
+            &Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap(),
+        );
+    }
+
+    #[track_caller]
+    fn check_type1_font(font: &Type1Font) {
+        assert_eq!(font.num_glyphs(), 9);
+        assert_eq!(font.subrs.index.len(), 5);
+        assert_eq!(
+            font.matrix().unwrap(),
+            &ScaledFontMatrix {
+                matrix: FontMatrix::IDENTITY,
+                scale: 1000
+            }
+        );
+        assert!(font
+            .glyph_names()
+            .map(|(_, name)| name)
+            .take(4)
+            .eq([".notdef", "H", "f", "i"].into_iter()))
     }
 }

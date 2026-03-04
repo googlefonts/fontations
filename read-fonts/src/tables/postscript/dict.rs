@@ -538,7 +538,7 @@ impl FontMatrix {
 
     /// Check for a degenerate matrix.
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/base/ftcalc.c#L725>
-    fn is_degenerate(&self) -> bool {
+    pub(crate) fn is_degenerate(&self) -> bool {
         let [mut xx, mut yx, mut xy, mut yy, ..] = self.0.map(|x| x.to_bits() as i64);
         let val = xx.abs() | yx.abs() | xy.abs() | yy.abs();
         if val == 0 || val > 0x7FFFFFFF {
