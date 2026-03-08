@@ -1,4 +1,4 @@
-//! The [avar](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar) table
+//! The [fvar](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar) table
 
 #[path = "./instance_record.rs"]
 mod instance_record;
