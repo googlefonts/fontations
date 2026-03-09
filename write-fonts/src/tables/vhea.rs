@@ -1,4 +1,4 @@
-//! the [vhea (Horizontal Header)](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) table
+//! the [vhea (Vertical Header)](https://learn.microsoft.com/en-us/typography/opentype/spec/vhea) table
 
 include!("../../generated/generated_vhea.rs");
 

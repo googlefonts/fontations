@@ -1,4 +1,4 @@
-//! The [avar](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar) table
+//! The [fvar](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar) table
 
 #[path = "./instance_record.rs"]
 mod instance_record;
@@ -29,7 +29,7 @@ impl Fvar {
             .count();
         if uncoordinated_instances > 0 {
             ctx.report(format!(
-                "{uncoordinated_instances} instances do not axis_count ({axis_count}) coordinates",
+                "{uncoordinated_instances} instances do not have axis_count ({axis_count}) coordinates",
             ));
         }
     }
