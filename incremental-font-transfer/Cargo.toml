@@ -33,14 +33,20 @@ clap = { version = "4.5.4", features = ["derive"], optional = true }
 regex = { version = "1.11.1", optional = true }
 
 [dev-dependencies]
+brotlic = {version = "0.8.2"}
+criterion = { workspace = true }
 font-test-data = { workspace = true }
 read-fonts = { workspace = true }
-brotlic = {version = "0.8.2"}
+woff2-patched = "0.4.0"
 
 
 [lib]
 name = "incremental_font_transfer"
 path = "src/lib.rs"
+
+[[bench]]
+name = "ift-benchmarks"
+harness = false
 
 [[bin]]
 name = "ift_extend"
