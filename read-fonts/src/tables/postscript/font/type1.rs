@@ -2,7 +2,7 @@
 
 use super::super::{
     dict::{FontMatrix, ScaledFontMatrix},
-    Error,
+    Error, PredefinedEncoding,
 };
 use core::ops::Range;
 use types::{Fixed, GlyphId};
@@ -12,6 +12,7 @@ pub struct Type1Font {
     matrix: Option<ScaledFontMatrix>,
     charstrings: Charstrings,
     subrs: Subrs,
+    encoding: Encoding,
 }
 
 impl Type1Font {
@@ -28,12 +29,19 @@ impl Type1Font {
             matrix: None,
             charstrings: Charstrings::default(),
             subrs: Subrs::default(),
+            encoding: Encoding::Predefined(PredefinedEncoding::Standard),
         };
         // Read base dict entries
+        let mut encoding_offset = None;
         let mut parser = Parser::new(raw_dicts.base);
         while let Some(token) = parser.next() {
-            if let Token::Name(b"FontMatrix") = token {
-                font.matrix = Some(parser.read_font_matrix()?);
+            match token {
+                Token::Name(b"FontMatrix") => font.matrix = Some(parser.read_font_matrix()?),
+                // Simply save the encoding offset. We'll parse it after
+                // we have read charstrings so we have an accurate mapping
+                // if we've synthesized or remapped a notdef glyph
+                Token::Name(b"Encoding") => encoding_offset = Some(parser.pos),
+                _ => {}
             }
         }
         // Read private dict entries
@@ -49,6 +57,10 @@ impl Type1Font {
                 }
                 _ => {}
             }
+        }
+        if let Some(encoding_offset) = encoding_offset {
+            let mut parser = Parser::new(raw_dicts.base.get(encoding_offset..)?);
+            font.encoding = parser.read_encoding(&font.charstrings)?;
         }
         Some(font)
     }
@@ -394,6 +406,13 @@ impl Charstrings {
             data: start..end,
         });
     }
+}
+
+/// Encoding that maps characters to glyph identifiers.
+#[derive(PartialEq, Debug)]
+enum Encoding {
+    Predefined(PredefinedEncoding),
+    Custom(Vec<GlyphId>),
 }
 
 /// Simulated .notdef glyph, same as FreeType:
@@ -814,6 +833,107 @@ impl Parser<'_> {
         charstrings.names.shrink_to_fit();
         charstrings.index.shrink_to_fit();
         Some(charstrings)
+    }
+
+    /// Parse the encoding.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1474>
+    fn read_encoding(&mut self, charstrings: &Charstrings) -> Option<Encoding> {
+        match self.next()? {
+            // Array of names where index == character code
+            Token::Raw(b"[") => {
+                let mut map = Vec::new();
+                // Should always be 256 entries but preset values to notdef
+                map.resize(256, GlyphId::NOTDEF);
+                self.read_dense_encoding(|idx, name| {
+                    if let Some((slot, gid)) = map
+                        .get_mut(idx as usize)
+                        .zip(charstrings.index_for_name(name))
+                    {
+                        *slot = gid.into();
+                    }
+                });
+                Some(Encoding::Custom(map))
+            }
+            // Map of index to glyph name
+            Token::Int(count) => {
+                // We're limited to 256 character codes
+                // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1518>
+                let count: usize = count.clamp(0, 256) as usize;
+                let mut map = Vec::new();
+                // Start with all glyphs mapped to notdef
+                map.resize(count, GlyphId::NOTDEF);
+                self.read_sparse_encoding(|idx, name| {
+                    if let Some((slot, gid)) = map
+                        .get_mut(idx as usize)
+                        .zip(charstrings.index_for_name(name))
+                    {
+                        *slot = gid.into();
+                    }
+                });
+                Some(Encoding::Custom(map))
+            }
+            Token::Raw(b"StandardEncoding") => {
+                Some(Encoding::Predefined(PredefinedEncoding::Standard))
+            }
+            Token::Raw(b"ExpertEncoding") => Some(Encoding::Predefined(PredefinedEncoding::Expert)),
+            Token::Raw(b"ISOLatin1Encoding") => {
+                Some(Encoding::Predefined(PredefinedEncoding::IsoLatin1))
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns a custom encoding defined by an array of `/<name>`, where
+    /// the index represents the character code, and invokes the given
+    /// callback for each.
+    fn read_dense_encoding(&mut self, mut f: impl FnMut(i64, &str)) -> Option<()> {
+        // Eat the opening brace if present
+        self.accept(Token::Raw(b"["));
+        // Always expect 256 entries
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1510>
+        let mut idx = 0;
+        while let Some(token) = self.next() {
+            match token {
+                Token::Raw(b"]") => break,
+                Token::Name(name) => {
+                    let code = idx;
+                    idx += 1;
+                    let Ok(name) = core::str::from_utf8(name) else {
+                        continue;
+                    };
+                    f(code, name);
+                }
+                _ => {
+                    // FreeType fails if missing a literal name here
+                    return None;
+                }
+            }
+        }
+        Some(())
+    }
+
+    /// Reads a custom encoding defined by a map of `<charcode> /<name>`
+    /// and invokes the given callback for each.
+    fn read_sparse_encoding(&mut self, mut f: impl FnMut(i64, &str)) -> Option<()> {
+        while let Some(token) = self.next() {
+            match token {
+                // The 'def' keyword ends the mapping
+                Token::Raw(b"def") => break,
+                Token::Int(code) => {
+                    // read the name
+                    let Some(Token::Name(name)) = self.next() else {
+                        continue;
+                    };
+                    let Ok(name) = core::str::from_utf8(name) else {
+                        continue;
+                    };
+                    f(code, name);
+                }
+                _ => {}
+            }
+        }
+        Some(())
     }
 }
 
@@ -1471,4 +1591,91 @@ mod tests {
             .take(4)
             .eq([".notdef", "H", "f", "i"].into_iter()))
     }
+
+    #[test]
+    fn parse_encoding() {
+        assert!(matches!(
+            Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA)
+                .unwrap()
+                .encoding,
+            Encoding::Predefined(PredefinedEncoding::Standard),
+        ));
+    }
+
+    #[test]
+    fn parse_known_encodings() {
+        for (blob, encoding) in [
+            (
+                "StandardEncoding",
+                Encoding::Predefined(PredefinedEncoding::Standard),
+            ),
+            (
+                "ExpertEncoding",
+                Encoding::Predefined(PredefinedEncoding::Expert),
+            ),
+            (
+                "ISOLatin1Encoding",
+                Encoding::Predefined(PredefinedEncoding::IsoLatin1),
+            ),
+        ] {
+            assert_eq!(
+                Parser::new(blob.as_bytes())
+                    .read_encoding(&Charstrings::default())
+                    .unwrap(),
+                encoding
+            );
+        }
+    }
+
+    #[test]
+    fn parse_custom_dense_encoding() {
+        let mut map = Vec::new();
+        map.resize(256, ".notdef".to_string());
+        let mut parser = Parser::new(b"[/.notdef /A /b /.notdef /comma /at]");
+        parser.read_dense_encoding(|idx, name| {
+            map[idx as usize] = name.to_string();
+        });
+        for (ch, entry) in map.iter().enumerate() {
+            let expected = match ch {
+                1 => "A",
+                2 => "b",
+                4 => "comma",
+                5 => "at",
+                _ => ".notdef",
+            };
+            assert_eq!(entry, expected);
+        }
+    }
+
+    #[test]
+    fn parse_custom_sparse_encoding() {
+        let mut map = Vec::new();
+        map.resize(256, ".notdef".to_string());
+        let mut parser = Parser::new(CUSTOM_SPARSE_ENCODING.as_bytes());
+        parser.read_sparse_encoding(|idx, name| {
+            map[idx as usize] = name.to_string();
+        });
+        for (ch, entry) in map.iter().enumerate() {
+            let expected = match ch {
+                66 => "B",
+                97 => "a",
+                64 => "at",
+                44 => "comma",
+                56 => "eight",
+                _ => ".notdef",
+            };
+            assert_eq!(entry, expected);
+        }
+    }
+
+    const CUSTOM_SPARSE_ENCODING: &str = r#"
+        array
+        0 1 255 {1 index exch /.notdef put} for
+        dup 66 /B put
+        dup 97 /a put
+        dup 64 /at put
+        dup 44 /comma put
+        dup 56 /eight put
+        readonly def    
+    "#;
 }
