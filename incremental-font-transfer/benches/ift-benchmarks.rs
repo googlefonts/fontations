@@ -6,6 +6,13 @@ use read_fonts::FontRef;
 use std::collections::HashMap;
 use std::path::Path;
 
+/// Font bytes, accumulated patch status map, and newly-loaded patch bytes.
+type PatchResult = (
+    Vec<u8>,
+    HashMap<PatchUrl, UrlStatus>,
+    HashMap<PatchUrl, Vec<u8>>,
+);
+
 struct FontEntry {
     dir: &'static str,
     file: &'static str,
@@ -41,34 +48,29 @@ impl FontEntry {
             .unwrap_or_else(|e| panic!("Failed to decode {woff2_path:?} as woff2: {e}"))
     }
 
-    /// Applies all patches needed for `chars`, starting from `start_font` with existing `patch_data`.
+    /// Applies all patches needed for `subset`, starting from `start_font` with existing `patch_data`.
     /// Returns `(final_font, updated_patch_data, newly_loaded_patches)`.
-    fn apply_patches_for_chars(
+    fn apply_patches_for_subset_def(
         &self,
         start_font: Vec<u8>,
         mut patch_data: HashMap<PatchUrl, UrlStatus>,
-        chars: impl Iterator<Item = char>,
-    ) -> (
-        Vec<u8>,
-        HashMap<PatchUrl, UrlStatus>,
-        HashMap<PatchUrl, Vec<u8>>,
-    ) {
+        subset: &SubsetDefinition,
+    ) -> PatchResult {
         let font_dir = self.font_dir();
         let mut newly_loaded: HashMap<PatchUrl, Vec<u8>> = HashMap::new();
         let mut current_font = start_font;
-        let subset = chars_to_subset(chars);
         loop {
             let pg = PatchGroup::select_next_patches(
                 FontRef::new(&current_font).unwrap(),
                 &patch_data,
-                &subset,
+                subset,
             )
             .unwrap();
             if !pg.has_urls() {
                 break;
             }
             for url in pg.urls() {
-                if !patch_data.contains_key(&url) {
+                if !patch_data.contains_key(url) {
                     let path = font_dir.join(url.as_ref());
                     let bytes = std::fs::read(&path)
                         .unwrap_or_else(|e| panic!("failed to read patch {path:?}: {e}"));
@@ -81,36 +83,26 @@ impl FontEntry {
         (current_font, patch_data, newly_loaded)
     }
 
+    /// Applies all patches needed for `chars`, starting from `start_font` with existing `patch_data`.
+    /// Returns `(final_font, updated_patch_data, newly_loaded_patches)`.
+    fn apply_patches_for_chars(
+        &self,
+        start_font: Vec<u8>,
+        patch_data: HashMap<PatchUrl, UrlStatus>,
+        chars: impl Iterator<Item = char>,
+    ) -> PatchResult {
+        let subset = chars_to_subset(chars);
+        self.apply_patches_for_subset_def(start_font, patch_data, &subset)
+    }
+
     /// Pre-loads all patch bytes needed to fully extend the font for `SubsetDefinition::all()`.
     fn preload_patches(&self, font_bytes: &[u8]) -> HashMap<PatchUrl, Vec<u8>> {
-        let font_dir = self.font_dir();
-        let subset = SubsetDefinition::all();
-        let mut patch_data: HashMap<PatchUrl, UrlStatus> = HashMap::new();
-        let mut preloaded: HashMap<PatchUrl, Vec<u8>> = HashMap::new();
-        let mut current_font = font_bytes.to_vec();
-
-        loop {
-            let group = PatchGroup::select_next_patches(
-                FontRef::new(&current_font).unwrap(),
-                &patch_data,
-                &subset,
-            )
-            .unwrap();
-            if !group.has_urls() {
-                return preloaded;
-            }
-            for url in group.urls() {
-                if !preloaded.contains_key(&url) {
-                    let patch_path = font_dir.join(url.as_ref());
-                    let bytes = std::fs::read(&patch_path)
-                        .unwrap_or_else(|e| panic!("failed to read patch {patch_path:?}: {e}"));
-                    patch_data.insert(url.clone(), UrlStatus::Pending(bytes.clone()));
-                    preloaded.insert(url.clone(), bytes);
-                }
-            }
-
-            current_font = group.apply_next_patches(&mut patch_data).unwrap();
-        }
+        let (_, _, newly_loaded) = self.apply_patches_for_subset_def(
+            font_bytes.to_vec(),
+            HashMap::new(),
+            &SubsetDefinition::all(),
+        );
+        newly_loaded
     }
 }
 
