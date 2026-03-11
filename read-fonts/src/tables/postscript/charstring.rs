@@ -1,6 +1,6 @@
 //! Parsing for PostScript charstrings.
 
-use super::{BlendState, Error, Index, Stack};
+use super::{dict::FontMatrix, BlendState, Error, Index, Stack};
 use crate::{
     tables::{cff::Cff, postscript::StringId},
     types::{Fixed, Point},
@@ -106,6 +106,8 @@ pub trait CommandSink {
     fn counter_mask(&mut self, mask: &[u8]) {}
     /// Clear accumulated stem hints and all data derived from them.
     fn clear_hints(&mut self) {}
+    /// Called when charstring evaluation is complete.
+    fn finish(&mut self) {}
 }
 
 /// Evaluates the given charstring and emits the resulting commands to the
@@ -994,6 +996,247 @@ impl Operator {
     }
 }
 
+// Used for scaling sink below
+const ONE_OVER_64: Fixed = Fixed::from_bits(0x400);
+
+/// Command sink adapter that applies a matrix and optional scale.
+pub struct TransformSink<'a, S> {
+    inner: &'a mut S,
+    matrix: Option<FontMatrix>,
+    scale: Option<Fixed>,
+}
+
+impl<'a, S> TransformSink<'a, S> {
+    /// Creates a new sink for the given matrix and optional scale.
+    pub fn new(sink: &'a mut S, matrix: FontMatrix, scale: Option<Fixed>) -> Self {
+        Self {
+            inner: sink,
+            matrix: (matrix != FontMatrix::IDENTITY).then_some(matrix),
+            scale,
+        }
+    }
+
+    fn transform(&self, x: Fixed, y: Fixed) -> (Fixed, Fixed) {
+        // The following dance is necessary to exactly match FreeType's
+        // application of scaling factors. This seems to be the result
+        // of merging the contributed Adobe code while not breaking the
+        // FreeType public API.
+        //
+        // The first two steps apply to both scaled and unscaled outlines:
+        //
+        // 1. Multiply by 1/64
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L284>
+        let ax = x * ONE_OVER_64;
+        let ay = y * ONE_OVER_64;
+        // 2. Truncate the bottom 10 bits. Combined with the division by 64,
+        // converts to font units.
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L2219>
+        let bx = Fixed::from_bits(ax.to_bits() >> 10);
+        let by = Fixed::from_bits(ay.to_bits() >> 10);
+        // 3. Apply the transform. It must be done here to match FreeType.
+        let (cx, cy) = self
+            .matrix
+            .as_ref()
+            .map(|mat| mat.transform(bx, by))
+            .unwrap_or((bx, by));
+        if let Some(scale) = self.scale {
+            // Scaled case:
+            // 4. Multiply by the original scale factor (to 26.6)
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffgload.c#L721>
+            let dx = cx * scale;
+            let dy = cy * scale;
+            // 5. Convert from 26.6 to 16.16
+            (
+                Fixed::from_bits(dx.to_bits() << 10),
+                Fixed::from_bits(dy.to_bits() << 10),
+            )
+        } else {
+            // Unscaled case:
+            // 4. Convert from integer to 16.16
+            (
+                Fixed::from_bits(cx.to_bits() << 16),
+                Fixed::from_bits(cy.to_bits() << 16),
+            )
+        }
+    }
+}
+
+impl<S: CommandSink> CommandSink for TransformSink<'_, S> {
+    fn hstem(&mut self, y: Fixed, dy: Fixed) {
+        self.inner.hstem(y, dy);
+    }
+
+    fn vstem(&mut self, x: Fixed, dx: Fixed) {
+        self.inner.vstem(x, dx);
+    }
+
+    fn hint_mask(&mut self, mask: &[u8]) {
+        self.inner.hint_mask(mask);
+    }
+
+    fn counter_mask(&mut self, mask: &[u8]) {
+        self.inner.counter_mask(mask);
+    }
+
+    fn clear_hints(&mut self) {
+        self.inner.clear_hints();
+    }
+
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        let (x, y) = self.transform(x, y);
+        self.inner.move_to(x, y);
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        let (x, y) = self.transform(x, y);
+        self.inner.line_to(x, y);
+    }
+
+    fn curve_to(&mut self, cx1: Fixed, cy1: Fixed, cx2: Fixed, cy2: Fixed, x: Fixed, y: Fixed) {
+        let (cx1, cy1) = self.transform(cx1, cy1);
+        let (cx2, cy2) = self.transform(cx2, cy2);
+        let (x, y) = self.transform(x, y);
+        self.inner.curve_to(cx1, cy1, cx2, cy2, x, y);
+    }
+
+    fn close(&mut self) {
+        self.inner.close();
+    }
+
+    fn finish(&mut self) {
+        self.inner.finish();
+    }
+}
+
+#[derive(Copy, Clone)]
+enum PendingElement {
+    Move([Fixed; 2]),
+    Line([Fixed; 2]),
+    Curve([Fixed; 6]),
+}
+
+impl PendingElement {
+    fn target_point(&self) -> [Fixed; 2] {
+        match self {
+            Self::Move(xy) | Self::Line(xy) => *xy,
+            Self::Curve([.., x, y]) => [*x, *y],
+        }
+    }
+}
+
+/// Command sink adapter that suppresses degenerate move and line commands.
+///
+/// FreeType avoids emitting empty contours and zero length lines to prevent
+/// artifacts when stem darkening is enabled. We don't support stem darkening
+/// because it's not enabled by any of our clients but we remove the degenerate
+/// elements regardless to match the output.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L1786>
+pub struct NopFilterSink<'a, S> {
+    is_open: bool,
+    start: Option<(Fixed, Fixed)>,
+    pending_element: Option<PendingElement>,
+    inner: &'a mut S,
+}
+
+impl<'a, S> NopFilterSink<'a, S>
+where
+    S: CommandSink,
+{
+    /// Creates a new sink that suppresses degenerate move and line commands
+    /// before forwarding the result to the given inner sink.
+    pub fn new(inner: &'a mut S) -> Self {
+        Self {
+            is_open: false,
+            start: None,
+            pending_element: None,
+            inner,
+        }
+    }
+
+    fn flush_pending(&mut self, for_close: bool) {
+        if let Some(pending) = self.pending_element.take() {
+            match pending {
+                PendingElement::Move([x, y]) => {
+                    if !for_close {
+                        self.is_open = true;
+                        self.inner.move_to(x, y);
+                        self.start = Some((x, y));
+                    }
+                }
+                PendingElement::Line([x, y]) => {
+                    if !for_close || self.start != Some((x, y)) {
+                        self.inner.line_to(x, y);
+                    }
+                }
+                PendingElement::Curve([cx0, cy0, cx1, cy1, x, y]) => {
+                    self.inner.curve_to(cx0, cy0, cx1, cy1, x, y);
+                }
+            }
+        }
+    }
+}
+
+impl<S> CommandSink for NopFilterSink<'_, S>
+where
+    S: CommandSink,
+{
+    fn hstem(&mut self, y: Fixed, dy: Fixed) {
+        self.inner.hstem(y, dy);
+    }
+
+    fn vstem(&mut self, x: Fixed, dx: Fixed) {
+        self.inner.vstem(x, dx);
+    }
+
+    fn hint_mask(&mut self, mask: &[u8]) {
+        self.inner.hint_mask(mask);
+    }
+
+    fn counter_mask(&mut self, mask: &[u8]) {
+        self.inner.counter_mask(mask);
+    }
+
+    fn clear_hints(&mut self) {
+        self.inner.clear_hints();
+    }
+
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.pending_element = Some(PendingElement::Move([x, y]));
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        // Omit the line if we're already at the given position
+        if self
+            .pending_element
+            .map(|element| element.target_point() == [x, y])
+            .unwrap_or_default()
+        {
+            return;
+        }
+        self.flush_pending(false);
+        self.pending_element = Some(PendingElement::Line([x, y]));
+    }
+
+    fn curve_to(&mut self, cx1: Fixed, cy1: Fixed, cx2: Fixed, cy2: Fixed, x: Fixed, y: Fixed) {
+        self.flush_pending(false);
+        self.pending_element = Some(PendingElement::Curve([cx1, cy1, cx2, cy2, x, y]));
+    }
+
+    fn close(&mut self) {
+        self.flush_pending(true);
+        if self.is_open {
+            self.inner.close();
+            self.is_open = false;
+        }
+    }
+
+    fn finish(&mut self) {
+        self.close();
+        self.inner.finish();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1550,6 +1793,126 @@ mod tests {
 
         fn subr(&self, _index: i32) -> Result<&[u8], Error> {
             Err(Error::MissingSubroutines)
+        }
+    }
+
+    #[test]
+    fn nop_filter_sink() {
+        let mut commands = CaptureCommandSink::default();
+        let mut nop_filter = NopFilterSink::new(&mut commands);
+        let (sx, sy) = (Fixed::from_f64(10.2), Fixed::from_f64(20.4));
+        // filtered
+        nop_filter.move_to(Fixed::from_f64(0.0), Fixed::from_f64(0.0));
+        nop_filter.move_to(sx, sy);
+        // filtered
+        nop_filter.line_to(sx, sy);
+        nop_filter.curve_to(
+            Fixed::from_f64(5.0),
+            Fixed::from_f64(-5.0),
+            Fixed::from_f64(1.5),
+            Fixed::from_f64(2.0),
+            Fixed::from_f64(4.5),
+            Fixed::from_f64(-10.0),
+        );
+        // filtered
+        nop_filter.line_to(Fixed::from_f64(4.5), Fixed::from_f64(-10.0));
+        // filtered due to next close
+        nop_filter.line_to(sx, sy);
+        nop_filter.close();
+        assert_eq!(
+            commands.0,
+            [
+                Command::MoveTo(sx, sy),
+                Command::CurveTo(
+                    Fixed::from_f64(5.0),
+                    Fixed::from_f64(-5.0),
+                    Fixed::from_f64(1.5),
+                    Fixed::from_f64(2.0),
+                    Fixed::from_f64(4.5),
+                    Fixed::from_f64(-10.0),
+                ),
+                Command::LineTo(sx, sy),
+            ]
+        )
+    }
+
+    #[test]
+    fn scaled_matrix_transform_sink() {
+        // A few points taken from the test font in <https://github.com/googlefonts/fontations/issues/1581>
+        // Inputs and expected values extracted from FreeType
+        let input = [(150i32, 46i32), (176, 8), (217, -13), (267, -13)]
+            .map(|(x, y)| (Fixed::from_bits(x << 16), Fixed::from_bits(y << 16)));
+        let expected = [(404, 118i32), (453, 20), (550, -33), (678, -33)]
+            .map(|(x, y)| (Fixed::from_bits(x << 10), Fixed::from_bits(y << 10)));
+        let mut dummy = ();
+        let sink = TransformSink::new(&mut dummy, TRANSFORM, Some(Fixed::from_bits(167772)));
+        let transformed = input.map(|(x, y)| sink.transform(x, y));
+        assert_eq!(transformed, expected);
+    }
+
+    #[test]
+    fn unscaled_matrix_transform_sink() {
+        // A few points taken from the test font in <https://github.com/googlefonts/fontations/issues/1581>
+        // Inputs and expected values extracted from FreeType
+        let input = [(150i32, 46i32), (176, 8), (217, -13), (267, -13)]
+            .map(|(x, y)| (Fixed::from_bits(x << 16), Fixed::from_bits(y << 16)));
+        let expected = [(158, 46i32), (177, 8), (215, -13), (265, -13)]
+            .map(|(x, y)| (Fixed::from_bits(x << 16), Fixed::from_bits(y << 16)));
+        let mut dummy = ();
+        let sink = TransformSink::new(&mut dummy, TRANSFORM, None);
+        let transformed = input.map(|(x, y)| sink.transform(x, y));
+        assert_eq!(transformed, expected);
+    }
+
+    const TRANSFORM: FontMatrix = FontMatrix([
+        Fixed::ONE,
+        Fixed::ZERO,
+        // 0.167007446289062
+        Fixed::from_bits(10945),
+        Fixed::ONE,
+        Fixed::ZERO,
+        Fixed::ZERO,
+    ]);
+
+    #[test]
+    fn unscaled_transform_sink_produces_integers() {
+        let nothing = &mut ();
+        let sink = TransformSink::new(nothing, FontMatrix::IDENTITY, None);
+        for coord in [50.0, 50.1, 50.125, 50.5, 50.9] {
+            assert_eq!(
+                sink.transform(Fixed::from_f64(coord), Fixed::ZERO)
+                    .0
+                    .to_f32(),
+                50.0
+            );
+        }
+    }
+
+    #[test]
+    fn scaled_transform_sink() {
+        let ppem = 20.0;
+        let upem = 1000.0;
+        // match FreeType scaling with intermediate conversion to 26.6
+        let scale = Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(upem as i32);
+        let nothing = &mut ();
+        let sink = TransformSink::new(nothing, FontMatrix::IDENTITY, Some(scale));
+        let inputs = [
+            // input coord, expected scaled output
+            (0.0, 0.0),
+            (8.0, 0.15625),
+            (16.0, 0.3125),
+            (32.0, 0.640625),
+            (72.0, 1.4375),
+            (128.0, 2.5625),
+        ];
+        for (coord, expected) in inputs {
+            assert_eq!(
+                sink.transform(Fixed::from_f64(coord), Fixed::ZERO)
+                    .0
+                    .to_f32(),
+                expected,
+                "scaling coord {coord}"
+            );
         }
     }
 }
