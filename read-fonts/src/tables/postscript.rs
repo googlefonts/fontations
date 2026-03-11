@@ -18,6 +18,7 @@ include!("../../generated/generated_postscript.rs");
 
 pub use blend::BlendState;
 pub use charset::{Charset, CharsetIter};
+pub use encoding::PredefinedEncoding;
 pub use index::Index;
 pub use stack::{Number, Stack};
 pub use string::{Latin1String, StringId, STANDARD_STRINGS};
