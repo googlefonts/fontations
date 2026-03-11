@@ -996,22 +996,6 @@ impl Operator {
     }
 }
 
-#[derive(Copy, Clone)]
-enum PendingElement {
-    Move([Fixed; 2]),
-    Line([Fixed; 2]),
-    Curve([Fixed; 6]),
-}
-
-impl PendingElement {
-    fn target_point(&self) -> [Fixed; 2] {
-        match self {
-            Self::Move(xy) | Self::Line(xy) => *xy,
-            Self::Curve([.., x, y]) => [*x, *y],
-        }
-    }
-}
-
 // Used for scaling sink below
 const ONE_OVER_64: Fixed = Fixed::from_bits(0x400);
 
@@ -1121,6 +1105,22 @@ impl<S: CommandSink> CommandSink for TransformSink<'_, S> {
 
     fn finish(&mut self) {
         self.inner.finish();
+    }
+}
+
+#[derive(Copy, Clone)]
+enum PendingElement {
+    Move([Fixed; 2]),
+    Line([Fixed; 2]),
+    Curve([Fixed; 6]),
+}
+
+impl PendingElement {
+    fn target_point(&self) -> [Fixed; 2] {
+        match self {
+            Self::Move(xy) | Self::Line(xy) => *xy,
+            Self::Curve([.., x, y]) => [*x, *y],
+        }
     }
 }
 
