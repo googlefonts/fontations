@@ -859,7 +859,7 @@ impl Parser<'_> {
             Token::Int(count) => {
                 // We're limited to 256 character codes
                 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1518>
-                let count: usize = count.min(256).max(0) as usize;
+                let count: usize = count.clamp(0, 256) as usize;
                 let mut map = Vec::new();
                 // Start with all glyphs mapped to notdef
                 map.resize(count, GlyphId::NOTDEF);
