@@ -25,6 +25,10 @@ impl Type1Font {
 
     fn new_impl(data: &[u8]) -> Option<Self> {
         let raw_dicts = RawDicts::new(data)?;
+        Self::from_dicts(raw_dicts.base, &raw_dicts.private)
+    }
+
+    fn from_dicts(base: &[u8], private: &[u8]) -> Option<Self> {
         let mut font = Type1Font {
             matrix: None,
             charstrings: Charstrings::default(),
@@ -33,7 +37,7 @@ impl Type1Font {
         };
         // Read base dict entries
         let mut encoding_offset = None;
-        let mut parser = Parser::new(raw_dicts.base);
+        let mut parser = Parser::new(base);
         while let Some(token) = parser.next() {
             match token {
                 Token::Name(b"FontMatrix") => font.matrix = Some(parser.read_font_matrix()?),
@@ -45,21 +49,35 @@ impl Type1Font {
             }
         }
         // Read private dict entries
-        let mut parser = Parser::new(&raw_dicts.private);
+        let mut parser = Parser::new(private);
         // Default value if not present
         let mut len_iv = 4;
         while let Some(token) = parser.next() {
             match token {
                 Token::Name(b"lenIV") => len_iv = parser.read_int()?,
-                Token::Name(b"Subrs") => font.subrs = parser.read_subrs(len_iv)?,
+                Token::Name(b"Subrs") => {
+                    // With synthetic fonts, it's possible to read subroutines
+                    // twice. FreeType ignores the second copy.
+                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1855>
+                    if font.subrs.index.is_empty() {
+                        font.subrs = parser.read_subrs(len_iv)?;
+                    }
+                }
                 Token::Name(b"CharStrings") => {
-                    font.charstrings = parser.read_charstrings(len_iv)?
+                    // Some non-standard fonts provide multiple copies of
+                    // outlines for different resolutions and FreeType only
+                    // retains the first copy, so skip parsing if we've
+                    // already read some charstrings.
+                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L2058>
+                    if font.charstrings.index.is_empty() {
+                        font.charstrings = parser.read_charstrings(len_iv)?;
+                    }
                 }
                 _ => {}
             }
         }
         if let Some(encoding_offset) = encoding_offset {
-            let mut parser = Parser::new(raw_dicts.base.get(encoding_offset..)?);
+            let mut parser = Parser::new(base.get(encoding_offset..)?);
             font.encoding = parser.read_encoding(&font.charstrings)?;
         }
         Some(font)
@@ -182,33 +200,35 @@ fn decode_pfb_binary_segments(data: &[u8]) -> impl Iterator<Item = &[u8]> + '_ {
 ///
 /// Unsurprisingly, more complicated than it should be.
 fn find_eexec_data(data: &[u8]) -> Option<usize> {
-    for (i, ch) in data.iter().enumerate() {
-        // 5 letters for "eexec" plus 1 space plus 4 bytes
-        const MIN_LEN: usize = 9;
-        if *ch == b'e' && i + MIN_LEN < data.len() && data.get(i..)?.starts_with(b"eexec") {
-            // FreeType has some unfun logic for skipping whitespace
-            // after the eexec token
-            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1parse.c#L382>
-            let mut start = i + 5;
-            while start < data.len() {
-                match data[start] {
-                    b' ' | b'\t' | b'\n' => {}
-                    b'\r' => {
-                        // Only stop at \r if it is not followed by \n
-                        if data.get(start + 1) != Some(&b'\n') {
-                            break;
-                        }
-                    }
-                    _ => break,
-                }
-                start += 1;
-            }
-            if start == data.len() {
-                // eexec not properly terminated
-                return None;
-            }
-            return Some(start);
+    // Use a parser to avoid catching "eexec" in a comment or string
+    // which apparently occurs in some fonts.
+    let mut parser = Parser::new(data);
+    while let Some(token) = parser.next() {
+        if token != Token::Raw(b"eexec") {
+            continue;
         }
+        let mut start = parser.pos;
+        // FreeType has some unfun logic for skipping whitespace
+        // after the eexec token
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1parse.c#L382>
+        while start < data.len() {
+            match data[start] {
+                b' ' | b'\t' | b'\n' => {}
+                b'\r' => {
+                    // Only stop at \r if it is not followed by \n
+                    if data.get(start + 1) != Some(&b'\n') {
+                        break;
+                    }
+                }
+                _ => break,
+            }
+            start += 1;
+        }
+        if start == data.len() {
+            // eexec not properly terminated
+            return None;
+        }
+        return Some(start);
     }
     None
 }
@@ -1151,6 +1171,7 @@ mod tests {
         check_hex_decode(b"743", &[116, 48]);
     }
 
+    #[track_caller]
     fn check_hex_decode(hex: &[u8], expected: &[u8]) {
         let decoded = decode_hex(hex.iter().copied()).collect::<Vec<_>>();
         assert_eq!(decoded, expected);
@@ -1189,6 +1210,13 @@ mod tests {
             find_eexec_data(b"dup\n/Private\ncurrentfile eexec\r\n\r*&&FW"),
             Some(32)
         );
+        // Skip eexec in comments and strings
+        assert_eq!(
+            find_eexec_data(b"% eexec in comment\n(eexec in string) currentfile eexec $$$$"),
+            Some(55)
+        );
+        // No eexec
+        assert!(find_eexec_data(b"% eexec in comment\n(eexec in string) currentfile").is_none());
     }
 
     #[test]
@@ -1483,6 +1511,17 @@ mod tests {
     }
 
     #[test]
+    fn parse_subrs_duplicate_def() {
+        // Two definitions of subrs.. we want to keep the first
+        // one which has two entries at 5 and 42
+        let private = b"/Subrs 2 array dup 5 2 RD nd NP dup 42 2 RD ab NP ND\n/Subrs 1 array dup 0 2 RD xy NP ND";
+        let font = Type1Font::from_dicts(b"", private).unwrap();
+        assert_eq!(font.subrs.index.len(), 2);
+        assert_eq!(font.subrs.index[0].0, 5);
+        assert_eq!(font.subrs.index[1].0, 42);
+    }
+
+    #[test]
     fn parse_charstrings() {
         let dicts = RawDicts::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
         let mut parser = Parser::new(&dicts.private);
@@ -1527,6 +1566,18 @@ mod tests {
             let charstring = charstrings.get(idx as u32).unwrap();
             assert_eq!(&charstring[..expected.len()], expected);
         }
+    }
+
+    #[test]
+    fn parse_charstrings_duplicate_def() {
+        // Two definitions of charstrings.. we want to keep the first
+        // one which has three glyphs: .notdef, H and I
+        let private = b"/CharStrings 2 /.notdef 2 RD nd ND /H 2 RD ab ND /I 2 RD cd ND def\n/CharStrings 1 /B 2 RD xy ND def";
+        let font = Type1Font::from_dicts(b"", private).unwrap();
+        assert_eq!(font.num_glyphs(), 3);
+        assert_eq!(font.charstrings.name(0).unwrap(), ".notdef");
+        assert_eq!(font.charstrings.name(1).unwrap(), "H");
+        assert_eq!(font.charstrings.name(2).unwrap(), "I");
     }
 
     #[test]
