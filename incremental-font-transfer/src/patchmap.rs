@@ -194,6 +194,9 @@ fn intersect_format1_glyph_map_inner<const RECORD_INTERSECTION: bool>(
     entries: &mut BTreeMap<u16, SubsetDefinition>,
 ) -> Result<(), ReadError> {
     let glyph_map = map.glyph_map()?;
+    if glyph_map.shape().entry_index_byte_range().end > glyph_map.offset_data().len() {
+        return Err(ReadError::OutOfBounds);
+    }
     let first_gid = glyph_map.first_mapped_glyph() as u32;
     let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
 
@@ -239,6 +242,10 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
     } else {
         4usize
     };
+
+    if feature_map.shape().feature_records_byte_range().end > feature_map.offset_data().len() {
+        return Err(ReadError::OutOfBounds);
+    }
 
     // We need to check up front there is enough data for all of the listed entry records, this
     // isn't checked by the read_fonts generated code. Specification requires the operation to fail
