@@ -5,52 +5,85 @@ include!("../../generated/generated_postscript.rs");
 impl Index2 {
     /// Construct an `Index2` from a list of byte items.
     pub fn from_items(items: Vec<Vec<u8>>) -> Self {
-        if items.is_empty() {
-            return Index2::new(0, 1, vec![1], vec![]);
+        Self { data: items }
+    }
+}
+
+impl FontWrite for Index1 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        IndexWriter {
+            format: IndexFormat::Format1,
+            objects: self.data.as_slice(),
+        }
+        .write_into(writer);
+    }
+}
+
+impl FontWrite for Index2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        IndexWriter {
+            format: IndexFormat::Format2,
+            objects: self.data.as_slice(),
+        }
+        .write_into(writer);
+    }
+}
+
+fn convert_objects_f1(from: &read_fonts::tables::postscript::Index1) -> Vec<Vec<u8>> {
+    (0..from.count())
+        .map(|i| from.get(i as usize).map(Vec::from).unwrap_or_default())
+        .collect()
+}
+
+fn convert_objects_f2(from: &read_fonts::tables::postscript::Index2) -> Vec<Vec<u8>> {
+    (0..from.count())
+        .map(|i| from.get(i as usize).map(Vec::from).unwrap_or_default())
+        .collect()
+}
+
+enum IndexFormat {
+    Format1,
+    Format2,
+}
+struct IndexWriter<'a> {
+    format: IndexFormat,
+    objects: &'a [Vec<u8>],
+}
+
+impl FontWrite for IndexWriter<'_> {
+    fn write_into(&self, writer: &mut TableWriter) {
+        let count = self.objects.len();
+        match self.format {
+            IndexFormat::Format1 => (count as u16).write_into(writer),
+            IndexFormat::Format2 => (count as u32).write_into(writer),
         }
 
-        let count = items.len() as u32;
-
         // Calculate offsets (1-based per CFF2 spec)
-        let mut offset_values = Vec::with_capacity(items.len() + 1);
+        let mut offset_values = Vec::with_capacity(count);
         let mut current_offset = 1u32;
+        // always start with 1
         offset_values.push(current_offset);
-        for item in &items {
+        for item in self.objects {
             current_offset += item.len() as u32;
             offset_values.push(current_offset);
         }
 
-        // Determine off_size (minimum bytes needed for largest offset)
-        let max_offset = *offset_values.last().unwrap();
-        let off_size = if max_offset <= 0xFF {
-            1u8
-        } else if max_offset <= 0xFFFF {
-            2u8
-        } else if max_offset <= 0xFFFFFF {
-            3u8
-        } else {
-            4u8
-        };
+        let off_size = (4 - current_offset.leading_zeros() / 8).max(1) as u8;
+        off_size.write_into(writer);
 
-        // Pack offsets based on off_size
-        let mut offsets = Vec::with_capacity(offset_values.len() * off_size as usize);
-        for offset in &offset_values {
+        for offset in offset_values.iter().copied() {
             match off_size {
-                1 => offsets.push(*offset as u8),
-                2 => offsets.extend((*offset as u16).to_be_bytes()),
-                3 => {
-                    let bytes = offset.to_be_bytes();
-                    offsets.extend(&bytes[1..4]);
-                }
-                4 => offsets.extend(offset.to_be_bytes()),
+                1 => (offset as u8).write_into(writer),
+                2 => (offset as u16).write_into(writer),
+                3 => Uint24::new(offset).write_into(writer),
+                4 => offset.write_into(writer),
                 _ => unreachable!(),
             }
         }
 
-        // Concatenate item data
-        let data: Vec<u8> = items.into_iter().flatten().collect();
-
-        Index2::new(count, off_size, offsets, data)
+        for data in self.objects {
+            data.write_into(writer);
+        }
     }
 }
 
@@ -62,6 +95,9 @@ mod tests {
     fn test_index2_from_items() {
         let items = vec![vec![1, 2, 3], vec![4, 5]];
         let index = Index2::from_items(items);
-        assert_eq!(index.count, 2);
+        let bytes = crate::dump_table(&index).unwrap();
+        let read_back = Index2::read(bytes.as_slice().into()).unwrap();
+
+        assert_eq!(index, read_back);
     }
 }
