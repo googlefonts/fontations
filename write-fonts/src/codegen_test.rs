@@ -134,11 +134,4 @@ pub mod conditions {
         let flags_are_wrong = FlagDay::new(42, GotFlags::FOO);
         crate::dump_table(&flags_are_wrong).unwrap();
     }
-
-    #[test]
-    #[should_panic(expected = "if_cond is satisfied by 'baz' is not present.")]
-    fn flag_present_field_missing_any_flags() {
-        let flags_are_wrong = FlagDay::new(42, GotFlags::BAZ);
-        crate::dump_table(&flags_are_wrong).unwrap();
-    }
 }

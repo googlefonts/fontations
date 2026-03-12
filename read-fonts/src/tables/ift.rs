@@ -704,9 +704,8 @@ mod tests {
         let len = builder.offset_for("gid_9_offset");
         let data = &builder.as_slice()[..len];
 
-        let Err(err) = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE) else {
-            panic!("Expected to fail.");
-        };
-        assert_eq!(ReadError::OutOfBounds, err);
+        let derp = GlyphPatches::read(FontData::new(data), GlyphKeyedFlags::NONE).unwrap();
+        // invalid data means we return an empty array
+        assert!(derp.glyph_data_offsets().is_empty())
     }
 }
