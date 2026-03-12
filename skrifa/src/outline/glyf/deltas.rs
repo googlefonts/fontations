@@ -3,8 +3,8 @@ use core::ops::RangeInclusive;
 use raw::tables::glyf::PointCoord;
 use read_fonts::{
     tables::glyf::{PointFlags, PointMarker},
-    tables::gvar::{GlyphDelta, Gvar},
-    tables::variations::TupleVariation,
+    tables::gvar::Gvar,
+    tables::variations::{GlyphDelta, TupleVariation},
     types::{F2Dot14, Fixed, GlyphId, Point},
     ReadError,
 };

@@ -24,22 +24,27 @@ pub trait TableProvider<'a> {
         self.expect_data_for_tag(T::TAG).and_then(FontRead::read)
     }
 
+    #[cfg(feature = "head")]
     fn head(&self) -> Result<tables::head::Head<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "name")]
     fn name(&self) -> Result<tables::name::Name<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "hhea")]
     fn hhea(&self) -> Result<tables::hhea::Hhea<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "vhea")]
     fn vhea(&self) -> Result<tables::vhea::Vhea<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "hmtx")]
     fn hmtx(&self) -> Result<tables::hmtx::Hmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
@@ -47,12 +52,14 @@ pub trait TableProvider<'a> {
         tables::hmtx::Hmtx::read(data, number_of_h_metrics)
     }
 
+    #[cfg(feature = "hdmx")]
     fn hdmx(&self) -> Result<tables::hdmx::Hdmx<'a>, ReadError> {
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let data = self.expect_data_for_tag(tables::hdmx::Hdmx::TAG)?;
         tables::hdmx::Hdmx::read(data, num_glyphs)
     }
 
+    #[cfg(feature = "vmtx")]
     fn vmtx(&self) -> Result<tables::vmtx::Vmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
@@ -60,47 +67,58 @@ pub trait TableProvider<'a> {
         tables::vmtx::Vmtx::read(data, number_of_v_metrics)
     }
 
+    #[cfg(feature = "vorg")]
     fn vorg(&self) -> Result<tables::vorg::Vorg<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "fvar")]
     fn fvar(&self) -> Result<tables::fvar::Fvar<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "avar")]
     fn avar(&self) -> Result<tables::avar::Avar<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "hvar")]
     fn hvar(&self) -> Result<tables::hvar::Hvar<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "vvar")]
     fn vvar(&self) -> Result<tables::vvar::Vvar<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "mvar")]
     fn mvar(&self) -> Result<tables::mvar::Mvar<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "maxp")]
     fn maxp(&self) -> Result<tables::maxp::Maxp<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "os2")]
     fn os2(&self) -> Result<tables::os2::Os2<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "post")]
     fn post(&self) -> Result<tables::post::Post<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "gasp")]
     fn gasp(&self) -> Result<tables::gasp::Gasp<'a>, ReadError> {
         self.expect_table()
     }
 
     /// is_long can be optionally provided, if known, otherwise we look it up in head.
+    #[cfg(feature = "loca")]
     fn loca(&self, is_long: impl Into<Option<bool>>) -> Result<tables::loca::Loca<'a>, ReadError> {
         let is_long = match is_long.into() {
             Some(val) => val,
@@ -110,101 +128,125 @@ pub trait TableProvider<'a> {
         tables::loca::Loca::read(data, is_long)
     }
 
+    #[cfg(feature = "glyf")]
     fn glyf(&self) -> Result<tables::glyf::Glyf<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "gvar")]
     fn gvar(&self) -> Result<tables::gvar::Gvar<'a>, ReadError> {
         self.expect_table()
     }
 
     /// Returns the array of entries for the control value table which is used
     /// for TrueType hinting.
+    #[cfg(feature = "cvt")]
     fn cvt(&self) -> Result<&'a [BigEndian<i16>], ReadError> {
         let table_data = self.expect_data_for_tag(Tag::new(b"cvt "))?;
         table_data.read_array(0..table_data.len())
     }
 
+    #[cfg(feature = "cvar")]
     fn cvar(&self) -> Result<tables::cvar::Cvar<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "cff")]
     fn cff(&self) -> Result<tables::cff::Cff<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "cff2")]
     fn cff2(&self) -> Result<tables::cff2::Cff2<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "cmap")]
     fn cmap(&self) -> Result<tables::cmap::Cmap<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "gdef")]
     fn gdef(&self) -> Result<tables::gdef::Gdef<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "gpos")]
     fn gpos(&self) -> Result<tables::gpos::Gpos<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "gsub")]
     fn gsub(&self) -> Result<tables::gsub::Gsub<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "feat")]
     fn feat(&self) -> Result<tables::feat::Feat<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "ltag")]
     fn ltag(&self) -> Result<tables::ltag::Ltag<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "ankr")]
     fn ankr(&self) -> Result<tables::ankr::Ankr<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "trak")]
     fn trak(&self) -> Result<tables::trak::Trak<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "morx")]
     fn morx(&self) -> Result<tables::morx::Morx<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "kerx")]
     fn kerx(&self) -> Result<tables::kerx::Kerx<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "kern")]
     fn kern(&self) -> Result<tables::kern::Kern<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "colr")]
     fn colr(&self) -> Result<tables::colr::Colr<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "cpal")]
     fn cpal(&self) -> Result<tables::cpal::Cpal<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "cblc")]
     fn cblc(&self) -> Result<tables::cblc::Cblc<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "cbdt")]
     fn cbdt(&self) -> Result<tables::cbdt::Cbdt<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "eblc")]
     fn eblc(&self) -> Result<tables::eblc::Eblc<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "ebdt")]
     fn ebdt(&self) -> Result<tables::ebdt::Ebdt<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "sbix")]
     fn sbix(&self) -> Result<tables::sbix::Sbix<'a>, ReadError> {
         // should we make the user pass this in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
@@ -212,14 +254,17 @@ pub trait TableProvider<'a> {
         tables::sbix::Sbix::read(data, num_glyphs)
     }
 
+    #[cfg(feature = "stat")]
     fn stat(&self) -> Result<tables::stat::Stat<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "svg")]
     fn svg(&self) -> Result<tables::svg::Svg<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "varc")]
     fn varc(&self) -> Result<tables::varc::Varc<'a>, ReadError> {
         self.expect_table()
     }
@@ -236,14 +281,17 @@ pub trait TableProvider<'a> {
             .and_then(FontRead::read)
     }
 
+    #[cfg(feature = "meta")]
     fn meta(&self) -> Result<tables::meta::Meta<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "base")]
     fn base(&self) -> Result<tables::base::Base<'a>, ReadError> {
         self.expect_table()
     }
 
+    #[cfg(feature = "dsig")]
     fn dsig(&self) -> Result<tables::dsig::Dsig<'a>, ReadError> {
         self.expect_table()
     }
