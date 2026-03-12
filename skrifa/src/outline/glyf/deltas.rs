@@ -2,9 +2,11 @@ use core::ops::RangeInclusive;
 
 use raw::tables::glyf::PointCoord;
 use read_fonts::{
-    tables::glyf::{PointFlags, PointMarker},
-    tables::gvar::{GlyphDelta, Gvar},
-    tables::variations::TupleVariation,
+    tables::{
+        glyf::{PointFlags, PointMarker},
+        gvar::{GlyphDelta, Gvar},
+        variations::TupleVariation,
+    },
     types::{F2Dot14, Fixed, GlyphId, Point},
     ReadError,
 };
@@ -15,7 +17,7 @@ use super::PHANTOM_POINT_COUNT;
 ///
 /// Interpolation is meaningless for component offsets so this is a
 /// specialized function that skips the expensive bits.
-pub(super) fn composite_glyph<D: PointCoord>(
+pub fn composite_glyph<D: PointCoord>(
     gvar: &Gvar,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
@@ -33,7 +35,7 @@ pub(super) fn composite_glyph<D: PointCoord>(
     Ok(())
 }
 
-pub(super) struct SimpleGlyph<'a, C: PointCoord> {
+pub struct SimpleGlyph<'a, C: PointCoord> {
     pub points: &'a [Point<C>],
     pub flags: &'a mut [PointFlags],
     pub contours: &'a [u16],
@@ -44,7 +46,7 @@ pub(super) struct SimpleGlyph<'a, C: PointCoord> {
 /// This function will use interpolation to infer missing deltas for tuples
 /// that contain sparse sets. The `iup_buffer` buffer is temporary storage
 /// used for this and the length must be >= glyph.points.len().
-pub(super) fn simple_glyph<C, D>(
+pub fn simple_glyph<C, D>(
     gvar: &Gvar,
     glyph_id: GlyphId,
     coords: &[F2Dot14],

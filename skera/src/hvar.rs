@@ -1,9 +1,9 @@
 //! impl subset() for HVAR
 
 use crate::{
-    offset::SerializeSubset,
+    offset::{SerializeCopy, SerializeSubset},
     serialize::{SerializeErrorFlags, Serializer},
-    variations::DeltaSetIndexMapSerializePlan,
+    variations::{subset_itemvarstore_with_instancing, DeltaSetIndexMapSerializePlan},
     IncBiMap, Plan, Subset, SubsetError, SubsetFlags,
 };
 use fnv::FnvHashMap;
@@ -30,6 +30,9 @@ impl Subset for Hvar<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
+        if plan.all_axes_pinned {
+            return Ok(());
+        }
         let var_store = self
             .item_variation_store()
             .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
@@ -38,7 +41,7 @@ impl Subset for Hvar<'_> {
             .listup_index_maps()
             .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
 
-        let hvar_subset_plan = HvarVvarSubsetPlan::new(plan, &var_store, &index_maps)
+        let mut hvar_subset_plan = HvarVvarSubsetPlan::new(plan, &var_store, &index_maps)
             .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
 
         s.embed(self.version())
@@ -48,14 +51,42 @@ impl Subset for Hvar<'_> {
             .embed(0_u32)
             .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
 
-        Offset32::serialize_subset(
-            &var_store,
-            s,
-            plan,
-            (hvar_subset_plan.inner_maps(), true),
-            var_store_offset_pos,
-        )
-        .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
+        // log::debug!("HVAR inner maps: {:?}", hvar_subset_plan.inner_maps());
+
+        if !plan.normalized_coords.is_empty() {
+            let (bytes, varidx_map) = subset_itemvarstore_with_instancing(
+                var_store.clone(),
+                plan,
+                s,
+                hvar_subset_plan.inner_maps(),
+                true,
+                index_maps[0].is_some(),
+                false,
+            )
+            .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
+
+            if index_maps[0].is_some() && !hvar_subset_plan.remap_index_map_plans(plan, &varidx_map)
+            {
+                return Err(SubsetError::SubsetTableError(Hvar::TAG));
+            }
+
+            Offset32::serialize_copy_from_bytes(&bytes, s, var_store_offset_pos)
+                .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
+        } else {
+            Offset32::serialize_subset(
+                &var_store,
+                s,
+                plan,
+                (
+                    hvar_subset_plan.inner_maps(),
+                    true,
+                    index_maps[0].is_some(),
+                    false,
+                ),
+                var_store_offset_pos,
+            )
+            .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
+        }
 
         serialize_index_maps(
             s,
@@ -165,17 +196,13 @@ impl IndexMapSubsetPlan {
         }
         this.map_count = (last_gid.unwrap().to_u32() + 1) as u16;
 
-        if index_map.is_none() {
-            outer_map.add(0);
-            inner_sets[0].extend(plan.glyphset.iter().map(|g| g.to_u32() as u16));
-            this.max_inners[0] = plan.new_to_old_gid_list.iter().last().unwrap().1.to_u32() as u16;
-        } else {
+        if let Some(ix_map) = index_map {
             for (new_gid, old_gid) in plan.new_to_old_gid_list.iter() {
                 if new_gid.to_u32() >= this.map_count as u32 {
                     break;
                 }
 
-                let v = index_map.unwrap().get(old_gid.to_u32())?;
+                let v = ix_map.get(old_gid.to_u32())?;
                 let outer = v.outer as usize;
                 if outer >= this.max_inners.len() {
                     break;
@@ -188,6 +215,10 @@ impl IndexMapSubsetPlan {
 
                 inner_sets[outer].insert(v.inner);
             }
+        } else {
+            outer_map.add(0);
+            inner_sets[0].extend(plan.glyphset.iter().map(|g| g.to_u32() as u16));
+            this.max_inners[0] = plan.new_to_old_gid_list.iter().last().unwrap().1.to_u32() as u16;
         }
 
         Ok(this)
@@ -239,6 +270,49 @@ impl IndexMapSubsetPlan {
             self.output_map
                 .insert(new_gid.to_u32(), (*new_outer << 16) | *new_inner);
         }
+    }
+
+    fn remap_after_instantiation(
+        &mut self,
+        plan: &Plan,
+        varidx_map: &FnvHashMap<u32, u32>,
+    ) -> bool {
+        self.outer_bit_count = 1;
+        self.inner_bit_count = 1;
+
+        for (new_gid, _) in plan.new_to_old_gid_list.iter() {
+            if new_gid.to_u32() as u16 >= self.map_count {
+                break;
+            }
+
+            let gid = new_gid.to_u32();
+            let Some(old_varidx) = self.output_map.get(&gid).copied() else {
+                continue;
+            };
+            let Some(new_varidx) = varidx_map.get(&old_varidx).copied() else {
+                return false;
+            };
+
+            self.output_map.insert(gid, new_varidx);
+
+            let outer = new_varidx >> 16;
+            let outer_bits = if outer == 0 {
+                1
+            } else {
+                (32 - outer.leading_zeros()) as u8
+            };
+            self.outer_bit_count = self.outer_bit_count.max(outer_bits);
+
+            let inner = new_varidx & 0xFFFF;
+            let inner_bits = if inner == 0 {
+                1
+            } else {
+                (32 - inner.leading_zeros()) as u8
+            };
+            self.inner_bit_count = self.inner_bit_count.max(inner_bits);
+        }
+
+        true
     }
 
     fn is_identity(&self) -> bool {
@@ -346,6 +420,19 @@ impl HvarVvarSubsetPlan {
 
     pub(crate) fn index_map_subset_plans(&self) -> &[IndexMapSubsetPlan] {
         &self.index_map_subset_plans
+    }
+
+    pub(crate) fn remap_index_map_plans(
+        &mut self,
+        plan: &Plan,
+        varidx_map: &FnvHashMap<u32, u32>,
+    ) -> bool {
+        for idx_plan in &mut self.index_map_subset_plans {
+            if !idx_plan.remap_after_instantiation(plan, varidx_map) {
+                return false;
+            }
+        }
+        true
     }
 }
 

@@ -47,6 +47,8 @@ fn compute_effective_pair_formats_1(
     glyph_set: &IntSet<GlyphId>,
     strip_hints: bool,
     strip_empty: bool,
+    font_data: FontData,
+    plan: &Plan,
 ) -> Result<(ValueFormat, ValueFormat), ReadError> {
     let mut new_format1 = ValueFormat::empty();
     let mut new_format2 = ValueFormat::empty();
@@ -66,10 +68,20 @@ fn compute_effective_pair_formats_1(
                 continue;
             }
 
-            new_format1 |=
-                compute_effective_format(pair_value_rec.value_record1(), strip_hints, strip_empty);
-            new_format2 |=
-                compute_effective_format(pair_value_rec.value_record2(), strip_hints, strip_empty);
+            new_format1 |= compute_effective_format(
+                pair_value_rec.value_record1(),
+                strip_hints,
+                strip_empty,
+                font_data,
+                Some(plan),
+            );
+            new_format2 |= compute_effective_format(
+                pair_value_rec.value_record2(),
+                strip_hints,
+                strip_empty,
+                font_data,
+                Some(plan),
+            );
         }
         if new_format1 == orig_format1 && new_format2 == orig_format2 {
             break;
@@ -154,7 +166,19 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
         let cov_offset_pos = s.embed(0_u16)?;
 
         // value_formats
-        let (new_format1, new_format2) = if plan
+        let (new_format1, new_format2) = if !plan.normalized_coords.is_empty() {
+            // Instancing case: always compute effective formats to filter out device flags
+            // that won't produce output (variation indices mapped to NO_VARIATION_INDEX)
+            compute_effective_pair_formats_1(
+                self,
+                glyph_set,
+                false, // strip_hints=false for instancing
+                false, // strip_empty=false
+                self.offset_data(),
+                plan,
+            )
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        } else if plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
         {
@@ -165,8 +189,15 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
                 true
             };
 
-            compute_effective_pair_formats_1(self, glyph_set, strip_hints, true)
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            compute_effective_pair_formats_1(
+                self,
+                glyph_set,
+                strip_hints,
+                true,
+                self.offset_data(),
+                plan,
+            )
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
         } else {
             (self.value_format1(), self.value_format2())
         };
@@ -188,10 +219,12 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        for i in pairset_idxes.iter() {
+        let mut new_glyphs: Vec<GlyphId> = Vec::new(); // See dagger operator in PairPosFormat1_3::subset
+        for (i, glyph_id) in pairset_idxes.iter().zip(glyphs.iter()) {
             match pair_sets.subset_offset(i as usize, s, plan, (new_format1, new_format2)) {
                 Ok(()) => {
                     pairset_count += 1;
+                    new_glyphs.push(*glyph_id);
                 }
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
                 Err(e) => {
@@ -201,7 +234,7 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
         }
 
         s.copy_assign(pairset_count_pos, pairset_count);
-        Offset16::serialize_serialize::<CoverageTable>(s, &glyphs, cov_offset_pos)
+        Offset16::serialize_serialize::<CoverageTable>(s, &new_glyphs, cov_offset_pos)
     }
 }
 
@@ -211,7 +244,10 @@ fn compute_effective_pair_formats_2(
     class2_idxes: &[u16],
     strip_hints: bool,
     strip_empty: bool,
+    font_data: FontData,
+    plan: &Plan,
 ) -> Result<(ValueFormat, ValueFormat), ReadError> {
+    log::info!("Computing effective formats for PairPosFormat2 with class1_idxes={:?}, class2_idxes={:?}, strip_hints={}, strip_empty={}", class1_idxes, class2_idxes, strip_hints, strip_empty);
     let mut new_format1 = ValueFormat::empty();
     let mut new_format2 = ValueFormat::empty();
 
@@ -226,10 +262,20 @@ fn compute_effective_pair_formats_2(
         for j in class2_idxes {
             let class2_rec = class2_records.get(*j as usize)?;
 
-            new_format1 |=
-                compute_effective_format(class2_rec.value_record1(), strip_hints, strip_empty);
-            new_format2 |=
-                compute_effective_format(class2_rec.value_record2(), strip_hints, strip_empty);
+            new_format1 |= compute_effective_format(
+                class2_rec.value_record1(),
+                strip_hints,
+                strip_empty,
+                font_data,
+                Some(plan),
+            );
+            new_format2 |= compute_effective_format(
+                class2_rec.value_record2(),
+                strip_hints,
+                strip_empty,
+                font_data,
+                Some(plan),
+            );
         }
         if new_format1 == orig_format1 && new_format2 == orig_format2 {
             break;
@@ -339,7 +385,20 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
             .filter(|i| class2_map.contains_key(i))
             .collect();
 
-        let (new_format1, new_format2) = if plan
+        let (new_format1, new_format2) = if !plan.normalized_coords.is_empty() {
+            // Instancing case: always compute effective formats to filter out device flags
+            // that won't produce output (variation indices mapped to NO_VARIATION_INDEX)
+            compute_effective_pair_formats_2(
+                self,
+                &class1_idxes,
+                &class2_idxes,
+                false, // strip_hints=false for instancing
+                false, // strip_empty=false
+                self.offset_data(),
+                plan,
+            )
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        } else if plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
         {
@@ -350,8 +409,16 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
                 true
             };
 
-            compute_effective_pair_formats_2(self, &class1_idxes, &class2_idxes, strip_hints, true)
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            compute_effective_pair_formats_2(
+                self,
+                &class1_idxes,
+                &class2_idxes,
+                strip_hints,
+                true,
+                self.offset_data(),
+                plan,
+            )
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
         } else {
             (self.value_format1(), self.value_format2())
         };
