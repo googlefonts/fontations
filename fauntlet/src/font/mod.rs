@@ -7,7 +7,7 @@ use std::{
 use ::freetype::{face::LoadFlag, Library};
 use ::skrifa::{
     outline::{HintingOptions, SmoothMode, Target},
-    raw::{types::F2Dot14, FontRef, TableProvider},
+    raw::{tables::postscript::font::Type1Font, types::F2Dot14, FontRef, TableProvider},
 };
 
 mod freetype;
@@ -101,6 +101,7 @@ impl<'a> InstanceOptions<'a> {
 pub struct Font {
     path: PathBuf,
     data: SharedFontData,
+    pub(crate) type1: Option<Type1Font>,
     count: usize,
     ft_library: Library,
 }
@@ -110,11 +111,21 @@ impl Font {
         let path = path.as_ref().to_owned();
         let file = std::fs::File::open(&path).ok()?;
         let data = SharedFontData(unsafe { Arc::new(memmap2::Mmap::map(&file).ok()?) });
-        let count = FontRef::fonts(data.0.as_ref()).count();
+        let type1 = if check_type1(&data.0) {
+            Some(Type1Font::new(&data.0).ok()?)
+        } else {
+            None
+        };
+        let count = if type1.is_some() {
+            1
+        } else {
+            FontRef::fonts(data.0.as_ref()).count()
+        };
         let _ft_library = ::freetype::Library::init().ok()?;
         Some(Self {
             path,
             data,
+            type1,
             count,
             ft_library: _ft_library,
         })
@@ -122,6 +133,10 @@ impl Font {
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub fn is_type1(&self) -> bool {
+        self.type1.is_some()
     }
 
     pub fn count(&self) -> usize {
@@ -145,7 +160,7 @@ impl Font {
         options: &InstanceOptions,
     ) -> Option<(FreeTypeInstance, SkrifaInstance<'_>)> {
         let ft_instance = FreeTypeInstance::new(&self.ft_library, &self.data, options)?;
-        let skrifa_instance = SkrifaInstance::new(&self.data, options)?;
+        let skrifa_instance = SkrifaInstance::new(self, options)?;
         Some((ft_instance, skrifa_instance))
     }
 }
@@ -157,4 +172,11 @@ impl Borrow<[u8]> for SharedFontData {
     fn borrow(&self) -> &[u8] {
         self.0.as_ref()
     }
+}
+
+fn check_type1(data: &[u8]) -> bool {
+    fn check(data: &[u8]) -> bool {
+        data.starts_with(b"%!PS-AdobeFont") || data.starts_with(b"%!FontType")
+    }
+    check(data) || data.get(6..).map(check).unwrap_or(false)
 }

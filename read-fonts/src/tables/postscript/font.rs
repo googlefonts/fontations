@@ -1,11 +1,11 @@
 //! Model for PostScript fonts.
 
 mod cff;
-#[expect(unused)]
 #[cfg(feature = "std")]
 mod type1;
 
 pub use cff::{CffFontRef, CffSubfont};
+pub use type1::Type1Font;
 
 use super::dict::Blues;
 use types::Fixed;
