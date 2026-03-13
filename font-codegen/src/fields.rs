@@ -517,6 +517,13 @@ impl Field {
     }
 
     pub(crate) fn known_min_size_stmt(&self) -> Option<TokenStream> {
+        if let Some(lit) = self.attrs.count.as_deref().and_then(Count::lit_int) {
+            if let FieldType::Array { inner_typ } = &self.typ {
+                if let FieldType::Scalar { typ } = inner_typ.as_ref() {
+                    return Some(quote!( #typ :: RAW_BYTE_LEN * #lit ));
+                }
+            }
+        }
         match &self.typ {
             _ if self.is_conditional() => None,
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
@@ -757,7 +764,7 @@ impl Field {
         } else if is_var_array {
             quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
         } else if is_array {
-            quote!(self.data.read_array(range).ok() #maybe_unwrap_or_def)
+            quote!(self.data.read_array(range).ok() #maybe_unwrap #maybe_unwrap_or_def)
         } else {
             quote!(self.data.read_at(range.start).ok() #maybe_unwrap #maybe_unwrap_or_def)
         };

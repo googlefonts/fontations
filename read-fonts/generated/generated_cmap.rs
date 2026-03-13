@@ -380,7 +380,8 @@ pub struct Cmap0<'a> {
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap0<'a> {
-    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    pub const MIN_SIZE: usize =
+        (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN * 256_usize);
     basic_table_impls!(impl_the_methods);
 
     /// Format number is set to 0.
@@ -405,7 +406,7 @@ impl<'a> Cmap0<'a> {
     /// An array that maps character codes to glyph index values.
     pub fn glyph_id_array(&self) -> &'a [u8] {
         let range = self.glyph_id_array_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data.read_array(range).ok().unwrap()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -485,7 +486,8 @@ pub struct Cmap2<'a> {
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Cmap2<'a> {
-    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    pub const MIN_SIZE: usize =
+        (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN * 256_usize);
     basic_table_impls!(impl_the_methods);
 
     /// Format number is set to 2.
@@ -511,7 +513,7 @@ impl<'a> Cmap2<'a> {
     /// index × 8.
     pub fn sub_header_keys(&self) -> &'a [BigEndian<u16>] {
         let range = self.sub_header_keys_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data.read_array(range).ok().unwrap()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1009,6 +1011,7 @@ impl<'a> Cmap8<'a> {
         + u16::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN * 8192_usize
         + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
@@ -1036,13 +1039,13 @@ impl<'a> Cmap8<'a> {
     /// 32-bit character code
     pub fn is32(&self) -> &'a [u8] {
         let range = self.is32_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data.read_array(range).ok().unwrap()
     }
 
     /// Number of groupings which follow
     pub fn num_groups(&self) -> u32 {
         let range = self.num_groups_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// Array of SequentialMapGroup records.
