@@ -35,16 +35,6 @@ impl<'a> CountAll16<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn some_field_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn remainder_byte_range(&self) -> Range<usize> {
-        let start = self.some_field_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
-    }
-
     pub fn some_field(&self) -> u16 {
         let range = self.some_field_byte_range();
         self.data.read_at(range.start).ok().unwrap()
@@ -53,6 +43,16 @@ impl<'a> CountAll16<'a> {
     pub fn remainder(&self) -> &'a [BigEndian<u16>] {
         let range = self.remainder_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn some_field_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn remainder_byte_range(&self) -> Range<usize> {
+        let start = self.some_field_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
     }
 }
 
@@ -108,16 +108,6 @@ impl<'a> CountAll32<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn some_field_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn remainder_byte_range(&self) -> Range<usize> {
-        let start = self.some_field_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN
-    }
-
     pub fn some_field(&self) -> u16 {
         let range = self.some_field_byte_range();
         self.data.read_at(range.start).ok().unwrap()
@@ -126,6 +116,16 @@ impl<'a> CountAll32<'a> {
     pub fn remainder(&self) -> &'a [BigEndian<u32>] {
         let range = self.remainder_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn some_field_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn remainder_byte_range(&self) -> Range<usize> {
+        let start = self.some_field_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN
     }
 }
 

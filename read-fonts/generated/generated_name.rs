@@ -41,46 +41,6 @@ impl<'a> Name<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn storage_offset_byte_range(&self) -> Range<usize> {
-        let start = self.count_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn name_record_byte_range(&self) -> Range<usize> {
-        let count = self.count();
-        let start = self.storage_offset_byte_range().end;
-        start..start + (count as usize).saturating_mul(NameRecord::RAW_BYTE_LEN)
-    }
-
-    pub fn lang_tag_count_byte_range(&self) -> Range<usize> {
-        let start = self.name_record_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + u16::RAW_BYTE_LEN)
-                .unwrap_or(start)
-    }
-
-    pub fn lang_tag_record_byte_range(&self) -> Range<usize> {
-        let lang_tag_count = self.lang_tag_count().unwrap_or_default();
-        let start = self.lang_tag_count_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| {
-                    start + (lang_tag_count as usize).saturating_mul(LangTagRecord::RAW_BYTE_LEN)
-                })
-                .unwrap_or(start)
-    }
-
     /// Table version number (0 or 1)
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
@@ -119,6 +79,46 @@ impl<'a> Name<'a> {
         (!range.is_empty())
             .then(|| self.data.read_array(range).ok())
             .flatten()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn storage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.count_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn name_record_byte_range(&self) -> Range<usize> {
+        let count = self.count();
+        let start = self.storage_offset_byte_range().end;
+        start..start + (count as usize).saturating_mul(NameRecord::RAW_BYTE_LEN)
+    }
+
+    pub fn lang_tag_count_byte_range(&self) -> Range<usize> {
+        let start = self.name_record_byte_range().end;
+        start
+            ..(self.version().compatible(1u16))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
+    }
+
+    pub fn lang_tag_record_byte_range(&self) -> Range<usize> {
+        let lang_tag_count = self.lang_tag_count().unwrap_or_default();
+        let start = self.lang_tag_count_byte_range().end;
+        start
+            ..(self.version().compatible(1u16))
+                .then(|| {
+                    start + (lang_tag_count as usize).saturating_mul(LangTagRecord::RAW_BYTE_LEN)
+                })
+                .unwrap_or(start)
     }
 }
 

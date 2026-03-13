@@ -35,6 +35,33 @@ impl<'a> BasicTable<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    pub fn simple_count(&self) -> u16 {
+        let range = self.simple_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn simple_records(&self) -> &'a [SimpleRecord] {
+        let range = self.simple_records_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn arrays_inner_count(&self) -> u16 {
+        let range = self.arrays_inner_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap_or_default()
+    }
+
+    pub fn array_records_count(&self) -> u32 {
+        let range = self.array_records_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap_or_default()
+    }
+
+    pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
+        let range = self.array_records_byte_range();
+        self.data
+            .read_with_args(range, &self.arrays_inner_count())
+            .unwrap_or_default()
+    }
+
     pub fn simple_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -65,33 +92,6 @@ impl<'a> BasicTable<'a> {
                     <ContainsArrays as ComputeSize>::compute_size(&self.arrays_inner_count())
                         .unwrap_or(0),
                 )
-    }
-
-    pub fn simple_count(&self) -> u16 {
-        let range = self.simple_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn simple_records(&self) -> &'a [SimpleRecord] {
-        let range = self.simple_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
-    }
-
-    pub fn arrays_inner_count(&self) -> u16 {
-        let range = self.arrays_inner_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
-    }
-
-    pub fn array_records_count(&self) -> u32 {
-        let range = self.array_records_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
-    }
-
-    pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
-        let range = self.array_records_byte_range();
-        self.data
-            .read_with_args(range, &self.arrays_inner_count())
-            .unwrap_or_default()
     }
 }
 
@@ -353,16 +353,6 @@ impl<'a> VarLenItem<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
     pub fn length(&self) -> u32 {
         let range = self.length_byte_range();
         self.data.read_at(range.start).ok().unwrap()
@@ -371,6 +361,16 @@ impl<'a> VarLenItem<'a> {
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 }
 

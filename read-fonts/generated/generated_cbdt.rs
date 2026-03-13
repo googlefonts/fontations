@@ -41,16 +41,6 @@ impl<'a> Cbdt<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn major_version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn minor_version_byte_range(&self) -> Range<usize> {
-        let start = self.major_version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
     /// Major version of the CBDT table, = 3.
     pub fn major_version(&self) -> u16 {
         let range = self.major_version_byte_range();
@@ -61,6 +51,16 @@ impl<'a> Cbdt<'a> {
     pub fn minor_version(&self) -> u16 {
         let range = self.minor_version_byte_range();
         self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn major_version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn minor_version_byte_range(&self) -> Range<usize> {
+        let start = self.major_version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
     }
 }
 

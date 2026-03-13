@@ -791,15 +791,6 @@ impl<'a> IndexSubtableList<'a> {
     pub const MIN_SIZE: usize = 0;
     basic_table_impls!(impl_the_methods);
 
-    pub fn index_subtable_records_byte_range(&self) -> Range<usize> {
-        let number_of_index_subtables = self.number_of_index_subtables();
-        let start = 0;
-        start
-            ..start
-                + (number_of_index_subtables as usize)
-                    .saturating_mul(IndexSubtableRecord::RAW_BYTE_LEN)
-    }
-
     /// Array of IndexSubtableRecords.
     pub fn index_subtable_records(&self) -> &'a [IndexSubtableRecord] {
         let range = self.index_subtable_records_byte_range();
@@ -808,6 +799,15 @@ impl<'a> IndexSubtableList<'a> {
 
     pub(crate) fn number_of_index_subtables(&self) -> u32 {
         self.number_of_index_subtables
+    }
+
+    pub fn index_subtable_records_byte_range(&self) -> Range<usize> {
+        let number_of_index_subtables = self.number_of_index_subtables();
+        let start = 0;
+        start
+            ..start
+                + (number_of_index_subtables as usize)
+                    .saturating_mul(IndexSubtableRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -966,31 +966,6 @@ impl<'a> IndexSubtable1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
-        let last_glyph_index = self.last_glyph_index();
-        let first_glyph_index = self.first_glyph_index();
-        let start = self.image_data_offset_byte_range().end;
-        start
-            ..start
-                + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
-                    .saturating_mul(u32::RAW_BYTE_LEN)
-    }
-
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
@@ -1020,6 +995,31 @@ impl<'a> IndexSubtable1<'a> {
 
     pub(crate) fn first_glyph_index(&self) -> GlyphId16 {
         self.first_glyph_index
+    }
+
+    pub fn index_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
+        let start = self.index_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.image_format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
+        let last_glyph_index = self.last_glyph_index();
+        let first_glyph_index = self.first_glyph_index();
+        let start = self.image_data_offset_byte_range().end;
+        start
+            ..start
+                + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
+                    .saturating_mul(u32::RAW_BYTE_LEN)
     }
 }
 
@@ -1083,31 +1083,6 @@ impl<'a> IndexSubtable2<'a> {
         (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn image_size_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn big_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.image_size_byte_range().end;
-        start..start + BigGlyphMetrics::RAW_BYTE_LEN
-    }
-
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
@@ -1136,6 +1111,31 @@ impl<'a> IndexSubtable2<'a> {
     pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
         let range = self.big_metrics_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn index_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
+        let start = self.index_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.image_format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn image_size_byte_range(&self) -> Range<usize> {
+        let start = self.image_data_offset_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn big_metrics_byte_range(&self) -> Range<usize> {
+        let start = self.image_size_byte_range().end;
+        start..start + BigGlyphMetrics::RAW_BYTE_LEN
     }
 }
 
@@ -1236,31 +1236,6 @@ impl<'a> IndexSubtable3<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
-        let last_glyph_index = self.last_glyph_index();
-        let first_glyph_index = self.first_glyph_index();
-        let start = self.image_data_offset_byte_range().end;
-        start
-            ..start
-                + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
-                    .saturating_mul(u16::RAW_BYTE_LEN)
-    }
-
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
@@ -1290,6 +1265,31 @@ impl<'a> IndexSubtable3<'a> {
 
     pub(crate) fn first_glyph_index(&self) -> GlyphId16 {
         self.first_glyph_index
+    }
+
+    pub fn index_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
+        let start = self.index_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.image_format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
+        let last_glyph_index = self.last_glyph_index();
+        let first_glyph_index = self.first_glyph_index();
+        let start = self.image_data_offset_byte_range().end;
+        start
+            ..start
+                + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
+                    .saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -1353,35 +1353,6 @@ impl<'a> IndexSubtable4<'a> {
         (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn num_glyphs_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_array_byte_range(&self) -> Range<usize> {
-        let num_glyphs = self.num_glyphs();
-        let start = self.num_glyphs_byte_range().end;
-        start
-            ..start
-                + (transforms::add(num_glyphs, 1_usize))
-                    .saturating_mul(GlyphIdOffsetPair::RAW_BYTE_LEN)
-    }
-
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
@@ -1410,6 +1381,35 @@ impl<'a> IndexSubtable4<'a> {
     pub fn glyph_array(&self) -> &'a [GlyphIdOffsetPair] {
         let range = self.glyph_array_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn index_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
+        let start = self.index_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.image_format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn num_glyphs_byte_range(&self) -> Range<usize> {
+        let start = self.image_data_offset_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_array_byte_range(&self) -> Range<usize> {
+        let num_glyphs = self.num_glyphs();
+        let start = self.num_glyphs_byte_range().end;
+        start
+            ..start
+                + (transforms::add(num_glyphs, 1_usize))
+                    .saturating_mul(GlyphIdOffsetPair::RAW_BYTE_LEN)
     }
 }
 
@@ -1526,42 +1526,6 @@ impl<'a> IndexSubtable5<'a> {
         + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn index_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_format_byte_range(&self) -> Range<usize> {
-        let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn image_size_byte_range(&self) -> Range<usize> {
-        let start = self.image_data_offset_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn big_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.image_size_byte_range().end;
-        start..start + BigGlyphMetrics::RAW_BYTE_LEN
-    }
-
-    pub fn num_glyphs_byte_range(&self) -> Range<usize> {
-        let start = self.big_metrics_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_array_byte_range(&self) -> Range<usize> {
-        let num_glyphs = self.num_glyphs();
-        let start = self.num_glyphs_byte_range().end;
-        start..start + (num_glyphs as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
-    }
-
     /// Format of this IndexSubTable.
     pub fn index_format(&self) -> u16 {
         let range = self.index_format_byte_range();
@@ -1602,6 +1566,42 @@ impl<'a> IndexSubtable5<'a> {
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         let range = self.glyph_array_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn index_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_format_byte_range(&self) -> Range<usize> {
+        let start = self.index_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn image_data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.image_format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn image_size_byte_range(&self) -> Range<usize> {
+        let start = self.image_data_offset_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn big_metrics_byte_range(&self) -> Range<usize> {
+        let start = self.image_size_byte_range().end;
+        start..start + BigGlyphMetrics::RAW_BYTE_LEN
+    }
+
+    pub fn num_glyphs_byte_range(&self) -> Range<usize> {
+        let start = self.big_metrics_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_array_byte_range(&self) -> Range<usize> {
+        let num_glyphs = self.num_glyphs();
+        let start = self.num_glyphs_byte_range().end;
+        start..start + (num_glyphs as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
     }
 }
 

@@ -193,7 +193,7 @@ fn subset_simple_glyph(g: &SimpleGlyph, plan: &Plan) -> Vec<u8> {
     }
 
     let glyph_bytes = g.offset_data().as_bytes();
-    let header_len = 10 + 2 * (g.number_of_contours() as usize) + 2;
+    let header_len = 10 + 2 * g.end_pts_of_contours().len() + 2;
     let Some(header_slice) = glyph_bytes.get(0..header_len) else {
         return out;
     };

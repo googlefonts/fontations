@@ -56,22 +56,6 @@ impl<'a> BaseArray<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn base_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn base_records_byte_range(&self) -> Range<usize> {
-        let base_count = self.base_count();
-        let start = self.base_count_byte_range().end;
-        start
-            ..start
-                + (base_count as usize).saturating_mul(
-                    <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count())
-                        .unwrap_or(0),
-                )
-    }
-
     /// Number of BaseRecords
     pub fn base_count(&self) -> u16 {
         let range = self.base_count_byte_range();
@@ -88,6 +72,22 @@ impl<'a> BaseArray<'a> {
 
     pub(crate) fn mark_class_count(&self) -> u16 {
         self.mark_class_count
+    }
+
+    pub fn base_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn base_records_byte_range(&self) -> Range<usize> {
+        let base_count = self.base_count();
+        let start = self.base_count_byte_range().end;
+        start
+            ..start
+                + (base_count as usize).saturating_mul(
+                    <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count())
+                        .unwrap_or(0),
+                )
     }
 }
 

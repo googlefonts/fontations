@@ -35,6 +35,30 @@ impl<'a> MajorMinorVersion<'a> {
     pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    pub fn version(&self) -> MajorMinor {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn always_present(&self) -> u16 {
+        let range = self.always_present_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn if_11(&self) -> Option<u16> {
+        let range = self.if_11_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    pub fn if_20(&self) -> Option<u32> {
+        let range = self.if_20_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -59,30 +83,6 @@ impl<'a> MajorMinorVersion<'a> {
             ..(self.version().compatible((2u16, 0u16)))
                 .then(|| start + u32::RAW_BYTE_LEN)
                 .unwrap_or(start)
-    }
-
-    pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn always_present(&self) -> u16 {
-        let range = self.always_present_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn if_11(&self) -> Option<u16> {
-        let range = self.if_11_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
-            .flatten()
-    }
-
-    pub fn if_20(&self) -> Option<u32> {
-        let range = self.if_20_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
-            .flatten()
     }
 }
 
@@ -449,6 +449,30 @@ impl<'a> FlagDay<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + GotFlags::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    pub fn volume(&self) -> u16 {
+        let range = self.volume_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn flags(&self) -> GotFlags {
+        let range = self.flags_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn foo(&self) -> Option<u16> {
+        let range = self.foo_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    pub fn bar(&self) -> Option<u16> {
+        let range = self.bar_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
     pub fn volume_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -473,30 +497,6 @@ impl<'a> FlagDay<'a> {
             ..(self.flags().contains(GotFlags::BAR))
                 .then(|| start + u16::RAW_BYTE_LEN)
                 .unwrap_or(start)
-    }
-
-    pub fn volume(&self) -> u16 {
-        let range = self.volume_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn flags(&self) -> GotFlags {
-        let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn foo(&self) -> Option<u16> {
-        let range = self.foo_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
-            .flatten()
-    }
-
-    pub fn bar(&self) -> Option<u16> {
-        let range = self.bar_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
-            .flatten()
     }
 }
 

@@ -42,6 +42,30 @@ impl<'a> Meta<'a> {
         (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    /// Version number of the metadata table — set to 1.
+    pub fn version(&self) -> u32 {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Flags — currently unused; set to 0.
+    pub fn flags(&self) -> u32 {
+        let range = self.flags_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// The number of data maps in the table.
+    pub fn data_maps_count(&self) -> u32 {
+        let range = self.data_maps_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of data map records.
+    pub fn data_maps(&self) -> &'a [DataMapRecord] {
+        let range = self.data_maps_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
@@ -66,30 +90,6 @@ impl<'a> Meta<'a> {
         let data_maps_count = self.data_maps_count();
         let start = self.data_maps_count_byte_range().end;
         start..start + (data_maps_count as usize).saturating_mul(DataMapRecord::RAW_BYTE_LEN)
-    }
-
-    /// Version number of the metadata table — set to 1.
-    pub fn version(&self) -> u32 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Flags — currently unused; set to 0.
-    pub fn flags(&self) -> u32 {
-        let range = self.flags_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// The number of data maps in the table.
-    pub fn data_maps_count(&self) -> u32 {
-        let range = self.data_maps_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Array of data map records.
-    pub fn data_maps(&self) -> &'a [DataMapRecord] {
-        let range = self.data_maps_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

@@ -42,26 +42,6 @@ impl<'a> Ankr<'a> {
         (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn lookup_table_offset_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_data_table_offset_byte_range(&self) -> Range<usize> {
-        let start = self.lookup_table_offset_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
     /// Version number (set to zero).
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
@@ -92,6 +72,26 @@ impl<'a> Ankr<'a> {
     pub fn glyph_data_table_offset(&self) -> u32 {
         let range = self.glyph_data_table_offset_byte_range();
         self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn lookup_table_offset_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_data_table_offset_byte_range(&self) -> Range<usize> {
+        let start = self.lookup_table_offset_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
     }
 }
 
@@ -155,17 +155,6 @@ impl<'a> GlyphDataEntry<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn num_points_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn anchor_points_byte_range(&self) -> Range<usize> {
-        let num_points = self.num_points();
-        let start = self.num_points_byte_range().end;
-        start..start + (num_points as usize).saturating_mul(AnchorPoint::RAW_BYTE_LEN)
-    }
-
     /// Number of anchor points for this glyph.
     pub fn num_points(&self) -> u32 {
         let range = self.num_points_byte_range();
@@ -176,6 +165,17 @@ impl<'a> GlyphDataEntry<'a> {
     pub fn anchor_points(&self) -> &'a [AnchorPoint] {
         let range = self.anchor_points_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn num_points_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn anchor_points_byte_range(&self) -> Range<usize> {
+        let num_points = self.num_points();
+        let start = self.num_points_byte_range().end;
+        start..start + (num_points as usize).saturating_mul(AnchorPoint::RAW_BYTE_LEN)
     }
 }
 

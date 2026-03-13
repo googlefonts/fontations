@@ -42,29 +42,6 @@ impl<'a> Base<'a> {
         (MajorMinor::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn horiz_axis_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn vert_axis_offset_byte_range(&self) -> Range<usize> {
-        let start = self.horiz_axis_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn item_var_store_offset_byte_range(&self) -> Range<usize> {
-        let start = self.vert_axis_offset_byte_range().end;
-        start
-            ..(self.version().compatible((1u16, 1u16)))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
-    }
-
     /// (major, minor) Version for the BASE table (1,0) or (1,1)
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
@@ -107,6 +84,29 @@ impl<'a> Base<'a> {
     pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
         self.item_var_store_offset().map(|x| x.resolve(data))?
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn horiz_axis_offset_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn vert_axis_offset_byte_range(&self) -> Range<usize> {
+        let start = self.horiz_axis_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn item_var_store_offset_byte_range(&self) -> Range<usize> {
+        let start = self.vert_axis_offset_byte_range().end;
+        start
+            ..(self.version().compatible((1u16, 1u16)))
+                .then(|| start + Offset32::RAW_BYTE_LEN)
+                .unwrap_or(start)
     }
 }
 
@@ -174,16 +174,6 @@ impl<'a> Axis<'a> {
     pub const MIN_SIZE: usize = (Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn base_tag_list_offset_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn base_script_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.base_tag_list_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
     /// Offset to BaseTagList table, from beginning of Axis table (may
     /// be NULL)
     pub fn base_tag_list_offset(&self) -> Nullable<Offset16> {
@@ -207,6 +197,16 @@ impl<'a> Axis<'a> {
     pub fn base_script_list(&self) -> Result<BaseScriptList<'a>, ReadError> {
         let data = self.data;
         self.base_script_list_offset().resolve(data)
+    }
+
+    pub fn base_tag_list_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn base_script_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.base_tag_list_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
     }
 }
 
@@ -269,17 +269,6 @@ impl<'a> BaseTagList<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn base_tag_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn baseline_tags_byte_range(&self) -> Range<usize> {
-        let base_tag_count = self.base_tag_count();
-        let start = self.base_tag_count_byte_range().end;
-        start..start + (base_tag_count as usize).saturating_mul(Tag::RAW_BYTE_LEN)
-    }
-
     /// Number of baseline identification tags in this text direction
     /// — may be zero (0)
     pub fn base_tag_count(&self) -> u16 {
@@ -292,6 +281,17 @@ impl<'a> BaseTagList<'a> {
     pub fn baseline_tags(&self) -> &'a [BigEndian<Tag>] {
         let range = self.baseline_tags_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn base_tag_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn baseline_tags_byte_range(&self) -> Range<usize> {
+        let base_tag_count = self.base_tag_count();
+        let start = self.base_tag_count_byte_range().end;
+        start..start + (base_tag_count as usize).saturating_mul(Tag::RAW_BYTE_LEN)
     }
 }
 
@@ -348,17 +348,6 @@ impl<'a> BaseScriptList<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn base_script_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn base_script_records_byte_range(&self) -> Range<usize> {
-        let base_script_count = self.base_script_count();
-        let start = self.base_script_count_byte_range().end;
-        start..start + (base_script_count as usize).saturating_mul(BaseScriptRecord::RAW_BYTE_LEN)
-    }
-
     /// Number of BaseScriptRecords defined
     pub fn base_script_count(&self) -> u16 {
         let range = self.base_script_count_byte_range();
@@ -370,6 +359,17 @@ impl<'a> BaseScriptList<'a> {
     pub fn base_script_records(&self) -> &'a [BaseScriptRecord] {
         let range = self.base_script_records_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn base_script_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn base_script_records_byte_range(&self) -> Range<usize> {
+        let base_script_count = self.base_script_count();
+        let start = self.base_script_count_byte_range().end;
+        start..start + (base_script_count as usize).saturating_mul(BaseScriptRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -487,28 +487,6 @@ impl<'a> BaseScript<'a> {
         (Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn base_values_offset_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn default_min_max_offset_byte_range(&self) -> Range<usize> {
-        let start = self.base_values_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn base_lang_sys_count_byte_range(&self) -> Range<usize> {
-        let start = self.default_min_max_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn base_lang_sys_records_byte_range(&self) -> Range<usize> {
-        let base_lang_sys_count = self.base_lang_sys_count();
-        let start = self.base_lang_sys_count_byte_range().end;
-        start
-            ..start + (base_lang_sys_count as usize).saturating_mul(BaseLangSysRecord::RAW_BYTE_LEN)
-    }
-
     /// Offset to BaseValues table, from beginning of BaseScript table (may be NULL)
     pub fn base_values_offset(&self) -> Nullable<Offset16> {
         let range = self.base_values_offset_byte_range();
@@ -544,6 +522,28 @@ impl<'a> BaseScript<'a> {
     pub fn base_lang_sys_records(&self) -> &'a [BaseLangSysRecord] {
         let range = self.base_lang_sys_records_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn base_values_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn default_min_max_offset_byte_range(&self) -> Range<usize> {
+        let start = self.base_values_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn base_lang_sys_count_byte_range(&self) -> Range<usize> {
+        let start = self.default_min_max_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn base_lang_sys_records_byte_range(&self) -> Range<usize> {
+        let base_lang_sys_count = self.base_lang_sys_count();
+        let start = self.base_lang_sys_count_byte_range().end;
+        start
+            ..start + (base_lang_sys_count as usize).saturating_mul(BaseLangSysRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -671,22 +671,6 @@ impl<'a> BaseValues<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn default_baseline_index_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn base_coord_count_byte_range(&self) -> Range<usize> {
-        let start = self.default_baseline_index_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn base_coord_offsets_byte_range(&self) -> Range<usize> {
-        let base_coord_count = self.base_coord_count();
-        let start = self.base_coord_count_byte_range().end;
-        start..start + (base_coord_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
-    }
-
     /// Index number of default baseline for this script — equals
     /// index position of baseline tag in baselineTags array of the
     /// BaseTagList
@@ -715,6 +699,22 @@ impl<'a> BaseValues<'a> {
         let data = self.data;
         let offsets = self.base_coord_offsets();
         ArrayOfOffsets::new(offsets, data, ())
+    }
+
+    pub fn default_baseline_index_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn base_coord_count_byte_range(&self) -> Range<usize> {
+        let start = self.default_baseline_index_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn base_coord_offsets_byte_range(&self) -> Range<usize> {
+        let base_coord_count = self.base_coord_count();
+        let start = self.base_coord_count_byte_range().end;
+        start..start + (base_coord_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -789,27 +789,6 @@ impl<'a> MinMax<'a> {
         (Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn min_coord_offset_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn max_coord_offset_byte_range(&self) -> Range<usize> {
-        let start = self.min_coord_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn feat_min_max_count_byte_range(&self) -> Range<usize> {
-        let start = self.max_coord_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn feat_min_max_records_byte_range(&self) -> Range<usize> {
-        let feat_min_max_count = self.feat_min_max_count();
-        let start = self.feat_min_max_count_byte_range().end;
-        start..start + (feat_min_max_count as usize).saturating_mul(FeatMinMaxRecord::RAW_BYTE_LEN)
-    }
-
     /// Offset to BaseCoord table that defines the minimum extent
     /// value, from the beginning of MinMax table (may be NULL)
     pub fn min_coord_offset(&self) -> Nullable<Offset16> {
@@ -847,6 +826,27 @@ impl<'a> MinMax<'a> {
     pub fn feat_min_max_records(&self) -> &'a [FeatMinMaxRecord] {
         let range = self.feat_min_max_records_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn min_coord_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn max_coord_offset_byte_range(&self) -> Range<usize> {
+        let start = self.min_coord_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn feat_min_max_count_byte_range(&self) -> Range<usize> {
+        let start = self.max_coord_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn feat_min_max_records_byte_range(&self) -> Range<usize> {
+        let feat_min_max_count = self.feat_min_max_count();
+        let start = self.feat_min_max_count_byte_range().end;
+        start..start + (feat_min_max_count as usize).saturating_mul(FeatMinMaxRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -1095,16 +1095,6 @@ impl<'a> BaseCoordFormat1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn base_coord_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.base_coord_format_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
     /// Format identifier — format = 1
     pub fn base_coord_format(&self) -> u16 {
         let range = self.base_coord_format_byte_range();
@@ -1115,6 +1105,16 @@ impl<'a> BaseCoordFormat1<'a> {
     pub fn coordinate(&self) -> i16 {
         let range = self.coordinate_byte_range();
         self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn base_coord_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn coordinate_byte_range(&self) -> Range<usize> {
+        let start = self.base_coord_format_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
     }
 }
 
@@ -1176,26 +1176,6 @@ impl<'a> BaseCoordFormat2<'a> {
         (u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn base_coord_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.base_coord_format_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn reference_glyph_byte_range(&self) -> Range<usize> {
-        let start = self.coordinate_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn base_coord_point_byte_range(&self) -> Range<usize> {
-        let start = self.reference_glyph_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
     /// Format identifier — format = 2
     pub fn base_coord_format(&self) -> u16 {
         let range = self.base_coord_format_byte_range();
@@ -1218,6 +1198,26 @@ impl<'a> BaseCoordFormat2<'a> {
     pub fn base_coord_point(&self) -> u16 {
         let range = self.base_coord_point_byte_range();
         self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn base_coord_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn coordinate_byte_range(&self) -> Range<usize> {
+        let start = self.base_coord_format_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn reference_glyph_byte_range(&self) -> Range<usize> {
+        let start = self.coordinate_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn base_coord_point_byte_range(&self) -> Range<usize> {
+        let start = self.reference_glyph_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
     }
 }
 
@@ -1280,21 +1280,6 @@ impl<'a> BaseCoordFormat3<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn base_coord_format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn coordinate_byte_range(&self) -> Range<usize> {
-        let start = self.base_coord_format_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn device_offset_byte_range(&self) -> Range<usize> {
-        let start = self.coordinate_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
     /// Format identifier — format = 3
     pub fn base_coord_format(&self) -> u16 {
         let range = self.base_coord_format_byte_range();
@@ -1319,6 +1304,21 @@ impl<'a> BaseCoordFormat3<'a> {
     pub fn device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         let data = self.data;
         self.device_offset().resolve(data)
+    }
+
+    pub fn base_coord_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn coordinate_byte_range(&self) -> Range<usize> {
+        let start = self.base_coord_format_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn device_offset_byte_range(&self) -> Range<usize> {
+        let start = self.coordinate_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
     }
 }
 

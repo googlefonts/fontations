@@ -8,7 +8,6 @@ use types::{BigEndian, FixedSize, Scalar};
 
 use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
-//use crate::table_ref::TableRef;
 use crate::FontRead;
 
 /// A reference to raw binary font data.

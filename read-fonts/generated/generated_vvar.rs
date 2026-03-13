@@ -46,36 +46,6 @@ impl<'a> Vvar<'a> {
         + Offset32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn advance_height_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.item_variation_store_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn tsb_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.advance_height_mapping_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn bsb_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.tsb_mapping_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn v_org_mapping_offset_byte_range(&self) -> Range<usize> {
-        let start = self.bsb_mapping_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
@@ -141,6 +111,36 @@ impl<'a> Vvar<'a> {
     pub fn v_org_mapping(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
         let data = self.data;
         self.v_org_mapping_offset().resolve(data)
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn advance_height_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.item_variation_store_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn tsb_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.advance_height_mapping_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn bsb_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.tsb_mapping_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn v_org_mapping_offset_byte_range(&self) -> Range<usize> {
+        let start = self.bsb_mapping_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
     }
 }
 

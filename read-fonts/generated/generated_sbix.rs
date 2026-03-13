@@ -367,27 +367,6 @@ impl<'a> Sbix<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + HeaderFlags::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + HeaderFlags::RAW_BYTE_LEN
-    }
-
-    pub fn num_strikes_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn strike_offsets_byte_range(&self) -> Range<usize> {
-        let num_strikes = self.num_strikes();
-        let start = self.num_strikes_byte_range().end;
-        start..start + (num_strikes as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
-    }
-
     /// Table version number — set to 1.
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
@@ -424,6 +403,27 @@ impl<'a> Sbix<'a> {
 
     pub(crate) fn num_glyphs(&self) -> u16 {
         self.num_glyphs
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + HeaderFlags::RAW_BYTE_LEN
+    }
+
+    pub fn num_strikes_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn strike_offsets_byte_range(&self) -> Range<usize> {
+        let num_strikes = self.num_strikes();
+        let start = self.num_strikes_byte_range().end;
+        start..start + (num_strikes as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 }
 
@@ -514,22 +514,6 @@ impl<'a> Strike<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn ppem_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn ppi_byte_range(&self) -> Range<usize> {
-        let start = self.ppem_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
-        let num_glyphs = self.num_glyphs();
-        let start = self.ppi_byte_range().end;
-        start..start + (transforms::add(num_glyphs, 1_usize)).saturating_mul(u32::RAW_BYTE_LEN)
-    }
-
     /// The PPEM size for which this strike was designed.
     pub fn ppem(&self) -> u16 {
         let range = self.ppem_byte_range();
@@ -550,6 +534,22 @@ impl<'a> Strike<'a> {
 
     pub(crate) fn num_glyphs(&self) -> u16 {
         self.num_glyphs
+    }
+
+    pub fn ppem_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn ppi_byte_range(&self) -> Range<usize> {
+        let start = self.ppem_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
+        let num_glyphs = self.num_glyphs();
+        let start = self.ppi_byte_range().end;
+        start..start + (transforms::add(num_glyphs, 1_usize)).saturating_mul(u32::RAW_BYTE_LEN)
     }
 }
 
@@ -607,26 +607,6 @@ impl<'a> GlyphData<'a> {
     pub const MIN_SIZE: usize = (i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + Tag::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn origin_offset_x_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn origin_offset_y_byte_range(&self) -> Range<usize> {
-        let start = self.origin_offset_x_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn graphic_type_byte_range(&self) -> Range<usize> {
-        let start = self.origin_offset_y_byte_range().end;
-        start..start + Tag::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.graphic_type_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
     /// The horizontal (x-axis) position of the left edge of the bitmap graphic in relation to the glyph design space origin.
     pub fn origin_offset_x(&self) -> i16 {
         let range = self.origin_offset_x_byte_range();
@@ -649,6 +629,26 @@ impl<'a> GlyphData<'a> {
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn origin_offset_x_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn origin_offset_y_byte_range(&self) -> Range<usize> {
+        let start = self.origin_offset_x_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn graphic_type_byte_range(&self) -> Range<usize> {
+        let start = self.origin_offset_y_byte_range().end;
+        start..start + Tag::RAW_BYTE_LEN
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.graphic_type_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 }
 

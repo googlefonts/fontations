@@ -39,21 +39,6 @@ impl<'a> Table1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn heft_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn flex_byte_range(&self) -> Range<usize> {
-        let start = self.heft_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
         self.data.read_at(range.start).ok().unwrap()
@@ -67,6 +52,21 @@ impl<'a> Table1<'a> {
     pub fn flex(&self) -> u16 {
         let range = self.flex_byte_range();
         self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn heft_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn flex_byte_range(&self) -> Range<usize> {
+        let start = self.heft_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
     }
 }
 
@@ -127,6 +127,21 @@ impl<'a> Table2<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    pub fn format(&self) -> u16 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn value_count(&self) -> u16 {
+        let range = self.value_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn values(&self) -> &'a [BigEndian<u16>] {
+        let range = self.values_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -141,21 +156,6 @@ impl<'a> Table2<'a> {
         let value_count = self.value_count();
         let start = self.value_count_byte_range().end;
         start..start + (value_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
-    }
-
-    pub fn format(&self) -> u16 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn value_count(&self) -> u16 {
-        let range = self.value_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn values(&self) -> &'a [BigEndian<u16>] {
-        let range = self.values_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -216,16 +216,6 @@ impl<'a> Table3<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn something_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
         self.data.read_at(range.start).ok().unwrap()
@@ -234,6 +224,16 @@ impl<'a> Table3<'a> {
     pub fn something(&self) -> u16 {
         let range = self.something_byte_range();
         self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn something_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
     }
 }
 

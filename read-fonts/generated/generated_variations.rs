@@ -54,6 +54,24 @@ impl<'a> TupleVariationHeader<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + TupleIndex::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    /// The size in bytes of the serialized data for this tuple
+    /// variation table.
+    pub fn variation_data_size(&self) -> u16 {
+        let range = self.variation_data_size_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// A packed field. The high 4 bits are flags (see below). The low
+    /// 12 bits are an index into a shared tuple records array.
+    pub fn tuple_index(&self) -> TupleIndex {
+        let range = self.tuple_index_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub(crate) fn axis_count(&self) -> u16 {
+        self.axis_count
+    }
+
     pub fn variation_data_size_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -92,24 +110,6 @@ impl<'a> TupleVariationHeader<'a> {
             ..start
                 + (TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))
                     .saturating_mul(F2Dot14::RAW_BYTE_LEN)
-    }
-
-    /// The size in bytes of the serialized data for this tuple
-    /// variation table.
-    pub fn variation_data_size(&self) -> u16 {
-        let range = self.variation_data_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// A packed field. The high 4 bits are flags (see below). The low
-    /// 12 bits are an index into a shared tuple records array.
-    pub fn tuple_index(&self) -> TupleIndex {
-        let range = self.tuple_index_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub(crate) fn axis_count(&self) -> u16 {
-        self.axis_count
     }
 }
 
@@ -245,30 +245,6 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + EntryFormat::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn entry_format_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + EntryFormat::RAW_BYTE_LEN
-    }
-
-    pub fn map_count_byte_range(&self) -> Range<usize> {
-        let start = self.entry_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn map_data_byte_range(&self) -> Range<usize> {
-        let entry_format = self.entry_format();
-        let map_count = self.map_count();
-        let start = self.map_count_byte_range().end;
-        start
-            ..start
-                + (EntryFormat::map_size(entry_format, map_count)).saturating_mul(u8::RAW_BYTE_LEN)
-    }
-
     /// DeltaSetIndexMap format: set to 0.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
@@ -292,6 +268,30 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.map_data_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn entry_format_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + EntryFormat::RAW_BYTE_LEN
+    }
+
+    pub fn map_count_byte_range(&self) -> Range<usize> {
+        let start = self.entry_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn map_data_byte_range(&self) -> Range<usize> {
+        let entry_format = self.entry_format();
+        let map_count = self.map_count();
+        let start = self.map_count_byte_range().end;
+        start
+            ..start
+                + (EntryFormat::map_size(entry_format, map_count)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 }
 
@@ -354,30 +354,6 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + EntryFormat::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn entry_format_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + EntryFormat::RAW_BYTE_LEN
-    }
-
-    pub fn map_count_byte_range(&self) -> Range<usize> {
-        let start = self.entry_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn map_data_byte_range(&self) -> Range<usize> {
-        let entry_format = self.entry_format();
-        let map_count = self.map_count();
-        let start = self.map_count_byte_range().end;
-        start
-            ..start
-                + (EntryFormat::map_size(entry_format, map_count)).saturating_mul(u8::RAW_BYTE_LEN)
-    }
-
     /// DeltaSetIndexMap format: set to 1.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
@@ -401,6 +377,30 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
     pub fn map_data(&self) -> &'a [u8] {
         let range = self.map_data_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn entry_format_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + EntryFormat::RAW_BYTE_LEN
+    }
+
+    pub fn map_count_byte_range(&self) -> Range<usize> {
+        let start = self.entry_format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn map_data_byte_range(&self) -> Range<usize> {
+        let entry_format = self.entry_format();
+        let map_count = self.map_count();
+        let start = self.map_count_byte_range().end;
+        start
+            ..start
+                + (EntryFormat::map_size(entry_format, map_count)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 }
 
@@ -865,26 +865,6 @@ impl<'a> VariationRegionList<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn axis_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn region_count_byte_range(&self) -> Range<usize> {
-        let start = self.axis_count_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn variation_regions_byte_range(&self) -> Range<usize> {
-        let region_count = self.region_count();
-        let start = self.region_count_byte_range().end;
-        start
-            ..start
-                + (region_count as usize).saturating_mul(
-                    <VariationRegion as ComputeSize>::compute_size(&self.axis_count()).unwrap_or(0),
-                )
-    }
-
     /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
     pub fn axis_count(&self) -> u16 {
@@ -905,6 +885,26 @@ impl<'a> VariationRegionList<'a> {
         self.data
             .read_with_args(range, &self.axis_count())
             .unwrap_or_default()
+    }
+
+    pub fn axis_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn region_count_byte_range(&self) -> Range<usize> {
+        let start = self.axis_count_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn variation_regions_byte_range(&self) -> Range<usize> {
+        let region_count = self.region_count();
+        let start = self.region_count_byte_range().end;
+        start
+            ..start
+                + (region_count as usize).saturating_mul(
+                    <VariationRegion as ComputeSize>::compute_size(&self.axis_count()).unwrap_or(0),
+                )
     }
 }
 
@@ -1091,27 +1091,6 @@ impl<'a> ItemVariationStore<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn variation_region_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn item_variation_data_count_byte_range(&self) -> Range<usize> {
-        let start = self.variation_region_list_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn item_variation_data_offsets_byte_range(&self) -> Range<usize> {
-        let item_variation_data_count = self.item_variation_data_count();
-        let start = self.item_variation_data_count_byte_range().end;
-        start..start + (item_variation_data_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
-    }
-
     /// Format— set to 1
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -1151,6 +1130,27 @@ impl<'a> ItemVariationStore<'a> {
         let data = self.data;
         let offsets = self.item_variation_data_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn variation_region_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn item_variation_data_count_byte_range(&self) -> Range<usize> {
+        let start = self.variation_region_list_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn item_variation_data_offsets_byte_range(&self) -> Range<usize> {
+        let item_variation_data_count = self.item_variation_data_count();
+        let start = self.item_variation_data_count_byte_range().end;
+        start..start + (item_variation_data_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 }
 
@@ -1231,6 +1231,37 @@ impl<'a> ItemVariationData<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    /// The number of delta sets for distinct items.
+    pub fn item_count(&self) -> u16 {
+        let range = self.item_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// A packed field: the high bit is a flag—see details below.
+    pub fn word_delta_count(&self) -> u16 {
+        let range = self.word_delta_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// The number of variation regions referenced.
+    pub fn region_index_count(&self) -> u16 {
+        let range = self.region_index_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of indices into the variation region list for the regions
+    /// referenced by this item variation data table.
+    pub fn region_indexes(&self) -> &'a [BigEndian<u16>] {
+        let range = self.region_indexes_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// Delta-set rows.
+    pub fn delta_sets(&self) -> &'a [u8] {
+        let range = self.delta_sets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn item_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1265,37 +1296,6 @@ impl<'a> ItemVariationData<'a> {
                     region_index_count,
                 ))
                 .saturating_mul(u8::RAW_BYTE_LEN)
-    }
-
-    /// The number of delta sets for distinct items.
-    pub fn item_count(&self) -> u16 {
-        let range = self.item_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// A packed field: the high bit is a flag—see details below.
-    pub fn word_delta_count(&self) -> u16 {
-        let range = self.word_delta_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// The number of variation regions referenced.
-    pub fn region_index_count(&self) -> u16 {
-        let range = self.region_index_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Array of indices into the variation region list for the regions
-    /// referenced by this item variation data table.
-    pub fn region_indexes(&self) -> &'a [BigEndian<u16>] {
-        let range = self.region_indexes_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
-    }
-
-    /// Delta-set rows.
-    pub fn delta_sets(&self) -> &'a [u8] {
-        let range = self.delta_sets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
