@@ -1594,6 +1594,14 @@ impl Count {
         }
     }
 
+    pub(crate) fn lit_int(&self) -> Option<&syn::LitInt> {
+        if let Count::SingleArg(CountArg::Literal(int)) = self {
+            Some(int)
+        } else {
+            None
+        }
+    }
+
     pub(crate) fn iter_referenced_fields(&self) -> impl Iterator<Item = &syn::Ident> {
         let (one, two) = match self {
             Self::SingleArg(CountArg::Field(ident)) => (Some(ident), None),
