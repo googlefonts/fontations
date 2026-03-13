@@ -96,10 +96,10 @@ fn main() {
             use std::sync::atomic::{AtomicBool, Ordering};
             let ok = AtomicBool::new(true);
             files.par_iter().for_each(|font_path| {
-                if print_paths {
-                    writeln!(std::io::stdout(), "[{font_path:?}]").unwrap();
-                }
                 if let Some(mut font_data) = fauntlet::Font::new(font_path) {
+                    if print_paths {
+                        writeln!(std::io::stdout(), "[{font_path:?}]").unwrap();
+                    }
                     for font_ix in 0..font_data.count() {
                         for ppem in &ppem_sizes {
                             let axis_count = font_data.axis_count(font_ix) as usize;
@@ -135,7 +135,12 @@ fn main() {
                                     }
                                 }
                             } else {
-                                for hinting in &hinting_matrix {
+                                let hinting_matrix = if font_data.is_type1() {
+                                    &[Hinting::None]
+                                } else {
+                                    hinting_matrix.as_slice()
+                                };
+                                for hinting in hinting_matrix {
                                     let options =
                                         InstanceOptions::new(font_ix, *ppem, &[], *hinting);
                                     if print_instances {
@@ -156,6 +161,8 @@ fn main() {
                                         ) {
                                             ok.store(false, Ordering::Release);
                                         }
+                                    } else {
+                                        writeln!(std::io::stdout(), "warning: failed to load font instances for {font_path:?}").unwrap();
                                     }
                                 }
                             }
