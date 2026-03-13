@@ -188,10 +188,10 @@ impl SkrifaType1Instance<'_> {
     ) -> Result<Option<f32>, DrawError> {
         let mut pen = PenCommandSink(pen);
         let mut nop_filter = NopFilterSink::new(&mut pen);
-        let scale = self.ppem.map(|ppem| self.font.scale_for_ppem(ppem + 0.1));
-        let mut transfomer = TransformSink::new(&mut nop_filter, self.font.matrix(), scale);
+        let scale = self.ppem.map(|ppem| self.font.scale_for_ppem(ppem));
+        let mut transformer = TransformSink::new(&mut nop_filter, self.font.matrix(), scale);
         self.font
-            .evaluate_charstring(glyph_id, &mut transfomer)
+            .evaluate_charstring(glyph_id, &mut transformer)
             .map_err(DrawError::PostScript)?;
         Ok(None)
     }
