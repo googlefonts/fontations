@@ -1,5 +1,7 @@
 //! Type1 font parsing.
 
+use crate::ReadError;
+
 use super::super::{
     charstring::{self, CharstringContext, CharstringKind, CommandSink},
     dict::{FontMatrix, ScaledFontMatrix},
