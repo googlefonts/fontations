@@ -1,18 +1,19 @@
 //! Type1 font parsing.
 
-use crate::ReadError;
-
 use super::super::{
     charstring::{self, CharstringContext, CharstringKind, CommandSink},
     dict::{FontMatrix, ScaledFontMatrix},
     Error, PredefinedEncoding,
 };
+use crate::{
+    types::{Fixed, GlyphId},
+    ReadError,
+};
 use core::ops::Range;
-use types::{Fixed, GlyphId};
 
 /// A Type1 font.
 pub struct Type1Font {
-    matrix: Option<ScaledFontMatrix>,
+    matrix: ScaledFontMatrix,
     charstrings: Charstrings,
     subrs: Subrs,
     encoding: Encoding,
@@ -33,7 +34,10 @@ impl Type1Font {
 
     fn from_dicts(base: &[u8], private: &[u8]) -> Option<Self> {
         let mut font = Type1Font {
-            matrix: None,
+            matrix: ScaledFontMatrix {
+                matrix: FontMatrix::IDENTITY,
+                scale: 1000,
+            },
             charstrings: Charstrings::default(),
             subrs: Subrs::default(),
             encoding: Encoding::Predefined(PredefinedEncoding::Standard),
@@ -43,7 +47,7 @@ impl Type1Font {
         let mut parser = Parser::new(base);
         while let Some(token) = parser.next() {
             match token {
-                Token::Name(b"FontMatrix") => font.matrix = Some(parser.read_font_matrix()?),
+                Token::Name(b"FontMatrix") => font.matrix = parser.read_font_matrix()?,
                 // Simply save the encoding offset. We'll parse it after
                 // we have read charstrings so we have an accurate mapping
                 // if we've synthesized or remapped a notdef glyph
@@ -92,8 +96,19 @@ impl Type1Font {
     }
 
     /// Returns the top level font matrix.
-    pub fn matrix(&self) -> Option<&ScaledFontMatrix> {
-        self.matrix.as_ref()
+    pub fn matrix(&self) -> FontMatrix {
+        self.matrix.matrix
+    }
+
+    /// Returns the units per em.
+    pub fn upem(&self) -> i32 {
+        self.matrix.scale
+    }
+
+    /// Returns the fixed point scale factor for the given font size in
+    /// pixels per em.
+    pub fn scale_for_ppem(&self, ppem: f32) -> Fixed {
+        Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(self.upem().max(1))
     }
 
     /// Returns an iterator over the pairs of glyph ids and associated names in
@@ -1677,8 +1692,8 @@ mod tests {
         assert_eq!(font.num_glyphs(), 9);
         assert_eq!(font.subrs.index.len(), 5);
         assert_eq!(
-            font.matrix().unwrap(),
-            &ScaledFontMatrix {
+            font.matrix,
+            ScaledFontMatrix {
                 matrix: FontMatrix::IDENTITY,
                 scale: 1000
             }
