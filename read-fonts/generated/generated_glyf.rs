@@ -91,53 +91,6 @@ impl<'a> SimpleGlyph<'a> {
         + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn x_min_byte_range(&self) -> Range<usize> {
-        let start = self.number_of_contours_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn y_min_byte_range(&self) -> Range<usize> {
-        let start = self.x_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn x_max_byte_range(&self) -> Range<usize> {
-        let start = self.y_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn y_max_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
-        let number_of_contours = self.number_of_contours();
-        let start = self.y_max_byte_range().end;
-        start..start + (number_of_contours as usize).saturating_mul(u16::RAW_BYTE_LEN)
-    }
-
-    pub fn instruction_length_byte_range(&self) -> Range<usize> {
-        let start = self.end_pts_of_contours_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn instructions_byte_range(&self) -> Range<usize> {
-        let instruction_length = self.instruction_length();
-        let start = self.instruction_length_byte_range().end;
-        start..start + (instruction_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
-    }
-
-    pub fn glyph_data_byte_range(&self) -> Range<usize> {
-        let start = self.instructions_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
@@ -195,6 +148,53 @@ impl<'a> SimpleGlyph<'a> {
     pub fn glyph_data(&self) -> &'a [u8] {
         let range = self.glyph_data_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn x_min_byte_range(&self) -> Range<usize> {
+        let start = self.number_of_contours_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn y_min_byte_range(&self) -> Range<usize> {
+        let start = self.x_min_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn x_max_byte_range(&self) -> Range<usize> {
+        let start = self.y_min_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn y_max_byte_range(&self) -> Range<usize> {
+        let start = self.x_max_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
+        let number_of_contours = self.number_of_contours();
+        let start = self.y_max_byte_range().end;
+        start..start + (number_of_contours as usize).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+
+    pub fn instruction_length_byte_range(&self) -> Range<usize> {
+        let start = self.end_pts_of_contours_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn instructions_byte_range(&self) -> Range<usize> {
+        let instruction_length = self.instruction_length();
+        let start = self.instruction_length_byte_range().end;
+        start..start + (instruction_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+    }
+
+    pub fn glyph_data_byte_range(&self) -> Range<usize> {
+        let start = self.instructions_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 }
 
@@ -663,36 +663,6 @@ impl<'a> CompositeGlyph<'a> {
         + i16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn x_min_byte_range(&self) -> Range<usize> {
-        let start = self.number_of_contours_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn y_min_byte_range(&self) -> Range<usize> {
-        let start = self.x_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn x_max_byte_range(&self) -> Range<usize> {
-        let start = self.y_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn y_max_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn component_data_byte_range(&self) -> Range<usize> {
-        let start = self.y_max_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
@@ -730,6 +700,36 @@ impl<'a> CompositeGlyph<'a> {
     pub fn component_data(&self) -> &'a [u8] {
         let range = self.component_data_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn number_of_contours_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn x_min_byte_range(&self) -> Range<usize> {
+        let start = self.number_of_contours_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn y_min_byte_range(&self) -> Range<usize> {
+        let start = self.x_min_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn x_max_byte_range(&self) -> Range<usize> {
+        let start = self.y_min_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn y_max_byte_range(&self) -> Range<usize> {
+        let start = self.x_max_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn component_data_byte_range(&self) -> Range<usize> {
+        let start = self.y_max_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 }
 

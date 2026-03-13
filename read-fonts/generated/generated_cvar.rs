@@ -42,26 +42,6 @@ impl<'a> Cvar<'a> {
         (MajorMinor::RAW_BYTE_LEN + TupleVariationCount::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + TupleVariationCount::RAW_BYTE_LEN
-    }
-
-    pub fn data_offset_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_variation_count_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
-        let start = self.data_offset_byte_range().end;
-        start..start + self.data.len().saturating_sub(start)
-    }
-
     /// Major/minor version number of the CVT variations table — set to (1,0).
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
@@ -96,6 +76,26 @@ impl<'a> Cvar<'a> {
             .split_off(range.start)
             .and_then(|d| VarLenArray::read(d).ok())
             .unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + TupleVariationCount::RAW_BYTE_LEN
+    }
+
+    pub fn data_offset_byte_range(&self) -> Range<usize> {
+        let start = self.tuple_variation_count_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
+        let start = self.data_offset_byte_range().end;
+        start..start + self.data.len().saturating_sub(start)
     }
 }
 

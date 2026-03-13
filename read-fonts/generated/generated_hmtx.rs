@@ -62,17 +62,6 @@ impl<'a> Hmtx<'a> {
     pub const MIN_SIZE: usize = 0;
     basic_table_impls!(impl_the_methods);
 
-    pub fn h_metrics_byte_range(&self) -> Range<usize> {
-        let number_of_h_metrics = self.number_of_h_metrics();
-        let start = 0;
-        start..start + (number_of_h_metrics as usize).saturating_mul(LongMetric::RAW_BYTE_LEN)
-    }
-
-    pub fn left_side_bearings_byte_range(&self) -> Range<usize> {
-        let start = self.h_metrics_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN
-    }
-
     /// Paired advance width/height and left/top side bearing values for each
     /// glyph. Records are indexed by glyph ID.
     pub fn h_metrics(&self) -> &'a [LongMetric] {
@@ -89,6 +78,17 @@ impl<'a> Hmtx<'a> {
 
     pub(crate) fn number_of_h_metrics(&self) -> u16 {
         self.number_of_h_metrics
+    }
+
+    pub fn h_metrics_byte_range(&self) -> Range<usize> {
+        let number_of_h_metrics = self.number_of_h_metrics();
+        let start = 0;
+        start..start + (number_of_h_metrics as usize).saturating_mul(LongMetric::RAW_BYTE_LEN)
+    }
+
+    pub fn left_side_bearings_byte_range(&self) -> Range<usize> {
+        let start = self.h_metrics_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN
     }
 }
 

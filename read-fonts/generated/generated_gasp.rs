@@ -41,22 +41,6 @@ impl<'a> Gasp<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn num_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn gasp_ranges_byte_range(&self) -> Range<usize> {
-        let num_ranges = self.num_ranges();
-        let start = self.num_ranges_byte_range().end;
-        start..start + (num_ranges as usize).saturating_mul(GaspRange::RAW_BYTE_LEN)
-    }
-
     /// Version number (set to 1)
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
@@ -73,6 +57,22 @@ impl<'a> Gasp<'a> {
     pub fn gasp_ranges(&self) -> &'a [GaspRange] {
         let range = self.gasp_ranges_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn num_ranges_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn gasp_ranges_byte_range(&self) -> Range<usize> {
+        let num_ranges = self.num_ranges();
+        let start = self.num_ranges_byte_range().end;
+        start..start + (num_ranges as usize).saturating_mul(GaspRange::RAW_BYTE_LEN)
     }
 }
 

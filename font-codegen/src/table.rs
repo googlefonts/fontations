@@ -106,16 +106,10 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
             basic_table_impls!(impl_the_methods);
 
-            #( #field_byte_range_fns )*
             #( #table_ref_getters )*
+            #( #field_byte_range_fns )*
 
         }
-
-        //impl<'a, #generic> FontTable<'a> for #raw_name<'a, #generic> {
-            //fn offset_data(&self) -> FontData<'a> {
-                //self.data
-            //}
-        //}
 
         #debug
     })

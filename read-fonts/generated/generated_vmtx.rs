@@ -62,18 +62,6 @@ impl<'a> Vmtx<'a> {
     pub const MIN_SIZE: usize = 0;
     basic_table_impls!(impl_the_methods);
 
-    pub fn v_metrics_byte_range(&self) -> Range<usize> {
-        let number_of_long_ver_metrics = self.number_of_long_ver_metrics();
-        let start = 0;
-        start
-            ..start + (number_of_long_ver_metrics as usize).saturating_mul(LongMetric::RAW_BYTE_LEN)
-    }
-
-    pub fn top_side_bearings_byte_range(&self) -> Range<usize> {
-        let start = self.v_metrics_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN
-    }
-
     /// Paired advance height and top side bearing values for each
     /// glyph. Records are indexed by glyph ID.
     pub fn v_metrics(&self) -> &'a [LongMetric] {
@@ -89,6 +77,18 @@ impl<'a> Vmtx<'a> {
 
     pub(crate) fn number_of_long_ver_metrics(&self) -> u16 {
         self.number_of_long_ver_metrics
+    }
+
+    pub fn v_metrics_byte_range(&self) -> Range<usize> {
+        let number_of_long_ver_metrics = self.number_of_long_ver_metrics();
+        let start = 0;
+        start
+            ..start + (number_of_long_ver_metrics as usize).saturating_mul(LongMetric::RAW_BYTE_LEN)
+    }
+
+    pub fn top_side_bearings_byte_range(&self) -> Range<usize> {
+        let start = self.v_metrics_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN
     }
 }
 

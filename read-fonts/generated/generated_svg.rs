@@ -41,21 +41,6 @@ impl<'a> Svg<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
-    }
-
-    pub fn _reserved_byte_range(&self) -> Range<usize> {
-        let start = self.svg_document_list_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
     /// Table version (starting at 0). Set to 0.
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
@@ -73,6 +58,21 @@ impl<'a> Svg<'a> {
     pub fn svg_document_list(&self) -> Result<SVGDocumentList<'a>, ReadError> {
         let data = self.data;
         self.svg_document_list_offset().resolve(data)
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
+        let start = self.svg_document_list_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
     }
 }
 
@@ -132,17 +132,6 @@ impl<'a> SVGDocumentList<'a> {
     pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn num_entries_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn document_records_byte_range(&self) -> Range<usize> {
-        let num_entries = self.num_entries();
-        let start = self.num_entries_byte_range().end;
-        start..start + (num_entries as usize).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN)
-    }
-
     /// Number of SVGDocumentRecords. Must be non-zero.
     pub fn num_entries(&self) -> u16 {
         let range = self.num_entries_byte_range();
@@ -153,6 +142,17 @@ impl<'a> SVGDocumentList<'a> {
     pub fn document_records(&self) -> &'a [SVGDocumentRecord] {
         let range = self.document_records_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn num_entries_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn document_records_byte_range(&self) -> Range<usize> {
+        let num_entries = self.num_entries();
+        let start = self.num_entries_byte_range().end;
+        start..start + (num_entries as usize).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN)
     }
 }
 

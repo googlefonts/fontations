@@ -37,37 +37,6 @@ impl<'a> CffHeader<'a> {
         (u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn major_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn minor_byte_range(&self) -> Range<usize> {
-        let start = self.major_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn hdr_size_byte_range(&self) -> Range<usize> {
-        let start = self.minor_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn off_size_byte_range(&self) -> Range<usize> {
-        let start = self.hdr_size_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn _padding_byte_range(&self) -> Range<usize> {
-        let hdr_size = self.hdr_size();
-        let start = self.off_size_byte_range().end;
-        start..start + (transforms::subtract(hdr_size, 4_usize)).saturating_mul(u8::RAW_BYTE_LEN)
-    }
-
-    pub fn trailing_data_byte_range(&self) -> Range<usize> {
-        let start = self._padding_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
     /// Format major version (starting at 1).
     pub fn major(&self) -> u8 {
         let range = self.major_byte_range();
@@ -102,6 +71,37 @@ impl<'a> CffHeader<'a> {
     pub fn trailing_data(&self) -> &'a [u8] {
         let range = self.trailing_data_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn major_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn minor_byte_range(&self) -> Range<usize> {
+        let start = self.major_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn hdr_size_byte_range(&self) -> Range<usize> {
+        let start = self.minor_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn off_size_byte_range(&self) -> Range<usize> {
+        let start = self.hdr_size_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn _padding_byte_range(&self) -> Range<usize> {
+        let hdr_size = self.hdr_size();
+        let start = self.off_size_byte_range().end;
+        start..start + (transforms::subtract(hdr_size, 4_usize)).saturating_mul(u8::RAW_BYTE_LEN)
+    }
+
+    pub fn trailing_data_byte_range(&self) -> Range<usize> {
+        let start = self._padding_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 }
 

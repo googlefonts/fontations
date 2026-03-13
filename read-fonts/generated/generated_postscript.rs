@@ -36,6 +36,30 @@ impl<'a> Index1<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    /// Number of objects stored in INDEX.
+    pub fn count(&self) -> u16 {
+        let range = self.count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Object array element size.
+    pub fn off_size(&self) -> u8 {
+        let range = self.off_size_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Bytes containing `count + 1` offsets each of `off_size`.
+    pub fn offsets(&self) -> &'a [u8] {
+        let range = self.offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// Array containing the object data.
+    pub fn data(&self) -> &'a [u8] {
+        let range = self.data_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -59,30 +83,6 @@ impl<'a> Index1<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
-    /// Number of objects stored in INDEX.
-    pub fn count(&self) -> u16 {
-        let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Object array element size.
-    pub fn off_size(&self) -> u8 {
-        let range = self.off_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Bytes containing `count + 1` offsets each of `off_size`.
-    pub fn offsets(&self) -> &'a [u8] {
-        let range = self.offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
-    }
-
-    /// Array containing the object data.
-    pub fn data(&self) -> &'a [u8] {
-        let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -141,6 +141,30 @@ impl<'a> Index2<'a> {
     pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u8::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    /// Number of objects stored in INDEX.
+    pub fn count(&self) -> u32 {
+        let range = self.count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Object array element size.
+    pub fn off_size(&self) -> u8 {
+        let range = self.off_size_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Bytes containing `count + 1` offsets each of `off_size`.
+    pub fn offsets(&self) -> &'a [u8] {
+        let range = self.offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// Array containing the object data.
+    pub fn data(&self) -> &'a [u8] {
+        let range = self.data_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
@@ -164,30 +188,6 @@ impl<'a> Index2<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
-    /// Number of objects stored in INDEX.
-    pub fn count(&self) -> u32 {
-        let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Object array element size.
-    pub fn off_size(&self) -> u8 {
-        let range = self.off_size_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Bytes containing `count + 1` offsets each of `off_size`.
-    pub fn offsets(&self) -> &'a [u8] {
-        let range = self.offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
-    }
-
-    /// Array containing the object data.
-    pub fn data(&self) -> &'a [u8] {
-        let range = self.data_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -335,16 +335,6 @@ impl<'a> FdSelectFormat0<'a> {
     pub const MIN_SIZE: usize = u8::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn fds_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
     /// Format = 0.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
@@ -355,6 +345,16 @@ impl<'a> FdSelectFormat0<'a> {
     pub fn fds(&self) -> &'a [u8] {
         let range = self.fds_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn fds_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 }
 
@@ -415,27 +415,6 @@ impl<'a> FdSelectFormat3<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn n_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn ranges_byte_range(&self) -> Range<usize> {
-        let n_ranges = self.n_ranges();
-        let start = self.n_ranges_byte_range().end;
-        start..start + (n_ranges as usize).saturating_mul(FdSelectRange3::RAW_BYTE_LEN)
-    }
-
-    pub fn sentinel_byte_range(&self) -> Range<usize> {
-        let start = self.ranges_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
     /// Format = 3.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
@@ -458,6 +437,27 @@ impl<'a> FdSelectFormat3<'a> {
     pub fn sentinel(&self) -> u16 {
         let range = self.sentinel_byte_range();
         self.data.read_at(range.start).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn n_ranges_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
+        let n_ranges = self.n_ranges();
+        let start = self.n_ranges_byte_range().end;
+        start..start + (n_ranges as usize).saturating_mul(FdSelectRange3::RAW_BYTE_LEN)
+    }
+
+    pub fn sentinel_byte_range(&self) -> Range<usize> {
+        let start = self.ranges_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
     }
 }
 
@@ -569,27 +569,6 @@ impl<'a> FdSelectFormat4<'a> {
     pub const MIN_SIZE: usize = (u8::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn n_ranges_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn ranges_byte_range(&self) -> Range<usize> {
-        let n_ranges = self.n_ranges();
-        let start = self.n_ranges_byte_range().end;
-        start..start + (n_ranges as usize).saturating_mul(FdSelectRange4::RAW_BYTE_LEN)
-    }
-
-    pub fn sentinel_byte_range(&self) -> Range<usize> {
-        let start = self.ranges_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
     /// Format = 4.
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
@@ -612,6 +591,27 @@ impl<'a> FdSelectFormat4<'a> {
     pub fn sentinel(&self) -> u32 {
         let range = self.sentinel_byte_range();
         self.data.read_at(range.start).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn n_ranges_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
+        let n_ranges = self.n_ranges();
+        let start = self.n_ranges_byte_range().end;
+        start..start + (n_ranges as usize).saturating_mul(FdSelectRange4::RAW_BYTE_LEN)
+    }
+
+    pub fn sentinel_byte_range(&self) -> Range<usize> {
+        let start = self.ranges_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
     }
 }
 
@@ -808,16 +808,6 @@ impl<'a> CharsetFormat0<'a> {
     pub const MIN_SIZE: usize = u8::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u8::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
-    }
-
     /// Format; =0
     pub fn format(&self) -> u8 {
         let range = self.format_byte_range();
@@ -828,6 +818,16 @@ impl<'a> CharsetFormat0<'a> {
     pub fn glyph(&self) -> &'a [BigEndian<u16>] {
         let range = self.glyph_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
     }
 }
 
@@ -888,6 +888,18 @@ impl<'a> CharsetFormat1<'a> {
     pub const MIN_SIZE: usize = u8::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
+    /// Format; =1
+    pub fn format(&self) -> u8 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Range1 array.
+    pub fn ranges(&self) -> &'a [CharsetRange1] {
+        let range = self.ranges_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
@@ -899,18 +911,6 @@ impl<'a> CharsetFormat1<'a> {
             ..start
                 + self.data.len().saturating_sub(start) / CharsetRange1::RAW_BYTE_LEN
                     * CharsetRange1::RAW_BYTE_LEN
-    }
-
-    /// Format; =1
-    pub fn format(&self) -> u8 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Range1 array.
-    pub fn ranges(&self) -> &'a [CharsetRange1] {
-        let range = self.ranges_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -1020,6 +1020,18 @@ impl<'a> CharsetFormat2<'a> {
     pub const MIN_SIZE: usize = u8::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
+    /// Format; =2
+    pub fn format(&self) -> u8 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Range2 array.
+    pub fn ranges(&self) -> &'a [CharsetRange2] {
+        let range = self.ranges_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
@@ -1031,18 +1043,6 @@ impl<'a> CharsetFormat2<'a> {
             ..start
                 + self.data.len().saturating_sub(start) / CharsetRange2::RAW_BYTE_LEN
                     * CharsetRange2::RAW_BYTE_LEN
-    }
-
-    /// Format; =2
-    pub fn format(&self) -> u8 {
-        let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Range2 array.
-    pub fn ranges(&self) -> &'a [CharsetRange2] {
-        let range = self.ranges_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

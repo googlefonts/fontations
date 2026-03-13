@@ -526,7 +526,6 @@ impl Field {
             | FieldType::ComputedArray(_)
             | FieldType::VarLenArray(_)
             | FieldType::Struct { .. } => Some(Default::default()),
-            //FieldType::Struct { typ } => Some(quote!( #typ :: MIN_SIZE  )),
             FieldType::PendingResolution { .. } => panic!("resolved before now"),
         }
     }

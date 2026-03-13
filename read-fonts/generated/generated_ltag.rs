@@ -41,27 +41,6 @@ impl<'a> Ltag<'a> {
     pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn num_tags_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn tag_ranges_byte_range(&self) -> Range<usize> {
-        let num_tags = self.num_tags();
-        let start = self.num_tags_byte_range().end;
-        start..start + (num_tags as usize).saturating_mul(FTStringRange::RAW_BYTE_LEN)
-    }
-
     /// Table version; currently 1.
     pub fn version(&self) -> u32 {
         let range = self.version_byte_range();
@@ -84,6 +63,27 @@ impl<'a> Ltag<'a> {
     pub fn tag_ranges(&self) -> &'a [FTStringRange] {
         let range = self.tag_ranges_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn num_tags_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn tag_ranges_byte_range(&self) -> Range<usize> {
+        let num_tags = self.num_tags();
+        let start = self.num_tags_byte_range().end;
+        start..start + (num_tags as usize).saturating_mul(FTStringRange::RAW_BYTE_LEN)
     }
 }
 

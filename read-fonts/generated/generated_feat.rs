@@ -42,6 +42,25 @@ impl<'a> Feat<'a> {
         (MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    /// Version number of the feature name table (0x00010000 for the current
+    /// version).
+    pub fn version(&self) -> MajorMinor {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// The number of entries in the feature name array.
+    pub fn feature_name_count(&self) -> u16 {
+        let range = self.feature_name_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// The feature name array, sorted by feature type.
+    pub fn names(&self) -> &'a [FeatureName] {
+        let range = self.names_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -66,25 +85,6 @@ impl<'a> Feat<'a> {
         let feature_name_count = self.feature_name_count();
         let start = self._reserved2_byte_range().end;
         start..start + (feature_name_count as usize).saturating_mul(FeatureName::RAW_BYTE_LEN)
-    }
-
-    /// Version number of the feature name table (0x00010000 for the current
-    /// version).
-    pub fn version(&self) -> MajorMinor {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// The number of entries in the feature name array.
-    pub fn feature_name_count(&self) -> u16 {
-        let range = self.feature_name_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// The feature name array, sorted by feature type.
-    pub fn names(&self) -> &'a [FeatureName] {
-        let range = self.names_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 
@@ -254,12 +254,6 @@ impl<'a> SettingNameArray<'a> {
     pub const MIN_SIZE: usize = 0;
     basic_table_impls!(impl_the_methods);
 
-    pub fn settings_byte_range(&self) -> Range<usize> {
-        let n_settings = self.n_settings();
-        let start = 0;
-        start..start + (n_settings as usize).saturating_mul(SettingName::RAW_BYTE_LEN)
-    }
-
     /// List of setting names for a feature.
     pub fn settings(&self) -> &'a [SettingName] {
         let range = self.settings_byte_range();
@@ -268,6 +262,12 @@ impl<'a> SettingNameArray<'a> {
 
     pub(crate) fn n_settings(&self) -> u16 {
         self.n_settings
+    }
+
+    pub fn settings_byte_range(&self) -> Range<usize> {
+        let n_settings = self.n_settings();
+        let start = 0;
+        start..start + (n_settings as usize).saturating_mul(SettingName::RAW_BYTE_LEN)
     }
 }
 

@@ -41,6 +41,26 @@ impl<'a> Morx<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    /// Version number of the extended glyph metamorphosis table (either 2 or 3).
+    pub fn version(&self) -> u16 {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Number of metamorphosis chains contained in this table.
+    pub fn n_chains(&self) -> u32 {
+        let range = self.n_chains_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn chains(&self) -> VarLenArray<'a, Chain<'a>> {
+        let range = self.chains_byte_range();
+        self.data
+            .split_off(range.start)
+            .and_then(|d| VarLenArray::read(d).ok())
+            .unwrap_or_default()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -63,26 +83,6 @@ impl<'a> Morx<'a> {
             let data = self.data.split_off(start).unwrap_or_default();
             <Chain as VarSize>::total_len_for_count(data, n_chains as usize).unwrap_or(0)
         }
-    }
-
-    /// Version number of the extended glyph metamorphosis table (either 2 or 3).
-    pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// Number of metamorphosis chains contained in this table.
-    pub fn n_chains(&self) -> u32 {
-        let range = self.n_chains_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn chains(&self) -> VarLenArray<'a, Chain<'a>> {
-        let range = self.chains_byte_range();
-        self.data
-            .split_off(range.start)
-            .and_then(|d| VarLenArray::read(d).ok())
-            .unwrap_or_default()
     }
 }
 
@@ -144,41 +144,6 @@ impl<'a> Chain<'a> {
         (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn default_flags_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn chain_length_byte_range(&self) -> Range<usize> {
-        let start = self.default_flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn n_feature_entries_byte_range(&self) -> Range<usize> {
-        let start = self.chain_length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn n_subtables_byte_range(&self) -> Range<usize> {
-        let start = self.n_feature_entries_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn features_byte_range(&self) -> Range<usize> {
-        let n_feature_entries = self.n_feature_entries();
-        let start = self.n_subtables_byte_range().end;
-        start..start + (n_feature_entries as usize).saturating_mul(Feature::RAW_BYTE_LEN)
-    }
-
-    pub fn subtables_byte_range(&self) -> Range<usize> {
-        let n_subtables = self.n_subtables();
-        let start = self.features_byte_range().end;
-        start..start + {
-            let data = self.data.split_off(start).unwrap_or_default();
-            <Subtable as VarSize>::total_len_for_count(data, n_subtables as usize).unwrap_or(0)
-        }
-    }
-
     /// The default specification for subtables.
     pub fn default_flags(&self) -> u32 {
         let range = self.default_flags_byte_range();
@@ -216,6 +181,41 @@ impl<'a> Chain<'a> {
             .split_off(range.start)
             .and_then(|d| VarLenArray::read(d).ok())
             .unwrap_or_default()
+    }
+
+    pub fn default_flags_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn chain_length_byte_range(&self) -> Range<usize> {
+        let start = self.default_flags_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn n_feature_entries_byte_range(&self) -> Range<usize> {
+        let start = self.chain_length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn n_subtables_byte_range(&self) -> Range<usize> {
+        let start = self.n_feature_entries_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn features_byte_range(&self) -> Range<usize> {
+        let n_feature_entries = self.n_feature_entries();
+        let start = self.n_subtables_byte_range().end;
+        start..start + (n_feature_entries as usize).saturating_mul(Feature::RAW_BYTE_LEN)
+    }
+
+    pub fn subtables_byte_range(&self) -> Range<usize> {
+        let n_subtables = self.n_subtables();
+        let start = self.features_byte_range().end;
+        start..start + {
+            let data = self.data.split_off(start).unwrap_or_default();
+            <Subtable as VarSize>::total_len_for_count(data, n_subtables as usize).unwrap_or(0)
+        }
     }
 }
 
@@ -345,26 +345,6 @@ impl<'a> Subtable<'a> {
     pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn coverage_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn sub_feature_flags_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.sub_feature_flags_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
     /// Total subtable length, including this header.
     pub fn length(&self) -> u32 {
         let range = self.length_byte_range();
@@ -387,6 +367,26 @@ impl<'a> Subtable<'a> {
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn coverage_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn sub_feature_flags_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.sub_feature_flags_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 }
 

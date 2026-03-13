@@ -59,35 +59,6 @@ impl<'a> Hdmx<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn num_records_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn size_device_record_byte_range(&self) -> Range<usize> {
-        let start = self.num_records_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn records_byte_range(&self) -> Range<usize> {
-        let num_records = self.num_records();
-        let start = self.size_device_record_byte_range().end;
-        start
-            ..start
-                + (num_records as usize).saturating_mul(
-                    <DeviceRecord as ComputeSize>::compute_size(&(
-                        self.num_glyphs(),
-                        self.size_device_record(),
-                    ))
-                    .unwrap_or(0),
-                )
-    }
-
     /// Table version number (set to 0).
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
@@ -116,6 +87,35 @@ impl<'a> Hdmx<'a> {
 
     pub(crate) fn num_glyphs(&self) -> u16 {
         self.num_glyphs
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn num_records_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn size_device_record_byte_range(&self) -> Range<usize> {
+        let start = self.num_records_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn records_byte_range(&self) -> Range<usize> {
+        let num_records = self.num_records();
+        let start = self.size_device_record_byte_range().end;
+        start
+            ..start
+                + (num_records as usize).saturating_mul(
+                    <DeviceRecord as ComputeSize>::compute_size(&(
+                        self.num_glyphs(),
+                        self.size_device_record(),
+                    ))
+                    .unwrap_or(0),
+                )
     }
 }
 

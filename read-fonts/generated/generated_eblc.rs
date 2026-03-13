@@ -41,27 +41,6 @@ impl<'a> Eblc<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn major_version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn minor_version_byte_range(&self) -> Range<usize> {
-        let start = self.major_version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn num_sizes_byte_range(&self) -> Range<usize> {
-        let start = self.minor_version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
-        let num_sizes = self.num_sizes();
-        let start = self.num_sizes_byte_range().end;
-        start..start + (num_sizes as usize).saturating_mul(BitmapSize::RAW_BYTE_LEN)
-    }
-
     /// Major version of the EBLC table, = 2.
     pub fn major_version(&self) -> u16 {
         let range = self.major_version_byte_range();
@@ -84,6 +63,27 @@ impl<'a> Eblc<'a> {
     pub fn bitmap_sizes(&self) -> &'a [BitmapSize] {
         let range = self.bitmap_sizes_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn major_version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn minor_version_byte_range(&self) -> Range<usize> {
+        let start = self.major_version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn num_sizes_byte_range(&self) -> Range<usize> {
+        let start = self.minor_version_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
+        let num_sizes = self.num_sizes();
+        let start = self.num_sizes_byte_range().end;
+        start..start + (num_sizes as usize).saturating_mul(BitmapSize::RAW_BYTE_LEN)
     }
 }
 

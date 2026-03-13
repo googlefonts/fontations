@@ -41,22 +41,6 @@ impl<'a> Cmap<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn num_tables_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn encoding_records_byte_range(&self) -> Range<usize> {
-        let num_tables = self.num_tables();
-        let start = self.num_tables_byte_range().end;
-        start..start + (num_tables as usize).saturating_mul(EncodingRecord::RAW_BYTE_LEN)
-    }
-
     /// Table version number (0).
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
@@ -72,6 +56,22 @@ impl<'a> Cmap<'a> {
     pub fn encoding_records(&self) -> &'a [EncodingRecord] {
         let range = self.encoding_records_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn num_tables_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn encoding_records_byte_range(&self) -> Range<usize> {
+        let num_tables = self.num_tables();
+        let start = self.num_tables_byte_range().end;
+        start..start + (num_tables as usize).saturating_mul(EncodingRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -383,26 +383,6 @@ impl<'a> Cmap0<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn language_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
-        let start = self.language_byte_range().end;
-        start..start + (256_usize).saturating_mul(u8::RAW_BYTE_LEN)
-    }
-
     /// Format number is set to 0.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -426,6 +406,26 @@ impl<'a> Cmap0<'a> {
     pub fn glyph_id_array(&self) -> &'a [u8] {
         let range = self.glyph_id_array_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + (256_usize).saturating_mul(u8::RAW_BYTE_LEN)
     }
 }
 
@@ -488,26 +488,6 @@ impl<'a> Cmap2<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn language_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn sub_header_keys_byte_range(&self) -> Range<usize> {
-        let start = self.language_byte_range().end;
-        start..start + (256_usize).saturating_mul(u16::RAW_BYTE_LEN)
-    }
-
     /// Format number is set to 2.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -532,6 +512,26 @@ impl<'a> Cmap2<'a> {
     pub fn sub_header_keys(&self) -> &'a [BigEndian<u16>] {
         let range = self.sub_header_keys_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn sub_header_keys_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + (256_usize).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -660,75 +660,6 @@ impl<'a> Cmap4<'a> {
         + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn language_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn seg_count_x2_byte_range(&self) -> Range<usize> {
-        let start = self.language_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn search_range_byte_range(&self) -> Range<usize> {
-        let start = self.seg_count_x2_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn entry_selector_byte_range(&self) -> Range<usize> {
-        let start = self.search_range_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn range_shift_byte_range(&self) -> Range<usize> {
-        let start = self.entry_selector_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn end_code_byte_range(&self) -> Range<usize> {
-        let seg_count_x2 = self.seg_count_x2();
-        let start = self.range_shift_byte_range().end;
-        start..start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN)
-    }
-
-    pub fn reserved_pad_byte_range(&self) -> Range<usize> {
-        let start = self.end_code_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn start_code_byte_range(&self) -> Range<usize> {
-        let seg_count_x2 = self.seg_count_x2();
-        let start = self.reserved_pad_byte_range().end;
-        start..start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN)
-    }
-
-    pub fn id_delta_byte_range(&self) -> Range<usize> {
-        let seg_count_x2 = self.seg_count_x2();
-        let start = self.start_code_byte_range().end;
-        start..start + (transforms::half(seg_count_x2)).saturating_mul(i16::RAW_BYTE_LEN)
-    }
-
-    pub fn id_range_offsets_byte_range(&self) -> Range<usize> {
-        let seg_count_x2 = self.seg_count_x2();
-        let start = self.id_delta_byte_range().end;
-        start..start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN)
-    }
-
-    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
-        let start = self.id_range_offsets_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
-    }
-
     /// Format number is set to 4.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -805,6 +736,75 @@ impl<'a> Cmap4<'a> {
         let range = self.glyph_id_array_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
     }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn seg_count_x2_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn search_range_byte_range(&self) -> Range<usize> {
+        let start = self.seg_count_x2_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn entry_selector_byte_range(&self) -> Range<usize> {
+        let start = self.search_range_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn range_shift_byte_range(&self) -> Range<usize> {
+        let start = self.entry_selector_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn end_code_byte_range(&self) -> Range<usize> {
+        let seg_count_x2 = self.seg_count_x2();
+        let start = self.range_shift_byte_range().end;
+        start..start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+
+    pub fn reserved_pad_byte_range(&self) -> Range<usize> {
+        let start = self.end_code_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn start_code_byte_range(&self) -> Range<usize> {
+        let seg_count_x2 = self.seg_count_x2();
+        let start = self.reserved_pad_byte_range().end;
+        start..start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+
+    pub fn id_delta_byte_range(&self) -> Range<usize> {
+        let seg_count_x2 = self.seg_count_x2();
+        let start = self.start_code_byte_range().end;
+        start..start + (transforms::half(seg_count_x2)).saturating_mul(i16::RAW_BYTE_LEN)
+    }
+
+    pub fn id_range_offsets_byte_range(&self) -> Range<usize> {
+        let seg_count_x2 = self.seg_count_x2();
+        let start = self.id_delta_byte_range().end;
+        start..start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+
+    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
+        let start = self.id_range_offsets_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -878,37 +878,6 @@ impl<'a> Cmap6<'a> {
         + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn language_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn first_code_byte_range(&self) -> Range<usize> {
-        let start = self.language_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn entry_count_byte_range(&self) -> Range<usize> {
-        let start = self.first_code_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
-        let entry_count = self.entry_count();
-        let start = self.entry_count_byte_range().end;
-        start..start + (entry_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
-    }
-
     /// Format number is set to 6.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -944,6 +913,37 @@ impl<'a> Cmap6<'a> {
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.glyph_id_array_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn first_code_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn entry_count_byte_range(&self) -> Range<usize> {
+        let start = self.first_code_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
+        let entry_count = self.entry_count();
+        let start = self.entry_count_byte_range().end;
+        start..start + (entry_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -1012,42 +1012,6 @@ impl<'a> Cmap8<'a> {
         + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn reserved_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn language_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn is32_byte_range(&self) -> Range<usize> {
-        let start = self.language_byte_range().end;
-        start..start + (8192_usize).saturating_mul(u8::RAW_BYTE_LEN)
-    }
-
-    pub fn num_groups_byte_range(&self) -> Range<usize> {
-        let start = self.is32_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn groups_byte_range(&self) -> Range<usize> {
-        let num_groups = self.num_groups();
-        let start = self.num_groups_byte_range().end;
-        start..start + (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
-    }
-
     /// Subtable format; set to 8.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -1085,6 +1049,42 @@ impl<'a> Cmap8<'a> {
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.groups_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn is32_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + (8192_usize).saturating_mul(u8::RAW_BYTE_LEN)
+    }
+
+    pub fn num_groups_byte_range(&self) -> Range<usize> {
+        let start = self.is32_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn groups_byte_range(&self) -> Range<usize> {
+        let num_groups = self.num_groups();
+        let start = self.num_groups_byte_range().end;
+        start..start + (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
     }
 }
 
@@ -1219,42 +1219,6 @@ impl<'a> Cmap10<'a> {
         + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn reserved_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn language_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn start_char_code_byte_range(&self) -> Range<usize> {
-        let start = self.language_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn num_chars_byte_range(&self) -> Range<usize> {
-        let start = self.start_char_code_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
-        let num_chars = self.num_chars();
-        let start = self.num_chars_byte_range().end;
-        start..start + (num_chars as usize).saturating_mul(u16::RAW_BYTE_LEN)
-    }
-
     /// Subtable format; set to 10.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -1290,6 +1254,42 @@ impl<'a> Cmap10<'a> {
     pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.glyph_id_array_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn start_char_code_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn num_chars_byte_range(&self) -> Range<usize> {
+        let start = self.start_char_code_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
+        let num_chars = self.num_chars();
+        let start = self.num_chars_byte_range().end;
+        start..start + (num_chars as usize).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -1358,37 +1358,6 @@ impl<'a> Cmap12<'a> {
         + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn reserved_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn language_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn num_groups_byte_range(&self) -> Range<usize> {
-        let start = self.language_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn groups_byte_range(&self) -> Range<usize> {
-        let num_groups = self.num_groups();
-        let start = self.num_groups_byte_range().end;
-        start..start + (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
-    }
-
     /// Subtable format; set to 12.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -1418,6 +1387,37 @@ impl<'a> Cmap12<'a> {
     pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.groups_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn num_groups_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn groups_byte_range(&self) -> Range<usize> {
+        let num_groups = self.num_groups();
+        let start = self.num_groups_byte_range().end;
+        start..start + (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
     }
 }
 
@@ -1492,37 +1492,6 @@ impl<'a> Cmap13<'a> {
         + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn reserved_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn language_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn num_groups_byte_range(&self) -> Range<usize> {
-        let start = self.language_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn groups_byte_range(&self) -> Range<usize> {
-        let num_groups = self.num_groups();
-        let start = self.num_groups_byte_range().end;
-        start..start + (num_groups as usize).saturating_mul(ConstantMapGroup::RAW_BYTE_LEN)
-    }
-
     /// Subtable format; set to 13.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -1552,6 +1521,37 @@ impl<'a> Cmap13<'a> {
     pub fn groups(&self) -> &'a [ConstantMapGroup] {
         let range = self.groups_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn reserved_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn num_groups_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn groups_byte_range(&self) -> Range<usize> {
+        let num_groups = self.num_groups();
+        let start = self.num_groups_byte_range().end;
+        start..start + (num_groups as usize).saturating_mul(ConstantMapGroup::RAW_BYTE_LEN)
     }
 }
 
@@ -1674,30 +1674,6 @@ impl<'a> Cmap14<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn format_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn num_var_selector_records_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn var_selector_byte_range(&self) -> Range<usize> {
-        let num_var_selector_records = self.num_var_selector_records();
-        let start = self.num_var_selector_records_byte_range().end;
-        start
-            ..start
-                + (num_var_selector_records as usize)
-                    .saturating_mul(VariationSelector::RAW_BYTE_LEN)
-    }
-
     /// Subtable format. Set to 14.
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
@@ -1720,6 +1696,30 @@ impl<'a> Cmap14<'a> {
     pub fn var_selector(&self) -> &'a [VariationSelector] {
         let range = self.var_selector_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn num_var_selector_records_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn var_selector_byte_range(&self) -> Range<usize> {
+        let num_var_selector_records = self.num_var_selector_records();
+        let start = self.num_var_selector_records_byte_range().end;
+        start
+            ..start
+                + (num_var_selector_records as usize)
+                    .saturating_mul(VariationSelector::RAW_BYTE_LEN)
     }
 }
 
@@ -1870,18 +1870,6 @@ impl<'a> DefaultUvs<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
-    pub fn num_unicode_value_ranges_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn ranges_byte_range(&self) -> Range<usize> {
-        let num_unicode_value_ranges = self.num_unicode_value_ranges();
-        let start = self.num_unicode_value_ranges_byte_range().end;
-        start
-            ..start + (num_unicode_value_ranges as usize).saturating_mul(UnicodeRange::RAW_BYTE_LEN)
-    }
-
     /// Number of Unicode character ranges.
     pub fn num_unicode_value_ranges(&self) -> u32 {
         let range = self.num_unicode_value_ranges_byte_range();
@@ -1892,6 +1880,18 @@ impl<'a> DefaultUvs<'a> {
     pub fn ranges(&self) -> &'a [UnicodeRange] {
         let range = self.ranges_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn num_unicode_value_ranges_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn ranges_byte_range(&self) -> Range<usize> {
+        let num_unicode_value_ranges = self.num_unicode_value_ranges();
+        let start = self.num_unicode_value_ranges_byte_range().end;
+        start
+            ..start + (num_unicode_value_ranges as usize).saturating_mul(UnicodeRange::RAW_BYTE_LEN)
     }
 }
 
@@ -1958,6 +1958,16 @@ impl<'a> NonDefaultUvs<'a> {
     pub const MIN_SIZE: usize = u32::RAW_BYTE_LEN;
     basic_table_impls!(impl_the_methods);
 
+    pub fn num_uvs_mappings(&self) -> u32 {
+        let range = self.num_uvs_mappings_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn uvs_mapping(&self) -> &'a [UvsMapping] {
+        let range = self.uvs_mapping_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn num_uvs_mappings_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u32::RAW_BYTE_LEN
@@ -1967,16 +1977,6 @@ impl<'a> NonDefaultUvs<'a> {
         let num_uvs_mappings = self.num_uvs_mappings();
         let start = self.num_uvs_mappings_byte_range().end;
         start..start + (num_uvs_mappings as usize).saturating_mul(UvsMapping::RAW_BYTE_LEN)
-    }
-
-    pub fn num_uvs_mappings(&self) -> u32 {
-        let range = self.num_uvs_mappings_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn uvs_mapping(&self) -> &'a [UvsMapping] {
-        let range = self.uvs_mapping_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
     }
 }
 

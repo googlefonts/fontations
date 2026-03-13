@@ -45,37 +45,6 @@ impl<'a> Mvar<'a> {
         + Offset16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn _reserved_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn value_record_size_byte_range(&self) -> Range<usize> {
-        let start = self._reserved_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn value_record_count_byte_range(&self) -> Range<usize> {
-        let start = self.value_record_size_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
-        let start = self.value_record_count_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
-    }
-
-    pub fn value_records_byte_range(&self) -> Range<usize> {
-        let value_record_count = self.value_record_count();
-        let start = self.item_variation_store_offset_byte_range().end;
-        start..start + (value_record_count as usize).saturating_mul(ValueRecord::RAW_BYTE_LEN)
-    }
-
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
@@ -111,6 +80,37 @@ impl<'a> Mvar<'a> {
     pub fn value_records(&self) -> &'a [ValueRecord] {
         let range = self.value_records_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn _reserved_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn value_record_size_byte_range(&self) -> Range<usize> {
+        let start = self._reserved_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn value_record_count_byte_range(&self) -> Range<usize> {
+        let start = self.value_record_size_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
+        let start = self.value_record_count_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn value_records_byte_range(&self) -> Range<usize> {
+        let value_record_count = self.value_record_count();
+        let start = self.item_variation_store_offset_byte_range().end;
+        start..start + (value_record_count as usize).saturating_mul(ValueRecord::RAW_BYTE_LEN)
     }
 }
 

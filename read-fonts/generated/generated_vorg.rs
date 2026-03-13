@@ -41,30 +41,6 @@ impl<'a> Vorg<'a> {
     pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn version_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
-    }
-
-    pub fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
-        let start = self.version_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
-    }
-
-    pub fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
-        let start = self.default_vert_origin_y_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
-
-    pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
-        let num_vert_origin_y_metrics = self.num_vert_origin_y_metrics();
-        let start = self.num_vert_origin_y_metrics_byte_range().end;
-        start
-            ..start
-                + (num_vert_origin_y_metrics as usize)
-                    .saturating_mul(VertOriginYMetrics::RAW_BYTE_LEN)
-    }
-
     /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
@@ -89,6 +65,30 @@ impl<'a> Vorg<'a> {
     pub fn vert_origin_y_metrics(&self) -> &'a [VertOriginYMetrics] {
         let range = self.vert_origin_y_metrics_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+
+    pub fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
+        let start = self.default_vert_origin_y_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
+        let num_vert_origin_y_metrics = self.num_vert_origin_y_metrics();
+        let start = self.num_vert_origin_y_metrics_byte_range().end;
+        start
+            ..start
+                + (num_vert_origin_y_metrics as usize)
+                    .saturating_mul(VertOriginYMetrics::RAW_BYTE_LEN)
     }
 }
 

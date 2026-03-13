@@ -41,6 +41,26 @@ impl<'a> Kerx<'a> {
     pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
+    /// The version number of the extended kerning table (currently 2, 3, or 4)
+    pub fn version(&self) -> u16 {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// The number of subtables included in the extended kerning table.
+    pub fn n_tables(&self) -> u32 {
+        let range = self.n_tables_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
+        let range = self.subtables_byte_range();
+        self.data
+            .split_off(range.start)
+            .and_then(|d| VarLenArray::read(d).ok())
+            .unwrap_or_default()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -63,26 +83,6 @@ impl<'a> Kerx<'a> {
             let data = self.data.split_off(start).unwrap_or_default();
             <Subtable as VarSize>::total_len_for_count(data, n_tables as usize).unwrap_or(0)
         }
-    }
-
-    /// The version number of the extended kerning table (currently 2, 3, or 4)
-    pub fn version(&self) -> u16 {
-        let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    /// The number of subtables included in the extended kerning table.
-    pub fn n_tables(&self) -> u32 {
-        let range = self.n_tables_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
-    }
-
-    pub fn subtables(&self) -> VarLenArray<'a, Subtable<'a>> {
-        let range = self.subtables_byte_range();
-        self.data
-            .split_off(range.start)
-            .and_then(|d| VarLenArray::read(d).ok())
-            .unwrap_or_default()
     }
 }
 
@@ -143,26 +143,6 @@ impl<'a> Subtable<'a> {
     pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn length_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn coverage_byte_range(&self) -> Range<usize> {
-        let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn tuple_count_byte_range(&self) -> Range<usize> {
-        let start = self.coverage_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn data_byte_range(&self) -> Range<usize> {
-        let start = self.tuple_count_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
-    }
-
     /// The length of this subtable in bytes, including this header.
     pub fn length(&self) -> u32 {
         let range = self.length_byte_range();
@@ -185,6 +165,26 @@ impl<'a> Subtable<'a> {
     pub fn data(&self) -> &'a [u8] {
         let range = self.data_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn length_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn coverage_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn tuple_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.tuple_count_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
     }
 }
 
@@ -244,32 +244,6 @@ impl<'a> Subtable0<'a> {
         (u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    pub fn n_pairs_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn search_range_byte_range(&self) -> Range<usize> {
-        let start = self.n_pairs_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn entry_selector_byte_range(&self) -> Range<usize> {
-        let start = self.search_range_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn range_shift_byte_range(&self) -> Range<usize> {
-        let start = self.entry_selector_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
-    }
-
-    pub fn pairs_byte_range(&self) -> Range<usize> {
-        let n_pairs = self.n_pairs();
-        let start = self.range_shift_byte_range().end;
-        start..start + (n_pairs as usize).saturating_mul(Subtable0Pair::RAW_BYTE_LEN)
-    }
-
     /// The number of kerning pairs in this subtable.
     pub fn n_pairs(&self) -> u32 {
         let range = self.n_pairs_byte_range();
@@ -298,6 +272,32 @@ impl<'a> Subtable0<'a> {
     pub fn pairs(&self) -> &'a [Subtable0Pair] {
         let range = self.pairs_byte_range();
         self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn n_pairs_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn search_range_byte_range(&self) -> Range<usize> {
+        let start = self.n_pairs_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn entry_selector_byte_range(&self) -> Range<usize> {
+        let start = self.search_range_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn range_shift_byte_range(&self) -> Range<usize> {
+        let start = self.entry_selector_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn pairs_byte_range(&self) -> Range<usize> {
+        let n_pairs = self.n_pairs();
+        let start = self.range_shift_byte_range().end;
+        start..start + (n_pairs as usize).saturating_mul(Subtable0Pair::RAW_BYTE_LEN)
     }
 }
 
