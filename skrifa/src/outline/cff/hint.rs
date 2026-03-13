@@ -937,10 +937,6 @@ impl<'a, S: CommandSink> HintingSink<'a, S> {
         }
     }
 
-    pub fn finish(&mut self) {
-        self.maybe_close_subpath();
-    }
-
     fn maybe_close_subpath(&mut self) {
         // This requires some explanation. The hint mask can be modified
         // during charstring evaluation which changes the set of hints that
@@ -1085,6 +1081,11 @@ impl<S: CommandSink> CommandSink for HintingSink<'_, S> {
     fn close(&mut self) {
         // We emit close commands based on the sequence of moves.
         // See `maybe_close_subpath`
+    }
+
+    fn finish(&mut self) {
+        self.maybe_close_subpath();
+        self.sink.finish();
     }
 }
 
