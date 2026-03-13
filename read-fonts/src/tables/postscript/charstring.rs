@@ -130,6 +130,7 @@ pub fn evaluate<'a>(
 ) -> Result<(), Error> {
     let mut evaluator = Evaluator::new(context, blend_state, sink);
     evaluator.evaluate(charstring_data, 0)?;
+    sink.finish();
     Ok(())
 }
 
@@ -1238,20 +1239,19 @@ where
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{tables::variations::ItemVariationStore, types::F2Dot14, FontData, FontRead};
+pub(super) mod test_helpers {
+    use super::{CommandSink, Fixed};
 
     #[derive(Copy, Clone, PartialEq, Debug)]
     #[allow(clippy::enum_variant_names)]
-    enum Command {
+    pub enum Command {
         MoveTo(Fixed, Fixed),
         LineTo(Fixed, Fixed),
         CurveTo(Fixed, Fixed, Fixed, Fixed, Fixed, Fixed),
     }
 
     #[derive(PartialEq, Default, Debug)]
-    struct CaptureCommandSink(Vec<Command>);
+    pub struct CaptureCommandSink(pub Vec<Command>);
 
     impl CommandSink for CaptureCommandSink {
         fn move_to(&mut self, x: Fixed, y: Fixed) {
@@ -1280,6 +1280,69 @@ mod tests {
             self.0.push(Command::LineTo(last_move[0], last_move[1]));
         }
     }
+
+    impl CaptureCommandSink {
+        pub fn to_svg(&self) -> String {
+            use core::fmt::Write;
+            let mut buf = String::default();
+            for cmd in &self.0 {
+                if !buf.is_empty() {
+                    buf.push(' ');
+                }
+                match cmd {
+                    Command::MoveTo(x, y) => write!(buf, "M{},{}", x.to_f32(), y.to_f32()).unwrap(),
+                    Command::LineTo(x, y) => write!(buf, "L{},{}", x.to_f32(), y.to_f32()).unwrap(),
+                    Command::CurveTo(x0, y0, x1, y1, x, y) => write!(
+                        buf,
+                        "C{},{} {},{} {},{}",
+                        x0.to_f32(),
+                        y0.to_f32(),
+                        x1.to_f32(),
+                        y1.to_f32(),
+                        x.to_f32(),
+                        y.to_f32()
+                    )
+                    .unwrap(),
+                }
+            }
+            buf
+        }
+    }
+
+    #[derive(Default)]
+    pub struct CharstringCommandCounter(pub usize);
+
+    impl CommandSink for CharstringCommandCounter {
+        fn move_to(&mut self, _x: Fixed, _y: Fixed) {
+            self.0 += 1;
+        }
+
+        fn line_to(&mut self, _x: Fixed, _y: Fixed) {
+            self.0 += 1;
+        }
+
+        fn curve_to(
+            &mut self,
+            _cx0: Fixed,
+            _cy0: Fixed,
+            _cx1: Fixed,
+            _cy1: Fixed,
+            _x: Fixed,
+            _y: Fixed,
+        ) {
+            self.0 += 1;
+        }
+
+        fn close(&mut self) {
+            self.0 += 1;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{test_helpers::*, *};
+    use crate::{tables::variations::ItemVariationStore, types::F2Dot14, FontData, FontRead};
 
     #[test]
     fn cff2_example_subr() {
