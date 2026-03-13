@@ -16,6 +16,10 @@ pub mod formats {
     include!("../generated/generated_test_formats.rs");
 }
 
+pub mod read_args {
+    include!("../generated/generated_test_read_args.rs");
+}
+
 pub mod offsets_arrays {
 
     include!("../generated/generated_test_offsets_arrays.rs");
@@ -125,6 +129,18 @@ pub mod offsets_arrays {
             0xb01d
         );
     }
+
+    #[test]
+    fn versioned_array_bad_data() {
+        let buf = BeBuffer::new()
+            .push(1u16) // version
+            .push(1u16) // count
+            .push(2u16) // scalar array
+            .push(3u16)
+            .push(4u32); // shmecord array
+        let table = KindsOfArrays::read(buf.data().into()).unwrap();
+        assert!(table.versioned_scalars().is_none()); // should be there but isn't
+    }
 }
 
 pub mod flags {
@@ -204,8 +220,10 @@ pub mod conditions {
     #[test]
     fn majorminor_1_1() {
         let bytes = BeBuffer::new().push(MajorMinor::VERSION_1_1).push(0u16);
-        // shouldn't parse, we're missing a field
-        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
+        let too_small = MajorMinorVersion::read(bytes.data().into()).unwrap();
+        // this is expected to be present but the data is malformed; we will
+        // still parse the table but checked read of the field will fail
+        assert!(too_small.if_11().is_none());
 
         let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_1_1)
@@ -218,8 +236,9 @@ pub mod conditions {
     #[test]
     fn major_minor_2() {
         let bytes = BeBuffer::new().push(MajorMinor::VERSION_2_0).push(0u16);
-        // shouldn't parse, we're missing a field
-        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
+        let too_small = MajorMinorVersion::read(bytes.data().into()).unwrap();
+        assert!(too_small.if_11().is_none());
+        assert!(too_small.if_20().is_none());
 
         let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_2_0)
@@ -275,52 +294,5 @@ pub mod conditions {
         let table = FlagDay::read(data.data().into()).unwrap();
         assert_eq!(table.foo(), Some(0xf00));
         assert_eq!(table.bar(), Some(0xba4));
-    }
-
-    #[test]
-    fn fields_after_conditions_all_none() {
-        let data = BeBuffer::new().push(GotFlags::empty()).extend([1u16, 2, 3]);
-
-        let table = FieldsAfterConditionals::read(data.data().into()).unwrap();
-        assert_eq!(table.always_here(), 1);
-        assert_eq!(table.also_always_here(), 2);
-        assert_eq!(table.and_me_too(), 3);
-    }
-
-    #[test]
-    #[should_panic(expected = "OutOfBounds")]
-    fn fields_after_conditions_wrong_len() {
-        let data = BeBuffer::new().push(GotFlags::FOO).extend([1u16, 2, 3]);
-
-        let _table = FieldsAfterConditionals::read(data.data().into()).unwrap();
-    }
-
-    #[test]
-    fn fields_after_conditionals_one_present() {
-        let data = BeBuffer::new()
-            .push(GotFlags::BAR)
-            .extend([1u16, 0xba4, 2, 3]);
-
-        let table = FieldsAfterConditionals::read(data.data().into()).unwrap();
-        assert_eq!(table.always_here(), 1);
-        assert_eq!(table.bar(), Some(0xba4));
-        assert_eq!(table.also_always_here(), 2);
-        assert!(table.foo().is_none());
-        assert_eq!(table.and_me_too(), 3);
-    }
-
-    #[test]
-    fn fields_after_conditions_all_present() {
-        let data = BeBuffer::new()
-            .push(GotFlags::FOO | GotFlags::BAR | GotFlags::BAZ)
-            .extend([0xf00u16, 1, 0xba4, 0xba2, 2, 3]);
-
-        let table = FieldsAfterConditionals::read(data.data().into()).unwrap();
-        assert_eq!(table.foo(), Some(0xf00));
-        assert_eq!(table.always_here(), 1);
-        assert_eq!(table.bar(), Some(0xba4));
-        assert_eq!(table.baz(), Some(0xba2));
-        assert_eq!(table.also_always_here(), 2);
-        assert_eq!(table.and_me_too(), 3);
     }
 }

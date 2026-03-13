@@ -5,12 +5,142 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct HheaMarker {}
+impl<'a> MinByteRange<'a> for Hhea<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.number_of_h_metrics_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
 
-impl HheaMarker {
+impl TopLevelTable for Hhea<'_> {
+    /// `hhea`
+    const TAG: Tag = Tag::new(b"hhea");
+}
+
+impl<'a> FontRead<'a> for Hhea<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
+#[derive(Clone)]
+pub struct Hhea<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Hhea<'a> {
+    pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + UfWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + FWord::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + i16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// The major/minor version (1, 0)
+    pub fn version(&self) -> MajorMinor {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Typographic ascent.
+    pub fn ascender(&self) -> FWord {
+        let range = self.ascender_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Typographic descent.
+    pub fn descender(&self) -> FWord {
+        let range = self.descender_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Typographic line gap. Negative LineGap values are treated as
+    /// zero in some legacy platform implementations.
+    pub fn line_gap(&self) -> FWord {
+        let range = self.line_gap_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Maximum advance width value in 'hmtx' table.
+    pub fn advance_width_max(&self) -> UfWord {
+        let range = self.advance_width_max_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Minimum left sidebearing value in 'hmtx' table for glyphs with
+    /// contours (empty glyphs should be ignored).
+    pub fn min_left_side_bearing(&self) -> FWord {
+        let range = self.min_left_side_bearing_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Minimum right sidebearing value; calculated as min(aw - (lsb +
+    /// xMax - xMin)) for glyphs with contours (empty glyphs should be ignored).
+    pub fn min_right_side_bearing(&self) -> FWord {
+        let range = self.min_right_side_bearing_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Max(lsb + (xMax-xMin))
+    pub fn x_max_extent(&self) -> FWord {
+        let range = self.x_max_extent_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Used to calculate the slope of the cursor (rise/run); 1 for
+    /// vertical caret, 0 for horizontal.
+    pub fn caret_slope_rise(&self) -> i16 {
+        let range = self.caret_slope_rise_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// 0 for vertical caret, 1 for horizontal.
+    pub fn caret_slope_run(&self) -> i16 {
+        let range = self.caret_slope_run_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// The amount by which a slanted highlight on a glyph needs to be
+    /// shifted to produce the best appearance. Set to 0 for
+    /// non-slanted fonts
+    pub fn caret_offset(&self) -> i16 {
+        let range = self.caret_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// 0 for current format.
+    pub fn metric_data_format(&self) -> i16 {
+        let range = self.metric_data_format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Number of hMetric entries in 'hmtx' table
+    pub fn number_of_h_metrics(&self) -> u16 {
+        let range = self.number_of_h_metrics_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -94,131 +224,6 @@ impl HheaMarker {
     pub fn number_of_h_metrics_byte_range(&self) -> Range<usize> {
         let start = self.metric_data_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for HheaMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.number_of_h_metrics_byte_range().end
-    }
-}
-
-impl TopLevelTable for Hhea<'_> {
-    /// `hhea`
-    const TAG: Tag = Tag::new(b"hhea");
-}
-
-impl<'a> FontRead<'a> for Hhea<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<UfWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<FWord>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<i16>();
-        cursor.advance::<u16>();
-        cursor.finish(HheaMarker {})
-    }
-}
-
-/// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-pub type Hhea<'a> = TableRef<'a, HheaMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Hhea<'a> {
-    /// The major/minor version (1, 0)
-    pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Typographic ascent.
-    pub fn ascender(&self) -> FWord {
-        let range = self.shape.ascender_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Typographic descent.
-    pub fn descender(&self) -> FWord {
-        let range = self.shape.descender_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Typographic line gap. Negative LineGap values are treated as
-    /// zero in some legacy platform implementations.
-    pub fn line_gap(&self) -> FWord {
-        let range = self.shape.line_gap_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Maximum advance width value in 'hmtx' table.
-    pub fn advance_width_max(&self) -> UfWord {
-        let range = self.shape.advance_width_max_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Minimum left sidebearing value in 'hmtx' table for glyphs with
-    /// contours (empty glyphs should be ignored).
-    pub fn min_left_side_bearing(&self) -> FWord {
-        let range = self.shape.min_left_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Minimum right sidebearing value; calculated as min(aw - (lsb +
-    /// xMax - xMin)) for glyphs with contours (empty glyphs should be ignored).
-    pub fn min_right_side_bearing(&self) -> FWord {
-        let range = self.shape.min_right_side_bearing_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Max(lsb + (xMax-xMin))
-    pub fn x_max_extent(&self) -> FWord {
-        let range = self.shape.x_max_extent_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Used to calculate the slope of the cursor (rise/run); 1 for
-    /// vertical caret, 0 for horizontal.
-    pub fn caret_slope_rise(&self) -> i16 {
-        let range = self.shape.caret_slope_rise_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// 0 for vertical caret, 1 for horizontal.
-    pub fn caret_slope_run(&self) -> i16 {
-        let range = self.shape.caret_slope_run_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// The amount by which a slanted highlight on a glyph needs to be
-    /// shifted to produce the best appearance. Set to 0 for
-    /// non-slanted fonts
-    pub fn caret_offset(&self) -> i16 {
-        let range = self.shape.caret_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// 0 for current format.
-    pub fn metric_data_format(&self) -> i16 {
-        let range = self.shape.metric_data_format_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Number of hMetric entries in 'hmtx' table
-    pub fn number_of_h_metrics(&self) -> u16 {
-        let range = self.shape.number_of_h_metrics_byte_range();
-        self.data.read_at(range.start).unwrap()
     }
 }
 
