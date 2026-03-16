@@ -256,7 +256,9 @@ impl<'a> std::fmt::Debug for Chain<'a> {
 }
 
 /// Used to compute the sub-feature flags for a list of requested features and settings.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct Feature {
@@ -415,7 +417,9 @@ impl<'a> std::fmt::Debug for Subtable<'a> {
 }
 
 /// Entry payload in a contextual subtable state machine.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ContextualEntryData {
@@ -461,7 +465,9 @@ impl<'a> SomeRecord<'a> for ContextualEntryData {
 }
 
 /// Entry payload in an insertion subtable state machine.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct InsertionEntryData {

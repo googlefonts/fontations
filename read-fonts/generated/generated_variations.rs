@@ -524,7 +524,9 @@ impl<'a> SomeTable<'a> for DeltaSetIndexMap<'a> {
 }
 
 /// Entry format for a [DeltaSetIndexMap].
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct EntryFormat {
@@ -1010,7 +1012,9 @@ impl<'a> SomeRecord<'a> for VariationRegion<'a> {
 }
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct RegionAxisCoordinates {

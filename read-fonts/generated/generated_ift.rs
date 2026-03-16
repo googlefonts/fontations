@@ -125,7 +125,9 @@ impl<'a> SomeTable<'a> for Ift<'a> {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct PatchMapFieldPresenceFlags {
@@ -1705,7 +1707,9 @@ impl<'a> std::fmt::Debug for EntryData<'a> {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct EntryFormatFlags {
@@ -2035,7 +2039,9 @@ impl<'a> From<EntryFormatFlags> for FieldType<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct DesignSpaceSegment {
@@ -2369,7 +2375,9 @@ impl<'a> std::fmt::Debug for TablePatch<'a> {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct TablePatchFlags {
@@ -2796,7 +2804,9 @@ impl<'a> std::fmt::Debug for GlyphKeyedPatch<'a> {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct GlyphKeyedFlags {

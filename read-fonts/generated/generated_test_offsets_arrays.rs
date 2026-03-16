@@ -795,7 +795,9 @@ impl<'a> std::fmt::Debug for Dummy<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct Shmecord {

@@ -106,7 +106,9 @@ impl<'a> std::fmt::Debug for Gasp<'a> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct GaspRange {
@@ -150,7 +152,9 @@ impl<'a> SomeRecord<'a> for GaspRange {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck_derive :: AnyBitPattern,
+)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct GaspRangeBehavior {
