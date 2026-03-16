@@ -520,7 +520,18 @@ impl BaseGlyphPaint {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_paint`][Self::read_paint],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn paint<'a>(&self, data: FontData<'a>) -> Result<Paint<'a>, ReadError> {
+        self.paint_offset().resolve(data)
+    }
+
+    /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_paint<'a>(&self, source: &BaseGlyphList<'a>) -> Result<Paint<'a>, ReadError> {
+        let data = source.offset_data();
         self.paint_offset().resolve(data)
     }
 }
@@ -775,7 +786,18 @@ impl Clip {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
+    ///
+    /// NOTE: you should prefer to use [`read_clip_box`][Self::read_clip_box],
+    /// which takes the relevant parent table as input, instead of raw `FontData`.
     pub fn clip_box<'a>(&self, data: FontData<'a>) -> Result<ClipBox<'a>, ReadError> {
+        self.clip_box_offset().resolve(data)
+    }
+
+    /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
+    ///
+    ///The `source` argument is the parent table from which the offset is resolved.
+    pub fn read_clip_box<'a>(&self, source: &ClipList<'a>) -> Result<ClipBox<'a>, ReadError> {
+        let data = source.offset_data();
         self.clip_box_offset().resolve(data)
     }
 }

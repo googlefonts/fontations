@@ -72,6 +72,7 @@ record BaseGlyphPaint {
     /// Glyph ID of the base glyph.
     glyph_id: GlyphId16,
     /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
+    #[offset_from(BaseGlyphList)]
     paint_offset: Offset32<Paint>,
 }
 
@@ -101,6 +102,7 @@ record Clip {
     /// Last glyph ID in the range.
     end_glyph_id: GlyphId16,
     /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
+    #[offset_from(ClipList)]
     clip_box_offset: Offset24<ClipBox>,
 }
 

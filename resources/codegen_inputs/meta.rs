@@ -30,6 +30,7 @@ record DataMapRecord {
     #[read_offset_with($tag, $data_length)]
     #[traverse_with(skip)]
     #[validate(validate_data_type)]
+    #[offset_from(Meta)]
     data_offset: Offset32<Metadata>,
     /// Length of the data, in bytes. The data is not required to be padded to any byte boundary.
     #[compile(self.compute_data_len())]

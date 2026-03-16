@@ -30,10 +30,24 @@ impl Fields {
         })
     }
 
-    pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
+    pub(crate) fn sanity_check(&self, phase: Phase, in_record: bool) -> syn::Result<()> {
         let mut custom_offset_data_fld: Option<&Field> = None;
         let mut normal_offset_data_fld = None;
         for (i, fld) in self.fields.iter().enumerate() {
+            // offsets in records should have #[offset_from] or #[offset_getter]
+            if in_record
+                && fld.is_offset_or_array_of_offsets()
+                && fld.attrs.offset_from.is_none()
+                && fld.attrs.offset_getter.is_none()
+            {
+                // currently no records have multiple parent types; if they do you might need to
+                // use a custom getter `(#[offset_getter(_)])` or else add a custom marker type
+                // and `impl OffsetSource<NewMarkerType>` for both tables.
+                return Err(logged_syn_error(
+                    fld.name.span(),
+                    "offset fields in records require #[offset_from(_]l) annotations",
+                ));
+            }
             if let Some(attr) = fld.attrs.offset_data.as_ref() {
                 if let Some(prev_field) = custom_offset_data_fld.replace(fld) {
                     if prev_field.attrs.offset_data.as_ref().unwrap().attr != attr.attr {
@@ -872,15 +886,24 @@ impl Field {
 
         // if there is a data argument than we want to be more explicit
         let original_docs = &self.attrs.docs;
+        let getter_name = self.offset_getter_name().unwrap();
+        let typed_getter_name = format!("read_{getter_name}");
+        let use_typed_getter = format!(
+            " NOTE: you should prefer to use [`{typed_getter_name}`][Self::{typed_getter_name}],"
+        );
 
         quote! {
             #(#original_docs)*
             #[doc = ""]
             #[doc = " The `data` argument should be retrieved from the parent table"]
             #[doc = " By calling its `offset_data` method."]
+            #[doc = ""]
+            #[doc = #use_typed_getter]
+            #[doc = " which takes the relevant parent table as input, instead of raw `FontData`."]
         }
     }
 
+    //The `source` argument is the parent table against which the offset is resolved.
     fn typed_offset_field_getter(
         &self,
         generic: Option<&syn::Ident>,
@@ -915,7 +938,7 @@ impl Field {
         });
         let docs = self.typed_offset_getter_docs(record.is_some());
 
-        if self.is_array() {
+        let (return_type, body) = if self.is_array() {
             let OffsetTarget::Table(target_ident) = target else {
                 panic!("I don't think arrays of offsets to arrays are in the spec?");
             };
@@ -939,18 +962,7 @@ impl Field {
                 return_type = quote!( Option< #return_type > );
                 body = quote!( offsets.map(|offsets| #body ) );
             }
-
-            let bind_offsets = quote!( let offsets = self.#raw_name(); );
-
-            Some(quote! {
-                #docs
-                pub fn #getter_name (&self #input_data_if_needed) -> #return_type #where_read_clause  {
-                    #data_alias_if_needed
-                    #bind_offsets
-                    #args_if_needed
-                    #body
-                }
-            })
+            (return_type, body)
         } else {
             let mut return_type = target.getter_return_type(target_is_generic);
             if self.is_nullable() || self.attrs.conditional.is_some() {
@@ -968,14 +980,60 @@ impl Field {
             } else {
                 quote!( self. #raw_name () .#resolve )
             };
-            Some(quote! {
-                #docs
-                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
-                    #data_alias_if_needed
-                    #args_if_needed
-                    #getter_impl
-                }
-            })
+            (return_type, getter_impl)
+        };
+
+        let extra_record_getter = record.is_some().then(|| {
+            self.typed_getter_for_offset_in_record(
+                &return_type,
+                decl_lifetime_if_needed.as_ref(),
+                args_if_needed.as_ref(),
+                &body,
+            )
+        });
+
+        let bind_offsets = self
+            .is_array()
+            .then(|| quote!( let offsets = self.#raw_name(); ));
+        Some(quote! {
+            #docs
+            pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause  {
+                #data_alias_if_needed
+                #bind_offsets
+                #args_if_needed
+                #body
+            }
+
+            #extra_record_getter
+        })
+    }
+
+    fn typed_getter_for_offset_in_record(
+        &self,
+        return_type: &TokenStream,
+        lifetime: Option<&TokenStream>,
+        read_args: Option<&TokenStream>,
+        body: &TokenStream,
+    ) -> TokenStream {
+        let raw_name = &self.name;
+        let getter_name = self.offset_getter_name().unwrap();
+        let getter_name = syn::Ident::new(&format!("read_{}", getter_name), getter_name.span());
+        let data_source = self.attrs.offset_from.as_ref().expect("sanity check'd");
+        let bind_offsets = self
+            .is_array()
+            .then(|| quote!( let offsets = self.#raw_name(); ));
+
+        let original_docs = &self.attrs.docs;
+        quote! {
+            #(#original_docs)*
+            #[doc = ""]
+            #[doc = "The `source` argument is the parent table from which the offset is resolved."]
+            pub fn #getter_name #lifetime (&self, source: & #data_source <'a>) -> #return_type {
+                let data = source.offset_data();
+                #bind_offsets
+                #read_args
+                #body
+            }
         }
     }
 

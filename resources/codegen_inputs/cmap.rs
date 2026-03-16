@@ -21,6 +21,7 @@ record EncodingRecord {
     encoding_id: u16,
     /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
     /// encoding.
+    #[offset_from(Cmap)]
     subtable_offset: Offset32<CmapSubtable>,
 }
 
@@ -308,10 +309,12 @@ record VariationSelector {
     /// Offset from the start of the [`Cmap14`] subtable to Default UVS
     /// Table. May be NULL.
     #[nullable]
+    #[offset_from(Cmap14)]
     default_uvs_offset: Offset32<DefaultUvs>,
     /// Offset from the start of the [`Cmap14`] subtable to Non-Default
     /// UVS Table. May be NULL.
     #[nullable]
+    #[offset_from(Cmap14)]
     non_default_uvs_offset: Offset32<NonDefaultUvs>,
 }
 

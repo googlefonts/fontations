@@ -18,6 +18,7 @@ record ScriptRecord {
     /// 4-byte script tag identifier
     script_tag: Tag,
     /// Offset to Script table, from beginning of ScriptList
+    #[offset_from(ScriptList)]
     script_offset: Offset16<Script>,
 }
 
@@ -40,6 +41,7 @@ record LangSysRecord {
     /// 4-byte LangSysTag identifier
     lang_sys_tag: Tag,
     /// Offset to LangSys table, from beginning of Script table
+    #[offset_from(Script)]
     lang_sys_offset: Offset16<LangSys>,
 }
 
@@ -79,6 +81,7 @@ record FeatureRecord {
     feature_tag: Tag,
     /// Offset to Feature table, from beginning of FeatureList
     #[read_offset_with($feature_tag)]
+    #[offset_from(FeatureList)]
     feature_offset: Offset16<Feature>,
 }
 
@@ -597,10 +600,12 @@ record FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
     #[nullable]
+    #[offset_from(FeatureVariations)]
     condition_set_offset: Offset32<ConditionSet>,
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
     #[nullable]
+    #[offset_from(FeatureVariations)]
     feature_table_substitution_offset: Offset32<FeatureTableSubstitution>,
 }
 
