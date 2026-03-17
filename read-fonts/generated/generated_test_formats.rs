@@ -5,15 +5,55 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-impl Format<u16> for Table1Marker {
+impl Format<u16> for Table1<'_> {
     const FORMAT: u16 = 1;
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Table1Marker {}
+impl<'a> MinByteRange<'a> for Table1<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.flex_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
 
-impl Table1Marker {
+impl<'a> FontRead<'a> for Table1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+#[derive(Clone)]
+pub struct Table1<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Table1<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn format(&self) -> u16 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn heft(&self) -> u32 {
+        let range = self.heft_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn flex(&self) -> u16 {
+        let range = self.flex_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -27,42 +67,6 @@ impl Table1Marker {
     pub fn flex_byte_range(&self) -> Range<usize> {
         let start = self.heft_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for Table1Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.flex_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for Table1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u32>();
-        cursor.advance::<u16>();
-        cursor.finish(Table1Marker {})
-    }
-}
-
-pub type Table1<'a> = TableRef<'a, Table1Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Table1<'a> {
-    pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    pub fn heft(&self) -> u32 {
-        let range = self.shape.heft_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    pub fn flex(&self) -> u16 {
-        let range = self.shape.flex_byte_range();
-        self.data.read_at(range.start).unwrap()
     }
 }
 
@@ -89,17 +93,55 @@ impl<'a> std::fmt::Debug for Table1<'a> {
     }
 }
 
-impl Format<u16> for Table2Marker {
+impl Format<u16> for Table2<'_> {
     const FORMAT: u16 = 2;
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Table2Marker {
-    values_byte_len: usize,
+impl<'a> MinByteRange<'a> for Table2<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.values_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
 }
 
-impl Table2Marker {
+impl<'a> FontRead<'a> for Table2<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+#[derive(Clone)]
+pub struct Table2<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Table2<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn format(&self) -> u16 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn value_count(&self) -> u16 {
+        let range = self.value_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn values(&self) -> &'a [BigEndian<u16>] {
+        let range = self.values_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -111,47 +153,9 @@ impl Table2Marker {
     }
 
     pub fn values_byte_range(&self) -> Range<usize> {
+        let value_count = self.value_count();
         let start = self.value_count_byte_range().end;
-        start..start + self.values_byte_len
-    }
-}
-
-impl MinByteRange for Table2Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.values_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for Table2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let value_count: u16 = cursor.read()?;
-        let values_byte_len = (value_count as usize)
-            .checked_mul(u16::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(values_byte_len);
-        cursor.finish(Table2Marker { values_byte_len })
-    }
-}
-
-pub type Table2<'a> = TableRef<'a, Table2Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Table2<'a> {
-    pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    pub fn value_count(&self) -> u16 {
-        let range = self.shape.value_count_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    pub fn values(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.values_byte_range();
-        self.data.read_array(range).unwrap()
+        start..start + (value_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -178,15 +182,50 @@ impl<'a> std::fmt::Debug for Table2<'a> {
     }
 }
 
-impl Format<u16> for Table3Marker {
+impl Format<u16> for Table3<'_> {
     const FORMAT: u16 = 3;
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct Table3Marker {}
+impl<'a> MinByteRange<'a> for Table3<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.something_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
 
-impl Table3Marker {
+impl<'a> FontRead<'a> for Table3<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+#[derive(Clone)]
+pub struct Table3<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Table3<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn format(&self) -> u16 {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn something(&self) -> u16 {
+        let range = self.something_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -195,36 +234,6 @@ impl Table3Marker {
     pub fn something_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
-    }
-}
-
-impl MinByteRange for Table3Marker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.something_byte_range().end
-    }
-}
-
-impl<'a> FontRead<'a> for Table3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.finish(Table3Marker {})
-    }
-}
-
-pub type Table3<'a> = TableRef<'a, Table3Marker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Table3<'a> {
-    pub fn format(&self) -> u16 {
-        let range = self.shape.format_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    pub fn something(&self) -> u16 {
-        let range = self.shape.something_byte_range();
-        self.data.read_at(range.start).unwrap()
     }
 }
 
@@ -280,20 +289,27 @@ impl<'a> FontRead<'a> for MyTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            Table1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            Table2Marker::FORMAT => Ok(Self::MyFormat22(FontRead::read(data)?)),
-            Table3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            Table1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            Table2::FORMAT => Ok(Self::MyFormat22(FontRead::read(data)?)),
+            Table3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
 
-impl MinByteRange for MyTable<'_> {
+impl<'a> MinByteRange<'a> for MyTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::MyFormat22(item) => item.min_byte_range(),
             Self::Format3(item) => item.min_byte_range(),
+        }
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        match self {
+            Self::Format1(item) => item.min_table_bytes(),
+            Self::MyFormat22(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
         }
     }
 }

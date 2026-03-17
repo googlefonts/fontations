@@ -109,7 +109,7 @@ fn add_intersecting_format1_patches(
 
     // Step 2: produce final output.
     let mut applied_entries_indices: HashMap<PatchUrl, IntSet<u32>> = Default::default();
-    let applied_entries_start_bit_index = map.shape().applied_entries_bitmap_byte_range().start * 8;
+    let applied_entries_start_bit_index = map.applied_entries_bitmap_byte_range().start * 8;
 
     for (index, subset_def) in entries
         .into_iter()
@@ -194,7 +194,7 @@ fn intersect_format1_glyph_map_inner<const RECORD_INTERSECTION: bool>(
     entries: &mut BTreeMap<u16, SubsetDefinition>,
 ) -> Result<(), ReadError> {
     let glyph_map = map.glyph_map()?;
-    if glyph_map.shape().entry_index_byte_range().end > glyph_map.offset_data().len() {
+    if glyph_map.entry_index_byte_range().end > glyph_map.offset_data().len() {
         return Err(ReadError::OutOfBounds);
     }
     let first_gid = glyph_map.first_mapped_glyph() as u32;
@@ -243,7 +243,7 @@ fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
         4usize
     };
 
-    if feature_map.shape().feature_records_byte_range().end > feature_map.offset_data().len() {
+    if feature_map.feature_records_byte_range().end > feature_map.offset_data().len() {
         return Err(ReadError::OutOfBounds);
     }
 
@@ -691,7 +691,7 @@ fn decode_format2_entry<'a>(
 
     entries.push(entry);
 
-    let consumed_bytes = entry_data.shape().trailing_data_byte_range().end - trailing_data.len();
+    let consumed_bytes = entry_data.trailing_data_byte_range().end - trailing_data.len();
     Ok((FontData::new(trailing_data), consumed_bytes))
 }
 

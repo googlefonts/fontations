@@ -569,7 +569,6 @@ impl<T: Default> Lookup<T> {
 impl<T: Validate> Validate for Lookup<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Lookup", |ctx| {
-            let lookup_flag = self.lookup_flag;
             ctx.in_field("subtables", |ctx| {
                 if self.subtables.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");
@@ -577,12 +576,16 @@ impl<T: Validate> Validate for Lookup<T> {
                 self.subtables.validate_impl(ctx);
             });
             ctx.in_field("mark_filtering_set", |ctx| {
-                if !(lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET))
+                if !(self
+                    .lookup_flag
+                    .contains(LookupFlag::USE_MARK_FILTERING_SET))
                     && self.mark_filtering_set.is_some()
                 {
                     ctx.report("'mark_filtering_set' is present but USE_MARK_FILTERING_SET not set")
                 }
-                if (lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET))
+                if (self
+                    .lookup_flag
+                    .contains(LookupFlag::USE_MARK_FILTERING_SET))
                     && self.mark_filtering_set.is_none()
                 {
                     ctx.report("USE_MARK_FILTERING_SET is set but 'mark_filtering_set' is None")

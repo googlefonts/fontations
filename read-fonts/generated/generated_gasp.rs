@@ -5,14 +5,60 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GaspMarker {
-    gasp_ranges_byte_len: usize,
+impl<'a> MinByteRange<'a> for Gasp<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.gasp_ranges_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
 }
 
-impl GaspMarker {
+impl TopLevelTable for Gasp<'_> {
+    /// `gasp`
+    const TAG: Tag = Tag::new(b"gasp");
+}
+
+impl<'a> FontRead<'a> for Gasp<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
+#[derive(Clone)]
+pub struct Gasp<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Gasp<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Version number (set to 1)
+    pub fn version(&self) -> u16 {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Number of records to follow
+    pub fn num_ranges(&self) -> u16 {
+        let range = self.num_ranges_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Sorted by ppem
+    pub fn gasp_ranges(&self) -> &'a [GaspRange] {
+        let range = self.gasp_ranges_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -24,58 +70,9 @@ impl GaspMarker {
     }
 
     pub fn gasp_ranges_byte_range(&self) -> Range<usize> {
+        let num_ranges = self.num_ranges();
         let start = self.num_ranges_byte_range().end;
-        start..start + self.gasp_ranges_byte_len
-    }
-}
-
-impl MinByteRange for GaspMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.gasp_ranges_byte_range().end
-    }
-}
-
-impl TopLevelTable for Gasp<'_> {
-    /// `gasp`
-    const TAG: Tag = Tag::new(b"gasp");
-}
-
-impl<'a> FontRead<'a> for Gasp<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        let num_ranges: u16 = cursor.read()?;
-        let gasp_ranges_byte_len = (num_ranges as usize)
-            .checked_mul(GaspRange::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        cursor.advance_by(gasp_ranges_byte_len);
-        cursor.finish(GaspMarker {
-            gasp_ranges_byte_len,
-        })
-    }
-}
-
-/// [gasp](https://learn.microsoft.com/en-us/typography/opentype/spec/gasp#gasp-table-formats)
-pub type Gasp<'a> = TableRef<'a, GaspMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Gasp<'a> {
-    /// Version number (set to 1)
-    pub fn version(&self) -> u16 {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Number of records to follow
-    pub fn num_ranges(&self) -> u16 {
-        let range = self.shape.num_ranges_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Sorted by ppem
-    pub fn gasp_ranges(&self) -> &'a [GaspRange] {
-        let range = self.shape.gasp_ranges_byte_range();
-        self.data.read_array(range).unwrap()
+        start..start + (num_ranges as usize).saturating_mul(GaspRange::RAW_BYTE_LEN)
     }
 }
 

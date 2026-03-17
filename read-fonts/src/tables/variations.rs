@@ -165,7 +165,7 @@ impl<'a> TupleVariationHeader<'a> {
     #[inline(always)]
     pub fn peak_tuple(&self) -> Option<Tuple<'a>> {
         self.tuple_index().embedded_peak_tuple().then(|| {
-            let range = self.shape.peak_tuple_byte_range();
+            let range = self.peak_tuple_byte_range();
             Tuple {
                 values: self.data.read_array(range).unwrap(),
             }
@@ -177,7 +177,7 @@ impl<'a> TupleVariationHeader<'a> {
     #[inline(always)]
     pub fn intermediate_start_tuple(&self) -> Option<Tuple<'a>> {
         self.tuple_index().intermediate_region().then(|| {
-            let range = self.shape.intermediate_start_tuple_byte_range();
+            let range = self.intermediate_start_tuple_byte_range();
             Tuple {
                 values: self.data.read_array(range).unwrap(),
             }
@@ -189,7 +189,7 @@ impl<'a> TupleVariationHeader<'a> {
     #[inline(always)]
     pub fn intermediate_end_tuple(&self) -> Option<Tuple<'a>> {
         self.tuple_index().intermediate_region().then(|| {
-            let range = self.shape.intermediate_end_tuple_byte_range();
+            let range = self.intermediate_end_tuple_byte_range();
             Tuple {
                 values: self.data.read_array(range).unwrap(),
             }
@@ -201,8 +201,8 @@ impl<'a> TupleVariationHeader<'a> {
     #[inline(always)]
     pub fn intermediate_tuples(&self) -> Option<(Tuple<'a>, Tuple<'a>)> {
         self.tuple_index().intermediate_region().then(|| {
-            let start_range = self.shape.intermediate_start_tuple_byte_range();
-            let end_range = self.shape.intermediate_end_tuple_byte_range();
+            let start_range = self.intermediate_start_tuple_byte_range();
+            let end_range = self.intermediate_end_tuple_byte_range();
             (
                 Tuple {
                     values: self.data.read_array(start_range).unwrap(),

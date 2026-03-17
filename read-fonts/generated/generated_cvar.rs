@@ -5,14 +5,79 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CvarMarker {
-    tuple_variation_headers_byte_len: usize,
+impl<'a> MinByteRange<'a> for Cvar<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.tuple_variation_headers_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
 }
 
-impl CvarMarker {
+impl TopLevelTable for Cvar<'_> {
+    /// `cvar`
+    const TAG: Tag = Tag::new(b"cvar");
+}
+
+impl<'a> FontRead<'a> for Cvar<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
+#[derive(Clone)]
+pub struct Cvar<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Cvar<'a> {
+    pub const MIN_SIZE: usize =
+        (MajorMinor::RAW_BYTE_LEN + TupleVariationCount::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Major/minor version number of the CVT variations table — set to (1,0).
+    pub fn version(&self) -> MajorMinor {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// A packed field. The high 4 bits are flags, and the low 12 bits
+    /// are the number of tuple variation tables for this glyph. The
+    /// number of tuple variation tables can be any number between 1
+    /// and 4095.
+    pub fn tuple_variation_count(&self) -> TupleVariationCount {
+        let range = self.tuple_variation_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Offset from the start of the 'cvar' table to the serialized data.
+    pub fn data_offset(&self) -> Offset16 {
+        let range = self.data_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`data_offset`][Self::data_offset].
+    pub fn data(&self) -> Result<FontData<'a>, ReadError> {
+        let data = self.data;
+        self.data_offset().resolve(data)
+    }
+
+    /// Array of tuple variation headers.
+    pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader<'a>> {
+        let range = self.tuple_variation_headers_byte_range();
+        self.data
+            .split_off(range.start)
+            .and_then(|d| VarLenArray::read(d).ok())
+            .unwrap_or_default()
+    }
+
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -30,71 +95,7 @@ impl CvarMarker {
 
     pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
         let start = self.data_offset_byte_range().end;
-        start..start + self.tuple_variation_headers_byte_len
-    }
-}
-
-impl MinByteRange for CvarMarker {
-    fn min_byte_range(&self) -> Range<usize> {
-        0..self.tuple_variation_headers_byte_range().end
-    }
-}
-
-impl TopLevelTable for Cvar<'_> {
-    /// `cvar`
-    const TAG: Tag = Tag::new(b"cvar");
-}
-
-impl<'a> FontRead<'a> for Cvar<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
-        cursor.advance::<TupleVariationCount>();
-        cursor.advance::<Offset16>();
-        let tuple_variation_headers_byte_len = cursor.remaining_bytes();
-        cursor.advance_by(tuple_variation_headers_byte_len);
-        cursor.finish(CvarMarker {
-            tuple_variation_headers_byte_len,
-        })
-    }
-}
-
-/// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
-pub type Cvar<'a> = TableRef<'a, CvarMarker>;
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> Cvar<'a> {
-    /// Major/minor version number of the CVT variations table — set to (1,0).
-    pub fn version(&self) -> MajorMinor {
-        let range = self.shape.version_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// A packed field. The high 4 bits are flags, and the low 12 bits
-    /// are the number of tuple variation tables for this glyph. The
-    /// number of tuple variation tables can be any number between 1
-    /// and 4095.
-    pub fn tuple_variation_count(&self) -> TupleVariationCount {
-        let range = self.shape.tuple_variation_count_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Offset from the start of the 'cvar' table to the serialized data.
-    pub fn data_offset(&self) -> Offset16 {
-        let range = self.shape.data_offset_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
-    /// Attempt to resolve [`data_offset`][Self::data_offset].
-    pub fn data(&self) -> Result<FontData<'a>, ReadError> {
-        let data = self.data;
-        self.data_offset().resolve(data)
-    }
-
-    /// Array of tuple variation headers.
-    pub fn tuple_variation_headers(&self) -> VarLenArray<'a, TupleVariationHeader<'a>> {
-        let range = self.shape.tuple_variation_headers_byte_range();
-        VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap()
+        start..start + self.data.len().saturating_sub(start)
     }
 }
 
