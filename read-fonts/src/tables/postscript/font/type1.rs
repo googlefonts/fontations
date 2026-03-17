@@ -156,7 +156,7 @@ impl CharstringContext for Type1Font {
         Ok(self.subrs.get(index as u32).ok_or(ReadError::OutOfBounds)?)
     }
 
-    fn global_subr(&self, index: i32) -> Result<&[u8], Error> {
+    fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
         // Type1 fonts don't have global subroutines
         Err(Error::MissingSubroutines)
     }
@@ -178,7 +178,7 @@ impl<'a> RawDicts<'a> {
             verify_header(data)?;
             let (base_dict, raw_private_dict) = data.split_at_checked(base_size as usize)?;
             // Decrypt private dict segments
-            let mut private_dict = decrypt(
+            let private_dict = decrypt(
                 decode_pfb_binary_segments(raw_private_dict)
                     .flat_map(|segment| segment.iter().copied()),
                 EEXEC_SEED,
@@ -196,7 +196,7 @@ impl<'a> RawDicts<'a> {
             // Now find the start of the private dictionary
             let start = find_eexec_data(data)?;
             let (base_dict, raw_private_dict) = data.split_at_checked(start)?;
-            let mut private_dict = if raw_private_dict.len() > 3
+            let private_dict = if raw_private_dict.len() > 3
                 && raw_private_dict[..4].iter().all(|b| b.is_ascii_hexdigit())
             {
                 // Hex decode and then decrypt
@@ -598,7 +598,6 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        None
     }
 
     fn peek(&self) -> Option<Token<'a>> {
@@ -792,7 +791,7 @@ impl Parser<'_> {
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1720>
     fn read_subrs(&mut self, len_iv: i64) -> Option<Subrs> {
         let mut subrs = Subrs::default();
-        let num_subrs: usize = match self.next()? {
+        let _: usize = match self.next()? {
             Token::Raw(b"[") => {
                 // Just an empty array
                 self.expect(Token::Raw(b"]"))?;
@@ -845,7 +844,7 @@ impl Parser<'_> {
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1919>
     fn read_charstrings(&mut self, len_iv: i64) -> Option<Charstrings> {
         let mut charstrings = Charstrings::default();
-        let num_glyphs: usize = match self.next()? {
+        let _: usize = match self.next()? {
             Token::Int(n) => n.try_into().ok()?,
             _ => return None,
         };
@@ -1594,7 +1593,7 @@ mod tests {
                 break;
             }
         }
-        let mut charstrings = charstrings.unwrap();
+        let charstrings = charstrings.unwrap();
         assert_eq!(charstrings.num_glyphs(), 9);
         assert!(charstrings.orig_notdef_index.is_none());
         let expected_names = [
@@ -1612,7 +1611,7 @@ mod tests {
             .map(|idx| charstrings.name(idx).unwrap())
             .collect::<Vec<_>>();
         assert_eq!(names, expected_names);
-        /// Prefix (up to 8 bytes), extracted from FreeType
+        // Prefix (up to 8 bytes), extracted from FreeType
         let expected_charstrings_prefix: [&[u8]; 9] = [
             &[139, 248, 236, 13, 14],
             &[177, 249, 173, 13, 139, 4, 247, 183],

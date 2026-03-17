@@ -187,4 +187,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: fauntlet compare
-        run: cargo run --release -p fauntlet -- compare-glyphs --hinting-engine all --hinting-target all --exit-on-fail fauntlet/test_fonts/*.*tf        
+        run: cargo run --release -p fauntlet -- compare-glyphs --print-paths --hinting-engine all --hinting-target all --exit-on-fail fauntlet/test_fonts/*.*tf
+      - name: fauntlet compare type1
+        run: cargo run --release -p fauntlet -- compare-glyphs --print-paths --exit-on-fail font-test-data/test_data/type1/*.pf*
+

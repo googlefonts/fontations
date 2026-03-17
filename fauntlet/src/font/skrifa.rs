@@ -1,15 +1,78 @@
-use ::skrifa::{
-    outline::{DrawError, DrawSettings, HintingInstance, OutlinePen},
+use super::{InstanceOptions, SharedFontData};
+use crate::Font;
+use skrifa::{
+    outline::{DrawError, DrawSettings, HintingInstance, HintingOptions, OutlinePen},
     prelude::{LocationRef, Size},
-    raw::types::F2Dot14,
-    raw::{FontRef, TableProvider},
+    raw::{
+        tables::postscript::{
+            charstring::{CommandSink, NopFilterSink, TransformSink},
+            font::Type1Font,
+        },
+        types::{F2Dot14, Fixed},
+        FontRef, TableProvider,
+    },
     GlyphId, MetadataProvider, OutlineGlyphCollection,
 };
-use skrifa::outline::HintingOptions;
 
-use super::{InstanceOptions, SharedFontData};
+pub enum SkrifaInstance<'a> {
+    Sfnt(SkrifaSfntInstance<'a>),
+    Type1(SkrifaType1Instance<'a>),
+}
 
-pub struct SkrifaInstance<'a> {
+impl<'a> SkrifaInstance<'a> {
+    pub fn new(font: &'a Font, options: &InstanceOptions) -> Option<Self> {
+        if let Some(type1) = font.type1.as_ref() {
+            Some(Self::Type1(SkrifaType1Instance {
+                font: type1,
+                ppem: (options.ppem != 0.0).then_some(options.ppem),
+            }))
+        } else {
+            SkrifaSfntInstance::new(&font.data, options).map(Self::Sfnt)
+        }
+    }
+
+    pub fn is_tricky(&self) -> bool {
+        match self {
+            Self::Sfnt(sfnt) => sfnt.is_tricky(),
+            _ => false,
+        }
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        match self {
+            Self::Sfnt(sfnt) => sfnt.glyph_count(),
+            Self::Type1(type1) => type1.font.num_glyphs() as _,
+        }
+    }
+
+    pub fn advance(&mut self, glyph_id: GlyphId) -> Option<f32> {
+        match self {
+            Self::Sfnt(sfnt) => sfnt.advance(glyph_id),
+            _ => None,
+        }
+    }
+
+    pub fn hvar_and_gvar_advance_deltas(&self, glyph_id: GlyphId) -> Option<(i32, i32)> {
+        match self {
+            Self::Sfnt(sfnt) => sfnt.hvar_and_gvar_advance_deltas(glyph_id),
+            _ => None,
+        }
+    }
+
+    /// Returns the scaler adjusted advance width when available.
+    pub fn outline(
+        &mut self,
+        glyph_id: GlyphId,
+        pen: &mut impl OutlinePen,
+    ) -> Result<Option<f32>, DrawError> {
+        match self {
+            Self::Sfnt(sfnt) => sfnt.outline(glyph_id, pen),
+            Self::Type1(type1) => type1.outline(glyph_id, pen),
+        }
+    }
+}
+
+pub struct SkrifaSfntInstance<'a> {
     font: FontRef<'a>,
     size: Size,
     coords: Vec<F2Dot14>,
@@ -17,7 +80,7 @@ pub struct SkrifaInstance<'a> {
     hinter: Option<HintingInstance>,
 }
 
-impl<'a> SkrifaInstance<'a> {
+impl<'a> SkrifaSfntInstance<'a> {
     pub fn new(data: &'a SharedFontData, options: &InstanceOptions) -> Option<Self> {
         let font = FontRef::from_index(data.0.as_ref(), options.index as u32).ok()?;
         let size = if options.ppem != 0.0 {
@@ -49,7 +112,7 @@ impl<'a> SkrifaInstance<'a> {
         } else {
             None
         };
-        Some(SkrifaInstance {
+        Some(Self {
             font,
             size,
             coords: options.coords.into(),
@@ -109,5 +172,54 @@ impl<'a> SkrifaInstance<'a> {
         outline
             .draw(draw_settings, pen)
             .map(|metrics| metrics.advance_width)
+    }
+}
+
+pub struct SkrifaType1Instance<'a> {
+    font: &'a Type1Font,
+    ppem: Option<f32>,
+}
+
+impl SkrifaType1Instance<'_> {
+    pub fn outline(
+        &mut self,
+        glyph_id: GlyphId,
+        pen: &mut impl OutlinePen,
+    ) -> Result<Option<f32>, DrawError> {
+        let mut pen = PenCommandSink(pen);
+        let mut nop_filter = NopFilterSink::new(&mut pen);
+        let scale = self.ppem.map(|ppem| self.font.scale_for_ppem(ppem));
+        let mut transformer = TransformSink::new(&mut nop_filter, self.font.matrix(), scale);
+        self.font
+            .evaluate_charstring(glyph_id, &mut transformer)
+            .map_err(DrawError::PostScript)?;
+        Ok(None)
+    }
+}
+
+struct PenCommandSink<'a, P: OutlinePen>(&'a mut P);
+
+impl<P: OutlinePen> CommandSink for PenCommandSink<'_, P> {
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.0.move_to(x.to_f32(), y.to_f32());
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        self.0.line_to(x.to_f32(), y.to_f32());
+    }
+
+    fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed) {
+        self.0.curve_to(
+            cx0.to_f32(),
+            cy0.to_f32(),
+            cx1.to_f32(),
+            cy1.to_f32(),
+            x.to_f32(),
+            y.to_f32(),
+        );
+    }
+
+    fn close(&mut self) {
+        self.0.close()
     }
 }
