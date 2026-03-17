@@ -275,7 +275,6 @@ impl<'a> Outlines<'a> {
                 let mut hinting_adapter =
                     HintingSink::new(&subfont.hint_state, &mut transform_sink);
                 cs_eval.evaluate(&mut hinting_adapter)?;
-                hinting_adapter.finish();
             } else {
                 let mut transform_sink =
                     TransformSink::new(&mut simplifying_adapter, matrix, subfont.scale);
@@ -285,7 +284,6 @@ impl<'a> Outlines<'a> {
             let mut hinting_adapter =
                 HintingSink::new(&subfont.hint_state, &mut simplifying_adapter);
             cs_eval.evaluate(&mut hinting_adapter)?;
-            hinting_adapter.finish();
         } else {
             let mut scaling_adapter = TransformSink::new(
                 &mut simplifying_adapter,
@@ -294,7 +292,6 @@ impl<'a> Outlines<'a> {
             );
             cs_eval.evaluate(&mut scaling_adapter)?;
         }
-        simplifying_adapter.finish();
         Ok(())
     }
 

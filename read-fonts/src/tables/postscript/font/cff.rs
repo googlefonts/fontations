@@ -519,7 +519,7 @@ impl FontDict {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::Blues, *};
+    use super::{super::super::charstring::test_helpers::*, super::Blues, *};
     use crate::{tables::postscript::dict::FontMatrix, FontData, FontRef, TableProvider};
     use font_test_data::bebuffer::BeBuffer;
 
@@ -745,35 +745,6 @@ mod tests {
                 scale: expected_scale
             })
         );
-    }
-
-    #[derive(Default)]
-    struct CharstringCommandCounter(usize);
-
-    impl CommandSink for CharstringCommandCounter {
-        fn move_to(&mut self, _x: Fixed, _y: Fixed) {
-            self.0 += 1;
-        }
-
-        fn line_to(&mut self, _x: Fixed, _y: Fixed) {
-            self.0 += 1;
-        }
-
-        fn curve_to(
-            &mut self,
-            _cx0: Fixed,
-            _cy0: Fixed,
-            _cx1: Fixed,
-            _cy1: Fixed,
-            _x: Fixed,
-            _y: Fixed,
-        ) {
-            self.0 += 1;
-        }
-
-        fn close(&mut self) {
-            self.0 += 1;
-        }
     }
 
     #[test]

@@ -1,15 +1,19 @@
 //! Type1 font parsing.
 
 use super::super::{
+    charstring::{self, CharstringContext, CharstringKind, CommandSink},
     dict::{FontMatrix, ScaledFontMatrix},
     Error, PredefinedEncoding,
 };
+use crate::{
+    types::{Fixed, GlyphId},
+    ReadError,
+};
 use core::ops::Range;
-use types::{Fixed, GlyphId};
 
 /// A Type1 font.
 pub struct Type1Font {
-    matrix: Option<ScaledFontMatrix>,
+    matrix: ScaledFontMatrix,
     charstrings: Charstrings,
     subrs: Subrs,
     encoding: Encoding,
@@ -30,7 +34,10 @@ impl Type1Font {
 
     fn from_dicts(base: &[u8], private: &[u8]) -> Option<Self> {
         let mut font = Type1Font {
-            matrix: None,
+            matrix: ScaledFontMatrix {
+                matrix: FontMatrix::IDENTITY,
+                scale: 1000,
+            },
             charstrings: Charstrings::default(),
             subrs: Subrs::default(),
             encoding: Encoding::Predefined(PredefinedEncoding::Standard),
@@ -40,7 +47,7 @@ impl Type1Font {
         let mut parser = Parser::new(base);
         while let Some(token) = parser.next() {
             match token {
-                Token::Name(b"FontMatrix") => font.matrix = Some(parser.read_font_matrix()?),
+                Token::Name(b"FontMatrix") => font.matrix = parser.read_font_matrix()?,
                 // Simply save the encoding offset. We'll parse it after
                 // we have read charstrings so we have an accurate mapping
                 // if we've synthesized or remapped a notdef glyph
@@ -89,8 +96,19 @@ impl Type1Font {
     }
 
     /// Returns the top level font matrix.
-    pub fn matrix(&self) -> Option<&ScaledFontMatrix> {
-        self.matrix.as_ref()
+    pub fn matrix(&self) -> FontMatrix {
+        self.matrix.matrix
+    }
+
+    /// Returns the units per em.
+    pub fn upem(&self) -> i32 {
+        self.matrix.scale
+    }
+
+    /// Returns the fixed point scale factor for the given font size in
+    /// pixels per em.
+    pub fn scale_for_ppem(&self, ppem: f32) -> Fixed {
+        Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(self.upem().max(1))
     }
 
     /// Returns an iterator over the pairs of glyph ids and associated names in
@@ -98,6 +116,49 @@ impl Type1Font {
     pub fn glyph_names(&self) -> impl Iterator<Item = (GlyphId, &str)> {
         (0..self.num_glyphs())
             .filter_map(|idx| Some((GlyphId::new(idx), self.charstrings.name(idx)?)))
+    }
+
+    /// Evaluates the charstring for the requested glyph and sends the results
+    /// to the given sink.
+    pub fn evaluate_charstring(
+        &self,
+        gid: GlyphId,
+        sink: &mut impl CommandSink,
+    ) -> Result<(), Error> {
+        let charstring_data = self
+            .charstrings
+            .get(gid.to_u32())
+            .ok_or(ReadError::OutOfBounds)?;
+        charstring::evaluate(self, None, charstring_data, sink)
+    }
+}
+
+impl CharstringContext for Type1Font {
+    fn kind(&self) -> CharstringKind {
+        CharstringKind::Type1
+    }
+
+    fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error> {
+        let decode = |code: i32| {
+            let name = PredefinedEncoding::Standard
+                .code_to_glyph_name(code.try_into().map_err(|_| Error::InvalidSeacCode(code))?);
+            self.charstrings
+                .index_for_name(name)
+                .and_then(|idx| self.charstrings.get(idx))
+                .ok_or(Error::InvalidSeacCode(code))
+        };
+        let base = decode(base_code)?;
+        let accent = decode(accent_code)?;
+        Ok([base, accent])
+    }
+
+    fn subr(&self, index: i32) -> Result<&[u8], Error> {
+        Ok(self.subrs.get(index as u32).ok_or(ReadError::OutOfBounds)?)
+    }
+
+    fn global_subr(&self, index: i32) -> Result<&[u8], Error> {
+        // Type1 fonts don't have global subroutines
+        Err(Error::MissingSubroutines)
     }
 }
 
@@ -1091,6 +1152,7 @@ fn decode_fixed(bytes: &[u8], mut power_ten: i32) -> Option<Fixed> {
 
 #[cfg(test)]
 mod tests {
+    use super::charstring::test_helpers::*;
     use super::*;
 
     #[test]
@@ -1630,8 +1692,8 @@ mod tests {
         assert_eq!(font.num_glyphs(), 9);
         assert_eq!(font.subrs.index.len(), 5);
         assert_eq!(
-            font.matrix().unwrap(),
-            &ScaledFontMatrix {
+            font.matrix,
+            ScaledFontMatrix {
                 matrix: FontMatrix::IDENTITY,
                 scale: 1000
             }
@@ -1729,4 +1791,55 @@ mod tests {
         dup 56 /eight put
         readonly def    
     "#;
+
+    #[test]
+    fn eval_charstrings() {
+        let font = Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
+        let expected_eval_prefix = [
+            "M38,0 L329,0 L329,42 L316,42 C293,42 274,46 258,54 C242,63 234,83 234,114",
+            "M27,0 L336,0 L336,42 L298,42 C275,42 256,46 240,54 C224,63 216,83 216,114",
+            "M161,636 C176,636 190,641 201,650 C212,659 218,675 218,698 C218,721 212,738 201,746",
+            "M5,0 L243,0 L243,42 L240,42 C218,42 202,44 192,50 C183,54 178,62 178,73",
+            "M27,0 L316,0 L316,42 L298,42 C275,42 256,46 240,54 C224,63 216,83 216,114",
+            "M27,0 L316,0 L316,42 L298,42 C275,42 256,46 240,54 C224,63 216,83 216,114",
+            "M27,0 L316,0 L316,42 L298,42 C275,42 256,46 240,54 C224,63 216,83 216,114",
+            "M41,0 L290,0 L290,42 L269,42 C254,42 240,45 229,52 C218,58 212,73 212,98",
+        ];
+        // -1 to ignore the .notdef glyph
+        assert_eq!(font.num_glyphs() as usize - 1, expected_eval_prefix.len());
+        let mut commands = CaptureCommandSink::default();
+        for (gid, expected_prefix) in (1..font.num_glyphs()).zip(&expected_eval_prefix) {
+            commands.0.clear();
+            font.evaluate_charstring(gid.into(), &mut commands).unwrap();
+            assert!(commands.to_svg().starts_with(expected_prefix));
+        }
+    }
+
+    #[test]
+    fn csctx_seac_components() {
+        let font = Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
+        // Standard encoding for 'x' and 'i'
+        let x_code = 120;
+        let i_code = 105;
+        let [x_data, i_data] = font.seac_components(x_code, i_code).unwrap();
+        let name_to_gid = |name| {
+            font.glyph_names()
+                .find_map(|(gid, gname)| (name == gname).then_some(gid.to_u32()))
+                .unwrap()
+        };
+        assert_eq!(x_data, font.charstrings.get(name_to_gid("x")).unwrap());
+        assert_eq!(i_data, font.charstrings.get(name_to_gid("i")).unwrap());
+    }
+
+    #[test]
+    fn csctx_subrs() {
+        let font = Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
+        assert!(!font.subrs.index.is_empty());
+        for subr_idx in 0..font.subrs.index.len() {
+            assert_eq!(
+                font.subrs.get(subr_idx as u32).unwrap(),
+                font.subr(subr_idx as _).unwrap()
+            )
+        }
+    }
 }
