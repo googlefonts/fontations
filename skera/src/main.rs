@@ -102,6 +102,11 @@ struct Args {
     #[arg(long)]
     optimize: bool,
 
+    /// Update the instantiated font's `name` table.
+    /// Input font must have a STAT table with Axis Value Tables
+    #[arg(long)]
+    update_name_table: bool,
+
     ///run subsetter N times
     #[arg(short, long)]
     num_iterations: Option<u32>,
@@ -324,6 +329,10 @@ fn parse_subset_flags(args: &Args) -> SubsetFlags {
 
     if args.optimize {
         flags |= SubsetFlags::SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS;
+    }
+
+    if args.update_name_table {
+        flags |= SubsetFlags::SUBSET_FLAGS_UPDATE_NAME_TABLE;
     }
     flags
 }
