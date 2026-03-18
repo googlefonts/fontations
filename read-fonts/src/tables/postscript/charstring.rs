@@ -644,9 +644,10 @@ where
                         self.handle_mm_blend(subr_idx, num_args)?;
                     }
                     _ => {
+                        // Unknown othersubr, so simply drop the arguments
+                        // from the stack and hopefully we can keep going
                         self.stack.drop(num_args);
                     }
-                    _ => {}
                 }
             }
             // Removes a number from the PostScript interpreter stack and
