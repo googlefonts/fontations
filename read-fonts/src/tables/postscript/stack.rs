@@ -103,6 +103,32 @@ impl Stack {
         }
     }
 
+    /// Sets the element at `index` to the given `number`.
+    pub fn set(&mut self, index: usize, number: impl Into<Number>) -> Result<(), Error> {
+        if index >= self.top {
+            return Err(Error::StackOverflow);
+        }
+        match number.into() {
+            Number::I32(value) => {
+                self.value_is_fixed[index] = false;
+                self.values[index] = value;
+            }
+            Number::Fixed(value) => {
+                self.value_is_fixed[index] = true;
+                self.values[index] = value.to_bits();
+            }
+        }
+        Ok(())
+    }
+
+    /// Drops `n` elements from the top of the stack.
+    ///
+    /// If `n` is greater than the length of the stack, this simply acts as
+    /// a clear operation.
+    pub fn drop(&mut self, n: usize) {
+        self.top = self.top.saturating_sub(n);
+    }
+
     /// Returns the 32-bit integer at the given index on the stack.
     ///
     /// Will return an error if the value at that index was not pushed as an
@@ -544,5 +570,36 @@ mod tests {
         stack.push(20).unwrap();
         stack.div(true).unwrap();
         assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_i32(-2000));
+    }
+
+    #[test]
+    fn set() {
+        let mut stack = Stack::new();
+        stack.push(0).unwrap();
+        stack.push(0).unwrap();
+        stack.push(0).unwrap();
+        stack.set(0, Fixed::from_f64(-4.2)).unwrap();
+        stack.set(2, 25).unwrap();
+        assert_eq!(
+            stack.fixed_array(0).unwrap(),
+            [Fixed::from_f64(-4.2), Fixed::ZERO, Fixed::from_f64(25.0)]
+        );
+    }
+
+    #[test]
+    fn drop() {
+        let mut stack = Stack::new();
+        for _ in 0..20 {
+            stack.push(0).unwrap();
+        }
+        assert_eq!(stack.len(), 20);
+        stack.drop(4);
+        assert_eq!(stack.len(), 16);
+        stack.drop(10);
+        assert_eq!(stack.len(), 6);
+        // Only 6 left, but be lenient because processing fonts is often
+        // best effort
+        stack.drop(7);
+        assert_eq!(stack.len(), 0);
     }
 }

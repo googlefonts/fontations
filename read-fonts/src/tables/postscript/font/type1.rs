@@ -17,6 +17,7 @@ pub struct Type1Font {
     charstrings: Charstrings,
     subrs: Subrs,
     encoding: Encoding,
+    weight_vector: Vec<Fixed>,
 }
 
 impl Type1Font {
@@ -41,6 +42,7 @@ impl Type1Font {
             charstrings: Charstrings::default(),
             subrs: Subrs::default(),
             encoding: Encoding::Predefined(PredefinedEncoding::Standard),
+            weight_vector: Vec::new(),
         };
         // Read base dict entries
         let mut encoding_offset = None;
@@ -52,6 +54,14 @@ impl Type1Font {
                 // we have read charstrings so we have an accurate mapping
                 // if we've synthesized or remapped a notdef glyph
                 Token::Name(b"Encoding") => encoding_offset = Some(parser.pos),
+                Token::Name(b"WeightVector") => {
+                    // Gated on a successful read because some fonts reference
+                    // the /WeightVector name outside of a proc, leading to
+                    // spurious field reads
+                    if let Some(weights) = parser.read_weight_vector() {
+                        font.weight_vector = weights;
+                    }
+                }
                 _ => {}
             }
         }
@@ -159,6 +169,10 @@ impl CharstringContext for Type1Font {
     fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
         // Type1 fonts don't have global subroutines
         Err(Error::MissingSubroutines)
+    }
+
+    fn weight_vector(&self) -> &[Fixed] {
+        &self.weight_vector
     }
 }
 
@@ -913,6 +927,20 @@ impl Parser<'_> {
         charstrings.names.shrink_to_fit();
         charstrings.index.shrink_to_fit();
         Some(charstrings)
+    }
+
+    fn read_weight_vector(&mut self) -> Option<Vec<Fixed>> {
+        self.accept(Token::Raw(b"["));
+        let mut weights = Vec::new();
+        while let Some(token) = self.next() {
+            match token {
+                Token::Raw(b"]") => break,
+                Token::Int(val) => weights.push(Fixed::from_i32(val as _)),
+                Token::Raw(raw) => weights.push(decode_fixed(raw, 0)?),
+                _ => return None,
+            }
+        }
+        Some(weights)
     }
 
     /// Parse the encoding.
@@ -1670,6 +1698,18 @@ mod tests {
             let data = charstrings.get(idx).unwrap();
             assert_eq!((name, data), *expected);
         }
+    }
+
+    #[test]
+    fn parse_weight_vector() {
+        let mut parser = Parser::new(b"[0 0.125, 1.25 -0.87]");
+        let weights = parser
+            .read_weight_vector()
+            .unwrap()
+            .drain(..)
+            .map(|w| w.to_f32())
+            .collect::<Vec<_>>();
+        assert_eq!(weights, &[0.0, 0.125, 1.25, -0.8699951]);
     }
 
     #[test]
