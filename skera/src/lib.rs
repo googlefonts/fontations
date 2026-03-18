@@ -31,6 +31,7 @@ mod os2;
 mod parsing_util;
 mod post;
 mod priority_queue;
+mod renaming;
 mod repack;
 mod sbix;
 pub mod serialize;
@@ -272,6 +273,9 @@ impl SubsetFlags {
 
     //If set do not pull mirrored versions of input codepoints into the subset
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x1000);
+
+    //If set rebuild the name table of instantiated font from STAT table particles
+    pub const SUBSET_FLAGS_UPDATE_NAME_TABLE: Self = Self(0x2000);
 
     /// Returns `true` if all of the flags in `other` are contained within `self`.
     #[inline]
@@ -1776,6 +1780,17 @@ trait Serialize<'a> {
 
 pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> {
     let mut builder = FontBuilder::default();
+    let byte_buffer: Vec<u8>;
+
+    let font = if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_UPDATE_NAME_TABLE)
+    {
+        byte_buffer = crate::renaming::update_name_table_from_stat(plan, font)?;
+        FontRef::new(&byte_buffer).map_err(SubsetError::ReadError)?
+    } else {
+        font.clone()
+    };
 
     let mut state = SubsetState::default();
     let mut tags_with_dependencies = Vec::with_capacity(5);
@@ -1791,14 +1806,23 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
             Gpos::TAG => tags_with_dependencies.push((tag, record.length())),
             Os2::TAG => tags_with_dependencies.push((tag, record.length())), // Must be done after glyf and MVAR
             Hmtx::TAG | Vmtx::TAG => tags_with_dependencies.push((tag, record.length())),
-            _ => subset(tag, font, plan, &mut builder, record.length(), &mut state)?,
+            _ => subset(tag, &font, plan, &mut builder, record.length(), &mut state)?,
         }
     }
 
     for (tag, table_len) in tags_with_dependencies {
-        subset(tag, font, plan, &mut builder, table_len, &mut state)?;
+        subset(tag, &font, plan, &mut builder, table_len, &mut state)?;
     }
-    Ok(builder.build())
+    let font_data = builder.build();
+
+    if plan
+        .subset_flags
+        .contains(SubsetFlags::SUBSET_FLAGS_UPDATE_NAME_TABLE)
+    {
+        crate::renaming::set_ribbi_bits(font_data)
+    } else {
+        Ok(font_data)
+    }
 }
 
 fn should_drop_table(tag: Tag, plan: &Plan) -> bool {
