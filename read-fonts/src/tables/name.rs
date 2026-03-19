@@ -15,6 +15,9 @@ impl<'a> Name<'a> {
 
 impl NameRecord {
     /// Return a type that can decode the string data for this name entry.
+    ///
+    /// The `data` argument should be the name table's data section, which can
+    /// be retrieved via [`Name::string_data`].
     pub fn string<'a>(&self, data: FontData<'a>) -> Result<NameString<'a>, ReadError> {
         let start = self.string_offset().non_null().unwrap_or(0);
         let end = start + self.length() as usize;
