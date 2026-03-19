@@ -42,6 +42,11 @@ pub trait CharstringContext {
     /// Returns the charstring for the local subroutine at the given index as
     /// encoded in the calling charstring.
     fn subr(&self, index: i32) -> Result<&[u8], Error>;
+
+    /// Returns the current active weight vector for a multiple master font.
+    fn weight_vector(&self) -> &[Fixed] {
+        &[]
+    }
 }
 
 // Ugly temporary impl to support existing skrifa code until it is replaced
@@ -620,7 +625,8 @@ where
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1644>
             CallOtherSubr => {
                 let subr_idx = self.stack.pop_i32()?;
-                let num_args = self.stack.pop_i32()?;
+                let num_args = self.stack.pop_i32()? as usize;
+                let weight_vector = self.context.weight_vector();
                 match (subr_idx, num_args) {
                     // End flex. Emit curves from accumulated vectors on the
                     // stack.
@@ -632,7 +638,16 @@ where
                     (1, 0) => {
                         self.is_flexing = true;
                     }
-                    _ => {}
+                    // Handle blends for multiple masters.
+                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1823>
+                    (14..=18, _) if weight_vector.len() > 1 => {
+                        self.handle_mm_blend(subr_idx, num_args)?;
+                    }
+                    _ => {
+                        // Unknown othersubr, so simply drop the arguments
+                        // from the stack and hopefully we can keep going
+                        self.stack.drop(num_args);
+                    }
                 }
             }
             // Removes a number from the PostScript interpreter stack and
@@ -770,6 +785,43 @@ where
         // Push final position back on the stack
         self.stack.push(final_x)?;
         self.stack.push(final_y)?;
+        Ok(())
+    }
+
+    /// Handle point blending for multiple master fonts.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1823>
+    fn handle_mm_blend(&mut self, subr_idx: i32, num_args: usize) -> Result<(), Error> {
+        let weight_vector = self.context.weight_vector();
+        let num_points = (subr_idx - 13) as usize + (subr_idx == 18) as usize;
+        if num_args != num_points * weight_vector.len() {
+            return Err(Error::Read(crate::ReadError::MalformedData(
+                "incorrect number of multiple masters arguments",
+            )));
+        }
+        // The stack is setup to contain `num_points` values followed
+        // by `num_points * (num_weights - 1)` deltas for each point.
+        //
+        // The blend algorithm is p[0] + d[0]*w[1] + d[1]*w[2]...
+        // where p = points, d = deltas and w = weights
+        //
+        // The first weight is always ignored per FT:
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1880>
+        let stack_base = self
+            .stack
+            .len()
+            .checked_sub(num_args)
+            .ok_or(Error::StackUnderflow)?;
+        let mut delta_idx = stack_base + num_points;
+        for i in 0..num_points {
+            let mut val = self.stack.get_fixed(stack_base + i)?;
+            for &weight in &weight_vector[1..] {
+                val += self.stack.get_fixed(delta_idx)? * weight;
+                delta_idx += 1;
+            }
+            self.stack.set(stack_base + i, val)?;
+        }
+        self.stack.drop(num_args.saturating_sub(num_points));
         Ok(())
     }
 
@@ -1976,6 +2028,51 @@ mod tests {
                 expected,
                 "scaling coord {coord}"
             );
+        }
+    }
+
+    #[test]
+    fn mm_blend() {
+        let mut commands = CaptureCommandSink::default();
+        let ctx = MmContext([0.0, -0.25, 1.0].map(Fixed::from_f64));
+        let mut eval = Evaluator::new(&ctx, None, &mut commands);
+        let mut cursor = FontData::new(&[]).cursor();
+        // First two values are base coords. Next four are deltas
+        // for those coords (two each). Last two values are arg
+        // count and othersubr number.
+        for i in [[1, 0], [2, 3], [4, -8], [6, 15]].into_iter().flatten() {
+            eval.stack.push(i).unwrap();
+        }
+        eval.evaluate_operator(Operator::CallOtherSubr, &mut cursor, 0)
+            .unwrap();
+        let [a, b] = eval.stack.fixed_array(0).unwrap();
+        // a = 1 + -0.25*2 + 1*3 = 3.5
+        assert_eq!(a.to_f32(), 3.5);
+        // b = 0 + -0.25*4 + 1*-8 = -9.0
+        assert_eq!(b.to_f32(), -9.0);
+    }
+
+    struct MmContext([Fixed; 3]);
+
+    impl CharstringContext for MmContext {
+        fn kind(&self) -> CharstringKind {
+            CharstringKind::Type1
+        }
+
+        fn seac_components(&self, base_code: i32, _accent_code: i32) -> Result<[&[u8]; 2], Error> {
+            Err(Error::InvalidSeacCode(base_code))
+        }
+
+        fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {
+            Err(Error::MissingSubroutines)
+        }
+
+        fn subr(&self, _index: i32) -> Result<&[u8], Error> {
+            Err(Error::MissingSubroutines)
+        }
+
+        fn weight_vector(&self) -> &[Fixed] {
+            &self.0
         }
     }
 }
