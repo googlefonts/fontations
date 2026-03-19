@@ -332,7 +332,7 @@ struct CharstringEvaluator<'a> {
 }
 
 impl CharstringEvaluator<'_> {
-    fn evaluate(self, sink: &mut impl CommandSink) -> Result<(), Error> {
+    fn evaluate(self, sink: &mut impl CommandSink) -> Result<Option<Fixed>, Error> {
         let subrs = self.subrs.unwrap_or_default();
         let ctx = (self.cff_data, &self.charstrings, &self.global_subrs, &subrs);
         charstring::evaluate(&ctx, self.blend_state, self.charstring_data, sink)

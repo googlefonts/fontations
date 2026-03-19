@@ -2,7 +2,7 @@
 
 use super::super::{
     super::{cff, cff2},
-    charstring::CommandSink,
+    charstring::{self, CommandSink},
     dict::{self, ScaledFontMatrix},
     BlendState, Charset, Error, FdSelect, Index,
 };
@@ -202,7 +202,7 @@ impl<'a> CffFontRef<'a> {
         coords: &[F2Dot14],
         gid: GlyphId,
         sink: &mut impl CommandSink,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<Fixed>, Error> {
         let charstrings = self.top_dict.charstrings.clone();
         let blend = self.blend_state(subfont.vs_index, coords);
         let subrs = if subfont.subrs_offset != 0 {
@@ -216,7 +216,11 @@ impl<'a> CffFontRef<'a> {
         };
         let charstring_data = charstrings.get(gid.to_u32() as usize)?;
         let ctx = (self.data, &charstrings, &self.global_subrs, &subrs);
-        super::super::charstring::evaluate(&ctx, blend, charstring_data, sink)
+        if let Some(width) = charstring::evaluate(&ctx, blend, charstring_data, sink)? {
+            Ok(Some(width + subfont.nominal_width))
+        } else {
+            Ok(Some(subfont.default_width))
+        }
     }
 
     /// Returns a blend state for the given variation store index and

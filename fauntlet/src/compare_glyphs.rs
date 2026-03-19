@@ -41,9 +41,12 @@ pub fn compare_glyphs(
     for gid in 0..glyph_count {
         let gid = GlyphId::from(gid);
         ft_outline.clear();
-        let ft_advance = ft_instance
-            .outline(gid, &mut RegularizingPen::new(&mut ft_outline, is_scaled))
-            .unwrap();
+        // Skip if FreeType fails to load the outline
+        let Some(ft_advance) =
+            ft_instance.outline(gid, &mut RegularizingPen::new(&mut ft_outline, is_scaled))
+        else {
+            continue;
+        };
         skrifa_outline.clear();
         let maybe_skrifa_advance = skrifa_instance
             .outline(
@@ -52,10 +55,10 @@ pub fn compare_glyphs(
             )
             .unwrap();
         // Compare against adjusted metrics when skrifa returns them (currently
-        // only for TrueType glyphs)
+        // only for TrueType and Type1 glyphs)
         if let Some(skrifa_advance) = maybe_skrifa_advance {
             if ft_advance != skrifa_advance {
-                if let Some((hvar_adv, gvar_adv)) =
+                let have_mismatch = if let Some((hvar_adv, gvar_adv)) =
                     skrifa_instance.hvar_and_gvar_advance_deltas(gid)
                 {
                     // Some fonts have slight discrepancies between HVAR and
@@ -65,7 +68,15 @@ pub fn compare_glyphs(
                     // If the difference is greater than 1 then we might have
                     // a bug.
                     if hvar_adv == gvar_adv || (ft_advance - skrifa_advance).abs() > 1.0 {
-                        writeln!(
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    true
+                };
+                if have_mismatch {
+                    writeln!(
                             std::io::stderr(),
                             "[{path:?}#{} ppem: {} coords: {:?} hinting: {:?}] glyph id {} advance doesn't match:\nFreeType: {ft_advance:?}\nSkrifa:   {skrifa_advance:?}",
                             options.index,
@@ -75,9 +86,8 @@ pub fn compare_glyphs(
                             gid.to_u32(),
                         )
                         .unwrap();
-                        if exit_on_fail {
-                            std::process::exit(1);
-                        }
+                    if exit_on_fail {
+                        std::process::exit(1);
                     }
                 }
             }

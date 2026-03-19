@@ -57,16 +57,6 @@ impl FreeTypeInstance {
                     ft_coords.as_ptr(),
                 );
             }
-        } else {
-            unsafe {
-                // Note the explicit call to set *design* coordinates. Setting
-                // blend doesn't correctly disable variation processing
-                freetype::freetype_sys::FT_Set_Var_Design_Coordinates(
-                    face.raw_mut() as _,
-                    0,
-                    std::ptr::null(),
-                );
-            }
         }
         Some(Self { face, load_flags })
     }

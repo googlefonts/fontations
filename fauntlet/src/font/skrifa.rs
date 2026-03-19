@@ -190,10 +190,12 @@ impl SkrifaType1Instance<'_> {
         let mut nop_filter = NopFilterSink::new(&mut pen);
         let scale = self.ppem.map(|ppem| self.font.scale_for_ppem(ppem));
         let mut transformer = TransformSink::new(&mut nop_filter, self.font.matrix(), scale);
-        self.font
+        let width = self
+            .font
             .evaluate_charstring(glyph_id, &mut transformer)
             .map_err(DrawError::PostScript)?;
-        Ok(None)
+        let width = width.map(|w| self.font.transform_h_metric(scale, w));
+        Ok(width.map(|w| w.to_f32().max(0.0)))
     }
 }
 
