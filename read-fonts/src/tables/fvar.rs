@@ -11,13 +11,22 @@ pub use instance_record::InstanceRecord;
 const MAX_INLINE_AVAR2_AXES: usize = 64;
 
 #[inline]
+fn round_f64_to_i32(value: f64) -> i32 {
+    if value >= 0.0 {
+        (value + 0.5) as i32
+    } else {
+        (value - 0.5) as i32
+    }
+}
+
+#[inline]
 fn apply_avar2_delta(coord: Fixed, delta_2dot14: f64) -> Fixed {
     // HarfBuzz keeps the avar1 result in 16.16 through the avar2 add, and
     // converts the avar2 delta from 2.14 units by multiplying by four.
     Fixed::from_bits(
         coord
             .to_bits()
-            .wrapping_add((delta_2dot14 * 4.0).round() as i32),
+            .wrapping_add(round_f64_to_i32(delta_2dot14 * 4.0)),
     )
 }
 
