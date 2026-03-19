@@ -110,7 +110,7 @@ impl<'a> Fvar<'a> {
                     varstore.compute_float_delta(var_index.unwrap(), normalized_coords)
                 {
                     new_coords[i] = F2Dot14::from_f32((*v).apply_float_delta(delta))
-                        .clamp(F2Dot14::MIN, F2Dot14::MAX);
+                        .clamp(F2Dot14::NEG_ONE, F2Dot14::ONE);
                 }
             }
         }
@@ -136,7 +136,7 @@ impl VariationAxisRecord {
             }
             Equal => Fixed::ZERO,
         };
-        value.clamp(-Fixed::ONE, Fixed::ONE)
+        value.clamp(Fixed::NEG_ONE, Fixed::ONE)
     }
 }
 
