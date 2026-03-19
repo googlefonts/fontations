@@ -80,6 +80,7 @@ mod offset;
 mod offset_array;
 pub mod ps;
 mod read;
+mod sanitize;
 mod table_provider;
 mod table_ref;
 pub mod tables;
