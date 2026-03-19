@@ -5,11 +5,19 @@ include!("../../generated/generated_fvar.rs");
 #[path = "./instance_record.rs"]
 mod instance_record;
 
-use super::{
-    avar::Avar,
-    variations::{DeltaSetIndex, FloatItemDeltaTarget},
-};
+use super::{avar::Avar, variations::DeltaSetIndex};
 pub use instance_record::InstanceRecord;
+
+#[inline]
+fn apply_avar2_delta(coord: Fixed, delta_2dot14: f64) -> Fixed {
+    // HarfBuzz keeps the avar1 result in 16.16 through the avar2 add, and
+    // converts the avar2 delta from 2.14 units by multiplying by four.
+    Fixed::from_bits(
+        coord
+            .to_bits()
+            .wrapping_add((delta_2dot14 * 4.0).round() as i32),
+    )
+}
 
 impl<'a> Fvar<'a> {
     /// Returns the array of variation axis records.
@@ -48,9 +56,48 @@ impl<'a> Fvar<'a> {
         user_coords: impl IntoIterator<Item = (Tag, Fixed)>,
         normalized_coords: &mut [F2Dot14],
     ) {
-        normalized_coords.fill(F2Dot14::default());
+        normalized_coords.fill(F2Dot14::ZERO);
         let axes = self.axes().unwrap_or_default();
+        let actual_len = axes.len().min(normalized_coords.len());
         let avar_mappings = avar.map(|avar| avar.axis_segment_maps());
+
+        if actual_len > 64 {
+            for user_coord in user_coords {
+                // To permit non-linear interpolation, iterate over all axes to ensure we match
+                // multiple axes with the same tag:
+                // https://github.com/PeterConstable/OT_Drafts/blob/master/NLI/UnderstandingNLI.md
+                // We accept quadratic behavior here to avoid dynamic allocation and with the assumption
+                // that fonts contain a relatively small number of axes.
+                for (i, axis) in axes
+                    .iter()
+                    .take(actual_len)
+                    .enumerate()
+                    .filter(|(_, axis)| axis.axis_tag() == user_coord.0)
+                {
+                    normalized_coords[i] = axis.normalize(user_coord.1).to_f2dot14();
+                }
+            }
+            for (i, target_coord) in normalized_coords[..actual_len].iter_mut().enumerate() {
+                if let Some(mapping) = avar_mappings
+                    .as_ref()
+                    .and_then(|mappings| mappings.get(i).transpose().ok())
+                    .flatten()
+                {
+                    *target_coord = mapping.apply(target_coord.to_fixed()).to_f2dot14();
+                }
+            }
+            let Some(avar) = avar else { return };
+            if avar.version() == MajorMinor::VERSION_1_0 {
+                return;
+            }
+            // No avar2 for monster fonts.
+            // <https://github.com/googlefonts/fontations/issues/1148>
+            return;
+        }
+
+        let mut fixed_coords = [Fixed::ZERO; 64];
+        let fixed_coords = &mut fixed_coords[..actual_len];
+
         for user_coord in user_coords {
             // To permit non-linear interpolation, iterate over all axes to ensure we match
             // multiple axes with the same tag:
@@ -59,62 +106,78 @@ impl<'a> Fvar<'a> {
             // that fonts contain a relatively small number of axes.
             for (i, axis) in axes
                 .iter()
+                .take(actual_len)
                 .enumerate()
                 .filter(|(_, axis)| axis.axis_tag() == user_coord.0)
             {
-                if let Some(target_coord) = normalized_coords.get_mut(i) {
-                    let coord = axis.normalize(user_coord.1);
-                    *target_coord = avar_mappings
-                        .as_ref()
-                        .and_then(|mappings| mappings.get(i).transpose().ok())
-                        .flatten()
-                        .map(|mapping| mapping.apply(coord))
-                        .unwrap_or(coord)
-                        .to_f2dot14();
-                }
+                fixed_coords[i] = axis.normalize(user_coord.1);
             }
         }
-        let Some(avar) = avar else { return };
+
+        for (i, coord) in fixed_coords.iter_mut().enumerate() {
+            if let Some(mapping) = avar_mappings
+                .as_ref()
+                .and_then(|mappings| mappings.get(i).transpose().ok())
+                .flatten()
+            {
+                *coord = mapping.apply(*coord);
+            }
+        }
+
+        let Some(avar) = avar else {
+            for (target_coord, coord) in normalized_coords[..actual_len]
+                .iter_mut()
+                .zip(fixed_coords.iter())
+            {
+                *target_coord = coord.to_f2dot14();
+            }
+            return;
+        };
         if avar.version() == MajorMinor::VERSION_1_0 {
+            for (target_coord, coord) in normalized_coords[..actual_len]
+                .iter_mut()
+                .zip(fixed_coords.iter())
+            {
+                *target_coord = coord.to_f2dot14();
+            }
             return;
         }
+
         let var_store = avar.var_store();
         let var_index_map = avar.axis_index_map();
 
-        let actual_len = axes.len().min(normalized_coords.len());
-        let mut new_coords = [F2Dot14::ZERO; 64];
-        if actual_len > 64 {
-            // No avar2 for monster fonts.
-            // <https://github.com/googlefonts/fontations/issues/1148>
-            return;
+        let mut coords_2dot14 = [F2Dot14::ZERO; 64];
+        let coords_2dot14 = &mut coords_2dot14[..actual_len];
+        for (coord_2dot14, coord) in coords_2dot14.iter_mut().zip(fixed_coords.iter()) {
+            *coord_2dot14 = coord.to_f2dot14();
         }
 
-        let new_coords = &mut new_coords[..actual_len];
-        let normalized_coords = &mut normalized_coords[..actual_len];
-        new_coords.copy_from_slice(normalized_coords);
-
-        for (i, v) in normalized_coords.iter().enumerate() {
-            let var_index = if let Some(Ok(ref map)) = var_index_map {
-                map.get(i as u32).ok()
-            } else {
-                Some(DeltaSetIndex {
-                    outer: 0,
-                    inner: i as u16,
-                })
-            };
-            if var_index.is_none() {
-                continue;
-            }
-            if let Some(Ok(varstore)) = var_store.as_ref() {
-                if let Ok(delta) =
-                    varstore.compute_float_delta(var_index.unwrap(), normalized_coords)
-                {
-                    new_coords[i] = F2Dot14::from_f32((*v).apply_float_delta(delta))
-                        .clamp(F2Dot14::NEG_ONE, F2Dot14::ONE);
+        if let Some(Ok(varstore)) = var_store.as_ref() {
+            for (i, coord) in fixed_coords.iter_mut().enumerate() {
+                let var_index = if let Some(Ok(ref map)) = var_index_map {
+                    match map.get(i as u32) {
+                        Ok(index) => index,
+                        Err(_) => continue,
+                    }
+                } else {
+                    DeltaSetIndex {
+                        outer: 0,
+                        inner: i as u16,
+                    }
+                };
+                if let Ok(delta) = varstore.compute_float_delta(var_index, coords_2dot14) {
+                    *coord =
+                        apply_avar2_delta(*coord, delta.to_f64()).clamp(Fixed::NEG_ONE, Fixed::ONE);
                 }
             }
         }
-        normalized_coords.copy_from_slice(new_coords);
+
+        for (target_coord, coord) in normalized_coords[..actual_len]
+            .iter_mut()
+            .zip(fixed_coords.iter())
+        {
+            *target_coord = coord.to_f2dot14();
+        }
     }
 }
 
@@ -289,5 +352,16 @@ mod tests {
         // output array too large
         let mut normalized_coords = [F2Dot14::default(); 4];
         fvar.user_to_normalized(avar.as_ref(), [], &mut normalized_coords);
+    }
+
+    #[test]
+    fn avar2_preserves_16_16_precision_until_final_rounding() {
+        // Quantizing to 2.14 before applying the avar2 delta would produce 0x0002
+        // here, but HarfBuzz's 16.16 path produces 0x0001.
+        let coord = Fixed::from_bits(3);
+        assert_eq!(
+            super::apply_avar2_delta(coord, 0.5).to_f2dot14(),
+            F2Dot14::from_bits(1)
+        );
     }
 }
