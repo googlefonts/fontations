@@ -2309,5 +2309,4 @@ mod tests {
             DeltaSetIndex { outer: 1, inner: 2 }
         );
     }
-
 }
