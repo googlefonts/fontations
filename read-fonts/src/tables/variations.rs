@@ -1445,6 +1445,12 @@ impl DeltaSetIndexMap<'_> {
             Self::Format0(fmt) => (fmt.entry_format(), fmt.map_count() as u32, fmt.map_data()),
             Self::Format1(fmt) => (fmt.entry_format(), fmt.map_count(), fmt.map_data()),
         };
+        if map_count == 0 {
+            return Ok(DeltaSetIndex {
+                outer: (index >> 16) as u16,
+                inner: index as u16,
+            });
+        }
         let entry_size = entry_format.entry_size();
         let data = FontData::new(data);
         // "if an index into the mapping array is used that is greater than or equal to
@@ -2289,6 +2295,19 @@ mod tests {
             count += iter_deltas.len();
         }
         assert!(count != 0);
+    }
+
+    #[test]
+    fn delta_set_index_map_empty_is_identity() {
+        let data = BeBuffer::new()
+            .push(0u8) // format 0
+            .push(EntryFormat::empty())
+            .push(0u16); // map_count
+        let map = DeltaSetIndexMap::read(data.data().into()).unwrap();
+        assert_eq!(
+            map.get(0x0001_0002).unwrap(),
+            DeltaSetIndex { outer: 1, inner: 2 }
+        );
     }
 
 }
