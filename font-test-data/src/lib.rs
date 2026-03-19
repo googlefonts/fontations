@@ -95,6 +95,7 @@ pub static VORG: &[u8] = include_bytes!("../test_data/ttf/vorg.ttf");
 pub static AHEM: &[u8] = include_bytes!("../test_data/ttf/ahem.ttf");
 
 pub static AVAR2_CHECKER: &[u8] = include_bytes!("../test_data/ttf/avar2checker.ttf");
+pub static AMSTELVAR_AVAR2_A: &[u8] = include_bytes!("../test_data/ttf/Amstelvar-avar2.A.ttf");
 
 pub static MATERIAL_ICONS_SUBSET: &[u8] =
     include_bytes!("../test_data/ttf/material_icons_subset.ttf");
