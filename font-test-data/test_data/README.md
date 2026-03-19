@@ -101,6 +101,12 @@ Describes the provenance, usage and generation procedures for font data used for
   * license: [Apache 2][Apache2]
   * usage: testing avar2 userspace to normalized coordinate mapping
 
+* _Amstelvar-avar2.A_
+  * font: Amstelvar avar2 repro subset
+  * source: local repro extracted from Amstelvar
+  * license: same as upstream Amstelvar source font
+  * usage: testing avar2 hidden-axis clamping at `wght=1000`
+
 * _tinos_subset_
   * font: Tinos Regular
   * source: https://fonts.google.com/specimen/Tinos

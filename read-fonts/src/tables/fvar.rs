@@ -364,4 +364,23 @@ mod tests {
             F2Dot14::from_bits(1)
         );
     }
+
+    #[test]
+    fn avar2_clamps_hidden_axis_for_amstelvar_repro() {
+        let font = FontRef::new(font_test_data::AMSTELVAR_AVAR2_A).unwrap();
+        let avar = font.avar().ok();
+        let fvar = font.fvar().unwrap();
+        let mut normalized_coords = [F2Dot14::ZERO; 12];
+
+        fvar.user_to_normalized(
+            avar.as_ref(),
+            [(Tag::new(b"wght"), Fixed::from_f64(1000.0))],
+            &mut normalized_coords,
+        );
+
+        assert_eq!(normalized_coords[1], F2Dot14::from_bits(-5370)); // XTRA
+        assert_eq!(normalized_coords[2], F2Dot14::ONE); // XOPQ clamped from > 1
+        assert_eq!(normalized_coords[3], F2Dot14::from_bits(2254)); // YOPQ
+        assert_eq!(normalized_coords[11], F2Dot14::ONE); // wght
+    }
 }
