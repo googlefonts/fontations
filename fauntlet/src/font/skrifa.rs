@@ -14,6 +14,7 @@ use skrifa::{
     GlyphId, MetadataProvider, OutlineGlyphCollection,
 };
 
+#[allow(clippy::large_enum_variant)]
 pub enum SkrifaInstance<'a> {
     Sfnt(SkrifaSfntInstance<'a>),
     Type1(SkrifaType1Instance<'a>),

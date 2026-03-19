@@ -58,22 +58,17 @@ pub fn compare_glyphs(
         // only for TrueType and Type1 glyphs)
         if let Some(skrifa_advance) = maybe_skrifa_advance {
             if ft_advance != skrifa_advance {
-                let have_mismatch = if let Some((hvar_adv, gvar_adv)) =
-                    skrifa_instance.hvar_and_gvar_advance_deltas(gid)
-                {
-                    // Some fonts have slight discrepancies between HVAR and
-                    // gvar advance deltas.
-                    // If these _are_ the same but the scaler computed advance
-                    // is different then we definitely have a bug.
-                    // If the difference is greater than 1 then we might have
-                    // a bug.
-                    if hvar_adv == gvar_adv || (ft_advance - skrifa_advance).abs() > 1.0 {
-                        true
-                    } else {
-                        false
+                // Some fonts have slight discrepancies between HVAR and
+                // gvar advance deltas.
+                // If these _are_ the same but the scaler computed advance
+                // is different then we definitely have a bug.
+                // If the difference is greater than 1 then we might have
+                // a bug.
+                let have_mismatch = match skrifa_instance.hvar_and_gvar_advance_deltas(gid) {
+                    Some((hvar_adv, gvar_adv)) => {
+                        hvar_adv == gvar_adv || (ft_advance - skrifa_advance).abs() > 1.0
                     }
-                } else {
-                    true
+                    _ => true,
                 };
                 if have_mismatch {
                     writeln!(

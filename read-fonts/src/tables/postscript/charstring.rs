@@ -257,7 +257,6 @@ where
     ) -> Result<bool, Error> {
         use Operator::*;
         use PointMode::*;
-        // println!("{operator:?}");
         match operator {
             // The following "flex" operators are intended to emit
             // either two curves or a straight line depending on

@@ -219,7 +219,7 @@ impl<'a> CffFontRef<'a> {
         if let Some(width) = charstring::evaluate(&ctx, blend, charstring_data, sink)? {
             Ok(Some(width + subfont.nominal_width))
         } else {
-            Ok(Some(subfont.default_width))
+            Ok(subfont.default_width)
         }
     }
 
@@ -273,7 +273,7 @@ enum CffFontKind<'a> {
 #[derive(Copy, Clone, Default, Debug)]
 pub struct CffSubfont {
     subrs_offset: u32,
-    default_width: Fixed,
+    default_width: Option<Fixed>,
     nominal_width: Fixed,
     matrix: Option<ScaledFontMatrix>,
     vs_index: u16,
@@ -301,7 +301,7 @@ impl CffSubfont {
                         as u32;
                 }
                 dict::Entry::VariationStoreIndex(index) => subfont.vs_index = index,
-                dict::Entry::DefaultWidthX(width) => subfont.default_width = width,
+                dict::Entry::DefaultWidthX(width) => subfont.default_width = Some(width),
                 dict::Entry::NominalWidthX(width) => subfont.nominal_width = width,
                 _ => {}
             }
@@ -331,7 +331,7 @@ impl CffSubfont {
                         as u32;
                 }
                 dict::Entry::VariationStoreIndex(index) => subfont.vs_index = index,
-                dict::Entry::DefaultWidthX(width) => subfont.default_width = width,
+                dict::Entry::DefaultWidthX(width) => subfont.default_width = Some(width),
                 dict::Entry::NominalWidthX(width) => subfont.nominal_width = width,
                 dict::Entry::BlueValues(values) => params.blues = values,
                 dict::Entry::FamilyBlues(values) => params.family_blues = values,
@@ -356,7 +356,7 @@ impl CffSubfont {
     /// Returns the default advance width.
     ///
     /// The advance value for charstrings that do not contain a width.
-    pub fn default_width(&self) -> Fixed {
+    pub fn default_width(&self) -> Option<Fixed> {
         self.default_width
     }
 
@@ -660,7 +660,7 @@ mod tests {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
         let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
         let subfont = cff.subfont(0, &[]).unwrap();
-        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::from_i32(598));
         assert_eq!(subfont.vs_index, 0);
         assert_eq!(subfont.matrix, None);
@@ -675,7 +675,7 @@ mod tests {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
         let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
         let (subfont, hinting) = cff.subfont_hinted(0, &[]).unwrap();
-        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::from_i32(598));
         assert_eq!(subfont.vs_index, 0);
         assert_eq!(subfont.matrix, None);
@@ -697,7 +697,7 @@ mod tests {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
         let cff = CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
         let subfont = cff.subfont(0, &[]).unwrap();
-        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::ZERO);
         assert_eq!(subfont.vs_index, 0);
         assert_eq!(subfont.matrix, None);
@@ -708,7 +708,7 @@ mod tests {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
         let cff = CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
         let (subfont, hinting) = cff.subfont_hinted(0, &[]).unwrap();
-        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::ZERO);
         assert_eq!(subfont.vs_index, 0);
         assert_eq!(subfont.matrix, None);
@@ -730,7 +730,7 @@ mod tests {
         let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET_MATRIX).unwrap();
         let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
         let subfont = cff.subfont(0, &[]).unwrap();
-        assert_eq!(subfont.default_width, Fixed::ZERO);
+        assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::ZERO);
         assert_eq!(subfont.vs_index, 0);
         let expected_matrix = FontMatrix([
