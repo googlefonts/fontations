@@ -103,8 +103,8 @@ Describes the provenance, usage and generation procedures for font data used for
 
 * _Amstelvar-avar2.A_
   * font: Amstelvar avar2 repro subset
-  * source: local repro extracted from Amstelvar
-  * license: same as upstream Amstelvar source font
+  * source: https://github.com/googlefonts/amstelvar-avar2/tree/main/Fonts
+  * license: [Open Font License][OFL]
   * usage: testing avar2 hidden-axis clamping at `wght=1000`
 
 * _tinos_subset_
