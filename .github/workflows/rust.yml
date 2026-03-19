@@ -58,6 +58,9 @@ jobs:
       - name: cargo clippy skera (1.85)
         run: cargo clippy -p skera --all-features --all-targets -- -D warnings
 
+      - name: cargo clippy fauntlet (1.85)
+        run: cargo clippy -p fauntlet --all-features --all-targets -- -D warnings
+
   test-stable:
     name: cargo test stable
     runs-on: ubuntu-latest

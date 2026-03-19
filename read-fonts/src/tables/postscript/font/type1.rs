@@ -121,6 +121,27 @@ impl Type1Font {
         Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(self.upem().max(1))
     }
 
+    /// Applies font matrix and scale to a horizontal metric (such as advance
+    /// width).
+    pub fn transform_h_metric(&self, scale: Option<Fixed>, mut metric: Fixed) -> Fixed {
+        metric = Fixed::from_bits(metric.to_i32());
+        let matrix = &self.matrix.matrix.0;
+        if matrix[0] != Fixed::ONE {
+            // x scale
+            metric *= matrix[0];
+        }
+        // x translation
+        metric += matrix[4];
+        if let Some(scale) = scale {
+            // Multiplying by scale converts to 26.6 but we want to keep the
+            // result in 16.16
+            Fixed::from_bits((metric * scale).to_bits() << 10)
+        } else {
+            // Metric is currently in font units. Convert back to 16.16
+            Fixed::from_bits(metric.to_bits() << 16)
+        }
+    }
+
     /// Returns an iterator over the pairs of glyph ids and associated names in
     /// the Type1 font.
     pub fn glyph_names(&self) -> impl Iterator<Item = (GlyphId, &str)> {
@@ -134,7 +155,7 @@ impl Type1Font {
         &self,
         gid: GlyphId,
         sink: &mut impl CommandSink,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<Fixed>, Error> {
         let charstring_data = self
             .charstrings
             .get(gid.to_u32())
@@ -292,6 +313,7 @@ fn find_eexec_data(data: &[u8]) -> Option<usize> {
                 b'\r' => {
                     // Only stop at \r if it is not followed by \n
                     if data.get(start + 1) != Some(&b'\n') {
+                        start += 1;
                         break;
                     }
                 }
@@ -1297,7 +1319,7 @@ mod tests {
         // Only skip \r when it precedes \n
         assert_eq!(
             find_eexec_data(b"dup\n/Private\ncurrentfile eexec\r\n\r*&&FW"),
-            Some(32)
+            Some(33)
         );
         // Skip eexec in comments and strings
         assert_eq!(
@@ -1852,6 +1874,25 @@ mod tests {
             font.evaluate_charstring(gid.into(), &mut commands).unwrap();
             assert!(commands.to_svg().starts_with(expected_prefix));
         }
+    }
+
+    #[test]
+    fn eval_charstring_widths() {
+        let font = Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
+        let expected_widths = [
+            600.0, 793.0, 369.0, 320.0, 578.0, 708.0, 1002.0, 663.0, 680.0,
+        ];
+        let mut commands = CaptureCommandSink::default();
+        let widths = (0..font.num_glyphs())
+            .map(|gid| {
+                commands.0.clear();
+                font.evaluate_charstring(gid.into(), &mut commands)
+                    .unwrap()
+                    .unwrap()
+                    .to_f32()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(widths, expected_widths);
     }
 
     #[test]

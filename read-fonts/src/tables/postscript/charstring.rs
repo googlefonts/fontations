@@ -132,11 +132,12 @@ pub fn evaluate<'a>(
     blend_state: Option<BlendState<'a>>,
     charstring_data: &[u8],
     sink: &'a mut impl CommandSink,
-) -> Result<(), Error> {
+) -> Result<Option<Fixed>, Error> {
     let mut evaluator = Evaluator::new(context, blend_state, sink);
     evaluator.evaluate(charstring_data, 0)?;
+    let width = evaluator.have_read_width.then_some(evaluator.wx);
     sink.finish();
-    Ok(())
+    Ok(width)
 }
 
 /// Specifies how the seac operation was invoked.
@@ -235,6 +236,9 @@ where
                         if !self.evaluate_operator(operator, &mut cursor, nesting_depth)? {
                             break;
                         }
+                    } else {
+                        // Clear the stack for unknown operators
+                        self.reset_stack();
                     }
                 }
             }
@@ -285,15 +289,19 @@ where
             // Set the variation store index
             // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2charstr#syntax-for-font-variations-support-operators>
             VariationStoreIndex => {
-                let blend_state = self.blend_state.as_mut().ok_or(Error::MissingBlendState)?;
-                let store_index = self.stack.pop_i32()? as u16;
-                blend_state.set_store_index(store_index)?;
+                if !self.is_type1 {
+                    let blend_state = self.blend_state.as_mut().ok_or(Error::MissingBlendState)?;
+                    let store_index = self.stack.pop_i32()? as u16;
+                    blend_state.set_store_index(store_index)?;
+                }
             }
             // Apply blending to the current operand stack
             // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2charstr#syntax-for-font-variations-support-operators>
             Blend => {
-                let blend_state = self.blend_state.as_ref().ok_or(Error::MissingBlendState)?;
-                self.stack.apply_blend(blend_state)?;
+                if !self.is_type1 {
+                    let blend_state = self.blend_state.as_ref().ok_or(Error::MissingBlendState)?;
+                    self.stack.apply_blend(blend_state)?;
+                }
             }
             // Return from the current subroutine
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=29>
@@ -307,7 +315,7 @@ where
                 if self.stack.len() == 4 || self.stack.len() == 5 && !self.have_read_width {
                     self.handle_seac(SeacMode::Implicit, nesting_depth)?;
                 } else if !self.stack.is_empty() && !self.have_read_width {
-                    self.have_read_width = true;
+                    self.read_width()?;
                     self.stack.clear();
                 }
                 if self.is_open {
@@ -322,7 +330,7 @@ where
             HStem | VStem | HStemHm | VStemHm => {
                 let mut i = 0;
                 let len = if self.stack.len_is_odd() && !self.have_read_width {
-                    self.have_read_width = true;
+                    self.read_width()?;
                     i = 1;
                     self.stack.len() - 1
                 } else {
@@ -356,7 +364,7 @@ where
             HintMask | CntrMask => {
                 let mut i = 0;
                 let len = if self.stack.len_is_odd() && !self.have_read_width {
-                    self.have_read_width = true;
+                    self.read_width()?;
                     i = 1;
                     self.stack.len() - 1
                 } else {
@@ -388,7 +396,7 @@ where
             RMoveTo => {
                 let mut i = 0;
                 if self.stack.len() == 3 && !self.have_read_width {
-                    self.have_read_width = true;
+                    self.read_width()?;
                     i = 1;
                 }
                 if !self.is_flexing {
@@ -411,7 +419,7 @@ where
             HMoveTo | VMoveTo => {
                 let mut i = 0;
                 if self.stack.len() == 2 && !self.have_read_width {
-                    self.have_read_width = true;
+                    self.read_width()?;
                     i = 1;
                 }
                 if self.is_flexing {
@@ -448,7 +456,7 @@ where
                     let [dx, dy] = self.stack.fixed_array::<2>(i)?;
                     self.x += dx;
                     self.y += dy;
-                    self.sink.line_to(self.x, self.y);
+                    self.emit_line(self.x, self.y);
                     i += 2;
                 }
                 self.reset_stack();
@@ -467,7 +475,7 @@ where
                         self.y += delta;
                     }
                     is_x = !is_x;
-                    self.sink.line_to(self.x, self.y);
+                    self.emit_line(self.x, self.y);
                 }
                 self.reset_stack();
             }
@@ -477,12 +485,14 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=17>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2789>
             HhCurveTo => {
-                if self.stack.len_is_odd() {
-                    self.y += self.stack.get_fixed(0)?;
-                    self.stack_ix = 1;
-                }
-                // We need at least 4 coordinates to emit these curves
-                while self.coords_remaining() >= 4 {
+                let count1 = self.stack.len();
+                let count = count1 & !2;
+                self.stack_ix = count1 - count;
+                while self.stack_ix < count {
+                    if (count - self.stack_ix) & 1 != 0 {
+                        self.y += self.stack.get_fixed(self.stack_ix)?;
+                        self.stack_ix += 1;
+                    }
                     self.emit_curves([DxY, DxDy, DxY])?;
                 }
                 self.reset_stack();
@@ -518,7 +528,7 @@ where
                     let [dx, dy] = self.stack.fixed_array::<2>(self.stack_ix)?;
                     self.x += dx;
                     self.y += dy;
-                    self.sink.line_to(self.x, self.y);
+                    self.emit_line(self.x, self.y);
                 }
                 self.reset_stack();
             }
@@ -530,7 +540,7 @@ where
                     let [dx, dy] = self.stack.fixed_array::<2>(self.stack_ix)?;
                     self.x += dx;
                     self.y += dy;
-                    self.sink.line_to(self.x, self.y);
+                    self.emit_line(self.x, self.y);
                     self.stack_ix += 2;
                 }
                 self.emit_curves([DxDy; 3])?;
@@ -542,11 +552,14 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=18>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2744>
             VvCurveTo => {
-                if self.stack.len_is_odd() {
-                    self.x += self.stack.get_fixed(0)?;
-                    self.stack_ix = 1;
-                }
-                while self.coords_remaining() > 0 {
+                let count1 = self.stack.len();
+                let count = count1 & !2;
+                self.stack_ix = count1 - count;
+                while self.stack_ix < count {
+                    if (count - self.stack_ix) & 1 != 0 {
+                        self.x += self.stack.get_fixed(self.stack_ix)?;
+                        self.stack_ix += 1;
+                    }
                     self.emit_curves([XDy, DxDy, XDy])?;
                 }
                 self.reset_stack();
@@ -571,8 +584,8 @@ where
             Hsbw => {
                 if self.is_type1 {
                     let [sbx, wx] = self.stack.fixed_array(0)?;
-                    self.sbx = sbx;
-                    self.x = sbx;
+                    self.sbx += sbx;
+                    self.x += sbx;
                     self.wx = wx;
                     self.have_read_width = true;
                     self.reset_stack();
@@ -594,9 +607,9 @@ where
             Sbw => {
                 if self.is_type1 {
                     let [x, y, wx, _wy] = self.stack.fixed_array(0)?;
-                    self.x = x;
-                    self.y = y;
-                    self.sbx = x;
+                    self.x += x;
+                    self.y += y;
+                    self.sbx += x;
                     self.wx = wx;
                     self.have_read_width = true;
                     self.reset_stack();
@@ -613,6 +626,7 @@ where
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1199>
             HStem3 | VStem3 => {
                 // Currently unimplemented.
+                self.reset_stack();
             }
             // Division operator.
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=60>
@@ -632,11 +646,17 @@ where
                     // stack.
                     (0, 3) => {
                         self.is_flexing = false;
+                        self.ensure_open();
                         self.handle_flex()?;
                     }
                     // Begin flex. Accumulate vectors from moveto operators.
                     (1, 0) => {
                         self.is_flexing = true;
+                    }
+                    // Counter control hints.
+                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1817>
+                    (12 | 13, _) => {
+                        self.reset_stack();
                     }
                     // Handle blends for multiple masters.
                     // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1823>
@@ -673,6 +693,12 @@ where
         Ok(true)
     }
 
+    fn read_width(&mut self) -> Result<(), Error> {
+        self.wx = self.stack.get_fixed(0)?;
+        self.have_read_width = true;
+        Ok(())
+    }
+
     /// See `endchar` in Appendix C at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=35>
     fn handle_seac(&mut self, mode: SeacMode, nesting_depth: u32) -> Result<(), Error> {
         // handle seac operator
@@ -686,16 +712,23 @@ where
             // Type1 has an additional side bearing argument
             self.stack.pop_fixed()?
         } else if !self.stack.is_empty() && !self.have_read_width {
-            self.stack.pop_i32()?;
+            self.wx = self.stack.pop_fixed()?;
             self.have_read_width = true;
             Fixed::ZERO
         } else {
             Fixed::ZERO
         };
+        // Save metrics to potentially restore later.
+        let mut sbx = self.sbx;
+        let mut wx = self.wx;
+        let have_metrics = self.have_read_width;
         struct Component<'a> {
             charstring: &'a [u8],
             x: Fixed,
             y: Fixed,
+            /// True if we want to use metrics from this component
+            /// if the original charstring does not provide any
+            maybe_use_metrics: bool,
         }
         let x = self.x;
         let y = self.y;
@@ -710,6 +743,9 @@ where
                 charstring: base_charstring,
                 x: bx,
                 y: by,
+                // In explicit seac mode, use the metrics of the base component
+                // if the original charstring didn't provide any
+                maybe_use_metrics: mode == SeacMode::Explicit,
             },
             Component {
                 charstring: accent_charstring,
@@ -717,6 +753,7 @@ where
                 // anyway
                 x: dx + self.sbx - sb,
                 y: dy,
+                maybe_use_metrics: false,
             },
         ];
         // FreeType evaluates accent first for implicit seac but base first
@@ -732,12 +769,19 @@ where
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1443>
         // and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L540>
         for component in components {
+            self.have_read_width = false;
             self.sink.clear_hints();
             self.stem_count = 0;
             self.x = component.x;
             self.y = component.y;
             self.evaluate(component.charstring, nesting_depth + 1)?;
+            if component.maybe_use_metrics && !have_metrics {
+                sbx = self.sbx;
+                wx = self.wx;
+            }
         }
+        self.sbx = sbx;
+        self.wx = wx;
         Ok(())
     }
 
@@ -832,12 +876,25 @@ where
         self.stack.len().saturating_sub(self.stack_ix)
     }
 
+    fn ensure_open(&mut self) {
+        if !self.is_open {
+            self.sink.move_to(Fixed::ZERO, Fixed::ZERO);
+            self.is_open = true;
+        }
+    }
+
+    fn emit_line(&mut self, x: Fixed, y: Fixed) {
+        self.ensure_open();
+        self.sink.line_to(x, y);
+    }
+
     fn emit_curves<const N: usize>(&mut self, modes: [PointMode; N]) -> Result<(), Error> {
         use PointMode::*;
         let initial_x = self.x;
         let initial_y = self.y;
         let mut count = 0;
         let mut points = [Point::default(); 2];
+        self.ensure_open();
         for mode in modes {
             let stack_used = match mode {
                 DxDy => {
@@ -1869,6 +1926,7 @@ mod tests {
         let none: [i32; 0] = [];
         op!(none, SetCurrentPoint);
         let expected = [
+            Command::MoveTo(Fixed::ZERO, Fixed::ZERO),
             Command::CurveTo(
                 Fixed::from_i32(2),
                 Fixed::from_i32(4),
