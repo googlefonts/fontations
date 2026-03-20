@@ -42,15 +42,15 @@ serde_json = "1.0"
 # default-features enabled by `skrifa`. Other crates using `read-fonts`
 # that want default features will have to enable them directly.
 font-test-data = { path = "font-test-data" }
-font-types = { version = "0.11.0", path = "font-types" }
-read-fonts = { version = "0.37.0", path = "read-fonts", default-features = false }
+font-types = { version = "0.11.1", path = "font-types" }
+read-fonts = { version = "0.38.0", path = "read-fonts", default-features = false }
 # Disable default-features so that fauntlet can use skrifa without autohint
 # shaping support
-skrifa = { version = "0.40.0", path = "skrifa", default-features = false, features = ["std"] }
-write-fonts = { version = "0.45.0", path = "write-fonts" }
+skrifa = { version = "0.41.0", path = "skrifa", default-features = false, features = ["std"] }
+write-fonts = { version = "0.46.0", path = "write-fonts" }
 shared-brotli-patch-decoder = { version = "0.1.0", path = "shared-brotli-patch-decoder", default-features = false }
 incremental-font-transfer = { version = "0.1.0", path = "incremental-font-transfer" }
-skera = { version = "0.1.0", path = "skera" }
+skera = { version = "0.1.1", path = "skera" }
 
 [workspace.metadata.release]
 allow-branch = ["main"]
