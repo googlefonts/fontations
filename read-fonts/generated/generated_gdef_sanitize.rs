@@ -19,8 +19,18 @@ impl Sanitize for Gdef<'_> {
         if let Some(r) = self.mark_attach_class_def() {
             r?.sanitize()?;
         }
+        if self.version().compatible((1u16, 2u16)) && self.mark_glyph_sets_def_offset().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(mark_glyph_sets_def_offset),
+            });
+        }
         if let Some(r) = self.mark_glyph_sets_def() {
             r?.sanitize()?;
+        }
+        if self.version().compatible((1u16, 3u16)) && self.item_var_store_offset().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(item_var_store_offset),
+            });
         }
         if let Some(r) = self.item_var_store() {
             r?.sanitize()?;
@@ -42,6 +52,10 @@ impl Sanitize for AttachList<'_> {
 
 impl Sanitize for AttachPoint<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.point_indices_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }

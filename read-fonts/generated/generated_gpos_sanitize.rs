@@ -10,6 +10,11 @@ impl Sanitize for Gpos<'_> {
         sanitize_ignoring_null(self.script_list())?;
         sanitize_ignoring_null(self.feature_list())?;
         sanitize_ignoring_null(self.lookup_list())?;
+        if self.version().compatible((1u16, 1u16)) && self.feature_variations_offset().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(feature_variations_offset),
+            });
+        }
         if let Some(r) = self.feature_variations() {
             r?.sanitize()?;
         }

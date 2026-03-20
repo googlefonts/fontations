@@ -10,6 +10,11 @@ impl Sanitize for Gsub<'_> {
         sanitize_ignoring_null(self.script_list())?;
         sanitize_ignoring_null(self.feature_list())?;
         sanitize_ignoring_null(self.lookup_list())?;
+        if self.version().compatible((1u16, 1u16)) && self.feature_variations_offset().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(feature_variations_offset),
+            });
+        }
         if let Some(r) = self.feature_variations() {
             r?.sanitize()?;
         }
@@ -53,6 +58,10 @@ impl Sanitize for SingleSubstFormat1<'_> {
 impl Sanitize for SingleSubstFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        let range = self.substitute_glyph_ids_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
@@ -70,6 +79,10 @@ impl Sanitize for MultipleSubstFormat1<'_> {
 
 impl Sanitize for Sequence<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.substitute_glyph_ids_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
@@ -87,6 +100,10 @@ impl Sanitize for AlternateSubstFormat1<'_> {
 
 impl Sanitize for AlternateSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.alternate_glyph_ids_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
@@ -114,6 +131,10 @@ impl Sanitize for LigatureSet<'_> {
 
 impl Sanitize for Ligature<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.component_glyph_ids_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
@@ -150,6 +171,10 @@ impl Sanitize for ReverseChainSingleSubstFormat1<'_> {
         let arr = self.lookahead_coverages();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
+        }
+        let range = self.substitute_glyph_ids_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
     }

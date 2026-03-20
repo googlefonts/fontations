@@ -1074,6 +1074,18 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
         }
 
         let field_name = &field.name;
+
+        // Conditional presence check: if the condition is met but the field is absent
+        // (i.e., the data is too short to include it), the table is malformed.
+        if let Some(cond_attr) = &field.attrs.conditional {
+            let condition = cond_attr.condition_tokens_for_read();
+            stmts.push(quote! {
+                if #condition && self.#field_name().is_none() {
+                    return Err(ReadError::MissingFieldForCondition { field: stringify!( #field_name ) });
+                }
+            });
+        }
+
         let stmt = match &field.typ {
             FieldType::Scalar { .. } => continue,
             FieldType::Struct { .. } => continue,
@@ -1107,7 +1119,15 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
             }
 
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-                FieldType::Scalar { .. } => continue,
+                FieldType::Scalar { .. } => {
+                    let range_fn = field.shape_byte_range_fn_name();
+                    quote! {
+                        let range = self.#range_fn();
+                        if range.end > self.offset_data().len() {
+                            return Err(ReadError::InvalidArrayLen);
+                        }
+                    }
+                }
 
                 FieldType::Struct { typ } => {
                     let range_fn = field.shape_byte_range_fn_name();

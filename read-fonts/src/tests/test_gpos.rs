@@ -280,6 +280,31 @@ fn anchorformat3() {
 //}[1, 1, 1, 1, 1]
 
 #[test]
+fn sanitize_version_conditional_field_absent() {
+    use crate::sanitize::Sanitize;
+    use crate::FontData;
+    // GPOS 1.1 header: major=1, minor=1, all three base offsets = 0 (null).
+    // feature_variations_offset (Offset32) is required in v1.1 at bytes [10..13]
+    // but the data ends at byte 10, so the field is absent.
+    let bytes: &[u8] = &[
+        0x00, 0x01, // major version = 1
+        0x00, 0x01, // minor version = 1  (v1.1)
+        0x00, 0x00, // script_list_offset  = 0 (null)
+        0x00, 0x00, // feature_list_offset = 0 (null)
+        0x00,
+        0x00, // lookup_list_offset  = 0 (null)
+              // feature_variations_offset absent (would need bytes 10..13)
+    ];
+    let table = Gpos::read(FontData::new(bytes)).unwrap();
+    assert_eq!(
+        table.sanitize(),
+        Err(ReadError::MissingFieldForCondition {
+            field: "feature_variations_offset"
+        })
+    );
+}
+
+#[test]
 fn sanitize_null_offset_is_ok() {
     use crate::sanitize::Sanitize;
     use crate::FontData;

@@ -924,6 +924,40 @@ mod tests {
     }
 
     #[test]
+    fn sanitize_scalar_array_oob() {
+        // CoverageFormat1: format=1, glyph_count=100 (0x64), but only 2 actual glyphs of data.
+        // glyph_array_byte_range = 4..4+200 = 4..204, which exceeds the 6-byte data.
+        use crate::sanitize::Sanitize;
+        let bytes: &[u8] = &[
+            0x00, 0x01, // coverage_format = 1
+            0x00, 0x64, // glyph_count = 100
+            0x00, 0x01, // one actual glyph entry (truncated)
+        ];
+        let table = CoverageFormat1::read(FontData::new(bytes)).unwrap();
+        assert_eq!(table.sanitize(), Err(ReadError::InvalidArrayLen));
+    }
+
+    #[test]
+    fn sanitize_flag_conditional_field_absent() {
+        // Lookup with USE_MARK_FILTERING_SET (0x0010) set but mark_filtering_set absent.
+        // Data is exactly MIN_SIZE (6 bytes): the field would be at [6..7] but is missing.
+        use crate::sanitize::Sanitize;
+        let bytes: &[u8] = &[
+            0x00, 0x01, // lookup_type = 1
+            0x00, 0x10, // lookup_flag = 0x0010 (USE_MARK_FILTERING_SET)
+            0x00, 0x00, // sub_table_count = 0
+                  // mark_filtering_set absent
+        ];
+        let table = Lookup::<SequenceContextFormat1>::read(FontData::new(bytes)).unwrap();
+        assert_eq!(
+            table.sanitize(),
+            Err(ReadError::MissingFieldForCondition {
+                field: "mark_filtering_set"
+            })
+        );
+    }
+
+    #[test]
     fn bit_storage_tests() {
         assert_eq!(bit_storage(0), 0);
         assert_eq!(bit_storage(1), 1);

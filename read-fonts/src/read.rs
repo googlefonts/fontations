@@ -116,6 +116,7 @@ pub trait VarSize {
 
 /// An error that occurs when reading font data
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum ReadError {
     OutOfBounds,
     // i64 is flexible enough to store any value we might encounter
@@ -128,6 +129,7 @@ pub enum ReadError {
     NullOffset,
     TableIsMissing(Tag),
     MetricIsMissing(Tag),
+    MissingFieldForCondition { field: &'static str },
     MalformedData(&'static str),
 }
 
@@ -149,6 +151,9 @@ impl std::fmt::Display for ReadError {
             ReadError::TableIsMissing(tag) => write!(f, "the {tag} table is missing"),
             ReadError::MetricIsMissing(tag) => write!(f, "the {tag} metric is missing"),
             ReadError::MalformedData(msg) => write!(f, "Malformed data: '{msg}'"),
+            ReadError::MissingFieldForCondition { field } => {
+                write!(f, "Missing expected field '{field}'")
+            }
         }
     }
 }

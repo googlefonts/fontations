@@ -54,6 +54,10 @@ impl SanitizeRecord for LangSysRecord {
 
 impl Sanitize for LangSys<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.feature_indices_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
@@ -85,6 +89,10 @@ impl Sanitize for Feature<'_> {
         if let Some(r) = self.feature_params() {
             r?.sanitize()?;
         }
+        let range = self.lookup_list_indices_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
@@ -105,12 +113,25 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for Lookup<'a, T> {
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
         }
+        if self
+            .lookup_flag()
+            .contains(LookupFlag::USE_MARK_FILTERING_SET)
+            && self.mark_filtering_set().is_none()
+        {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(mark_filtering_set),
+            });
+        }
         Ok(())
     }
 }
 
 impl Sanitize for CoverageFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.glyph_array_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
@@ -144,6 +165,10 @@ impl<'a> Sanitize for CoverageTable<'a> {
 
 impl Sanitize for ClassDefFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.class_value_array_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
@@ -205,6 +230,10 @@ impl Sanitize for SequenceRuleSet<'_> {
 
 impl Sanitize for SequenceRule<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.input_sequence_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let range = self.seq_lookup_records_byte_range();
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
@@ -237,6 +266,10 @@ impl Sanitize for ClassSequenceRuleSet<'_> {
 
 impl Sanitize for ClassSequenceRule<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.input_sequence_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let range = self.seq_lookup_records_byte_range();
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
@@ -293,6 +326,18 @@ impl Sanitize for ChainedSequenceRuleSet<'_> {
 
 impl Sanitize for ChainedSequenceRule<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.backtrack_sequence_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        let range = self.input_sequence_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        let range = self.lookahead_sequence_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let range = self.seq_lookup_records_byte_range();
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
@@ -327,6 +372,18 @@ impl Sanitize for ChainedClassSequenceRuleSet<'_> {
 
 impl Sanitize for ChainedClassSequenceRule<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.backtrack_sequence_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        let range = self.input_sequence_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        let range = self.lookahead_sequence_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let range = self.seq_lookup_records_byte_range();
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
@@ -370,6 +427,10 @@ impl<'a> Sanitize for ChainedSequenceContext<'a> {
 
 impl Sanitize for Device<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.delta_value_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
@@ -520,6 +581,10 @@ impl Sanitize for StylisticSetParams<'_> {
 
 impl Sanitize for CharacterVariantParams<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        let range = self.character_byte_range();
+        if range.end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         Ok(())
     }
 }
