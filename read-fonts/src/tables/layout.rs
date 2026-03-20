@@ -30,6 +30,7 @@ pub use closure::Intersect;
 mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
+include!("../../generated/generated_layout_sanitize.rs");
 
 impl<'a, T: FontRead<'a>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
@@ -150,6 +151,12 @@ impl<'a> SomeTable<'a> for FeatureParams<'a> {
             FeatureParams::Size(table) => table.get_field(idx),
             FeatureParams::CharacterVariant(table) => table.get_field(idx),
         }
+    }
+}
+
+impl crate::sanitize::Sanitize for FeatureParams<'_> {
+    fn sanitize(&self) -> Result<(), crate::ReadError> {
+        Ok(())
     }
 }
 

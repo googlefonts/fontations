@@ -15,6 +15,7 @@ mod closure;
 mod tests;
 
 include!("../../generated/generated_gsub.rs");
+include!("../../generated/generated_gsub_sanitize.rs");
 
 /// A typed GSUB [LookupList] table
 pub type SubstitutionLookupList<'a> = LookupList<'a, SubstitutionLookup<'a>>;

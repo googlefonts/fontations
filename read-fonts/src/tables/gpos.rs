@@ -23,6 +23,7 @@ pub use value_record::{Value, ValueContext, ValueRecord};
 mod spec_tests;
 
 include!("../../generated/generated_gpos.rs");
+include!("../../generated/generated_gpos_sanitize.rs");
 
 /// A typed GPOS [LookupList](super::layout::LookupList) table
 pub type PositionLookupList<'a> = super::layout::LookupList<'a, PositionLookup<'a>>;

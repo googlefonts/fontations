@@ -109,6 +109,11 @@ source = "resources/codegen_inputs/layout.rs"
 target = "write-fonts/generated/generated_layout.rs"
 
 [[generate]]
+mode = "sanitize"
+source = "resources/codegen_inputs/layout.rs"
+target = "read-fonts/generated/generated_layout_sanitize.rs"
+
+[[generate]]
 mode = "parse"
 source = "resources/codegen_inputs/gpos.rs"
 target = "read-fonts/generated/generated_gpos.rs"
@@ -119,6 +124,11 @@ source = "resources/codegen_inputs/gpos.rs"
 target = "write-fonts/generated/generated_gpos.rs"
 
 [[generate]]
+mode = "sanitize"
+source = "resources/codegen_inputs/gpos.rs"
+target = "read-fonts/generated/generated_gpos_sanitize.rs"
+
+[[generate]]
 mode = "parse"
 source = "resources/codegen_inputs/gsub.rs"
 target = "read-fonts/generated/generated_gsub.rs"
@@ -127,6 +137,11 @@ target = "read-fonts/generated/generated_gsub.rs"
 mode = "compile"
 source = "resources/codegen_inputs/gsub.rs"
 target = "write-fonts/generated/generated_gsub.rs"
+
+[[generate]]
+mode = "sanitize"
+source = "resources/codegen_inputs/gsub.rs"
+target = "read-fonts/generated/generated_gsub_sanitize.rs"
 
 [[generate]]
 mode = "parse"
@@ -282,6 +297,11 @@ target = "read-fonts/generated/generated_gdef.rs"
 mode = "compile"
 source = "resources/codegen_inputs/gdef.rs"
 target = "write-fonts/generated/generated_gdef.rs"
+
+[[generate]]
+mode = "sanitize"
+source = "resources/codegen_inputs/gdef.rs"
+target = "read-fonts/generated/generated_gdef_sanitize.rs"
 
 [[generate]]
 mode = "parse"

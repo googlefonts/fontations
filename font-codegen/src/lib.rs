@@ -26,6 +26,8 @@ pub enum Mode {
     Parse,
     /// Generate compilation code
     Compile,
+    /// Generate sanitize impls
+    Sanitize,
 }
 
 pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
@@ -48,6 +50,7 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     let tables = match &mode {
         Mode::Parse => generate_parse_module(&items),
         Mode::Compile => generate_compile_module(&items),
+        Mode::Sanitize => generate_sanitize_module(&items),
     }?;
 
     // 4. Touchup
@@ -119,6 +122,27 @@ pub(crate) fn generate_compile_module(
     })
 }
 
+pub(crate) fn generate_sanitize_module(
+    items: &Items,
+) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let mut code = Vec::new();
+    for item in items.iter() {
+        let item_code = match item {
+            Item::Table(item) => table::generate_sanitize(item, items)?,
+            Item::Format(item) => table::generate_format_sanitize(item)?,
+            Item::GenericGroup(item) => table::generate_group_sanitize(item)?,
+            _ => Default::default(),
+        };
+        code.push(item_code);
+    }
+
+    Ok(quote! {
+        #[allow(unused_imports)]
+        use crate::codegen_prelude::*;
+        #(#code)*
+    })
+}
+
 impl std::str::FromStr for Mode {
     type Err = miette::Error;
 
@@ -126,8 +150,9 @@ impl std::str::FromStr for Mode {
         match s {
             "parse" => Ok(Self::Parse),
             "compile" => Ok(Self::Compile),
+            "sanitize" => Ok(Self::Sanitize),
             other => Err(miette::Error::msg(format!(
-                "expected one of 'parse' or 'compile' (found {other})"
+                "expected one of 'parse', 'compile', or 'sanitize' (found {other})"
             ))),
         }
     }

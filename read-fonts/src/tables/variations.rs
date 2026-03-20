@@ -2,6 +2,12 @@
 
 include!("../../generated/generated_variations.rs");
 
+impl crate::sanitize::Sanitize for ItemVariationStore<'_> {
+    fn sanitize(&self) -> Result<(), crate::ReadError> {
+        Ok(())
+    }
+}
+
 use super::{
     glyf::{PointCoord, PointFlags, PointMarker},
     gvar::GlyphDelta,

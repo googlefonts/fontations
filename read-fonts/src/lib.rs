@@ -107,10 +107,10 @@ pub(crate) mod codegen_prelude {
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
-    //pub(crate) use crate::read::sealed;
     pub use crate::read::{
         ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };
+    pub use crate::sanitize::Sanitize;
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;
     pub use std::ops::Range;

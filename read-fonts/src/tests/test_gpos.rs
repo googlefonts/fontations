@@ -269,7 +269,7 @@ fn anchorformat3() {
 // and so we can't really round-trip this...
 //#[test]
 //fn markarraytable() {
-//// https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-18-markarray-table-and-markrecord
+// https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-18-markarray-table-and-markrecord
 
 //let bytes = [0x00, 0x02, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x01, 0x00, 0x10];
 //let table = MarkArray::read(&bytes).unwrap();
@@ -278,3 +278,19 @@ fn anchorformat3() {
 
 //assert_hex_eq!(&bytes, &dumped);
 //}[1, 1, 1, 1, 1]
+
+#[test]
+fn sanitize_gpos_gdef_gsub() {
+    use crate::sanitize::Sanitize;
+    use crate::TableProvider;
+    let font = crate::FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+    if let Ok(gpos) = font.gpos() {
+        gpos.sanitize().expect("GPOS sanitize failed");
+    }
+    if let Ok(gdef) = font.gdef() {
+        gdef.sanitize().expect("GDEF sanitize failed");
+    }
+    if let Ok(gsub) = font.gsub() {
+        gsub.sanitize().expect("GSUB sanitize failed");
+    }
+}

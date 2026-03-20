@@ -10,9 +10,9 @@ use indexmap::IndexMap;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::parsing::{Attr, GenericGroup, Item, Items, Phase};
+use crate::parsing::{Attr, GenericGroup, Item, Items, OffsetTarget, Phase};
 
-use super::parsing::{Field, Table, TableFormat, TableReadArg, TableReadArgs};
+use super::parsing::{Field, FieldType, Record, Table, TableFormat, TableReadArg, TableReadArgs};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
@@ -1050,6 +1050,220 @@ impl TableReadArgs {
             }
         })
     }
+}
+
+pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<TokenStream> {
+    if item.attrs.write_only.is_some() {
+        return Ok(Default::default());
+    }
+
+    let name = item.raw_name();
+    let generic = item.attrs.generic_offset.as_ref();
+
+    let (impl_generics, type_generics) = if let Some(t) = generic {
+        (quote!(<'a, #t: FontRead<'a> + Sanitize>), quote!(<'a, #t>))
+    } else {
+        (quote!(), quote!(<'_>))
+    };
+
+    let mut stmts = Vec::new();
+
+    for field in item.fields.iter() {
+        if field.attrs.skip_getter.is_some() {
+            continue;
+        }
+
+        let field_name = &field.name;
+        let stmt = match &field.typ {
+            FieldType::Scalar { .. } => continue,
+            FieldType::Struct { .. } => continue,
+
+            FieldType::Offset {
+                target: OffsetTarget::Table(_),
+                ..
+            } => {
+                let getter = field.offset_getter_name().unwrap();
+                let is_optional =
+                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
+                if is_optional {
+                    quote! { if let Some(r) = self.#getter() { r?.sanitize()?; } }
+                } else {
+                    quote! { self.#getter()?.sanitize()?; }
+                }
+            }
+
+            FieldType::Offset {
+                target: OffsetTarget::Array(_),
+                ..
+            } => {
+                let getter = field.offset_getter_name().unwrap();
+                let is_optional =
+                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
+                if is_optional {
+                    quote! { if let Some(r) = self.#getter() { let _ = r?; } }
+                } else {
+                    quote! { let _ = self.#getter()?; }
+                }
+            }
+
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Scalar { .. } => continue,
+
+                FieldType::Struct { typ } => {
+                    let range_fn = field.shape_byte_range_fn_name();
+                    let sanitize_records = if let Some(Item::Record(record)) = items.get(typ) {
+                        let stmts = generate_record_offset_stmts(record);
+                        (!stmts.is_empty())
+                            .then(|| {
+                                quote! {
+                                    let data = self.offset_data();
+                                    for record in self.#field_name() {
+                                        #(#stmts)*
+                                    }
+                                }
+                            })
+                            .unwrap_or_default()
+                    } else {
+                        Default::default()
+                    };
+
+                    quote! {
+                        let range = self.#range_fn();
+                        if range.end > self.offset_data().len() {
+                            return Err(ReadError::OutOfBounds);
+                        }
+                        #sanitize_records
+                    }
+                }
+
+                FieldType::Offset {
+                    target: OffsetTarget::Table(_),
+                    ..
+                } => {
+                    let getter = field.offset_getter_name().unwrap();
+                    let is_nullable = field.attrs.nullable.is_some();
+                    let is_conditional = field.attrs.conditional.is_some();
+
+                    let inner_iter = if is_nullable {
+                        quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
+                    } else {
+                        quote! { for item in arr.iter() { item?.sanitize()?; } }
+                    };
+
+                    if is_conditional {
+                        quote! { if let Some(arr) = self.#getter() { #inner_iter } }
+                    } else {
+                        quote! { let arr = self.#getter(); #inner_iter }
+                    }
+                }
+
+                FieldType::Offset {
+                    target: OffsetTarget::Array(_),
+                    ..
+                } => {
+                    let range_fn = field.shape_byte_range_fn_name();
+                    quote! {
+                        let range = self.#range_fn();
+                        if range.end > self.offset_data().len() {
+                            return Err(ReadError::OutOfBounds);
+                        }
+                    }
+                }
+
+                _ => continue,
+            },
+
+            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => continue,
+
+            FieldType::PendingResolution { .. } => {
+                panic!("unresolved field type in generate_sanitize")
+            }
+        };
+
+        stmts.push(stmt);
+    }
+
+    Ok(quote! {
+        impl #impl_generics Sanitize for #name #type_generics {
+            fn sanitize(&self) -> Result<(), ReadError> {
+                #(#stmts)*
+                Ok(())
+            }
+        }
+    })
+}
+
+fn generate_record_offset_stmts(record: &Record) -> Vec<TokenStream> {
+    let mut stmts = Vec::new();
+    for fld in record.fields.iter() {
+        if fld.attrs.skip_getter.is_some() {
+            continue;
+        }
+        let FieldType::Offset {
+            target: OffsetTarget::Table(_),
+            ..
+        } = &fld.typ
+        else {
+            continue;
+        };
+        let Some(getter) = fld.offset_getter_name() else {
+            continue;
+        };
+        let is_optional = fld.attrs.nullable.is_some() || fld.attrs.conditional.is_some();
+        let stmt = if is_optional {
+            // nullable: getter returns Option<Result<T>> - use ok_or+flatten
+            // or just propagate via if let Some approach with allow
+            quote! { if let Some(r) = record.#getter(data) { r?.sanitize()?; } }
+        } else {
+            quote! { record.#getter(data)?.sanitize()?; }
+        };
+        stmts.push(stmt);
+    }
+    stmts
+}
+
+pub(crate) fn generate_format_sanitize(item: &TableFormat) -> syn::Result<TokenStream> {
+    let name = &item.name;
+
+    let match_arms = item
+        .variants
+        .iter()
+        .filter(|v| v.attrs.write_only.is_none())
+        .map(|variant| {
+            let var_name = &variant.name;
+            quote!(Self::#var_name(t) => t.sanitize(),)
+        });
+
+    Ok(quote! {
+        #[allow(clippy::needless_lifetimes)]
+        impl<'a> Sanitize for #name<'a> {
+            fn sanitize(&self) -> Result<(), ReadError> {
+                match self {
+                    #(#match_arms)*
+                }
+            }
+        }
+    })
+}
+
+pub(crate) fn generate_group_sanitize(item: &GenericGroup) -> syn::Result<TokenStream> {
+    let name = &item.name;
+
+    let match_arms = item.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        quote!(Self::#var_name(t) => t.sanitize(),)
+    });
+
+    Ok(quote! {
+        #[allow(clippy::needless_lifetimes)]
+        impl<'a> Sanitize for #name<'a> {
+            fn sanitize(&self) -> Result<(), ReadError> {
+                match self {
+                    #(#match_arms)*
+                }
+            }
+        }
+    })
 }
 
 // An overwrought and likely incorrect way of converting 'Format1' to 'format_1' -_-

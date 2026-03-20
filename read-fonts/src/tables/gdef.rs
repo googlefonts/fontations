@@ -14,3 +14,4 @@ use super::variations::ItemVariationStore;
 mod tests;
 
 include!("../../generated/generated_gdef.rs");
+include!("../../generated/generated_gdef_sanitize.rs");
