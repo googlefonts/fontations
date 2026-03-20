@@ -6,7 +6,7 @@ mod type1;
 
 pub use cff::{CffFontRef, CffSubfont};
 #[cfg(feature = "std")]
-pub use type1::Type1Font;
+pub use type1::{Type1Font, Type1Encoding};
 
 use super::dict::Blues;
 use types::Fixed;
