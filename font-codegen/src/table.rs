@@ -12,7 +12,7 @@ use quote::{quote, ToTokens};
 
 use crate::parsing::{Attr, GenericGroup, Item, Items, OffsetTarget, Phase};
 
-use super::parsing::{Field, FieldType, Record, Table, TableFormat, TableReadArg, TableReadArgs};
+use super::parsing::{Field, FieldType, Table, TableFormat, TableReadArg, TableReadArgs};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
@@ -1112,7 +1112,7 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
                 FieldType::Struct { typ } => {
                     let range_fn = field.shape_byte_range_fn_name();
                     let sanitize_records = if let Some(Item::Record(record)) = items.get(typ) {
-                        let stmts = generate_record_offset_stmts(record);
+                        let stmts = record.sanitize_offset_statements();
                         (!stmts.is_empty())
                             .then(|| {
                                 quote! {
@@ -1173,7 +1173,10 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
                 _ => continue,
             },
 
-            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => continue,
+            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
+                let field_name = &field.name;
+                quote! { self.#field_name().sanitize_record(self.offset_data())?; }
+            }
 
             FieldType::PendingResolution { .. } => {
                 panic!("unresolved field type in generate_sanitize")
@@ -1191,35 +1194,6 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
             }
         }
     })
-}
-
-fn generate_record_offset_stmts(record: &Record) -> Vec<TokenStream> {
-    let mut stmts = Vec::new();
-    for fld in record.fields.iter() {
-        if fld.attrs.skip_getter.is_some() {
-            continue;
-        }
-        let FieldType::Offset {
-            target: OffsetTarget::Table(_),
-            ..
-        } = &fld.typ
-        else {
-            continue;
-        };
-        let Some(getter) = fld.offset_getter_name() else {
-            continue;
-        };
-        let is_optional = fld.attrs.nullable.is_some() || fld.attrs.conditional.is_some();
-        let stmt = if is_optional {
-            // nullable: getter returns Option<Result<T>> - use ok_or+flatten
-            // or just propagate via if let Some approach with allow
-            quote! { if let Some(r) = record.#getter(data) { r?.sanitize()?; } }
-        } else {
-            quote! { sanitize_ignoring_null(record.#getter(data))?; }
-        };
-        stmts.push(stmt);
-    }
-    stmts
 }
 
 pub(crate) fn generate_format_sanitize(item: &TableFormat) -> syn::Result<TokenStream> {

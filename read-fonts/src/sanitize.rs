@@ -1,6 +1,11 @@
 //! Pre-validating font data.
 
-use crate::ReadError;
+use crate::{
+    array::{ComputedArray, VarLenArray},
+    font_data::FontData,
+    read::{ComputeSize, FontRead, FontReadWithArgs, VarSize},
+    ReadError,
+};
 
 /// A trait for pre-validating a font table.
 ///
@@ -19,13 +24,45 @@ pub trait Sanitize {
     fn sanitize(&self) -> Result<(), ReadError>;
 }
 
+/// A trait for pre-validating a record type that requires external offset data.
+///
+/// Unlike [`Sanitize`], which is for self-contained tables, this trait is for
+/// record types whose offset fields are resolved relative to some parent table's
+/// data. The `data` parameter provides that context.
+pub trait SanitizeRecord {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError>;
+}
+
+impl<'a, T> SanitizeRecord for ComputedArray<'a, T>
+where
+    T: SanitizeRecord + FontReadWithArgs<'a> + ComputeSize,
+    T::Args: Copy + 'static,
+{
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        for item in self.iter() {
+            item?.sanitize_record(data)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a, T> SanitizeRecord for VarLenArray<'a, T>
+where
+    T: SanitizeRecord + FontRead<'a> + VarSize,
+{
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        for item in self.iter() {
+            item?.sanitize_record(data)?;
+        }
+        Ok(())
+    }
+}
+
 /// Sanitize an offset target, treating a null offset as acceptable.
 ///
 /// Real-world fonts sometimes have non-nullable offset fields set to zero.
 /// Rather than failing sanitize for these, we skip them.
-pub(crate) fn sanitize_ignoring_null<T: Sanitize>(
-    result: Result<T, ReadError>,
-) -> Result<(), ReadError> {
+pub fn sanitize_ignoring_null<T: Sanitize>(result: Result<T, ReadError>) -> Result<(), ReadError> {
     match result {
         Ok(x) => x.sanitize(),
         Err(ReadError::NullOffset) => Ok(()),

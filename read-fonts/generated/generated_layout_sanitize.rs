@@ -19,6 +19,14 @@ impl Sanitize for ScriptList<'_> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for ScriptRecord {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        sanitize_ignoring_null(self.script(data))?;
+        Ok(())
+    }
+}
+
 impl Sanitize for Script<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if let Some(r) = self.default_lang_sys() {
@@ -32,6 +40,14 @@ impl Sanitize for Script<'_> {
         for record in self.lang_sys_records() {
             sanitize_ignoring_null(record.lang_sys(data))?;
         }
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for LangSysRecord {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        sanitize_ignoring_null(self.lang_sys(data))?;
         Ok(())
     }
 }
@@ -52,6 +68,14 @@ impl Sanitize for FeatureList<'_> {
         for record in self.feature_records() {
             sanitize_ignoring_null(record.feature(data))?;
         }
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for FeatureRecord {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        sanitize_ignoring_null(self.feature(data))?;
         Ok(())
     }
 }
@@ -102,6 +126,13 @@ impl Sanitize for CoverageFormat2<'_> {
 }
 
 #[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for RangeRecord {
+    fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for CoverageTable<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
         match self {
@@ -128,12 +159,26 @@ impl Sanitize for ClassDefFormat2<'_> {
 }
 
 #[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for ClassRangeRecord {
+    fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for ClassDef<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
         match self {
             Self::Format1(t) => t.sanitize(),
             Self::Format2(t) => t.sanitize(),
         }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for SequenceLookupRecord {
+    fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
+        Ok(())
     }
 }
 
@@ -364,6 +409,19 @@ impl Sanitize for FeatureVariations<'_> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for FeatureVariationRecord {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        if let Some(r) = self.condition_set(data) {
+            r?.sanitize()?;
+        }
+        if let Some(r) = self.feature_table_substitution(data) {
+            r?.sanitize()?;
+        }
+        Ok(())
+    }
+}
+
 impl Sanitize for ConditionSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.conditions();
@@ -436,6 +494,14 @@ impl Sanitize for FeatureTableSubstitution<'_> {
         for record in self.substitutions() {
             sanitize_ignoring_null(record.alternate_feature(data))?;
         }
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for FeatureTableSubstitutionRecord {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        sanitize_ignoring_null(self.alternate_feature(data))?;
         Ok(())
     }
 }

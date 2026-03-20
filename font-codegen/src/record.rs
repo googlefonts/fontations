@@ -6,8 +6,8 @@ use quote::{quote, ToTokens};
 use crate::{
     fields::FieldConstructorInfo,
     parsing::{
-        logged_syn_error, CustomCompile, Field, FieldType, Fields, Item, Items, Phase, Record,
-        TableAttrs,
+        logged_syn_error, CustomCompile, Field, FieldType, Fields, Item, Items, OffsetTarget,
+        Phase, Record, TableAttrs,
     },
 };
 
@@ -369,6 +369,115 @@ fn generate_from_obj_impl(item: &Record, parse_module: &syn::Path) -> syn::Resul
     })
 }
 
+pub(crate) fn generate_sanitize_record(item: &Record, items: &Items) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let has_lifetime = item.lifetime.is_some();
+
+    let mut stmts: Vec<TokenStream> = Vec::new();
+
+    for field in item.fields.iter() {
+        if field.attrs.skip_getter.is_some() {
+            continue;
+        }
+
+        let field_name = &field.name;
+        let stmt = match &field.typ {
+            FieldType::Scalar { .. } | FieldType::Struct { .. } => continue,
+
+            FieldType::Offset {
+                target: OffsetTarget::Table(_),
+                ..
+            } => {
+                let getter = field.offset_getter_name().unwrap();
+                let is_optional =
+                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
+                if is_optional {
+                    quote! { if let Some(r) = self.#getter(data) { r?.sanitize()?; } }
+                } else {
+                    quote! { sanitize_ignoring_null(self.#getter(data))?; }
+                }
+            }
+
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset {
+                    target: OffsetTarget::Table(_),
+                    ..
+                } => {
+                    let getter = field.offset_getter_name().unwrap();
+                    let is_nullable = field.attrs.nullable.is_some();
+                    let is_conditional = field.attrs.conditional.is_some();
+
+                    let inner_iter = if is_nullable {
+                        quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
+                    } else {
+                        quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
+                    };
+
+                    if is_conditional {
+                        quote! { if let Some(arr) = self.#getter(data) { #inner_iter } }
+                    } else {
+                        quote! { let arr = self.#getter(data); #inner_iter }
+                    }
+                }
+                FieldType::Struct { typ } => {
+                    let Some(Item::Record(record)) = items.get(typ) else {
+                        continue;
+                    };
+                    let stmts = record.sanitize_offset_statements();
+                    if stmts.is_empty() {
+                        continue;
+                    }
+                    quote! {
+                        for record in self.#field_name() {
+                            #(#stmts)*
+                        }
+                    }
+                }
+                _ => continue,
+            },
+
+            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
+                quote! { self.#field_name().sanitize_record(data)?; }
+            }
+
+            _ => continue,
+        };
+
+        stmts.push(stmt);
+    }
+
+    let (impl_type, data_param) = if stmts.is_empty() {
+        // trivial impl; suppress unused-variable warning for data
+        (
+            if has_lifetime {
+                quote! { #name<'_> }
+            } else {
+                quote! { #name }
+            },
+            quote! { _data: FontData },
+        )
+    } else {
+        (
+            if has_lifetime {
+                quote! { #name<'_> }
+            } else {
+                quote! { #name }
+            },
+            quote! { data: FontData },
+        )
+    };
+
+    Ok(quote! {
+        #[allow(clippy::needless_lifetimes)]
+        impl SanitizeRecord for #impl_type {
+            fn sanitize_record(&self, #data_param) -> Result<(), ReadError> {
+                #(#stmts)*
+                Ok(())
+            }
+        }
+    })
+}
+
 impl Record {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         self.fields.sanity_check(phase)?;
@@ -397,6 +506,35 @@ impl Record {
         self.fields
             .iter()
             .all(|fld| can_derive_extra_traits(&fld.typ, all_items))
+    }
+
+    pub(crate) fn sanitize_offset_statements(&self) -> Vec<TokenStream> {
+        let mut stmts = Vec::new();
+        for fld in self.fields.iter() {
+            if fld.attrs.skip_getter.is_some() {
+                continue;
+            }
+            let FieldType::Offset {
+                target: OffsetTarget::Table(_),
+                ..
+            } = &fld.typ
+            else {
+                continue;
+            };
+            let Some(getter) = fld.offset_getter_name() else {
+                continue;
+            };
+            let is_optional = fld.attrs.nullable.is_some() || fld.attrs.conditional.is_some();
+            let stmt = if is_optional {
+                // nullable: getter returns Option<Result<T>> - use ok_or+flatten
+                // or just propagate via if let Some approach with allow
+                quote! { if let Some(r) = record.#getter(data) { r?.sanitize()?; } }
+            } else {
+                quote! { sanitize_ignoring_null(record.#getter(data))?; }
+            };
+            stmts.push(stmt);
+        }
+        stmts
     }
 }
 

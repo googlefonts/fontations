@@ -84,6 +84,14 @@ impl Sanitize for MarkArray<'_> {
 }
 
 #[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for MarkRecord {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        sanitize_ignoring_null(self.mark_anchor(data))?;
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for SinglePos<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
         match self {
@@ -103,6 +111,7 @@ impl Sanitize for SinglePosFormat1<'_> {
 impl Sanitize for SinglePosFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        self.value_records().sanitize_record(self.offset_data())?;
         Ok(())
     }
 }
@@ -130,6 +139,15 @@ impl Sanitize for PairPosFormat1<'_> {
 
 impl Sanitize for PairSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        self.pair_value_records()
+            .sanitize_record(self.offset_data())?;
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for PairValueRecord {
+    fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
         Ok(())
     }
 }
@@ -139,6 +157,22 @@ impl Sanitize for PairPosFormat2<'_> {
         sanitize_ignoring_null(self.coverage())?;
         sanitize_ignoring_null(self.class_def1())?;
         sanitize_ignoring_null(self.class_def2())?;
+        self.class1_records().sanitize_record(self.offset_data())?;
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for Class1Record<'_> {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        self.class2_records().sanitize_record(data)?;
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for Class2Record {
+    fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
         Ok(())
     }
 }
@@ -163,6 +197,19 @@ impl Sanitize for CursivePosFormat1<'_> {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for EntryExitRecord {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        if let Some(r) = self.entry_anchor(data) {
+            r?.sanitize()?;
+        }
+        if let Some(r) = self.exit_anchor(data) {
+            r?.sanitize()?;
+        }
+        Ok(())
+    }
+}
+
 impl Sanitize for MarkBasePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.mark_coverage())?;
@@ -175,6 +222,18 @@ impl Sanitize for MarkBasePosFormat1<'_> {
 
 impl Sanitize for BaseArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        self.base_records().sanitize_record(self.offset_data())?;
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for BaseRecord<'_> {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        let arr = self.base_anchors(data);
+        for r in arr.iter().flatten() {
+            r?.sanitize()?;
+        }
         Ok(())
     }
 }
@@ -201,6 +260,19 @@ impl Sanitize for LigatureArray<'_> {
 
 impl Sanitize for LigatureAttach<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        self.component_records()
+            .sanitize_record(self.offset_data())?;
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for ComponentRecord<'_> {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        let arr = self.ligature_anchors(data);
+        for r in arr.iter().flatten() {
+            r?.sanitize()?;
+        }
         Ok(())
     }
 }
@@ -217,6 +289,18 @@ impl Sanitize for MarkMarkPosFormat1<'_> {
 
 impl Sanitize for Mark2Array<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        self.mark2_records().sanitize_record(self.offset_data())?;
+        Ok(())
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl SanitizeRecord for Mark2Record<'_> {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        let arr = self.mark2_anchors(data);
+        for r in arr.iter().flatten() {
+            r?.sanitize()?;
+        }
         Ok(())
     }
 }

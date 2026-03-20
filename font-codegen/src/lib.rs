@@ -131,6 +131,7 @@ pub(crate) fn generate_sanitize_module(
             Item::Table(item) => table::generate_sanitize(item, items)?,
             Item::Format(item) => table::generate_format_sanitize(item)?,
             Item::GenericGroup(item) => table::generate_group_sanitize(item)?,
+            Item::Record(item) => record::generate_sanitize_record(item, items)?,
             _ => Default::default(),
         };
         code.push(item_code);
