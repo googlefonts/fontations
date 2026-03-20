@@ -268,7 +268,7 @@ impl<'a> CollectionRef<'a> {
 
     /// Returns the number of fonts in the collection.
     pub fn len(&self) -> u32 {
-        self.header.num_fonts()
+        self.header.table_directory_offsets().len() as u32
     }
 
     /// Returns true if the collection is empty.
