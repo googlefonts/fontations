@@ -16,7 +16,7 @@ pub struct Type1Font {
     matrix: ScaledFontMatrix,
     charstrings: Charstrings,
     subrs: Subrs,
-    encoding: Encoding,
+    encoding: Option<Encoding>,
     weight_vector: Vec<Fixed>,
 }
 
@@ -41,7 +41,7 @@ impl Type1Font {
             },
             charstrings: Charstrings::default(),
             subrs: Subrs::default(),
-            encoding: Encoding::Predefined(PredefinedEncoding::Standard),
+            encoding: None,
             weight_vector: Vec::new(),
         };
         // Read base dict entries
@@ -95,7 +95,7 @@ impl Type1Font {
         }
         if let Some(encoding_offset) = encoding_offset {
             let mut parser = Parser::new(base.get(encoding_offset..)?);
-            font.encoding = parser.read_encoding(&font.charstrings)?;
+            font.encoding = Some(parser.read_encoding(&font.charstrings)?);
         }
         Some(font)
     }
@@ -140,6 +140,19 @@ impl Type1Font {
             // Metric is currently in font units. Convert back to 16.16
             Fixed::from_bits(metric.to_bits() << 16)
         }
+    }
+
+    /// Returns the character encoding.
+    pub fn encoding(&self) -> Option<Type1Encoding<'_>> {
+        self.encoding.as_ref().map(|enc| Type1Encoding {
+            encoding: enc,
+            charstrings: &self.charstrings,
+        })
+    }
+
+    /// Returns the glyph name for the given id.
+    pub fn glyph_name(&self, gid: GlyphId) -> Option<&str> {
+        self.charstrings.name(gid.to_u32())
     }
 
     /// Returns an iterator over the pairs of glyph ids and associated names in
@@ -194,6 +207,43 @@ impl CharstringContext for Type1Font {
 
     fn weight_vector(&self) -> &[Fixed] {
         &self.weight_vector
+    }
+}
+
+/// Associates character codes with glyph names and ids.
+#[derive(Clone)]
+pub struct Type1Encoding<'a> {
+    encoding: &'a Encoding,
+    charstrings: &'a Charstrings,
+}
+
+impl<'a> Type1Encoding<'a> {
+    /// Returns the predefined encoding, if any.
+    pub fn predefined(&self) -> Option<PredefinedEncoding> {
+        if let Encoding::Predefined(pre) = self.encoding {
+            Some(*pre)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the glyph name for the given character code.
+    pub fn glyph_name(&self, code: u8) -> Option<&'a str> {
+        match self.encoding {
+            Encoding::Predefined(pre) => Some(pre.code_to_glyph_name(code)),
+            Encoding::Custom(custom) => self.charstrings.name(custom.get(code as usize)?.to_u32()),
+        }
+    }
+
+    /// Returns the glyph identifier for the given character code.
+    pub fn glyph_id(&self, code: u8) -> Option<GlyphId> {
+        match self.encoding {
+            Encoding::Predefined(pre) => self
+                .charstrings
+                .index_for_name(pre.code_to_glyph_name(code))
+                .map(GlyphId::new),
+            Encoding::Custom(custom) => custom.get(code as usize).copied(),
+        }
     }
 }
 
@@ -1772,7 +1822,7 @@ mod tests {
             Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA)
                 .unwrap()
                 .encoding,
-            Encoding::Predefined(PredefinedEncoding::Standard),
+            Some(Encoding::Predefined(PredefinedEncoding::Standard)),
         ));
     }
 
@@ -1920,6 +1970,24 @@ mod tests {
                 font.subrs.get(subr_idx as u32).unwrap(),
                 font.subr(subr_idx as _).unwrap()
             )
+        }
+    }
+
+    #[test]
+    fn encoding_mapping() {
+        let font = Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA).unwrap();
+        let encoding = font.encoding().unwrap();
+        let expected = [
+            // code, gid, name
+            (0, 0, ".notdef"),
+            (72, 1, "H"),
+            (102, 2, "f"),
+            (105, 3, "i"),
+            (120, 4, "x"),
+        ];
+        for (code, gid, name) in expected {
+            assert_eq!(encoding.glyph_name(code).unwrap(), name);
+            assert_eq!(encoding.glyph_id(code).unwrap().to_u32(), gid);
         }
     }
 }
