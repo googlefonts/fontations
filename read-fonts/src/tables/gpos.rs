@@ -23,6 +23,7 @@ pub use value_record::{Value, ValueContext, ValueRecord};
 mod spec_tests;
 
 include!("../../generated/generated_gpos.rs");
+#[cfg(feature = "sanitize")]
 include!("../../generated/generated_gpos_sanitize.rs");
 
 /// A typed GPOS [LookupList](super::layout::LookupList) table

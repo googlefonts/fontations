@@ -14,10 +14,9 @@ use crate::{
 
 #[cfg(feature = "experimental_traverse")]
 use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord};
-use crate::{
-    codegen_prelude::SanitizeRecord, sanitize::Sanitize, ComputeSize, FontData, FontReadWithArgs,
-    ReadArgs, ReadError,
-};
+#[cfg(feature = "sanitize")]
+use crate::{codegen_prelude::SanitizeRecord, sanitize::Sanitize};
+use crate::{ComputeSize, FontData, FontReadWithArgs, ReadArgs, ReadError};
 
 impl ValueFormat {
     /// A mask with all the device/variation index bits set
@@ -310,6 +309,7 @@ impl<'a> FontReadWithArgs<'a> for ValueRecord {
     }
 }
 
+#[cfg(feature = "sanitize")]
 impl SanitizeRecord for ValueRecord {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
         if let Some(r) = self.x_placement_device(data) {

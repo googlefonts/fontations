@@ -14,4 +14,5 @@ use super::variations::ItemVariationStore;
 mod tests;
 
 include!("../../generated/generated_gdef.rs");
+#[cfg(feature = "sanitize")]
 include!("../../generated/generated_gdef_sanitize.rs");

@@ -57,7 +57,7 @@
 //! [table-directory]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![forbid(unsafe_code)]
+#![cfg_attr(not(feature = "sanitize"), forbid(unsafe_code))]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -80,6 +80,7 @@ mod offset;
 mod offset_array;
 pub mod ps;
 mod read;
+#[cfg(feature = "sanitize")]
 mod sanitize;
 mod table_provider;
 mod table_ref;
@@ -110,6 +111,7 @@ pub(crate) mod codegen_prelude {
     pub use crate::read::{
         ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };
+    #[cfg(feature = "sanitize")]
     pub use crate::sanitize::{sanitize_ignoring_null, Sanitize, SanitizeRecord};
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;

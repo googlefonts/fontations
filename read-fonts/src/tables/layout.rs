@@ -30,6 +30,7 @@ pub use closure::Intersect;
 mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
+#[cfg(feature = "sanitize")]
 include!("../../generated/generated_layout_sanitize.rs");
 
 impl<'a, T: FontRead<'a>> Lookup<'a, T> {
@@ -154,6 +155,7 @@ impl<'a> SomeTable<'a> for FeatureParams<'a> {
     }
 }
 
+#[cfg(feature = "sanitize")]
 impl crate::sanitize::Sanitize for FeatureParams<'_> {
     fn sanitize(&self) -> Result<(), crate::ReadError> {
         Ok(())
@@ -923,6 +925,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "sanitize")]
     #[test]
     fn sanitize_scalar_array_oob() {
         // CoverageFormat1: format=1, glyph_count=100 (0x64), but only 2 actual glyphs of data.
@@ -937,6 +940,7 @@ mod tests {
         assert_eq!(table.sanitize(), Err(ReadError::InvalidArrayLen));
     }
 
+    #[cfg(feature = "sanitize")]
     #[test]
     fn sanitize_flag_conditional_field_absent() {
         // Lookup with USE_MARK_FILTERING_SET (0x0010) set but mark_filtering_set absent.

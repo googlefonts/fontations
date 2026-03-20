@@ -279,6 +279,7 @@ fn anchorformat3() {
 //assert_hex_eq!(&bytes, &dumped);
 //}[1, 1, 1, 1, 1]
 
+#[cfg(feature = "sanitize")]
 #[test]
 fn sanitize_version_conditional_field_absent() {
     use crate::sanitize::Sanitize;
@@ -304,6 +305,7 @@ fn sanitize_version_conditional_field_absent() {
     );
 }
 
+#[cfg(feature = "sanitize")]
 #[test]
 fn sanitize_null_offset_is_ok() {
     use crate::sanitize::Sanitize;
@@ -321,6 +323,7 @@ fn sanitize_null_offset_is_ok() {
         .expect("null offset should not fail sanitize");
 }
 
+#[cfg(feature = "sanitize")]
 #[test]
 fn sanitize_single_pos_format1_oob_device_offset() {
     // SinglePosFormat1 with value_format = X_PLACEMENT_DEVICE and an out-of-bounds
@@ -346,6 +349,7 @@ fn sanitize_single_pos_format1_oob_device_offset() {
     );
 }
 
+#[cfg(feature = "sanitize")]
 #[test]
 fn sanitize_gpos_gdef_gsub() {
     use crate::sanitize::Sanitize;

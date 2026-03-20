@@ -15,6 +15,7 @@ mod closure;
 mod tests;
 
 include!("../../generated/generated_gsub.rs");
+#[cfg(feature = "sanitize")]
 include!("../../generated/generated_gsub_sanitize.rs");
 
 /// A typed GSUB [LookupList] table

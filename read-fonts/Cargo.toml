@@ -13,7 +13,7 @@ repository.workspace = true
 [package.metadata.docs.rs]
 # To build locally:
 # RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --features libm,serde,std
-features = ["libm", "serde", "std"]
+features = ["libm", "serde", "std", "sanitize"]
 
 [features]
 std = ["font-types/std"]
@@ -28,6 +28,7 @@ experimental_traverse = ["std"]
 # Enables experimental implementations of proposed changes to the spec
 # as discussed at https://github.com/harfbuzz/boring-expansion-spec
 spec_next = []
+sanitize = []
 default = ["std"]
 serde = ["dep:serde", "font-types/serde"]
 libm = ["dep:core_maths"]

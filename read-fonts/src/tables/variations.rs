@@ -2,6 +2,7 @@
 
 include!("../../generated/generated_variations.rs");
 
+#[cfg(feature = "sanitize")]
 impl crate::sanitize::Sanitize for ItemVariationStore<'_> {
     fn sanitize(&self) -> Result<(), crate::ReadError> {
         Ok(())
