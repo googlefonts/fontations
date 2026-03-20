@@ -82,7 +82,7 @@ impl Sanitize for MarkArray<'_> {
         }
         let data = self.offset_data();
         for record in self.mark_records() {
-            sanitize_ignoring_null(record.mark_anchor(data))?;
+            record.sanitize_record(data)?;
         }
         Ok(())
     }
@@ -109,6 +109,7 @@ impl<'a> Sanitize for SinglePos<'a> {
 impl Sanitize for SinglePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        self.value_record().sanitize_record(self.offset_data())?;
         Ok(())
     }
 }
@@ -152,7 +153,9 @@ impl Sanitize for PairSet<'_> {
 
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for PairValueRecord {
-    fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        self.value_record1().sanitize_record(data)?;
+        self.value_record2().sanitize_record(data)?;
         Ok(())
     }
 }
@@ -177,7 +180,9 @@ impl SanitizeRecord for Class1Record<'_> {
 
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for Class2Record {
-    fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
+    fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
+        self.value_record1().sanitize_record(data)?;
+        self.value_record2().sanitize_record(data)?;
         Ok(())
     }
 }
@@ -191,12 +196,7 @@ impl Sanitize for CursivePosFormat1<'_> {
         }
         let data = self.offset_data();
         for record in self.entry_exit_record() {
-            if let Some(r) = record.entry_anchor(data) {
-                r?.sanitize()?;
-            }
-            if let Some(r) = record.exit_anchor(data) {
-                r?.sanitize()?;
-            }
+            record.sanitize_record(data)?;
         }
         Ok(())
     }

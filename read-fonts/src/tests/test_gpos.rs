@@ -322,6 +322,31 @@ fn sanitize_null_offset_is_ok() {
 }
 
 #[test]
+fn sanitize_single_pos_format1_oob_device_offset() {
+    // SinglePosFormat1 with value_format = X_PLACEMENT_DEVICE and an out-of-bounds
+    // device offset in the ValueRecord. Before Phase 4, the Struct field was silently
+    // skipped in sanitize and this test would have passed despite the bad offset.
+    use crate::sanitize::Sanitize;
+    use crate::FontData;
+    #[rustfmt::skip]
+    let bytes: &[u8] = &[
+        0x00, 0x01, // pos_format = 1
+        0x00, 0x08, // coverage_offset = 8 (points to coverage below)
+        0x00, 0x10, // value_format = X_PLACEMENT_DEVICE
+        0x00, 0xFF, // value_record.x_placement_device = 255 (out of bounds)
+        // coverage at offset 8: CoverageFormat1 with one glyph
+        0x00, 0x01, // coverage_format = 1
+        0x00, 0x01, // glyph_count = 1
+        0x00, 0x01, // glyph_array[0] = glyph id 1
+    ];
+    let table = SinglePosFormat1::read(FontData::new(bytes)).unwrap();
+    assert!(
+        table.sanitize().is_err(),
+        "out-of-bounds device offset should fail sanitize"
+    );
+}
+
+#[test]
 fn sanitize_gpos_gdef_gsub() {
     use crate::sanitize::Sanitize;
     use crate::TableProvider;

@@ -13,7 +13,7 @@ impl Sanitize for ScriptList<'_> {
         }
         let data = self.offset_data();
         for record in self.script_records() {
-            sanitize_ignoring_null(record.script(data))?;
+            record.sanitize_record(data)?;
         }
         Ok(())
     }
@@ -38,7 +38,7 @@ impl Sanitize for Script<'_> {
         }
         let data = self.offset_data();
         for record in self.lang_sys_records() {
-            sanitize_ignoring_null(record.lang_sys(data))?;
+            record.sanitize_record(data)?;
         }
         Ok(())
     }
@@ -70,7 +70,7 @@ impl Sanitize for FeatureList<'_> {
         }
         let data = self.offset_data();
         for record in self.feature_records() {
-            sanitize_ignoring_null(record.feature(data))?;
+            record.sanitize_record(data)?;
         }
         Ok(())
     }
@@ -142,6 +142,10 @@ impl Sanitize for CoverageFormat2<'_> {
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
         }
+        let data = self.offset_data();
+        for record in self.range_records() {
+            record.sanitize_record(data)?;
+        }
         Ok(())
     }
 }
@@ -178,6 +182,10 @@ impl Sanitize for ClassDefFormat2<'_> {
         let range = self.class_range_records_byte_range();
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
+        }
+        let data = self.offset_data();
+        for record in self.class_range_records() {
+            record.sanitize_record(data)?;
         }
         Ok(())
     }
@@ -238,6 +246,10 @@ impl Sanitize for SequenceRule<'_> {
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
         }
+        let data = self.offset_data();
+        for record in self.seq_lookup_records() {
+            record.sanitize_record(data)?;
+        }
         Ok(())
     }
 }
@@ -274,6 +286,10 @@ impl Sanitize for ClassSequenceRule<'_> {
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
         }
+        let data = self.offset_data();
+        for record in self.seq_lookup_records() {
+            record.sanitize_record(data)?;
+        }
         Ok(())
     }
 }
@@ -287,6 +303,10 @@ impl Sanitize for SequenceContextFormat3<'_> {
         let range = self.seq_lookup_records_byte_range();
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
+        }
+        let data = self.offset_data();
+        for record in self.seq_lookup_records() {
+            record.sanitize_record(data)?;
         }
         Ok(())
     }
@@ -342,6 +362,10 @@ impl Sanitize for ChainedSequenceRule<'_> {
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
         }
+        let data = self.offset_data();
+        for record in self.seq_lookup_records() {
+            record.sanitize_record(data)?;
+        }
         Ok(())
     }
 }
@@ -388,6 +412,10 @@ impl Sanitize for ChainedClassSequenceRule<'_> {
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
         }
+        let data = self.offset_data();
+        for record in self.seq_lookup_records() {
+            record.sanitize_record(data)?;
+        }
         Ok(())
     }
 }
@@ -409,6 +437,10 @@ impl Sanitize for ChainedSequenceContextFormat3<'_> {
         let range = self.seq_lookup_records_byte_range();
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
+        }
+        let data = self.offset_data();
+        for record in self.seq_lookup_records() {
+            record.sanitize_record(data)?;
         }
         Ok(())
     }
@@ -459,12 +491,7 @@ impl Sanitize for FeatureVariations<'_> {
         }
         let data = self.offset_data();
         for record in self.feature_variation_records() {
-            if let Some(r) = record.condition_set(data) {
-                r?.sanitize()?;
-            }
-            if let Some(r) = record.feature_table_substitution(data) {
-                r?.sanitize()?;
-            }
+            record.sanitize_record(data)?;
         }
         Ok(())
     }
@@ -553,7 +580,7 @@ impl Sanitize for FeatureTableSubstitution<'_> {
         }
         let data = self.offset_data();
         for record in self.substitutions() {
-            sanitize_ignoring_null(record.alternate_feature(data))?;
+            record.sanitize_record(data)?;
         }
         Ok(())
     }

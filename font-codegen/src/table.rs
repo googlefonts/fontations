@@ -1052,7 +1052,7 @@ impl TableReadArgs {
     }
 }
 
-pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<TokenStream> {
+pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
         return Ok(Default::default());
     }
@@ -1088,7 +1088,9 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
 
         let stmt = match &field.typ {
             FieldType::Scalar { .. } => continue,
-            FieldType::Struct { .. } => continue,
+            FieldType::Struct { .. } => {
+                quote! { self.#field_name().sanitize_record(self.offset_data())?; }
+            }
 
             FieldType::Offset {
                 target: OffsetTarget::Table(_),
@@ -1129,30 +1131,17 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
                     }
                 }
 
-                FieldType::Struct { typ } => {
+                FieldType::Struct { .. } => {
                     let range_fn = field.shape_byte_range_fn_name();
-                    let sanitize_records = if let Some(Item::Record(record)) = items.get(typ) {
-                        let stmts = record.sanitize_offset_statements();
-                        (!stmts.is_empty())
-                            .then(|| {
-                                quote! {
-                                    let data = self.offset_data();
-                                    for record in self.#field_name() {
-                                        #(#stmts)*
-                                    }
-                                }
-                            })
-                            .unwrap_or_default()
-                    } else {
-                        Default::default()
-                    };
-
                     quote! {
                         let range = self.#range_fn();
                         if range.end > self.offset_data().len() {
                             return Err(ReadError::OutOfBounds);
                         }
-                        #sanitize_records
+                        let data = self.offset_data();
+                        for record in self.#field_name() {
+                            record.sanitize_record(data)?;
+                        }
                     }
                 }
 
@@ -1190,7 +1179,7 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
                     }
                 }
 
-                _ => continue,
+                _ => quote! { compile_error!("unexpected type in sanitize") },
             },
 
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {

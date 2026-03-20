@@ -128,10 +128,10 @@ pub(crate) fn generate_sanitize_module(
     let mut code = Vec::new();
     for item in items.iter() {
         let item_code = match item {
-            Item::Table(item) => table::generate_sanitize(item, items)?,
+            Item::Table(item) => table::generate_sanitize(item)?,
             Item::Format(item) => table::generate_format_sanitize(item)?,
             Item::GenericGroup(item) => table::generate_group_sanitize(item)?,
-            Item::Record(item) => record::generate_sanitize_record(item, items)?,
+            Item::Record(item) => record::generate_sanitize_record(item)?,
             _ => Default::default(),
         };
         code.push(item_code);

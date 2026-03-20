@@ -369,7 +369,7 @@ fn generate_from_obj_impl(item: &Record, parse_module: &syn::Path) -> syn::Resul
     })
 }
 
-pub(crate) fn generate_sanitize_record(item: &Record, items: &Items) -> syn::Result<TokenStream> {
+pub(crate) fn generate_sanitize_record(item: &Record) -> syn::Result<TokenStream> {
     let name = &item.name;
     let has_lifetime = item.lifetime.is_some();
 
@@ -382,7 +382,10 @@ pub(crate) fn generate_sanitize_record(item: &Record, items: &Items) -> syn::Res
 
         let field_name = &field.name;
         let stmt = match &field.typ {
-            FieldType::Scalar { .. } | FieldType::Struct { .. } => continue,
+            FieldType::Scalar { .. } => continue,
+            FieldType::Struct { .. } => {
+                quote! { self.#field_name().sanitize_record(data)?; }
+            }
 
             FieldType::Offset {
                 target: OffsetTarget::Table(_),
@@ -419,28 +422,27 @@ pub(crate) fn generate_sanitize_record(item: &Record, items: &Items) -> syn::Res
                         quote! { let arr = self.#getter(data); #inner_iter }
                     }
                 }
-                FieldType::Struct { typ } => {
-                    let Some(Item::Record(record)) = items.get(typ) else {
-                        continue;
-                    };
-                    let stmts = record.sanitize_offset_statements();
-                    if stmts.is_empty() {
-                        continue;
-                    }
+                FieldType::Struct { .. } => {
                     quote! {
                         for record in self.#field_name() {
-                            #(#stmts)*
+                            record.sanitize_record(data)?;
                         }
                     }
                 }
-                _ => continue,
+                _ => quote!(compile_error!("unexpected field type")),
             },
 
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
                 quote! { self.#field_name().sanitize_record(data)?; }
             }
 
-            _ => continue,
+            FieldType::Offset {
+                target: OffsetTarget::Array(_),
+                ..
+            } => quote!(compile_error!("offset to array needs sanitize handling")),
+            FieldType::PendingResolution { .. } => {
+                panic!("unresolved field type in generate_sanitize_record")
+            }
         };
 
         stmts.push(stmt);
@@ -506,35 +508,6 @@ impl Record {
         self.fields
             .iter()
             .all(|fld| can_derive_extra_traits(&fld.typ, all_items))
-    }
-
-    pub(crate) fn sanitize_offset_statements(&self) -> Vec<TokenStream> {
-        let mut stmts = Vec::new();
-        for fld in self.fields.iter() {
-            if fld.attrs.skip_getter.is_some() {
-                continue;
-            }
-            let FieldType::Offset {
-                target: OffsetTarget::Table(_),
-                ..
-            } = &fld.typ
-            else {
-                continue;
-            };
-            let Some(getter) = fld.offset_getter_name() else {
-                continue;
-            };
-            let is_optional = fld.attrs.nullable.is_some() || fld.attrs.conditional.is_some();
-            let stmt = if is_optional {
-                // nullable: getter returns Option<Result<T>> - use ok_or+flatten
-                // or just propagate via if let Some approach with allow
-                quote! { if let Some(r) = record.#getter(data) { r?.sanitize()?; } }
-            } else {
-                quote! { sanitize_ignoring_null(record.#getter(data))?; }
-            };
-            stmts.push(stmt);
-        }
-        stmts
     }
 }
 
