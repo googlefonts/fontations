@@ -18,3 +18,17 @@ pub trait Sanitize {
     /// via an offset.
     fn sanitize(&self) -> Result<(), ReadError>;
 }
+
+/// Sanitize an offset target, treating a null offset as acceptable.
+///
+/// Real-world fonts sometimes have non-nullable offset fields set to zero.
+/// Rather than failing sanitize for these, we skip them.
+pub(crate) fn sanitize_ignoring_null<T: Sanitize>(
+    result: Result<T, ReadError>,
+) -> Result<(), ReadError> {
+    match result {
+        Ok(x) => x.sanitize(),
+        Err(ReadError::NullOffset) => Ok(()),
+        Err(other) => Err(other),
+    }
+}

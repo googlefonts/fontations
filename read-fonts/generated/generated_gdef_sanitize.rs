@@ -31,10 +31,10 @@ impl Sanitize for Gdef<'_> {
 
 impl Sanitize for AttachList<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.attach_points();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -48,10 +48,10 @@ impl Sanitize for AttachPoint<'_> {
 
 impl Sanitize for LigCaretList<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.lig_glyphs();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -61,7 +61,7 @@ impl Sanitize for LigGlyph<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.caret_values();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -92,7 +92,7 @@ impl Sanitize for CaretValueFormat2<'_> {
 
 impl Sanitize for CaretValueFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.device()?.sanitize()?;
+        sanitize_ignoring_null(self.device())?;
         Ok(())
     }
 }
@@ -101,7 +101,7 @@ impl Sanitize for MarkGlyphSets<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.coverages();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }

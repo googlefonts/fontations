@@ -1088,7 +1088,7 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
                 if is_optional {
                     quote! { if let Some(r) = self.#getter() { r?.sanitize()?; } }
                 } else {
-                    quote! { self.#getter()?.sanitize()?; }
+                    quote! { sanitize_ignoring_null(self.#getter())?; }
                 }
             }
 
@@ -1147,7 +1147,7 @@ pub(crate) fn generate_sanitize(item: &Table, items: &Items) -> syn::Result<Toke
                     let inner_iter = if is_nullable {
                         quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
                     } else {
-                        quote! { for item in arr.iter() { item?.sanitize()?; } }
+                        quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
                     };
 
                     if is_conditional {
@@ -1215,7 +1215,7 @@ fn generate_record_offset_stmts(record: &Record) -> Vec<TokenStream> {
             // or just propagate via if let Some approach with allow
             quote! { if let Some(r) = record.#getter(data) { r?.sanitize()?; } }
         } else {
-            quote! { record.#getter(data)?.sanitize()?; }
+            quote! { sanitize_ignoring_null(record.#getter(data))?; }
         };
         stmts.push(stmt);
     }

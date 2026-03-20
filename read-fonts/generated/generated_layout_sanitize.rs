@@ -13,7 +13,7 @@ impl Sanitize for ScriptList<'_> {
         }
         let data = self.offset_data();
         for record in self.script_records() {
-            record.script(data)?.sanitize()?;
+            sanitize_ignoring_null(record.script(data))?;
         }
         Ok(())
     }
@@ -30,7 +30,7 @@ impl Sanitize for Script<'_> {
         }
         let data = self.offset_data();
         for record in self.lang_sys_records() {
-            record.lang_sys(data)?.sanitize()?;
+            sanitize_ignoring_null(record.lang_sys(data))?;
         }
         Ok(())
     }
@@ -50,7 +50,7 @@ impl Sanitize for FeatureList<'_> {
         }
         let data = self.offset_data();
         for record in self.feature_records() {
-            record.feature(data)?.sanitize()?;
+            sanitize_ignoring_null(record.feature(data))?;
         }
         Ok(())
     }
@@ -69,7 +69,7 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for LookupList<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.lookups();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -79,7 +79,7 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for Lookup<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.subtables();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -139,7 +139,7 @@ impl<'a> Sanitize for ClassDef<'a> {
 
 impl Sanitize for SequenceContextFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.seq_rule_sets();
         for r in arr.iter().flatten() {
             r?.sanitize()?;
@@ -152,7 +152,7 @@ impl Sanitize for SequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.seq_rules();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -170,8 +170,8 @@ impl Sanitize for SequenceRule<'_> {
 
 impl Sanitize for SequenceContextFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
-        self.class_def()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
+        sanitize_ignoring_null(self.class_def())?;
         let arr = self.class_seq_rule_sets();
         for r in arr.iter().flatten() {
             r?.sanitize()?;
@@ -184,7 +184,7 @@ impl Sanitize for ClassSequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.class_seq_rules();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -204,7 +204,7 @@ impl Sanitize for SequenceContextFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.coverages();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         let range = self.seq_lookup_records_byte_range();
         if range.end > self.offset_data().len() {
@@ -227,7 +227,7 @@ impl<'a> Sanitize for SequenceContext<'a> {
 
 impl Sanitize for ChainedSequenceContextFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.chained_seq_rule_sets();
         for r in arr.iter().flatten() {
             r?.sanitize()?;
@@ -240,7 +240,7 @@ impl Sanitize for ChainedSequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.chained_seq_rules();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -258,10 +258,10 @@ impl Sanitize for ChainedSequenceRule<'_> {
 
 impl Sanitize for ChainedSequenceContextFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
-        self.backtrack_class_def()?.sanitize()?;
-        self.input_class_def()?.sanitize()?;
-        self.lookahead_class_def()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
+        sanitize_ignoring_null(self.backtrack_class_def())?;
+        sanitize_ignoring_null(self.input_class_def())?;
+        sanitize_ignoring_null(self.lookahead_class_def())?;
         let arr = self.chained_class_seq_rule_sets();
         for r in arr.iter().flatten() {
             r?.sanitize()?;
@@ -274,7 +274,7 @@ impl Sanitize for ChainedClassSequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.chained_class_seq_rules();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -294,15 +294,15 @@ impl Sanitize for ChainedSequenceContextFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.backtrack_coverages();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         let arr = self.input_coverages();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         let arr = self.lookahead_coverages();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         let range = self.seq_lookup_records_byte_range();
         if range.end > self.offset_data().len() {
@@ -368,7 +368,7 @@ impl Sanitize for ConditionSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.conditions();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -403,7 +403,7 @@ impl Sanitize for ConditionFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.conditions();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -413,7 +413,7 @@ impl Sanitize for ConditionFormat4<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.conditions();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -421,7 +421,7 @@ impl Sanitize for ConditionFormat4<'_> {
 
 impl Sanitize for ConditionFormat5<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.condition()?.sanitize()?;
+        sanitize_ignoring_null(self.condition())?;
         Ok(())
     }
 }
@@ -434,7 +434,7 @@ impl Sanitize for FeatureTableSubstitution<'_> {
         }
         let data = self.offset_data();
         for record in self.substitutions() {
-            record.alternate_feature(data)?.sanitize()?;
+            sanitize_ignoring_null(record.alternate_feature(data))?;
         }
         Ok(())
     }

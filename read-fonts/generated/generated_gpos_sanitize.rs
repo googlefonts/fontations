@@ -7,9 +7,9 @@ use crate::codegen_prelude::*;
 
 impl Sanitize for Gpos<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.script_list()?.sanitize()?;
-        self.feature_list()?.sanitize()?;
-        self.lookup_list()?.sanitize()?;
+        sanitize_ignoring_null(self.script_list())?;
+        sanitize_ignoring_null(self.feature_list())?;
+        sanitize_ignoring_null(self.lookup_list())?;
         if let Some(r) = self.feature_variations() {
             r?.sanitize()?;
         }
@@ -77,7 +77,7 @@ impl Sanitize for MarkArray<'_> {
         }
         let data = self.offset_data();
         for record in self.mark_records() {
-            record.mark_anchor(data)?.sanitize()?;
+            sanitize_ignoring_null(record.mark_anchor(data))?;
         }
         Ok(())
     }
@@ -95,14 +95,14 @@ impl<'a> Sanitize for SinglePos<'a> {
 
 impl Sanitize for SinglePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         Ok(())
     }
 }
 
 impl Sanitize for SinglePosFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         Ok(())
     }
 }
@@ -119,10 +119,10 @@ impl<'a> Sanitize for PairPos<'a> {
 
 impl Sanitize for PairPosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.pair_sets();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -136,16 +136,16 @@ impl Sanitize for PairSet<'_> {
 
 impl Sanitize for PairPosFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
-        self.class_def1()?.sanitize()?;
-        self.class_def2()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
+        sanitize_ignoring_null(self.class_def1())?;
+        sanitize_ignoring_null(self.class_def2())?;
         Ok(())
     }
 }
 
 impl Sanitize for CursivePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let range = self.entry_exit_record_byte_range();
         if range.end > self.offset_data().len() {
             return Err(ReadError::OutOfBounds);
@@ -165,10 +165,10 @@ impl Sanitize for CursivePosFormat1<'_> {
 
 impl Sanitize for MarkBasePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.mark_coverage()?.sanitize()?;
-        self.base_coverage()?.sanitize()?;
-        self.mark_array()?.sanitize()?;
-        self.base_array()?.sanitize()?;
+        sanitize_ignoring_null(self.mark_coverage())?;
+        sanitize_ignoring_null(self.base_coverage())?;
+        sanitize_ignoring_null(self.mark_array())?;
+        sanitize_ignoring_null(self.base_array())?;
         Ok(())
     }
 }
@@ -181,10 +181,10 @@ impl Sanitize for BaseArray<'_> {
 
 impl Sanitize for MarkLigPosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.mark_coverage()?.sanitize()?;
-        self.ligature_coverage()?.sanitize()?;
-        self.mark_array()?.sanitize()?;
-        self.ligature_array()?.sanitize()?;
+        sanitize_ignoring_null(self.mark_coverage())?;
+        sanitize_ignoring_null(self.ligature_coverage())?;
+        sanitize_ignoring_null(self.mark_array())?;
+        sanitize_ignoring_null(self.ligature_array())?;
         Ok(())
     }
 }
@@ -193,7 +193,7 @@ impl Sanitize for LigatureArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.ligature_attaches();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -207,10 +207,10 @@ impl Sanitize for LigatureAttach<'_> {
 
 impl Sanitize for MarkMarkPosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.mark1_coverage()?.sanitize()?;
-        self.mark2_coverage()?.sanitize()?;
-        self.mark1_array()?.sanitize()?;
-        self.mark2_array()?.sanitize()?;
+        sanitize_ignoring_null(self.mark1_coverage())?;
+        sanitize_ignoring_null(self.mark2_coverage())?;
+        sanitize_ignoring_null(self.mark1_array())?;
+        sanitize_ignoring_null(self.mark2_array())?;
         Ok(())
     }
 }
@@ -223,7 +223,7 @@ impl Sanitize for Mark2Array<'_> {
 
 impl<'a, T: FontRead<'a> + Sanitize> Sanitize for ExtensionPosFormat1<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.extension()?.sanitize()?;
+        sanitize_ignoring_null(self.extension())?;
         Ok(())
     }
 }

@@ -7,9 +7,9 @@ use crate::codegen_prelude::*;
 
 impl Sanitize for Gsub<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.script_list()?.sanitize()?;
-        self.feature_list()?.sanitize()?;
-        self.lookup_list()?.sanitize()?;
+        sanitize_ignoring_null(self.script_list())?;
+        sanitize_ignoring_null(self.feature_list())?;
+        sanitize_ignoring_null(self.lookup_list())?;
         if let Some(r) = self.feature_variations() {
             r?.sanitize()?;
         }
@@ -45,24 +45,24 @@ impl<'a> Sanitize for SingleSubst<'a> {
 
 impl Sanitize for SingleSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         Ok(())
     }
 }
 
 impl Sanitize for SingleSubstFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         Ok(())
     }
 }
 
 impl Sanitize for MultipleSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.sequences();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -76,10 +76,10 @@ impl Sanitize for Sequence<'_> {
 
 impl Sanitize for AlternateSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.alternate_sets();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -93,10 +93,10 @@ impl Sanitize for AlternateSet<'_> {
 
 impl Sanitize for LigatureSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.ligature_sets();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -106,7 +106,7 @@ impl Sanitize for LigatureSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.ligatures();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }
@@ -120,7 +120,7 @@ impl Sanitize for Ligature<'_> {
 
 impl<'a, T: FontRead<'a> + Sanitize> Sanitize for ExtensionSubstFormat1<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.extension()?.sanitize()?;
+        sanitize_ignoring_null(self.extension())?;
         Ok(())
     }
 }
@@ -142,14 +142,14 @@ impl<'a> Sanitize for ExtensionSubtable<'a> {
 
 impl Sanitize for ReverseChainSingleSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        self.coverage()?.sanitize()?;
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.backtrack_coverages();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         let arr = self.lookahead_coverages();
         for item in arr.iter() {
-            item?.sanitize()?;
+            sanitize_ignoring_null(item)?;
         }
         Ok(())
     }

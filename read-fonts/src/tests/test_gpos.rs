@@ -280,6 +280,23 @@ fn anchorformat3() {
 //}[1, 1, 1, 1, 1]
 
 #[test]
+fn sanitize_null_offset_is_ok() {
+    use crate::sanitize::Sanitize;
+    use crate::FontData;
+    // MarkBasePosFormat1 layout:
+    //   [0..1] posFormat, [2..3] markCoverageOffset, [4..5] baseCoverageOffset,
+    //   [6..7] markClassCount, [8..9] markArrayOffset, [10..11] baseArrayOffset
+    // Zero bytes [10,11] to simulate an unexpected null non-nullable offset.
+    let mut bytes = test_data::MARKBASEPOSFORMAT1.to_vec();
+    bytes[10] = 0;
+    bytes[11] = 0;
+    let table = MarkBasePosFormat1::read(FontData::new(&bytes)).unwrap();
+    table
+        .sanitize()
+        .expect("null offset should not fail sanitize");
+}
+
+#[test]
 fn sanitize_gpos_gdef_gsub() {
     use crate::sanitize::Sanitize;
     use crate::TableProvider;
