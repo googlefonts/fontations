@@ -357,13 +357,15 @@ fn find_eexec_data(data: &[u8]) -> Option<usize> {
         // FreeType has some unfun logic for skipping whitespace
         // after the eexec token
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1parse.c#L382>
+        let mut seen_linefeed = false;
         while start < data.len() {
             match data[start] {
-                b' ' | b'\t' | b'\n' => {}
+                b' ' | b'\t' => {}
+                b'\n' => seen_linefeed = true,
                 b'\r' => {
-                    // Only stop at \r if it is not followed by \n
-                    if data.get(start + 1) != Some(&b'\n') {
-                        start += 1;
+                    // If we've already seen \n or there is not a \n later
+                    // in the data, then stop at this \r
+                    if seen_linefeed || !data[start..].contains(&b'\n') {
                         break;
                     }
                 }
@@ -673,8 +675,9 @@ impl<'a> Parser<'a> {
                                 self.pos += 1;
                                 // read the internal data
                                 let data = self.read_bytes(int as usize)?;
-                                // and skip the terminator (usually ND, NP or |-)
-                                self.next();
+                                // there's often some form of terminator here
+                                // but let the calling code handle it because
+                                // some buggy fonts may omit it
                                 return Some(Token::Binary(data));
                             }
                             return Some(Token::Int(int));
@@ -893,6 +896,9 @@ impl Parser<'_> {
             let (Token::Int(n), Token::Binary(data)) = (self.next()?, self.next()?) else {
                 return None;
             };
+            // Skip the NP, | or noaccess. FreeType just skips whatever happens
+            // to be here
+            self.next();
             // There might be an additional put token following the binary data
             self.accept(Token::Raw(b"put"));
             let subr_num: u32 = n.try_into().ok()?;
@@ -1369,7 +1375,7 @@ mod tests {
         // Only skip \r when it precedes \n
         assert_eq!(
             find_eexec_data(b"dup\n/Private\ncurrentfile eexec\r\n\r*&&FW"),
-            Some(33)
+            Some(32)
         );
         // Skip eexec in comments and strings
         assert_eq!(
@@ -1484,7 +1490,7 @@ mod tests {
     #[test]
     fn parse_binary_blobs() {
         check_tokens(
-            "/.notdef 4 RD abcd ND\n5 11\n \t-| a83jnshf7 3 -|",
+            "/.notdef 4 RD abcd \n5 11\n \t-| a83jnshf7 3 ",
             &[
                 // simulates a charstring: name followed by data
                 Token::Name(b".notdef"),
