@@ -357,15 +357,22 @@ fn find_eexec_data(data: &[u8]) -> Option<usize> {
         // FreeType has some unfun logic for skipping whitespace
         // after the eexec token
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1parse.c#L382>
-        let mut seen_linefeed = false;
+        let mut linefeed_pos = None;
         while start < data.len() {
             match data[start] {
                 b' ' | b'\t' => {}
-                b'\n' => seen_linefeed = true,
+                b'\n' => linefeed_pos = Some(start),
                 b'\r' => {
                     // If we've already seen \n or there is not a \n later
                     // in the data, then stop at this \r
-                    if seen_linefeed || !data[start..].contains(&b'\n') {
+                    if *linefeed_pos.get_or_insert_with(|| {
+                        data[start..]
+                            .iter()
+                            .position(|b| *b == b'\n')
+                            .map(|pos| pos + start)
+                            .unwrap_or(0)
+                    }) < start
+                    {
                         break;
                     }
                 }
