@@ -7,7 +7,7 @@ use fnv::FnvHashMap;
 use write_fonts::types::{FixedSize, Offset16, Scalar};
 
 pub(super) struct DataBytes<'a> {
-    bytes: &'a mut [u8],
+    pub(crate) bytes: &'a mut [u8],
 }
 
 impl<'a> DataBytes<'a> {

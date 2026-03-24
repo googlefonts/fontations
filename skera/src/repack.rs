@@ -8,6 +8,7 @@ use crate::{
         layout::{ExtensionSubtable, Lookup, EXTENSION_TABLE_SIZE},
         ligature_graph::split_ligature_subst,
         markbasepos_graph::split_markbase_pos,
+        pairpos_graph::split_pairpos,
         Graph, RepackError,
     },
     serialize::{ObjIdx, Serializer},
@@ -154,7 +155,13 @@ fn split_lookup_subtables_if_needed(
 
         // TODO: support more lookup types
         let mut new_subtables = match table_tag {
-            Gpos::TAG => split_markbase_pos(graph, non_ext_subtable_idx)?,
+            Gpos::TAG => {
+                if lookup_type == 2 {
+                    split_pairpos(graph, non_ext_subtable_idx)?
+                } else {
+                    split_markbase_pos(graph, non_ext_subtable_idx)?
+                }
+            }
             Gsub::TAG => split_ligature_subst(graph, non_ext_subtable_idx)?,
             _ => return Err(RepackError::ErrorReadTable),
         };
@@ -179,7 +186,8 @@ fn split_lookup_subtables_if_needed(
 //TODO: support more lookup types
 fn splitting_supported_lookup_type(lookup_type: u16, table_tag: Tag) -> bool {
     match table_tag {
-        Gpos::TAG => lookup_type == 4,
+        // GPOS: only support PairPos and MarkBasePos
+        Gpos::TAG => lookup_type == 4 || lookup_type == 2,
         // GSUB: currently only support ligature subst
         Gsub::TAG => lookup_type == 4,
         _ => false,
@@ -1566,6 +1574,90 @@ pub(crate) mod test {
         graph.normalize();
         expected_graph.normalize();
         assert_eq!(graph, expected_graph);
+    }
+
+    fn add_pair_pos_1(s: &mut Serializer, pair_sets: &[ObjIdx], coverage: ObjIdx) -> ObjIdx {
+        let format = 1_u16;
+        start_object(s, &format.to_be_bytes(), 2);
+        add_offset(s, coverage);
+
+        let count = pair_sets.len() as u16;
+        s.embed(0_u16).unwrap(); // ValueFormat1
+        s.embed(0_u16).unwrap(); // ValueFormat2
+        s.embed(count).unwrap(); // PairSetCount
+
+        for &pair_set in pair_sets {
+            add_offset(s, pair_set);
+        }
+
+        s.pop_pack(false).unwrap()
+    }
+
+    fn populate_serializer_with_large_pair_pos_1(
+        s: &mut Serializer,
+        num_pair_pos_1: usize,
+        num_pair_set: usize,
+        as_extension: bool,
+    ) {
+        let large_bytes = [b'a'; 60000];
+        s.start_serialize().unwrap();
+
+        let total_pair_set = num_pair_pos_1 * num_pair_set;
+        let mut pair_set = vec![0; total_pair_set];
+        let mut coverage = vec![0; num_pair_pos_1];
+        let mut pair_pos_1 = vec![0; num_pair_pos_1];
+
+        for i in (0..num_pair_pos_1).rev() {
+            for j in (i * num_pair_set..(i + 1) * num_pair_set).rev() {
+                pair_set[j] = add_object(s, &large_bytes, 30000 + j, false);
+            }
+
+            coverage[i] = add_coverage(s, (i * num_pair_set) as u16, ((i + 1) * num_pair_set - 1) as u16, false);
+
+            let start_set = i * num_pair_set;
+            let end_set = (i + 1) * num_pair_set;
+            pair_pos_1[i] = add_pair_pos_1(s, &pair_set[start_set..end_set], coverage[i]);
+        }
+
+        let pair_pos_2 = add_object(s, &large_bytes, 200, false);
+
+        let mut pair_pos_1 = pair_pos_1;
+        let mut pair_pos_2 = pair_pos_2;
+
+        if as_extension {
+            pair_pos_2 = add_extension(s, pair_pos_2, 2, false);
+            for p in pair_pos_1.iter_mut() {
+                *p = add_extension(s, *p, 2, false);
+            }
+        }
+
+        let lookup_type = if as_extension { 9 } else { 2 };
+        start_lookup(s, lookup_type, (1 + num_pair_pos_1) as u8);
+
+        for &p in &pair_pos_1 {
+            add_offset(s, p);
+        }
+        add_offset(s, pair_pos_2);
+
+        let lookup = finish_lookup(s);
+        let lookups = [lookup; 1];
+        let lookup_list = add_lookup_list(s, 1, &lookups);
+
+        add_gsub_gpos_header(s, lookup_list);
+
+        s.end_serialize();
+    }
+
+    #[test]
+    fn test_resolve_with_basic_pair_pos_1_split() {
+        let buf_size = 200000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_1(&mut overflowing, 1, 4, false);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_1(&mut expected, 2, 2, true);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
     }
 
     #[test]

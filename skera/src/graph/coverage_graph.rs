@@ -12,10 +12,7 @@ use write_fonts::{
 
 use std::ops::Range;
 
-pub(crate) fn coverage_glyphs(
-    graph: &mut Graph,
-    cov_idx: ObjIdx,
-) -> Result<Vec<GlyphId>, RepackError> {
+pub(crate) fn coverage_glyphs(graph: &Graph, cov_idx: ObjIdx) -> Result<Vec<GlyphId>, RepackError> {
     let coverage_data = graph
         .vertex_data(cov_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;

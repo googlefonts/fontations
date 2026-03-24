@@ -13,6 +13,7 @@ mod coverage_graph;
 pub(crate) mod layout;
 pub(crate) mod ligature_graph;
 pub(crate) mod markbasepos_graph;
+pub(crate) mod pairpos_graph;
 
 #[derive(Debug)]
 pub(crate) enum RepackError {
@@ -1341,10 +1342,7 @@ impl Graph {
         self.distance_invalid = true;
         self.positions_invalid = true;
 
-        let old_parent_v = self
-            .vertices
-            .get_mut(old_parent_idx)
-            .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
+        let old_parent_v = self.vertices.get_mut(old_parent_idx).unwrap();
 
         // remove from old parent
         let Some((_, link)) = old_parent_v.real_links.remove_entry(&old_offset) else {
