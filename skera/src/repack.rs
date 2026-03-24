@@ -8,6 +8,7 @@ use crate::{
         layout::{ExtensionSubtable, Lookup, EXTENSION_TABLE_SIZE},
         ligature_graph::split_ligature_subst,
         markbasepos_graph::split_markbase_pos,
+        pairpos_graph::split_pairpos,
         Graph, RepackError,
     },
     serialize::{ObjIdx, Serializer},
@@ -154,7 +155,13 @@ fn split_lookup_subtables_if_needed(
 
         // TODO: support more lookup types
         let mut new_subtables = match table_tag {
-            Gpos::TAG => split_markbase_pos(graph, non_ext_subtable_idx)?,
+            Gpos::TAG => {
+                if lookup_type == 2 {
+                    split_pairpos(graph, non_ext_subtable_idx)?
+                } else {
+                    split_markbase_pos(graph, non_ext_subtable_idx)?
+                }
+            }
             Gsub::TAG => split_ligature_subst(graph, non_ext_subtable_idx)?,
             _ => return Err(RepackError::ErrorReadTable),
         };
@@ -179,7 +186,8 @@ fn split_lookup_subtables_if_needed(
 //TODO: support more lookup types
 fn splitting_supported_lookup_type(lookup_type: u16, table_tag: Tag) -> bool {
     match table_tag {
-        Gpos::TAG => lookup_type == 4,
+        // GPOS: only support PairPos and MarkBasePos
+        Gpos::TAG => lookup_type == 4 || lookup_type == 2,
         // GSUB: currently only support ligature subst
         Gsub::TAG => lookup_type == 4,
         _ => false,
@@ -1521,6 +1529,245 @@ pub(crate) mod test {
         s.end_serialize();
     }
 
+    fn add_pair_pos_1(s: &mut Serializer, pair_sets: &[ObjIdx], coverage: ObjIdx) -> ObjIdx {
+        let format = 1_u16;
+        start_object(s, &format.to_be_bytes(), 2);
+        add_offset(s, coverage);
+
+        let count = pair_sets.len() as u16;
+        s.embed(0_u16).unwrap(); // ValueFormat1
+        s.embed(0_u16).unwrap(); // ValueFormat2
+        s.embed(count).unwrap(); // PairSetCount
+
+        for &pair_set in pair_sets {
+            add_offset(s, pair_set);
+        }
+
+        s.pop_pack(false).unwrap()
+    }
+
+    fn populate_serializer_with_large_pair_pos_1(
+        s: &mut Serializer,
+        num_pair_pos_1: usize,
+        num_pair_set: usize,
+        as_extension: bool,
+    ) {
+        let large_bytes = [b'a'; 60000];
+        s.start_serialize().unwrap();
+
+        let total_pair_set = num_pair_pos_1 * num_pair_set;
+        let mut pair_set = vec![0; total_pair_set];
+        let mut coverage = vec![0; num_pair_pos_1];
+        let mut pair_pos_1 = vec![0; num_pair_pos_1];
+
+        for i in (0..num_pair_pos_1).rev() {
+            for j in (i * num_pair_set..(i + 1) * num_pair_set).rev() {
+                pair_set[j] = add_object(s, &large_bytes, 30000 + j, false);
+            }
+
+            coverage[i] = add_coverage(
+                s,
+                (i * num_pair_set) as u16,
+                ((i + 1) * num_pair_set - 1) as u16,
+                false,
+            );
+
+            let start_set = i * num_pair_set;
+            let end_set = (i + 1) * num_pair_set;
+            pair_pos_1[i] = add_pair_pos_1(s, &pair_set[start_set..end_set], coverage[i]);
+        }
+
+        let mut pair_pos_2 = add_object(s, &large_bytes, 200, false);
+
+        if as_extension {
+            pair_pos_2 = add_extension(s, pair_pos_2, 2, false);
+            for p in pair_pos_1.iter_mut().rev() {
+                *p = add_extension(s, *p, 2, false);
+            }
+        }
+
+        let lookup_type = if as_extension { 9 } else { 2 };
+        start_lookup(s, lookup_type, (1 + num_pair_pos_1) as u8);
+
+        for &p in &pair_pos_1 {
+            add_offset(s, p);
+        }
+        add_offset(s, pair_pos_2);
+
+        let lookup = finish_lookup(s);
+        let lookups = [lookup; 1];
+        let lookup_list = add_lookup_list(s, 1, &lookups);
+
+        add_gsub_gpos_header(s, lookup_list);
+
+        s.end_serialize();
+    }
+
+    fn add_class_def(s: &mut Serializer, start_glyph: u16, end_glyph: u16) -> ObjIdx {
+        let count = end_glyph - start_glyph;
+        let header = [
+            0,
+            1,
+            (start_glyph >> 8) as u8,
+            (start_glyph & 0xFF) as u8,
+            (count >> 8) as u8,
+            (count & 0xFF) as u8,
+        ];
+
+        start_object(s, &header, 6);
+        for i in 1..=count {
+            s.embed_bytes(&i.to_be_bytes()).unwrap();
+        }
+
+        s.pop_pack(false).unwrap()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn add_pair_pos_2(
+        s: &mut Serializer,
+        starting_class: u16,
+        coverage: ObjIdx,
+        class_def_1: ObjIdx,
+        class_1_count: u16,
+        class_def_2: ObjIdx,
+        class_2_count: u16,
+        device_tables: Option<&[ObjIdx]>,
+    ) -> ObjIdx {
+        let format = 2_u16;
+        start_object(s, &format.to_be_bytes(), 2);
+        add_offset(s, coverage);
+
+        let format1: u16 = 0x01 | 0x02 | 0x08; // XPlacement, YPlacement, YAdvance
+        let mut format2: u16 = 0x04; // XAdvance
+        if device_tables.is_some() {
+            format2 |= 0x20; // YAdvDevice
+        }
+
+        s.embed(format1).unwrap();
+        s.embed(format2).unwrap();
+
+        add_offset(s, class_def_1);
+        add_offset(s, class_def_2);
+
+        s.embed(class_1_count).unwrap();
+        s.embed(class_2_count).unwrap();
+
+        let mut device_index = 0;
+        for i in 0..class_1_count {
+            for _ in 0..class_2_count {
+                for _ in 0..4 {
+                    let val = i + starting_class;
+                    let bytes = [val as u8, val as u8];
+                    s.embed_bytes(&bytes).unwrap();
+                }
+
+                if let Some(devices) = device_tables {
+                    add_offset(s, devices[device_index]);
+                    device_index += 1;
+                }
+            }
+        }
+
+        s.pop_pack(false).unwrap()
+    }
+
+    fn populate_serializer_with_large_pair_pos_2(
+        s: &mut Serializer,
+        num_pair_pos_2: usize,
+        num_class_1: usize,
+        num_class_2: usize,
+        as_extension: bool,
+        with_device_tables: bool,
+        extra_table: bool,
+    ) {
+        s.start_serialize().unwrap();
+
+        let mut class_def_1 = vec![0; num_pair_pos_2];
+        let mut class_def_2 = vec![0; num_pair_pos_2];
+        let mut coverage = vec![0; num_pair_pos_2];
+        let mut pair_pos_2 = vec![0; num_pair_pos_2];
+
+        let mut device_tables = vec![0; num_pair_pos_2 * num_class_1 * num_class_2];
+
+        for i in (0..num_pair_pos_2).rev() {
+            let start_glyph = (5 + i * num_class_1) as u16;
+
+            if num_class_2 >= num_class_1 {
+                class_def_2[i] = add_class_def(s, 11, (10 + num_class_2) as u16);
+                class_def_1[i] =
+                    add_class_def(s, start_glyph + 1, start_glyph + num_class_1 as u16);
+            } else {
+                class_def_1[i] =
+                    add_class_def(s, start_glyph + 1, start_glyph + num_class_1 as u16);
+                class_def_2[i] = add_class_def(s, 11, (10 + num_class_2) as u16);
+            }
+
+            coverage[i] = add_coverage(s, start_glyph, start_glyph + num_class_1 as u16 - 1, false);
+
+            if with_device_tables {
+                let start_idx = i * num_class_1 * num_class_2;
+                let end_idx = (i + 1) * num_class_1 * num_class_2;
+                for j in (start_idx..end_idx).rev() {
+                    let bytes = [((j >> 8) & 0xFF) as u8, (j & 0xFF) as u8];
+                    device_tables[j] = add_object(s, &bytes, 2, false);
+                }
+            }
+
+            pair_pos_2[i] = add_pair_pos_2(
+                s,
+                (1 + i * num_class_1) as u16,
+                coverage[i],
+                class_def_1[i],
+                num_class_1 as u16,
+                class_def_2[i],
+                num_class_2 as u16,
+                if with_device_tables {
+                    Some(&device_tables[i * num_class_1 * num_class_2..])
+                } else {
+                    None
+                },
+            );
+        }
+        let mut pair_pos_1 = 0;
+        if extra_table {
+            let large_bytes = vec![b'a'; 100000];
+            pair_pos_1 = add_object(s, &large_bytes, 100000, false);
+        }
+
+        if as_extension {
+            for i in (0..num_pair_pos_2).rev() {
+                pair_pos_2[i] = add_extension(s, pair_pos_2[i], 2, false);
+            }
+            if extra_table {
+                pair_pos_1 = add_extension(s, pair_pos_1, 2, false);
+            }
+        }
+
+        let lookup_type = if as_extension { 9 } else { 2 };
+        let num_subtables = if extra_table {
+            num_pair_pos_2 + 1
+        } else {
+            num_pair_pos_2
+        } as u8;
+        start_lookup(s, lookup_type, num_subtables);
+
+        if extra_table {
+            add_offset(s, pair_pos_1);
+        }
+
+        for &i in pair_pos_2.iter().take(num_pair_pos_2) {
+            add_offset(s, i);
+        }
+
+        let lookup = finish_lookup(s);
+
+        let lookups = [lookup; 1];
+        let lookup_list = add_lookup_list(s, 1, &lookups);
+        add_gsub_gpos_header(s, lookup_list);
+
+        s.end_serialize();
+    }
+
     fn run_resolve_overflow_test(
         overflowing: &Serializer,
         expected: &Serializer,
@@ -1763,6 +2010,73 @@ pub(crate) mod test {
         populate_serializer_with_extension_promotion(&mut expected, 3, true);
 
         run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gsub::TAG);
+    }
+
+    #[test]
+    fn test_resolve_with_basic_pair_pos_1_split() {
+        let buf_size = 200000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_1(&mut overflowing, 1, 4, false);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_1(&mut expected, 2, 2, true);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+    }
+
+    #[test]
+    fn test_resolve_with_extension_pair_pos_1_split() {
+        let buf_size = 200000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_1(&mut overflowing, 1, 4, true);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_1(&mut expected, 2, 2, true);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+    }
+
+    #[test]
+    fn test_resolve_with_basic_pair_pos_2_split() {
+        let buf_size = 300000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_2(&mut overflowing, 1, 4, 3000, false, false, true);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_2(&mut expected, 2, 2, 3000, true, false, true);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+    }
+    #[test]
+    fn test_resolve_with_pair_pos_2_split_with_device_tables() {
+        let buf_size = 300000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_2(&mut overflowing, 1, 4, 2000, false, true, true);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_2(&mut expected, 2, 2, 2000, true, true, true);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
+    }
+
+    #[test]
+    fn test_resolve_with_close_to_limit_pair_pos_2_split() {
+        let buf_size = 300000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_2(
+            &mut overflowing,
+            1,
+            1636,
+            10,
+            true,
+            false,
+            false,
+        );
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_large_pair_pos_2(&mut expected, 2, 818, 10, true, false, false);
+
+        run_resolve_overflow_test(&overflowing, &expected, 20, true, false, Gpos::TAG);
     }
 
     #[test]
