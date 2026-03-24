@@ -1,6 +1,6 @@
 //! Parsing for PostScript charstrings.
 
-use super::{dict::FontMatrix, BlendState, Error, Index, Stack};
+use super::{dict::FontMatrix, BlendState, Error, Index, Stack, Transform};
 use crate::{
     tables::{cff::Cff, postscript::StringId},
     types::{Fixed, Point},
@@ -1117,8 +1117,13 @@ pub struct TransformSink<'a, S> {
 }
 
 impl<'a, S> TransformSink<'a, S> {
+    /// Creates a new sink for the given transform.
+    pub fn new(sink: &'a mut S, transform: Transform) -> Self {
+        Self::from_matrix_scale(sink, transform.matrix, transform.scale)
+    }
+
     /// Creates a new sink for the given matrix and optional scale.
-    pub fn new(sink: &'a mut S, matrix: FontMatrix, scale: Option<Fixed>) -> Self {
+    pub fn from_matrix_scale(sink: &'a mut S, matrix: FontMatrix, scale: Option<Fixed>) -> Self {
         Self {
             inner: sink,
             matrix: (matrix != FontMatrix::IDENTITY).then_some(matrix),
@@ -2018,7 +2023,8 @@ mod tests {
         let expected = [(404, 118i32), (453, 20), (550, -33), (678, -33)]
             .map(|(x, y)| (Fixed::from_bits(x << 10), Fixed::from_bits(y << 10)));
         let mut dummy = ();
-        let sink = TransformSink::new(&mut dummy, TRANSFORM, Some(Fixed::from_bits(167772)));
+        let sink =
+            TransformSink::from_matrix_scale(&mut dummy, TRANSFORM, Some(Fixed::from_bits(167772)));
         let transformed = input.map(|(x, y)| sink.transform(x, y));
         assert_eq!(transformed, expected);
     }
@@ -2032,7 +2038,7 @@ mod tests {
         let expected = [(158, 46i32), (177, 8), (215, -13), (265, -13)]
             .map(|(x, y)| (Fixed::from_bits(x << 16), Fixed::from_bits(y << 16)));
         let mut dummy = ();
-        let sink = TransformSink::new(&mut dummy, TRANSFORM, None);
+        let sink = TransformSink::from_matrix_scale(&mut dummy, TRANSFORM, None);
         let transformed = input.map(|(x, y)| sink.transform(x, y));
         assert_eq!(transformed, expected);
     }
@@ -2050,7 +2056,7 @@ mod tests {
     #[test]
     fn unscaled_transform_sink_produces_integers() {
         let nothing = &mut ();
-        let sink = TransformSink::new(nothing, FontMatrix::IDENTITY, None);
+        let sink = TransformSink::new(nothing, Transform::default());
         for coord in [50.0, 50.1, 50.125, 50.5, 50.9] {
             assert_eq!(
                 sink.transform(Fixed::from_f64(coord), Fixed::ZERO)
@@ -2068,7 +2074,7 @@ mod tests {
         // match FreeType scaling with intermediate conversion to 26.6
         let scale = Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(upem as i32);
         let nothing = &mut ();
-        let sink = TransformSink::new(nothing, FontMatrix::IDENTITY, Some(scale));
+        let sink = TransformSink::from_matrix_scale(nothing, FontMatrix::IDENTITY, Some(scale));
         let inputs = [
             // input coord, expected scaled output
             (0.0, 0.0),

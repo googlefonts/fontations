@@ -189,13 +189,13 @@ impl SkrifaType1Instance<'_> {
     ) -> Result<Option<f32>, DrawError> {
         let mut pen = PenCommandSink(pen);
         let mut nop_filter = NopFilterSink::new(&mut pen);
-        let scale = self.ppem.map(|ppem| self.font.scale_for_ppem(ppem));
-        let mut transformer = TransformSink::new(&mut nop_filter, self.font.matrix(), scale);
+        let transform = self.font.transform(self.ppem);
+        let mut transformer = TransformSink::new(&mut nop_filter, transform);
         let width = self
             .font
             .evaluate_charstring(glyph_id, &mut transformer)
             .map_err(DrawError::PostScript)?;
-        let width = width.map(|w| self.font.transform_h_metric(scale, w));
+        let width = width.map(|w| transform.transform_h_metric(w));
         Ok(width.map(|w| w.to_f32().max(0.0)))
     }
 }

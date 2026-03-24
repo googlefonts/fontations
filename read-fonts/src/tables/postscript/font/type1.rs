@@ -3,7 +3,7 @@
 use super::super::{
     charstring::{self, CharstringContext, CharstringKind, CommandSink},
     dict::{FontMatrix, ScaledFontMatrix},
-    Error, PredefinedEncoding,
+    Error, PredefinedEncoding, Transform,
 };
 use crate::{
     types::{Fixed, GlyphId},
@@ -115,30 +115,12 @@ impl Type1Font {
         self.matrix.scale
     }
 
-    /// Returns the fixed point scale factor for the given font size in
-    /// pixels per em.
-    pub fn scale_for_ppem(&self, ppem: f32) -> Fixed {
-        Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(self.upem().max(1))
-    }
-
-    /// Applies font matrix and scale to a horizontal metric (such as advance
-    /// width).
-    pub fn transform_h_metric(&self, scale: Option<Fixed>, mut metric: Fixed) -> Fixed {
-        metric = Fixed::from_bits(metric.to_i32());
-        let matrix = &self.matrix.matrix.0;
-        if matrix[0] != Fixed::ONE {
-            // x scale
-            metric *= matrix[0];
-        }
-        // x translation
-        metric += matrix[4];
-        if let Some(scale) = scale {
-            // Multiplying by scale converts to 26.6 but we want to keep the
-            // result in 16.16
-            Fixed::from_bits((metric * scale).to_bits() << 10)
-        } else {
-            // Metric is currently in font units. Convert back to 16.16
-            Fixed::from_bits(metric.to_bits() << 16)
+    /// Returns the appropriate transform for adjusting points and metrics.
+    pub fn transform(&self, ppem: Option<f32>) -> Transform {
+        let scale = ppem.map(|ppem| Transform::compute_scale(ppem, self.upem()));
+        Transform {
+            matrix: self.matrix(),
+            scale,
         }
     }
 
@@ -164,6 +146,9 @@ impl Type1Font {
 
     /// Evaluates the charstring for the requested glyph and sends the results
     /// to the given sink.
+    ///
+    /// Returns the advance with of the glyph in font units if the charstring
+    /// provides one.
     pub fn evaluate_charstring(
         &self,
         gid: GlyphId,
