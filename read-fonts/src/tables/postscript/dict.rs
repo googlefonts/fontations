@@ -562,6 +562,12 @@ impl FontMatrix {
     }
 }
 
+impl Default for FontMatrix {
+    fn default() -> Self {
+        Self::IDENTITY
+    }
+}
+
 /// An affine matrix with a scaling factor.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct ScaledFontMatrix {
