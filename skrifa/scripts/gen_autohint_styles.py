@@ -590,6 +590,20 @@ SCRIPT_CLASSES = [
         ],
     },
     {
+        "name": "Nyiakeng Puachue Hmong",
+        "tag": "HMNP",
+        "hint_top_to_bottom": False,
+        "std_chars": "𞄨",
+        "base_ranges": [
+            (0x1E100, 0x1E14F),  # Nyiakeng Puachue Hmong
+        ],
+        "non_base_ranges": [],
+        "blues": [
+            ("𞄀 𞄁 𞄈 𞄑 𞄧 𞄬", "TOP"),
+            ("𞄁 𞄜 𞄠 𞄡 𞄤 𞅂", "0"),
+        ],
+    },
+    {
         "name": "Kayah Li",
         "tag": "KALI",
         "hint_top_to_bottom": False,
