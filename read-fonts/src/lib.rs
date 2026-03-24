@@ -112,7 +112,10 @@ pub(crate) mod codegen_prelude {
         ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };
     #[cfg(feature = "sanitize")]
-    pub use crate::sanitize::{sanitize_ignoring_null, Sanitize, SanitizeRecord};
+    pub use crate::sanitize::{
+        sanitize_ignoring_null, FontPtr, ReadSanitized, ResolveSanitizedOffset, Sanitize,
+        SanitizeRecord,
+    };
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;
     pub use std::ops::Range;
