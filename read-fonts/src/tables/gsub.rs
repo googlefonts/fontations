@@ -27,6 +27,27 @@ pub type SubstitutionSequenceContext<'a> = super::layout::SequenceContext<'a>;
 /// A GSUB [ChainedSequenceContext]
 pub type SubstitutionChainContext<'a> = super::layout::ChainedSequenceContext<'a>;
 
+#[cfg(feature = "sanitize")]
+mod sanitize_manual_impls {
+
+    pub type SubstitutionLookupListSanitized<'a> =
+        LookupListSanitized<'a, super::SubstitutionLookupSanitized<'a>>;
+
+    pub type SubstitutionSequenceContextSanitized<'a> =
+        super::super::layout::SequenceContextSanitized<'a>;
+
+    pub type SubstitutionChainContextSanitized<'a> =
+        super::super::layout::ChainedSequenceContextSanitized<'a>;
+
+    pub use super::super::layout::{
+        ClassDefSanitized, CoverageTableSanitized, DeviceOrVariationIndexSanitized,
+        DeviceSanitized, FeatureListSanitized, FeatureVariationsSanitized, LookupListSanitized,
+        ScriptListSanitized,
+    };
+}
+#[cfg(feature = "sanitize")]
+pub use sanitize_manual_impls::*;
+
 impl<'a, T: FontRead<'a>> ExtensionLookup<'a, T> for ExtensionSubstFormat1<'a, T> {
     fn extension(&self) -> Result<T, ReadError> {
         self.extension()

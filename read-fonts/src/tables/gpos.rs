@@ -35,6 +35,26 @@ pub type PositionSequenceContext<'a> = super::layout::SequenceContext<'a>;
 /// A GPOS [ChainedSequenceContext](super::layout::ChainedSequenceContext)
 pub type PositionChainContext<'a> = super::layout::ChainedSequenceContext<'a>;
 
+#[cfg(feature = "sanitize")]
+mod sanitize_manual_impls {
+
+    pub type PositionLookupListSanitized<'a> =
+        super::super::layout::LookupListSanitized<'a, super::PositionLookupSanitized<'a>>;
+
+    pub type PositionSequenceContextSanitized<'a> =
+        super::super::layout::SequenceContextSanitized<'a>;
+
+    pub type PositionChainContextSanitized<'a> =
+        super::super::layout::ChainedSequenceContextSanitized<'a>;
+
+    pub use super::super::layout::{
+        ClassDefSanitized, CoverageTableSanitized, DeviceOrVariationIndexSanitized,
+        DeviceSanitized, FeatureListSanitized, FeatureVariationsSanitized, ScriptListSanitized,
+    };
+}
+#[cfg(feature = "sanitize")]
+pub use sanitize_manual_impls::*;
+
 impl<'a> AnchorTable<'a> {
     /// Attempt to resolve the `Device` or `VariationIndex` table for the
     /// x_coordinate, if present
