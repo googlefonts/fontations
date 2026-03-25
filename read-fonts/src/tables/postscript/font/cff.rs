@@ -4,10 +4,10 @@ use super::super::{
     super::{cff, cff2},
     charstring::{self, CommandSink},
     dict::{self, ScaledFontMatrix},
-    BlendState, Charset, Error, FdSelect, Index,
+    BlendState, Charset, Error, FdSelect, Index, Transform,
 };
 use super::HintingParams;
-use crate::{tables::variations::ItemVariationStore, FontRead, ReadError};
+use crate::{tables::variations::ItemVariationStore, FontData, FontRead, ReadError};
 use core::ops::Range;
 use types::{F2Dot14, Fixed, GlyphId};
 
@@ -19,18 +19,39 @@ use types::{F2Dot14, Fixed, GlyphId};
 pub struct CffFontRef<'a> {
     data: &'a [u8],
     is_cff2: bool,
+    upem: i32,
     global_subrs: Index<'a>,
     top_dict: TopDict<'a>,
 }
 
 impl<'a> CffFontRef<'a> {
+    /// Creates a new font for the given CFF or CFF2 data.
+    ///
+    /// Tries to determine the CFF version by reading the first word of the
+    /// header.
+    ///
+    /// For CFF blobs embedded in an OpenType font, the upem should be taken
+    /// from the `head` table. Otherwise, 1000 will be assumed.
+    pub fn new(data: &'a [u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
+        let version: u8 = FontData::new(data).read_at(0)?;
+        match version {
+            1 => Self::new_cff(data, top_dict_index, upem),
+            2 => Self::new_cff2(data, upem),
+            _ => Err(Error::InvalidFontFormat),
+        }
+    }
+
     /// Creates a new font for the given CFF data.
-    pub fn new_cff(data: &'a [u8], top_dict_index: u32) -> Result<Self, Error> {
+    ///
+    /// For CFF blobs embedded in an OpenType font, the upem should be taken
+    /// from the `head` table. Otherwise, 1000 will be assumed.
+    pub fn new_cff(data: &'a [u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
         let cff = cff::Cff::read(data.into())?;
         let top_dict_data = cff.top_dicts().get(top_dict_index as usize)?;
-        Self::new(
+        Self::new_impl(
             data,
             false,
+            upem,
             top_dict_data,
             cff.strings().into(),
             cff.global_subrs().into(),
@@ -38,20 +59,25 @@ impl<'a> CffFontRef<'a> {
     }
 
     /// Creates a new font for the given CFF2 data.
-    pub fn new_cff2(data: &'a [u8]) -> Result<Self, Error> {
+    ///
+    /// For CFF blobs embedded in an OpenType font, the upem should be taken
+    /// from the `head` table. Otherwise, 1000 will be assumed.
+    pub fn new_cff2(data: &'a [u8], upem: Option<i32>) -> Result<Self, Error> {
         let cff = cff2::Cff2::read(data.into())?;
-        Self::new(
+        Self::new_impl(
             data,
             true,
+            upem,
             cff.top_dict_data(),
             Index::Empty,
             cff.global_subrs().into(),
         )
     }
 
-    fn new(
+    fn new_impl(
         data: &'a [u8],
         is_cff2: bool,
+        upem: Option<i32>,
         top_dict_data: &'a [u8],
         strings: Index<'a>,
         global_subrs: Index<'a>,
@@ -60,6 +86,7 @@ impl<'a> CffFontRef<'a> {
         Ok(Self {
             data,
             is_cff2,
+            upem: upem.unwrap_or(1000),
             global_subrs,
             top_dict,
         })
@@ -115,6 +142,11 @@ impl<'a> CffFontRef<'a> {
     /// Returns the top level font matrix.
     pub fn matrix(&self) -> Option<&ScaledFontMatrix> {
         self.top_dict.matrix.as_ref()
+    }
+
+    /// Returns the units per em.
+    pub fn upem(&self) -> i32 {
+        self.upem
     }
 
     /// Returns the item variation store.
@@ -194,8 +226,73 @@ impl<'a> CffFontRef<'a> {
         }
     }
 
+    /// Returns the effective transform for the given subfont and optional size
+    /// in pixels per em.
+    pub fn transform(&self, subfont: &CffSubfont, ppem: Option<f32>) -> Transform {
+        let mut scale = ppem.map(|ppem| Transform::compute_scale(ppem, self.upem));
+        // Compute our font matrix and adjusted UPEM
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L746>
+        let scaled_matrix = if let Some(top_matrix) = self.top_dict.matrix {
+            // We have a top dict matrix. Now check for a font dict matrix.
+            if let Some(sub_matrix) = subfont.matrix {
+                let scaling = if top_matrix.scale > 1 && sub_matrix.scale > 1 {
+                    top_matrix.scale.min(sub_matrix.scale)
+                } else {
+                    1
+                };
+                // Concatenate and scale
+                let matrix = top_matrix
+                    .matrix
+                    .combine_scaled(&sub_matrix.matrix, scaling);
+                let scaled_upem = Fixed::from_bits(sub_matrix.scale).mul_div(
+                    Fixed::from_bits(top_matrix.scale),
+                    Fixed::from_bits(scaling),
+                );
+                // Then normalize
+                Some(
+                    ScaledFontMatrix {
+                        matrix,
+                        scale: scaled_upem.to_bits(),
+                    }
+                    .normalize(),
+                )
+            } else {
+                // Top matrix was already normalized on load
+                Some(top_matrix)
+            }
+        } else {
+            // Just normalize if we have a subfont matrix
+            subfont.matrix.map(|matrix| matrix.normalize())
+        };
+        // Now adjust our scale factor if necessary
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffgload.c#L450>
+        if let Some(matrix) = scaled_matrix.as_ref() {
+            // If the scaling factor from our matrix does not equal the nominal
+            // UPEM of the font then adjust the scale.
+            if matrix.scale != self.upem {
+                // In this case, we need to force a scale for "unscaled"
+                // requests in order to apply the adjusted UPEM from the
+                // font matrix.
+                let original_scale = scale.unwrap_or(Fixed::from_i32(64));
+                scale = Some(
+                    original_scale
+                        .mul_div(Fixed::from_bits(self.upem), Fixed::from_bits(matrix.scale)),
+                );
+            }
+        }
+        Transform {
+            matrix: scaled_matrix
+                .map(|scaled_mat| scaled_mat.matrix)
+                .unwrap_or_default(),
+            scale,
+        }
+    }
+
     /// Evaluates the charstring for the requested glyph and sends the results
     /// to the given sink.
+    ///
+    /// Returns the advance with of the glyph in font units if the charstring
+    /// provides one.
     pub fn evaluate_charstring(
         &self,
         subfont: &CffSubfont,
@@ -530,7 +627,8 @@ mod tests {
     #[test]
     fn read_cff_static() {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
-        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let cff =
+            CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         assert_eq!(cff.version(), 1);
         assert!(cff.var_store().is_none());
         let CffFontKind::Sid { private_dict, .. } = &cff.top_dict.kind else {
@@ -546,7 +644,8 @@ mod tests {
     #[test]
     fn read_cff2_static() {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let cff = CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let cff =
+            CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes(), None).unwrap();
         assert_eq!(cff.version(), 2);
         assert!(cff.var_store().is_some());
         let CffFontKind::Cff2 { fd_array, .. } = &cff.top_dict.kind else {
@@ -561,7 +660,7 @@ mod tests {
 
     #[test]
     fn read_example_cff2_table() {
-        let cff = CffFontRef::new_cff2(font_test_data::cff2::EXAMPLE).unwrap();
+        let cff = CffFontRef::new_cff2(font_test_data::cff2::EXAMPLE, None).unwrap();
         assert_eq!(cff.version(), 2);
         assert!(cff.var_store().is_some());
         let CffFontKind::Cff2 { fd_array, .. } = &cff.top_dict.kind else {
@@ -577,7 +676,8 @@ mod tests {
     #[test]
     fn charset() {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
-        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let cff =
+            CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         let charset = cff.charset().unwrap();
         let glyph_names = charset
             .iter()
@@ -627,7 +727,8 @@ mod tests {
     #[test]
     fn empty_private_dict() {
         let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET).unwrap();
-        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let cff =
+            CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         let CffFontKind::Sid { private_dict, .. } = &cff.top_dict.kind else {
             panic!("this is an SID font");
         };
@@ -658,7 +759,8 @@ mod tests {
     #[test]
     fn subfont_cff() {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
-        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let cff =
+            CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         let subfont = cff.subfont(0, &[]).unwrap();
         assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::from_i32(598));
@@ -673,7 +775,8 @@ mod tests {
     #[test]
     fn hinted_subfont_cff() {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
-        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let cff =
+            CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         let (subfont, hinting) = cff.subfont_hinted(0, &[]).unwrap();
         assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::from_i32(598));
@@ -695,7 +798,8 @@ mod tests {
     #[test]
     fn subfont_cff2() {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let cff = CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let cff =
+            CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes(), None).unwrap();
         let subfont = cff.subfont(0, &[]).unwrap();
         assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::ZERO);
@@ -706,7 +810,8 @@ mod tests {
     #[test]
     fn hinted_subfont_cff2() {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let cff = CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let cff =
+            CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes(), None).unwrap();
         let (subfont, hinting) = cff.subfont_hinted(0, &[]).unwrap();
         assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::ZERO);
@@ -728,7 +833,8 @@ mod tests {
     #[test]
     fn subfont_matrix() {
         let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET_MATRIX).unwrap();
-        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let cff =
+            CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         let subfont = cff.subfont(0, &[]).unwrap();
         assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::ZERO);
@@ -754,7 +860,8 @@ mod tests {
     #[test]
     fn eval_charstring_cff() {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
-        let cff = CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0).unwrap();
+        let cff =
+            CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         let mut sink = CharstringCommandCounter::default();
         let subfont = cff.subfont(0, &[]).unwrap();
         cff.evaluate_charstring(&subfont, &[], GlyphId::new(2), &mut sink)
@@ -767,7 +874,8 @@ mod tests {
     #[test]
     fn eval_charstring_cff2() {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let cff = CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes()).unwrap();
+        let cff =
+            CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes(), None).unwrap();
         let mut sink = CharstringCommandCounter::default();
         let subfont = cff.subfont(0, &[]).unwrap();
         cff.evaluate_charstring(&subfont, &[], GlyphId::new(2), &mut sink)
@@ -775,5 +883,67 @@ mod tests {
         // Charstring eval is tested elsewhere so just make sure we're processing the
         // *correct* charstring.
         assert_eq!(sink.0, 10);
+    }
+
+    #[test]
+    fn select_version() {
+        // CFF2 font
+        assert_eq!(
+            CffFontRef::new(
+                FontRef::new(font_test_data::CANTARELL_VF_TRIMMED)
+                    .unwrap()
+                    .cff2()
+                    .unwrap()
+                    .offset_data()
+                    .as_bytes(),
+                0,
+                None
+            )
+            .unwrap()
+            .version(),
+            2
+        );
+        // CFF font
+        assert_eq!(
+            CffFontRef::new(
+                FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET_MATRIX)
+                    .unwrap()
+                    .cff()
+                    .unwrap()
+                    .offset_data()
+                    .as_bytes(),
+                0,
+                None
+            )
+            .unwrap()
+            .version(),
+            1
+        );
+        // Not a CFF font
+        assert!(CffFontRef::new(&[0, 1, 4, 5], 0, None).is_err());
+        // Spoof version 1
+        assert!(CffFontRef::new(&[1, 1, 4, 5], 0, None).is_err());
+        // Spoof version 2
+        assert!(CffFontRef::new(&[2, 1, 4, 5], 0, None).is_err());
+    }
+
+    #[test]
+    fn transform() {
+        // font with gnarly nested matrices
+        let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET_MATRIX).unwrap();
+        // this font has a fun upem of 512
+        let cff =
+            CffFontRef::new(font.cff().unwrap().offset_data().as_bytes(), 0, Some(512)).unwrap();
+        let subfont = cff.subfont(0, &[]).unwrap();
+        // Extracted from FreeType
+        let expected_matrix = [65536, 0, 5604, 65536, 0, 0].map(Fixed::from_bits);
+        // Unscaled
+        let transform = cff.transform(&subfont, None);
+        assert_eq!(transform.matrix.0, expected_matrix);
+        assert_eq!(transform.scale, Some(Fixed::from_bits(32 << 16)));
+        // Scaled at 16px
+        let transform = cff.transform(&subfont, Some(16.0));
+        assert_eq!(transform.matrix.0, expected_matrix);
+        assert_eq!(transform.scale, Some(Fixed::from_bits(1 << 16)));
     }
 }
