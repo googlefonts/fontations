@@ -2824,10 +2824,6 @@ impl FeatureTableSubstitutionRecordSanitized {
     pub fn alternate_feature_offset(&self) -> Offset32 {
         self.alternate_feature_offset.get()
     }
-
-    pub fn alternate_feature<'a>(&self, _parent_ptr: FontPtr<'a>) {
-        unimplemented!("target requires args not available from this field")
-    }
 }
 
 impl Sanitize for SizeParams<'_> {

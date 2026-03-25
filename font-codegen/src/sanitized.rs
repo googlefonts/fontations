@@ -4,7 +4,7 @@
 //! bounds checking, using raw pointer arithmetic via `FontPtr`.
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 
 use crate::parsing::{
     Field, FieldType, GenericGroup, Item, Items, OffsetTarget, Record, Table, TableFormat,
@@ -620,7 +620,17 @@ impl Field {
         Some(match target {
             OffsetTarget::Table(target_name) => {
                 if has_sanitized_version(target_name, items) {
-                    let st = format_ident!("{}Sanitized", target_name);
+                    let mut return_type = if target_name == "T" {
+                        target_name.to_token_stream()
+                    } else {
+                        let ident = format_ident!("{}Sanitized", target_name);
+                        quote!(#ident<'a>)
+                    };
+                    if is_nullable {
+                        return_type = quote!(Option<#return_type>);
+                    }
+                    let where_clause = (target_name == "T")
+                        .then(|| quote!(where T: ReadSanitized<'a, Args = ()> + Default));
                     if table_needs_args(target_name, items) && self.attrs.read_offset_args.is_none()
                     {
                         quote! {
@@ -632,13 +642,13 @@ impl Field {
                         let args_expr = self.sanitized_offset_args_expr();
                         if is_nullable {
                             quote! {
-                                pub fn #getter_name(&self) -> Option<#st<'a>> {
+                                pub fn #getter_name(&self) -> #return_type #where_clause {
                                     unsafe { self.#field_name().resolve_sanitized(self.ptr.clone(), &#args_expr) }
                                 }
                             }
                         } else {
                             quote! {
-                                pub fn #getter_name(&self) -> #st<'a> {
+                                pub fn #getter_name(&self) -> #return_type #where_clause {
                                     unsafe {
                                         self.#field_name()
                                             .resolve_sanitized(self.ptr.clone(), &#args_expr)
@@ -712,6 +722,9 @@ impl Field {
     /// Returns `Some` only for `Offset` fields that have an `#[offset_getter]`;
     /// all other field types return `None`.
     pub(crate) fn sanitized_record_offset_method(&self, items: &Items) -> Option<TokenStream> {
+        if self.attrs.offset_getter.is_some() {
+            return None;
+        }
         let FieldType::Offset { target, .. } = &self.typ else {
             return None;
         };
