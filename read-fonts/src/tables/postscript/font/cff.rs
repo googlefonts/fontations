@@ -83,10 +83,11 @@ impl<'a> CffFontRef<'a> {
         global_subrs: Index<'a>,
     ) -> Result<Self, Error> {
         let top_dict = TopDict::new(data, top_dict_data, strings, is_cff2)?;
+        let top_upem = top_dict.matrix.map(|mat| mat.scale).unwrap_or(1000);
         Ok(Self {
             data,
             is_cff2,
-            upem: upem.unwrap_or(1000),
+            upem: upem.unwrap_or(top_upem),
             global_subrs,
             top_dict,
         })
@@ -388,8 +389,8 @@ impl CffSubfont {
             ..Default::default()
         };
         let data = data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
-        for entry in dict::entries(data, blend) {
-            match entry? {
+        for entry in dict::entries(data, blend).filter_map(|e| e.ok()) {
+            match entry {
                 dict::Entry::SubrsOffset(offset) => {
                     subfont.subrs_offset = range
                         .start
@@ -398,8 +399,9 @@ impl CffSubfont {
                         as u32;
                 }
                 dict::Entry::VariationStoreIndex(index) => subfont.vs_index = index,
-                dict::Entry::DefaultWidthX(width) => subfont.default_width = Some(width),
-                dict::Entry::NominalWidthX(width) => subfont.nominal_width = width,
+                // FreeType truncates the width values to int on read
+                dict::Entry::DefaultWidthX(width) => subfont.default_width = Some(width.floor()),
+                dict::Entry::NominalWidthX(width) => subfont.nominal_width = width.floor(),
                 _ => {}
             }
         }
@@ -418,8 +420,8 @@ impl CffSubfont {
         };
         let mut params = HintingParams::default();
         let data = data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
-        for entry in dict::entries(data, blend) {
-            match entry? {
+        for entry in dict::entries(data, blend).filter_map(|e| e.ok()) {
+            match entry {
                 dict::Entry::SubrsOffset(offset) => {
                     subfont.subrs_offset = range
                         .start
@@ -428,8 +430,9 @@ impl CffSubfont {
                         as u32;
                 }
                 dict::Entry::VariationStoreIndex(index) => subfont.vs_index = index,
-                dict::Entry::DefaultWidthX(width) => subfont.default_width = Some(width),
-                dict::Entry::NominalWidthX(width) => subfont.nominal_width = width,
+                // FreeType truncates the width values to int on read
+                dict::Entry::DefaultWidthX(width) => subfont.default_width = Some(width.floor()),
+                dict::Entry::NominalWidthX(width) => subfont.nominal_width = width.floor(),
                 dict::Entry::BlueValues(values) => params.blues = values,
                 dict::Entry::FamilyBlues(values) => params.family_blues = values,
                 dict::Entry::OtherBlues(values) => params.other_blues = values,
@@ -518,8 +521,8 @@ impl<'a> TopDict<'a> {
         let mut private_dict_range = 0..0;
         let mut matrix = None;
         let mut var_store = None;
-        for entry in dict::entries(top_dict_data, None) {
-            match entry? {
+        for entry in dict::entries(top_dict_data, None).filter_map(|e| e.ok()) {
+            match entry {
                 dict::Entry::Ros { .. } => has_ros = true,
                 dict::Entry::CharstringsOffset(offset) => {
                     charstrings = cff_data
@@ -882,7 +885,7 @@ mod tests {
             .unwrap();
         // Charstring eval is tested elsewhere so just make sure we're processing the
         // *correct* charstring.
-        assert_eq!(sink.0, 10);
+        assert_eq!(sink.0, 11);
     }
 
     #[test]
