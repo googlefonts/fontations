@@ -18,13 +18,21 @@ pub(crate) fn generate_read_sanitized_table(
     if item.attrs.write_only.is_some() {
         return Ok(Default::default());
     }
-    // Tables with generic offsets are parametric and complex; skip for now.
-    if item.attrs.generic_offset.is_some() {
-        return Ok(Default::default());
-    }
 
     let name = item.raw_name();
     let sanitized_name = format_ident!("{}Sanitized", name);
+    let generic = item.attrs.generic_offset.as_ref().map(|a| &a.attr);
+    let generic_with_default = generic.map(|t| quote!(#t = ()));
+    let phantom_decl =
+        generic.map(|t| quote!(pub(crate) phantom: std::marker::PhantomData<*const #t>,));
+    let phantom_init = generic.map(|_| quote!(phantom: std::marker::PhantomData,));
+    // struct uses `<'a, T = ()>` or `<'a>`, impl uses `<'a, T>` or `<'a>`,
+    // ReadSanitized targets `Name<'a, ()>` or `Name<'a>`.
+    let struct_generics = generic_with_default
+        .as_ref()
+        .map_or(quote!(<'a>), |g| quote!(<'a, #g>));
+    let impl_generics = generic.as_ref().map_or(quote!(<'a>), |g| quote!(<'a, #g>));
+    let rs_self_type = quote!(#sanitized_name<'a, #generic>);
 
     // Determine ReadSanitized::Args type and extra struct fields from #[read_args].
     let (args_type, extra_struct_fields, args_init_stmts, arg_getters) =
@@ -36,7 +44,8 @@ pub(crate) fn generate_read_sanitized_table(
         quote!(_args: &Self::Args)
     };
 
-    let read_sanitized_init = build_read_sanitized_init(&item.fields.read_args);
+    let read_sanitized_init =
+        build_read_sanitized_init(&item.fields.read_args, phantom_init.as_ref());
 
     // Build position and getter methods by walking fields in order.
     let mut pos_methods: Vec<TokenStream> = Vec::new();
@@ -135,20 +144,40 @@ pub(crate) fn generate_read_sanitized_table(
         }
     }
 
+    let impl_into_generic = generic.map(|t| {
+        quote! {
+            impl<'a> #sanitized_name<'a, ()> {
+                #[allow(dead_code)]
+                pub(crate) fn into_concrete<#t>(self) -> #sanitized_name<'a, #t> {
+                    #sanitized_name { ptr: self.ptr, phantom: std::marker::PhantomData }
+                }
+            }
+            impl<'a, #t> #sanitized_name<'a, #t> {
+                #[allow(dead_code)]
+                pub(crate) fn of_unit_type(&self) -> #sanitized_name<'a, ()> {
+                    #sanitized_name { ptr: self.ptr.clone(), phantom: std::marker::PhantomData }
+                }
+            }
+        }
+    });
+
     Ok(quote! {
         #[derive(Clone, Default)]
-        pub struct #sanitized_name<'a> {
+        pub struct #sanitized_name #struct_generics {
             pub(crate) ptr: FontPtr<'a>,
+            #phantom_decl
             #(#extra_struct_fields,)*
         }
 
-        impl<'a> #sanitized_name<'a> {
+        impl #impl_generics #sanitized_name #impl_generics {
             #(#pos_methods)*
             #(#arg_getters)*
             #(#getter_methods)*
         }
 
-        unsafe impl<'a> ReadSanitized<'a> for #sanitized_name<'a> {
+        #impl_into_generic
+
+        unsafe impl #impl_generics ReadSanitized<'a> for #rs_self_type {
             type Args = #args_type;
 
             unsafe fn read_sanitized(ptr: FontPtr<'a>, #args_param) -> Self {
@@ -401,12 +430,15 @@ fn build_args_info(
 }
 
 /// Build `Self { ptr, field1, field2, ... }` or `Self { ptr }`.
-fn build_read_sanitized_init(read_args: &Option<crate::parsing::TableReadArgs>) -> TokenStream {
+fn build_read_sanitized_init(
+    read_args: &Option<crate::parsing::TableReadArgs>,
+    phantom_init: Option<&TokenStream>,
+) -> TokenStream {
     match read_args {
-        None => quote!(Self { ptr }),
+        None => quote!(Self { ptr, #phantom_init }),
         Some(ra) => {
             let idents: Vec<_> = ra.args.iter().map(|a| &a.ident).collect();
-            quote!(Self { ptr, #(#idents),* })
+            quote!(Self { ptr, #phantom_init #(#idents),* })
         }
     }
 }
@@ -414,7 +446,7 @@ fn build_read_sanitized_init(read_args: &Option<crate::parsing::TableReadArgs>) 
 /// Returns true if the given type name refers to a regular `Table` in the item set
 /// (not a TableFormat, GenericGroup, Record, or external type).
 fn has_sanitized_table(name: &syn::Ident, items: &Items) -> bool {
-    matches!(items.get(name), Some(Item::Table(t)) if t.attrs.write_only.is_none() && t.attrs.generic_offset.is_none())
+    matches!(items.get(name), Some(Item::Table(t)) if t.attrs.write_only.is_none())
 }
 
 /// Returns true if the given type name refers to a format group that will have

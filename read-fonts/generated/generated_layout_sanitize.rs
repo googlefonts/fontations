@@ -416,6 +416,62 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for LookupList<'a, T> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct LookupListSanitized<'a, T = ()> {
+    pub(crate) ptr: FontPtr<'a>,
+    pub(crate) phantom: std::marker::PhantomData<*const T>,
+}
+
+impl<'a, T> LookupListSanitized<'a, T> {
+    fn lookup_count_pos(&self) -> usize {
+        0
+    }
+    fn lookup_offsets_pos(&self) -> usize {
+        self.lookup_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn lookup_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.lookup_count_pos()) }
+    }
+
+    pub fn lookups(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.lookup_offsets_pos(), self.lookup_count() as usize)
+        }
+    }
+}
+
+impl<'a> LookupListSanitized<'a, ()> {
+    #[allow(dead_code)]
+    pub(crate) fn into_concrete<T>(self) -> LookupListSanitized<'a, T> {
+        LookupListSanitized {
+            ptr: self.ptr,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, T> LookupListSanitized<'a, T> {
+    #[allow(dead_code)]
+    pub(crate) fn of_unit_type(&self) -> LookupListSanitized<'a, ()> {
+        LookupListSanitized {
+            ptr: self.ptr.clone(),
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+unsafe impl<'a, T> ReadSanitized<'a> for LookupListSanitized<'a, T> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self {
+            ptr,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
 impl<'a, T: FontRead<'a> + Sanitize> Sanitize for Lookup<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.subtables();
@@ -432,6 +488,84 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for Lookup<'a, T> {
             });
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct LookupSanitized<'a, T = ()> {
+    pub(crate) ptr: FontPtr<'a>,
+    pub(crate) phantom: std::marker::PhantomData<*const T>,
+}
+
+impl<'a, T> LookupSanitized<'a, T> {
+    fn lookup_type_pos(&self) -> usize {
+        0
+    }
+    fn lookup_flag_pos(&self) -> usize {
+        self.lookup_type_pos() + u16::RAW_BYTE_LEN
+    }
+    fn sub_table_count_pos(&self) -> usize {
+        self.lookup_flag_pos() + LookupFlag::RAW_BYTE_LEN
+    }
+    fn subtable_offsets_pos(&self) -> usize {
+        self.sub_table_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn mark_filtering_set_pos(&self) -> usize {
+        self.subtable_offsets_pos()
+            + (self.sub_table_count() as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+
+    pub fn lookup_type(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.lookup_type_pos()) }
+    }
+
+    pub fn lookup_flag(&self) -> LookupFlag {
+        unsafe { self.ptr.read_at(self.lookup_flag_pos()) }
+    }
+
+    pub fn sub_table_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.sub_table_count_pos()) }
+    }
+
+    pub fn subtables(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.subtable_offsets_pos(), self.sub_table_count() as usize)
+        }
+    }
+
+    pub fn mark_filtering_set(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.mark_filtering_set_pos()) }
+    }
+}
+
+impl<'a> LookupSanitized<'a, ()> {
+    #[allow(dead_code)]
+    pub(crate) fn into_concrete<T>(self) -> LookupSanitized<'a, T> {
+        LookupSanitized {
+            ptr: self.ptr,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, T> LookupSanitized<'a, T> {
+    #[allow(dead_code)]
+    pub(crate) fn of_unit_type(&self) -> LookupSanitized<'a, ()> {
+        LookupSanitized {
+            ptr: self.ptr.clone(),
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+unsafe impl<'a, T> ReadSanitized<'a> for LookupSanitized<'a, T> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self {
+            ptr,
+            phantom: std::marker::PhantomData,
+        }
     }
 }
 

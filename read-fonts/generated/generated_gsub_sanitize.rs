@@ -617,6 +617,70 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for ExtensionSubstFormat1<'a, T> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ExtensionSubstFormat1Sanitized<'a, T = ()> {
+    pub(crate) ptr: FontPtr<'a>,
+    pub(crate) phantom: std::marker::PhantomData<*const T>,
+}
+
+impl<'a, T> ExtensionSubstFormat1Sanitized<'a, T> {
+    fn subst_format_pos(&self) -> usize {
+        0
+    }
+    fn extension_lookup_type_pos(&self) -> usize {
+        self.subst_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn extension_offset_pos(&self) -> usize {
+        self.extension_lookup_type_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn subst_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.subst_format_pos()) }
+    }
+
+    pub fn extension_lookup_type(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.extension_lookup_type_pos()) }
+    }
+
+    pub fn extension_offset(&self) -> Offset32 {
+        unsafe { self.ptr.read_at(self.extension_offset_pos()) }
+    }
+
+    pub fn extension(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+}
+
+impl<'a> ExtensionSubstFormat1Sanitized<'a, ()> {
+    #[allow(dead_code)]
+    pub(crate) fn into_concrete<T>(self) -> ExtensionSubstFormat1Sanitized<'a, T> {
+        ExtensionSubstFormat1Sanitized {
+            ptr: self.ptr,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, T> ExtensionSubstFormat1Sanitized<'a, T> {
+    #[allow(dead_code)]
+    pub(crate) fn of_unit_type(&self) -> ExtensionSubstFormat1Sanitized<'a, ()> {
+        ExtensionSubstFormat1Sanitized {
+            ptr: self.ptr.clone(),
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+unsafe impl<'a, T> ReadSanitized<'a> for ExtensionSubstFormat1Sanitized<'a, T> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self {
+            ptr,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for ExtensionSubtable<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
