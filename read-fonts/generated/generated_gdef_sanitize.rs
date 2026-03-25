@@ -185,11 +185,16 @@ impl<'a> AttachListSanitized<'a> {
         unsafe { self.ptr.read_at(self.glyph_count_pos()) }
     }
 
-    pub fn attach_points(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn attach_point_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
                 .read_array_at(self.attach_point_offsets_pos(), self.glyph_count() as usize)
         }
+    }
+
+    pub fn attach_points(&self) -> ArrayOfSanitizedOffsets<'a, AttachPointSanitized<'a>, Offset16> {
+        let offsets = self.attach_point_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -285,13 +290,18 @@ impl<'a> LigCaretListSanitized<'a> {
         unsafe { self.ptr.read_at(self.lig_glyph_count_pos()) }
     }
 
-    pub fn lig_glyphs(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.lig_glyph_offsets_pos(),
                 self.lig_glyph_count() as usize,
             )
         }
+    }
+
+    pub fn lig_glyphs(&self) -> ArrayOfSanitizedOffsets<'a, LigGlyphSanitized<'a>, Offset16> {
+        let offsets = self.lig_glyph_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -329,11 +339,16 @@ impl<'a> LigGlyphSanitized<'a> {
         unsafe { self.ptr.read_at(self.caret_count_pos()) }
     }
 
-    pub fn caret_values(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn caret_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
                 .read_array_at(self.caret_value_offsets_pos(), self.caret_count() as usize)
         }
+    }
+
+    pub fn caret_values(&self) -> ArrayOfSanitizedOffsets<'a, CaretValueSanitized<'a>, Offset16> {
+        let offsets = self.caret_value_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -536,13 +551,18 @@ impl<'a> MarkGlyphSetsSanitized<'a> {
         unsafe { self.ptr.read_at(self.mark_glyph_set_count_pos()) }
     }
 
-    pub fn coverages(&self) -> &'a [BigEndian<Offset32>] {
+    pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset32>] {
         unsafe {
             self.ptr.read_array_at(
                 self.coverage_offsets_pos(),
                 self.mark_glyph_set_count() as usize,
             )
         }
+    }
+
+    pub fn coverages(&self) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset32> {
+        let offsets = self.coverage_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 

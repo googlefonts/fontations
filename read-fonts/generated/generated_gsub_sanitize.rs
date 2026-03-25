@@ -356,11 +356,16 @@ impl<'a> MultipleSubstFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.sequence_count_pos()) }
     }
 
-    pub fn sequences(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn sequence_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
                 .read_array_at(self.sequence_offsets_pos(), self.sequence_count() as usize)
         }
+    }
+
+    pub fn sequences(&self) -> ArrayOfSanitizedOffsets<'a, SequenceSanitized<'a>, Offset16> {
+        let offsets = self.sequence_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -463,13 +468,20 @@ impl<'a> AlternateSubstFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.alternate_set_count_pos()) }
     }
 
-    pub fn alternate_sets(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn alternate_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.alternate_set_offsets_pos(),
                 self.alternate_set_count() as usize,
             )
         }
+    }
+
+    pub fn alternate_sets(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, AlternateSetSanitized<'a>, Offset16> {
+        let offsets = self.alternate_set_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -572,13 +584,18 @@ impl<'a> LigatureSubstFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.ligature_set_count_pos()) }
     }
 
-    pub fn ligature_sets(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn ligature_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.ligature_set_offsets_pos(),
                 self.ligature_set_count() as usize,
             )
         }
+    }
+
+    pub fn ligature_sets(&self) -> ArrayOfSanitizedOffsets<'a, LigatureSetSanitized<'a>, Offset16> {
+        let offsets = self.ligature_set_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -616,11 +633,16 @@ impl<'a> LigatureSetSanitized<'a> {
         unsafe { self.ptr.read_at(self.ligature_count_pos()) }
     }
 
-    pub fn ligatures(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn ligature_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
                 .read_array_at(self.ligature_offsets_pos(), self.ligature_count() as usize)
         }
+    }
+
+    pub fn ligatures(&self) -> ArrayOfSanitizedOffsets<'a, LigatureSanitized<'a>, Offset16> {
+        let offsets = self.ligature_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -883,7 +905,7 @@ impl<'a> ReverseChainSingleSubstFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.backtrack_glyph_count_pos()) }
     }
 
-    pub fn backtrack_coverages(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.backtrack_coverage_offsets_pos(),
@@ -892,17 +914,31 @@ impl<'a> ReverseChainSingleSubstFormat1Sanitized<'a> {
         }
     }
 
+    pub fn backtrack_coverages(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
+        let offsets = self.backtrack_coverage_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+    }
+
     pub fn lookahead_glyph_count(&self) -> u16 {
         unsafe { self.ptr.read_at(self.lookahead_glyph_count_pos()) }
     }
 
-    pub fn lookahead_coverages(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.lookahead_coverage_offsets_pos(),
                 self.lookahead_glyph_count() as usize,
             )
         }
+    }
+
+    pub fn lookahead_coverages(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
+        let offsets = self.lookahead_coverage_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 
     pub fn glyph_count(&self) -> u16 {

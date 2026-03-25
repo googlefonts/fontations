@@ -132,14 +132,14 @@ pub(crate) fn generate_read_sanitized_table(
         }
 
         // Generate the primary getter method.
-        let getter_name = field.sanitized_table_getter_name();
+        let getter_name = &field.name;
         let ret = field.sanitized_table_getter_return_type(items);
         let body = field.sanitized_table_getter_body(&pos_fn, items);
         getter_methods.push(quote! {
             pub fn #getter_name(&self) -> #ret { #body }
         });
 
-        // For offset fields, also generate a resolved getter.
+        // For offset fields (and arrays of offsets), also generate a resolved/raw getter.
         if let Some(resolved) = field.sanitized_table_offset_getter() {
             getter_methods.push(resolved);
         }
@@ -557,21 +557,6 @@ impl Field {
 
     // --- Table context ---
 
-    /// Name of this field's primary getter method in a table.
-    ///
-    /// For array-of-offsets fields the getter is named by `#[offset_getter]`,
-    /// not by the field itself. For all other types the field name is used.
-    pub(crate) fn sanitized_table_getter_name(&self) -> syn::Ident {
-        match &self.typ {
-            FieldType::Array { inner_typ }
-                if matches!(inner_typ.as_ref(), FieldType::Offset { .. }) =>
-            {
-                self.offset_getter_name().unwrap()
-            }
-            _ => self.name.clone(),
-        }
-    }
-
     /// Return type of this field's primary getter method in a table.
     pub(crate) fn sanitized_table_getter_return_type(&self, items: &Items) -> TokenStream {
         match &self.typ {
@@ -583,7 +568,13 @@ impl Field {
                     let st = format_ident!("{}Sanitized", typ);
                     quote!(&'a [#st])
                 }
-                FieldType::Offset { typ, .. } => quote!(&'a [BigEndian<#typ>]),
+                FieldType::Offset { typ, .. } => {
+                    if self.attrs.nullable.is_some() {
+                        quote!(&'a [BigEndian<Nullable<#typ>>])
+                    } else {
+                        quote!(&'a [BigEndian<#typ>])
+                    }
+                }
                 _ => quote!(()),
             },
             FieldType::Struct { typ } if has_sanitized_record(typ, items) => {
@@ -636,8 +627,45 @@ impl Field {
 
     /// Resolved offset getter method for a table, if applicable.
     ///
-    /// Returns `Some` only for `Offset` fields; all other field types return `None`.
+    /// For single `Offset` fields: generates a resolved getter returning the target type.
+    /// For array-of-offsets fields: generates an `ArrayOfSanitizedOffsets` getter at
+    /// `offset_getter_name` (the "friendly" name like `lookups`), since the primary raw
+    /// getter already uses the field name (like `lookup_offsets`).
     pub(crate) fn sanitized_table_offset_getter(&self) -> Option<TokenStream> {
+        // Array-of-offsets: emit ArrayOfSanitizedOffsets getter at offset_getter_name.
+        if let FieldType::Array { inner_typ } = &self.typ {
+            if let FieldType::Offset {
+                typ: offset_typ,
+                target: OffsetTarget::Table(target_name),
+            } = inner_typ.as_ref()
+            {
+                let getter_name = self.offset_getter_name()?;
+                let field_name = &self.name;
+                let array_type = if self.attrs.nullable.is_some() {
+                    quote!(ArrayOfSanitizedNullableOffsets)
+                } else {
+                    quote!(ArrayOfSanitizedOffsets)
+                };
+                let args_expr = self.sanitized_offset_args_expr();
+                let (target_type, where_clause) = if target_name == "T" {
+                    (
+                        quote!(T),
+                        Some(quote!(where T: ReadSanitized<'a, Args = ()>)),
+                    )
+                } else {
+                    let st = format_ident!("{}Sanitized", target_name);
+                    (quote!(#st<'a>), None)
+                };
+                let return_type = quote!(#array_type<'a, #target_type, #offset_typ>);
+                return Some(quote! {
+                    pub fn #getter_name(&self) -> #return_type #where_clause {
+                        let offsets = self.#field_name();
+                        #array_type::new(offsets, self.ptr, #args_expr)
+                    }
+                });
+            }
+        }
+
         let FieldType::Offset { target, .. } = &self.typ else {
             return None;
         };

@@ -437,11 +437,19 @@ impl<'a, T> LookupListSanitized<'a, T> {
         unsafe { self.ptr.read_at(self.lookup_count_pos()) }
     }
 
-    pub fn lookups(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn lookup_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
                 .read_array_at(self.lookup_offsets_pos(), self.lookup_count() as usize)
         }
+    }
+
+    pub fn lookups(&self) -> ArrayOfSanitizedOffsets<'a, T, Offset16>
+    where
+        T: ReadSanitized<'a, Args = ()>,
+    {
+        let offsets = self.lookup_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -530,11 +538,19 @@ impl<'a, T> LookupSanitized<'a, T> {
         unsafe { self.ptr.read_at(self.sub_table_count_pos()) }
     }
 
-    pub fn subtables(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
                 .read_array_at(self.subtable_offsets_pos(), self.sub_table_count() as usize)
         }
+    }
+
+    pub fn subtables(&self) -> ArrayOfSanitizedOffsets<'a, T, Offset16>
+    where
+        T: ReadSanitized<'a, Args = ()>,
+    {
+        let offsets = self.subtable_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 
     pub fn mark_filtering_set(&self) -> u16 {
@@ -1021,13 +1037,20 @@ impl<'a> SequenceContextFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.seq_rule_set_count_pos()) }
     }
 
-    pub fn seq_rule_sets(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
             self.ptr.read_array_at(
                 self.seq_rule_set_offsets_pos(),
                 self.seq_rule_set_count() as usize,
             )
         }
+    }
+
+    pub fn seq_rule_sets(
+        &self,
+    ) -> ArrayOfSanitizedNullableOffsets<'a, SequenceRuleSetSanitized<'a>, Offset16> {
+        let offsets = self.seq_rule_set_offsets();
+        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -1065,11 +1088,16 @@ impl<'a> SequenceRuleSetSanitized<'a> {
         unsafe { self.ptr.read_at(self.seq_rule_count_pos()) }
     }
 
-    pub fn seq_rules(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
                 .read_array_at(self.seq_rule_offsets_pos(), self.seq_rule_count() as usize)
         }
+    }
+
+    pub fn seq_rules(&self) -> ArrayOfSanitizedOffsets<'a, SequenceRuleSanitized<'a>, Offset16> {
+        let offsets = self.seq_rule_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -1219,13 +1247,20 @@ impl<'a> SequenceContextFormat2Sanitized<'a> {
         unsafe { self.ptr.read_at(self.class_seq_rule_set_count_pos()) }
     }
 
-    pub fn class_seq_rule_sets(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
             self.ptr.read_array_at(
                 self.class_seq_rule_set_offsets_pos(),
                 self.class_seq_rule_set_count() as usize,
             )
         }
+    }
+
+    pub fn class_seq_rule_sets(
+        &self,
+    ) -> ArrayOfSanitizedNullableOffsets<'a, ClassSequenceRuleSetSanitized<'a>, Offset16> {
+        let offsets = self.class_seq_rule_set_offsets();
+        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -1263,13 +1298,20 @@ impl<'a> ClassSequenceRuleSetSanitized<'a> {
         unsafe { self.ptr.read_at(self.class_seq_rule_count_pos()) }
     }
 
-    pub fn class_seq_rules(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.class_seq_rule_offsets_pos(),
                 self.class_seq_rule_count() as usize,
             )
         }
+    }
+
+    pub fn class_seq_rules(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, ClassSequenceRuleSanitized<'a>, Offset16> {
+        let offsets = self.class_seq_rule_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -1405,11 +1447,16 @@ impl<'a> SequenceContextFormat3Sanitized<'a> {
         unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
     }
 
-    pub fn coverages(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
                 .read_array_at(self.coverage_offsets_pos(), self.glyph_count() as usize)
         }
+    }
+
+    pub fn coverages(&self) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
+        let offsets = self.coverage_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
@@ -1522,13 +1569,20 @@ impl<'a> ChainedSequenceContextFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.chained_seq_rule_set_count_pos()) }
     }
 
-    pub fn chained_seq_rule_sets(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn chained_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
             self.ptr.read_array_at(
                 self.chained_seq_rule_set_offsets_pos(),
                 self.chained_seq_rule_set_count() as usize,
             )
         }
+    }
+
+    pub fn chained_seq_rule_sets(
+        &self,
+    ) -> ArrayOfSanitizedNullableOffsets<'a, ChainedSequenceRuleSetSanitized<'a>, Offset16> {
+        let offsets = self.chained_seq_rule_set_offsets();
+        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -1566,13 +1620,20 @@ impl<'a> ChainedSequenceRuleSetSanitized<'a> {
         unsafe { self.ptr.read_at(self.chained_seq_rule_count_pos()) }
     }
 
-    pub fn chained_seq_rules(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn chained_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.chained_seq_rule_offsets_pos(),
                 self.chained_seq_rule_count() as usize,
             )
         }
+    }
+
+    pub fn chained_seq_rules(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, ChainedSequenceRuleSanitized<'a>, Offset16> {
+        let offsets = self.chained_seq_rule_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -1805,13 +1866,21 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
         }
     }
 
-    pub fn chained_class_seq_rule_sets(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn chained_class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
             self.ptr.read_array_at(
                 self.chained_class_seq_rule_set_offsets_pos(),
                 self.chained_class_seq_rule_set_count() as usize,
             )
         }
+    }
+
+    pub fn chained_class_seq_rule_sets(
+        &self,
+    ) -> ArrayOfSanitizedNullableOffsets<'a, ChainedClassSequenceRuleSetSanitized<'a>, Offset16>
+    {
+        let offsets = self.chained_class_seq_rule_set_offsets();
+        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -1849,13 +1918,20 @@ impl<'a> ChainedClassSequenceRuleSetSanitized<'a> {
         unsafe { self.ptr.read_at(self.chained_class_seq_rule_count_pos()) }
     }
 
-    pub fn chained_class_seq_rules(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn chained_class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.chained_class_seq_rule_offsets_pos(),
                 self.chained_class_seq_rule_count() as usize,
             )
         }
+    }
+
+    pub fn chained_class_seq_rules(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, ChainedClassSequenceRuleSanitized<'a>, Offset16> {
+        let offsets = self.chained_class_seq_rule_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -2058,7 +2134,7 @@ impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
         unsafe { self.ptr.read_at(self.backtrack_glyph_count_pos()) }
     }
 
-    pub fn backtrack_coverages(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.backtrack_coverage_offsets_pos(),
@@ -2067,11 +2143,18 @@ impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
         }
     }
 
+    pub fn backtrack_coverages(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
+        let offsets = self.backtrack_coverage_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+    }
+
     pub fn input_glyph_count(&self) -> u16 {
         unsafe { self.ptr.read_at(self.input_glyph_count_pos()) }
     }
 
-    pub fn input_coverages(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn input_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.input_coverage_offsets_pos(),
@@ -2080,17 +2163,31 @@ impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
         }
     }
 
+    pub fn input_coverages(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
+        let offsets = self.input_coverage_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+    }
+
     pub fn lookahead_glyph_count(&self) -> u16 {
         unsafe { self.ptr.read_at(self.lookahead_glyph_count_pos()) }
     }
 
-    pub fn lookahead_coverages(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.lookahead_coverage_offsets_pos(),
                 self.lookahead_glyph_count() as usize,
             )
         }
+    }
+
+    pub fn lookahead_coverages(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
+        let offsets = self.lookahead_coverage_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 
     pub fn seq_lookup_count(&self) -> u16 {
@@ -2436,13 +2533,18 @@ impl<'a> ConditionSetSanitized<'a> {
         unsafe { self.ptr.read_at(self.condition_count_pos()) }
     }
 
-    pub fn conditions(&self) -> &'a [BigEndian<Offset32>] {
+    pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         unsafe {
             self.ptr.read_array_at(
                 self.condition_offsets_pos(),
                 self.condition_count() as usize,
             )
         }
+    }
+
+    pub fn conditions(&self) -> ArrayOfSanitizedOffsets<'a, ConditionSanitized<'a>, Offset32> {
+        let offsets = self.condition_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -2627,13 +2729,18 @@ impl<'a> ConditionFormat3Sanitized<'a> {
         unsafe { self.ptr.read_at(self.condition_count_pos()) }
     }
 
-    pub fn conditions(&self) -> &'a [BigEndian<Offset24>] {
+    pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         unsafe {
             self.ptr.read_array_at(
                 self.condition_offsets_pos(),
                 self.condition_count() as usize,
             )
         }
+    }
+
+    pub fn conditions(&self) -> ArrayOfSanitizedOffsets<'a, ConditionSanitized<'a>, Offset24> {
+        let offsets = self.condition_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 
@@ -2678,13 +2785,18 @@ impl<'a> ConditionFormat4Sanitized<'a> {
         unsafe { self.ptr.read_at(self.condition_count_pos()) }
     }
 
-    pub fn conditions(&self) -> &'a [BigEndian<Offset24>] {
+    pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         unsafe {
             self.ptr.read_array_at(
                 self.condition_offsets_pos(),
                 self.condition_count() as usize,
             )
         }
+    }
+
+    pub fn conditions(&self) -> ArrayOfSanitizedOffsets<'a, ConditionSanitized<'a>, Offset24> {
+        let offsets = self.condition_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
     }
 }
 

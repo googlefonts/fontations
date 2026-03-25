@@ -704,11 +704,20 @@ impl<'a> PairPosFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.pair_set_count_pos()) }
     }
 
-    pub fn pair_sets(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
                 .read_array_at(self.pair_set_offsets_pos(), self.pair_set_count() as usize)
         }
+    }
+
+    pub fn pair_sets(&self) -> ArrayOfSanitizedOffsets<'a, PairSetSanitized<'a>, Offset16> {
+        let offsets = self.pair_set_offsets();
+        ArrayOfSanitizedOffsets::new(
+            offsets,
+            self.ptr,
+            (self.value_format1(), self.value_format2()),
+        )
     }
 }
 
@@ -1320,13 +1329,20 @@ impl<'a> LigatureArraySanitized<'a> {
         unsafe { self.ptr.read_at(self.ligature_count_pos()) }
     }
 
-    pub fn ligature_attaches(&self) -> &'a [BigEndian<Offset16>] {
+    pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr.read_array_at(
                 self.ligature_attach_offsets_pos(),
                 self.ligature_count() as usize,
             )
         }
+    }
+
+    pub fn ligature_attaches(
+        &self,
+    ) -> ArrayOfSanitizedOffsets<'a, LigatureAttachSanitized<'a>, Offset16> {
+        let offsets = self.ligature_attach_offsets();
+        ArrayOfSanitizedOffsets::new(offsets, self.ptr, self.mark_class_count())
     }
 }
 
