@@ -47,11 +47,98 @@ mod sanitize_manual_impls {
     pub type PositionChainContextSanitized<'a> =
         super::super::layout::ChainedSequenceContextSanitized<'a>;
 
+    use types::{Nullable, Offset16};
+
+    use crate::sanitize::{FontPtr, ResolveSanitizedOffset};
+
     pub use super::super::layout::{
         ClassDefSanitized, CoverageTableSanitized, DeviceOrVariationIndexSanitized,
         DeviceSanitized, FeatureListSanitized, FeatureVariationsSanitized, LookupSanitized,
         ScriptListSanitized,
     };
+
+    use super::ValueFormat;
+
+    #[derive(Clone)]
+    pub struct ValueRecordSanitized<'a> {
+        ptr: crate::sanitize::FontPtr<'a>,
+        format: ValueFormat,
+    }
+
+    impl<'a> ValueRecordSanitized<'a> {
+        #[inline]
+        pub fn format(&self) -> ValueFormat {
+            self.format
+        }
+
+        #[inline]
+        pub fn iter_values(&self) -> impl Iterator<Item = (ValueFormat, i16)> {
+            let mut out = [0i16; 4];
+            let mut pos = 0;
+            let formats = [
+                ValueFormat::X_PLACEMENT,
+                ValueFormat::Y_PLACEMENT,
+                ValueFormat::X_ADVANCE,
+                ValueFormat::Y_ADVANCE,
+            ];
+            for (i, format) in formats.into_iter().enumerate() {
+                if self.format.contains(format) {
+                    out[i] = unsafe { self.ptr.read_at(pos) };
+                    pos += 2;
+                }
+            }
+
+            formats.into_iter().zip(out)
+        }
+
+        /// Iterate over any device or variation index tables referenced by
+        /// this value record.
+        ///
+        /// # Safety
+        ///
+        /// The caller must ensure that the `data` argument comes from the
+        /// immediate parent table; that means a SinglePos or PairPosFormat2
+        /// subtable, or a PairSet table within a PairPosFormat1 lookup table.
+        //XXX: This API is easy to misuse, and I think we need to offer better,
+        // but I'm not totally sure what that actually means. It might mean some
+        // specific context types that wrap the appropriate data up and handle
+        // efficient access?
+        #[inline]
+        pub unsafe fn iter_device_or_variation_indices<'parent>(
+            &self,
+            data: FontPtr<'parent>,
+        ) -> impl Iterator<Item = (ValueFormat, DeviceOrVariationIndexSanitized<'parent>)> {
+            let handled = self.format & !ValueFormat::ANY_DEVICE_OR_VARIDX;
+            let mut out = [Nullable::<Offset16>::default(); 4];
+            // skip pos past any X/Y ADVANCE/PLACEMENT values
+            let mut pos = handled.bits.count_ones() as usize * 2;
+            let formats = [
+                ValueFormat::X_PLACEMENT_DEVICE,
+                ValueFormat::Y_PLACEMENT_DEVICE,
+                ValueFormat::X_ADVANCE_DEVICE,
+                ValueFormat::Y_ADVANCE_DEVICE,
+            ];
+            for (i, format) in formats.into_iter().enumerate() {
+                if self.format.contains(format) {
+                    out[i] = unsafe { self.ptr.read_at(pos) };
+                    pos += 2;
+                }
+            }
+
+            formats.into_iter().zip(out).filter_map(move |(fmt, off)| {
+                let table = unsafe { off.offset().resolve_sanitized(data, &()) };
+                table.map(|table| (fmt, table))
+            })
+        }
+    }
+
+    unsafe impl<'a> crate::sanitize::ReadSanitized<'a> for ValueRecordSanitized<'a> {
+        type Args = super::ValueFormat;
+        #[inline]
+        unsafe fn read_sanitized(ptr: crate::sanitize::FontPtr<'a>, args: &Self::Args) -> Self {
+            Self { ptr, format: *args }
+        }
+    }
 }
 #[cfg(feature = "sanitize")]
 pub use sanitize_manual_impls::*;
