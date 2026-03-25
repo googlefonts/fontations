@@ -54,82 +54,41 @@ pub(crate) fn generate_read_sanitized_table(
 
     // State for chaining _pos() methods.
     //
-    // We use an enum-like representation:
-    //   - `pos_state = Broken`: a previous field had an unknowable size; all
-    //     subsequent _pos() methods emit `unimplemented!()`.
-    //   - `pos_state = Known { prev_fn, acc }`: `prev_fn` is the last emitted
-    //     _pos() method ident, `acc` is the total byte count since that point.
-    //     `prev_fn = None, acc = None` means "start of table, offset 0".
-    enum PosState {
-        Known {
-            prev_fn: Option<syn::Ident>,
-            acc: Option<TokenStream>, // None means 0
-        },
-        Broken,
-    }
-    let mut pos_state = PosState::Known {
-        prev_fn: None,
-        acc: None,
-    };
+    // `prev_fn` is the last emitted _pos() method ident (None = start of table).
+    // `acc` is the accumulated byte count since `prev_fn` (None means 0).
+    let mut prev_fn: Option<syn::Ident> = None;
+    let mut acc: Option<TokenStream> = None;
 
     for field in item.fields.iter() {
-        let this_len = field.sanitized_byte_len();
+        let this_len = field.sanitized_byte_len().unwrap();
 
         if field.attrs.skip_getter.is_some() {
             // Don't generate getter/pos, but account for this field's bytes.
-            if let PosState::Known { ref mut acc, .. } = pos_state {
-                match (acc.take(), this_len) {
-                    (None, Some(len)) => *acc = Some(len),
-                    (Some(prev), Some(len)) => *acc = Some(quote!(#prev + #len)),
-                    // If this_len is None, position tracking is broken.
-                    (_, None) => pos_state = PosState::Broken,
-                }
-            }
+            acc = Some(match acc.take() {
+                None => this_len,
+                Some(prev) => quote!(#prev + #this_len),
+            });
             continue;
         }
 
         let field_name = &field.name;
-        let pos_fn = format_ident!("{}_pos", field_name);
+        let pos_fn_ident = format_ident!("{}_pos", field_name);
 
         // _pos() method
-        let pos_body = match &pos_state {
-            PosState::Broken => {
-                quote! { unimplemented!("position cannot be computed: a prior field has unknown size") }
-            }
-            PosState::Known {
-                prev_fn: None,
-                acc: None,
-            } => quote!(0),
-            PosState::Known {
-                prev_fn: None,
-                acc: Some(offset),
-            } => quote! ( #offset ),
-            PosState::Known {
-                prev_fn: Some(prev_fn),
-                acc: None,
-            } => quote! ( self.#prev_fn() ),
-            PosState::Known {
-                prev_fn: Some(prev_fn),
-                acc: Some(acc),
-            } => quote! (  self.#prev_fn() + #acc ),
+        let pos_body = match (&prev_fn, &acc) {
+            (None, None) => quote!(0),
+            (None, Some(offset)) => quote!(#offset),
+            (Some(f), None) => quote!(self.#f()),
+            (Some(f), Some(a)) => quote!(self.#f() + #a),
         };
         pos_methods.push(quote! {
-            fn #pos_fn(&self) -> usize { #pos_body }
+            fn #pos_fn_ident(&self) -> usize { #pos_body }
         });
 
         // Advance state for the next field.
-        match this_len {
-            Some(len) => {
-                pos_state = PosState::Known {
-                    prev_fn: Some(pos_fn.clone()),
-                    acc: Some(len),
-                };
-            }
-            None => {
-                // This field's size is unknown; all following fields are broken.
-                pos_state = PosState::Broken;
-            }
-        }
+        prev_fn = Some(pos_fn_ident.clone());
+        acc = Some(this_len);
+        let pos_fn = pos_fn_ident;
 
         // Generate the primary getter method.
         let getter_name = &field.name;
