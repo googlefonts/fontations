@@ -328,6 +328,10 @@ pub fn entries<'a>(
             Err(Error::InvalidDictOperator(_)) => {
                 // Some buggy fonts have invalid dict operators. Clear
                 // the stack and attempt to continue.
+                // FreeType only processes known fields:
+                // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffparse.c#L1328>
+                // And then clears the stack regardless:
+                // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffparse.c#L1469>
                 stack.clear();
                 continue;
             }
