@@ -135,10 +135,10 @@ fn main() {
                                     }
                                 }
                             } else {
-                                let hinting_matrix = if font_data.is_type1() {
-                                    &[Hinting::None]
-                                } else {
+                                let hinting_matrix = if font_data.is_sfnt() {
                                     hinting_matrix.as_slice()
+                                } else {
+                                    &[Hinting::None]
                                 };
                                 for hinting in hinting_matrix {
                                     let options =

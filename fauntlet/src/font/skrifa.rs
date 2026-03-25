@@ -1,15 +1,15 @@
 use super::{InstanceOptions, SharedFontData};
-use crate::Font;
+use crate::{font::FontKind, Font};
 use skrifa::{
     outline::{DrawError, DrawSettings, HintingInstance, HintingOptions, OutlinePen},
     prelude::{LocationRef, Size},
     raw::{
         tables::postscript::{
             charstring::{CommandSink, NopFilterSink, TransformSink},
-            font::Type1Font,
+            font::{CffFontRef, Type1Font},
         },
         types::{F2Dot14, Fixed},
-        FontRef, TableProvider,
+        FontRef, ReadError, TableProvider,
     },
     GlyphId, MetadataProvider, OutlineGlyphCollection,
 };
@@ -18,17 +18,19 @@ use skrifa::{
 pub enum SkrifaInstance<'a> {
     Sfnt(SkrifaSfntInstance<'a>),
     Type1(SkrifaType1Instance<'a>),
+    Cff(SkrifaCffInstance<'a>),
 }
 
 impl<'a> SkrifaInstance<'a> {
     pub fn new(font: &'a Font, options: &InstanceOptions) -> Option<Self> {
-        if let Some(type1) = font.type1.as_ref() {
-            Some(Self::Type1(SkrifaType1Instance {
-                font: type1,
-                ppem: (options.ppem != 0.0).then_some(options.ppem),
-            }))
-        } else {
-            SkrifaSfntInstance::new(&font.data, options).map(Self::Sfnt)
+        let ppem = (options.ppem != 0.0).then_some(options.ppem);
+        match font.kind() {
+            FontKind::Type1(font) => Some(Self::Type1(SkrifaType1Instance { font, ppem })),
+            FontKind::Cff => {
+                SkrifaCffInstance::new(CffFontRef::new(&font.data.0, 0, None).ok()?, ppem)
+                    .map(Self::Cff)
+            }
+            FontKind::Sfnt => SkrifaSfntInstance::new(&font.data, options).map(Self::Sfnt),
         }
     }
 
@@ -43,6 +45,7 @@ impl<'a> SkrifaInstance<'a> {
         match self {
             Self::Sfnt(sfnt) => sfnt.glyph_count(),
             Self::Type1(type1) => type1.font.num_glyphs() as _,
+            Self::Cff(cff) => cff.font.num_glyphs() as _,
         }
     }
 
@@ -69,6 +72,7 @@ impl<'a> SkrifaInstance<'a> {
         match self {
             Self::Sfnt(sfnt) => sfnt.outline(glyph_id, pen),
             Self::Type1(type1) => type1.outline(glyph_id, pen),
+            Self::Cff(cff) => cff.outline(glyph_id, pen),
         }
     }
 }
@@ -194,6 +198,44 @@ impl SkrifaType1Instance<'_> {
         let width = self
             .font
             .evaluate_charstring(glyph_id, &mut transformer)
+            .map_err(DrawError::PostScript)?;
+        let width = width.map(|w| transform.transform_h_metric(w));
+        Ok(width.map(|w| w.to_f32().max(0.0)))
+    }
+}
+
+pub struct SkrifaCffInstance<'a> {
+    font: CffFontRef<'a>,
+    ppem: Option<f32>,
+}
+
+impl<'a> SkrifaCffInstance<'a> {
+    fn new(font: CffFontRef<'a>, ppem: Option<f32>) -> Option<Self> {
+        Some(Self { font, ppem })
+    }
+
+    pub fn num_glyphs(&self) -> u32 {
+        self.font.num_glyphs()
+    }
+
+    pub fn outline(
+        &mut self,
+        glyph_id: GlyphId,
+        pen: &mut impl OutlinePen,
+    ) -> Result<Option<f32>, DrawError> {
+        let subfont = self.font.subfont(
+            self.font
+                .subfont_index(glyph_id)
+                .ok_or(ReadError::OutOfBounds)?,
+            &[],
+        )?;
+        let mut pen = PenCommandSink(pen);
+        let mut nop_filter = NopFilterSink::new(&mut pen);
+        let transform = self.font.transform(&subfont, self.ppem);
+        let mut transformer = TransformSink::new(&mut nop_filter, transform);
+        let width = self
+            .font
+            .evaluate_charstring(&subfont, &[], glyph_id, &mut transformer)
             .map_err(DrawError::PostScript)?;
         let width = width.map(|w| transform.transform_h_metric(w));
         Ok(width.map(|w| w.to_f32().max(0.0)))

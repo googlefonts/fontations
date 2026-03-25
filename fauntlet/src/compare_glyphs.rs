@@ -48,12 +48,28 @@ pub fn compare_glyphs(
             continue;
         };
         skrifa_outline.clear();
-        let maybe_skrifa_advance = skrifa_instance
-            .outline(
-                gid,
-                &mut RegularizingPen::new(&mut skrifa_outline, is_scaled),
-            )
-            .unwrap();
+        let maybe_skrifa_advance = match skrifa_instance.outline(
+            gid,
+            &mut RegularizingPen::new(&mut skrifa_outline, is_scaled),
+        ) {
+            Ok(adv) => adv,
+            Err(e) => {
+                writeln!(
+                    std::io::stderr(),
+                    "[{path:?}#{} ppem: {} coords: {:?} hinting {:?}] glyph id {} error: {e:?}",
+                    options.index,
+                    options.ppem,
+                    options.coords,
+                    options.hinting,
+                    gid.to_u32(),
+                )
+                .unwrap();
+                if exit_on_fail {
+                    std::process::exit(1);
+                }
+                continue;
+            }
+        };
         // Compare against adjusted metrics when skrifa returns them (currently
         // only for TrueType and Type1 glyphs)
         if let Some(skrifa_advance) = maybe_skrifa_advance {
