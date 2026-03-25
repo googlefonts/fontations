@@ -949,4 +949,66 @@ mod tests {
         assert_eq!(transform.matrix.0, expected_matrix);
         assert_eq!(transform.scale, Some(Fixed::from_bits(1 << 16)));
     }
+
+    #[test]
+    fn select_version() {
+        // CFF2 font
+        assert_eq!(
+            CffFontRef::new(
+                FontRef::new(font_test_data::CANTARELL_VF_TRIMMED)
+                    .unwrap()
+                    .cff2()
+                    .unwrap()
+                    .offset_data()
+                    .as_bytes(),
+                0,
+                None
+            )
+            .unwrap()
+            .version(),
+            2
+        );
+        // CFF font
+        assert_eq!(
+            CffFontRef::new(
+                FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET_MATRIX)
+                    .unwrap()
+                    .cff()
+                    .unwrap()
+                    .offset_data()
+                    .as_bytes(),
+                0,
+                None
+            )
+            .unwrap()
+            .version(),
+            1
+        );
+        // Not a CFF font
+        assert!(CffFontRef::new(&[0, 1, 4, 5], 0, None).is_err());
+        // Spoof version 1
+        assert!(CffFontRef::new(&[1, 1, 4, 5], 0, None).is_err());
+        // Spoof version 2
+        assert!(CffFontRef::new(&[2, 1, 4, 5], 0, None).is_err());
+    }
+
+    #[test]
+    fn transform() {
+        // font with gnarly nested matrices
+        let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET_MATRIX).unwrap();
+        // this font has a fun upem of 512
+        let cff =
+            CffFontRef::new(font.cff().unwrap().offset_data().as_bytes(), 0, Some(512)).unwrap();
+        let subfont = cff.subfont(0, &[]).unwrap();
+        // Extracted from FreeType
+        let expected_matrix = [65536, 0, 5604, 65536, 0, 0].map(Fixed::from_bits);
+        // Unscaled
+        let transform = cff.transform(&subfont, None);
+        assert_eq!(transform.matrix.0, expected_matrix);
+        assert_eq!(transform.scale, Some(Fixed::from_bits(32 << 16)));
+        // Scaled at 16px
+        let transform = cff.transform(&subfont, Some(16.0));
+        assert_eq!(transform.matrix.0, expected_matrix);
+        assert_eq!(transform.scale, Some(Fixed::from_bits(1 << 16)));
+    }
 }
