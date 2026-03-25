@@ -139,7 +139,7 @@ pub(crate) fn generate_read_sanitized_table(
         });
 
         // For offset fields, also generate a resolved getter.
-        if let Some(resolved) = field.sanitized_table_resolved_getter(items) {
+        if let Some(resolved) = field.sanitized_table_offset_getter() {
             getter_methods.push(resolved);
         }
     }
@@ -291,23 +291,12 @@ pub(crate) fn generate_read_sanitized_record(
 }
 
 /// Generate a `ReadSanitized` enum for a format-dispatch table group.
-pub(crate) fn generate_read_sanitized_format(
-    item: &TableFormat,
-    items: &Items,
-) -> syn::Result<TokenStream> {
+pub(crate) fn generate_read_sanitized_format(item: &TableFormat) -> syn::Result<TokenStream> {
     let active_variants: Vec<_> = item
         .variants
         .iter()
         .filter(|v| v.attrs.write_only.is_none())
         .collect();
-
-    // Skip if any active variant's concrete type lacks a sanitized version.
-    if active_variants
-        .iter()
-        .any(|v| !has_sanitized_table(v.type_name(), items))
-    {
-        return Ok(Default::default());
-    }
 
     let name = &item.name;
     let sanitized_name = format_ident!("{}Sanitized", name);
@@ -498,44 +487,6 @@ fn build_read_sanitized_init(
     }
 }
 
-/// Returns true if the given type name refers to a regular `Table` in the item set
-/// (not a TableFormat, GenericGroup, Record, or external type).
-fn has_sanitized_table(name: &syn::Ident, items: &Items) -> bool {
-    matches!(items.get(name), Some(Item::Table(t)) if t.attrs.write_only.is_none())
-}
-
-/// Returns true if the given type name refers to a format group that will have
-/// a sanitized enum generated (i.e. all active variants have sanitized tables).
-fn has_sanitized_format_group(name: &syn::Ident, items: &Items) -> bool {
-    match items.get(name) {
-        Some(Item::Format(tf)) => tf
-            .variants
-            .iter()
-            .filter(|v| v.attrs.write_only.is_none())
-            .all(|v| has_sanitized_table(v.type_name(), items)),
-        _ => false,
-    }
-}
-
-/// Returns true if the given type name is a `GenericGroup` that gets a
-/// sanitized enum generated.
-fn has_sanitized_group(name: &syn::Ident, items: &Items) -> bool {
-    matches!(items.get(name), Some(Item::GenericGroup(_)))
-}
-
-/// Returns true if the given type name has a sanitized version — a concrete
-/// table, a format-dispatch enum, or a generic-group enum.
-fn has_sanitized_version(name: &syn::Ident, items: &Items) -> bool {
-    has_sanitized_table(name, items)
-        || has_sanitized_format_group(name, items)
-        || has_sanitized_group(name, items)
-}
-
-/// Returns true if the target table requires non-trivial `Args` (i.e. has `#[read_args(...)]`).
-fn table_needs_args(name: &syn::Ident, items: &Items) -> bool {
-    matches!(items.get(name), Some(Item::Table(t)) if t.fields.read_args.is_some())
-}
-
 /// Returns true if the given type name refers to a zerocopy-compatible `Record`
 /// that will get a sanitized version generated.
 fn has_sanitized_record(name: &syn::Ident, items: &Items) -> bool {
@@ -672,7 +623,7 @@ impl Field {
     /// Resolved offset getter method for a table, if applicable.
     ///
     /// Returns `Some` only for `Offset` fields; all other field types return `None`.
-    pub(crate) fn sanitized_table_resolved_getter(&self, items: &Items) -> Option<TokenStream> {
+    pub(crate) fn sanitized_table_offset_getter(&self) -> Option<TokenStream> {
         let FieldType::Offset { target, .. } = &self.typ else {
             return None;
         };
@@ -682,50 +633,22 @@ impl Field {
 
         Some(match target {
             OffsetTarget::Table(target_name) => {
-                if has_sanitized_version(target_name, items) {
-                    let mut return_type = if target_name == "T" {
-                        target_name.to_token_stream()
-                    } else {
-                        let ident = format_ident!("{}Sanitized", target_name);
-                        quote!(#ident<'a>)
-                    };
-                    if is_nullable {
-                        return_type = quote!(Option<#return_type>);
-                    }
-                    let where_clause = (target_name == "T")
-                        .then(|| quote!(where T: ReadSanitized<'a, Args = ()> + Default));
-                    if table_needs_args(target_name, items) && self.attrs.read_offset_args.is_none()
-                    {
-                        quote! {
-                            pub fn #getter_name(&self) {
-                                unimplemented!("target requires args not available from this field")
-                            }
-                        }
-                    } else {
-                        let args_expr = self.sanitized_offset_args_expr();
-                        if is_nullable {
-                            quote! {
-                                pub fn #getter_name(&self) -> #return_type #where_clause {
-                                    unsafe { self.#field_name().resolve_sanitized(self.ptr.clone(), &#args_expr) }
-                                }
-                            }
-                        } else {
-                            quote! {
-                                pub fn #getter_name(&self) -> #return_type #where_clause {
-                                    unsafe {
-                                        self.#field_name()
-                                            .resolve_sanitized(self.ptr.clone(), &#args_expr)
-                                            .unwrap_or_default()
-                                    }
-                                }
-                            }
-                        }
-                    }
+                let mut return_type = if target_name == "T" {
+                    target_name.to_token_stream()
                 } else {
-                    quote! {
-                        pub fn #getter_name(&self) {
-                            unimplemented!("target type lacks a ReadSanitized impl")
-                        }
+                    let ident = format_ident!("{}Sanitized", target_name);
+                    quote!(#ident<'a>)
+                };
+                if is_nullable {
+                    return_type = quote!(Option<#return_type>);
+                }
+                let where_clause = (target_name == "T")
+                    .then(|| quote!(where T: ReadSanitized<'a, Args = ()> + Default));
+                let args_expr = self.sanitized_offset_args_expr();
+                let unwrap_or_default = (!is_nullable).then(|| quote!(.unwrap_or_default()));
+                quote! {
+                    pub fn #getter_name(&self) -> #return_type #where_clause {
+                        unsafe { self.#field_name().resolve_sanitized(self.ptr, &#args_expr) #unwrap_or_default }
                     }
                 }
             }
@@ -784,7 +707,7 @@ impl Field {
     ///
     /// Returns `Some` only for `Offset` fields that have an `#[offset_getter]`;
     /// all other field types return `None`.
-    pub(crate) fn sanitized_record_offset_method(&self, items: &Items) -> Option<TokenStream> {
+    pub(crate) fn sanitized_record_offset_method(&self, _items: &Items) -> Option<TokenStream> {
         if self.attrs.offset_getter.is_some() {
             return None;
         }
@@ -798,38 +721,23 @@ impl Field {
 
         Some(match target {
             OffsetTarget::Table(target_name) => {
-                if has_sanitized_version(target_name, items) {
-                    let st = format_ident!("{}Sanitized", target_name);
-                    if table_needs_args(target_name, items) && self.attrs.read_offset_args.is_none()
-                    {
-                        quote! {
-                            pub fn #getter_name<'a>(&self, _parent_ptr: FontPtr<'a>) {
-                                unimplemented!("target requires args not available from this field")
-                            }
-                        }
-                    } else if is_nullable {
-                        quote! {
-                            pub fn #getter_name<'a>(&self, parent_ptr: FontPtr<'a>) -> Option<#st<'a>> {
-                                let offset = self.#field_name();
-                                unsafe { offset.resolve_sanitized(parent_ptr, &#args_expr) }
-                            }
-                        }
-                    } else {
-                        quote! {
-                            pub fn #getter_name<'a>(&self, parent_ptr: FontPtr<'a>) -> #st<'a> {
-                                let offset = self.#field_name();
-                                unsafe {
-                                    offset
-                                        .resolve_sanitized(parent_ptr, &#args_expr)
-                                        .unwrap_or_default()
-                                }
-                            }
+                let st = format_ident!("{}Sanitized", target_name);
+                if is_nullable {
+                    quote! {
+                        pub fn #getter_name<'a>(&self, parent_ptr: FontPtr<'a>) -> Option<#st<'a>> {
+                            let offset = self.#field_name();
+                            unsafe { offset.resolve_sanitized(parent_ptr, &#args_expr) }
                         }
                     }
                 } else {
                     quote! {
-                        pub fn #getter_name<'a>(&self, _parent_ptr: FontPtr<'a>) {
-                            unimplemented!("target type lacks a ReadSanitized impl")
+                        pub fn #getter_name<'a>(&self, parent_ptr: FontPtr<'a>) -> #st<'a> {
+                            let offset = self.#field_name();
+                            unsafe {
+                                offset
+                                    .resolve_sanitized(parent_ptr, &#args_expr)
+                                    .unwrap_or_default()
+                            }
                         }
                     }
                 }

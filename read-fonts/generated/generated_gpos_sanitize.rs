@@ -52,32 +52,47 @@ impl<'a> GposSanitized<'a> {
         unsafe { self.ptr.read_at(self.script_list_offset_pos()) }
     }
 
-    pub fn script_list(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn script_list(&self) -> ScriptListSanitized<'a> {
+        unsafe {
+            self.script_list_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn feature_list_offset(&self) -> Offset16 {
         unsafe { self.ptr.read_at(self.feature_list_offset_pos()) }
     }
 
-    pub fn feature_list(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn feature_list(&self) -> FeatureListSanitized<'a> {
+        unsafe {
+            self.feature_list_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn lookup_list_offset(&self) -> Offset16 {
         unsafe { self.ptr.read_at(self.lookup_list_offset_pos()) }
     }
 
-    pub fn lookup_list(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn lookup_list(&self) -> PositionLookupListSanitized<'a> {
+        unsafe {
+            self.lookup_list_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn feature_variations_offset(&self) -> Offset32 {
         unsafe { self.ptr.read_at(self.feature_variations_offset_pos()) }
     }
 
-    pub fn feature_variations(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn feature_variations(&self) -> Option<FeatureVariationsSanitized<'a>> {
+        unsafe {
+            self.feature_variations_offset()
+                .resolve_sanitized(self.ptr, &())
+        }
     }
 }
 
@@ -322,16 +337,16 @@ impl<'a> AnchorFormat3Sanitized<'a> {
         unsafe { self.ptr.read_at(self.x_device_offset_pos()) }
     }
 
-    pub fn x_device(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn x_device(&self) -> Option<DeviceOrVariationIndexSanitized<'a>> {
+        unsafe { self.x_device_offset().resolve_sanitized(self.ptr, &()) }
     }
 
     pub fn y_device_offset(&self) -> Offset16 {
         unsafe { self.ptr.read_at(self.y_device_offset_pos()) }
     }
 
-    pub fn y_device(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn y_device(&self) -> Option<DeviceOrVariationIndexSanitized<'a>> {
+        unsafe { self.y_device_offset().resolve_sanitized(self.ptr, &()) }
     }
 }
 
@@ -501,8 +516,12 @@ impl<'a> SinglePosFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn value_format(&self) -> ValueFormat {
@@ -559,8 +578,12 @@ impl<'a> SinglePosFormat2Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn value_format(&self) -> ValueFormat {
@@ -661,8 +684,12 @@ impl<'a> PairPosFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn value_format1(&self) -> ValueFormat {
@@ -805,8 +832,12 @@ impl<'a> PairPosFormat2Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn value_format1(&self) -> ValueFormat {
@@ -821,16 +852,24 @@ impl<'a> PairPosFormat2Sanitized<'a> {
         unsafe { self.ptr.read_at(self.class_def1_offset_pos()) }
     }
 
-    pub fn class_def1(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn class_def1(&self) -> ClassDefSanitized<'a> {
+        unsafe {
+            self.class_def1_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn class_def2_offset(&self) -> Offset16 {
         unsafe { self.ptr.read_at(self.class_def2_offset_pos()) }
     }
 
-    pub fn class_def2(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn class_def2(&self) -> ClassDefSanitized<'a> {
+        unsafe {
+            self.class_def2_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn class1_count(&self) -> u16 {
@@ -912,8 +951,12 @@ impl<'a> CursivePosFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn entry_exit_count(&self) -> u16 {
@@ -1034,16 +1077,24 @@ impl<'a> MarkBasePosFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.mark_coverage_offset_pos()) }
     }
 
-    pub fn mark_coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn mark_coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.mark_coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn base_coverage_offset(&self) -> Offset16 {
         unsafe { self.ptr.read_at(self.base_coverage_offset_pos()) }
     }
 
-    pub fn base_coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn base_coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.base_coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn mark_class_count(&self) -> u16 {
@@ -1057,7 +1108,7 @@ impl<'a> MarkBasePosFormat1Sanitized<'a> {
     pub fn mark_array(&self) -> MarkArraySanitized<'a> {
         unsafe {
             self.mark_array_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1069,7 +1120,7 @@ impl<'a> MarkBasePosFormat1Sanitized<'a> {
     pub fn base_array(&self) -> BaseArraySanitized<'a> {
         unsafe {
             self.base_array_offset()
-                .resolve_sanitized(self.ptr.clone(), &self.mark_class_count())
+                .resolve_sanitized(self.ptr, &self.mark_class_count())
                 .unwrap_or_default()
         }
     }
@@ -1181,16 +1232,24 @@ impl<'a> MarkLigPosFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.mark_coverage_offset_pos()) }
     }
 
-    pub fn mark_coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn mark_coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.mark_coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn ligature_coverage_offset(&self) -> Offset16 {
         unsafe { self.ptr.read_at(self.ligature_coverage_offset_pos()) }
     }
 
-    pub fn ligature_coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn ligature_coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.ligature_coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn mark_class_count(&self) -> u16 {
@@ -1204,7 +1263,7 @@ impl<'a> MarkLigPosFormat1Sanitized<'a> {
     pub fn mark_array(&self) -> MarkArraySanitized<'a> {
         unsafe {
             self.mark_array_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1216,7 +1275,7 @@ impl<'a> MarkLigPosFormat1Sanitized<'a> {
     pub fn ligature_array(&self) -> LigatureArraySanitized<'a> {
         unsafe {
             self.ligature_array_offset()
-                .resolve_sanitized(self.ptr.clone(), &self.mark_class_count())
+                .resolve_sanitized(self.ptr, &self.mark_class_count())
                 .unwrap_or_default()
         }
     }
@@ -1382,16 +1441,24 @@ impl<'a> MarkMarkPosFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.mark1_coverage_offset_pos()) }
     }
 
-    pub fn mark1_coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn mark1_coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.mark1_coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn mark2_coverage_offset(&self) -> Offset16 {
         unsafe { self.ptr.read_at(self.mark2_coverage_offset_pos()) }
     }
 
-    pub fn mark2_coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn mark2_coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.mark2_coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn mark_class_count(&self) -> u16 {
@@ -1405,7 +1472,7 @@ impl<'a> MarkMarkPosFormat1Sanitized<'a> {
     pub fn mark1_array(&self) -> MarkArraySanitized<'a> {
         unsafe {
             self.mark1_array_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1417,7 +1484,7 @@ impl<'a> MarkMarkPosFormat1Sanitized<'a> {
     pub fn mark2_array(&self) -> Mark2ArraySanitized<'a> {
         unsafe {
             self.mark2_array_offset()
-                .resolve_sanitized(self.ptr.clone(), &self.mark_class_count())
+                .resolve_sanitized(self.ptr, &self.mark_class_count())
                 .unwrap_or_default()
         }
     }
@@ -1522,8 +1589,15 @@ impl<'a, T> ExtensionPosFormat1Sanitized<'a, T> {
         unsafe { self.ptr.read_at(self.extension_offset_pos()) }
     }
 
-    pub fn extension(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn extension(&self) -> T
+    where
+        T: ReadSanitized<'a, Args = ()> + Default,
+    {
+        unsafe {
+            self.extension_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 }
 

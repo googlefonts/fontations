@@ -52,32 +52,47 @@ impl<'a> GsubSanitized<'a> {
         unsafe { self.ptr.read_at(self.script_list_offset_pos()) }
     }
 
-    pub fn script_list(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn script_list(&self) -> ScriptListSanitized<'a> {
+        unsafe {
+            self.script_list_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn feature_list_offset(&self) -> Offset16 {
         unsafe { self.ptr.read_at(self.feature_list_offset_pos()) }
     }
 
-    pub fn feature_list(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn feature_list(&self) -> FeatureListSanitized<'a> {
+        unsafe {
+            self.feature_list_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn lookup_list_offset(&self) -> Offset16 {
         unsafe { self.ptr.read_at(self.lookup_list_offset_pos()) }
     }
 
-    pub fn lookup_list(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn lookup_list(&self) -> SubstitutionLookupListSanitized<'a> {
+        unsafe {
+            self.lookup_list_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn feature_variations_offset(&self) -> Offset32 {
         unsafe { self.ptr.read_at(self.feature_variations_offset_pos()) }
     }
 
-    pub fn feature_variations(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn feature_variations(&self) -> Option<FeatureVariationsSanitized<'a>> {
+        unsafe {
+            self.feature_variations_offset()
+                .resolve_sanitized(self.ptr, &())
+        }
     }
 }
 
@@ -206,8 +221,12 @@ impl<'a> SingleSubstFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn delta_glyph_id(&self) -> i16 {
@@ -260,8 +279,12 @@ impl<'a> SingleSubstFormat2Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn glyph_count(&self) -> u16 {
@@ -321,8 +344,12 @@ impl<'a> MultipleSubstFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn sequence_count(&self) -> u16 {
@@ -424,8 +451,12 @@ impl<'a> AlternateSubstFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn alternate_set_count(&self) -> u16 {
@@ -529,8 +560,12 @@ impl<'a> LigatureSubstFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn ligature_set_count(&self) -> u16 {
@@ -683,8 +718,15 @@ impl<'a, T> ExtensionSubstFormat1Sanitized<'a, T> {
         unsafe { self.ptr.read_at(self.extension_offset_pos()) }
     }
 
-    pub fn extension(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn extension(&self) -> T
+    where
+        T: ReadSanitized<'a, Args = ()> + Default,
+    {
+        unsafe {
+            self.extension_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 }
 
@@ -829,8 +871,12 @@ impl<'a> ReverseChainSingleSubstFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn backtrack_glyph_count(&self) -> u16 {

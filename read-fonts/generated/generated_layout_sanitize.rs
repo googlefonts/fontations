@@ -135,7 +135,7 @@ impl<'a> ScriptSanitized<'a> {
     pub fn default_lang_sys(&self) -> Option<LangSysSanitized<'a>> {
         unsafe {
             self.default_lang_sys_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
         }
     }
 
@@ -380,8 +380,11 @@ impl<'a> FeatureSanitized<'a> {
         unsafe { self.ptr.read_at(self.feature_params_offset_pos()) }
     }
 
-    pub fn feature_params(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn feature_params(&self) -> Option<FeatureParamsSanitized<'a>> {
+        unsafe {
+            self.feature_params_offset()
+                .resolve_sanitized(self.ptr, &self.feature_tag())
+        }
     }
 
     pub fn lookup_index_count(&self) -> u16 {
@@ -1009,7 +1012,7 @@ impl<'a> SequenceContextFormat1Sanitized<'a> {
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
         unsafe {
             self.coverage_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1195,7 +1198,7 @@ impl<'a> SequenceContextFormat2Sanitized<'a> {
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
         unsafe {
             self.coverage_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1207,7 +1210,7 @@ impl<'a> SequenceContextFormat2Sanitized<'a> {
     pub fn class_def(&self) -> ClassDefSanitized<'a> {
         unsafe {
             self.class_def_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1510,7 +1513,7 @@ impl<'a> ChainedSequenceContextFormat1Sanitized<'a> {
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
         unsafe {
             self.coverage_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1754,7 +1757,7 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
         unsafe {
             self.coverage_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1766,7 +1769,7 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     pub fn backtrack_class_def(&self) -> ClassDefSanitized<'a> {
         unsafe {
             self.backtrack_class_def_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1778,7 +1781,7 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     pub fn input_class_def(&self) -> ClassDefSanitized<'a> {
         unsafe {
             self.input_class_def_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -1790,7 +1793,7 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     pub fn lookahead_class_def(&self) -> ClassDefSanitized<'a> {
         unsafe {
             self.lookahead_class_def_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }
@@ -2723,7 +2726,7 @@ impl<'a> ConditionFormat5Sanitized<'a> {
     pub fn condition(&self) -> ConditionSanitized<'a> {
         unsafe {
             self.condition_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
                 .unwrap_or_default()
         }
     }

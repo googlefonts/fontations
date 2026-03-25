@@ -75,8 +75,11 @@ impl<'a> GdefSanitized<'a> {
         unsafe { self.ptr.read_at(self.glyph_class_def_offset_pos()) }
     }
 
-    pub fn glyph_class_def(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn glyph_class_def(&self) -> Option<ClassDefSanitized<'a>> {
+        unsafe {
+            self.glyph_class_def_offset()
+                .resolve_sanitized(self.ptr, &())
+        }
     }
 
     pub fn attach_list_offset(&self) -> Offset16 {
@@ -84,10 +87,7 @@ impl<'a> GdefSanitized<'a> {
     }
 
     pub fn attach_list(&self) -> Option<AttachListSanitized<'a>> {
-        unsafe {
-            self.attach_list_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
-        }
+        unsafe { self.attach_list_offset().resolve_sanitized(self.ptr, &()) }
     }
 
     pub fn lig_caret_list_offset(&self) -> Offset16 {
@@ -97,7 +97,7 @@ impl<'a> GdefSanitized<'a> {
     pub fn lig_caret_list(&self) -> Option<LigCaretListSanitized<'a>> {
         unsafe {
             self.lig_caret_list_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
         }
     }
 
@@ -105,8 +105,11 @@ impl<'a> GdefSanitized<'a> {
         unsafe { self.ptr.read_at(self.mark_attach_class_def_offset_pos()) }
     }
 
-    pub fn mark_attach_class_def(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn mark_attach_class_def(&self) -> Option<ClassDefSanitized<'a>> {
+        unsafe {
+            self.mark_attach_class_def_offset()
+                .resolve_sanitized(self.ptr, &())
+        }
     }
 
     pub fn mark_glyph_sets_def_offset(&self) -> Offset16 {
@@ -116,7 +119,7 @@ impl<'a> GdefSanitized<'a> {
     pub fn mark_glyph_sets_def(&self) -> Option<MarkGlyphSetsSanitized<'a>> {
         unsafe {
             self.mark_glyph_sets_def_offset()
-                .resolve_sanitized(self.ptr.clone(), &())
+                .resolve_sanitized(self.ptr, &())
         }
     }
 
@@ -124,8 +127,11 @@ impl<'a> GdefSanitized<'a> {
         unsafe { self.ptr.read_at(self.item_var_store_offset_pos()) }
     }
 
-    pub fn item_var_store(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn item_var_store(&self) -> Option<ItemVariationStoreSanitized<'a>> {
+        unsafe {
+            self.item_var_store_offset()
+                .resolve_sanitized(self.ptr, &())
+        }
     }
 }
 
@@ -167,8 +173,12 @@ impl<'a> AttachListSanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn glyph_count(&self) -> u16 {
@@ -263,8 +273,12 @@ impl<'a> LigCaretListSanitized<'a> {
         unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
     }
 
-    pub fn coverage(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 
     pub fn lig_glyph_count(&self) -> u16 {
@@ -472,8 +486,12 @@ impl<'a> CaretValueFormat3Sanitized<'a> {
         unsafe { self.ptr.read_at(self.device_offset_pos()) }
     }
 
-    pub fn device(&self) {
-        unimplemented!("target type lacks a ReadSanitized impl")
+    pub fn device(&self) -> DeviceOrVariationIndexSanitized<'a> {
+        unsafe {
+            self.device_offset()
+                .resolve_sanitized(self.ptr, &())
+                .unwrap_or_default()
+        }
     }
 }
 
