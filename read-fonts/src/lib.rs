@@ -113,8 +113,8 @@ pub(crate) mod codegen_prelude {
     };
     #[cfg(feature = "sanitize")]
     pub use crate::sanitize::{
-        sanitize_ignoring_null, FontPtr, ReadSanitized, ResolveSanitizedOffset, Sanitize,
-        SanitizeRecord,
+        sanitize_ignoring_null, ArrayOfSanitizedNullableOffsets, ArrayOfSanitizedOffsets, FontPtr,
+        ReadSanitized, ResolveSanitizedOffset, Sanitize, SanitizeRecord,
     };
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;

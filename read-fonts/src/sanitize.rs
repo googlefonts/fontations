@@ -1,7 +1,7 @@
 //! Pre-validating font data.
 
 use bytemuck::AnyBitPattern;
-use types::{BigEndian, FixedSize, Scalar};
+use types::{BigEndian, FixedSize, Nullable, Offset16, Scalar};
 
 use crate::{
     array::{ComputedArray, VarLenArray},
@@ -107,6 +107,119 @@ impl<O: Offset> ResolveSanitizedOffset for O {
     }
 }
 
+pub struct ArrayOfSanitizedOffsets<'a, T: ReadSanitized<'a>, O: Scalar = Offset16> {
+    offsets: &'a [BigEndian<O>],
+    ptr: FontPtr<'a>,
+    args: T::Args,
+}
+
+pub struct ArrayOfSanitizedNullableOffsets<'a, T: ReadSanitized<'a>, O: Scalar = Offset16> {
+    offsets: &'a [BigEndian<Nullable<O>>],
+    ptr: FontPtr<'a>,
+    args: T::Args,
+}
+
+impl<'a, T, O> ArrayOfSanitizedOffsets<'a, T, O>
+where
+    O: Scalar,
+    T: ReadSanitized<'a>,
+{
+    pub(crate) fn new(offsets: &'a [BigEndian<O>], ptr: FontPtr<'a>, args: T::Args) -> Self {
+        Self { offsets, ptr, args }
+    }
+}
+
+impl<'a, T, O> ArrayOfSanitizedNullableOffsets<'a, T, O>
+where
+    O: Scalar,
+    T: ReadSanitized<'a>,
+{
+    pub(crate) fn new(
+        offsets: &'a [BigEndian<Nullable<O>>],
+        ptr: FontPtr<'a>,
+        args: T::Args,
+    ) -> Self {
+        Self { offsets, ptr, args }
+    }
+}
+
+impl<'a, T, O> ArrayOfSanitizedOffsets<'a, T, O>
+where
+    O: Scalar + Offset,
+    T: ReadSanitized<'a> + Default,
+    T::Args: Copy + 'static,
+{
+    /// The number of offsets in the array
+    pub fn len(&self) -> usize {
+        self.offsets.len()
+    }
+
+    /// `true` if the array is empty
+    pub fn is_empty(&self) -> bool {
+        self.offsets.is_empty()
+    }
+
+    /// Resolve the offset at the provided index.
+    pub fn get(&self, idx: usize) -> Option<T> {
+        self.offsets
+            .get(idx)
+            .map(|o| unsafe { o.get().resolve_sanitized(self.ptr, &self.args) }.unwrap_or_default())
+    }
+
+    /// Iterate over all of the offset targets.
+    ///
+    /// Each offset will be resolved as it is encountered.
+    pub fn iter(&self) -> impl Iterator<Item = T> + 'a {
+        let mut iter = self.offsets.iter();
+        let args = self.args;
+        let ptr = self.ptr;
+        std::iter::from_fn(move || {
+            iter.next()
+                .map(|off| unsafe { off.get().resolve_sanitized(ptr, &args).unwrap_or_default() })
+        })
+    }
+}
+
+impl<'a, T, O> ArrayOfSanitizedNullableOffsets<'a, T, O>
+where
+    O: Scalar + Offset,
+    T: ReadSanitized<'a> + Default,
+    T::Args: Copy + 'static,
+{
+    /// The number of offsets in the array
+    pub fn len(&self) -> usize {
+        self.offsets.len()
+    }
+
+    /// `true` if the array is empty
+    pub fn is_empty(&self) -> bool {
+        self.offsets.is_empty()
+    }
+
+    /// Resolve the offset at the provided index.
+    ///
+    /// `None` means the index is out of bounds; `Some(None)` means the index
+    /// is valid but the offset is null.
+    pub fn get(&self, idx: usize) -> Option<Option<T>> {
+        self.offsets
+            .get(idx)
+            .map(|o| unsafe { o.get().offset().resolve_sanitized(self.ptr, &self.args) })
+    }
+
+    /// Iterate over all of the offset targets.
+    ///
+    /// Each offset will be resolved as it is encountered. Null offsets are
+    /// represented as `None`.
+    pub fn iter(&self) -> impl Iterator<Item = Option<T>> + 'a {
+        let mut iter = self.offsets.iter();
+        let args = self.args;
+        let ptr = self.ptr;
+        std::iter::from_fn(move || {
+            iter.next()
+                .map(|off| unsafe { off.get().offset().resolve_sanitized(ptr, &args) })
+        })
+    }
+}
 // a utility type for reading fields from a pointer.
 //
 // This stores a `&'a u8` instead of a raw pointer in order to maintain... a lifetime..
