@@ -7,7 +7,11 @@ use std::{
 use ::freetype::{face::LoadFlag, Library};
 use ::skrifa::{
     outline::{HintingOptions, SmoothMode, Target},
-    raw::{tables::postscript::font::Type1Font, types::F2Dot14, FontRef, TableProvider},
+    raw::{
+        tables::postscript::font::{CffFontRef, Type1Font},
+        types::F2Dot14,
+        FontRef, TableProvider,
+    },
 };
 
 mod freetype;
@@ -101,7 +105,7 @@ impl<'a> InstanceOptions<'a> {
 pub struct Font {
     path: PathBuf,
     data: SharedFontData,
-    pub(crate) type1: Option<Type1Font>,
+    kind: FontKind,
     count: usize,
     ft_library: Library,
 }
@@ -111,21 +115,16 @@ impl Font {
         let path = path.as_ref().to_owned();
         let file = std::fs::File::open(&path).ok()?;
         let data = SharedFontData(unsafe { Arc::new(memmap2::Mmap::map(&file).ok()?) });
-        let type1 = if check_type1(&data.0) {
-            Some(Type1Font::new(&data.0).ok()?)
-        } else {
-            None
-        };
-        let count = if type1.is_some() {
-            1
-        } else {
-            FontRef::fonts(data.0.as_ref()).count()
+        let kind = FontKind::new(&data.0)?;
+        let count = match kind {
+            FontKind::Sfnt => FontRef::fonts(data.0.as_ref()).count(),
+            _ => 1,
         };
         let _ft_library = ::freetype::Library::init().ok()?;
         Some(Self {
             path,
             data,
-            type1,
+            kind,
             count,
             ft_library: _ft_library,
         })
@@ -135,8 +134,12 @@ impl Font {
         &self.path
     }
 
-    pub fn is_type1(&self) -> bool {
-        self.type1.is_some()
+    pub fn kind(&self) -> &FontKind {
+        &self.kind
+    }
+
+    pub fn is_sfnt(&self) -> bool {
+        matches!(&self.kind, FontKind::Sfnt)
     }
 
     pub fn count(&self) -> usize {
@@ -174,9 +177,32 @@ impl Borrow<[u8]> for SharedFontData {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
+pub enum FontKind {
+    Sfnt,
+    Type1(Type1Font),
+    Cff,
+}
+
+impl FontKind {
+    fn new(data: &[u8]) -> Option<Self> {
+        if check_type1(data) {
+            Type1Font::new(data).ok().map(Self::Type1)
+        } else if check_cff(data) {
+            Some(Self::Cff)
+        } else {
+            Some(Self::Sfnt)
+        }
+    }
+}
+
 fn check_type1(data: &[u8]) -> bool {
     fn check(data: &[u8]) -> bool {
         data.starts_with(b"%!PS-AdobeFont") || data.starts_with(b"%!FontType")
     }
     check(data) || data.get(6..).map(check).unwrap_or(false)
+}
+
+fn check_cff(data: &[u8]) -> bool {
+    CffFontRef::new(data, 0, None).is_ok()
 }
