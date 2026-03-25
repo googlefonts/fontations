@@ -162,10 +162,47 @@ impl crate::sanitize::Sanitize for FeatureParams<'_> {
     }
 }
 
+#[cfg(feature = "sanitize")]
+pub enum FeatureParamsSanitized<'a> {
+    StylisticSet(StylisticSetParamsSanitized<'a>),
+    Size(SizeParamsSanitized<'a>),
+    CharacterVariant(CharacterVariantParamsSanitized<'a>),
+}
+
+#[cfg(feature = "sanitize")]
+unsafe impl<'a> ReadSanitized<'a> for FeatureParamsSanitized<'a> {
+    type Args = Tag;
+
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        match *args {
+            t if t == Tag::new(b"size") => Self::Size(ReadSanitized::read_sanitized(ptr, &())),
+            t if &t.to_raw()[..2] == b"ss" => {
+                Self::StylisticSet(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            t if &t.to_raw()[..2] == b"cv" => {
+                Self::CharacterVariant(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            _ => unreachable!("caught in sanitization"),
+        }
+    }
+}
 impl FeatureTableSubstitutionRecord {
     pub fn alternate_feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         self.alternate_feature_offset()
             .resolve_with_args(data, &Tag::new(b"NULL"))
+    }
+}
+#[cfg(feature = "sanitize")]
+impl FeatureTableSubstitutionRecordSanitized {
+    pub fn alternate_feature<'a>(
+        &self,
+        parent: &FeatureTableSubstitutionSanitized<'a>,
+    ) -> FeatureSanitized<'a> {
+        unsafe {
+            self.alternate_feature_offset()
+                .resolve_sanitized(parent.offset_ptr(), &Tag::new(b"NULL"))
+                .unwrap_or_default()
+        }
     }
 }
 
