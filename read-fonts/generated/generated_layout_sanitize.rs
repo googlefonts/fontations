@@ -19,11 +19,79 @@ impl Sanitize for ScriptList<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ScriptListSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ScriptListSanitized<'a> {
+    fn script_count_pos(&self) -> usize {
+        0
+    }
+    fn script_records_pos(&self) -> usize {
+        self.script_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn script_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.script_count_pos()) }
+    }
+
+    pub fn script_records(&self) -> &'a [ScriptRecordSanitized] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.script_records_pos(), self.script_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ScriptListSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for ScriptRecord {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.script(data))?;
         Ok(())
+    }
+}
+
+/// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ScriptRecordSanitized {
+    /// 4-byte script tag identifier
+    pub script_tag: BigEndian<Tag>,
+    /// Offset to Script table, from beginning of ScriptList
+    pub script_offset: BigEndian<Offset16>,
+}
+
+impl FixedSize for ScriptRecordSanitized {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl ScriptRecordSanitized {
+    /// 4-byte script tag identifier
+    pub fn script_tag(&self) -> Tag {
+        self.script_tag.get()
+    }
+
+    /// Offset to Script table, from beginning of ScriptList
+    pub fn script_offset(&self) -> Offset16 {
+        self.script_offset.get()
+    }
+
+    pub fn script<'a>(&self, parent_ptr: FontPtr<'a>) -> ScriptSanitized<'a> {
+        let offset = self.script_offset();
+        unsafe {
+            offset
+                .resolve_sanitized(parent_ptr, &())
+                .unwrap_or_default()
+        }
     }
 }
 
@@ -44,11 +112,92 @@ impl Sanitize for Script<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ScriptSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ScriptSanitized<'a> {
+    fn default_lang_sys_offset_pos(&self) -> usize {
+        0
+    }
+    fn lang_sys_count_pos(&self) -> usize {
+        self.default_lang_sys_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn lang_sys_records_pos(&self) -> usize {
+        self.lang_sys_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn default_lang_sys_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.default_lang_sys_offset_pos()) }
+    }
+
+    pub fn default_lang_sys(&self) -> Option<LangSysSanitized<'a>> {
+        unsafe {
+            self.default_lang_sys_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+        }
+    }
+
+    pub fn lang_sys_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.lang_sys_count_pos()) }
+    }
+
+    pub fn lang_sys_records(&self) -> &'a [LangSysRecordSanitized] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.lang_sys_records_pos(), self.lang_sys_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ScriptSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for LangSysRecord {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.lang_sys(data))?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct LangSysRecordSanitized {
+    /// 4-byte LangSysTag identifier
+    pub lang_sys_tag: BigEndian<Tag>,
+    /// Offset to LangSys table, from beginning of Script table
+    pub lang_sys_offset: BigEndian<Offset16>,
+}
+
+impl FixedSize for LangSysRecordSanitized {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl LangSysRecordSanitized {
+    /// 4-byte LangSysTag identifier
+    pub fn lang_sys_tag(&self) -> Tag {
+        self.lang_sys_tag.get()
+    }
+
+    /// Offset to LangSys table, from beginning of Script table
+    pub fn lang_sys_offset(&self) -> Offset16 {
+        self.lang_sys_offset.get()
+    }
+
+    pub fn lang_sys<'a>(&self, parent_ptr: FontPtr<'a>) -> LangSysSanitized<'a> {
+        let offset = self.lang_sys_offset();
+        unsafe {
+            offset
+                .resolve_sanitized(parent_ptr, &())
+                .unwrap_or_default()
+        }
     }
 }
 
@@ -59,6 +208,47 @@ impl Sanitize for LangSys<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct LangSysSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> LangSysSanitized<'a> {
+    fn required_feature_index_pos(&self) -> usize {
+        u16::RAW_BYTE_LEN
+    }
+    fn feature_index_count_pos(&self) -> usize {
+        self.required_feature_index_pos() + u16::RAW_BYTE_LEN
+    }
+    fn feature_indices_pos(&self) -> usize {
+        self.feature_index_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn required_feature_index(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.required_feature_index_pos()) }
+    }
+
+    pub fn feature_index_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.feature_index_count_pos()) }
+    }
+
+    pub fn feature_indices(&self) -> &'a [BigEndian<u16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.feature_indices_pos(),
+                self.feature_index_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for LangSysSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -76,11 +266,79 @@ impl Sanitize for FeatureList<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct FeatureListSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> FeatureListSanitized<'a> {
+    fn feature_count_pos(&self) -> usize {
+        0
+    }
+    fn feature_records_pos(&self) -> usize {
+        self.feature_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn feature_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.feature_count_pos()) }
+    }
+
+    pub fn feature_records(&self) -> &'a [FeatureRecordSanitized] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.feature_records_pos(), self.feature_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for FeatureListSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for FeatureRecord {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.feature(data))?;
         Ok(())
+    }
+}
+
+/// Part of [FeatureList]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FeatureRecordSanitized {
+    /// 4-byte feature identification tag
+    pub feature_tag: BigEndian<Tag>,
+    /// Offset to Feature table, from beginning of FeatureList
+    pub feature_offset: BigEndian<Offset16>,
+}
+
+impl FixedSize for FeatureRecordSanitized {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl FeatureRecordSanitized {
+    /// 4-byte feature identification tag
+    pub fn feature_tag(&self) -> Tag {
+        self.feature_tag.get()
+    }
+
+    /// Offset to Feature table, from beginning of FeatureList
+    pub fn feature_offset(&self) -> Offset16 {
+        self.feature_offset.get()
+    }
+
+    pub fn feature<'a>(&self, parent_ptr: FontPtr<'a>) -> FeatureSanitized<'a> {
+        let offset = self.feature_offset();
+        unsafe {
+            offset
+                .resolve_sanitized(parent_ptr, &self.feature_tag())
+                .unwrap_or_default()
+        }
     }
 }
 
@@ -94,6 +352,57 @@ impl Sanitize for Feature<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct FeatureSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    feature_tag: Tag,
+}
+
+impl<'a> FeatureSanitized<'a> {
+    fn feature_params_offset_pos(&self) -> usize {
+        0
+    }
+    fn lookup_index_count_pos(&self) -> usize {
+        self.feature_params_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn lookup_list_indices_pos(&self) -> usize {
+        self.lookup_index_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn feature_tag(&self) -> Tag {
+        self.feature_tag
+    }
+
+    pub fn feature_params_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.feature_params_offset_pos()) }
+    }
+
+    pub fn feature_params(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn lookup_index_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.lookup_index_count_pos()) }
+    }
+
+    pub fn lookup_list_indices(&self) -> &'a [BigEndian<u16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.lookup_list_indices_pos(),
+                self.lookup_index_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for FeatureSanitized<'a> {
+    type Args = Tag;
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let feature_tag = *args;
+        Self { ptr, feature_tag }
     }
 }
 
@@ -136,6 +445,45 @@ impl Sanitize for CoverageFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct CoverageFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> CoverageFormat1Sanitized<'a> {
+    fn coverage_format_pos(&self) -> usize {
+        0
+    }
+    fn glyph_count_pos(&self) -> usize {
+        self.coverage_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn glyph_array_pos(&self) -> usize {
+        self.glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn coverage_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.coverage_format_pos()) }
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+    }
+
+    pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.glyph_array_pos(), self.glyph_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for CoverageFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for CoverageFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let range = self.range_records_byte_range();
@@ -150,10 +498,84 @@ impl Sanitize for CoverageFormat2<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct CoverageFormat2Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> CoverageFormat2Sanitized<'a> {
+    fn coverage_format_pos(&self) -> usize {
+        0
+    }
+    fn range_count_pos(&self) -> usize {
+        self.coverage_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn range_records_pos(&self) -> usize {
+        self.range_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn coverage_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.coverage_format_pos()) }
+    }
+
+    pub fn range_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.range_count_pos()) }
+    }
+
+    pub fn range_records(&self) -> &'a [RangeRecordSanitized] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.range_records_pos(), self.range_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for CoverageFormat2Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for RangeRecord {
     fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
         Ok(())
+    }
+}
+
+/// Used in [CoverageFormat2]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct RangeRecordSanitized {
+    /// First glyph ID in the range
+    pub start_glyph_id: BigEndian<GlyphId16>,
+    /// Last glyph ID in the range
+    pub end_glyph_id: BigEndian<GlyphId16>,
+    /// Coverage Index of first glyph ID in range
+    pub start_coverage_index: BigEndian<u16>,
+}
+
+impl FixedSize for RangeRecordSanitized {
+    const RAW_BYTE_LEN: usize =
+        GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+impl RangeRecordSanitized {
+    /// First glyph ID in the range
+    pub fn start_glyph_id(&self) -> GlyphId16 {
+        self.start_glyph_id.get()
+    }
+
+    /// Last glyph ID in the range
+    pub fn end_glyph_id(&self) -> GlyphId16 {
+        self.end_glyph_id.get()
+    }
+
+    /// Coverage Index of first glyph ID in range
+    pub fn start_coverage_index(&self) -> u16 {
+        self.start_coverage_index.get()
     }
 }
 
@@ -167,6 +589,30 @@ impl<'a> Sanitize for CoverageTable<'a> {
     }
 }
 
+#[derive(Clone)]
+pub enum CoverageTableSanitized<'a> {
+    Format1(CoverageFormat1Sanitized<'a>),
+    Format2(CoverageFormat2Sanitized<'a>),
+}
+
+impl<'a> Default for CoverageTableSanitized<'a> {
+    fn default() -> Self {
+        Self::Format1(CoverageFormat1Sanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for CoverageTableSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: u16 = ptr.read_at(0usize);
+        match format {
+            CoverageFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
+            CoverageFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
+        }
+    }
+}
+
 impl Sanitize for ClassDefFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let range = self.class_value_array_byte_range();
@@ -174,6 +620,52 @@ impl Sanitize for ClassDefFormat1<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ClassDefFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ClassDefFormat1Sanitized<'a> {
+    fn class_format_pos(&self) -> usize {
+        0
+    }
+    fn start_glyph_id_pos(&self) -> usize {
+        self.class_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn glyph_count_pos(&self) -> usize {
+        self.start_glyph_id_pos() + GlyphId16::RAW_BYTE_LEN
+    }
+    fn class_value_array_pos(&self) -> usize {
+        self.glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn class_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.class_format_pos()) }
+    }
+
+    pub fn start_glyph_id(&self) -> GlyphId16 {
+        unsafe { self.ptr.read_at(self.start_glyph_id_pos()) }
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+    }
+
+    pub fn class_value_array(&self) -> &'a [BigEndian<u16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.class_value_array_pos(), self.glyph_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ClassDefFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -191,10 +683,86 @@ impl Sanitize for ClassDefFormat2<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ClassDefFormat2Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ClassDefFormat2Sanitized<'a> {
+    fn class_format_pos(&self) -> usize {
+        0
+    }
+    fn class_range_count_pos(&self) -> usize {
+        self.class_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn class_range_records_pos(&self) -> usize {
+        self.class_range_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn class_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.class_format_pos()) }
+    }
+
+    pub fn class_range_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.class_range_count_pos()) }
+    }
+
+    pub fn class_range_records(&self) -> &'a [ClassRangeRecordSanitized] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.class_range_records_pos(),
+                self.class_range_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ClassDefFormat2Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for ClassRangeRecord {
     fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
         Ok(())
+    }
+}
+
+/// Used in [ClassDefFormat2]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClassRangeRecordSanitized {
+    /// First glyph ID in the range
+    pub start_glyph_id: BigEndian<GlyphId16>,
+    /// Last glyph ID in the range
+    pub end_glyph_id: BigEndian<GlyphId16>,
+    /// Applied to all glyphs in the range
+    pub class: BigEndian<u16>,
+}
+
+impl FixedSize for ClassRangeRecordSanitized {
+    const RAW_BYTE_LEN: usize =
+        GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+impl ClassRangeRecordSanitized {
+    /// First glyph ID in the range
+    pub fn start_glyph_id(&self) -> GlyphId16 {
+        self.start_glyph_id.get()
+    }
+
+    /// Last glyph ID in the range
+    pub fn end_glyph_id(&self) -> GlyphId16 {
+        self.end_glyph_id.get()
+    }
+
+    /// Applied to all glyphs in the range
+    pub fn class(&self) -> u16 {
+        self.class.get()
     }
 }
 
@@ -208,10 +776,61 @@ impl<'a> Sanitize for ClassDef<'a> {
     }
 }
 
+#[derive(Clone)]
+pub enum ClassDefSanitized<'a> {
+    Format1(ClassDefFormat1Sanitized<'a>),
+    Format2(ClassDefFormat2Sanitized<'a>),
+}
+
+impl<'a> Default for ClassDefSanitized<'a> {
+    fn default() -> Self {
+        Self::Format1(ClassDefFormat1Sanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ClassDefSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: u16 = ptr.read_at(0usize);
+        match format {
+            ClassDefFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
+            ClassDefFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
+        }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for SequenceLookupRecord {
     fn sanitize_record(&self, _data: FontData) -> Result<(), ReadError> {
         Ok(())
+    }
+}
+
+/// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SequenceLookupRecordSanitized {
+    /// Index (zero-based) into the input glyph sequence
+    pub sequence_index: BigEndian<u16>,
+    /// Index (zero-based) into the LookupList
+    pub lookup_list_index: BigEndian<u16>,
+}
+
+impl FixedSize for SequenceLookupRecordSanitized {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+impl SequenceLookupRecordSanitized {
+    /// Index (zero-based) into the input glyph sequence
+    pub fn sequence_index(&self) -> u16 {
+        self.sequence_index.get()
+    }
+
+    /// Index (zero-based) into the LookupList
+    pub fn lookup_list_index(&self) -> u16 {
+        self.lookup_list_index.get()
     }
 }
 
@@ -226,6 +845,62 @@ impl Sanitize for SequenceContextFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct SequenceContextFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SequenceContextFormat1Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn seq_rule_set_count_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn seq_rule_set_offsets_pos(&self) -> usize {
+        self.seq_rule_set_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn seq_rule_set_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.seq_rule_set_count_pos()) }
+    }
+
+    pub fn seq_rule_sets(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.seq_rule_set_offsets_pos(),
+                self.seq_rule_set_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SequenceContextFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for SequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.seq_rules();
@@ -233,6 +908,38 @@ impl Sanitize for SequenceRuleSet<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct SequenceRuleSetSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SequenceRuleSetSanitized<'a> {
+    fn seq_rule_count_pos(&self) -> usize {
+        0
+    }
+    fn seq_rule_offsets_pos(&self) -> usize {
+        self.seq_rule_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn seq_rule_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.seq_rule_count_pos()) }
+    }
+
+    pub fn seq_rules(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.seq_rule_offsets_pos(), self.seq_rule_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SequenceRuleSetSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -254,6 +961,61 @@ impl Sanitize for SequenceRule<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct SequenceRuleSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SequenceRuleSanitized<'a> {
+    fn glyph_count_pos(&self) -> usize {
+        0
+    }
+    fn seq_lookup_count_pos(&self) -> usize {
+        self.glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn input_sequence_pos(&self) -> usize {
+        self.seq_lookup_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_records_pos(&self) -> usize {
+        self.input_sequence_pos()
+            + (transforms::subtract(self.glyph_count(), 1_usize))
+                .saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+    }
+
+    pub fn seq_lookup_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+    }
+
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.input_sequence_pos(),
+                transforms::subtract(self.glyph_count(), 1_usize),
+            )
+        }
+    }
+
+    pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.seq_lookup_records_pos(),
+                self.seq_lookup_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SequenceRuleSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for SequenceContextFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
@@ -266,6 +1028,77 @@ impl Sanitize for SequenceContextFormat2<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct SequenceContextFormat2Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SequenceContextFormat2Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn class_def_offset_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn class_seq_rule_set_count_pos(&self) -> usize {
+        self.class_def_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn class_seq_rule_set_offsets_pos(&self) -> usize {
+        self.class_seq_rule_set_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn class_def_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.class_def_offset_pos()) }
+    }
+
+    pub fn class_def(&self) -> ClassDefSanitized<'a> {
+        unsafe {
+            self.class_def_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn class_seq_rule_set_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.class_seq_rule_set_count_pos()) }
+    }
+
+    pub fn class_seq_rule_sets(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.class_seq_rule_set_offsets_pos(),
+                self.class_seq_rule_set_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SequenceContextFormat2Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for ClassSequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.class_seq_rules();
@@ -273,6 +1106,40 @@ impl Sanitize for ClassSequenceRuleSet<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ClassSequenceRuleSetSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ClassSequenceRuleSetSanitized<'a> {
+    fn class_seq_rule_count_pos(&self) -> usize {
+        0
+    }
+    fn class_seq_rule_offsets_pos(&self) -> usize {
+        self.class_seq_rule_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn class_seq_rule_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.class_seq_rule_count_pos()) }
+    }
+
+    pub fn class_seq_rules(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.class_seq_rule_offsets_pos(),
+                self.class_seq_rule_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ClassSequenceRuleSetSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -294,6 +1161,60 @@ impl Sanitize for ClassSequenceRule<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ClassSequenceRuleSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ClassSequenceRuleSanitized<'a> {
+    fn glyph_count_pos(&self) -> usize {
+        0
+    }
+    fn seq_lookup_count_pos(&self) -> usize {
+        self.glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn input_sequence_pos(&self) -> usize {
+        self.seq_lookup_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_records_pos(&self) -> usize {
+        self.input_sequence_pos()
+            + (transforms::subtract(self.glyph_count(), 1_usize)).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+    }
+
+    pub fn seq_lookup_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+    }
+
+    pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.input_sequence_pos(),
+                transforms::subtract(self.glyph_count(), 1_usize),
+            )
+        }
+    }
+
+    pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.seq_lookup_records_pos(),
+                self.seq_lookup_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ClassSequenceRuleSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for SequenceContextFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.coverages();
@@ -312,6 +1233,65 @@ impl Sanitize for SequenceContextFormat3<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct SequenceContextFormat3Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SequenceContextFormat3Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn glyph_count_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_count_pos(&self) -> usize {
+        self.glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offsets_pos(&self) -> usize {
+        self.seq_lookup_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_records_pos(&self) -> usize {
+        self.coverage_offsets_pos()
+            + (self.glyph_count() as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+    }
+
+    pub fn seq_lookup_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+    }
+
+    pub fn coverages(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.coverage_offsets_pos(), self.glyph_count() as usize)
+        }
+    }
+
+    pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.seq_lookup_records_pos(),
+                self.seq_lookup_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SequenceContextFormat3Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for SequenceContext<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
@@ -319,6 +1299,38 @@ impl<'a> Sanitize for SequenceContext<'a> {
             Self::Format1(t) => t.sanitize(),
             Self::Format2(t) => t.sanitize(),
             Self::Format3(t) => t.sanitize(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum SequenceContextSanitized<'a> {
+    Format1(SequenceContextFormat1Sanitized<'a>),
+    Format2(SequenceContextFormat2Sanitized<'a>),
+    Format3(SequenceContextFormat3Sanitized<'a>),
+}
+
+impl<'a> Default for SequenceContextSanitized<'a> {
+    fn default() -> Self {
+        Self::Format1(SequenceContextFormat1Sanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SequenceContextSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: u16 = ptr.read_at(0usize);
+        match format {
+            SequenceContextFormat1::FORMAT => {
+                Self::Format1(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            SequenceContextFormat2::FORMAT => {
+                Self::Format2(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            SequenceContextFormat3::FORMAT => {
+                Self::Format3(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            _ => Self::default(),
         }
     }
 }
@@ -334,6 +1346,62 @@ impl Sanitize for ChainedSequenceContextFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ChainedSequenceContextFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ChainedSequenceContextFormat1Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn chained_seq_rule_set_count_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn chained_seq_rule_set_offsets_pos(&self) -> usize {
+        self.chained_seq_rule_set_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn chained_seq_rule_set_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.chained_seq_rule_set_count_pos()) }
+    }
+
+    pub fn chained_seq_rule_sets(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.chained_seq_rule_set_offsets_pos(),
+                self.chained_seq_rule_set_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for ChainedSequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.chained_seq_rules();
@@ -341,6 +1409,40 @@ impl Sanitize for ChainedSequenceRuleSet<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ChainedSequenceRuleSetSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ChainedSequenceRuleSetSanitized<'a> {
+    fn chained_seq_rule_count_pos(&self) -> usize {
+        0
+    }
+    fn chained_seq_rule_offsets_pos(&self) -> usize {
+        self.chained_seq_rule_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn chained_seq_rule_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.chained_seq_rule_count_pos()) }
+    }
+
+    pub fn chained_seq_rules(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.chained_seq_rule_offsets_pos(),
+                self.chained_seq_rule_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceRuleSetSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -370,6 +1472,101 @@ impl Sanitize for ChainedSequenceRule<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ChainedSequenceRuleSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ChainedSequenceRuleSanitized<'a> {
+    fn backtrack_glyph_count_pos(&self) -> usize {
+        0
+    }
+    fn backtrack_sequence_pos(&self) -> usize {
+        self.backtrack_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn input_glyph_count_pos(&self) -> usize {
+        self.backtrack_sequence_pos()
+            + (self.backtrack_glyph_count() as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+    fn input_sequence_pos(&self) -> usize {
+        self.input_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn lookahead_glyph_count_pos(&self) -> usize {
+        self.input_sequence_pos()
+            + (transforms::subtract(self.input_glyph_count(), 1_usize))
+                .saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+    fn lookahead_sequence_pos(&self) -> usize {
+        self.lookahead_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_count_pos(&self) -> usize {
+        self.lookahead_sequence_pos()
+            + (self.lookahead_glyph_count() as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+    fn seq_lookup_records_pos(&self) -> usize {
+        self.seq_lookup_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.backtrack_glyph_count_pos()) }
+    }
+
+    pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.backtrack_sequence_pos(),
+                self.backtrack_glyph_count() as usize,
+            )
+        }
+    }
+
+    pub fn input_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.input_glyph_count_pos()) }
+    }
+
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.input_sequence_pos(),
+                transforms::subtract(self.input_glyph_count(), 1_usize),
+            )
+        }
+    }
+
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.lookahead_glyph_count_pos()) }
+    }
+
+    pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.lookahead_sequence_pos(),
+                self.lookahead_glyph_count() as usize,
+            )
+        }
+    }
+
+    pub fn seq_lookup_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+    }
+
+    pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.seq_lookup_records_pos(),
+                self.seq_lookup_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceRuleSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for ChainedSequenceContextFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
@@ -384,6 +1581,110 @@ impl Sanitize for ChainedSequenceContextFormat2<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ChainedSequenceContextFormat2Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn backtrack_class_def_offset_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn input_class_def_offset_pos(&self) -> usize {
+        self.backtrack_class_def_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn lookahead_class_def_offset_pos(&self) -> usize {
+        self.input_class_def_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn chained_class_seq_rule_set_count_pos(&self) -> usize {
+        self.lookahead_class_def_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn chained_class_seq_rule_set_offsets_pos(&self) -> usize {
+        self.chained_class_seq_rule_set_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) -> CoverageTableSanitized<'a> {
+        unsafe {
+            self.coverage_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn backtrack_class_def_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.backtrack_class_def_offset_pos()) }
+    }
+
+    pub fn backtrack_class_def(&self) -> ClassDefSanitized<'a> {
+        unsafe {
+            self.backtrack_class_def_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn input_class_def_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.input_class_def_offset_pos()) }
+    }
+
+    pub fn input_class_def(&self) -> ClassDefSanitized<'a> {
+        unsafe {
+            self.input_class_def_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn lookahead_class_def_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.lookahead_class_def_offset_pos()) }
+    }
+
+    pub fn lookahead_class_def(&self) -> ClassDefSanitized<'a> {
+        unsafe {
+            self.lookahead_class_def_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn chained_class_seq_rule_set_count(&self) -> u16 {
+        unsafe {
+            self.ptr
+                .read_at(self.chained_class_seq_rule_set_count_pos())
+        }
+    }
+
+    pub fn chained_class_seq_rule_sets(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.chained_class_seq_rule_set_offsets_pos(),
+                self.chained_class_seq_rule_set_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat2Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for ChainedClassSequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.chained_class_seq_rules();
@@ -391,6 +1692,40 @@ impl Sanitize for ChainedClassSequenceRuleSet<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ChainedClassSequenceRuleSetSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ChainedClassSequenceRuleSetSanitized<'a> {
+    fn chained_class_seq_rule_count_pos(&self) -> usize {
+        0
+    }
+    fn chained_class_seq_rule_offsets_pos(&self) -> usize {
+        self.chained_class_seq_rule_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn chained_class_seq_rule_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.chained_class_seq_rule_count_pos()) }
+    }
+
+    pub fn chained_class_seq_rules(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.chained_class_seq_rule_offsets_pos(),
+                self.chained_class_seq_rule_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ChainedClassSequenceRuleSetSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -420,6 +1755,101 @@ impl Sanitize for ChainedClassSequenceRule<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ChainedClassSequenceRuleSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ChainedClassSequenceRuleSanitized<'a> {
+    fn backtrack_glyph_count_pos(&self) -> usize {
+        0
+    }
+    fn backtrack_sequence_pos(&self) -> usize {
+        self.backtrack_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn input_glyph_count_pos(&self) -> usize {
+        self.backtrack_sequence_pos()
+            + (self.backtrack_glyph_count() as usize).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+    fn input_sequence_pos(&self) -> usize {
+        self.input_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn lookahead_glyph_count_pos(&self) -> usize {
+        self.input_sequence_pos()
+            + (transforms::subtract(self.input_glyph_count(), 1_usize))
+                .saturating_mul(u16::RAW_BYTE_LEN)
+    }
+    fn lookahead_sequence_pos(&self) -> usize {
+        self.lookahead_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_count_pos(&self) -> usize {
+        self.lookahead_sequence_pos()
+            + (self.lookahead_glyph_count() as usize).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+    fn seq_lookup_records_pos(&self) -> usize {
+        self.seq_lookup_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.backtrack_glyph_count_pos()) }
+    }
+
+    pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.backtrack_sequence_pos(),
+                self.backtrack_glyph_count() as usize,
+            )
+        }
+    }
+
+    pub fn input_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.input_glyph_count_pos()) }
+    }
+
+    pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.input_sequence_pos(),
+                transforms::subtract(self.input_glyph_count(), 1_usize),
+            )
+        }
+    }
+
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.lookahead_glyph_count_pos()) }
+    }
+
+    pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.lookahead_sequence_pos(),
+                self.lookahead_glyph_count() as usize,
+            )
+        }
+    }
+
+    pub fn seq_lookup_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+    }
+
+    pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.seq_lookup_records_pos(),
+                self.seq_lookup_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ChainedClassSequenceRuleSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for ChainedSequenceContextFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.backtrack_coverages();
@@ -446,6 +1876,107 @@ impl Sanitize for ChainedSequenceContextFormat3<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ChainedSequenceContextFormat3Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn backtrack_glyph_count_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn backtrack_coverage_offsets_pos(&self) -> usize {
+        self.backtrack_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn input_glyph_count_pos(&self) -> usize {
+        self.backtrack_coverage_offsets_pos()
+            + (self.backtrack_glyph_count() as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+    fn input_coverage_offsets_pos(&self) -> usize {
+        self.input_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn lookahead_glyph_count_pos(&self) -> usize {
+        self.input_coverage_offsets_pos()
+            + (self.input_glyph_count() as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+    fn lookahead_coverage_offsets_pos(&self) -> usize {
+        self.lookahead_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_count_pos(&self) -> usize {
+        self.lookahead_coverage_offsets_pos()
+            + (self.lookahead_glyph_count() as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+    fn seq_lookup_records_pos(&self) -> usize {
+        self.seq_lookup_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.backtrack_glyph_count_pos()) }
+    }
+
+    pub fn backtrack_coverages(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.backtrack_coverage_offsets_pos(),
+                self.backtrack_glyph_count() as usize,
+            )
+        }
+    }
+
+    pub fn input_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.input_glyph_count_pos()) }
+    }
+
+    pub fn input_coverages(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.input_coverage_offsets_pos(),
+                self.input_glyph_count() as usize,
+            )
+        }
+    }
+
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.lookahead_glyph_count_pos()) }
+    }
+
+    pub fn lookahead_coverages(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.lookahead_coverage_offsets_pos(),
+                self.lookahead_glyph_count() as usize,
+            )
+        }
+    }
+
+    pub fn seq_lookup_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+    }
+
+    pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.seq_lookup_records_pos(),
+                self.seq_lookup_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat3Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for ChainedSequenceContext<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
@@ -453,6 +1984,38 @@ impl<'a> Sanitize for ChainedSequenceContext<'a> {
             Self::Format1(t) => t.sanitize(),
             Self::Format2(t) => t.sanitize(),
             Self::Format3(t) => t.sanitize(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum ChainedSequenceContextSanitized<'a> {
+    Format1(ChainedSequenceContextFormat1Sanitized<'a>),
+    Format2(ChainedSequenceContextFormat2Sanitized<'a>),
+    Format3(ChainedSequenceContextFormat3Sanitized<'a>),
+}
+
+impl<'a> Default for ChainedSequenceContextSanitized<'a> {
+    fn default() -> Self {
+        Self::Format1(ChainedSequenceContextFormat1Sanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceContextSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: u16 = ptr.read_at(0usize);
+        match format {
+            ChainedSequenceContextFormat1::FORMAT => {
+                Self::Format1(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            ChainedSequenceContextFormat2::FORMAT => {
+                Self::Format2(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            ChainedSequenceContextFormat3::FORMAT => {
+                Self::Format3(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            _ => Self::default(),
         }
     }
 }
@@ -467,9 +2030,93 @@ impl Sanitize for Device<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct DeviceSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> DeviceSanitized<'a> {
+    fn start_size_pos(&self) -> usize {
+        0
+    }
+    fn end_size_pos(&self) -> usize {
+        self.start_size_pos() + u16::RAW_BYTE_LEN
+    }
+    fn delta_format_pos(&self) -> usize {
+        self.end_size_pos() + u16::RAW_BYTE_LEN
+    }
+    fn delta_value_pos(&self) -> usize {
+        self.delta_format_pos() + DeltaFormat::RAW_BYTE_LEN
+    }
+
+    pub fn start_size(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.start_size_pos()) }
+    }
+
+    pub fn end_size(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.end_size_pos()) }
+    }
+
+    pub fn delta_format(&self) -> DeltaFormat {
+        unsafe { self.ptr.read_at(self.delta_format_pos()) }
+    }
+
+    pub fn delta_value(&self) -> &'a [BigEndian<u16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.delta_value_pos(),
+                DeltaFormat::value_count(self.delta_format(), self.start_size(), self.end_size()),
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for DeviceSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for VariationIndex<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct VariationIndexSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> VariationIndexSanitized<'a> {
+    fn delta_set_outer_index_pos(&self) -> usize {
+        0
+    }
+    fn delta_set_inner_index_pos(&self) -> usize {
+        self.delta_set_outer_index_pos() + u16::RAW_BYTE_LEN
+    }
+    fn delta_format_pos(&self) -> usize {
+        self.delta_set_inner_index_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn delta_set_outer_index(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.delta_set_outer_index_pos()) }
+    }
+
+    pub fn delta_set_inner_index(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.delta_set_inner_index_pos()) }
+    }
+
+    pub fn delta_format(&self) -> DeltaFormat {
+        unsafe { self.ptr.read_at(self.delta_format_pos()) }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for VariationIndexSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -479,6 +2126,36 @@ impl<'a> Sanitize for DeviceOrVariationIndex<'a> {
         match self {
             Self::Device(t) => t.sanitize(),
             Self::VariationIndex(t) => t.sanitize(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum DeviceOrVariationIndexSanitized<'a> {
+    Device(DeviceSanitized<'a>),
+    VariationIndex(VariationIndexSanitized<'a>),
+}
+
+impl<'a> Default for DeviceOrVariationIndexSanitized<'a> {
+    fn default() -> Self {
+        Self::Device(DeviceSanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for DeviceOrVariationIndexSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: DeltaFormat = ptr.read_at(4usize);
+
+        #[allow(clippy::redundant_guards)]
+        match format {
+            format if format != DeltaFormat::VariationIndex => {
+                Self::Device(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            format if format == DeltaFormat::VariationIndex => {
+                Self::VariationIndex(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            _ => Self::default(),
         }
     }
 }
@@ -497,6 +2174,47 @@ impl Sanitize for FeatureVariations<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct FeatureVariationsSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> FeatureVariationsSanitized<'a> {
+    fn version_pos(&self) -> usize {
+        0
+    }
+    fn feature_variation_record_count_pos(&self) -> usize {
+        self.version_pos() + MajorMinor::RAW_BYTE_LEN
+    }
+    fn feature_variation_records_pos(&self) -> usize {
+        self.feature_variation_record_count_pos() + u32::RAW_BYTE_LEN
+    }
+
+    pub fn version(&self) -> MajorMinor {
+        unsafe { self.ptr.read_at(self.version_pos()) }
+    }
+
+    pub fn feature_variation_record_count(&self) -> u32 {
+        unsafe { self.ptr.read_at(self.feature_variation_record_count_pos()) }
+    }
+
+    pub fn feature_variation_records(&self) -> &'a [FeatureVariationRecordSanitized] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.feature_variation_records_pos(),
+                self.feature_variation_record_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for FeatureVariationsSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for FeatureVariationRecord {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
@@ -510,6 +2228,50 @@ impl SanitizeRecord for FeatureVariationRecord {
     }
 }
 
+/// Part of [FeatureVariations]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FeatureVariationRecordSanitized {
+    /// Offset to a condition set table, from beginning of
+    /// FeatureVariations table.
+    pub condition_set_offset: BigEndian<Offset32>,
+    /// Offset to a feature table substitution table, from beginning of
+    /// the FeatureVariations table.
+    pub feature_table_substitution_offset: BigEndian<Offset32>,
+}
+
+impl FixedSize for FeatureVariationRecordSanitized {
+    const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl FeatureVariationRecordSanitized {
+    /// Offset to a condition set table, from beginning of
+    /// FeatureVariations table.
+    pub fn condition_set_offset(&self) -> Offset32 {
+        self.condition_set_offset.get()
+    }
+
+    /// Offset to a feature table substitution table, from beginning of
+    /// the FeatureVariations table.
+    pub fn feature_table_substitution_offset(&self) -> Offset32 {
+        self.feature_table_substitution_offset.get()
+    }
+
+    pub fn condition_set<'a>(&self, parent_ptr: FontPtr<'a>) -> Option<ConditionSetSanitized<'a>> {
+        let offset = self.condition_set_offset();
+        unsafe { offset.resolve_sanitized(parent_ptr, &()) }
+    }
+
+    pub fn feature_table_substitution<'a>(
+        &self,
+        parent_ptr: FontPtr<'a>,
+    ) -> Option<FeatureTableSubstitutionSanitized<'a>> {
+        let offset = self.feature_table_substitution_offset();
+        unsafe { offset.resolve_sanitized(parent_ptr, &()) }
+    }
+}
+
 impl Sanitize for ConditionSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.conditions();
@@ -517,6 +2279,40 @@ impl Sanitize for ConditionSet<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ConditionSetSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ConditionSetSanitized<'a> {
+    fn condition_count_pos(&self) -> usize {
+        0
+    }
+    fn condition_offsets_pos(&self) -> usize {
+        self.condition_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn condition_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.condition_count_pos()) }
+    }
+
+    pub fn conditions(&self) -> &'a [BigEndian<Offset32>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.condition_offsets_pos(),
+                self.condition_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ConditionSetSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -533,15 +2329,130 @@ impl<'a> Sanitize for Condition<'a> {
     }
 }
 
+#[derive(Clone)]
+pub enum ConditionSanitized<'a> {
+    Format1AxisRange(ConditionFormat1Sanitized<'a>),
+    Format2VariableValue(ConditionFormat2Sanitized<'a>),
+    Format3And(ConditionFormat3Sanitized<'a>),
+    Format4Or(ConditionFormat4Sanitized<'a>),
+    Format5Negate(ConditionFormat5Sanitized<'a>),
+}
+
+impl<'a> Default for ConditionSanitized<'a> {
+    fn default() -> Self {
+        Self::Format1AxisRange(ConditionFormat1Sanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ConditionSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: u16 = ptr.read_at(0usize);
+        match format {
+            ConditionFormat1::FORMAT => {
+                Self::Format1AxisRange(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            ConditionFormat2::FORMAT => {
+                Self::Format2VariableValue(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            ConditionFormat3::FORMAT => Self::Format3And(ReadSanitized::read_sanitized(ptr, &())),
+            ConditionFormat4::FORMAT => Self::Format4Or(ReadSanitized::read_sanitized(ptr, &())),
+            ConditionFormat5::FORMAT => {
+                Self::Format5Negate(ReadSanitized::read_sanitized(ptr, &()))
+            }
+            _ => Self::default(),
+        }
+    }
+}
+
 impl Sanitize for ConditionFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         Ok(())
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ConditionFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ConditionFormat1Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn axis_index_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn filter_range_min_value_pos(&self) -> usize {
+        self.axis_index_pos() + u16::RAW_BYTE_LEN
+    }
+    fn filter_range_max_value_pos(&self) -> usize {
+        self.filter_range_min_value_pos() + F2Dot14::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn axis_index(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.axis_index_pos()) }
+    }
+
+    pub fn filter_range_min_value(&self) -> F2Dot14 {
+        unsafe { self.ptr.read_at(self.filter_range_min_value_pos()) }
+    }
+
+    pub fn filter_range_max_value(&self) -> F2Dot14 {
+        unsafe { self.ptr.read_at(self.filter_range_max_value_pos()) }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ConditionFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for ConditionFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ConditionFormat2Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ConditionFormat2Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn default_value_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn var_index_pos(&self) -> usize {
+        self.default_value_pos() + i16::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn default_value(&self) -> i16 {
+        unsafe { self.ptr.read_at(self.default_value_pos()) }
+    }
+
+    pub fn var_index(&self) -> u32 {
+        unsafe { self.ptr.read_at(self.var_index_pos()) }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ConditionFormat2Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -555,6 +2466,47 @@ impl Sanitize for ConditionFormat3<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ConditionFormat3Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ConditionFormat3Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn condition_count_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn condition_offsets_pos(&self) -> usize {
+        self.condition_count_pos() + u8::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn condition_count(&self) -> u8 {
+        unsafe { self.ptr.read_at(self.condition_count_pos()) }
+    }
+
+    pub fn conditions(&self) -> &'a [BigEndian<Offset24>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.condition_offsets_pos(),
+                self.condition_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ConditionFormat3Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for ConditionFormat4<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.conditions();
@@ -565,10 +2517,88 @@ impl Sanitize for ConditionFormat4<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ConditionFormat4Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ConditionFormat4Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn condition_count_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn condition_offsets_pos(&self) -> usize {
+        self.condition_count_pos() + u8::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn condition_count(&self) -> u8 {
+        unsafe { self.ptr.read_at(self.condition_count_pos()) }
+    }
+
+    pub fn conditions(&self) -> &'a [BigEndian<Offset24>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.condition_offsets_pos(),
+                self.condition_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ConditionFormat4Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for ConditionFormat5<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.condition())?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ConditionFormat5Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ConditionFormat5Sanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn condition_offset_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn condition_offset(&self) -> Offset24 {
+        unsafe { self.ptr.read_at(self.condition_offset_pos()) }
+    }
+
+    pub fn condition(&self) -> ConditionSanitized<'a> {
+        unsafe {
+            self.condition_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ConditionFormat5Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -586,11 +2616,83 @@ impl Sanitize for FeatureTableSubstitution<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct FeatureTableSubstitutionSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> FeatureTableSubstitutionSanitized<'a> {
+    fn version_pos(&self) -> usize {
+        0
+    }
+    fn substitution_count_pos(&self) -> usize {
+        self.version_pos() + MajorMinor::RAW_BYTE_LEN
+    }
+    fn substitutions_pos(&self) -> usize {
+        self.substitution_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn version(&self) -> MajorMinor {
+        unsafe { self.ptr.read_at(self.version_pos()) }
+    }
+
+    pub fn substitution_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.substitution_count_pos()) }
+    }
+
+    pub fn substitutions(&self) -> &'a [FeatureTableSubstitutionRecordSanitized] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.substitutions_pos(), self.substitution_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for FeatureTableSubstitutionSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for FeatureTableSubstitutionRecord {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.alternate_feature(data))?;
         Ok(())
+    }
+}
+
+/// Used in [FeatureTableSubstitution]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct FeatureTableSubstitutionRecordSanitized {
+    /// The feature table index to match.
+    pub feature_index: BigEndian<u16>,
+    /// Offset to an alternate feature table, from start of the
+    /// FeatureTableSubstitution table.
+    pub alternate_feature_offset: BigEndian<Offset32>,
+}
+
+impl FixedSize for FeatureTableSubstitutionRecordSanitized {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl FeatureTableSubstitutionRecordSanitized {
+    /// The feature table index to match.
+    pub fn feature_index(&self) -> u16 {
+        self.feature_index.get()
+    }
+
+    /// Offset to an alternate feature table, from start of the
+    /// FeatureTableSubstitution table.
+    pub fn alternate_feature_offset(&self) -> Offset32 {
+        self.alternate_feature_offset.get()
+    }
+
+    pub fn alternate_feature<'a>(&self, _parent_ptr: FontPtr<'a>) {
+        unimplemented!("target requires args not available from this field")
     }
 }
 
@@ -600,9 +2702,88 @@ impl Sanitize for SizeParams<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct SizeParamsSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SizeParamsSanitized<'a> {
+    fn design_size_pos(&self) -> usize {
+        0
+    }
+    fn identifier_pos(&self) -> usize {
+        self.design_size_pos() + u16::RAW_BYTE_LEN
+    }
+    fn name_entry_pos(&self) -> usize {
+        self.identifier_pos() + u16::RAW_BYTE_LEN
+    }
+    fn range_start_pos(&self) -> usize {
+        self.name_entry_pos() + u16::RAW_BYTE_LEN
+    }
+    fn range_end_pos(&self) -> usize {
+        self.range_start_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn design_size(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.design_size_pos()) }
+    }
+
+    pub fn identifier(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.identifier_pos()) }
+    }
+
+    pub fn name_entry(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.name_entry_pos()) }
+    }
+
+    pub fn range_start(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.range_start_pos()) }
+    }
+
+    pub fn range_end(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.range_end_pos()) }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SizeParamsSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for StylisticSetParams<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct StylisticSetParamsSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> StylisticSetParamsSanitized<'a> {
+    fn version_pos(&self) -> usize {
+        0
+    }
+    fn ui_name_id_pos(&self) -> usize {
+        self.version_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn version(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.version_pos()) }
+    }
+
+    pub fn ui_name_id(&self) -> NameId {
+        unsafe { self.ptr.read_at(self.ui_name_id_pos()) }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for StylisticSetParamsSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -613,5 +2794,79 @@ impl Sanitize for CharacterVariantParams<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct CharacterVariantParamsSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> CharacterVariantParamsSanitized<'a> {
+    fn format_pos(&self) -> usize {
+        0
+    }
+    fn feat_ui_label_name_id_pos(&self) -> usize {
+        self.format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn feat_ui_tooltip_text_name_id_pos(&self) -> usize {
+        self.feat_ui_label_name_id_pos() + NameId::RAW_BYTE_LEN
+    }
+    fn sample_text_name_id_pos(&self) -> usize {
+        self.feat_ui_tooltip_text_name_id_pos() + NameId::RAW_BYTE_LEN
+    }
+    fn num_named_parameters_pos(&self) -> usize {
+        self.sample_text_name_id_pos() + NameId::RAW_BYTE_LEN
+    }
+    fn first_param_ui_label_name_id_pos(&self) -> usize {
+        self.num_named_parameters_pos() + u16::RAW_BYTE_LEN
+    }
+    fn char_count_pos(&self) -> usize {
+        self.first_param_ui_label_name_id_pos() + NameId::RAW_BYTE_LEN
+    }
+    fn character_pos(&self) -> usize {
+        self.char_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.format_pos()) }
+    }
+
+    pub fn feat_ui_label_name_id(&self) -> NameId {
+        unsafe { self.ptr.read_at(self.feat_ui_label_name_id_pos()) }
+    }
+
+    pub fn feat_ui_tooltip_text_name_id(&self) -> NameId {
+        unsafe { self.ptr.read_at(self.feat_ui_tooltip_text_name_id_pos()) }
+    }
+
+    pub fn sample_text_name_id(&self) -> NameId {
+        unsafe { self.ptr.read_at(self.sample_text_name_id_pos()) }
+    }
+
+    pub fn num_named_parameters(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.num_named_parameters_pos()) }
+    }
+
+    pub fn first_param_ui_label_name_id(&self) -> NameId {
+        unsafe { self.ptr.read_at(self.first_param_ui_label_name_id_pos()) }
+    }
+
+    pub fn char_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.char_count_pos()) }
+    }
+
+    pub fn character(&self) -> &'a [BigEndian<Uint24>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.character_pos(), self.char_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for CharacterVariantParamsSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }

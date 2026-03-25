@@ -1667,6 +1667,50 @@ impl Count {
             },
         }
     }
+
+    /// Like [`count_expr`] but for the sanitized context, where field values are
+    /// accessed via `self.field()` method calls rather than local variables.
+    ///
+    /// Returns `None` for [`Count::All`], which is not supported in sanitized code.
+    pub(crate) fn sanitized_count_expr(&self) -> Option<TokenStream> {
+        fn arg(a: &CountArg) -> TokenStream {
+            match a {
+                CountArg::Field(f) => quote!(self.#f()),
+                CountArg::Literal(n) => quote!(#n),
+            }
+        }
+        match self {
+            Count::All(_) => None,
+            Count::SingleArg(CountArg::Field(f)) => Some(quote!(self.#f() as usize)),
+            Count::SingleArg(CountArg::Literal(n)) => Some(quote!(#n)),
+            Count::Complicated { args, xform } => {
+                let a = args.first().map(arg).unwrap_or_default();
+                let b = args.get(1).map(arg).unwrap_or_default();
+                let c = args.get(2).map(arg).unwrap_or_default();
+                Some(match xform {
+                    CountTransform::Sub => quote!(transforms::subtract(#a, #b)),
+                    CountTransform::Add => quote!(transforms::add(#a, #b)),
+                    CountTransform::AddMul => quote!(transforms::add_multiply(#a, #b, #c)),
+                    CountTransform::MulAdd => quote!(transforms::multiply_add(#a, #b, #c)),
+                    CountTransform::Half => quote!(transforms::half(#a)),
+                    CountTransform::DeltaSetIndexData => quote!(EntryFormat::map_size(#a, #b)),
+                    CountTransform::DeltaValueCount => {
+                        quote!(DeltaFormat::value_count(#a, #b, #c))
+                    }
+                    CountTransform::TupleLen => quote!(TupleIndex::tuple_len(#a, #b, #c)),
+                    CountTransform::ItemVariationDataLen => {
+                        quote!(ItemVariationData::delta_sets_len(#a, #b, #c))
+                    }
+                    CountTransform::BitmapLen => quote!(transforms::bitmap_len(#a)),
+                    CountTransform::MaxValueBitmapLen => {
+                        quote!(transforms::max_value_bitmap_len(#a))
+                    }
+                    CountTransform::SubAddTwo => quote!(transforms::subtract_add_two(#a, #b)),
+                    CountTransform::TryInto => quote!(usize::try_from(#a).unwrap_or_default()),
+                })
+            }
+        }
+    }
 }
 
 impl Parse for InlineExpr {

@@ -22,6 +22,72 @@ impl Sanitize for Gsub<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct GsubSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> GsubSanitized<'a> {
+    fn version_pos(&self) -> usize {
+        0
+    }
+    fn script_list_offset_pos(&self) -> usize {
+        self.version_pos() + MajorMinor::RAW_BYTE_LEN
+    }
+    fn feature_list_offset_pos(&self) -> usize {
+        self.script_list_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn lookup_list_offset_pos(&self) -> usize {
+        self.feature_list_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn feature_variations_offset_pos(&self) -> usize {
+        self.lookup_list_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn version(&self) -> MajorMinor {
+        unsafe { self.ptr.read_at(self.version_pos()) }
+    }
+
+    pub fn script_list_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.script_list_offset_pos()) }
+    }
+
+    pub fn script_list(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn feature_list_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.feature_list_offset_pos()) }
+    }
+
+    pub fn feature_list(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn lookup_list_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.lookup_list_offset_pos()) }
+    }
+
+    pub fn lookup_list(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn feature_variations_offset(&self) -> Offset32 {
+        unsafe { self.ptr.read_at(self.feature_variations_offset_pos()) }
+    }
+
+    pub fn feature_variations(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for GsubSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for SubstitutionLookup<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
@@ -48,10 +114,74 @@ impl<'a> Sanitize for SingleSubst<'a> {
     }
 }
 
+#[derive(Clone)]
+pub enum SingleSubstSanitized<'a> {
+    Format1(SingleSubstFormat1Sanitized<'a>),
+    Format2(SingleSubstFormat2Sanitized<'a>),
+}
+
+impl<'a> Default for SingleSubstSanitized<'a> {
+    fn default() -> Self {
+        Self::Format1(SingleSubstFormat1Sanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SingleSubstSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: u16 = ptr.read_at(0usize);
+        match format {
+            SingleSubstFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
+            SingleSubstFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
+        }
+    }
+}
+
 impl Sanitize for SingleSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct SingleSubstFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SingleSubstFormat1Sanitized<'a> {
+    fn subst_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.subst_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn delta_glyph_id_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn subst_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.subst_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn delta_glyph_id(&self) -> i16 {
+        unsafe { self.ptr.read_at(self.delta_glyph_id_pos()) }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SingleSubstFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -66,6 +196,56 @@ impl Sanitize for SingleSubstFormat2<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct SingleSubstFormat2Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SingleSubstFormat2Sanitized<'a> {
+    fn subst_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.subst_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn glyph_count_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn substitute_glyph_ids_pos(&self) -> usize {
+        self.glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn subst_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.subst_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+    }
+
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.substitute_glyph_ids_pos(), self.glyph_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SingleSubstFormat2Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for MultipleSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
@@ -77,6 +257,56 @@ impl Sanitize for MultipleSubstFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct MultipleSubstFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> MultipleSubstFormat1Sanitized<'a> {
+    fn subst_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.subst_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn sequence_count_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn sequence_offsets_pos(&self) -> usize {
+        self.sequence_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn subst_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.subst_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn sequence_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.sequence_count_pos()) }
+    }
+
+    pub fn sequences(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.sequence_offsets_pos(), self.sequence_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for MultipleSubstFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for Sequence<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let range = self.substitute_glyph_ids_byte_range();
@@ -84,6 +314,38 @@ impl Sanitize for Sequence<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct SequenceSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SequenceSanitized<'a> {
+    fn glyph_count_pos(&self) -> usize {
+        0
+    }
+    fn substitute_glyph_ids_pos(&self) -> usize {
+        self.glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+    }
+
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.substitute_glyph_ids_pos(), self.glyph_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SequenceSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -98,6 +360,58 @@ impl Sanitize for AlternateSubstFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct AlternateSubstFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> AlternateSubstFormat1Sanitized<'a> {
+    fn subst_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.subst_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn alternate_set_count_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn alternate_set_offsets_pos(&self) -> usize {
+        self.alternate_set_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn subst_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.subst_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn alternate_set_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.alternate_set_count_pos()) }
+    }
+
+    pub fn alternate_sets(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.alternate_set_offsets_pos(),
+                self.alternate_set_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for AlternateSubstFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for AlternateSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let range = self.alternate_glyph_ids_byte_range();
@@ -105,6 +419,38 @@ impl Sanitize for AlternateSet<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct AlternateSetSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> AlternateSetSanitized<'a> {
+    fn glyph_count_pos(&self) -> usize {
+        0
+    }
+    fn alternate_glyph_ids_pos(&self) -> usize {
+        self.glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+    }
+
+    pub fn alternate_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.alternate_glyph_ids_pos(), self.glyph_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for AlternateSetSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -119,6 +465,58 @@ impl Sanitize for LigatureSubstFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct LigatureSubstFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> LigatureSubstFormat1Sanitized<'a> {
+    fn subst_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.subst_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn ligature_set_count_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn ligature_set_offsets_pos(&self) -> usize {
+        self.ligature_set_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn subst_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.subst_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn ligature_set_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.ligature_set_count_pos()) }
+    }
+
+    pub fn ligature_sets(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.ligature_set_offsets_pos(),
+                self.ligature_set_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for LigatureSubstFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for LigatureSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.ligatures();
@@ -129,6 +527,38 @@ impl Sanitize for LigatureSet<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct LigatureSetSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> LigatureSetSanitized<'a> {
+    fn ligature_count_pos(&self) -> usize {
+        0
+    }
+    fn ligature_offsets_pos(&self) -> usize {
+        self.ligature_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn ligature_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.ligature_count_pos()) }
+    }
+
+    pub fn ligatures(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.ligature_offsets_pos(), self.ligature_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for LigatureSetSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for Ligature<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let range = self.component_glyph_ids_byte_range();
@@ -136,6 +566,47 @@ impl Sanitize for Ligature<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct LigatureSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> LigatureSanitized<'a> {
+    fn ligature_glyph_pos(&self) -> usize {
+        0
+    }
+    fn component_count_pos(&self) -> usize {
+        self.ligature_glyph_pos() + GlyphId16::RAW_BYTE_LEN
+    }
+    fn component_glyph_ids_pos(&self) -> usize {
+        self.component_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn ligature_glyph(&self) -> GlyphId16 {
+        unsafe { self.ptr.read_at(self.ligature_glyph_pos()) }
+    }
+
+    pub fn component_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.component_count_pos()) }
+    }
+
+    pub fn component_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.component_glyph_ids_pos(),
+                transforms::subtract(self.component_count(), 1_usize),
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for LigatureSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -177,5 +648,95 @@ impl Sanitize for ReverseChainSingleSubstFormat1<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ReverseChainSingleSubstFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ReverseChainSingleSubstFormat1Sanitized<'a> {
+    fn subst_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.subst_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn backtrack_glyph_count_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn backtrack_coverage_offsets_pos(&self) -> usize {
+        self.backtrack_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn lookahead_glyph_count_pos(&self) -> usize {
+        self.backtrack_coverage_offsets_pos()
+            + (self.backtrack_glyph_count() as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+    fn lookahead_coverage_offsets_pos(&self) -> usize {
+        self.lookahead_glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn glyph_count_pos(&self) -> usize {
+        self.lookahead_coverage_offsets_pos()
+            + (self.lookahead_glyph_count() as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+    fn substitute_glyph_ids_pos(&self) -> usize {
+        self.glyph_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn subst_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.subst_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn backtrack_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.backtrack_glyph_count_pos()) }
+    }
+
+    pub fn backtrack_coverages(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.backtrack_coverage_offsets_pos(),
+                self.backtrack_glyph_count() as usize,
+            )
+        }
+    }
+
+    pub fn lookahead_glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.lookahead_glyph_count_pos()) }
+    }
+
+    pub fn lookahead_coverages(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.lookahead_coverage_offsets_pos(),
+                self.lookahead_glyph_count() as usize,
+            )
+        }
+    }
+
+    pub fn glyph_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+    }
+
+    pub fn substitute_glyph_ids(&self) -> &'a [BigEndian<GlyphId16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.substitute_glyph_ids_pos(), self.glyph_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ReverseChainSingleSubstFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }

@@ -12,6 +12,7 @@ mod flags_enums;
 mod formatting;
 mod parsing;
 mod record;
+mod sanitized;
 mod table;
 
 use parsing::{Item, Items, Phase};
@@ -26,7 +27,7 @@ pub enum Mode {
     Parse,
     /// Generate compilation code
     Compile,
-    /// Generate sanitize impls
+    /// Generate sanitize impls and high-efficiency `ReadSanitized` types
     Sanitize,
 }
 
@@ -127,14 +128,23 @@ pub(crate) fn generate_sanitize_module(
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let mut code = Vec::new();
     for item in items.iter() {
-        let item_code = match item {
+        let sanitize = match item {
             Item::Table(item) => table::generate_sanitize(item)?,
             Item::Format(item) => table::generate_format_sanitize(item)?,
             Item::GenericGroup(item) => table::generate_group_sanitize(item)?,
             Item::Record(item) => record::generate_sanitize_record(item)?,
             _ => Default::default(),
         };
-        code.push(item_code);
+        code.push(sanitize);
+
+        let read_sanitized = match item {
+            Item::Table(item) => sanitized::generate_read_sanitized_table(item, items)?,
+            Item::Format(item) => sanitized::generate_read_sanitized_format(item, items)?,
+            Item::GenericGroup(item) => sanitized::generate_read_sanitized_group(item)?,
+            Item::Record(item) => sanitized::generate_read_sanitized_record(item, items)?,
+            _ => Default::default(),
+        };
+        code.push(read_sanitized);
     }
 
     Ok(quote! {

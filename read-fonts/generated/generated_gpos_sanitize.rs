@@ -22,6 +22,72 @@ impl Sanitize for Gpos<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct GposSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> GposSanitized<'a> {
+    fn version_pos(&self) -> usize {
+        0
+    }
+    fn script_list_offset_pos(&self) -> usize {
+        self.version_pos() + MajorMinor::RAW_BYTE_LEN
+    }
+    fn feature_list_offset_pos(&self) -> usize {
+        self.script_list_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn lookup_list_offset_pos(&self) -> usize {
+        self.feature_list_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn feature_variations_offset_pos(&self) -> usize {
+        self.lookup_list_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn version(&self) -> MajorMinor {
+        unsafe { self.ptr.read_at(self.version_pos()) }
+    }
+
+    pub fn script_list_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.script_list_offset_pos()) }
+    }
+
+    pub fn script_list(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn feature_list_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.feature_list_offset_pos()) }
+    }
+
+    pub fn feature_list(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn lookup_list_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.lookup_list_offset_pos()) }
+    }
+
+    pub fn lookup_list(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn feature_variations_offset(&self) -> Offset32 {
+        unsafe { self.ptr.read_at(self.feature_variations_offset_pos()) }
+    }
+
+    pub fn feature_variations(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for GposSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for PositionLookup<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
@@ -50,15 +116,120 @@ impl<'a> Sanitize for AnchorTable<'a> {
     }
 }
 
+#[derive(Clone)]
+pub enum AnchorTableSanitized<'a> {
+    Format1(AnchorFormat1Sanitized<'a>),
+    Format2(AnchorFormat2Sanitized<'a>),
+    Format3(AnchorFormat3Sanitized<'a>),
+}
+
+impl<'a> Default for AnchorTableSanitized<'a> {
+    fn default() -> Self {
+        Self::Format1(AnchorFormat1Sanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for AnchorTableSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: u16 = ptr.read_at(0usize);
+        match format {
+            AnchorFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
+            AnchorFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
+            AnchorFormat3::FORMAT => Self::Format3(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
+        }
+    }
+}
+
 impl Sanitize for AnchorFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         Ok(())
     }
 }
 
+#[derive(Clone, Default)]
+pub struct AnchorFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> AnchorFormat1Sanitized<'a> {
+    fn anchor_format_pos(&self) -> usize {
+        0
+    }
+    fn x_coordinate_pos(&self) -> usize {
+        self.anchor_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn y_coordinate_pos(&self) -> usize {
+        self.x_coordinate_pos() + i16::RAW_BYTE_LEN
+    }
+
+    pub fn anchor_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.anchor_format_pos()) }
+    }
+
+    pub fn x_coordinate(&self) -> i16 {
+        unsafe { self.ptr.read_at(self.x_coordinate_pos()) }
+    }
+
+    pub fn y_coordinate(&self) -> i16 {
+        unsafe { self.ptr.read_at(self.y_coordinate_pos()) }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for AnchorFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for AnchorFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct AnchorFormat2Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> AnchorFormat2Sanitized<'a> {
+    fn anchor_format_pos(&self) -> usize {
+        0
+    }
+    fn x_coordinate_pos(&self) -> usize {
+        self.anchor_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn y_coordinate_pos(&self) -> usize {
+        self.x_coordinate_pos() + i16::RAW_BYTE_LEN
+    }
+    fn anchor_point_pos(&self) -> usize {
+        self.y_coordinate_pos() + i16::RAW_BYTE_LEN
+    }
+
+    pub fn anchor_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.anchor_format_pos()) }
+    }
+
+    pub fn x_coordinate(&self) -> i16 {
+        unsafe { self.ptr.read_at(self.x_coordinate_pos()) }
+    }
+
+    pub fn y_coordinate(&self) -> i16 {
+        unsafe { self.ptr.read_at(self.y_coordinate_pos()) }
+    }
+
+    pub fn anchor_point(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.anchor_point_pos()) }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for AnchorFormat2Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -71,6 +242,64 @@ impl Sanitize for AnchorFormat3<'_> {
             r?.sanitize()?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct AnchorFormat3Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> AnchorFormat3Sanitized<'a> {
+    fn anchor_format_pos(&self) -> usize {
+        0
+    }
+    fn x_coordinate_pos(&self) -> usize {
+        self.anchor_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn y_coordinate_pos(&self) -> usize {
+        self.x_coordinate_pos() + i16::RAW_BYTE_LEN
+    }
+    fn x_device_offset_pos(&self) -> usize {
+        self.y_coordinate_pos() + i16::RAW_BYTE_LEN
+    }
+    fn y_device_offset_pos(&self) -> usize {
+        self.x_device_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn anchor_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.anchor_format_pos()) }
+    }
+
+    pub fn x_coordinate(&self) -> i16 {
+        unsafe { self.ptr.read_at(self.x_coordinate_pos()) }
+    }
+
+    pub fn y_coordinate(&self) -> i16 {
+        unsafe { self.ptr.read_at(self.y_coordinate_pos()) }
+    }
+
+    pub fn x_device_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.x_device_offset_pos()) }
+    }
+
+    pub fn x_device(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn y_device_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.y_device_offset_pos()) }
+    }
+
+    pub fn y_device(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for AnchorFormat3Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -88,11 +317,79 @@ impl Sanitize for MarkArray<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct MarkArraySanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> MarkArraySanitized<'a> {
+    fn mark_count_pos(&self) -> usize {
+        0
+    }
+    fn mark_records_pos(&self) -> usize {
+        self.mark_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn mark_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.mark_count_pos()) }
+    }
+
+    pub fn mark_records(&self) -> &'a [MarkRecordSanitized] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.mark_records_pos(), self.mark_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for MarkArraySanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for MarkRecord {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.mark_anchor(data))?;
         Ok(())
+    }
+}
+
+/// Part of [MarkArray]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct MarkRecordSanitized {
+    /// Class defined for the associated mark.
+    pub mark_class: BigEndian<u16>,
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    pub mark_anchor_offset: BigEndian<Offset16>,
+}
+
+impl FixedSize for MarkRecordSanitized {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl MarkRecordSanitized {
+    /// Class defined for the associated mark.
+    pub fn mark_class(&self) -> u16 {
+        self.mark_class.get()
+    }
+
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    pub fn mark_anchor_offset(&self) -> Offset16 {
+        self.mark_anchor_offset.get()
+    }
+
+    pub fn mark_anchor<'a>(&self, parent_ptr: FontPtr<'a>) -> AnchorTableSanitized<'a> {
+        let offset = self.mark_anchor_offset();
+        unsafe {
+            offset
+                .resolve_sanitized(parent_ptr, &())
+                .unwrap_or_default()
+        }
     }
 }
 
@@ -106,11 +403,82 @@ impl<'a> Sanitize for SinglePos<'a> {
     }
 }
 
+#[derive(Clone)]
+pub enum SinglePosSanitized<'a> {
+    Format1(SinglePosFormat1Sanitized<'a>),
+    Format2(SinglePosFormat2Sanitized<'a>),
+}
+
+impl<'a> Default for SinglePosSanitized<'a> {
+    fn default() -> Self {
+        Self::Format1(SinglePosFormat1Sanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SinglePosSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: u16 = ptr.read_at(0usize);
+        match format {
+            SinglePosFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
+            SinglePosFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
+        }
+    }
+}
+
 impl Sanitize for SinglePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
         self.value_record().sanitize_record(self.offset_data())?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct SinglePosFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SinglePosFormat1Sanitized<'a> {
+    fn pos_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.pos_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn value_format_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn value_record_pos(&self) -> usize {
+        self.value_format_pos() + ValueFormat::RAW_BYTE_LEN
+    }
+
+    pub fn pos_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn value_format(&self) -> ValueFormat {
+        unsafe { self.ptr.read_at(self.value_format_pos()) }
+    }
+
+    pub fn value_record(&self) -> () {
+        unimplemented!("struct type lacks a ReadSanitized impl")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SinglePosFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -122,12 +490,90 @@ impl Sanitize for SinglePosFormat2<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct SinglePosFormat2Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> SinglePosFormat2Sanitized<'a> {
+    fn pos_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.pos_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn value_format_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn value_count_pos(&self) -> usize {
+        self.value_format_pos() + ValueFormat::RAW_BYTE_LEN
+    }
+    fn value_records_pos(&self) -> usize {
+        self.value_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn pos_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn value_format(&self) -> ValueFormat {
+        unsafe { self.ptr.read_at(self.value_format_pos()) }
+    }
+
+    pub fn value_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.value_count_pos()) }
+    }
+
+    pub fn value_records(&self) -> () {
+        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SinglePosFormat2Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for PairPos<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
         match self {
             Self::Format1(t) => t.sanitize(),
             Self::Format2(t) => t.sanitize(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum PairPosSanitized<'a> {
+    Format1(PairPosFormat1Sanitized<'a>),
+    Format2(PairPosFormat2Sanitized<'a>),
+}
+
+impl<'a> Default for PairPosSanitized<'a> {
+    fn default() -> Self {
+        Self::Format1(PairPosFormat1Sanitized::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for PairPosSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let format: u16 = ptr.read_at(0usize);
+        match format {
+            PairPosFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
+            PairPosFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
         }
     }
 }
@@ -143,11 +589,119 @@ impl Sanitize for PairPosFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct PairPosFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> PairPosFormat1Sanitized<'a> {
+    fn pos_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.pos_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn value_format1_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn value_format2_pos(&self) -> usize {
+        self.value_format1_pos() + ValueFormat::RAW_BYTE_LEN
+    }
+    fn pair_set_count_pos(&self) -> usize {
+        self.value_format2_pos() + ValueFormat::RAW_BYTE_LEN
+    }
+    fn pair_set_offsets_pos(&self) -> usize {
+        self.pair_set_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn pos_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn value_format1(&self) -> ValueFormat {
+        unsafe { self.ptr.read_at(self.value_format1_pos()) }
+    }
+
+    pub fn value_format2(&self) -> ValueFormat {
+        unsafe { self.ptr.read_at(self.value_format2_pos()) }
+    }
+
+    pub fn pair_set_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pair_set_count_pos()) }
+    }
+
+    pub fn pair_sets(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr
+                .read_array_at(self.pair_set_offsets_pos(), self.pair_set_count() as usize)
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for PairPosFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for PairSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         self.pair_value_records()
             .sanitize_record(self.offset_data())?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct PairSetSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    value_format1: ValueFormat,
+    value_format2: ValueFormat,
+}
+
+impl<'a> PairSetSanitized<'a> {
+    fn pair_value_count_pos(&self) -> usize {
+        0
+    }
+    fn pair_value_records_pos(&self) -> usize {
+        self.pair_value_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn value_format1(&self) -> ValueFormat {
+        self.value_format1
+    }
+
+    pub fn value_format2(&self) -> ValueFormat {
+        self.value_format2
+    }
+
+    pub fn pair_value_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pair_value_count_pos()) }
+    }
+
+    pub fn pair_value_records(&self) -> () {
+        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for PairSetSanitized<'a> {
+    type Args = (ValueFormat, ValueFormat);
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let (value_format1, value_format2) = *args;
+        Self {
+            ptr,
+            value_format1,
+            value_format2,
+        }
     }
 }
 
@@ -167,6 +721,96 @@ impl Sanitize for PairPosFormat2<'_> {
         sanitize_ignoring_null(self.class_def2())?;
         self.class1_records().sanitize_record(self.offset_data())?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct PairPosFormat2Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> PairPosFormat2Sanitized<'a> {
+    fn pos_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.pos_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn value_format1_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn value_format2_pos(&self) -> usize {
+        self.value_format1_pos() + ValueFormat::RAW_BYTE_LEN
+    }
+    fn class_def1_offset_pos(&self) -> usize {
+        self.value_format2_pos() + ValueFormat::RAW_BYTE_LEN
+    }
+    fn class_def2_offset_pos(&self) -> usize {
+        self.class_def1_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn class1_count_pos(&self) -> usize {
+        self.class_def2_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn class2_count_pos(&self) -> usize {
+        self.class1_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn class1_records_pos(&self) -> usize {
+        self.class2_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn pos_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn value_format1(&self) -> ValueFormat {
+        unsafe { self.ptr.read_at(self.value_format1_pos()) }
+    }
+
+    pub fn value_format2(&self) -> ValueFormat {
+        unsafe { self.ptr.read_at(self.value_format2_pos()) }
+    }
+
+    pub fn class_def1_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.class_def1_offset_pos()) }
+    }
+
+    pub fn class_def1(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn class_def2_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.class_def2_offset_pos()) }
+    }
+
+    pub fn class_def2(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn class1_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.class1_count_pos()) }
+    }
+
+    pub fn class2_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.class2_count_pos()) }
+    }
+
+    pub fn class1_records(&self) -> () {
+        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for PairPosFormat2Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
     }
 }
 
@@ -202,6 +846,58 @@ impl Sanitize for CursivePosFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct CursivePosFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> CursivePosFormat1Sanitized<'a> {
+    fn pos_format_pos(&self) -> usize {
+        0
+    }
+    fn coverage_offset_pos(&self) -> usize {
+        self.pos_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn entry_exit_count_pos(&self) -> usize {
+        self.coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn entry_exit_record_pos(&self) -> usize {
+        self.entry_exit_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn pos_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+    }
+
+    pub fn coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn entry_exit_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.entry_exit_count_pos()) }
+    }
+
+    pub fn entry_exit_record(&self) -> &'a [EntryExitRecordSanitized] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.entry_exit_record_pos(),
+                self.entry_exit_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for CursivePosFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for EntryExitRecord {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
@@ -215,6 +911,47 @@ impl SanitizeRecord for EntryExitRecord {
     }
 }
 
+/// Part of [CursivePosFormat1]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct EntryExitRecordSanitized {
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub entry_anchor_offset: BigEndian<Offset16>,
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub exit_anchor_offset: BigEndian<Offset16>,
+}
+
+impl FixedSize for EntryExitRecordSanitized {
+    const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl EntryExitRecordSanitized {
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub fn entry_anchor_offset(&self) -> Offset16 {
+        self.entry_anchor_offset.get()
+    }
+
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub fn exit_anchor_offset(&self) -> Offset16 {
+        self.exit_anchor_offset.get()
+    }
+
+    pub fn entry_anchor<'a>(&self, parent_ptr: FontPtr<'a>) -> Option<AnchorTableSanitized<'a>> {
+        let offset = self.entry_anchor_offset();
+        unsafe { offset.resolve_sanitized(parent_ptr, &()) }
+    }
+
+    pub fn exit_anchor<'a>(&self, parent_ptr: FontPtr<'a>) -> Option<AnchorTableSanitized<'a>> {
+        let offset = self.exit_anchor_offset();
+        unsafe { offset.resolve_sanitized(parent_ptr, &()) }
+    }
+}
+
 impl Sanitize for MarkBasePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.mark_coverage())?;
@@ -225,10 +962,129 @@ impl Sanitize for MarkBasePosFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct MarkBasePosFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> MarkBasePosFormat1Sanitized<'a> {
+    fn pos_format_pos(&self) -> usize {
+        0
+    }
+    fn mark_coverage_offset_pos(&self) -> usize {
+        self.pos_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn base_coverage_offset_pos(&self) -> usize {
+        self.mark_coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_class_count_pos(&self) -> usize {
+        self.base_coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_array_offset_pos(&self) -> usize {
+        self.mark_class_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn base_array_offset_pos(&self) -> usize {
+        self.mark_array_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn pos_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+    }
+
+    pub fn mark_coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.mark_coverage_offset_pos()) }
+    }
+
+    pub fn mark_coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn base_coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.base_coverage_offset_pos()) }
+    }
+
+    pub fn base_coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.mark_class_count_pos()) }
+    }
+
+    pub fn mark_array_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.mark_array_offset_pos()) }
+    }
+
+    pub fn mark_array(&self) -> MarkArraySanitized<'a> {
+        unsafe {
+            self.mark_array_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn base_array_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.base_array_offset_pos()) }
+    }
+
+    pub fn base_array(&self) -> BaseArraySanitized<'a> {
+        unsafe {
+            self.base_array_offset()
+                .resolve_sanitized(self.ptr.clone(), &self.mark_class_count())
+                .unwrap_or_default()
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for MarkBasePosFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for BaseArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         self.base_records().sanitize_record(self.offset_data())?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct BaseArraySanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    mark_class_count: u16,
+}
+
+impl<'a> BaseArraySanitized<'a> {
+    fn base_count_pos(&self) -> usize {
+        0
+    }
+    fn base_records_pos(&self) -> usize {
+        self.base_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn base_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.base_count_pos()) }
+    }
+
+    pub fn base_records(&self) -> () {
+        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for BaseArraySanitized<'a> {
+    type Args = u16;
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            ptr,
+            mark_class_count,
+        }
     }
 }
 
@@ -253,6 +1109,87 @@ impl Sanitize for MarkLigPosFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct MarkLigPosFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> MarkLigPosFormat1Sanitized<'a> {
+    fn pos_format_pos(&self) -> usize {
+        0
+    }
+    fn mark_coverage_offset_pos(&self) -> usize {
+        self.pos_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn ligature_coverage_offset_pos(&self) -> usize {
+        self.mark_coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_class_count_pos(&self) -> usize {
+        self.ligature_coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_array_offset_pos(&self) -> usize {
+        self.mark_class_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn ligature_array_offset_pos(&self) -> usize {
+        self.mark_array_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn pos_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+    }
+
+    pub fn mark_coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.mark_coverage_offset_pos()) }
+    }
+
+    pub fn mark_coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn ligature_coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.ligature_coverage_offset_pos()) }
+    }
+
+    pub fn ligature_coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.mark_class_count_pos()) }
+    }
+
+    pub fn mark_array_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.mark_array_offset_pos()) }
+    }
+
+    pub fn mark_array(&self) -> MarkArraySanitized<'a> {
+        unsafe {
+            self.mark_array_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn ligature_array_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.ligature_array_offset_pos()) }
+    }
+
+    pub fn ligature_array(&self) -> LigatureArraySanitized<'a> {
+        unsafe {
+            self.ligature_array_offset()
+                .resolve_sanitized(self.ptr.clone(), &self.mark_class_count())
+                .unwrap_or_default()
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for MarkLigPosFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for LigatureArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         let arr = self.ligature_attaches();
@@ -263,11 +1200,92 @@ impl Sanitize for LigatureArray<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct LigatureArraySanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    mark_class_count: u16,
+}
+
+impl<'a> LigatureArraySanitized<'a> {
+    fn ligature_count_pos(&self) -> usize {
+        0
+    }
+    fn ligature_attach_offsets_pos(&self) -> usize {
+        self.ligature_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn ligature_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.ligature_count_pos()) }
+    }
+
+    pub fn ligature_attaches(&self) -> &'a [BigEndian<Offset16>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.ligature_attach_offsets_pos(),
+                self.ligature_count() as usize,
+            )
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for LigatureArraySanitized<'a> {
+    type Args = u16;
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            ptr,
+            mark_class_count,
+        }
+    }
+}
+
 impl Sanitize for LigatureAttach<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         self.component_records()
             .sanitize_record(self.offset_data())?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct LigatureAttachSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    mark_class_count: u16,
+}
+
+impl<'a> LigatureAttachSanitized<'a> {
+    fn component_count_pos(&self) -> usize {
+        0
+    }
+    fn component_records_pos(&self) -> usize {
+        self.component_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn component_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.component_count_pos()) }
+    }
+
+    pub fn component_records(&self) -> () {
+        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for LigatureAttachSanitized<'a> {
+    type Args = u16;
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            ptr,
+            mark_class_count,
+        }
     }
 }
 
@@ -292,10 +1310,129 @@ impl Sanitize for MarkMarkPosFormat1<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct MarkMarkPosFormat1Sanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> MarkMarkPosFormat1Sanitized<'a> {
+    fn pos_format_pos(&self) -> usize {
+        0
+    }
+    fn mark1_coverage_offset_pos(&self) -> usize {
+        self.pos_format_pos() + u16::RAW_BYTE_LEN
+    }
+    fn mark2_coverage_offset_pos(&self) -> usize {
+        self.mark1_coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_class_count_pos(&self) -> usize {
+        self.mark2_coverage_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+    fn mark1_array_offset_pos(&self) -> usize {
+        self.mark_class_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn mark2_array_offset_pos(&self) -> usize {
+        self.mark1_array_offset_pos() + Offset16::RAW_BYTE_LEN
+    }
+
+    pub fn pos_format(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+    }
+
+    pub fn mark1_coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.mark1_coverage_offset_pos()) }
+    }
+
+    pub fn mark1_coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn mark2_coverage_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.mark2_coverage_offset_pos()) }
+    }
+
+    pub fn mark2_coverage(&self) {
+        unimplemented!("target type lacks a ReadSanitized impl")
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.mark_class_count_pos()) }
+    }
+
+    pub fn mark1_array_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.mark1_array_offset_pos()) }
+    }
+
+    pub fn mark1_array(&self) -> MarkArraySanitized<'a> {
+        unsafe {
+            self.mark1_array_offset()
+                .resolve_sanitized(self.ptr.clone(), &())
+                .unwrap_or_default()
+        }
+    }
+
+    pub fn mark2_array_offset(&self) -> Offset16 {
+        unsafe { self.ptr.read_at(self.mark2_array_offset_pos()) }
+    }
+
+    pub fn mark2_array(&self) -> Mark2ArraySanitized<'a> {
+        unsafe {
+            self.mark2_array_offset()
+                .resolve_sanitized(self.ptr.clone(), &self.mark_class_count())
+                .unwrap_or_default()
+        }
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for MarkMarkPosFormat1Sanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for Mark2Array<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         self.mark2_records().sanitize_record(self.offset_data())?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct Mark2ArraySanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    mark_class_count: u16,
+}
+
+impl<'a> Mark2ArraySanitized<'a> {
+    fn mark2_count_pos(&self) -> usize {
+        0
+    }
+    fn mark2_records_pos(&self) -> usize {
+        self.mark2_count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn mark2_count(&self) -> u16 {
+        unsafe { self.ptr.read_at(self.mark2_count_pos()) }
+    }
+
+    pub fn mark2_records(&self) -> () {
+        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for Mark2ArraySanitized<'a> {
+    type Args = u16;
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            ptr,
+            mark_class_count,
+        }
     }
 }
 

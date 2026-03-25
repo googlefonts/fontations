@@ -147,4 +147,3 @@ impl<'a> FontPtr<'a> {
         Self(&*new)
     }
 }
-
