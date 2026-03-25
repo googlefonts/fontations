@@ -105,6 +105,45 @@ impl<'a> Sanitize for PositionLookup<'a> {
     }
 }
 
+#[derive(Clone)]
+pub enum PositionLookupSanitized<'a> {
+    Single(LookupSanitized<'a, SinglePosSanitized<'a>>),
+    Pair(LookupSanitized<'a, PairPosSanitized<'a>>),
+    Cursive(LookupSanitized<'a, CursivePosFormat1Sanitized<'a>>),
+    MarkToBase(LookupSanitized<'a, MarkBasePosFormat1Sanitized<'a>>),
+    MarkToLig(LookupSanitized<'a, MarkLigPosFormat1Sanitized<'a>>),
+    MarkToMark(LookupSanitized<'a, MarkMarkPosFormat1Sanitized<'a>>),
+    Contextual(LookupSanitized<'a, PositionSequenceContextSanitized<'a>>),
+    ChainContextual(LookupSanitized<'a, PositionChainContextSanitized<'a>>),
+    Extension(LookupSanitized<'a, ExtensionSubtableSanitized<'a>>),
+}
+
+impl<'a> Default for PositionLookupSanitized<'a> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for PositionLookupSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let untyped: LookupSanitized<'a, ()> = ReadSanitized::read_sanitized(ptr, &());
+        let type_id = untyped.lookup_type();
+        match type_id {
+            1 => Self::Single(ReadSanitized::read_sanitized(ptr, &())),
+            2 => Self::Pair(ReadSanitized::read_sanitized(ptr, &())),
+            3 => Self::Cursive(ReadSanitized::read_sanitized(ptr, &())),
+            4 => Self::MarkToBase(ReadSanitized::read_sanitized(ptr, &())),
+            5 => Self::MarkToLig(ReadSanitized::read_sanitized(ptr, &())),
+            6 => Self::MarkToMark(ReadSanitized::read_sanitized(ptr, &())),
+            7 => Self::Contextual(ReadSanitized::read_sanitized(ptr, &())),
+            8 => Self::ChainContextual(ReadSanitized::read_sanitized(ptr, &())),
+            9 => Self::Extension(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
+        }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for AnchorTable<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
@@ -1530,6 +1569,43 @@ impl<'a> Sanitize for ExtensionSubtable<'a> {
             Self::MarkToMark(t) => t.sanitize(),
             Self::Contextual(t) => t.sanitize(),
             Self::ChainContextual(t) => t.sanitize(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum ExtensionSubtableSanitized<'a> {
+    Single(ExtensionPosFormat1Sanitized<'a, SinglePosSanitized<'a>>),
+    Pair(ExtensionPosFormat1Sanitized<'a, PairPosSanitized<'a>>),
+    Cursive(ExtensionPosFormat1Sanitized<'a, CursivePosFormat1Sanitized<'a>>),
+    MarkToBase(ExtensionPosFormat1Sanitized<'a, MarkBasePosFormat1Sanitized<'a>>),
+    MarkToLig(ExtensionPosFormat1Sanitized<'a, MarkLigPosFormat1Sanitized<'a>>),
+    MarkToMark(ExtensionPosFormat1Sanitized<'a, MarkMarkPosFormat1Sanitized<'a>>),
+    Contextual(ExtensionPosFormat1Sanitized<'a, PositionSequenceContextSanitized<'a>>),
+    ChainContextual(ExtensionPosFormat1Sanitized<'a, PositionChainContextSanitized<'a>>),
+}
+
+impl<'a> Default for ExtensionSubtableSanitized<'a> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ExtensionSubtableSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let untyped: ExtensionPosFormat1Sanitized<'a, ()> = ReadSanitized::read_sanitized(ptr, &());
+        let type_id = untyped.extension_lookup_type();
+        match type_id {
+            1 => Self::Single(ReadSanitized::read_sanitized(ptr, &())),
+            2 => Self::Pair(ReadSanitized::read_sanitized(ptr, &())),
+            3 => Self::Cursive(ReadSanitized::read_sanitized(ptr, &())),
+            4 => Self::MarkToBase(ReadSanitized::read_sanitized(ptr, &())),
+            5 => Self::MarkToLig(ReadSanitized::read_sanitized(ptr, &())),
+            6 => Self::MarkToMark(ReadSanitized::read_sanitized(ptr, &())),
+            7 => Self::Contextual(ReadSanitized::read_sanitized(ptr, &())),
+            8 => Self::ChainContextual(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
         }
     }
 }

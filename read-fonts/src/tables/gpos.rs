@@ -49,7 +49,8 @@ mod sanitize_manual_impls {
 
     pub use super::super::layout::{
         ClassDefSanitized, CoverageTableSanitized, DeviceOrVariationIndexSanitized,
-        DeviceSanitized, FeatureListSanitized, FeatureVariationsSanitized, ScriptListSanitized,
+        DeviceSanitized, FeatureListSanitized, FeatureVariationsSanitized, LookupSanitized,
+        ScriptListSanitized,
     };
 }
 #[cfg(feature = "sanitize")]

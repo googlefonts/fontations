@@ -374,9 +374,64 @@ pub(crate) fn generate_read_sanitized_format(
     })
 }
 
-/// Generate a stub for a generic-group table.
-pub(crate) fn generate_read_sanitized_group(_item: &GenericGroup) -> syn::Result<TokenStream> {
-    Ok(Default::default())
+/// Generate a `ReadSanitized` enum for a generic-group table.
+///
+/// Each variant stores the fully-typed `#inner_sanitized<'a, #typ_sanitized<'a>>`,
+/// mirroring how `generate_group` stores `#inner<'a, #typ<'a>>`.  The dispatch
+/// field is read by constructing a unit-typed inner sanitized and calling its
+/// getter, so no manual byte-offset computation is required.
+pub(crate) fn generate_read_sanitized_group(item: &GenericGroup) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let inner_type = &item.inner_type;
+    let inner_field = &item.inner_field;
+    let sanitized_name = format_ident!("{}Sanitized", name);
+    let inner_sanitized = format_ident!("{}Sanitized", inner_type);
+    let first_var = &item.variants[0].name;
+
+    let variant_defs: Vec<_> = item
+        .variants
+        .iter()
+        .map(|v| {
+            let n = &v.name;
+            let typ_sanitized = format_ident!("{}Sanitized", v.typ);
+            quote!(#n(#inner_sanitized<'a, #typ_sanitized<'a>>))
+        })
+        .collect();
+
+    let match_arms: Vec<_> = item
+        .variants
+        .iter()
+        .map(|v| {
+            let n = &v.name;
+            let id = &v.type_id;
+            quote!(#id => Self::#n(ReadSanitized::read_sanitized(ptr, &())))
+        })
+        .collect();
+
+    Ok(quote! {
+        #[derive(Clone)]
+        pub enum #sanitized_name<'a> {
+            #( #variant_defs, )*
+        }
+
+        impl<'a> Default for #sanitized_name<'a> {
+            fn default() -> Self {
+                Self::#first_var(Default::default())
+            }
+        }
+
+        unsafe impl<'a> ReadSanitized<'a> for #sanitized_name<'a> {
+            type Args = ();
+            unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+                let untyped: #inner_sanitized<'a, ()> = ReadSanitized::read_sanitized(ptr, &());
+                let type_id = untyped.#inner_field();
+                match type_id {
+                    #( #match_arms, )*
+                    _ => Self::default(),
+                }
+            }
+        }
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -462,10 +517,18 @@ fn has_sanitized_format_group(name: &syn::Ident, items: &Items) -> bool {
     }
 }
 
-/// Returns true if the given type name has a sanitized version — either a
-/// concrete table or a format-dispatch enum.
+/// Returns true if the given type name is a `GenericGroup` that gets a
+/// sanitized enum generated.
+fn has_sanitized_group(name: &syn::Ident, items: &Items) -> bool {
+    matches!(items.get(name), Some(Item::GenericGroup(_)))
+}
+
+/// Returns true if the given type name has a sanitized version — a concrete
+/// table, a format-dispatch enum, or a generic-group enum.
 fn has_sanitized_version(name: &syn::Ident, items: &Items) -> bool {
-    has_sanitized_table(name, items) || has_sanitized_format_group(name, items)
+    has_sanitized_table(name, items)
+        || has_sanitized_format_group(name, items)
+        || has_sanitized_group(name, items)
 }
 
 /// Returns true if the target table requires non-trivial `Args` (i.e. has `#[read_args(...)]`).

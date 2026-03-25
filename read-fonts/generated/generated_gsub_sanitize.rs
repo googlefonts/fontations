@@ -104,6 +104,43 @@ impl<'a> Sanitize for SubstitutionLookup<'a> {
     }
 }
 
+#[derive(Clone)]
+pub enum SubstitutionLookupSanitized<'a> {
+    Single(LookupSanitized<'a, SingleSubstSanitized<'a>>),
+    Multiple(LookupSanitized<'a, MultipleSubstFormat1Sanitized<'a>>),
+    Alternate(LookupSanitized<'a, AlternateSubstFormat1Sanitized<'a>>),
+    Ligature(LookupSanitized<'a, LigatureSubstFormat1Sanitized<'a>>),
+    Contextual(LookupSanitized<'a, SubstitutionSequenceContextSanitized<'a>>),
+    ChainContextual(LookupSanitized<'a, SubstitutionChainContextSanitized<'a>>),
+    Extension(LookupSanitized<'a, ExtensionSubtableSanitized<'a>>),
+    Reverse(LookupSanitized<'a, ReverseChainSingleSubstFormat1Sanitized<'a>>),
+}
+
+impl<'a> Default for SubstitutionLookupSanitized<'a> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for SubstitutionLookupSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let untyped: LookupSanitized<'a, ()> = ReadSanitized::read_sanitized(ptr, &());
+        let type_id = untyped.lookup_type();
+        match type_id {
+            1 => Self::Single(ReadSanitized::read_sanitized(ptr, &())),
+            2 => Self::Multiple(ReadSanitized::read_sanitized(ptr, &())),
+            3 => Self::Alternate(ReadSanitized::read_sanitized(ptr, &())),
+            4 => Self::Ligature(ReadSanitized::read_sanitized(ptr, &())),
+            5 => Self::Contextual(ReadSanitized::read_sanitized(ptr, &())),
+            6 => Self::ChainContextual(ReadSanitized::read_sanitized(ptr, &())),
+            7 => Self::Extension(ReadSanitized::read_sanitized(ptr, &())),
+            8 => Self::Reverse(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
+        }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Sanitize for SingleSubst<'a> {
     fn sanitize(&self) -> Result<(), ReadError> {
@@ -692,6 +729,42 @@ impl<'a> Sanitize for ExtensionSubtable<'a> {
             Self::Contextual(t) => t.sanitize(),
             Self::ChainContextual(t) => t.sanitize(),
             Self::Reverse(t) => t.sanitize(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum ExtensionSubtableSanitized<'a> {
+    Single(ExtensionSubstFormat1Sanitized<'a, SingleSubstSanitized<'a>>),
+    Multiple(ExtensionSubstFormat1Sanitized<'a, MultipleSubstFormat1Sanitized<'a>>),
+    Alternate(ExtensionSubstFormat1Sanitized<'a, AlternateSubstFormat1Sanitized<'a>>),
+    Ligature(ExtensionSubstFormat1Sanitized<'a, LigatureSubstFormat1Sanitized<'a>>),
+    Contextual(ExtensionSubstFormat1Sanitized<'a, SubstitutionSequenceContextSanitized<'a>>),
+    ChainContextual(ExtensionSubstFormat1Sanitized<'a, SubstitutionChainContextSanitized<'a>>),
+    Reverse(ExtensionSubstFormat1Sanitized<'a, ReverseChainSingleSubstFormat1Sanitized<'a>>),
+}
+
+impl<'a> Default for ExtensionSubtableSanitized<'a> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ExtensionSubtableSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
+        let untyped: ExtensionSubstFormat1Sanitized<'a, ()> =
+            ReadSanitized::read_sanitized(ptr, &());
+        let type_id = untyped.extension_lookup_type();
+        match type_id {
+            1 => Self::Single(ReadSanitized::read_sanitized(ptr, &())),
+            2 => Self::Multiple(ReadSanitized::read_sanitized(ptr, &())),
+            3 => Self::Alternate(ReadSanitized::read_sanitized(ptr, &())),
+            4 => Self::Ligature(ReadSanitized::read_sanitized(ptr, &())),
+            5 => Self::Contextual(ReadSanitized::read_sanitized(ptr, &())),
+            6 => Self::ChainContextual(ReadSanitized::read_sanitized(ptr, &())),
+            8 => Self::Reverse(ReadSanitized::read_sanitized(ptr, &())),
+            _ => Self::default(),
         }
     }
 }
