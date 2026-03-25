@@ -2,7 +2,10 @@
 
 use super::{dict::FontMatrix, BlendState, Error, Index, Stack, Transform};
 use crate::{
-    tables::{cff::Cff, postscript::StringId},
+    tables::{
+        cff::Cff,
+        postscript::{Charset, StringId},
+    },
     types::{Fixed, Point},
     Cursor, FontData, FontRead,
 };
@@ -60,7 +63,10 @@ impl<'a> CharstringContext for (&'a [u8], &'a Index<'a>, &'a Index<'a>, &'a Inde
 
     fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error> {
         let cff = Cff::read(FontData::new(self.0))?;
-        let charset = cff.charset(0)?.ok_or(Error::MissingCharset)?;
+        let charset = cff
+            .charset(0)?
+            .or_else(|| Charset::new(FontData::default(), 0, self.1.count()).ok())
+            .ok_or(Error::MissingCharset)?;
         let seac_to_gid = |code: i32| {
             let code: u8 = code.try_into().ok()?;
             let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
@@ -134,7 +140,7 @@ pub fn evaluate<'a>(
     sink: &'a mut impl CommandSink,
 ) -> Result<Option<Fixed>, Error> {
     let mut evaluator = Evaluator::new(context, blend_state, sink);
-    evaluator.evaluate(charstring_data, 0)?;
+    evaluator.evaluate(charstring_data)?;
     let width = evaluator.have_read_width.then_some(evaluator.wx);
     sink.finish();
     Ok(width)
@@ -162,6 +168,9 @@ struct Evaluator<'a, S> {
     /// accumulate vectors on the stack which will be used
     /// to emit curves when the flex is finalized
     is_flexing: bool,
+    /// True if we've seen a command that might read width
+    seen_width_command: bool,
+    /// True if we've actually read a width
     have_read_width: bool,
     stem_count: usize,
     x: Fixed,
@@ -172,6 +181,7 @@ struct Evaluator<'a, S> {
     wx: Fixed,
     stack: Stack,
     stack_ix: usize,
+    in_seac: bool,
 }
 
 impl<'a, S> Evaluator<'a, S>
@@ -191,6 +201,7 @@ where
             sink,
             is_open: false,
             is_flexing: false,
+            seen_width_command: false,
             have_read_width: false,
             stem_count: 0,
             stack: Stack::new(),
@@ -199,14 +210,33 @@ where
             sbx: Fixed::ZERO,
             wx: Fixed::ZERO,
             stack_ix: 0,
+            in_seac: false,
         }
     }
 
-    fn evaluate(&mut self, charstring_data: &[u8], nesting_depth: u32) -> Result<(), Error> {
+    fn evaluate(&mut self, charstring_data: &[u8]) -> Result<(), Error> {
+        let seen_endchar = self.evaluate_impl(charstring_data, 0)?;
+        if !self.is_type1 && !seen_endchar {
+            // FreeType simulates an endchar operator for CFF and CFF2
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L632>
+            self.evaluate_operator(
+                Operator::EndChar,
+                &mut crate::FontData::default().cursor(),
+                0,
+            )?;
+        }
+        if self.is_open {
+            self.sink.close();
+        }
+        Ok(())
+    }
+
+    fn evaluate_impl(&mut self, charstring_data: &[u8], nesting_depth: u32) -> Result<bool, Error> {
         if nesting_depth > NESTING_DEPTH_LIMIT {
             return Err(Error::CharstringNestingDepthLimitExceeded);
         }
         let mut cursor = crate::FontData::new(charstring_data).cursor();
+        let mut seen_endchar = false;
         while cursor.remaining_bytes() != 0 {
             let b0 = cursor.read::<u8>()?;
             match b0 {
@@ -233,6 +263,7 @@ where
                     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L703>
                     // and fontations issue <https://github.com/googlefonts/fontations/issues/1680>
                     if let Ok(operator) = Operator::read(&mut cursor, b0) {
+                        seen_endchar |= operator == Operator::EndChar;
                         if !self.evaluate_operator(operator, &mut cursor, nesting_depth)? {
                             break;
                         }
@@ -243,7 +274,7 @@ where
                 }
             }
         }
-        Ok(())
+        Ok(seen_endchar)
     }
 
     /// Evaluates a single charstring operator.
@@ -312,15 +343,13 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=21>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2463>
             EndChar => {
-                if self.stack.len() == 4 || self.stack.len() == 5 && !self.have_read_width {
-                    self.handle_seac(SeacMode::Implicit, nesting_depth)?;
-                } else if !self.stack.is_empty() && !self.have_read_width {
+                let stack_len = self.stack.len();
+                if (stack_len == 1 || stack_len == 5) && !self.seen_width_command {
                     self.read_width()?;
-                    self.stack.clear();
                 }
-                if self.is_open {
-                    self.is_open = false;
-                    self.sink.close();
+                self.seen_width_command = true;
+                if stack_len > 1 {
+                    self.handle_seac(SeacMode::Implicit, nesting_depth)?;
                 }
                 return Ok(false);
             }
@@ -329,13 +358,14 @@ where
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L777>
             HStem | VStem | HStemHm | VStemHm => {
                 let mut i = 0;
-                let len = if self.stack.len_is_odd() && !self.have_read_width {
+                let len = if self.stack.len_is_odd() && !self.seen_width_command {
                     self.read_width()?;
                     i = 1;
                     self.stack.len() - 1
                 } else {
                     self.stack.len()
                 };
+                self.seen_width_command = true;
                 let is_horizontal = matches!(operator, HStem | HStemHm);
                 let mut u = Fixed::ZERO;
                 while i < self.stack.len() {
@@ -363,13 +393,14 @@ where
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2580>
             HintMask | CntrMask => {
                 let mut i = 0;
-                let len = if self.stack.len_is_odd() && !self.have_read_width {
+                let len = if self.stack.len_is_odd() && !self.seen_width_command {
                     self.read_width()?;
                     i = 1;
                     self.stack.len() - 1
                 } else {
                     self.stack.len()
                 };
+                self.seen_width_command = true;
                 let mut u = Fixed::ZERO;
                 while i < self.stack.len() {
                     let args = self.stack.fixed_array::<2>(i)?;
@@ -394,13 +425,13 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=16>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2653>
             RMoveTo => {
-                let mut i = 0;
-                if self.stack.len() == 3 && !self.have_read_width {
+                if self.stack.len() > 2 && !self.seen_width_command {
                     self.read_width()?;
-                    i = 1;
                 }
+                self.seen_width_command = true;
                 if !self.is_flexing {
-                    let [dx, dy] = self.stack.fixed_array::<2>(i)?;
+                    let dy = self.stack.pop_fixed()?;
+                    let dx = self.stack.pop_fixed()?;
                     self.x += dx;
                     self.y += dy;
                     if !self.is_open {
@@ -417,11 +448,10 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=16>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L839>
             HMoveTo | VMoveTo => {
-                let mut i = 0;
-                if self.stack.len() == 2 && !self.have_read_width {
+                if self.stack.len() > 1 && !self.seen_width_command {
                     self.read_width()?;
-                    i = 1;
                 }
+                self.seen_width_command = true;
                 if self.is_flexing {
                     // We need to add the other coordinate to the stack so we
                     // have a full flex vector
@@ -432,7 +462,7 @@ where
                         self.stack.exch()?;
                     }
                 } else {
-                    let delta = self.stack.get_fixed(i)?;
+                    let delta = self.stack.pop_fixed()?;
                     if operator == HMoveTo {
                         self.x += delta;
                     } else {
@@ -543,7 +573,9 @@ where
                     self.emit_line(self.x, self.y);
                     self.stack_ix += 2;
                 }
-                self.emit_curves([DxDy; 3])?;
+                while self.coords_remaining() >= 6 {
+                    self.emit_curves([DxDy; 3])?;
+                }
                 self.reset_stack();
             }
             // Emits curves that start and end vertical, unless
@@ -574,7 +606,7 @@ where
                 } else {
                     self.context.global_subr(index)?
                 };
-                self.evaluate(subr_charstring, nesting_depth + 1)?;
+                self.evaluate_impl(subr_charstring, nesting_depth + 1)?;
             }
             // Sets the left sidebearing point to (sbx, 0) and the character
             // width vector to (wx, 0) in character space. Also sets current
@@ -587,6 +619,7 @@ where
                     self.sbx += sbx;
                     self.x += sbx;
                     self.wx = wx;
+                    self.seen_width_command = true;
                     self.have_read_width = true;
                     self.reset_stack();
                 }
@@ -611,6 +644,7 @@ where
                     self.y += y;
                     self.sbx += x;
                     self.wx = wx;
+                    self.seen_width_command = true;
                     self.have_read_width = true;
                     self.reset_stack();
                 }
@@ -695,6 +729,7 @@ where
 
     fn read_width(&mut self) -> Result<(), Error> {
         self.wx = self.stack.get_fixed(0)?;
+        self.seen_width_command = true;
         self.have_read_width = true;
         Ok(())
     }
@@ -702,6 +737,10 @@ where
     /// See `endchar` in Appendix C at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=35>
     fn handle_seac(&mut self, mode: SeacMode, nesting_depth: u32) -> Result<(), Error> {
         // handle seac operator
+        if self.in_seac {
+            return Err(Error::CharstringNestingDepthLimitExceeded);
+        }
+        self.in_seac = true;
         let accent_code = self.stack.pop_i32()?;
         let base_code = self.stack.pop_i32()?;
         let [base_charstring, accent_charstring] =
@@ -711,9 +750,9 @@ where
         let sb = if self.is_type1 {
             // Type1 has an additional side bearing argument
             self.stack.pop_fixed()?
-        } else if !self.stack.is_empty() && !self.have_read_width {
+        } else if !self.stack.is_empty() && !self.seen_width_command {
             self.wx = self.stack.pop_fixed()?;
-            self.have_read_width = true;
+            self.seen_width_command = true;
             Fixed::ZERO
         } else {
             Fixed::ZERO
@@ -721,7 +760,8 @@ where
         // Save metrics to potentially restore later.
         let mut sbx = self.sbx;
         let mut wx = self.wx;
-        let have_metrics = self.have_read_width;
+        let seen_width = self.seen_width_command;
+        let read_width = self.have_read_width;
         struct Component<'a> {
             charstring: &'a [u8],
             x: Fixed,
@@ -769,19 +809,23 @@ where
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1443>
         // and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L540>
         for component in components {
-            self.have_read_width = false;
+            self.reset_stack();
+            self.seen_width_command = false;
             self.sink.clear_hints();
             self.stem_count = 0;
             self.x = component.x;
             self.y = component.y;
-            self.evaluate(component.charstring, nesting_depth + 1)?;
-            if component.maybe_use_metrics && !have_metrics {
+            self.evaluate_impl(component.charstring, nesting_depth + 1)?;
+            if component.maybe_use_metrics && !seen_width {
                 sbx = self.sbx;
                 wx = self.wx;
             }
         }
+        self.seen_width_command = seen_width;
+        self.have_read_width = read_width;
         self.sbx = sbx;
         self.wx = wx;
+        self.in_seac = false;
         Ok(())
     }
 
@@ -1495,6 +1539,7 @@ mod tests {
             LineTo(Fixed::from_f64(550.0), Fixed::ZERO),
             LineTo(Fixed::from_f64(550.0), Fixed::from_f64(500.0)),
             LineTo(Fixed::from_f64(50.0), Fixed::from_f64(500.0)),
+            LineTo(Fixed::from_f64(50.0), Fixed::ZERO),
         ];
         assert_eq!(&commands.0, expected);
     }
@@ -1811,9 +1856,13 @@ mod tests {
             &mut commands,
         )
         .unwrap();
+        let x = Fixed::from_i32(-107);
         assert_eq!(
             commands.0,
-            [Command::MoveTo(Fixed::from_i32(-107), Fixed::ZERO)]
+            [
+                Command::MoveTo(x, Fixed::ZERO),
+                Command::LineTo(x, Fixed::ZERO)
+            ]
         );
     }
 

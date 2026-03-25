@@ -325,6 +325,12 @@ pub fn entries<'a>(
         }
         let token = match parse_token(&mut cursor) {
             Ok(token) => token,
+            Err(Error::InvalidDictOperator(_)) => {
+                // Some buggy fonts have invalid dict operators. Clear
+                // the stack and attempt to continue.
+                stack.clear();
+                continue;
+            }
             Err(e) => return Some(Err(e)),
         };
         match token {
