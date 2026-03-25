@@ -7,8 +7,8 @@ use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use super::parsing::{
-    logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
-    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record,
+    logged_syn_error, Attr, Condition, Count, CustomCompile, Field, FieldReadArgs, FieldType,
+    FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record,
 };
 
 impl Fields {
@@ -1069,14 +1069,11 @@ impl Field {
                     }
                     _ => unreachable!("count not valid here"),
                 };
-                match other {
-                    Count::SingleArg(CountArg::Literal(lit)) if lit.base10_digits() == "1" => {
-                        // Prevent identity-op clippy error with `1 * size`
-                        size_expr
-                    }
-                    _ => {
-                        quote!(  (#count_expr).saturating_mul(#size_expr) )
-                    }
+                if other.is_lit_1() {
+                    // Prevent identity-op clippy error with `1 * size`
+                    size_expr
+                } else {
+                    quote!(  (#count_expr).saturating_mul(#size_expr) )
                 }
             }
             None => quote!(compile_error!("missing count attribute?")),
@@ -1484,7 +1481,7 @@ fn stringify_path(path: &syn::Path) -> String {
 }
 
 impl FieldReadArgs {
-    fn to_tokens_for_table_getter(&self) -> TokenStream {
+    pub(crate) fn to_tokens_for_table_getter(&self) -> TokenStream {
         match self.inputs.as_slice() {
             [arg] => quote!(self.#arg()),
             args => quote!( ( #( self.#args() ),* ) ),

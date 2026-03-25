@@ -1602,6 +1602,12 @@ impl Count {
         }
     }
 
+    pub(crate) fn is_lit_1(&self) -> bool {
+        self.lit_int()
+            .map(|lit| lit.base10_digits() == "1")
+            .unwrap_or(false)
+    }
+
     pub(crate) fn iter_referenced_fields(&self) -> impl Iterator<Item = &syn::Ident> {
         let (one, two) = match self {
             Self::SingleArg(CountArg::Field(ident)) => (Some(ident), None),
@@ -1619,75 +1625,33 @@ impl Count {
     }
 
     pub(crate) fn count_expr(&self) -> TokenStream {
-        match self {
-            Count::All(_) => unreachable!("'all' count handled separately"),
-            Count::SingleArg(CountArg::Field(arg)) => quote!(#arg as usize),
-            Count::SingleArg(CountArg::Literal(arg)) => quote!(#arg),
-            Count::Complicated { args, xform } => match (xform, args.as_slice()) {
-                (CountTransform::Sub, [a, b]) => {
-                    quote!(transforms::subtract(#a, #b))
-                }
-                (CountTransform::Add, [a, b]) => {
-                    quote!(transforms::add(#a, #b))
-                }
-                (CountTransform::AddMul, [a, b, c]) => {
-                    quote!(transforms::add_multiply(#a, #b, #c))
-                }
-                (CountTransform::MulAdd, [a, b, c]) => {
-                    quote!(transforms::multiply_add(#a, #b, #c))
-                }
-                (CountTransform::Half, [a]) => {
-                    quote!(transforms::half(#a))
-                }
-                (CountTransform::DeltaSetIndexData, [a, b]) => {
-                    quote!(EntryFormat::map_size(#a, #b))
-                }
-                (CountTransform::DeltaValueCount, [a, b, c]) => {
-                    quote!(DeltaFormat::value_count(#a, #b, #c))
-                }
-                (CountTransform::TupleLen, [a, b, c]) => {
-                    quote!(TupleIndex::tuple_len(#a, #b, #c))
-                }
-                (CountTransform::ItemVariationDataLen, [a, b, c]) => {
-                    quote!(ItemVariationData::delta_sets_len(#a, #b, #c))
-                }
-                (CountTransform::BitmapLen, [a]) => {
-                    quote!(transforms::bitmap_len(#a))
-                }
-                (CountTransform::MaxValueBitmapLen, [a]) => {
-                    quote!(transforms::max_value_bitmap_len(#a))
-                }
-                (CountTransform::SubAddTwo, [a, b]) => {
-                    quote!(transforms::subtract_add_two(#a, #b))
-                }
-                (CountTransform::TryInto, [a]) => {
-                    quote!(usize::try_from(#a).unwrap_or_default())
-                }
-                _ => unreachable!("validated before now"),
-            },
-        }
+        self.count_expr_impl(false)
     }
 
-    /// Like [`count_expr`] but for the sanitized context, where field values are
-    /// accessed via `self.field()` method calls rather than local variables.
-    ///
-    /// Returns `None` for [`Count::All`], which is not supported in sanitized code.
-    pub(crate) fn sanitized_count_expr(&self) -> Option<TokenStream> {
-        fn arg(a: &CountArg) -> TokenStream {
+    pub(crate) fn sanitized_count_expr(&self) -> TokenStream {
+        self.count_expr_impl(true)
+    }
+
+    fn count_expr_impl(&self, has_self_param: bool) -> TokenStream {
+        let arg = |a: &CountArg| -> TokenStream {
             match a {
-                CountArg::Field(f) => quote!(self.#f()),
+                CountArg::Field(f) if has_self_param => quote!(self.#f()),
+                CountArg::Field(f) => quote!(#f),
                 CountArg::Literal(n) => quote!(#n),
             }
-        }
+        };
         match self {
-            Count::All(_) => None,
-            Count::SingleArg(CountArg::Field(f)) => Some(quote!(self.#f() as usize)),
-            Count::SingleArg(CountArg::Literal(n)) => Some(quote!(#n)),
+            Count::All(_) => unreachable!("handled before now"),
+            Count::SingleArg(CountArg::Field(f)) if has_self_param => {
+                quote!(self.#f() as usize)
+            }
+            Count::SingleArg(CountArg::Field(f)) => quote!(#f as usize),
+            Count::SingleArg(CountArg::Literal(n)) => quote!(#n),
             Count::Complicated { args, xform } => {
                 let a = args.first().map(arg).unwrap_or_default();
                 let b = args.get(1).map(arg).unwrap_or_default();
                 let c = args.get(2).map(arg).unwrap_or_default();
-                Some(match xform {
+                match xform {
                     CountTransform::Sub => quote!(transforms::subtract(#a, #b)),
                     CountTransform::Add => quote!(transforms::add(#a, #b)),
                     CountTransform::AddMul => quote!(transforms::add_multiply(#a, #b, #c)),
@@ -1707,7 +1671,7 @@ impl Count {
                     }
                     CountTransform::SubAddTwo => quote!(transforms::subtract_add_two(#a, #b)),
                     CountTransform::TryInto => quote!(usize::try_from(#a).unwrap_or_default()),
-                })
+                }
             }
         }
     }

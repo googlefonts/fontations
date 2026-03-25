@@ -7,7 +7,8 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 
 use crate::parsing::{
-    Field, FieldType, GenericGroup, Item, Items, OffsetTarget, Record, Table, TableFormat,
+    Count, Field, FieldReadArgs, FieldType, GenericGroup, Item, Items, OffsetTarget, Record, Table,
+    TableFormat,
 };
 
 /// Generate a `ReadSanitized` implementation for a table.
@@ -72,7 +73,7 @@ pub(crate) fn generate_read_sanitized_table(
     };
 
     for field in item.fields.iter() {
-        let this_len = field.sanitized_byte_len(items);
+        let this_len = field.sanitized_byte_len();
 
         if field.attrs.skip_getter.is_some() {
             // Don't generate getter/pos, but account for this field's bytes.
@@ -504,42 +505,54 @@ impl Field {
     /// Byte-size expression for this field in the sanitized context, or `None`
     /// if the size cannot be statically computed (which poisons all subsequent
     /// `_pos()` methods).
-    pub(crate) fn sanitized_byte_len(&self, items: &Items) -> Option<TokenStream> {
-        match &self.typ {
-            FieldType::Scalar { typ } => Some(quote!(#typ::RAW_BYTE_LEN)),
-            FieldType::Struct { typ } => {
-                if has_sanitized_record(typ, items) {
-                    Some(quote!(#typ::RAW_BYTE_LEN))
+    pub(crate) fn sanitized_byte_len(&self) -> Option<TokenStream> {
+        Some(self.computed_len_expr_for_sanitize().unwrap_or_else(|| {
+            let typ = self.typ.cooked_type_tokens();
+            quote!( #typ::RAW_BYTE_LEN )
+        }))
+    }
+
+    fn computed_len_expr_for_sanitize(&self) -> Option<TokenStream> {
+        if !self.has_computed_len() {
+            return None;
+        }
+
+        let read_args = self
+            .attrs
+            .read_with_args
+            .as_deref()
+            .map(FieldReadArgs::to_tokens_for_table_getter);
+
+        if let FieldType::Struct { typ } = &self.typ {
+            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args).unwrap_or(0) ));
+        }
+
+        Some(match self.attrs.count.as_deref() {
+            Some(Count::All(_)) => todo!(),
+            Some(other) => {
+                let count_expr = other.sanitized_count_expr();
+                let size_expr = match &self.typ {
+                    FieldType::Array { inner_typ } => {
+                        let inner_typ = inner_typ.cooked_type_tokens();
+                        quote!( #inner_typ::RAW_BYTE_LEN )
+                    }
+                    FieldType::ComputedArray(array) => {
+                        let inner = array.raw_inner_type();
+                        quote!( <#inner as ComputeSize>::compute_size(&#read_args).unwrap_or(0) )
+                    }
+                    FieldType::VarLenArray(_) => {
+                        quote!(compile_error!("sanitize not implemented for VarLenArray"))
+                    }
+                    _ => unreachable!("count not valid here"),
+                };
+                if other.is_lit_1() {
+                    size_expr
                 } else {
-                    None
+                    quote!( (#count_expr).saturating_mul(#size_expr) )
                 }
             }
-            FieldType::Offset { typ, .. } => Some(quote!(#typ::RAW_BYTE_LEN)),
-            FieldType::Array { inner_typ } => {
-                let inner_size = match inner_typ.as_ref() {
-                    FieldType::Scalar { typ } => quote!(#typ::RAW_BYTE_LEN),
-                    FieldType::Struct { typ } => {
-                        if has_sanitized_record(typ, items) {
-                            quote!(#typ::RAW_BYTE_LEN)
-                        } else {
-                            quote!(compile_error!("fancy struct in array shouldn't happen"))
-                        }
-                    }
-                    FieldType::Offset { typ, .. } => quote!(#typ::RAW_BYTE_LEN),
-                    _ => quote!(compile_error!("unknown type in array")),
-                };
-                let count_expr = self
-                    .attrs
-                    .count
-                    .as_deref()
-                    .and_then(|c| c.sanitized_count_expr())?;
-                Some(quote!((#count_expr).saturating_mul(#inner_size)))
-            }
-            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => None,
-            FieldType::PendingResolution { .. } => {
-                panic!("unresolved type in sanitized_byte_len")
-            }
-        }
+            None => quote!(compile_error!("missing count attribute")),
+        })
     }
 
     // --- Table context ---
@@ -592,7 +605,8 @@ impl Field {
                 quote!(unsafe { self.ptr.read_at(self.#pos_fn()) })
             }
             FieldType::Array { inner_typ } => {
-                let count_expr = self.sanitized_count_expr();
+                // #[count] always present on arrays, would crash before sanitize
+                let count_expr = self.attrs.count.as_deref().unwrap().sanitized_count_expr();
                 match inner_typ.as_ref() {
                     FieldType::Scalar { .. } | FieldType::Offset { .. } => {
                         quote!(unsafe { self.ptr.read_array_at(self.#pos_fn(), #count_expr) })
@@ -753,21 +767,6 @@ impl Field {
     }
 
     // --- Private helpers ---
-
-    /// Count expression for an array field: `self.count_field() as _`, a literal, or
-    /// `unimplemented!()` for complex counts.
-    fn sanitized_count_expr(&self) -> TokenStream {
-        self.attrs
-            .count
-            .as_deref()
-            .unwrap()
-            .sanitized_count_expr()
-            .unwrap_or_else(|| {
-                quote!(unimplemented!(
-                    "'all' count not supported in sanitized context"
-                ))
-            })
-    }
 
     /// Args expression for `resolve_sanitized`, derived from `#[read_offset_with(...)]`.
     fn sanitized_offset_args_expr(&self) -> TokenStream {
