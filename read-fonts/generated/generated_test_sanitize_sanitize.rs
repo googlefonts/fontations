@@ -413,6 +413,13 @@ impl<'a> TableTwoSanitized<'a> {
             Self::Format2(item) => item.offset_ptr(),
         }
     }
+
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::Format2(item) => item.format(),
+        }
+    }
 }
 
 impl<'a> Default for TableTwoSanitized<'a> {

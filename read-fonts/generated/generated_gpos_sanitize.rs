@@ -228,6 +228,33 @@ impl<'a> AnchorTableSanitized<'a> {
             Self::Format3(item) => item.offset_ptr(),
         }
     }
+
+    /// Format identifier, = 1
+    pub fn anchor_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.anchor_format(),
+            Self::Format2(item) => item.anchor_format(),
+            Self::Format3(item) => item.anchor_format(),
+        }
+    }
+
+    /// Horizontal value, in design units
+    pub fn x_coordinate(&self) -> i16 {
+        match self {
+            Self::Format1(item) => item.x_coordinate(),
+            Self::Format2(item) => item.x_coordinate(),
+            Self::Format3(item) => item.x_coordinate(),
+        }
+    }
+
+    /// Vertical value, in design units
+    pub fn y_coordinate(&self) -> i16 {
+        match self {
+            Self::Format1(item) => item.y_coordinate(),
+            Self::Format2(item) => item.y_coordinate(),
+            Self::Format3(item) => item.y_coordinate(),
+        }
+    }
 }
 
 impl<'a> Default for AnchorTableSanitized<'a> {
@@ -575,6 +602,30 @@ impl<'a> SinglePosSanitized<'a> {
             Self::Format2(item) => item.offset_ptr(),
         }
     }
+
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+
+    /// Offset to Coverage table, from beginning of SinglePos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        match self {
+            Self::Format1(item) => item.coverage_offset(),
+            Self::Format2(item) => item.coverage_offset(),
+        }
+    }
+
+    /// Defines the types of data in the ValueRecord.
+    pub fn value_format(&self) -> ValueFormat {
+        match self {
+            Self::Format1(item) => item.value_format(),
+            Self::Format2(item) => item.value_format(),
+        }
+    }
 }
 
 impl<'a> Default for SinglePosSanitized<'a> {
@@ -780,6 +831,40 @@ impl<'a> PairPosSanitized<'a> {
         match self {
             Self::Format1(item) => item.offset_ptr(),
             Self::Format2(item) => item.offset_ptr(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+
+    /// Offset to Coverage table, from beginning of PairPos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        match self {
+            Self::Format1(item) => item.coverage_offset(),
+            Self::Format2(item) => item.coverage_offset(),
+        }
+    }
+
+    /// Defines the types of data in valueRecord1 — for the first
+    /// glyph in the pair (may be zero).
+    pub fn value_format1(&self) -> ValueFormat {
+        match self {
+            Self::Format1(item) => item.value_format1(),
+            Self::Format2(item) => item.value_format1(),
+        }
+    }
+
+    /// Defines the types of data in valueRecord2 — for the second
+    /// glyph in the pair (may be zero).
+    pub fn value_format2(&self) -> ValueFormat {
+        match self {
+            Self::Format1(item) => item.value_format2(),
+            Self::Format2(item) => item.value_format2(),
         }
     }
 }
@@ -1007,12 +1092,14 @@ impl<'a> PairValueRecordSanitized<'a> {
         unsafe { self.ptr.read_at(self.second_glyph_pos()) }
     }
 
-    pub fn value_record1(&self) -> () {
-        unimplemented!("struct type lacks a ReadSanitized impl")
+    pub fn value_record1(&self) -> ValueRecordSanitized<'a> {
+        let ptr = unsafe { self.ptr.for_offset(self.value_record1_pos()) };
+        unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format1()) }
     }
 
-    pub fn value_record2(&self) -> () {
-        unimplemented!("struct type lacks a ReadSanitized impl")
+    pub fn value_record2(&self) -> ValueRecordSanitized<'a> {
+        let ptr = unsafe { self.ptr.for_offset(self.value_record2_pos()) };
+        unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format2()) }
     }
 }
 
@@ -1199,8 +1286,16 @@ impl<'a> Class1RecordSanitized<'a> {
         self.value_format2
     }
 
-    pub fn class2_records(&self) -> () {
-        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    pub fn class2_records(&self) -> ComputedArraySanitized<'a, Class2RecordSanitized<'a>> {
+        let count = self.class2_count() as usize;
+        let args = (self.value_format1(), self.value_format2());
+        let item_len = <Class2Record as ComputeSize>::compute_size(&args).unwrap_or(0);
+        ComputedArraySanitized::new(
+            unsafe { self.ptr.for_offset(self.class2_records_pos()) },
+            count,
+            item_len,
+            args,
+        )
     }
 }
 
@@ -1253,12 +1348,14 @@ impl<'a> Class2RecordSanitized<'a> {
         self.value_format2
     }
 
-    pub fn value_record1(&self) -> () {
-        unimplemented!("struct type lacks a ReadSanitized impl")
+    pub fn value_record1(&self) -> ValueRecordSanitized<'a> {
+        let ptr = unsafe { self.ptr.for_offset(self.value_record1_pos()) };
+        unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format1()) }
     }
 
-    pub fn value_record2(&self) -> () {
-        unimplemented!("struct type lacks a ReadSanitized impl")
+    pub fn value_record2(&self) -> ValueRecordSanitized<'a> {
+        let ptr = unsafe { self.ptr.for_offset(self.value_record2_pos()) };
+        unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format2()) }
     }
 }
 

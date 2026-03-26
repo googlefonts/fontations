@@ -3,12 +3,15 @@
 //! These are high-efficiency types for reading pre-validated font data without
 //! bounds checking, using raw pointer arithmetic via `FontPtr`.
 
+use std::collections::HashMap;
+
+use indexmap::IndexMap;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 
 use crate::parsing::{
-    Count, Field, FieldReadArgs, FieldType, Fields, GenericGroup, Item, Items, OffsetTarget,
-    Record, Table, TableFormat,
+    logged_syn_error, Count, Field, FieldReadArgs, FieldType, Fields, FormatVariant, GenericGroup,
+    Item, Items, OffsetTarget, Record, Table, TableFormat,
 };
 
 /// Generate a `ReadSanitized` implementation for a table.
@@ -256,8 +259,67 @@ pub(crate) fn generate_read_sanitized_record(
     })
 }
 
+/// Generate sanitized getters for fields shared across all active variants of a format group.
+fn generate_sanitized_format_shared_getters(
+    active_variants: &[&FormatVariant],
+    items: &Items,
+) -> syn::Result<TokenStream> {
+    let all_tables = active_variants
+        .iter()
+        .map(|v| {
+            let type_name = v.type_name();
+            match items.get(type_name) {
+                Some(Item::Table(t)) => Ok(t),
+                _ => Err(logged_syn_error(
+                    type_name.span(),
+                    "must be a table defined in this file",
+                )),
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut field_counts: IndexMap<(&syn::Ident, &FieldType), usize> = IndexMap::new();
+    let mut all_fields: HashMap<&syn::Ident, &Field> = HashMap::new();
+    for table in &all_tables {
+        for field in table.fields.iter().filter(|f| f.has_getter()) {
+            let key = (&field.name, &field.typ);
+            *field_counts.entry(key).or_insert(0) += 1;
+            all_fields.entry(&field.name).or_insert(field);
+        }
+    }
+
+    let shared: Vec<&Field> = field_counts
+        .iter()
+        .filter(|(_, &count)| count == all_tables.len())
+        .map(|((name, _), _)| *all_fields.get(*name).unwrap())
+        .collect();
+
+    let getters = shared.iter().map(|field| {
+        let docs = &field.attrs.docs;
+        let method_name = &field.name;
+        let return_type = field.sanitized_table_getter_return_type(items);
+        let arms = active_variants.iter().map(|v| {
+            let var_name = &v.name;
+            quote!(Self::#var_name(item) => item.#method_name(),)
+        });
+        quote! {
+            #( #docs )*
+            pub fn #method_name(&self) -> #return_type {
+                match self {
+                    #( #arms )*
+                }
+            }
+        }
+    });
+
+    Ok(quote! { #(#getters)* })
+}
+
 /// Generate a `ReadSanitized` enum for a format-dispatch table group.
-pub(crate) fn generate_read_sanitized_format(item: &TableFormat) -> syn::Result<TokenStream> {
+pub(crate) fn generate_read_sanitized_format(
+    item: &TableFormat,
+    items: &Items,
+) -> syn::Result<TokenStream> {
     let active_variants: Vec<_> = item
         .variants
         .iter()
@@ -308,6 +370,8 @@ pub(crate) fn generate_read_sanitized_format(item: &TableFormat) -> syn::Result<
         quote!(Self::#var_name(item) => item.offset_ptr(),)
     });
 
+    let shared_getters = generate_sanitized_format_shared_getters(&active_variants, items)?;
+
     Ok(quote! {
         #[derive(Clone)]
         pub enum #sanitized_name<'a> {
@@ -320,6 +384,7 @@ pub(crate) fn generate_read_sanitized_format(item: &TableFormat) -> syn::Result<
                     #( #ptr_arms )*
                 }
             }
+            #shared_getters
         }
 
         impl<'a> Default for #sanitized_name<'a> {

@@ -221,6 +221,23 @@ impl<'a> SingleSubstSanitized<'a> {
             Self::Format2(item) => item.offset_ptr(),
         }
     }
+
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.subst_format(),
+            Self::Format2(item) => item.subst_format(),
+        }
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset16 {
+        match self {
+            Self::Format1(item) => item.coverage_offset(),
+            Self::Format2(item) => item.coverage_offset(),
+        }
+    }
 }
 
 impl<'a> Default for SingleSubstSanitized<'a> {

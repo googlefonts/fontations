@@ -448,6 +448,15 @@ impl<'a> CaretValueSanitized<'a> {
             Self::Format3(item) => item.offset_ptr(),
         }
     }
+
+    /// Format identifier: format = 1
+    pub fn caret_value_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.caret_value_format(),
+            Self::Format2(item) => item.caret_value_format(),
+            Self::Format3(item) => item.caret_value_format(),
+        }
+    }
 }
 
 impl<'a> Default for CaretValueSanitized<'a> {

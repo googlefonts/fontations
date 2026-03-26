@@ -854,6 +854,14 @@ impl<'a> CoverageTableSanitized<'a> {
             Self::Format2(item) => item.offset_ptr(),
         }
     }
+
+    /// Format identifier — format = 1
+    pub fn coverage_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.coverage_format(),
+            Self::Format2(item) => item.coverage_format(),
+        }
+    }
 }
 
 impl<'a> Default for CoverageTableSanitized<'a> {
@@ -1078,6 +1086,14 @@ impl<'a> ClassDefSanitized<'a> {
         match self {
             Self::Format1(item) => item.offset_ptr(),
             Self::Format2(item) => item.offset_ptr(),
+        }
+    }
+
+    /// Format identifier — format = 1
+    pub fn class_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.class_format(),
+            Self::Format2(item) => item.class_format(),
         }
     }
 }
@@ -1732,6 +1748,15 @@ impl<'a> SequenceContextSanitized<'a> {
             Self::Format1(item) => item.offset_ptr(),
             Self::Format2(item) => item.offset_ptr(),
             Self::Format3(item) => item.offset_ptr(),
+        }
+    }
+
+    /// Format identifier: format = 1
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::Format2(item) => item.format(),
+            Self::Format3(item) => item.format(),
         }
     }
 }
@@ -2564,6 +2589,15 @@ impl<'a> ChainedSequenceContextSanitized<'a> {
             Self::Format3(item) => item.offset_ptr(),
         }
     }
+
+    /// Format identifier: format = 1
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::Format2(item) => item.format(),
+            Self::Format3(item) => item.format(),
+        }
+    }
 }
 
 impl<'a> Default for ChainedSequenceContextSanitized<'a> {
@@ -2742,6 +2776,14 @@ impl<'a> DeviceOrVariationIndexSanitized<'a> {
         match self {
             Self::Device(item) => item.offset_ptr(),
             Self::VariationIndex(item) => item.offset_ptr(),
+        }
+    }
+
+    /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
+    pub fn delta_format(&self) -> DeltaFormat {
+        match self {
+            Self::Device(item) => item.delta_format(),
+            Self::VariationIndex(item) => item.delta_format(),
         }
     }
 }
@@ -2991,6 +3033,17 @@ impl<'a> ConditionSanitized<'a> {
             Self::Format3And(item) => item.offset_ptr(),
             Self::Format4Or(item) => item.offset_ptr(),
             Self::Format5Negate(item) => item.offset_ptr(),
+        }
+    }
+
+    /// Format, = 1
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1AxisRange(item) => item.format(),
+            Self::Format2VariableValue(item) => item.format(),
+            Self::Format3And(item) => item.format(),
+            Self::Format4Or(item) => item.format(),
+            Self::Format5Negate(item) => item.format(),
         }
     }
 }
