@@ -5,6 +5,171 @@
 //! See "Glyph Organization" at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=18>
 //! for an explanation of how charsets, encodings and glyphs are related.
 
+use super::{Charset, EncodingRange1, EncodingSupplement, FontData, GlyphId, ReadError, StringId};
+
+/// Predefined encodings for Adobe CFF and Type1 fonts.
+///
+/// Encodings map character codes to glyph names.
+///
+/// See <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=37>.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub enum PredefinedEncoding {
+    #[default]
+    Standard,
+    Expert,
+    IsoLatin1,
+}
+
+impl PredefinedEncoding {
+    /// Converts a character code to the associated glyph name according to
+    /// the selected encoding.
+    pub fn code_to_glyph_name(&self, code: u8) -> &'static str {
+        let code = code as usize;
+        // All arrays have 256 entries so code is guaranteed to be in bounds
+        let sid = match self {
+            Self::Standard => STANDARD_ENCODING[code] as u16,
+            Self::Expert => EXPERT_ENCODING[code],
+            Self::IsoLatin1 => {
+                // The standard string set is missing names for non breaking
+                // space and soft hyphen so catch these here and return names
+                // from the Adobe Glyph List.
+                //
+                // nonbreakingspace;00A0
+                // softhyphen;00AD
+                //
+                // See <https://github.com/adobe-type-tools/agl-aglfn/blob/4036a9ca80a62f64f9de4f7321a9a045ad0ecfd6/glyphlist.txt>
+                match code {
+                    0x00A0 => return "nonbreakingspace",
+                    0x00AD => return "softhyphen",
+                    _ => ISO_LATIN1_ENCODING[code],
+                }
+            }
+        };
+        super::STANDARD_STRINGS
+            .get(sid as usize)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    fn code_to_sid(&self, code: u8) -> Option<StringId> {
+        let code = code as usize;
+        let sid = match self {
+            Self::Standard => STANDARD_ENCODING[code] as u16,
+            Self::Expert => EXPERT_ENCODING[code],
+            _ => return None,
+        };
+        Some(StringId::new(sid))
+    }
+}
+
+/// Mapping from character codes to string ids.
+///
+/// See "Encodings" at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=18>.
+#[derive(Clone)]
+pub enum Encoding<'a> {
+    Predefined(PredefinedEncoding),
+    Custom(CustomEncoding<'a>),
+}
+
+impl<'a> Encoding<'a> {
+    /// Parses an encoding at the given offset.
+    ///
+    /// Special offsets 0 and 1 are parsed as the predefined standard and
+    /// expert encodings, respectively.
+    pub fn new(data: &'a [u8], offset: usize) -> Result<Self, ReadError> {
+        match offset {
+            0 => return Ok(Self::Predefined(PredefinedEncoding::Standard)),
+            1 => return Ok(Self::Predefined(PredefinedEncoding::Expert)),
+            _ => CustomEncoding::new(data.get(offset..).ok_or(ReadError::OutOfBounds)?)
+                .map(Self::Custom),
+        }
+    }
+
+    /// Maps a character code to a glyph identifier.
+    pub fn map(&self, charset: &Charset, code: u8) -> Option<GlyphId> {
+        match self {
+            Self::Predefined(predefined) => charset.glyph_id(predefined.code_to_sid(code)?).ok(),
+            Self::Custom(custom) => custom.map(charset, code),
+        }
+    }
+}
+
+/// Custom mapping from character codes to string ids.
+#[derive(Clone)]
+pub enum CustomEncoding<'a> {
+    /// Sequence of character codes where the string id is equal to the index
+    /// of the code plus one.
+    Format0(&'a [u8], &'a [EncodingSupplement]),
+    /// Sequence of ranges mapping character codes to string ids.
+    Format1(&'a [EncodingRange1], &'a [EncodingSupplement]),
+}
+
+impl<'a> CustomEncoding<'a> {
+    /// Parses a custom encoding from the given data.
+    pub fn new(data: &'a [u8]) -> Result<Self, ReadError> {
+        let mut cursor = FontData::new(data).cursor();
+        let header = cursor.read::<u8>()?;
+        let has_supplement = header & 0x80 != 0;
+        // Macro because a closure cannot borrow cursor mutably
+        macro_rules! read_supplement {
+            () => {
+                if has_supplement {
+                    let count = cursor.read::<u8>()?;
+                    cursor.read_array::<EncodingSupplement>(count as usize)?
+                } else {
+                    &[]
+                }
+            };
+        }
+        let format = header & 0x7F;
+        match format {
+            0 => {
+                let n_codes = cursor.read::<u8>()?;
+                let codes = cursor.read_array(n_codes as usize)?;
+                let supp = read_supplement!();
+                Ok(Self::Format0(codes, supp))
+            }
+            1 => {
+                let n_ranges = cursor.read::<u8>()?;
+                let ranges = cursor.read_array(n_ranges as usize)?;
+                let supp = read_supplement!();
+                Ok(Self::Format1(ranges, supp))
+            }
+            _ => return Err(ReadError::InvalidFormat(format as _)),
+        }
+    }
+
+    /// Maps a character code to a glyph identifier.  
+    pub fn map(&self, charset: &Charset, code: u8) -> Option<GlyphId> {
+        let read_sup = |sup: &[EncodingSupplement]| {
+            sup.iter()
+                .find(|s| s.code == code)
+                .and_then(|s| charset.glyph_id(StringId::new(s.glyph.get())).ok())
+        };
+        match self {
+            Self::Format0(codes, sup) => read_sup(sup).or_else(|| {
+                codes
+                    .iter()
+                    .position(|c| *c == code)
+                    // notdef is implicit so add one
+                    .map(|gid| GlyphId::new(gid as u32 + 1))
+            }),
+            Self::Format1(ranges, sup) => read_sup(sup).or_else(|| {
+                let mut gid = 1u32;
+                for range in ranges.iter() {
+                    let end = range.first.saturating_add(range.n_left);
+                    if (range.first..=end).contains(&code) {
+                        gid += (code - range.first) as u32;
+                        return Some(GlyphId::new(gid));
+                    }
+                    gid += range.n_left as u32 + 1;
+                }
+                None
+            }),
+        }
+    }
+}
+
 /// See "Standard" encoding at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=37>
 /// for this particular mapping.
 #[rustfmt::skip]
@@ -76,51 +241,6 @@ pub(super) static ISO_LATIN1_ENCODING: [u16; 256] = [
     223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238,
     239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254,
 ];
-
-/// Predefined encodings for Adobe CFF and Type1 fonts.
-///
-/// Encodings map character codes to glyph names.
-///
-/// See <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=37>.
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub enum PredefinedEncoding {
-    #[default]
-    Standard,
-    Expert,
-    IsoLatin1,
-}
-
-impl PredefinedEncoding {
-    /// Converts a character code to the associated glyph name according to
-    /// the selected encoding.
-    pub fn code_to_glyph_name(&self, code: u8) -> &'static str {
-        let code = code as usize;
-        // All arrays have 256 entries so code is guaranteed to be in bounds
-        let sid = match self {
-            Self::Standard => STANDARD_ENCODING[code] as u16,
-            Self::Expert => EXPERT_ENCODING[code],
-            Self::IsoLatin1 => {
-                // The standard string set is missing names for non breaking
-                // space and soft hyphen so catch these here and return names
-                // from the Adobe Glyph List.
-                //
-                // nonbreakingspace;00A0
-                // softhyphen;00AD
-                //
-                // See <https://github.com/adobe-type-tools/agl-aglfn/blob/4036a9ca80a62f64f9de4f7321a9a045ad0ecfd6/glyphlist.txt>
-                match code {
-                    0x00A0 => return "nonbreakingspace",
-                    0x00AD => return "softhyphen",
-                    _ => ISO_LATIN1_ENCODING[code],
-                }
-            }
-        };
-        super::STANDARD_STRINGS
-            .get(sid as usize)
-            .copied()
-            .unwrap_or_default()
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -269,5 +389,103 @@ mod tests {
                 "expected {expected_name}, got {name} for {code}"
             );
         }
+    }
+
+    #[test]
+    fn predefined_standard() {
+        let encoding = Encoding::Predefined(PredefinedEncoding::Standard);
+        let charset = iso_adobe_charset();
+        for code in 0..=255 {
+            let gid = encoding.map(&charset, code);
+            assert_eq!(
+                gid.unwrap(),
+                charset
+                    .glyph_id(StringId::new(STANDARD_ENCODING[code as usize] as u16))
+                    .unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn predefined_expert() {
+        let encoding = Encoding::Predefined(PredefinedEncoding::Expert);
+        let charset = iso_expert_charset();
+        for code in 0..=255 {
+            let gid = encoding.map(&charset, code);
+            assert_eq!(
+                gid.unwrap(),
+                charset
+                    .glyph_id(StringId::new(EXPERT_ENCODING[code as usize] as u16))
+                    .unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn custom_format_0() {
+        let codes = [3, 8, 9, 10, 11];
+        let encoding = Encoding::Custom(CustomEncoding::Format0(&codes, &[]));
+        let charset = iso_adobe_charset();
+        for (i, code) in codes.into_iter().enumerate() {
+            assert_eq!(
+                encoding.map(&charset, code).unwrap(),
+                GlyphId::new(i as u32 + 1)
+            );
+        }
+    }
+
+    #[test]
+    fn custom_format_1() {
+        let ranges = [(51, 4), (250, 5)].map(|(first, n_left)| EncodingRange1 { first, n_left });
+        let encoding = Encoding::Custom(CustomEncoding::Format1(&ranges, &[]));
+        let charset = iso_adobe_charset();
+        for code in 0..=255 {
+            let gid = encoding.map(&charset, code);
+            let expected = match code {
+                51..=55 => Some(code as u32 - 50),
+                250..=255 => Some(code as u32 - 250 + 6),
+                _ => None,
+            };
+            assert_eq!(gid, expected.map(GlyphId::new));
+        }
+    }
+
+    #[test]
+    fn supplemental() {
+        // map 40 -> z and 122 -> parenleft
+        let supplement = [(40, 91), (122, 9)].map(|(code, glyph)| EncodingSupplement {
+            code,
+            glyph: glyph.into(),
+        });
+        let encoding = Encoding::Custom(CustomEncoding::Format0(&[], &supplement));
+        let charset = iso_adobe_charset();
+        assert_eq!(encoding.map(&charset, 40).unwrap().to_u32(), 91);
+        assert_eq!(encoding.map(&charset, 122).unwrap().to_u32(), 9);
+        assert_eq!(
+            charset
+                .string_id(91u32.into())
+                .unwrap()
+                .standard_string()
+                .unwrap()
+                .bytes(),
+            b"z"
+        );
+        assert_eq!(
+            charset
+                .string_id(9u32.into())
+                .unwrap()
+                .standard_string()
+                .unwrap()
+                .bytes(),
+            b"parenleft"
+        );
+    }
+
+    fn iso_adobe_charset() -> Charset<'static> {
+        Charset::new(Default::default(), 0, 256).unwrap()
+    }
+
+    fn iso_expert_charset() -> Charset<'static> {
+        Charset::new(Default::default(), 1, 256).unwrap()
     }
 }

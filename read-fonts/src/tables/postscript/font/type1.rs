@@ -220,8 +220,8 @@ impl<'a> Type1Encoding<'a> {
         }
     }
 
-    /// Returns the glyph identifier for the given character code.
-    pub fn glyph_id(&self, code: u8) -> Option<GlyphId> {
+    /// Maps a character code to a glyph identifier.
+    pub fn map(&self, code: u8) -> Option<GlyphId> {
         match self.encoding {
             Encoding::Predefined(pre) => self
                 .charstrings
@@ -1985,7 +1985,7 @@ mod tests {
         ];
         for (code, gid, name) in expected {
             assert_eq!(encoding.glyph_name(code).unwrap(), name);
-            assert_eq!(encoding.glyph_id(code).unwrap().to_u32(), gid);
+            assert_eq!(encoding.map(code).unwrap().to_u32(), gid);
         }
     }
 }

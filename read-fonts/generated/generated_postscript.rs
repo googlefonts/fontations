@@ -1116,3 +1116,87 @@ impl<'a> SomeRecord<'a> for CharsetRange2 {
         }
     }
 }
+
+/// Range struct for Encoding format 1.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct EncodingRange1 {
+    /// First code in range.
+    pub first: u8,
+    /// Codes left in range (excluding first).
+    pub n_left: u8,
+}
+
+impl EncodingRange1 {
+    /// First code in range.
+    pub fn first(&self) -> u8 {
+        self.first
+    }
+
+    /// Codes left in range (excluding first).
+    pub fn n_left(&self) -> u8 {
+        self.n_left
+    }
+}
+
+impl FixedSize for EncodingRange1 {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for EncodingRange1 {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "EncodingRange1",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("first", self.first())),
+                1usize => Some(Field::new("n_left", self.n_left())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
+/// Supplemental encoding record.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct EncodingSupplement {
+    /// Encoding.
+    pub code: u8,
+    /// Name.
+    pub glyph: BigEndian<u16>,
+}
+
+impl EncodingSupplement {
+    /// Encoding.
+    pub fn code(&self) -> u8 {
+        self.code
+    }
+
+    /// Name.
+    pub fn glyph(&self) -> u16 {
+        self.glyph.get()
+    }
+}
+
+impl FixedSize for EncodingSupplement {
+    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for EncodingSupplement {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "EncodingSupplement",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("code", self.code())),
+                1usize => Some(Field::new("glyph", self.glyph())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}

@@ -4,10 +4,13 @@ use super::super::{
     super::{cff, cff2},
     charstring::{self, CommandSink},
     dict::{self, ScaledFontMatrix},
-    BlendState, Charset, Error, FdSelect, Index, Transform,
+    BlendState, Charset, Encoding, Error, FdSelect, Index, Transform,
 };
 use super::HintingParams;
-use crate::{tables::variations::ItemVariationStore, FontData, FontRead, ReadError};
+use crate::{
+    tables::{postscript::PredefinedEncoding, variations::ItemVariationStore},
+    FontData, FontRead, ReadError,
+};
 use core::ops::Range;
 use types::{F2Dot14, Fixed, GlyphId};
 
@@ -138,6 +141,14 @@ impl<'a> CffFontRef<'a> {
             self.top_dict.charstrings.count(),
         )
         .ok()
+    }
+
+    /// Returns the mapping from character codes to glyph identifiers.
+    pub fn encoding(&self) -> Option<CffEncoding<'a>> {
+        let charset = self.charset()?;
+        let encoding =
+            Encoding::new(self.data.into(), self.top_dict.encoding_offset.get()?).ok()?;
+        Some(CffEncoding { encoding, charset })
     }
 
     /// Returns the top level font matrix.
@@ -331,6 +342,34 @@ impl<'a> CffFontRef<'a> {
     }
 }
 
+/// Mapping from character codes to glyph identifiers.
+pub struct CffEncoding<'a> {
+    encoding: Encoding<'a>,
+    charset: Charset<'a>,
+}
+
+impl<'a> CffEncoding<'a> {
+    /// Returns the predefined encoding, if any. Otherwise this is a custom
+    /// encoding.
+    pub fn predefined(&self) -> Option<PredefinedEncoding> {
+        if let Encoding::Predefined(pre) = &self.encoding {
+            Some(*pre)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the associated character set.
+    pub fn charset(&self) -> &Charset<'a> {
+        &self.charset
+    }
+
+    /// Maps a character code to a glyph identifier.
+    pub fn map(&self, code: u8) -> Option<GlyphId> {
+        self.encoding.map(&self.charset, code)
+    }
+}
+
 /// An SID or CID font.
 #[derive(Clone)]
 enum CffFontKind<'a> {
@@ -499,7 +538,7 @@ impl Default for MaybeOffset {
 struct TopDict<'a> {
     charstrings: Index<'a>,
     charset_offset: MaybeOffset,
-    _encoding_offset: MaybeOffset,
+    encoding_offset: MaybeOffset,
     matrix: Option<ScaledFontMatrix>,
     var_store: Option<ItemVariationStore<'a>>,
     kind: CffFontKind<'a>,
@@ -514,8 +553,15 @@ impl<'a> TopDict<'a> {
     ) -> Result<Self, Error> {
         let mut has_ros = false;
         let mut charstrings = None;
-        let mut charset_offset = MaybeOffset::default();
-        let mut encoding_offset = MaybeOffset::default();
+        let [mut charset_offset, mut encoding_offset] = if is_cff2 {
+            // CFF2 fonts use the cmap table but grab the encoding and
+            // charset if one is provided
+            [MaybeOffset::default(); 2]
+        } else {
+            // CFF fonts have a default charset and encoding offset of 0
+            // which selects the standard Adobe encoding
+            [MaybeOffset(0); 2]
+        };
         let mut fd_array = None;
         let mut fd_select = None;
         let mut private_dict_range = 0..0;
@@ -584,7 +630,7 @@ impl<'a> TopDict<'a> {
         };
         Ok(Self {
             charset_offset,
-            _encoding_offset: encoding_offset,
+            encoding_offset,
             charstrings,
             matrix,
             kind,
@@ -948,5 +994,20 @@ mod tests {
         let transform = cff.transform(&subfont, Some(16.0));
         assert_eq!(transform.matrix.0, expected_matrix);
         assert_eq!(transform.scale, Some(Fixed::from_bits(1 << 16)));
+    }
+
+    #[test]
+    fn cff_encoding() {
+        let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let cff = CffFontRef::new(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
+        let encoding = cff.encoding().unwrap();
+        assert_eq!(encoding.predefined(), Some(PredefinedEncoding::Standard));
+    }
+
+    #[test]
+    fn cff2_lacks_encoding() {
+        let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
+        let cff = CffFontRef::new(font.cff2().unwrap().offset_data().as_bytes(), 0, None).unwrap();
+        assert!(cff.encoding().is_none());
     }
 }
