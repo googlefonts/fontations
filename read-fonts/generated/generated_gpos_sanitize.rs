@@ -528,8 +528,9 @@ impl<'a> SinglePosFormat1Sanitized<'a> {
         unsafe { self.ptr.read_at(self.value_format_pos()) }
     }
 
-    pub fn value_record(&self) -> () {
-        unimplemented!("struct type lacks a ReadSanitized impl")
+    pub fn value_record(&self) -> ValueRecordSanitized<'a> {
+        let ptr = unsafe { self.ptr.for_offset(self.value_record_pos()) };
+        unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format()) }
     }
 }
 

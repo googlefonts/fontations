@@ -618,9 +618,9 @@ impl Field {
                 let st = format_ident!("{}Sanitized", inner);
                 quote!(ComputedArraySanitized<'a, #st <'a>>)
             }
-            FieldType::Struct { typ } if has_sanitized_record(typ, items) => {
+            FieldType::Struct { typ } => {
                 let st = format_ident!("{}Sanitized", typ);
-                quote!(#st)
+                quote!(#st<'a>)
             }
             _ => quote!(()),
         }
@@ -632,6 +632,13 @@ impl Field {
         pos_fn: &syn::Ident,
         items: &Items,
     ) -> TokenStream {
+        let read_args = self
+            .attrs
+            .read_with_args
+            .as_deref()
+            .map(FieldReadArgs::to_tokens_for_table_getter)
+            .unwrap_or_else(|| quote!(()));
+
         match &self.typ {
             FieldType::Scalar { .. } | FieldType::Offset { .. } => {
                 quote!(unsafe { self.ptr.read_at(self.#pos_fn()) })
@@ -646,14 +653,14 @@ impl Field {
                     FieldType::Struct { typ } if has_sanitized_record(typ, items) => {
                         quote!(unsafe { self.ptr.read_array_at(self.#pos_fn(), #count_expr) })
                     }
-                    _ => quote!(unimplemented!("record type lacks a ReadSanitized impl")),
+                    _ => quote!(compile_error!("not a valid type")),
                 }
             }
-            FieldType::Struct { typ } if has_sanitized_record(typ, items) => {
-                quote!(unimplemented!("struct field"))
-            }
             FieldType::Struct { .. } => {
-                quote!(unimplemented!("struct type lacks a ReadSanitized impl"))
+                quote! {
+                    let ptr = unsafe { self.ptr.for_offset(self.#pos_fn()) };
+                    unsafe { ReadSanitized::read_sanitized(ptr, &#read_args) }
+                }
             }
             FieldType::ComputedArray(array) => {
                 let count_expr = self.attrs.count.as_deref().unwrap().sanitized_count_expr();
