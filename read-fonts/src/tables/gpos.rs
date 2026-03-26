@@ -57,7 +57,7 @@ mod sanitize_manual_impls {
         ScriptListSanitized,
     };
 
-    use super::ValueFormat;
+    use super::{AnchorTableSanitized, ValueFormat};
 
     #[derive(Clone)]
     pub struct ValueRecordSanitized<'a> {
@@ -137,6 +137,26 @@ mod sanitize_manual_impls {
         #[inline]
         unsafe fn read_sanitized(ptr: crate::sanitize::FontPtr<'a>, args: &Self::Args) -> Self {
             Self { ptr, format: *args }
+        }
+    }
+
+    impl<'a> AnchorTableSanitized<'a> {
+        /// Attempt to resolve the `Device` or `VariationIndex` table for the
+        /// x_coordinate, if present
+        pub fn x_device(&self) -> Option<DeviceOrVariationIndexSanitized<'a>> {
+            match self {
+                AnchorTableSanitized::Format3(inner) => inner.x_device(),
+                _ => None,
+            }
+        }
+
+        /// Attempt to resolve the `Device` or `VariationIndex` table for the
+        /// y_coordinate, if present
+        pub fn y_device(&self) -> Option<DeviceOrVariationIndexSanitized<'a>> {
+            match self {
+                AnchorTableSanitized::Format3(inner) => inner.y_device(),
+                _ => None,
+            }
         }
     }
 }
