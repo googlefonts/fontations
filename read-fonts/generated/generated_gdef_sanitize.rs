@@ -53,6 +53,9 @@ pub struct GdefSanitized<'a> {
 }
 
 impl<'a> GdefSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn version_pos(&self) -> usize {
         0
     }
@@ -175,6 +178,9 @@ pub struct AttachListSanitized<'a> {
 }
 
 impl<'a> AttachListSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn coverage_offset_pos(&self) -> usize {
         0
     }
@@ -245,6 +251,9 @@ pub struct AttachPointSanitized<'a> {
 }
 
 impl<'a> AttachPointSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn point_count_pos(&self) -> usize {
         0
     }
@@ -296,6 +305,9 @@ pub struct LigCaretListSanitized<'a> {
 }
 
 impl<'a> LigCaretListSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn coverage_offset_pos(&self) -> usize {
         0
     }
@@ -368,6 +380,9 @@ pub struct LigGlyphSanitized<'a> {
 }
 
 impl<'a> LigGlyphSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn caret_count_pos(&self) -> usize {
         0
     }
@@ -425,6 +440,16 @@ pub enum CaretValueSanitized<'a> {
     Format3(CaretValueFormat3Sanitized<'a>),
 }
 
+impl<'a> CaretValueSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+            Self::Format3(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for CaretValueSanitized<'a> {
     fn default() -> Self {
         Self::Format1(CaretValueFormat1Sanitized::default())
@@ -464,6 +489,9 @@ pub struct CaretValueFormat1Sanitized<'a> {
 }
 
 impl<'a> CaretValueFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn caret_value_format_pos(&self) -> usize {
         0
     }
@@ -507,6 +535,9 @@ pub struct CaretValueFormat2Sanitized<'a> {
 }
 
 impl<'a> CaretValueFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn caret_value_format_pos(&self) -> usize {
         0
     }
@@ -551,6 +582,9 @@ pub struct CaretValueFormat3Sanitized<'a> {
 }
 
 impl<'a> CaretValueFormat3Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn caret_value_format_pos(&self) -> usize {
         0
     }
@@ -613,6 +647,9 @@ pub struct MarkGlyphSetsSanitized<'a> {
 }
 
 impl<'a> MarkGlyphSetsSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }

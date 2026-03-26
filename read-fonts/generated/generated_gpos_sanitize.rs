@@ -36,6 +36,9 @@ pub struct GposSanitized<'a> {
 }
 
 impl<'a> GposSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn version_pos(&self) -> usize {
         0
     }
@@ -149,6 +152,22 @@ pub enum PositionLookupSanitized<'a> {
     Extension(LookupSanitized<'a, ExtensionSubtableSanitized<'a>>),
 }
 
+impl<'a> PositionLookupSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Single(item) => item.offset_ptr(),
+            Self::Pair(item) => item.offset_ptr(),
+            Self::Cursive(item) => item.offset_ptr(),
+            Self::MarkToBase(item) => item.offset_ptr(),
+            Self::MarkToLig(item) => item.offset_ptr(),
+            Self::MarkToMark(item) => item.offset_ptr(),
+            Self::Contextual(item) => item.offset_ptr(),
+            Self::ChainContextual(item) => item.offset_ptr(),
+            Self::Extension(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for PositionLookupSanitized<'a> {
     fn default() -> Self {
         Self::Single(Default::default())
@@ -201,6 +220,16 @@ pub enum AnchorTableSanitized<'a> {
     Format3(AnchorFormat3Sanitized<'a>),
 }
 
+impl<'a> AnchorTableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+            Self::Format3(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for AnchorTableSanitized<'a> {
     fn default() -> Self {
         Self::Format1(AnchorFormat1Sanitized::default())
@@ -240,6 +269,9 @@ pub struct AnchorFormat1Sanitized<'a> {
 }
 
 impl<'a> AnchorFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn anchor_format_pos(&self) -> usize {
         0
     }
@@ -290,6 +322,9 @@ pub struct AnchorFormat2Sanitized<'a> {
 }
 
 impl<'a> AnchorFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn anchor_format_pos(&self) -> usize {
         0
     }
@@ -353,6 +388,9 @@ pub struct AnchorFormat3Sanitized<'a> {
 }
 
 impl<'a> AnchorFormat3Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn anchor_format_pos(&self) -> usize {
         0
     }
@@ -433,6 +471,9 @@ pub struct MarkArraySanitized<'a> {
 }
 
 impl<'a> MarkArraySanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn mark_count_pos(&self) -> usize {
         0
     }
@@ -527,6 +568,15 @@ pub enum SinglePosSanitized<'a> {
     Format2(SinglePosFormat2Sanitized<'a>),
 }
 
+impl<'a> SinglePosSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for SinglePosSanitized<'a> {
     fn default() -> Self {
         Self::Format1(SinglePosFormat1Sanitized::default())
@@ -567,6 +617,9 @@ pub struct SinglePosFormat1Sanitized<'a> {
 }
 
 impl<'a> SinglePosFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pos_format_pos(&self) -> usize {
         0
     }
@@ -635,6 +688,9 @@ pub struct SinglePosFormat2Sanitized<'a> {
 }
 
 impl<'a> SinglePosFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pos_format_pos(&self) -> usize {
         0
     }
@@ -719,6 +775,15 @@ pub enum PairPosSanitized<'a> {
     Format2(PairPosFormat2Sanitized<'a>),
 }
 
+impl<'a> PairPosSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for PairPosSanitized<'a> {
     fn default() -> Self {
         Self::Format1(PairPosFormat1Sanitized::default())
@@ -762,6 +827,9 @@ pub struct PairPosFormat1Sanitized<'a> {
 }
 
 impl<'a> PairPosFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pos_format_pos(&self) -> usize {
         0
     }
@@ -849,6 +917,9 @@ pub struct PairSetSanitized<'a> {
 }
 
 impl<'a> PairSetSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pair_value_count_pos(&self) -> usize {
         0
     }
@@ -981,6 +1052,9 @@ pub struct PairPosFormat2Sanitized<'a> {
 }
 
 impl<'a> PairPosFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pos_format_pos(&self) -> usize {
         0
     }
@@ -1229,6 +1303,9 @@ pub struct CursivePosFormat1Sanitized<'a> {
 }
 
 impl<'a> CursivePosFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pos_format_pos(&self) -> usize {
         0
     }
@@ -1357,6 +1434,9 @@ pub struct MarkBasePosFormat1Sanitized<'a> {
 }
 
 impl<'a> MarkBasePosFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pos_format_pos(&self) -> usize {
         0
     }
@@ -1454,6 +1534,9 @@ pub struct BaseArraySanitized<'a> {
 }
 
 impl<'a> BaseArraySanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn base_count_pos(&self) -> usize {
         0
     }
@@ -1574,6 +1657,9 @@ pub struct MarkLigPosFormat1Sanitized<'a> {
 }
 
 impl<'a> MarkLigPosFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pos_format_pos(&self) -> usize {
         0
     }
@@ -1674,6 +1760,9 @@ pub struct LigatureArraySanitized<'a> {
 }
 
 impl<'a> LigatureArraySanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn ligature_count_pos(&self) -> usize {
         0
     }
@@ -1732,6 +1821,9 @@ pub struct LigatureAttachSanitized<'a> {
 }
 
 impl<'a> LigatureAttachSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn component_count_pos(&self) -> usize {
         0
     }
@@ -1852,6 +1944,9 @@ pub struct MarkMarkPosFormat1Sanitized<'a> {
 }
 
 impl<'a> MarkMarkPosFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pos_format_pos(&self) -> usize {
         0
     }
@@ -1949,6 +2044,9 @@ pub struct Mark2ArraySanitized<'a> {
 }
 
 impl<'a> Mark2ArraySanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn mark2_count_pos(&self) -> usize {
         0
     }
@@ -2067,6 +2165,9 @@ pub struct ExtensionPosFormat1Sanitized<'a, T = ()> {
 }
 
 impl<'a, T> ExtensionPosFormat1Sanitized<'a, T> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn pos_format_pos(&self) -> usize {
         0
     }
@@ -2165,6 +2266,21 @@ pub enum ExtensionSubtableSanitized<'a> {
     MarkToMark(ExtensionPosFormat1Sanitized<'a, MarkMarkPosFormat1Sanitized<'a>>),
     Contextual(ExtensionPosFormat1Sanitized<'a, PositionSequenceContextSanitized<'a>>),
     ChainContextual(ExtensionPosFormat1Sanitized<'a, PositionChainContextSanitized<'a>>),
+}
+
+impl<'a> ExtensionSubtableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Single(item) => item.offset_ptr(),
+            Self::Pair(item) => item.offset_ptr(),
+            Self::Cursive(item) => item.offset_ptr(),
+            Self::MarkToBase(item) => item.offset_ptr(),
+            Self::MarkToLig(item) => item.offset_ptr(),
+            Self::MarkToMark(item) => item.offset_ptr(),
+            Self::Contextual(item) => item.offset_ptr(),
+            Self::ChainContextual(item) => item.offset_ptr(),
+        }
+    }
 }
 
 impl<'a> Default for ExtensionSubtableSanitized<'a> {

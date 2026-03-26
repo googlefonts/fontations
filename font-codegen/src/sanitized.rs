@@ -76,6 +76,7 @@ pub(crate) fn generate_read_sanitized_table(
         }
 
         impl #impl_generics #sanitized_name #impl_generics {
+            pub fn offset_ptr(&self) -> FontPtr<'a> { self.ptr }
             #(#pos_methods)*
             #(#arg_getters)*
             #(#getter_methods)*
@@ -302,10 +303,23 @@ pub(crate) fn generate_read_sanitized_format(item: &TableFormat) -> syn::Result<
         .collect();
     let maybe_allow_lint = has_match_stmt.then(|| quote!(#[allow(clippy::redundant_guards)]));
 
+    let ptr_arms = active_variants.iter().map(|v| {
+        let var_name = &v.name;
+        quote!(Self::#var_name(item) => item.offset_ptr(),)
+    });
+
     Ok(quote! {
         #[derive(Clone)]
         pub enum #sanitized_name<'a> {
             #( #variant_defs ),*
+        }
+
+        impl<'a> #sanitized_name<'a> {
+            pub fn offset_ptr(&self) -> FontPtr<'a> {
+                match self {
+                    #( #ptr_arms )*
+                }
+            }
         }
 
         impl<'a> Default for #sanitized_name<'a> {
@@ -362,10 +376,23 @@ pub(crate) fn generate_read_sanitized_group(item: &GenericGroup) -> syn::Result<
         })
         .collect();
 
+    let ptr_arms = item.variants.iter().map(|v| {
+        let n = &v.name;
+        quote!(Self::#n(item) => item.offset_ptr(),)
+    });
+
     Ok(quote! {
         #[derive(Clone)]
         pub enum #sanitized_name<'a> {
             #( #variant_defs, )*
+        }
+
+        impl<'a> #sanitized_name<'a> {
+            pub fn offset_ptr(&self) -> FontPtr<'a> {
+                match self {
+                    #( #ptr_arms )*
+                }
+            }
         }
 
         impl<'a> Default for #sanitized_name<'a> {

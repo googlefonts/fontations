@@ -26,6 +26,9 @@ pub struct RootTableSanitized<'a> {
 }
 
 impl<'a> RootTableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn version_pos(&self) -> usize {
         0
     }
@@ -82,6 +85,9 @@ pub struct GenericTableSanitized<'a, T = ()> {
 }
 
 impl<'a, T> GenericTableSanitized<'a, T> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn subtable_type_pos(&self) -> usize {
         0
     }
@@ -170,6 +176,15 @@ pub enum TableGroupSanitized<'a> {
     Two(GenericTableSanitized<'a, TableTwoSanitized<'a>>),
 }
 
+impl<'a> TableGroupSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::One(item) => item.offset_ptr(),
+            Self::Two(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for TableGroupSanitized<'a> {
     fn default() -> Self {
         Self::One(Default::default())
@@ -217,6 +232,9 @@ pub struct TableOneSanitized<'a> {
 }
 
 impl<'a> TableOneSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn record_count_pos(&self) -> usize {
         0
     }
@@ -292,6 +310,9 @@ pub struct TableTwoFormat1Sanitized<'a> {
 }
 
 impl<'a> TableTwoFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -331,6 +352,9 @@ pub struct TableTwoFormat2Sanitized<'a> {
 }
 
 impl<'a> TableTwoFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -380,6 +404,15 @@ impl<'a> TableTwo<'a> {
 pub enum TableTwoSanitized<'a> {
     Format1(TableTwoFormat1Sanitized<'a>),
     Format2(TableTwoFormat2Sanitized<'a>),
+}
+
+impl<'a> TableTwoSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+        }
+    }
 }
 
 impl<'a> Default for TableTwoSanitized<'a> {

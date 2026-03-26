@@ -33,6 +33,9 @@ pub struct ScriptListSanitized<'a> {
 }
 
 impl<'a> ScriptListSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn script_count_pos(&self) -> usize {
         0
     }
@@ -134,6 +137,9 @@ pub struct ScriptSanitized<'a> {
 }
 
 impl<'a> ScriptSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn default_lang_sys_offset_pos(&self) -> usize {
         0
     }
@@ -241,6 +247,9 @@ pub struct LangSysSanitized<'a> {
 }
 
 impl<'a> LangSysSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn required_feature_index_pos(&self) -> usize {
         u16::RAW_BYTE_LEN
     }
@@ -304,6 +313,9 @@ pub struct FeatureListSanitized<'a> {
 }
 
 impl<'a> FeatureListSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn feature_count_pos(&self) -> usize {
         0
     }
@@ -394,6 +406,9 @@ pub struct FeatureSanitized<'a> {
 }
 
 impl<'a> FeatureSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn feature_params_offset_pos(&self) -> usize {
         0
     }
@@ -466,6 +481,9 @@ pub struct LookupListSanitized<'a, T = ()> {
 }
 
 impl<'a, T> LookupListSanitized<'a, T> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn lookup_count_pos(&self) -> usize {
         0
     }
@@ -557,6 +575,9 @@ pub struct LookupSanitized<'a, T = ()> {
 }
 
 impl<'a, T> LookupSanitized<'a, T> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn lookup_type_pos(&self) -> usize {
         0
     }
@@ -660,6 +681,9 @@ pub struct CoverageFormat1Sanitized<'a> {
 }
 
 impl<'a> CoverageFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn coverage_format_pos(&self) -> usize {
         0
     }
@@ -721,6 +745,9 @@ pub struct CoverageFormat2Sanitized<'a> {
 }
 
 impl<'a> CoverageFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn coverage_format_pos(&self) -> usize {
         0
     }
@@ -820,6 +847,15 @@ pub enum CoverageTableSanitized<'a> {
     Format2(CoverageFormat2Sanitized<'a>),
 }
 
+impl<'a> CoverageTableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for CoverageTableSanitized<'a> {
     fn default() -> Self {
         Self::Format1(CoverageFormat1Sanitized::default())
@@ -862,6 +898,9 @@ pub struct ClassDefFormat1Sanitized<'a> {
 }
 
 impl<'a> ClassDefFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn class_format_pos(&self) -> usize {
         0
     }
@@ -930,6 +969,9 @@ pub struct ClassDefFormat2Sanitized<'a> {
 }
 
 impl<'a> ClassDefFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn class_format_pos(&self) -> usize {
         0
     }
@@ -1031,6 +1073,15 @@ pub enum ClassDefSanitized<'a> {
     Format2(ClassDefFormat2Sanitized<'a>),
 }
 
+impl<'a> ClassDefSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for ClassDefSanitized<'a> {
     fn default() -> Self {
         Self::Format1(ClassDefFormat1Sanitized::default())
@@ -1108,6 +1159,9 @@ pub struct SequenceContextFormat1Sanitized<'a> {
 }
 
 impl<'a> SequenceContextFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -1189,6 +1243,9 @@ pub struct SequenceRuleSetSanitized<'a> {
 }
 
 impl<'a> SequenceRuleSetSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn seq_rule_count_pos(&self) -> usize {
         0
     }
@@ -1252,6 +1309,9 @@ pub struct SequenceRuleSanitized<'a> {
 }
 
 impl<'a> SequenceRuleSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn glyph_count_pos(&self) -> usize {
         0
     }
@@ -1327,6 +1387,9 @@ pub struct SequenceContextFormat2Sanitized<'a> {
 }
 
 impl<'a> SequenceContextFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -1423,6 +1486,9 @@ pub struct ClassSequenceRuleSetSanitized<'a> {
 }
 
 impl<'a> ClassSequenceRuleSetSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn class_seq_rule_count_pos(&self) -> usize {
         0
     }
@@ -1490,6 +1556,9 @@ pub struct ClassSequenceRuleSanitized<'a> {
 }
 
 impl<'a> ClassSequenceRuleSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn glyph_count_pos(&self) -> usize {
         0
     }
@@ -1570,6 +1639,9 @@ pub struct SequenceContextFormat3Sanitized<'a> {
 }
 
 impl<'a> SequenceContextFormat3Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -1654,6 +1726,16 @@ pub enum SequenceContextSanitized<'a> {
     Format3(SequenceContextFormat3Sanitized<'a>),
 }
 
+impl<'a> SequenceContextSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+            Self::Format3(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for SequenceContextSanitized<'a> {
     fn default() -> Self {
         Self::Format1(SequenceContextFormat1Sanitized::default())
@@ -1704,6 +1786,9 @@ pub struct ChainedSequenceContextFormat1Sanitized<'a> {
 }
 
 impl<'a> ChainedSequenceContextFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -1785,6 +1870,9 @@ pub struct ChainedSequenceRuleSetSanitized<'a> {
 }
 
 impl<'a> ChainedSequenceRuleSetSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn chained_seq_rule_count_pos(&self) -> usize {
         0
     }
@@ -1860,6 +1948,9 @@ pub struct ChainedSequenceRuleSanitized<'a> {
 }
 
 impl<'a> ChainedSequenceRuleSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn backtrack_glyph_count_pos(&self) -> usize {
         0
     }
@@ -1977,6 +2068,9 @@ pub struct ChainedSequenceContextFormat2Sanitized<'a> {
 }
 
 impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -2107,6 +2201,9 @@ pub struct ChainedClassSequenceRuleSetSanitized<'a> {
 }
 
 impl<'a> ChainedClassSequenceRuleSetSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn chained_class_seq_rule_count_pos(&self) -> usize {
         0
     }
@@ -2182,6 +2279,9 @@ pub struct ChainedClassSequenceRuleSanitized<'a> {
 }
 
 impl<'a> ChainedClassSequenceRuleSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn backtrack_glyph_count_pos(&self) -> usize {
         0
     }
@@ -2311,6 +2411,9 @@ pub struct ChainedSequenceContextFormat3Sanitized<'a> {
 }
 
 impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -2453,6 +2556,16 @@ pub enum ChainedSequenceContextSanitized<'a> {
     Format3(ChainedSequenceContextFormat3Sanitized<'a>),
 }
 
+impl<'a> ChainedSequenceContextSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+            Self::Format3(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for ChainedSequenceContextSanitized<'a> {
     fn default() -> Self {
         Self::Format1(ChainedSequenceContextFormat1Sanitized::default())
@@ -2502,6 +2615,9 @@ pub struct DeviceSanitized<'a> {
 }
 
 impl<'a> DeviceSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn start_size_pos(&self) -> usize {
         0
     }
@@ -2564,6 +2680,9 @@ pub struct VariationIndexSanitized<'a> {
 }
 
 impl<'a> VariationIndexSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn delta_set_outer_index_pos(&self) -> usize {
         0
     }
@@ -2618,6 +2737,15 @@ pub enum DeviceOrVariationIndexSanitized<'a> {
     VariationIndex(VariationIndexSanitized<'a>),
 }
 
+impl<'a> DeviceOrVariationIndexSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Device(item) => item.offset_ptr(),
+            Self::VariationIndex(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for DeviceOrVariationIndexSanitized<'a> {
     fn default() -> Self {
         Self::Device(DeviceSanitized::default())
@@ -2670,6 +2798,9 @@ pub struct FeatureVariationsSanitized<'a> {
 }
 
 impl<'a> FeatureVariationsSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn version_pos(&self) -> usize {
         0
     }
@@ -2786,6 +2917,9 @@ pub struct ConditionSetSanitized<'a> {
 }
 
 impl<'a> ConditionSetSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn condition_count_pos(&self) -> usize {
         0
     }
@@ -2849,6 +2983,18 @@ pub enum ConditionSanitized<'a> {
     Format5Negate(ConditionFormat5Sanitized<'a>),
 }
 
+impl<'a> ConditionSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1AxisRange(item) => item.offset_ptr(),
+            Self::Format2VariableValue(item) => item.offset_ptr(),
+            Self::Format3And(item) => item.offset_ptr(),
+            Self::Format4Or(item) => item.offset_ptr(),
+            Self::Format5Negate(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for ConditionSanitized<'a> {
     fn default() -> Self {
         Self::Format1AxisRange(ConditionFormat1Sanitized::default())
@@ -2896,6 +3042,9 @@ pub struct ConditionFormat1Sanitized<'a> {
 }
 
 impl<'a> ConditionFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -2953,6 +3102,9 @@ pub struct ConditionFormat2Sanitized<'a> {
 }
 
 impl<'a> ConditionFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -3007,6 +3159,9 @@ pub struct ConditionFormat3Sanitized<'a> {
 }
 
 impl<'a> ConditionFormat3Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -3071,6 +3226,9 @@ pub struct ConditionFormat4Sanitized<'a> {
 }
 
 impl<'a> ConditionFormat4Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -3132,6 +3290,9 @@ pub struct ConditionFormat5Sanitized<'a> {
 }
 
 impl<'a> ConditionFormat5Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }
@@ -3191,6 +3352,9 @@ pub struct FeatureTableSubstitutionSanitized<'a> {
 }
 
 impl<'a> FeatureTableSubstitutionSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn version_pos(&self) -> usize {
         0
     }
@@ -3281,6 +3445,9 @@ pub struct SizeParamsSanitized<'a> {
 }
 
 impl<'a> SizeParamsSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn design_size_pos(&self) -> usize {
         0
     }
@@ -3345,6 +3512,9 @@ pub struct StylisticSetParamsSanitized<'a> {
 }
 
 impl<'a> StylisticSetParamsSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn version_pos(&self) -> usize {
         0
     }
@@ -3392,6 +3562,9 @@ pub struct CharacterVariantParamsSanitized<'a> {
 }
 
 impl<'a> CharacterVariantParamsSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn format_pos(&self) -> usize {
         0
     }

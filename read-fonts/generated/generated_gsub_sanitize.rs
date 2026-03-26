@@ -36,6 +36,9 @@ pub struct GsubSanitized<'a> {
 }
 
 impl<'a> GsubSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn version_pos(&self) -> usize {
         0
     }
@@ -147,6 +150,21 @@ pub enum SubstitutionLookupSanitized<'a> {
     Reverse(LookupSanitized<'a, ReverseChainSingleSubstFormat1Sanitized<'a>>),
 }
 
+impl<'a> SubstitutionLookupSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Single(item) => item.offset_ptr(),
+            Self::Multiple(item) => item.offset_ptr(),
+            Self::Alternate(item) => item.offset_ptr(),
+            Self::Ligature(item) => item.offset_ptr(),
+            Self::Contextual(item) => item.offset_ptr(),
+            Self::ChainContextual(item) => item.offset_ptr(),
+            Self::Extension(item) => item.offset_ptr(),
+            Self::Reverse(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for SubstitutionLookupSanitized<'a> {
     fn default() -> Self {
         Self::Single(Default::default())
@@ -196,6 +214,15 @@ pub enum SingleSubstSanitized<'a> {
     Format2(SingleSubstFormat2Sanitized<'a>),
 }
 
+impl<'a> SingleSubstSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Format1(item) => item.offset_ptr(),
+            Self::Format2(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for SingleSubstSanitized<'a> {
     fn default() -> Self {
         Self::Format1(SingleSubstFormat1Sanitized::default())
@@ -235,6 +262,9 @@ pub struct SingleSubstFormat1Sanitized<'a> {
 }
 
 impl<'a> SingleSubstFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn subst_format_pos(&self) -> usize {
         0
     }
@@ -298,6 +328,9 @@ pub struct SingleSubstFormat2Sanitized<'a> {
 }
 
 impl<'a> SingleSubstFormat2Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn subst_format_pos(&self) -> usize {
         0
     }
@@ -371,6 +404,9 @@ pub struct MultipleSubstFormat1Sanitized<'a> {
 }
 
 impl<'a> MultipleSubstFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn subst_format_pos(&self) -> usize {
         0
     }
@@ -448,6 +484,9 @@ pub struct SequenceSanitized<'a> {
 }
 
 impl<'a> SequenceSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn glyph_count_pos(&self) -> usize {
         0
     }
@@ -499,6 +538,9 @@ pub struct AlternateSubstFormat1Sanitized<'a> {
 }
 
 impl<'a> AlternateSubstFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn subst_format_pos(&self) -> usize {
         0
     }
@@ -580,6 +622,9 @@ pub struct AlternateSetSanitized<'a> {
 }
 
 impl<'a> AlternateSetSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn glyph_count_pos(&self) -> usize {
         0
     }
@@ -631,6 +676,9 @@ pub struct LigatureSubstFormat1Sanitized<'a> {
 }
 
 impl<'a> LigatureSubstFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn subst_format_pos(&self) -> usize {
         0
     }
@@ -710,6 +758,9 @@ pub struct LigatureSetSanitized<'a> {
 }
 
 impl<'a> LigatureSetSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn ligature_count_pos(&self) -> usize {
         0
     }
@@ -765,6 +816,9 @@ pub struct LigatureSanitized<'a> {
 }
 
 impl<'a> LigatureSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn ligature_glyph_pos(&self) -> usize {
         0
     }
@@ -822,6 +876,9 @@ pub struct ExtensionSubstFormat1Sanitized<'a, T = ()> {
 }
 
 impl<'a, T> ExtensionSubstFormat1Sanitized<'a, T> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn subst_format_pos(&self) -> usize {
         0
     }
@@ -920,6 +977,20 @@ pub enum ExtensionSubtableSanitized<'a> {
     Reverse(ExtensionSubstFormat1Sanitized<'a, ReverseChainSingleSubstFormat1Sanitized<'a>>),
 }
 
+impl<'a> ExtensionSubtableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        match self {
+            Self::Single(item) => item.offset_ptr(),
+            Self::Multiple(item) => item.offset_ptr(),
+            Self::Alternate(item) => item.offset_ptr(),
+            Self::Ligature(item) => item.offset_ptr(),
+            Self::Contextual(item) => item.offset_ptr(),
+            Self::ChainContextual(item) => item.offset_ptr(),
+            Self::Reverse(item) => item.offset_ptr(),
+        }
+    }
+}
+
 impl<'a> Default for ExtensionSubtableSanitized<'a> {
     fn default() -> Self {
         Self::Single(Default::default())
@@ -978,6 +1049,9 @@ pub struct ReverseChainSingleSubstFormat1Sanitized<'a> {
 }
 
 impl<'a> ReverseChainSingleSubstFormat1Sanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
     fn subst_format_pos(&self) -> usize {
         0
     }
