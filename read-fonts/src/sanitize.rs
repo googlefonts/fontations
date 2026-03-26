@@ -285,26 +285,27 @@ where
 // This stores a `&'a u8` instead of a raw pointer in order to maintain... a lifetime..
 // does this even make sense probably not
 #[derive(Clone, Copy)]
-pub struct FontPtr<'a>(&'a u8);
+pub struct FontPtr<'a>(FontData<'a>);
 
 // default impl reuses a static slice of zeros
 impl<'a> Default for FontPtr<'a> {
     fn default() -> Self {
-        Self(&EMPTY_TABLE_BYTES[0])
+        Self(EMPTY_TABLE_BYTES.as_slice().into())
     }
 }
 
 impl<'a> FontPtr<'a> {
     /// Construct a `FontPtr` from a byte slice.
-    ///
-    /// Panics if the data is empty. (Should only be called after sanitize
-    /// succeeds.)
     pub fn new(data: FontData<'a>) -> Self {
-        Self(&data.as_bytes()[0])
+        if data.is_empty() {
+            Default::default()
+        } else {
+            Self(data)
+        }
     }
 
     fn raw(&self) -> *const u8 {
-        self.0 as *const u8
+        self.0.as_bytes().as_ptr()
     }
 
     pub(crate) unsafe fn read_at<T: Scalar>(&self, offset: usize) -> T {
@@ -323,8 +324,16 @@ impl<'a> FontPtr<'a> {
     }
 
     pub(crate) unsafe fn for_offset(&self, offset: usize) -> Self {
-        let raw = self.raw();
-        let new = raw.add(offset);
-        Self(&*new)
+        let inner = self.0.as_bytes();
+        let new = inner.get_unchecked(offset..);
+        Self(FontData::new(new))
+    }
+
+    pub fn into_font_data(self) -> FontData<'a> {
+        self.0
+    }
+
+    pub fn as_bytes(&self) -> &'a [u8] {
+        self.0.as_bytes()
     }
 }

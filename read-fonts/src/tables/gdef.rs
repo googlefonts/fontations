@@ -24,15 +24,12 @@ pub use super::layout::{
 
 /// temporary type to stand in for tables that will need manual impls
 #[cfg(feature = "sanitize")]
-pub struct ItemVariationStoreSanitized<'a> {
-    ptr: FontPtr<'a>,
-}
-
+pub type ItemVariationStoreSanitized<'a> = ItemVariationStore<'a>;
 #[cfg(feature = "sanitize")]
 unsafe impl<'a> ReadSanitized<'a> for ItemVariationStoreSanitized<'a> {
     type Args = ();
 
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
-        Self { ptr }
+        Self::read(ptr.into_font_data()).unwrap()
     }
 }
