@@ -19,6 +19,14 @@ impl Sanitize for ScriptList<'_> {
     }
 }
 
+impl<'a> ScriptList<'a> {
+    pub fn try_sanitize(&self) -> Result<ScriptListSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ScriptListSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct ScriptListSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -109,6 +117,14 @@ impl Sanitize for Script<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> Script<'a> {
+    pub fn try_sanitize(&self) -> Result<ScriptSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ScriptSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -211,6 +227,14 @@ impl Sanitize for LangSys<'_> {
     }
 }
 
+impl<'a> LangSys<'a> {
+    pub fn try_sanitize(&self) -> Result<LangSysSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { LangSysSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct LangSysSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -263,6 +287,14 @@ impl Sanitize for FeatureList<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> FeatureList<'a> {
+    pub fn try_sanitize(&self) -> Result<FeatureListSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { FeatureListSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -419,6 +451,14 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for LookupList<'a, T> {
     }
 }
 
+impl<'a, T: FontRead<'a> + Sanitize> LookupList<'a, T> {
+    pub fn try_sanitize(&self) -> Result<LookupListSanitized<'a, ()>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { LookupListSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct LookupListSanitized<'a, T = ()> {
     pub(crate) ptr: FontPtr<'a>,
@@ -499,6 +539,14 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for Lookup<'a, T> {
             });
         }
         Ok(())
+    }
+}
+
+impl<'a, T: FontRead<'a> + Sanitize> Lookup<'a, T> {
+    pub fn try_sanitize(&self) -> Result<LookupSanitized<'a, ()>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { LookupSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -598,6 +646,14 @@ impl Sanitize for CoverageFormat1<'_> {
     }
 }
 
+impl<'a> CoverageFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<CoverageFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { CoverageFormat1Sanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct CoverageFormat1Sanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -648,6 +704,14 @@ impl Sanitize for CoverageFormat2<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> CoverageFormat2<'a> {
+    pub fn try_sanitize(&self) -> Result<CoverageFormat2Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { CoverageFormat2Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -742,6 +806,14 @@ impl<'a> Sanitize for CoverageTable<'a> {
     }
 }
 
+impl<'a> CoverageTable<'a> {
+    pub fn try_sanitize(&self) -> Result<CoverageTableSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { CoverageTableSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum CoverageTableSanitized<'a> {
     Format1(CoverageFormat1Sanitized<'a>),
@@ -773,6 +845,14 @@ impl Sanitize for ClassDefFormat1<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+impl<'a> ClassDefFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<ClassDefFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ClassDefFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -833,6 +913,14 @@ impl Sanitize for ClassDefFormat2<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> ClassDefFormat2<'a> {
+    pub fn try_sanitize(&self) -> Result<ClassDefFormat2Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ClassDefFormat2Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -929,6 +1017,14 @@ impl<'a> Sanitize for ClassDef<'a> {
     }
 }
 
+impl<'a> ClassDef<'a> {
+    pub fn try_sanitize(&self) -> Result<ClassDefSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ClassDefSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum ClassDefSanitized<'a> {
     Format1(ClassDefFormat1Sanitized<'a>),
@@ -995,6 +1091,14 @@ impl Sanitize for SequenceContextFormat1<'_> {
             r?.sanitize()?;
         }
         Ok(())
+    }
+}
+
+impl<'a> SequenceContextFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<SequenceContextFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SequenceContextFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -1071,6 +1175,14 @@ impl Sanitize for SequenceRuleSet<'_> {
     }
 }
 
+impl<'a> SequenceRuleSet<'a> {
+    pub fn try_sanitize(&self) -> Result<SequenceRuleSetSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SequenceRuleSetSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct SequenceRuleSetSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -1123,6 +1235,14 @@ impl Sanitize for SequenceRule<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> SequenceRule<'a> {
+    pub fn try_sanitize(&self) -> Result<SequenceRuleSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SequenceRuleSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -1190,6 +1310,14 @@ impl Sanitize for SequenceContextFormat2<'_> {
             r?.sanitize()?;
         }
         Ok(())
+    }
+}
+
+impl<'a> SequenceContextFormat2<'a> {
+    pub fn try_sanitize(&self) -> Result<SequenceContextFormat2Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SequenceContextFormat2Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -1281,6 +1409,14 @@ impl Sanitize for ClassSequenceRuleSet<'_> {
     }
 }
 
+impl<'a> ClassSequenceRuleSet<'a> {
+    pub fn try_sanitize(&self) -> Result<ClassSequenceRuleSetSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ClassSequenceRuleSetSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct ClassSequenceRuleSetSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -1337,6 +1473,14 @@ impl Sanitize for ClassSequenceRule<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> ClassSequenceRule<'a> {
+    pub fn try_sanitize(&self) -> Result<ClassSequenceRuleSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ClassSequenceRuleSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -1409,6 +1553,14 @@ impl Sanitize for SequenceContextFormat3<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> SequenceContextFormat3<'a> {
+    pub fn try_sanitize(&self) -> Result<SequenceContextFormat3Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SequenceContextFormat3Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -1487,6 +1639,14 @@ impl<'a> Sanitize for SequenceContext<'a> {
     }
 }
 
+impl<'a> SequenceContext<'a> {
+    pub fn try_sanitize(&self) -> Result<SequenceContextSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SequenceContextSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum SequenceContextSanitized<'a> {
     Format1(SequenceContextFormat1Sanitized<'a>),
@@ -1527,6 +1687,14 @@ impl Sanitize for ChainedSequenceContextFormat1<'_> {
             r?.sanitize()?;
         }
         Ok(())
+    }
+}
+
+impl<'a> ChainedSequenceContextFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<ChainedSequenceContextFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ChainedSequenceContextFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -1603,6 +1771,14 @@ impl Sanitize for ChainedSequenceRuleSet<'_> {
     }
 }
 
+impl<'a> ChainedSequenceRuleSet<'a> {
+    pub fn try_sanitize(&self) -> Result<ChainedSequenceRuleSetSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ChainedSequenceRuleSetSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct ChainedSequenceRuleSetSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -1667,6 +1843,14 @@ impl Sanitize for ChainedSequenceRule<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> ChainedSequenceRule<'a> {
+    pub fn try_sanitize(&self) -> Result<ChainedSequenceRuleSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ChainedSequenceRuleSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -1776,6 +1960,14 @@ impl Sanitize for ChainedSequenceContextFormat2<'_> {
             r?.sanitize()?;
         }
         Ok(())
+    }
+}
+
+impl<'a> ChainedSequenceContextFormat2<'a> {
+    pub fn try_sanitize(&self) -> Result<ChainedSequenceContextFormat2Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ChainedSequenceContextFormat2Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -1901,6 +2093,14 @@ impl Sanitize for ChainedClassSequenceRuleSet<'_> {
     }
 }
 
+impl<'a> ChainedClassSequenceRuleSet<'a> {
+    pub fn try_sanitize(&self) -> Result<ChainedClassSequenceRuleSetSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ChainedClassSequenceRuleSetSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct ChainedClassSequenceRuleSetSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -1965,6 +2165,14 @@ impl Sanitize for ChainedClassSequenceRule<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> ChainedClassSequenceRule<'a> {
+    pub fn try_sanitize(&self) -> Result<ChainedClassSequenceRuleSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ChainedClassSequenceRuleSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -2086,6 +2294,14 @@ impl Sanitize for ChainedSequenceContextFormat3<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> ChainedSequenceContextFormat3<'a> {
+    pub fn try_sanitize(&self) -> Result<ChainedSequenceContextFormat3Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ChainedSequenceContextFormat3Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -2222,6 +2438,14 @@ impl<'a> Sanitize for ChainedSequenceContext<'a> {
     }
 }
 
+impl<'a> ChainedSequenceContext<'a> {
+    pub fn try_sanitize(&self) -> Result<ChainedSequenceContextSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ChainedSequenceContextSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum ChainedSequenceContextSanitized<'a> {
     Format1(ChainedSequenceContextFormat1Sanitized<'a>),
@@ -2261,6 +2485,14 @@ impl Sanitize for Device<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+impl<'a> Device<'a> {
+    pub fn try_sanitize(&self) -> Result<DeviceSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { DeviceSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -2318,6 +2550,14 @@ impl Sanitize for VariationIndex<'_> {
     }
 }
 
+impl<'a> VariationIndex<'a> {
+    pub fn try_sanitize(&self) -> Result<VariationIndexSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { VariationIndexSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct VariationIndexSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -2364,6 +2604,14 @@ impl<'a> Sanitize for DeviceOrVariationIndex<'a> {
     }
 }
 
+impl<'a> DeviceOrVariationIndex<'a> {
+    pub fn try_sanitize(&self) -> Result<DeviceOrVariationIndexSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { DeviceOrVariationIndexSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum DeviceOrVariationIndexSanitized<'a> {
     Device(DeviceSanitized<'a>),
@@ -2405,6 +2653,14 @@ impl Sanitize for FeatureVariations<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> FeatureVariations<'a> {
+    pub fn try_sanitize(&self) -> Result<FeatureVariationsSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { FeatureVariationsSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -2516,6 +2772,14 @@ impl Sanitize for ConditionSet<'_> {
     }
 }
 
+impl<'a> ConditionSet<'a> {
+    pub fn try_sanitize(&self) -> Result<ConditionSetSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ConditionSetSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct ConditionSetSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -2568,6 +2832,14 @@ impl<'a> Sanitize for Condition<'a> {
     }
 }
 
+impl<'a> Condition<'a> {
+    pub fn try_sanitize(&self) -> Result<ConditionSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ConditionSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum ConditionSanitized<'a> {
     Format1AxisRange(ConditionFormat1Sanitized<'a>),
@@ -2607,6 +2879,14 @@ unsafe impl<'a> ReadSanitized<'a> for ConditionSanitized<'a> {
 impl Sanitize for ConditionFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         Ok(())
+    }
+}
+
+impl<'a> ConditionFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<ConditionFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ConditionFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -2659,6 +2939,14 @@ impl Sanitize for ConditionFormat2<'_> {
     }
 }
 
+impl<'a> ConditionFormat2<'a> {
+    pub fn try_sanitize(&self) -> Result<ConditionFormat2Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ConditionFormat2Sanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct ConditionFormat2Sanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -2702,6 +2990,14 @@ impl Sanitize for ConditionFormat3<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> ConditionFormat3<'a> {
+    pub fn try_sanitize(&self) -> Result<ConditionFormat3Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ConditionFormat3Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -2761,6 +3057,14 @@ impl Sanitize for ConditionFormat4<'_> {
     }
 }
 
+impl<'a> ConditionFormat4<'a> {
+    pub fn try_sanitize(&self) -> Result<ConditionFormat4Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ConditionFormat4Sanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct ConditionFormat4Sanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -2814,6 +3118,14 @@ impl Sanitize for ConditionFormat5<'_> {
     }
 }
 
+impl<'a> ConditionFormat5<'a> {
+    pub fn try_sanitize(&self) -> Result<ConditionFormat5Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ConditionFormat5Sanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct ConditionFormat5Sanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -2862,6 +3174,14 @@ impl Sanitize for FeatureTableSubstitution<'_> {
             record.sanitize_record(data)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> FeatureTableSubstitution<'a> {
+    pub fn try_sanitize(&self) -> Result<FeatureTableSubstitutionSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { FeatureTableSubstitutionSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -2947,6 +3267,14 @@ impl Sanitize for SizeParams<'_> {
     }
 }
 
+impl<'a> SizeParams<'a> {
+    pub fn try_sanitize(&self) -> Result<SizeParamsSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SizeParamsSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct SizeParamsSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -3003,6 +3331,14 @@ impl Sanitize for StylisticSetParams<'_> {
     }
 }
 
+impl<'a> StylisticSetParams<'a> {
+    pub fn try_sanitize(&self) -> Result<StylisticSetParamsSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { StylisticSetParamsSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct StylisticSetParamsSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -3039,6 +3375,14 @@ impl Sanitize for CharacterVariantParams<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+impl<'a> CharacterVariantParams<'a> {
+    pub fn try_sanitize(&self) -> Result<CharacterVariantParamsSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { CharacterVariantParamsSanitized::read_sanitized(ptr, &()) })
     }
 }
 

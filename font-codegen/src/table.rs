@@ -8,7 +8,7 @@ use crate::{
 };
 use indexmap::IndexMap;
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 
 use crate::parsing::{Attr, GenericGroup, Item, Items, OffsetTarget, Phase};
 
@@ -1195,6 +1195,33 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
         stmts.push(stmt);
     }
 
+    // Generate try_sanitize on the original type unless the sanitized version
+    // requires non-unit args (i.e. the table has #[read_args(...)]).
+    let try_sanitize_impl = if item.fields.read_args.is_none() {
+        let sanitized_name = format_ident!("{}Sanitized", name);
+        let (ts_impl_g, ts_type_g, ts_ret) = if let Some(gattr) = generic {
+            let t = &gattr.attr;
+            (
+                quote!(<'a, #t: FontRead<'a> + Sanitize>),
+                quote!(<'a, #t>),
+                quote!(#sanitized_name<'a, ()>),
+            )
+        } else {
+            (quote!(<'a>), quote!(<'a>), quote!(#sanitized_name<'a>))
+        };
+        quote! {
+            impl #ts_impl_g #name #ts_type_g {
+                pub fn try_sanitize(&self) -> Result<#ts_ret, ReadError> {
+                    self.sanitize()?;
+                    let ptr = FontPtr::new(self.offset_data());
+                    Ok(unsafe { #sanitized_name::read_sanitized(ptr, &()) })
+                }
+            }
+        }
+    } else {
+        quote!()
+    };
+
     Ok(quote! {
         impl #impl_generics Sanitize for #name #type_generics {
             fn sanitize(&self) -> Result<(), ReadError> {
@@ -1202,11 +1229,13 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
                 Ok(())
             }
         }
+        #try_sanitize_impl
     })
 }
 
 pub(crate) fn generate_format_sanitize(item: &TableFormat) -> syn::Result<TokenStream> {
     let name = &item.name;
+    let sanitized_name = format_ident!("{}Sanitized", name);
 
     let match_arms = item
         .variants
@@ -1226,11 +1255,20 @@ pub(crate) fn generate_format_sanitize(item: &TableFormat) -> syn::Result<TokenS
                 }
             }
         }
+
+        impl<'a> #name<'a> {
+            pub fn try_sanitize(&self) -> Result<#sanitized_name<'a>, ReadError> {
+                self.sanitize()?;
+                let ptr = FontPtr::new(self.offset_data());
+                Ok(unsafe { #sanitized_name::read_sanitized(ptr, &()) })
+            }
+        }
     })
 }
 
 pub(crate) fn generate_group_sanitize(item: &GenericGroup) -> syn::Result<TokenStream> {
     let name = &item.name;
+    let sanitized_name = format_ident!("{}Sanitized", name);
 
     let match_arms = item.variants.iter().map(|variant| {
         let var_name = &variant.name;
@@ -1244,6 +1282,14 @@ pub(crate) fn generate_group_sanitize(item: &GenericGroup) -> syn::Result<TokenS
                 match self {
                     #(#match_arms)*
                 }
+            }
+        }
+
+        impl<'a> #name<'a> {
+            pub fn try_sanitize(&self) -> Result<#sanitized_name<'a>, ReadError> {
+                self.sanitize()?;
+                let ptr = FontPtr::new(self.of_unit_type().offset_data());
+                Ok(unsafe { #sanitized_name::read_sanitized(ptr, &()) })
             }
         }
     })

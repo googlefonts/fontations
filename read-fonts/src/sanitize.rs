@@ -295,6 +295,14 @@ impl<'a> Default for FontPtr<'a> {
 }
 
 impl<'a> FontPtr<'a> {
+    /// Construct a `FontPtr` from a byte slice.
+    ///
+    /// Panics if the data is empty. (Should only be called after sanitize
+    /// succeeds.)
+    pub fn new(data: FontData<'a>) -> Self {
+        Self(&data.as_bytes()[0])
+    }
+
     fn raw(&self) -> *const u8 {
         self.0 as *const u8
     }

@@ -39,6 +39,14 @@ impl Sanitize for Gdef<'_> {
     }
 }
 
+impl<'a> Gdef<'a> {
+    pub fn try_sanitize(&self) -> Result<GdefSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { GdefSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct GdefSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -153,6 +161,14 @@ impl Sanitize for AttachList<'_> {
     }
 }
 
+impl<'a> AttachList<'a> {
+    pub fn try_sanitize(&self) -> Result<AttachListSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { AttachListSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct AttachListSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -215,6 +231,14 @@ impl Sanitize for AttachPoint<'_> {
     }
 }
 
+impl<'a> AttachPoint<'a> {
+    pub fn try_sanitize(&self) -> Result<AttachPointSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { AttachPointSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct AttachPointSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -255,6 +279,14 @@ impl Sanitize for LigCaretList<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> LigCaretList<'a> {
+    pub fn try_sanitize(&self) -> Result<LigCaretListSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { LigCaretListSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -322,6 +354,14 @@ impl Sanitize for LigGlyph<'_> {
     }
 }
 
+impl<'a> LigGlyph<'a> {
+    pub fn try_sanitize(&self) -> Result<LigGlyphSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { LigGlyphSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct LigGlyphSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -370,6 +410,14 @@ impl<'a> Sanitize for CaretValue<'a> {
     }
 }
 
+impl<'a> CaretValue<'a> {
+    pub fn try_sanitize(&self) -> Result<CaretValueSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { CaretValueSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum CaretValueSanitized<'a> {
     Format1(CaretValueFormat1Sanitized<'a>),
@@ -399,6 +447,14 @@ unsafe impl<'a> ReadSanitized<'a> for CaretValueSanitized<'a> {
 impl Sanitize for CaretValueFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         Ok(())
+    }
+}
+
+impl<'a> CaretValueFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<CaretValueFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { CaretValueFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -437,6 +493,14 @@ impl Sanitize for CaretValueFormat2<'_> {
     }
 }
 
+impl<'a> CaretValueFormat2<'a> {
+    pub fn try_sanitize(&self) -> Result<CaretValueFormat2Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { CaretValueFormat2Sanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct CaretValueFormat2Sanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -470,6 +534,14 @@ impl Sanitize for CaretValueFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.device())?;
         Ok(())
+    }
+}
+
+impl<'a> CaretValueFormat3<'a> {
+    pub fn try_sanitize(&self) -> Result<CaretValueFormat3Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { CaretValueFormat3Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -524,6 +596,14 @@ impl Sanitize for MarkGlyphSets<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> MarkGlyphSets<'a> {
+    pub fn try_sanitize(&self) -> Result<MarkGlyphSetsSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { MarkGlyphSetsSanitized::read_sanitized(ptr, &()) })
     }
 }
 

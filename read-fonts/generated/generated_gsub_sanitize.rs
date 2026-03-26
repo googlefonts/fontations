@@ -22,6 +22,14 @@ impl Sanitize for Gsub<'_> {
     }
 }
 
+impl<'a> Gsub<'a> {
+    pub fn try_sanitize(&self) -> Result<GsubSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { GsubSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct GsubSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -119,6 +127,14 @@ impl<'a> Sanitize for SubstitutionLookup<'a> {
     }
 }
 
+impl<'a> SubstitutionLookup<'a> {
+    pub fn try_sanitize(&self) -> Result<SubstitutionLookupSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.of_unit_type().offset_data());
+        Ok(unsafe { SubstitutionLookupSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum SubstitutionLookupSanitized<'a> {
     Single(LookupSanitized<'a, SingleSubstSanitized<'a>>),
@@ -166,6 +182,14 @@ impl<'a> Sanitize for SingleSubst<'a> {
     }
 }
 
+impl<'a> SingleSubst<'a> {
+    pub fn try_sanitize(&self) -> Result<SingleSubstSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SingleSubstSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum SingleSubstSanitized<'a> {
     Format1(SingleSubstFormat1Sanitized<'a>),
@@ -194,6 +218,14 @@ impl Sanitize for SingleSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
         Ok(())
+    }
+}
+
+impl<'a> SingleSubstFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<SingleSubstFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SingleSubstFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -249,6 +281,14 @@ impl Sanitize for SingleSubstFormat2<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+impl<'a> SingleSubstFormat2<'a> {
+    pub fn try_sanitize(&self) -> Result<SingleSubstFormat2Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SingleSubstFormat2Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -314,6 +354,14 @@ impl Sanitize for MultipleSubstFormat1<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> MultipleSubstFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<MultipleSubstFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { MultipleSubstFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -386,6 +434,14 @@ impl Sanitize for Sequence<'_> {
     }
 }
 
+impl<'a> Sequence<'a> {
+    pub fn try_sanitize(&self) -> Result<SequenceSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { SequenceSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct SequenceSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -426,6 +482,14 @@ impl Sanitize for AlternateSubstFormat1<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> AlternateSubstFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<AlternateSubstFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { AlternateSubstFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -502,6 +566,14 @@ impl Sanitize for AlternateSet<'_> {
     }
 }
 
+impl<'a> AlternateSet<'a> {
+    pub fn try_sanitize(&self) -> Result<AlternateSetSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { AlternateSetSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct AlternateSetSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -542,6 +614,14 @@ impl Sanitize for LigatureSubstFormat1<'_> {
             sanitize_ignoring_null(item)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> LigatureSubstFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<LigatureSubstFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { LigatureSubstFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -616,6 +696,14 @@ impl Sanitize for LigatureSet<'_> {
     }
 }
 
+impl<'a> LigatureSet<'a> {
+    pub fn try_sanitize(&self) -> Result<LigatureSetSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { LigatureSetSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct LigatureSetSanitized<'a> {
     pub(crate) ptr: FontPtr<'a>,
@@ -660,6 +748,14 @@ impl Sanitize for Ligature<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+impl<'a> Ligature<'a> {
+    pub fn try_sanitize(&self) -> Result<LigatureSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { LigatureSanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -708,6 +804,14 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for ExtensionSubstFormat1<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.extension())?;
         Ok(())
+    }
+}
+
+impl<'a, T: FontRead<'a> + Sanitize> ExtensionSubstFormat1<'a, T> {
+    pub fn try_sanitize(&self) -> Result<ExtensionSubstFormat1Sanitized<'a, ()>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ExtensionSubstFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
@@ -797,6 +901,14 @@ impl<'a> Sanitize for ExtensionSubtable<'a> {
     }
 }
 
+impl<'a> ExtensionSubtable<'a> {
+    pub fn try_sanitize(&self) -> Result<ExtensionSubtableSanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.of_unit_type().offset_data());
+        Ok(unsafe { ExtensionSubtableSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
 #[derive(Clone)]
 pub enum ExtensionSubtableSanitized<'a> {
     Single(ExtensionSubstFormat1Sanitized<'a, SingleSubstSanitized<'a>>),
@@ -849,6 +961,14 @@ impl Sanitize for ReverseChainSingleSubstFormat1<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
+    }
+}
+
+impl<'a> ReverseChainSingleSubstFormat1<'a> {
+    pub fn try_sanitize(&self) -> Result<ReverseChainSingleSubstFormat1Sanitized<'a>, ReadError> {
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ReverseChainSingleSubstFormat1Sanitized::read_sanitized(ptr, &()) })
     }
 }
 
