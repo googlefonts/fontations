@@ -516,11 +516,19 @@ fn build_read_sanitized_init(
     }
 }
 
-/// Returns true if the given type name refers to a zerocopy-compatible `Record`
-/// that will get a sanitized version generated.
+/// Returns true if the given type name refers to a `Record` that will get a
+/// sanitized version generated — i.e., it has no lifetime and no struct fields
+/// whose own types lack sanitized versions.
 fn has_sanitized_record(name: &syn::Ident, items: &Items) -> bool {
     match items.get(name) {
-        Some(Item::Record(r)) => r.lifetime.is_none(),
+        Some(Item::Record(r)) => {
+            if r.lifetime.is_some() {
+                return false;
+            }
+            !r.fields.iter().any(|f| {
+                matches!(&f.typ, FieldType::Struct { typ } if !has_sanitized_record(typ, items))
+            })
+        }
         _ => false,
     }
 }
@@ -605,6 +613,11 @@ impl Field {
                 }
                 _ => quote!(()),
             },
+            FieldType::ComputedArray(array) => {
+                let inner = array.raw_inner_type();
+                let st = format_ident!("{}Sanitized", inner);
+                quote!(ComputedArraySanitized<'a, #st <'a>>)
+            }
             FieldType::Struct { typ } if has_sanitized_record(typ, items) => {
                 let st = format_ident!("{}Sanitized", typ);
                 quote!(#st)
@@ -642,9 +655,30 @@ impl Field {
             FieldType::Struct { .. } => {
                 quote!(unimplemented!("struct type lacks a ReadSanitized impl"))
             }
-            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
+            FieldType::ComputedArray(array) => {
+                let count_expr = self.attrs.count.as_deref().unwrap().sanitized_count_expr();
+                let read_args = self
+                    .attrs
+                    .read_with_args
+                    .as_deref()
+                    .map(FieldReadArgs::to_tokens_for_table_getter)
+                    .unwrap_or_else(|| quote!(()));
+                let inner = array.raw_inner_type();
+                quote! {
+                    let count = #count_expr;
+                    let args = #read_args;
+                    let item_len = <#inner as ComputeSize>::compute_size(&args).unwrap_or(0);
+                    ComputedArraySanitized::new(
+                        unsafe { self.ptr.for_offset(self.#pos_fn()) },
+                        count,
+                        item_len,
+                        args,
+                    )
+                }
+            }
+            FieldType::VarLenArray(_) => {
                 quote!(unimplemented!(
-                    "computed/var-len array not yet supported in read_sanitized"
+                    "var-len array not yet supported in read_sanitized"
                 ))
             }
             FieldType::PendingResolution { .. } => {

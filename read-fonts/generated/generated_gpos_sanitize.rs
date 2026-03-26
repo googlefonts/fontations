@@ -594,8 +594,16 @@ impl<'a> SinglePosFormat2Sanitized<'a> {
         unsafe { self.ptr.read_at(self.value_count_pos()) }
     }
 
-    pub fn value_records(&self) -> () {
-        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    pub fn value_records(&self) -> ComputedArraySanitized<'a, ValueRecordSanitized<'a>> {
+        let count = self.value_count() as usize;
+        let args = self.value_format();
+        let item_len = <ValueRecord as ComputeSize>::compute_size(&args).unwrap_or(0);
+        ComputedArraySanitized::new(
+            unsafe { self.ptr.for_offset(self.value_records_pos()) },
+            count,
+            item_len,
+            args,
+        )
     }
 }
 
@@ -763,8 +771,16 @@ impl<'a> PairSetSanitized<'a> {
         unsafe { self.ptr.read_at(self.pair_value_count_pos()) }
     }
 
-    pub fn pair_value_records(&self) -> () {
-        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    pub fn pair_value_records(&self) -> ComputedArraySanitized<'a, PairValueRecordSanitized<'a>> {
+        let count = self.pair_value_count() as usize;
+        let args = (self.value_format1(), self.value_format2());
+        let item_len = <PairValueRecord as ComputeSize>::compute_size(&args).unwrap_or(0);
+        ComputedArraySanitized::new(
+            unsafe { self.ptr.for_offset(self.pair_value_records_pos()) },
+            count,
+            item_len,
+            args,
+        )
     }
 }
 
@@ -944,8 +960,20 @@ impl<'a> PairPosFormat2Sanitized<'a> {
         unsafe { self.ptr.read_at(self.class2_count_pos()) }
     }
 
-    pub fn class1_records(&self) -> () {
-        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    pub fn class1_records(&self) -> ComputedArraySanitized<'a, Class1RecordSanitized<'a>> {
+        let count = self.class1_count() as usize;
+        let args = (
+            self.class2_count(),
+            self.value_format1(),
+            self.value_format2(),
+        );
+        let item_len = <Class1Record as ComputeSize>::compute_size(&args).unwrap_or(0);
+        ComputedArraySanitized::new(
+            unsafe { self.ptr.for_offset(self.class1_records_pos()) },
+            count,
+            item_len,
+            args,
+        )
     }
 }
 
@@ -1320,8 +1348,16 @@ impl<'a> BaseArraySanitized<'a> {
         unsafe { self.ptr.read_at(self.base_count_pos()) }
     }
 
-    pub fn base_records(&self) -> () {
-        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    pub fn base_records(&self) -> ComputedArraySanitized<'a, BaseRecordSanitized<'a>> {
+        let count = self.base_count() as usize;
+        let args = self.mark_class_count();
+        let item_len = <BaseRecord as ComputeSize>::compute_size(&args).unwrap_or(0);
+        ComputedArraySanitized::new(
+            unsafe { self.ptr.for_offset(self.base_records_pos()) },
+            count,
+            item_len,
+            args,
+        )
     }
 }
 
@@ -1582,8 +1618,16 @@ impl<'a> LigatureAttachSanitized<'a> {
         unsafe { self.ptr.read_at(self.component_count_pos()) }
     }
 
-    pub fn component_records(&self) -> () {
-        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    pub fn component_records(&self) -> ComputedArraySanitized<'a, ComponentRecordSanitized<'a>> {
+        let count = self.component_count() as usize;
+        let args = self.mark_class_count();
+        let item_len = <ComponentRecord as ComputeSize>::compute_size(&args).unwrap_or(0);
+        ComputedArraySanitized::new(
+            unsafe { self.ptr.for_offset(self.component_records_pos()) },
+            count,
+            item_len,
+            args,
+        )
     }
 }
 
@@ -1783,8 +1827,16 @@ impl<'a> Mark2ArraySanitized<'a> {
         unsafe { self.ptr.read_at(self.mark2_count_pos()) }
     }
 
-    pub fn mark2_records(&self) -> () {
-        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    pub fn mark2_records(&self) -> ComputedArraySanitized<'a, Mark2RecordSanitized<'a>> {
+        let count = self.mark2_count() as usize;
+        let args = self.mark_class_count();
+        let item_len = <Mark2Record as ComputeSize>::compute_size(&args).unwrap_or(0);
+        ComputedArraySanitized::new(
+            unsafe { self.ptr.for_offset(self.mark2_records_pos()) },
+            count,
+            item_len,
+            args,
+        )
     }
 }
 
