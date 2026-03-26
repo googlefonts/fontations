@@ -146,8 +146,7 @@ impl<'a> CffFontRef<'a> {
     /// Returns the mapping from character codes to glyph identifiers.
     pub fn encoding(&self) -> Option<CffEncoding<'a>> {
         let charset = self.charset()?;
-        let encoding =
-            Encoding::new(self.data.into(), self.top_dict.encoding_offset.get()?).ok()?;
+        let encoding = Encoding::new(self.data, self.top_dict.encoding_offset.get()?).ok()?;
         Some(CffEncoding { encoding, charset })
     }
 

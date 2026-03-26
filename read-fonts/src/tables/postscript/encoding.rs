@@ -78,8 +78,8 @@ impl<'a> Encoding<'a> {
     /// expert encodings, respectively.
     pub fn new(data: &'a [u8], offset: usize) -> Result<Self, ReadError> {
         match offset {
-            0 => return Ok(Self::Predefined(PredefinedEncoding::Standard)),
-            1 => return Ok(Self::Predefined(PredefinedEncoding::Expert)),
+            0 => Ok(Self::Predefined(PredefinedEncoding::Standard)),
+            1 => Ok(Self::Predefined(PredefinedEncoding::Expert)),
             _ => CustomEncoding::new(data.get(offset..).ok_or(ReadError::OutOfBounds)?)
                 .map(Self::Custom),
         }
@@ -135,7 +135,7 @@ impl<'a> CustomEncoding<'a> {
                 let supp = read_supplement!();
                 Ok(Self::Format1(ranges, supp))
             }
-            _ => return Err(ReadError::InvalidFormat(format as _)),
+            _ => Err(ReadError::InvalidFormat(format as _)),
         }
     }
 
@@ -415,7 +415,7 @@ mod tests {
             assert_eq!(
                 gid.unwrap(),
                 charset
-                    .glyph_id(StringId::new(EXPERT_ENCODING[code as usize] as u16))
+                    .glyph_id(StringId::new(EXPERT_ENCODING[code as usize]))
                     .unwrap()
             );
         }
