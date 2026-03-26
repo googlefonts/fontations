@@ -296,3 +296,141 @@ pub mod conditions {
         assert_eq!(table.bar(), Some(0xba4));
     }
 }
+
+#[cfg(feature = "sanitize")]
+pub mod sanitize {
+    include!("../generated/generated_test_sanitize.rs");
+    include!("../generated/generated_test_sanitize_sanitize.rs");
+
+    #[cfg(test)]
+    use font_test_data::bebuffer::BeBuffer;
+
+    // Builds a TableOne buffer: record_count followed by (ident, derp) pairs.
+    #[cfg(test)]
+    fn make_table_one(records: &[(u16, u16)]) -> BeBuffer {
+        let mut buf = BeBuffer::new().push(records.len() as u16);
+        for (ident, derp) in records {
+            buf = buf.push(*ident).push(*derp);
+        }
+        buf
+    }
+
+    #[test]
+    fn try_sanitize_table_one() {
+        let buf = make_table_one(&[(10, 20), (30, 40)]);
+        let table = TableOne::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.record_count(), 2);
+        let records = san.records();
+        assert_eq!(records[0].ident(), 10);
+        assert_eq!(records[0].derp(), 20);
+        assert_eq!(records[1].ident(), 30);
+        assert_eq!(records[1].derp(), 40);
+    }
+
+    #[test]
+    fn try_sanitize_table_two_format1() {
+        let buf = BeBuffer::new().push(1u16);
+        let table = TableTwoFormat1::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.format(), 1);
+    }
+
+    #[test]
+    fn try_sanitize_table_two_format2_null_child() {
+        let buf = BeBuffer::new()
+            .push(2u16) // format = 2
+            .push(0u16); // child_offset = null
+        let table = TableTwoFormat2::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.format(), 2);
+        assert!(san.child().is_none());
+    }
+
+    #[test]
+    fn try_sanitize_table_two_format2_with_child() {
+        // TableTwoFormat2 header is 4 bytes (format u16 + child_offset u16),
+        // so child_offset=4 points immediately after the header.
+        let buf = BeBuffer::new()
+            .push(2u16) // format = 2
+            .push(4u16) // child_offset = 4
+            // TableOne starts at offset 4
+            .push(1u16) // record_count = 1
+            .push(42u16) // records[0].ident
+            .push(99u16); // records[0].derp
+        let table = TableTwoFormat2::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.format(), 2);
+        let child = san.child().unwrap();
+        assert_eq!(child.record_count(), 1);
+        let records = child.records();
+        assert_eq!(records[0].ident(), 42);
+        assert_eq!(records[0].derp(), 99);
+    }
+
+    #[test]
+    fn try_sanitize_root_table() {
+        // RootTable (6 bytes): MajorMinor + subtable_offset=6
+        // GenericTable at byte 6 (6 bytes): type=1, count=1, offsets[0]=6
+        // TableOne at byte 12: 2 records
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0) // version (4 bytes)
+            .push(6u16) // subtable_offset -> GenericTable at byte 6
+            // GenericTable at byte 6
+            .push(1u16) // subtable_type = 1 (One/TableOne)
+            .push(1u16) // subtable_count = 1
+            .push(6u16) // subtable_offsets[0] = 6 (relative to GenericTable = byte 12)
+            // TableOne at byte 12
+            .push(2u16) // record_count = 2
+            .push(10u16) // records[0].ident
+            .push(20u16) // records[0].derp
+            .push(30u16) // records[1].ident
+            .push(40u16); // records[1].derp
+        let table = RootTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.version(), MajorMinor::VERSION_1_0);
+        let TableGroupSanitized::One(generic) = san.subtable() else {
+            panic!("expected TableGroupSanitized::One");
+        };
+        assert_eq!(generic.subtable_type(), 1);
+        assert_eq!(generic.subtable_count(), 1);
+        let table_one = generic.subtables().get(0).unwrap();
+        assert_eq!(table_one.record_count(), 2);
+        let records = table_one.records();
+        assert_eq!(records[0].ident(), 10);
+        assert_eq!(records[0].derp(), 20);
+        assert_eq!(records[1].ident(), 30);
+        assert_eq!(records[1].derp(), 40);
+    }
+
+    #[test]
+    fn sanitize_fails_record_count_out_of_bounds() {
+        // record_count claims 100 records but only 1 record of data is present
+        let buf = BeBuffer::new()
+            .push(100u16) // record_count = 100 (far too many)
+            .push(1u16) // records[0].ident
+            .push(2u16); // records[0].derp
+        let table = TableOne::read(buf.data().into()).unwrap();
+        assert_eq!(table.sanitize(), Err(ReadError::OutOfBounds));
+    }
+
+    #[test]
+    fn sanitize_fails_bad_child_offset() {
+        // TableTwoFormat2 with a non-null but out-of-bounds child_offset
+        let buf = BeBuffer::new()
+            .push(2u16) // format = 2
+            .push(0x7fffu16); // child_offset = way out of bounds
+        let table = TableTwoFormat2::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+
+    #[test]
+    fn sanitize_fails_root_bad_subtable_offset() {
+        // RootTable with an out-of-bounds subtable_offset
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(0x7fffu16); // subtable_offset = way out of bounds
+        let table = RootTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+}
