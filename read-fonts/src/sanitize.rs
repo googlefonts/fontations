@@ -220,6 +220,66 @@ where
         })
     }
 }
+/// A sanitize-friendly analog of [`ComputedArray`].
+///
+/// Stores a `FontPtr` advanced to the start of the array data, along with a
+/// pre-computed per-item byte length and the args needed to read each item.
+/// Items are read on demand via [`ReadSanitized`] without bounds checking.
+pub struct ComputedArraySanitized<'a, T: ReadSanitized<'a>> {
+    ptr: FontPtr<'a>,
+    count: usize,
+    item_len: usize,
+    args: T::Args,
+}
+
+impl<'a, T: ReadSanitized<'a>> ComputedArraySanitized<'a, T> {
+    pub(crate) fn new(ptr: FontPtr<'a>, count: usize, item_len: usize, args: T::Args) -> Self {
+        Self {
+            ptr,
+            count,
+            item_len,
+            args,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.count
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+}
+
+impl<'a, T> ComputedArraySanitized<'a, T>
+where
+    T: ReadSanitized<'a>,
+    T::Args: Copy + 'static,
+{
+    /// Return the item at `idx`.
+    pub fn get(&self, idx: usize) -> T {
+        let offset = idx.saturating_mul(self.item_len);
+        unsafe { T::read_sanitized(self.ptr.for_offset(offset), &self.args) }
+    }
+
+    /// Iterate over all items.
+    pub fn iter(&self) -> impl Iterator<Item = T> + 'a {
+        let mut i = 0;
+        let count = self.count;
+        let item_len = self.item_len;
+        let args = self.args;
+        let ptr = self.ptr;
+        std::iter::from_fn(move || {
+            if i >= count {
+                return None;
+            }
+            let offset = i.saturating_mul(item_len);
+            i += 1;
+            Some(unsafe { T::read_sanitized(ptr.for_offset(offset), &args) })
+        })
+    }
+}
+
 // a utility type for reading fields from a pointer.
 //
 // This stores a `&'a u8` instead of a raw pointer in order to maintain... a lifetime..
@@ -254,7 +314,7 @@ impl<'a> FontPtr<'a> {
         std::slice::from_raw_parts(ptr as *const _, len)
     }
 
-    unsafe fn for_offset(&self, offset: usize) -> Self {
+    pub(crate) unsafe fn for_offset(&self, offset: usize) -> Self {
         let raw = self.raw();
         let new = raw.add(offset);
         Self(&*new)
