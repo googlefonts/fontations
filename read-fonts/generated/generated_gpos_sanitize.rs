@@ -789,6 +789,61 @@ impl SanitizeRecord for PairValueRecord {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct PairValueRecordSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    value_format1: ValueFormat,
+    value_format2: ValueFormat,
+}
+
+impl<'a> PairValueRecordSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn second_glyph_pos(&self) -> usize {
+        0
+    }
+    fn value_record1_pos(&self) -> usize {
+        self.second_glyph_pos() + GlyphId16::RAW_BYTE_LEN
+    }
+    fn value_record2_pos(&self) -> usize {
+        self.value_record1_pos()
+            + <ValueRecord as ComputeSize>::compute_size(&self.value_format1()).unwrap_or(0)
+    }
+
+    pub fn value_format1(&self) -> ValueFormat {
+        self.value_format1
+    }
+
+    pub fn value_format2(&self) -> ValueFormat {
+        self.value_format2
+    }
+
+    pub fn second_glyph(&self) -> GlyphId16 {
+        unsafe { self.ptr.read_at(self.second_glyph_pos()) }
+    }
+
+    pub fn value_record1(&self) -> () {
+        unimplemented!("struct type lacks a ReadSanitized impl")
+    }
+
+    pub fn value_record2(&self) -> () {
+        unimplemented!("struct type lacks a ReadSanitized impl")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for PairValueRecordSanitized<'a> {
+    type Args = (ValueFormat, ValueFormat);
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let (value_format1, value_format2) = *args;
+        Self {
+            ptr,
+            value_format1,
+            value_format2,
+        }
+    }
+}
+
 impl Sanitize for PairPosFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
@@ -909,12 +964,106 @@ impl SanitizeRecord for Class1Record<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct Class1RecordSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    class2_count: u16,
+    value_format1: ValueFormat,
+    value_format2: ValueFormat,
+}
+
+impl<'a> Class1RecordSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn class2_records_pos(&self) -> usize {
+        0
+    }
+
+    pub fn class2_count(&self) -> u16 {
+        self.class2_count
+    }
+
+    pub fn value_format1(&self) -> ValueFormat {
+        self.value_format1
+    }
+
+    pub fn value_format2(&self) -> ValueFormat {
+        self.value_format2
+    }
+
+    pub fn class2_records(&self) -> () {
+        unimplemented!("computed/var-len array not yet supported in read_sanitized")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for Class1RecordSanitized<'a> {
+    type Args = (u16, ValueFormat, ValueFormat);
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let (class2_count, value_format1, value_format2) = *args;
+        Self {
+            ptr,
+            class2_count,
+            value_format1,
+            value_format2,
+        }
+    }
+}
+
 #[allow(clippy::needless_lifetimes)]
 impl SanitizeRecord for Class2Record {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError> {
         self.value_record1().sanitize_record(data)?;
         self.value_record2().sanitize_record(data)?;
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct Class2RecordSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    value_format1: ValueFormat,
+    value_format2: ValueFormat,
+}
+
+impl<'a> Class2RecordSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn value_record1_pos(&self) -> usize {
+        0
+    }
+    fn value_record2_pos(&self) -> usize {
+        self.value_record1_pos()
+            + <ValueRecord as ComputeSize>::compute_size(&self.value_format1()).unwrap_or(0)
+    }
+
+    pub fn value_format1(&self) -> ValueFormat {
+        self.value_format1
+    }
+
+    pub fn value_format2(&self) -> ValueFormat {
+        self.value_format2
+    }
+
+    pub fn value_record1(&self) -> () {
+        unimplemented!("struct type lacks a ReadSanitized impl")
+    }
+
+    pub fn value_record2(&self) -> () {
+        unimplemented!("struct type lacks a ReadSanitized impl")
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for Class2RecordSanitized<'a> {
+    type Args = (ValueFormat, ValueFormat);
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let (value_format1, value_format2) = *args;
+        Self {
+            ptr,
+            value_format1,
+            value_format2,
+        }
     }
 }
 
@@ -1198,6 +1347,52 @@ impl SanitizeRecord for BaseRecord<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct BaseRecordSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    mark_class_count: u16,
+}
+
+impl<'a> BaseRecordSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn base_anchor_offsets_pos(&self) -> usize {
+        0
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn base_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.base_anchor_offsets_pos(),
+                self.mark_class_count() as usize,
+            )
+        }
+    }
+
+    pub fn base_anchors(
+        &self,
+    ) -> ArrayOfSanitizedNullableOffsets<'a, AnchorTableSanitized<'a>, Offset16> {
+        let offsets = self.base_anchor_offsets();
+        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for BaseRecordSanitized<'a> {
+    type Args = u16;
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            ptr,
+            mark_class_count,
+        }
+    }
+}
+
 impl Sanitize for MarkLigPosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.mark_coverage())?;
@@ -1414,6 +1609,52 @@ impl SanitizeRecord for ComponentRecord<'_> {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct ComponentRecordSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    mark_class_count: u16,
+}
+
+impl<'a> ComponentRecordSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn ligature_anchor_offsets_pos(&self) -> usize {
+        0
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn ligature_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.ligature_anchor_offsets_pos(),
+                self.mark_class_count() as usize,
+            )
+        }
+    }
+
+    pub fn ligature_anchors(
+        &self,
+    ) -> ArrayOfSanitizedNullableOffsets<'a, AnchorTableSanitized<'a>, Offset16> {
+        let offsets = self.ligature_anchor_offsets();
+        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for ComponentRecordSanitized<'a> {
+    type Args = u16;
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            ptr,
+            mark_class_count,
+        }
+    }
+}
+
 impl Sanitize for MarkMarkPosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.mark1_coverage())?;
@@ -1566,6 +1807,52 @@ impl SanitizeRecord for Mark2Record<'_> {
             r?.sanitize()?;
         }
         Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct Mark2RecordSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+    mark_class_count: u16,
+}
+
+impl<'a> Mark2RecordSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn mark2_anchor_offsets_pos(&self) -> usize {
+        0
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        self.mark_class_count
+    }
+
+    pub fn mark2_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        unsafe {
+            self.ptr.read_array_at(
+                self.mark2_anchor_offsets_pos(),
+                self.mark_class_count() as usize,
+            )
+        }
+    }
+
+    pub fn mark2_anchors(
+        &self,
+    ) -> ArrayOfSanitizedNullableOffsets<'a, AnchorTableSanitized<'a>, Offset16> {
+        let offsets = self.mark2_anchor_offsets();
+        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+    }
+}
+
+unsafe impl<'a> ReadSanitized<'a> for Mark2RecordSanitized<'a> {
+    type Args = u16;
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+        let mark_class_count = *args;
+        Self {
+            ptr,
+            mark_class_count,
+        }
     }
 }
 

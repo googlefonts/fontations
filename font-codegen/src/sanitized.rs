@@ -7,8 +7,8 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 
 use crate::parsing::{
-    Count, Field, FieldReadArgs, FieldType, GenericGroup, Item, Items, OffsetTarget, Record, Table,
-    TableFormat,
+    Count, Field, FieldReadArgs, FieldType, Fields, GenericGroup, Item, Items, OffsetTarget,
+    Record, Table, TableFormat,
 };
 
 /// Generate a `ReadSanitized` implementation for a table.
@@ -48,61 +48,7 @@ pub(crate) fn generate_read_sanitized_table(
     let read_sanitized_init =
         build_read_sanitized_init(&item.fields.read_args, phantom_init.as_ref());
 
-    // Build position and getter methods by walking fields in order.
-    let mut pos_methods: Vec<TokenStream> = Vec::new();
-    let mut getter_methods: Vec<TokenStream> = Vec::new();
-
-    // State for chaining _pos() methods.
-    //
-    // `prev_fn` is the last emitted _pos() method ident (None = start of table).
-    // `acc` is the accumulated byte count since `prev_fn` (None means 0).
-    let mut prev_fn: Option<syn::Ident> = None;
-    let mut acc: Option<TokenStream> = None;
-
-    for field in item.fields.iter() {
-        let this_len = field.sanitized_byte_len().unwrap();
-
-        if field.attrs.skip_getter.is_some() {
-            // Don't generate getter/pos, but account for this field's bytes.
-            acc = Some(match acc.take() {
-                None => this_len,
-                Some(prev) => quote!(#prev + #this_len),
-            });
-            continue;
-        }
-
-        let field_name = &field.name;
-        let pos_fn_ident = format_ident!("{}_pos", field_name);
-
-        // _pos() method
-        let pos_body = match (&prev_fn, &acc) {
-            (None, None) => quote!(0),
-            (None, Some(offset)) => quote!(#offset),
-            (Some(f), None) => quote!(self.#f()),
-            (Some(f), Some(a)) => quote!(self.#f() + #a),
-        };
-        pos_methods.push(quote! {
-            fn #pos_fn_ident(&self) -> usize { #pos_body }
-        });
-
-        // Advance state for the next field.
-        prev_fn = Some(pos_fn_ident.clone());
-        acc = Some(this_len);
-        let pos_fn = pos_fn_ident;
-
-        // Generate the primary getter method.
-        let getter_name = &field.name;
-        let ret = field.sanitized_table_getter_return_type(items);
-        let body = field.sanitized_table_getter_body(&pos_fn, items);
-        getter_methods.push(quote! {
-            pub fn #getter_name(&self) -> #ret { #body }
-        });
-
-        // For offset fields (and arrays of offsets), also generate a resolved/raw getter.
-        if let Some(resolved) = field.sanitized_table_offset_getter() {
-            getter_methods.push(resolved);
-        }
-    }
+    let (pos_methods, getter_methods) = build_pos_and_getter_methods(&item.fields, items);
 
     let impl_into_generic = generic.map(|t| {
         quote! {
@@ -148,25 +94,84 @@ pub(crate) fn generate_read_sanitized_table(
     })
 }
 
+/// Generate a pointer-based `ReadSanitized` struct for a record that cannot be
+/// represented as a plain zerocopy struct — i.e. it has `#[read_args]` and
+/// either a lifetime (array fields) or variable-size struct fields (like `ValueRecord`).
+///
+/// The generated struct stores `ptr: FontPtr<'a>` plus one field per `#[read_args]`
+/// argument, and uses the same `_pos()` / getter pattern as table sanitized types.
+fn generate_ptr_based_read_sanitized_record(
+    item: &Record,
+    items: &Items,
+) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let sanitized_name = format_ident!("{}Sanitized", name);
+
+    let (args_type, extra_struct_fields, args_init_stmts, arg_getters) =
+        build_args_info(&item.fields.read_args);
+
+    let args_param = if item.fields.read_args.is_some() {
+        quote!(args: &Self::Args)
+    } else {
+        quote!(_args: &Self::Args)
+    };
+
+    let read_sanitized_init = build_read_sanitized_init(&item.fields.read_args, None);
+
+    let (pos_methods, getter_methods) = build_pos_and_getter_methods(&item.fields, items);
+
+    Ok(quote! {
+        #[derive(Clone, Default)]
+        pub struct #sanitized_name<'a> {
+            pub(crate) ptr: FontPtr<'a>,
+            #(#extra_struct_fields,)*
+        }
+
+        impl<'a> #sanitized_name<'a> {
+            pub fn offset_ptr(&self) -> FontPtr<'a> { self.ptr }
+            #(#pos_methods)*
+            #(#arg_getters)*
+            #(#getter_methods)*
+        }
+
+        unsafe impl<'a> ReadSanitized<'a> for #sanitized_name<'a> {
+            type Args = #args_type;
+
+            unsafe fn read_sanitized(ptr: FontPtr<'a>, #args_param) -> Self {
+                #(#args_init_stmts)*
+                #read_sanitized_init
+            }
+        }
+    })
+}
+
 /// Generate a `ReadSanitized`-style struct for a record type.
 ///
-/// Only zerocopy-compatible records (no lifetimes, all scalar/offset/struct fields)
-/// get a sanitized version. Records with arrays are skipped.
+/// Records with `#[read_args]` that cannot be represented as a plain zerocopy struct
+/// (because they have a lifetime or variable-size struct fields) get a pointer-based
+/// struct instead. All other records with `#[read_args]` or only scalar/offset/struct
+/// fields get a zerocopy `#[repr(C, packed)]` struct.
 pub(crate) fn generate_read_sanitized_record(
     item: &Record,
     items: &Items,
 ) -> syn::Result<TokenStream> {
-    // Skip records with lifetimes (they contain arrays) — complex, handle later.
+    let has_unsupported_struct = item
+        .fields
+        .iter()
+        .any(|f| matches!(&f.typ, FieldType::Struct { typ } if !has_sanitized_record(typ, items)));
+
+    // Records with read_args that can't be zerocopy get a pointer-based sanitized struct.
+    if item.fields.read_args.is_some() && (item.lifetime.is_some() || has_unsupported_struct) {
+        return generate_ptr_based_read_sanitized_record(item, items);
+    }
+
+    // Skip records with lifetimes (they contain arrays without read_args).
     if item.lifetime.is_some() {
         return Ok(Default::default());
     }
 
     // Skip records that contain embedded struct fields whose type doesn't have
     // a sanitized version (e.g. extern types, variable-size records).
-    let has_unsupported_struct = item
-        .fields
-        .iter()
-        .any(|f| matches!(&f.typ, FieldType::Struct { typ } if !has_sanitized_record(typ, items)));
     if has_unsupported_struct {
         return Ok(Default::default());
     }
@@ -386,6 +391,70 @@ pub(crate) fn generate_read_sanitized_group(item: &GenericGroup) -> syn::Result<
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/// Build `(pos_methods, getter_methods)` by walking fields in order.
+///
+/// Used by both table and pointer-based record generation.  For each field:
+/// - A private `field_pos()` method is emitted that returns the byte offset of
+///   that field within the struct's data.  It chains off the previous field's
+///   position method, accumulating any bytes belonging to skipped fields.
+/// - A public getter method is emitted that reads the field value via the pos
+///   method.  Offset fields additionally get a resolved offset getter.
+fn build_pos_and_getter_methods(
+    fields: &Fields,
+    items: &Items,
+) -> (Vec<TokenStream>, Vec<TokenStream>) {
+    let mut pos_methods: Vec<TokenStream> = Vec::new();
+    let mut getter_methods: Vec<TokenStream> = Vec::new();
+
+    // `prev_fn`: ident of the last emitted _pos() method (None = start of struct).
+    // `acc`: accumulated byte count since `prev_fn` (None means 0).
+    let mut prev_fn: Option<syn::Ident> = None;
+    let mut acc: Option<TokenStream> = None;
+
+    for field in fields.iter() {
+        let this_len = field.sanitized_byte_len().unwrap();
+
+        if field.attrs.skip_getter.is_some() {
+            // Don't generate getter/pos, but account for this field's bytes.
+            acc = Some(match acc.take() {
+                None => this_len,
+                Some(prev) => quote!(#prev + #this_len),
+            });
+            continue;
+        }
+
+        let field_name = &field.name;
+        let pos_fn_ident = format_ident!("{}_pos", field_name);
+
+        let pos_body = match (&prev_fn, &acc) {
+            (None, None) => quote!(0),
+            (None, Some(offset)) => quote!(#offset),
+            (Some(f), None) => quote!(self.#f()),
+            (Some(f), Some(a)) => quote!(self.#f() + #a),
+        };
+        pos_methods.push(quote! {
+            fn #pos_fn_ident(&self) -> usize { #pos_body }
+        });
+
+        prev_fn = Some(pos_fn_ident.clone());
+        acc = Some(this_len);
+        let pos_fn = pos_fn_ident;
+
+        let ret = field.sanitized_table_getter_return_type(items);
+        let body = field.sanitized_table_getter_body(&pos_fn, items);
+        getter_methods.push(quote! {
+            pub fn #field_name(&self) -> #ret { #body }
+        });
+
+        // For offset fields (and arrays of offsets), also generate a resolved getter.
+        if let Some(resolved) = field.sanitized_table_offset_getter() {
+            getter_methods.push(resolved);
+        }
+    }
+
+    (pos_methods, getter_methods)
+}
 
 /// Returns (args_type, extra_struct_fields, args_init_stmts, arg_getters)
 /// for tables that have `#[read_args(...)]`.

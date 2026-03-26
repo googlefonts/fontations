@@ -49,7 +49,7 @@ mod sanitize_manual_impls {
 
     use types::{Nullable, Offset16};
 
-    use crate::sanitize::{FontPtr, ResolveSanitizedOffset};
+    use crate::sanitize::{FontPtr, ReadSanitized, ResolveSanitizedOffset};
 
     pub use super::super::layout::{
         ClassDefSanitized, CoverageTableSanitized, DeviceOrVariationIndexSanitized,
@@ -132,7 +132,7 @@ mod sanitize_manual_impls {
         }
     }
 
-    unsafe impl<'a> crate::sanitize::ReadSanitized<'a> for ValueRecordSanitized<'a> {
+    unsafe impl<'a> ReadSanitized<'a> for ValueRecordSanitized<'a> {
         type Args = super::ValueFormat;
         #[inline]
         unsafe fn read_sanitized(ptr: crate::sanitize::FontPtr<'a>, args: &Self::Args) -> Self {
@@ -140,6 +140,7 @@ mod sanitize_manual_impls {
         }
     }
 }
+
 #[cfg(feature = "sanitize")]
 pub use sanitize_manual_impls::*;
 
