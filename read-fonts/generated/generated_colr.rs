@@ -298,7 +298,9 @@ impl<'a> std::fmt::Debug for Colr<'a> {
 }
 
 /// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BaseGlyph {
@@ -348,7 +350,9 @@ impl<'a> SomeRecord<'a> for BaseGlyph {
 }
 
 /// [Layer](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct Layer {
@@ -478,7 +482,7 @@ impl<'a> std::fmt::Debug for BaseGlyphList<'a> {
 }
 
 /// [BaseGlyphPaint](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BaseGlyphPaint {
@@ -723,7 +727,7 @@ impl<'a> std::fmt::Debug for ClipList<'a> {
 }
 
 /// [Clip](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[derive(Clone, Debug, Copy, bytemuck_derive :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct Clip {
@@ -1148,7 +1152,9 @@ impl<'a> std::fmt::Debug for ClipBoxFormat2<'a> {
 }
 
 /// [ColorIndex](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ColorIndex {
@@ -1190,7 +1196,9 @@ impl<'a> SomeRecord<'a> for ColorIndex {
 }
 
 /// [VarColorIndex](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct VarColorIndex {
@@ -1240,7 +1248,9 @@ impl<'a> SomeRecord<'a> for VarColorIndex {
 }
 
 /// [ColorStop](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ColorStop {
@@ -1290,7 +1300,9 @@ impl<'a> SomeRecord<'a> for ColorStop {
 }
 
 /// [VarColorStop](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck_derive :: AnyBitPattern,
+)]
 #[repr(C)]
 #[repr(packed)]
 pub struct VarColorStop {
