@@ -302,12 +302,11 @@ impl<'a> Node<'a> {
             let idx = (min + max) / 2;
             let child_offset = self.child_offset(idx)?;
             let child_ch = *self.data.get(child_offset)? & 0x7F;
-            if child_ch == ch {
-                return Self::new_child(self.data, child_offset);
-            } else if child_ch < ch {
-                min = idx + 1;
-            } else {
-                max = idx;
+            use core::cmp::Ordering;
+            match child_ch.cmp(&ch) {
+                Ordering::Equal => return Self::new_child(self.data, child_offset),
+                Ordering::Less => min = idx + 1,
+                Ordering::Greater => max = idx,
             }
         }
         None
