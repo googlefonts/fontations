@@ -2,10 +2,7 @@
 
 include!("../../generated/generated_variations.rs");
 
-use super::{
-    glyf::{PointCoord, PointFlags, PointMarker},
-    gvar::GlyphDelta,
-};
+use super::glyf_types::{PointCoord, PointFlags, PointMarker};
 
 pub const NO_VARIATION_INDEX: u32 = 0xFFFFFFFF;
 /// Outer and inner indices for reading from an [ItemVariationStore].
@@ -1420,6 +1417,39 @@ where
         };
         self.cur += 1;
         Some(T::new(position as u16, dx, dy))
+    }
+}
+
+/// Delta information for a single point or component in a glyph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GlyphDelta {
+    /// The point or component index.
+    pub position: u16,
+    /// The x delta.
+    pub x_delta: i32,
+    /// The y delta.
+    pub y_delta: i32,
+}
+
+impl GlyphDelta {
+    /// Applies a tuple scalar to this delta.
+    pub fn apply_scalar<D: PointCoord>(self, scalar: Fixed) -> Point<D> {
+        let scalar = D::from_fixed(scalar);
+        Point::new(self.x_delta, self.y_delta).map(D::from_i32) * scalar
+    }
+}
+
+impl TupleDelta for GlyphDelta {
+    fn is_point() -> bool {
+        true
+    }
+
+    fn new(position: u16, x: i32, y: i32) -> Self {
+        Self {
+            position,
+            x_delta: x,
+            y_delta: y,
+        }
     }
 }
 
