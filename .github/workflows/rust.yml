@@ -119,6 +119,8 @@ jobs:
 
       - name: run codegen
         run: cargo run --bin=codegen resources/codegen_plan.toml
+      - name: build agl
+        run: python read-fonts/scripts/gen_agl.py
       - name: ensure no unstaged changes
         run: |
           git add .

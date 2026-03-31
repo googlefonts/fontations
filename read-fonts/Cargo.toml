@@ -31,6 +31,8 @@ spec_next = []
 default = ["std"]
 serde = ["dep:serde", "font-types/serde"]
 libm = ["dep:core_maths"]
+# Support for mapping glyph names <-> unicode via the Adobe glyph list
+agl = []
 
 [dependencies]
 font-types = { workspace = true, features = ["bytemuck"] }

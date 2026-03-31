@@ -75,6 +75,7 @@ pub mod collections;
 mod font_data;
 mod offset;
 mod offset_array;
+pub mod ps;
 mod read;
 mod table_provider;
 mod table_ref;
