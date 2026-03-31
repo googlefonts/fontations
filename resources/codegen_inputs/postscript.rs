@@ -143,3 +143,19 @@ record CharsetRange2 {
     /// Glyphs left in range (excluding first).
     n_left: u16,
 }
+
+/// Range struct for Encoding format 1.
+record EncodingRange1 {
+    /// First code in range.
+    first: u8,
+    /// Codes left in range (excluding first).
+    n_left: u8,
+}
+
+/// Supplemental encoding record.
+record EncodingSupplement {
+    /// Encoding.
+    code: u8,
+    /// Name.
+    glyph: u16
+}

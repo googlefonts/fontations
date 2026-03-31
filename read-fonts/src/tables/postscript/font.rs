@@ -4,7 +4,7 @@ mod cff;
 #[cfg(feature = "std")]
 mod type1;
 
-pub use cff::{CffFontRef, CffSubfont};
+pub use cff::{CffEncoding, CffFontRef, CffSubfont};
 #[cfg(feature = "std")]
 pub use type1::{Type1Encoding, Type1Font};
 

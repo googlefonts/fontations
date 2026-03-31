@@ -827,3 +827,83 @@ impl FromObjRef<read_fonts::tables::postscript::CharsetRange2> for CharsetRange2
         }
     }
 }
+
+/// Range struct for Encoding format 1.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct EncodingRange1 {
+    /// First code in range.
+    pub first: u8,
+    /// Codes left in range (excluding first).
+    pub n_left: u8,
+}
+
+impl EncodingRange1 {
+    /// Construct a new `EncodingRange1`
+    pub fn new(first: u8, n_left: u8) -> Self {
+        Self { first, n_left }
+    }
+}
+
+impl FontWrite for EncodingRange1 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.first.write_into(writer);
+        self.n_left.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("EncodingRange1")
+    }
+}
+
+impl Validate for EncodingRange1 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::tables::postscript::EncodingRange1> for EncodingRange1 {
+    fn from_obj_ref(obj: &read_fonts::tables::postscript::EncodingRange1, _: FontData) -> Self {
+        EncodingRange1 {
+            first: obj.first(),
+            n_left: obj.n_left(),
+        }
+    }
+}
+
+/// Supplemental encoding record.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct EncodingSupplement {
+    /// Encoding.
+    pub code: u8,
+    /// Name.
+    pub glyph: u16,
+}
+
+impl EncodingSupplement {
+    /// Construct a new `EncodingSupplement`
+    pub fn new(code: u8, glyph: u16) -> Self {
+        Self { code, glyph }
+    }
+}
+
+impl FontWrite for EncodingSupplement {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.code.write_into(writer);
+        self.glyph.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("EncodingSupplement")
+    }
+}
+
+impl Validate for EncodingSupplement {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::tables::postscript::EncodingSupplement> for EncodingSupplement {
+    fn from_obj_ref(obj: &read_fonts::tables::postscript::EncodingSupplement, _: FontData) -> Self {
+        EncodingSupplement {
+            code: obj.code(),
+            glyph: obj.glyph(),
+        }
+    }
+}
