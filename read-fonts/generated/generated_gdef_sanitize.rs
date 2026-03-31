@@ -459,7 +459,7 @@ impl<'a> CaretValueSanitized<'a> {
     }
 }
 
-impl<'a> Default for CaretValueSanitized<'a> {
+impl Default for CaretValueSanitized<'_> {
     fn default() -> Self {
         Self::Format1(CaretValueFormat1Sanitized::default())
     }

@@ -136,7 +136,7 @@ impl<'a, T> GenericTableSanitized<'a, T> {
     #[allow(dead_code)]
     pub(crate) fn of_unit_type(&self) -> GenericTableSanitized<'a, ()> {
         GenericTableSanitized {
-            ptr: self.ptr.clone(),
+            ptr: self.ptr,
             phantom: std::marker::PhantomData,
         }
     }
@@ -185,7 +185,7 @@ impl<'a> TableGroupSanitized<'a> {
     }
 }
 
-impl<'a> Default for TableGroupSanitized<'a> {
+impl Default for TableGroupSanitized<'_> {
     fn default() -> Self {
         Self::One(Default::default())
     }
@@ -422,7 +422,7 @@ impl<'a> TableTwoSanitized<'a> {
     }
 }
 
-impl<'a> Default for TableTwoSanitized<'a> {
+impl Default for TableTwoSanitized<'_> {
     fn default() -> Self {
         Self::Format1(TableTwoFormat1Sanitized::default())
     }

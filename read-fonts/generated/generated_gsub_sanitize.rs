@@ -165,7 +165,7 @@ impl<'a> SubstitutionLookupSanitized<'a> {
     }
 }
 
-impl<'a> Default for SubstitutionLookupSanitized<'a> {
+impl Default for SubstitutionLookupSanitized<'_> {
     fn default() -> Self {
         Self::Single(Default::default())
     }
@@ -240,7 +240,7 @@ impl<'a> SingleSubstSanitized<'a> {
     }
 }
 
-impl<'a> Default for SingleSubstSanitized<'a> {
+impl Default for SingleSubstSanitized<'_> {
     fn default() -> Self {
         Self::Format1(SingleSubstFormat1Sanitized::default())
     }
@@ -944,7 +944,7 @@ impl<'a, T> ExtensionSubstFormat1Sanitized<'a, T> {
     #[allow(dead_code)]
     pub(crate) fn of_unit_type(&self) -> ExtensionSubstFormat1Sanitized<'a, ()> {
         ExtensionSubstFormat1Sanitized {
-            ptr: self.ptr.clone(),
+            ptr: self.ptr,
             phantom: std::marker::PhantomData,
         }
     }
@@ -1008,7 +1008,7 @@ impl<'a> ExtensionSubtableSanitized<'a> {
     }
 }
 
-impl<'a> Default for ExtensionSubtableSanitized<'a> {
+impl Default for ExtensionSubtableSanitized<'_> {
     fn default() -> Self {
         Self::Single(Default::default())
     }

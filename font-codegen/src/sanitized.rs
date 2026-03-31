@@ -64,7 +64,7 @@ pub(crate) fn generate_read_sanitized_table(
             impl<'a, #t> #sanitized_name<'a, #t> {
                 #[allow(dead_code)]
                 pub(crate) fn of_unit_type(&self) -> #sanitized_name<'a, ()> {
-                    #sanitized_name { ptr: self.ptr.clone(), phantom: std::marker::PhantomData }
+                    #sanitized_name { ptr: self.ptr, phantom: std::marker::PhantomData }
                 }
             }
         }
@@ -387,7 +387,7 @@ pub(crate) fn generate_read_sanitized_format(
             #shared_getters
         }
 
-        impl<'a> Default for #sanitized_name<'a> {
+        impl Default for #sanitized_name<'_> {
             fn default() -> Self {
                 Self::#first_var(#first_typ_s::default())
             }
@@ -460,7 +460,7 @@ pub(crate) fn generate_read_sanitized_group(item: &GenericGroup) -> syn::Result<
             }
         }
 
-        impl<'a> Default for #sanitized_name<'a> {
+        impl Default for #sanitized_name<'_> {
             fn default() -> Self {
                 Self::#first_var(Default::default())
             }

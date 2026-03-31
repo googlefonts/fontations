@@ -168,7 +168,7 @@ impl<'a> PositionLookupSanitized<'a> {
     }
 }
 
-impl<'a> Default for PositionLookupSanitized<'a> {
+impl Default for PositionLookupSanitized<'_> {
     fn default() -> Self {
         Self::Single(Default::default())
     }
@@ -257,7 +257,7 @@ impl<'a> AnchorTableSanitized<'a> {
     }
 }
 
-impl<'a> Default for AnchorTableSanitized<'a> {
+impl Default for AnchorTableSanitized<'_> {
     fn default() -> Self {
         Self::Format1(AnchorFormat1Sanitized::default())
     }
@@ -628,7 +628,7 @@ impl<'a> SinglePosSanitized<'a> {
     }
 }
 
-impl<'a> Default for SinglePosSanitized<'a> {
+impl Default for SinglePosSanitized<'_> {
     fn default() -> Self {
         Self::Format1(SinglePosFormat1Sanitized::default())
     }
@@ -869,7 +869,7 @@ impl<'a> PairPosSanitized<'a> {
     }
 }
 
-impl<'a> Default for PairPosSanitized<'a> {
+impl Default for PairPosSanitized<'_> {
     fn default() -> Self {
         Self::Format1(PairPosFormat1Sanitized::default())
     }
@@ -2313,7 +2313,7 @@ impl<'a, T> ExtensionPosFormat1Sanitized<'a, T> {
     #[allow(dead_code)]
     pub(crate) fn of_unit_type(&self) -> ExtensionPosFormat1Sanitized<'a, ()> {
         ExtensionPosFormat1Sanitized {
-            ptr: self.ptr.clone(),
+            ptr: self.ptr,
             phantom: std::marker::PhantomData,
         }
     }
@@ -2380,7 +2380,7 @@ impl<'a> ExtensionSubtableSanitized<'a> {
     }
 }
 
-impl<'a> Default for ExtensionSubtableSanitized<'a> {
+impl Default for ExtensionSubtableSanitized<'_> {
     fn default() -> Self {
         Self::Single(Default::default())
     }

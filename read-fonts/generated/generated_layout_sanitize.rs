@@ -525,7 +525,7 @@ impl<'a, T> LookupListSanitized<'a, T> {
     #[allow(dead_code)]
     pub(crate) fn of_unit_type(&self) -> LookupListSanitized<'a, ()> {
         LookupListSanitized {
-            ptr: self.ptr.clone(),
+            ptr: self.ptr,
             phantom: std::marker::PhantomData,
         }
     }
@@ -641,7 +641,7 @@ impl<'a, T> LookupSanitized<'a, T> {
     #[allow(dead_code)]
     pub(crate) fn of_unit_type(&self) -> LookupSanitized<'a, ()> {
         LookupSanitized {
-            ptr: self.ptr.clone(),
+            ptr: self.ptr,
             phantom: std::marker::PhantomData,
         }
     }
@@ -864,7 +864,7 @@ impl<'a> CoverageTableSanitized<'a> {
     }
 }
 
-impl<'a> Default for CoverageTableSanitized<'a> {
+impl Default for CoverageTableSanitized<'_> {
     fn default() -> Self {
         Self::Format1(CoverageFormat1Sanitized::default())
     }
@@ -1098,7 +1098,7 @@ impl<'a> ClassDefSanitized<'a> {
     }
 }
 
-impl<'a> Default for ClassDefSanitized<'a> {
+impl Default for ClassDefSanitized<'_> {
     fn default() -> Self {
         Self::Format1(ClassDefFormat1Sanitized::default())
     }
@@ -1761,7 +1761,7 @@ impl<'a> SequenceContextSanitized<'a> {
     }
 }
 
-impl<'a> Default for SequenceContextSanitized<'a> {
+impl Default for SequenceContextSanitized<'_> {
     fn default() -> Self {
         Self::Format1(SequenceContextFormat1Sanitized::default())
     }
@@ -2600,7 +2600,7 @@ impl<'a> ChainedSequenceContextSanitized<'a> {
     }
 }
 
-impl<'a> Default for ChainedSequenceContextSanitized<'a> {
+impl Default for ChainedSequenceContextSanitized<'_> {
     fn default() -> Self {
         Self::Format1(ChainedSequenceContextFormat1Sanitized::default())
     }
@@ -2788,7 +2788,7 @@ impl<'a> DeviceOrVariationIndexSanitized<'a> {
     }
 }
 
-impl<'a> Default for DeviceOrVariationIndexSanitized<'a> {
+impl Default for DeviceOrVariationIndexSanitized<'_> {
     fn default() -> Self {
         Self::Device(DeviceSanitized::default())
     }
@@ -3048,7 +3048,7 @@ impl<'a> ConditionSanitized<'a> {
     }
 }
 
-impl<'a> Default for ConditionSanitized<'a> {
+impl Default for ConditionSanitized<'_> {
     fn default() -> Self {
         Self::Format1AxisRange(ConditionFormat1Sanitized::default())
     }

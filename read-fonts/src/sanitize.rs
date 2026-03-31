@@ -279,7 +279,9 @@ where
                 return None;
             }
             let offset = i.saturating_mul(item_len);
-            i += 1;
+            // if i == u32::MAX, our offset is out of bounds, but we don't
+            // want to loop forever on corrupt data..
+            i = i.checked_add(1)?;
             Some(unsafe { T::read_sanitized(ptr.for_offset(offset), &args) })
         })
     }
@@ -293,7 +295,7 @@ where
 pub struct FontPtr<'a>(FontData<'a>);
 
 // default impl reuses a static slice of zeros
-impl<'a> Default for FontPtr<'a> {
+impl Default for FontPtr<'_> {
     fn default() -> Self {
         Self(EMPTY_TABLE_BYTES.as_slice().into())
     }
