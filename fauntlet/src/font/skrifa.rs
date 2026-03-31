@@ -4,9 +4,10 @@ use skrifa::{
     outline::{DrawError, DrawSettings, HintingInstance, HintingOptions, OutlinePen},
     prelude::{LocationRef, Size},
     raw::{
-        tables::postscript::{
-            charstring::{CommandSink, NopFilterSink, TransformSink},
-            font::{CffFontRef, Type1Font},
+        ps::{
+            cff::CffFontRef,
+            cs::{CommandSink, NopFilterSink, TransformSink},
+            type1::Type1Font,
         },
         types::{F2Dot14, Fixed},
         FontRef, ReadError, TableProvider,
