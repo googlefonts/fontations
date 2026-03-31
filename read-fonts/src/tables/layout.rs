@@ -182,7 +182,7 @@ unsafe impl<'a> ReadSanitized<'a> for FeatureParamsSanitized<'a> {
             t if &t.to_raw()[..2] == b"cv" => {
                 Self::CharacterVariant(ReadSanitized::read_sanitized(ptr, &()))
             }
-            _ => unreachable!("caught in sanitization"),
+            _ => unreachable!("if ReadWithArgs worked for the base table, the tag is known"),
         }
     }
 }

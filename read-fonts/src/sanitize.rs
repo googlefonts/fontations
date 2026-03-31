@@ -1,5 +1,7 @@
 //! Pre-validating font data.
 
+#![deny(clippy::arithmetic_side_effects)]
+
 use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Nullable, Offset16, Scalar};
 
@@ -257,9 +259,12 @@ where
     T::Args: Copy + 'static,
 {
     /// Return the item at `idx`.
-    pub fn get(&self, idx: usize) -> T {
+    pub fn get(&self, idx: usize) -> Option<T> {
+        if idx >= self.count {
+            return None;
+        }
         let offset = idx.saturating_mul(self.item_len);
-        unsafe { T::read_sanitized(self.ptr.for_offset(offset), &self.args) }
+        Some(unsafe { T::read_sanitized(self.ptr.for_offset(offset), &self.args) })
     }
 
     /// Iterate over all items.
