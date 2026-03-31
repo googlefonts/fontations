@@ -1,4 +1,4 @@
-#![parse_module(read_fonts::tables::cff2)]
+#![parse_module(read_fonts::ps::cff::v2)]
 
 /// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
 table Cff2Header {
@@ -21,4 +21,18 @@ table Cff2Header {
     /// Remaining table data.
     #[count(..)]
     trailing_data: [u8],
+}
+
+/// An array of variable-sized objects in a `CFF2` table.
+table Index {
+    /// Number of objects stored in INDEX.
+    count: u32,
+    /// Object array element size.
+    off_size: u8,
+    /// Bytes containing `count + 1` offsets each of `off_size`.
+    #[count(add_multiply($count, 1, $off_size))]
+    offsets: [u8],
+    /// Array containing the object data.
+    #[count(..)]
+    data: [u8],
 }

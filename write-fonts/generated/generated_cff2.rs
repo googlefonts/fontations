@@ -68,8 +68,8 @@ impl Validate for Cff2Header {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::tables::cff2::Cff2Header<'a>> for Cff2Header {
-    fn from_obj_ref(obj: &read_fonts::tables::cff2::Cff2Header<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::ps::cff::v2::Cff2Header<'a>> for Cff2Header {
+    fn from_obj_ref(obj: &read_fonts::ps::cff::v2::Cff2Header<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Cff2Header {
             header_size: obj.header_size(),
@@ -82,10 +82,73 @@ impl<'a> FromObjRef<read_fonts::tables::cff2::Cff2Header<'a>> for Cff2Header {
 }
 
 #[allow(clippy::needless_lifetimes)]
-impl<'a> FromTableRef<read_fonts::tables::cff2::Cff2Header<'a>> for Cff2Header {}
+impl<'a> FromTableRef<read_fonts::ps::cff::v2::Cff2Header<'a>> for Cff2Header {}
 
 impl<'a> FontRead<'a> for Cff2Header {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::cff2::Cff2Header as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::ps::cff::v2::Cff2Header as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+/// An array of variable-sized objects in a `CFF2` table.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Index {
+    /// Number of objects stored in INDEX.
+    pub count: u32,
+    /// Object array element size.
+    pub off_size: u8,
+    /// Bytes containing `count + 1` offsets each of `off_size`.
+    pub offsets: Vec<u8>,
+    /// Array containing the object data.
+    pub data: Vec<u8>,
+}
+
+impl Index {
+    /// Construct a new `Index`
+    pub fn new(count: u32, off_size: u8, offsets: Vec<u8>, data: Vec<u8>) -> Self {
+        Self {
+            count,
+            off_size,
+            offsets,
+            data,
+        }
+    }
+}
+
+impl FontWrite for Index {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.count.write_into(writer);
+        self.off_size.write_into(writer);
+        self.offsets.write_into(writer);
+        self.data.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Index")
+    }
+}
+
+impl Validate for Index {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::ps::cff::v2::Index<'a>> for Index {
+    fn from_obj_ref(obj: &read_fonts::ps::cff::v2::Index<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Index {
+            count: obj.count(),
+            off_size: obj.off_size(),
+            offsets: obj.offsets().to_owned_obj(offset_data),
+            data: obj.data().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::ps::cff::v2::Index<'a>> for Index {}
+
+impl<'a> FontRead<'a> for Index {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::ps::cff::v2::Index as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

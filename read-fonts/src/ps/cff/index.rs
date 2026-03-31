@@ -2,8 +2,11 @@
 //!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#5-index-data>
 
-use super::{Error, Index1, Index2};
 use crate::codegen_prelude::*;
+use crate::ps::error::Error;
+
+#[doc(inline)]
+pub use super::{v1::Index as Index1, v2::Index as Index2};
 
 /// Common type for uniform access to CFF and CFF2 index formats.
 #[derive(Clone)]

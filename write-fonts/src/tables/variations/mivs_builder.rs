@@ -14,8 +14,8 @@ use types::F2Dot14;
 
 use crate::{
     error::Error,
+    ps::cff::v2::Index as Index2,
     tables::{
-        postscript::Index2,
         varc::{
             MultiItemVariationData, MultiItemVariationStore, SparseRegionAxisCoordinates,
             SparseVariationRegion, SparseVariationRegionList,

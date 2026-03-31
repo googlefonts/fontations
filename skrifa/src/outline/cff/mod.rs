@@ -4,15 +4,14 @@ mod hint;
 
 use super::{GlyphHMetrics, OutlinePen};
 use hint::{HintParams, HintState, HintingSink};
-use raw::tables::postscript::dict::{FontMatrix, ScaledFontMatrix};
 use read_fonts::{
-    tables::{
-        postscript::{
-            charstring::{self, CommandSink, NopFilterSink, TransformSink},
-            dict, BlendState, Error, FdSelect, Index,
-        },
-        variations::ItemVariationStore,
+    ps::{
+        cff::{blend::BlendState, dict, fd_select::FdSelect, index::Index},
+        cs::{self, CommandSink, NopFilterSink, TransformSink},
+        error::Error,
+        transform::{FontMatrix, ScaledFontMatrix},
     },
+    tables::variations::ItemVariationStore,
     types::{F2Dot14, Fixed, GlyphId},
     FontData, FontRead, FontRef, ReadError, TableProvider,
 };
@@ -338,7 +337,7 @@ impl CharstringEvaluator<'_> {
     fn evaluate(self, sink: &mut impl CommandSink) -> Result<Option<Fixed>, Error> {
         let subrs = self.subrs.unwrap_or_default();
         let ctx = (self.cff_data, &self.charstrings, &self.global_subrs, &subrs);
-        charstring::evaluate(&ctx, self.blend_state, self.charstring_data, sink)
+        cs::evaluate(&ctx, self.blend_state, self.charstring_data, sink)
     }
 }
 
@@ -639,9 +638,9 @@ mod tests {
         prelude::{LocationRef, Size},
         MetadataProvider,
     };
-    use dict::Blues;
     use font_test_data::bebuffer::BeBuffer;
     use raw::tables::cff2::Cff2;
+    use read_fonts::ps::hinting::Blues;
     use read_fonts::FontRef;
 
     #[test]

@@ -1,10 +1,10 @@
-//! PostScript string identifiers.
+//! String identifiers and the standard string table.
 
 /// PostScript string identifier (SID).
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct StringId(u16);
+pub struct Sid(u16);
 
-impl StringId {
+impl Sid {
     /// Creates an identifier from a 16-bit unsigned integer.
     pub const fn new(raw: u16) -> Self {
         Self(raw)
@@ -23,69 +23,21 @@ impl StringId {
     ///
     /// The standard string set is available in the section
     /// "Appendix A - Standard Strings" at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf>.
-    pub fn standard_string(self) -> Result<Latin1String<'static>, usize> {
+    pub fn resolve_standard(self) -> Result<&'static [u8], usize> {
         let ix = self.0 as usize;
         if let Some(string) = STANDARD_STRINGS.get(ix) {
             // The standard strings are all ASCII so it's safe to interpret them
             // as Latin-1. This is verified in a unit test.
-            Ok(Latin1String::new(string.as_bytes()))
+            Ok(string.as_bytes())
         } else {
             Err(ix - STANDARD_STRINGS.len())
         }
     }
 }
 
-impl From<i32> for StringId {
+impl From<i32> for Sid {
     fn from(value: i32) -> Self {
         Self::new(value as u16)
-    }
-}
-
-/// Reference to a Latin-1 encoded string.
-///
-/// Strings stored in all PostScript defined fonts are usually ASCII but are
-/// technically encoded in Latin-1. This type wraps the raw string data to
-/// prevent attempts to decode as UTF-8.
-///
-/// This implements `PartialEq<&str>` to support easy comparison with UTF-8
-/// strings.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct Latin1String<'a> {
-    chars: &'a [u8],
-}
-
-impl<'a> Latin1String<'a> {
-    /// Creates a new Latin-1 encoded string reference from the given bytes,
-    /// with each representing a character.
-    pub const fn new(chars: &'a [u8]) -> Self {
-        Self { chars }
-    }
-
-    /// Returns an iterator over the characters of the string.
-    ///
-    /// This simply converts each byte to `char`.
-    pub fn chars(&self) -> impl Iterator<Item = char> + Clone + 'a {
-        self.chars.iter().map(|b| *b as char)
-    }
-
-    /// Returns the raw bytes of the string.
-    pub fn bytes(&self) -> &'a [u8] {
-        self.chars
-    }
-}
-
-impl PartialEq<&str> for Latin1String<'_> {
-    fn eq(&self, other: &&str) -> bool {
-        self.chars().eq(other.chars())
-    }
-}
-
-impl std::fmt::Display for Latin1String<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        for ch in self.chars() {
-            write!(f, "{}", ch)?;
-        }
-        Ok(())
     }
 }
 
@@ -488,32 +440,21 @@ pub const STANDARD_STRINGS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
-    use super::{Latin1String, StringId, STANDARD_STRINGS};
-
-    #[test]
-    fn lets_latin1() {
-        let latin1 = Latin1String::new(&[223, 214, 209, 208]);
-        let utf8 = "ßÖÑÐ";
-        assert_ne!(latin1.chars, utf8.as_bytes());
-        assert_eq!(latin1, utf8);
-    }
+    use super::{Sid, STANDARD_STRINGS};
 
     #[test]
     fn standard_strings() {
         for (i, &std_string) in STANDARD_STRINGS.iter().enumerate() {
-            let sid = StringId::new(i as _);
-            let latin1 = sid.standard_string().unwrap();
-            // Ensure we can compare directly with &str
-            assert_eq!(latin1, std_string);
-            // Ensure our to_string() conversion works (via the Display impl)
-            assert_eq!(latin1.to_string(), std_string);
+            let sid = Sid::new(i as _);
+            let s = sid.resolve_standard().unwrap();
+            assert_eq!(s, std_string.as_bytes());
         }
     }
 
     #[test]
     fn not_a_standard_string() {
-        let sid = StringId::new(STANDARD_STRINGS.len() as _);
-        assert!(sid.standard_string().is_err());
-        assert_eq!(sid.standard_string().unwrap_err(), 0);
+        let sid = Sid::new(STANDARD_STRINGS.len() as _);
+        assert!(sid.resolve_standard().is_err());
+        assert_eq!(sid.resolve_standard().unwrap_err(), 0);
     }
 }

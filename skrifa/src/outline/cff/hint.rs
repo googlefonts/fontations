@@ -1,7 +1,7 @@
 //! CFF hinting.
 
 use read_fonts::{
-    tables::postscript::{charstring::CommandSink, dict::Blues},
+    ps::{cs::CommandSink, hinting::Blues},
     types::Fixed,
 };
 
@@ -1112,12 +1112,8 @@ fn midpoint(a: Fixed, b: Fixed) -> Fixed {
 
 #[cfg(test)]
 mod tests {
-    use read_fonts::{tables::postscript::charstring::CommandSink, types::F2Dot14, FontRef};
-
-    use super::{
-        BlueZone, Blues, Fixed, Hint, HintMap, HintMask, HintParams, HintState, HintingSink,
-        StemHint, GHOST_BOTTOM, GHOST_TOP, HINT_MASK_SIZE, LOCKED, PAIR_BOTTOM, PAIR_TOP,
-    };
+    use super::*;
+    use raw::{types::F2Dot14, FontRef};
 
     fn make_hint_state() -> HintState {
         fn make_blues(values: &[f64]) -> Blues {

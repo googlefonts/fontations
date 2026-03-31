@@ -1,14 +1,18 @@
 //! Unified access to CFF/CFF2 fonts.
 
-use super::super::{
-    super::{cff, cff2},
-    charstring::{self, CommandSink},
-    dict::{self, ScaledFontMatrix},
-    BlendState, Charset, Encoding, Error, FdSelect, Index, Transform,
-};
-use super::HintingParams;
 use crate::{
-    tables::{postscript::PredefinedEncoding, variations::ItemVariationStore},
+    ps::{
+        cff::{
+            blend::BlendState, charset::Charset, dict, encoding::Encoding as RawEncoding,
+            fd_select::FdSelect, index::Index,
+        },
+        cs::{self, CommandSink},
+        encoding::PredefinedEncoding,
+        error::Error,
+        hinting::HintingParams,
+        transform::{ScaledFontMatrix, Transform},
+    },
+    tables::{cff, cff2, variations::ItemVariationStore},
     FontData, FontRead, ReadError,
 };
 use core::ops::Range;
@@ -144,10 +148,10 @@ impl<'a> CffFontRef<'a> {
     }
 
     /// Returns the mapping from character codes to glyph identifiers.
-    pub fn encoding(&self) -> Option<CffEncoding<'a>> {
+    pub fn encoding(&self) -> Option<Encoding<'a>> {
         let charset = self.charset()?;
-        let encoding = Encoding::new(self.data, self.top_dict.encoding_offset.get()?).ok()?;
-        Some(CffEncoding { encoding, charset })
+        let encoding = RawEncoding::new(self.data, self.top_dict.encoding_offset.get()?).ok()?;
+        Some(Encoding { encoding, charset })
     }
 
     /// Returns the top level font matrix.
@@ -189,10 +193,10 @@ impl<'a> CffFontRef<'a> {
 
     /// Returns the subfont with the given index and normalized variation
     /// coordinates.
-    pub fn subfont(&self, index: u16, coords: &[F2Dot14]) -> Result<CffSubfont, Error> {
+    pub fn subfont(&self, index: u16, coords: &[F2Dot14]) -> Result<Subfont, Error> {
         let blend = self.blend_state(0, coords);
         match &self.top_dict.kind {
-            CffFontKind::Sid { private_dict, .. } => CffSubfont::new(
+            CffFontKind::Sid { private_dict, .. } => Subfont::new(
                 self.data,
                 private_dict.start as usize..private_dict.end as usize,
                 blend,
@@ -200,7 +204,7 @@ impl<'a> CffFontRef<'a> {
             ),
             CffFontKind::Cid { fd_array, .. } | CffFontKind::Cff2 { fd_array, .. } => {
                 let font_dict = FontDict::new(fd_array.get(index as usize)?)?;
-                CffSubfont::new(
+                Subfont::new(
                     self.data,
                     font_dict.private_dict_range,
                     blend,
@@ -216,10 +220,10 @@ impl<'a> CffFontRef<'a> {
         &self,
         index: u16,
         coords: &[F2Dot14],
-    ) -> Result<(CffSubfont, HintingParams), Error> {
+    ) -> Result<(Subfont, HintingParams), Error> {
         let blend = self.blend_state(0, coords);
         match &self.top_dict.kind {
-            CffFontKind::Sid { private_dict, .. } => CffSubfont::new_hinted(
+            CffFontKind::Sid { private_dict, .. } => Subfont::new_hinted(
                 self.data,
                 private_dict.start as usize..private_dict.end as usize,
                 blend,
@@ -227,7 +231,7 @@ impl<'a> CffFontRef<'a> {
             ),
             CffFontKind::Cid { fd_array, .. } | CffFontKind::Cff2 { fd_array, .. } => {
                 let font_dict = FontDict::new(fd_array.get(index as usize)?)?;
-                CffSubfont::new_hinted(
+                Subfont::new_hinted(
                     self.data,
                     font_dict.private_dict_range,
                     blend,
@@ -239,7 +243,7 @@ impl<'a> CffFontRef<'a> {
 
     /// Returns the effective transform for the given subfont and optional size
     /// in pixels per em.
-    pub fn transform(&self, subfont: &CffSubfont, ppem: Option<f32>) -> Transform {
+    pub fn transform(&self, subfont: &Subfont, ppem: Option<f32>) -> Transform {
         let mut scale = ppem.map(|ppem| Transform::compute_scale(ppem, self.upem));
         // Compute our font matrix and adjusted UPEM
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L746>
@@ -306,7 +310,7 @@ impl<'a> CffFontRef<'a> {
     /// provides one.
     pub fn evaluate_charstring(
         &self,
-        subfont: &CffSubfont,
+        subfont: &Subfont,
         coords: &[F2Dot14],
         gid: GlyphId,
         sink: &mut impl CommandSink,
@@ -324,7 +328,7 @@ impl<'a> CffFontRef<'a> {
         };
         let charstring_data = charstrings.get(gid.to_u32() as usize)?;
         let ctx = (self.data, &charstrings, &self.global_subrs, &subrs);
-        if let Some(width) = charstring::evaluate(&ctx, blend, charstring_data, sink)? {
+        if let Some(width) = cs::evaluate(&ctx, blend, charstring_data, sink)? {
             Ok(Some(width + subfont.nominal_width))
         } else {
             Ok(subfont.default_width)
@@ -342,16 +346,16 @@ impl<'a> CffFontRef<'a> {
 }
 
 /// Mapping from character codes to glyph identifiers.
-pub struct CffEncoding<'a> {
-    encoding: Encoding<'a>,
+pub struct Encoding<'a> {
+    encoding: RawEncoding<'a>,
     charset: Charset<'a>,
 }
 
-impl<'a> CffEncoding<'a> {
+impl<'a> Encoding<'a> {
     /// Returns the predefined encoding, if any. Otherwise this is a custom
     /// encoding.
     pub fn predefined(&self) -> Option<PredefinedEncoding> {
-        if let Encoding::Predefined(pre) = &self.encoding {
+        if let RawEncoding::Predefined(pre) = &self.encoding {
             Some(*pre)
         } else {
             None
@@ -407,7 +411,7 @@ enum CffFontKind<'a> {
 /// particular glyph and then [CffFontRef::subfont] (or
 /// [CffFontRef::subfont_hinted]) to retrieve the associated subfont.
 #[derive(Copy, Clone, Default, Debug)]
-pub struct CffSubfont {
+pub struct Subfont {
     subrs_offset: u32,
     default_width: Option<Fixed>,
     nominal_width: Fixed,
@@ -415,7 +419,7 @@ pub struct CffSubfont {
     vs_index: u16,
 }
 
-impl CffSubfont {
+impl Subfont {
     fn new(
         data: &[u8],
         range: Range<usize>,
@@ -668,8 +672,12 @@ impl FontDict {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::super::charstring::test_helpers::*, super::Blues, *};
-    use crate::{tables::postscript::dict::FontMatrix, FontData, FontRef, TableProvider};
+    use super::*;
+    use crate::{
+        ps::{hinting::Blues, transform::FontMatrix},
+        FontData, FontRef, TableProvider,
+    };
+    use cs::test_helpers::*;
     use font_test_data::bebuffer::BeBuffer;
 
     #[test]
@@ -732,7 +740,7 @@ mod tests {
             .map(|(gid, sid)| {
                 (
                     gid.to_u32(),
-                    std::str::from_utf8(sid.standard_string().unwrap().bytes()).unwrap(),
+                    std::str::from_utf8(sid.resolve_standard().unwrap()).unwrap(),
                 )
             })
             .collect::<Vec<_>>();
@@ -768,7 +776,7 @@ mod tests {
             .push(19u8) // subrs offset operator
             .to_vec();
         // Just don't panic with overflow
-        assert!(CffSubfont::new(&private_dict, 4..private_dict.len(), None, None).is_err());
+        assert!(Subfont::new(&private_dict, 4..private_dict.len(), None, None).is_err());
     }
 
     /// Ensure we don't reject an empty Private DICT
@@ -791,7 +799,7 @@ mod tests {
             ItemVariationStore::read(FontData::new(&font_test_data::cff2::EXAMPLE[18..])).unwrap();
         let coords = &[F2Dot14::from_f32(0.0)];
         let blend_state = BlendState::new(store, coords, 0).unwrap();
-        let (_subfont, hint_params) = CffSubfont::new_hinted(
+        let (_subfont, hint_params) = Subfont::new_hinted(
             private_dict_data,
             0..private_dict_data.len(),
             Some(blend_state),

@@ -1,10 +1,8 @@
 //! the [VARC (Variable Composite/Component)](https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md) table
 
+pub use super::layout::{Condition, CoverageTable};
 use super::variations::PackedDeltas;
-pub use super::{
-    layout::{Condition, CoverageTable},
-    postscript::Index2,
-};
+pub use crate::ps::cff::index::Index2;
 use crate::types::F2Dot14;
 
 #[cfg(feature = "libm")]
