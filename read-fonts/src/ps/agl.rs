@@ -4,7 +4,7 @@
 
 use core::ops::Range;
 
-include!("../../generated/generated_agl.rs");
+include!("../../data/generated/generated_agl.rs");
 
 /// Splits the name into its base and variant components.
 ///
