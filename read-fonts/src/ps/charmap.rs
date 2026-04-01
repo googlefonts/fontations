@@ -119,7 +119,7 @@ impl Charmap {
 /// Iterator for a character map.
 pub struct Iter<'a>(core::iter::Copied<core::slice::Iter<'a, (u32, GlyphId)>>);
 
-impl<'a> Iterator for Iter<'a> {
+impl Iterator for Iter<'_> {
     type Item = (u32, GlyphId);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -196,7 +196,7 @@ mod tests {
         ];
         let result = cmap
             .iter()
-            .map(|(ch, gid)| (ch as u32, gid.to_u32()))
+            .map(|(ch, gid)| (ch, gid.to_u32()))
             .collect::<Vec<_>>();
         assert_eq!(result, expected);
         assert_eq!(cmap.map('a'), None);
