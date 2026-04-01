@@ -277,7 +277,7 @@ pub(crate) struct Graph {
 
 impl Graph {
     pub(crate) fn from_serializer(s: &Serializer) -> Result<Self, RepackError> {
-        let packed_obj_idxs = s.packed_obj_idxs();
+        let packed_obj_idxs = s.packed_idxs();
         let count = packed_obj_idxs.len();
         let mut this = Graph {
             vertices: Vec::with_capacity(count),
@@ -291,9 +291,9 @@ impl Graph {
         };
 
         this.num_roots_for_space.push(1);
-        for obj_idx in packed_obj_idxs.iter() {
+        for idx in packed_obj_idxs.iter() {
             let obj = s
-                .get_obj(*obj_idx)
+                .get_obj(*idx)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
             let v = Vertex::from_object(obj);
@@ -1579,7 +1579,7 @@ pub(crate) mod test {
         }
     }
 
-    fn extend(s: &mut Serializer, bytes: &[u8], len: usize) {
+    pub(crate) fn extend(s: &mut Serializer, bytes: &[u8], len: usize) {
         s.embed_bytes(&bytes[0..len]).unwrap();
     }
 
@@ -1617,8 +1617,8 @@ pub(crate) mod test {
         add_typed_offset::<Offset32>(s, obj_idx);
     }
 
-    pub(crate) fn add_virtual_offset(s: &mut Serializer, obj_idx: ObjIdx) -> bool {
-        s.add_virtual_link(obj_idx)
+    pub(crate) fn add_virtual_offset(s: &mut Serializer, obj_idx: ObjIdx) {
+        s.add_virtual_link(obj_idx).unwrap()
     }
 
     fn populate_serializer_complex_2(s: &mut Serializer) {

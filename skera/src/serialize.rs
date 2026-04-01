@@ -120,6 +120,7 @@ impl Object {
         self.tail
     }
 
+    // used by repacker only, real_links vector is converted to BTreeMap
     pub(crate) fn real_links(&self) -> BTreeMap<u32, Link> {
         self.real_links.iter().map(|l| (l.position, *l)).collect()
     }
@@ -687,20 +688,64 @@ impl Serializer {
         Ok(())
     }
 
-    /// Adds a link which enforces that the object identified by obj_idx must always come after this
-    /// object in the serialized output.
-    pub fn add_virtual_link(&mut self, obj_idx: ObjIdx) -> bool {
-        if self.current.is_none() {
-            return false;
-        }
-
-        let pool_idx = self.current.unwrap();
-        let Some(current) = self.object_pool.get_obj_mut(pool_idx) else {
-            return false;
+    // Adds a virtual link from the current object to objidx. A virtual link is not associated with
+    // an actual offset field. They are solely used to enforce ordering constraints between objects.
+    // Adding a virtual link from object a to object b will ensure that object b is always packed after
+    // object a in the final serialized order.
+    // This is useful in certain situations where there needs to be a specific ordering in the
+    // final serialization. Such as when platform bugs require certain orderings, or to provide
+    //  guidance to the repacker for better offset overflow resolution.
+    // ref: <https://github.com/harfbuzz/harfbuzz/blob/be79d5426553db9ce4074507c3a7c9afc175078d/src/hb-serialize.hh#L480>
+    pub fn add_virtual_link(&mut self, obj_idx: ObjIdx) -> Result<(), SerializeErrorFlags> {
+        let Some(cur_idx) = self.current else {
+            return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        };
+        let Some(current) = self.object_pool.get_obj_mut(cur_idx) else {
+            return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
         };
 
         current.add_virtual_link(obj_idx);
-        true
+        Ok(())
+    }
+
+    pub fn last_added_child_index(&self) -> Option<ObjIdx> {
+        let cur_pool_idx = self.current?;
+        let cur_obj = self.object_pool.get_obj(cur_pool_idx)?;
+        cur_obj.real_links.last().map(|l| l.obj_idx())
+    }
+
+    // For the current object ensure that the sub-table bytes for child objidx are always placed
+    // after the subtable bytes for any other existing children. This only ensures that the
+    // repacker will not move the target subtable before the other children
+    // (by adding virtual links). It is up to the caller to ensure the initial serialization
+    // order is correct.
+    // ref: <https://github.com/harfbuzz/harfbuzz/blob/be79d5426553db9ce4074507c3a7c9afc175078d/src/hb-serialize.hh#L509>
+    pub fn repack_last(&mut self, obj_idx: ObjIdx) -> Result<(), SerializeErrorFlags> {
+        let cur_pool_idx = self
+            .current
+            .ok_or_else(|| self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
+
+        let Some(cur_obj) = self.object_pool.get_obj(cur_pool_idx) else {
+            return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        };
+
+        let other_child_idxes: Vec<ObjIdx> = cur_obj
+            .real_links
+            .iter()
+            .map(|l| l.obj_idx())
+            .filter(|&idx| idx != obj_idx)
+            .collect();
+
+        for other_idx in other_child_idxes {
+            let Some(pool_idx) = self.packed.get(other_idx) else {
+                return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+            };
+            let Some(other_obj) = self.object_pool.get_obj_mut(*pool_idx) else {
+                continue;
+            };
+            other_obj.add_virtual_link(obj_idx);
+        }
+        Ok(())
     }
 
     fn merge_virtual_links(&mut self, from: PoolIdx, to: (PoolIdx, ObjIdx)) {
@@ -821,10 +866,10 @@ impl Serializer {
     }
 
     pub(crate) fn length(&self) -> usize {
-        if self.current.is_none() {
+        let Some(current) = self.current else {
             return 0;
-        }
-        let Some(cur_obj) = self.object_pool.get_obj(self.current.unwrap()) else {
+        };
+        let Some(cur_obj) = self.object_pool.get_obj(current) else {
             return 0;
         };
         self.head - cur_obj.head
@@ -873,10 +918,11 @@ impl Serializer {
         self.resolve_links();
     }
 
-    pub(crate) fn packed_obj_idxs(&self) -> &[PoolIdx] {
+    pub(crate) fn packed_idxs(&self) -> &[PoolIdx] {
         &self.packed
     }
 
+    // used by graph only
     pub(crate) fn get_obj(&self, pool_idx: PoolIdx) -> Option<&Object> {
         self.object_pool.get_obj(pool_idx)
     }
@@ -902,7 +948,7 @@ struct ObjectPool {
 
 impl ObjectPool {
     const ALLOC_CHUNKS_LEN: usize = 64;
-    pub fn alloc(&mut self) -> PoolIdx {
+    fn alloc(&mut self) -> PoolIdx {
         let len = self.chunks.len();
         if self.next.is_none() {
             let new_len = len + Self::ALLOC_CHUNKS_LEN;
@@ -928,7 +974,7 @@ impl ObjectPool {
         pool_idx
     }
 
-    pub fn release(&mut self, pool_idx: PoolIdx) {
+    fn release(&mut self, pool_idx: PoolIdx) {
         let Some(obj_wrap) = self.chunks.get_mut(pool_idx) else {
             return;
         };
@@ -938,11 +984,11 @@ impl ObjectPool {
         self.next = Some(pool_idx);
     }
 
-    pub fn get_obj_mut(&mut self, pool_idx: PoolIdx) -> Option<&mut Object> {
+    fn get_obj_mut(&mut self, pool_idx: PoolIdx) -> Option<&mut Object> {
         self.chunks.get_mut(pool_idx).map(|o| &mut o.obj)
     }
 
-    pub fn get_obj(&self, pool_idx: PoolIdx) -> Option<&Object> {
+    fn get_obj(&self, pool_idx: PoolIdx) -> Option<&Object> {
         self.chunks.get(pool_idx).map(|o| &o.obj)
     }
 
