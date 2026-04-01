@@ -117,6 +117,7 @@ impl Charmap {
 }
 
 /// Iterator for a character map.
+#[derive(Clone)]
 pub struct Iter<'a>(core::iter::Copied<core::slice::Iter<'a, (u32, GlyphId)>>);
 
 impl Iterator for Iter<'_> {
