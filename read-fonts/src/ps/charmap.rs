@@ -4,6 +4,7 @@
 
 #[cfg(feature = "agl")]
 use super::agl;
+use alloc::vec::Vec;
 use types::GlyphId;
 
 /// Used to mark variant glyphs such as A.alt.
