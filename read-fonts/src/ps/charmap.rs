@@ -89,9 +89,9 @@ impl Charmap {
         let ch = ch.into();
         let mut min = 0;
         let mut max = self.mapping.len();
-        let mut mid = min + ((max - min) >> 1);
         let mut result = None;
         while min < max {
+            let mid = min + ((max - min) >> 1);
             let entry = self.mapping.get(mid)?;
             if entry.0 == ch {
                 result = Some(entry.1);
@@ -99,19 +99,13 @@ impl Charmap {
             }
             let base_gid = entry.0 & !VARIANT_BIT;
             if base_gid == ch {
-                // Rember the variant but keep on search for a base
+                // Remember the variant but keep on search for a base
                 result = Some(entry.1);
             }
             if base_gid < ch {
                 min = mid + 1;
             } else {
                 max = mid;
-            }
-            // Freetype uses this heuristic to shorten the search
-            // in a continuous block
-            mid = mid.wrapping_add(ch.wrapping_sub_signed(base_gid as i32) as usize);
-            if mid >= max || mid < min {
-                mid = min + ((max - min) >> 1);
             }
         }
         result
@@ -135,6 +129,7 @@ impl<'a> Iterator for Iter<'a> {
 
 /// Support for extra glyphs not handled well in AGL
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psnames/psmodule.c#L218>
+#[cfg(feature = "agl")]
 #[rustfmt::skip]
 const EXTRA_GLYPH_LIST: [(u32, &str); 10] = [
     // WGL 4
