@@ -1,6 +1,7 @@
 //! Writes individual bits to a vector of bytes.
 
 use super::sparse_bit_set::BranchFactor;
+use alloc::vec::Vec;
 
 pub(crate) struct OutputBitStream {
     data: Vec<u8>,

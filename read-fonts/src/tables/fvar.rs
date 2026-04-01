@@ -6,6 +6,8 @@ include!("../../generated/generated_fvar.rs");
 mod instance_record;
 
 use super::{avar::Avar, variations::DeltaSetIndex};
+use alloc::vec::Vec;
+
 pub use instance_record::InstanceRecord;
 
 const MAX_INLINE_AVAR2_AXES: usize = 64;
@@ -118,21 +120,14 @@ impl<'a> Fvar<'a> {
         let actual_len = axes.len().min(normalized_coords.len());
         let normalized_coords = &mut normalized_coords[..actual_len];
 
-        if actual_len > MAX_INLINE_AVAR2_AXES {
-            normalize_user_coords(axes, user_coords, normalized_coords, Fixed::to_f2dot14);
-            apply_avar_mappings(
-                avar,
-                normalized_coords,
-                |coord| coord.to_fixed(),
-                Fixed::to_f2dot14,
-            );
-            // No avar2 for monster fonts.
-            // <https://github.com/googlefonts/fontations/issues/1148>
-            return;
-        }
-
-        let mut fixed_coords = [Fixed::ZERO; MAX_INLINE_AVAR2_AXES];
-        let fixed_coords = &mut fixed_coords[..actual_len];
+        let mut stack_fixed_coords = [Fixed::ZERO; MAX_INLINE_AVAR2_AXES];
+        let mut heap_fixed_coords = Vec::new();
+        let fixed_coords = if actual_len > MAX_INLINE_AVAR2_AXES {
+            heap_fixed_coords.resize(actual_len, Fixed::ZERO);
+            heap_fixed_coords.as_mut_slice()
+        } else {
+            &mut stack_fixed_coords[..actual_len]
+        };
         normalize_user_coords(axes, user_coords, fixed_coords, core::convert::identity);
         apply_avar_mappings(avar, fixed_coords, |coord| *coord, core::convert::identity);
 

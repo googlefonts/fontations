@@ -11,6 +11,7 @@ use crate::{
     types::{Fixed, GlyphId},
     ReadError,
 };
+use alloc::vec::Vec;
 use core::ops::Range;
 
 /// A Type1 font.

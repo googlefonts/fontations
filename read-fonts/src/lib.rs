@@ -69,8 +69,11 @@ extern crate std;
 #[macro_use]
 extern crate core as std;
 
+// Always depend on alloc. Perhaps make this a feature if someone really needs
+// heapless read-fonts.
+extern crate alloc;
+
 pub mod array;
-#[cfg(feature = "std")]
 pub mod collections;
 mod font_data;
 mod offset;
