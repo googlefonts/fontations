@@ -10,13 +10,11 @@ use types::GlyphId;
 const VARIANT_BIT: u32 = 0x80000000;
 
 /// A Unicode charmap built from glyph names.
-#[cfg(feature = "std")]
 #[derive(Clone, Default, Debug)]
 pub struct Charmap {
     mapping: Vec<(u32, GlyphId)>,
 }
 
-#[cfg(feature = "std")]
 impl Charmap {
     /// Create a new unicode charmap for the given sequence of glyph id
     /// and name pairs.

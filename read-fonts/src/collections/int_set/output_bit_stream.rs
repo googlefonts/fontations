@@ -14,7 +14,7 @@ impl OutputBitStream {
 
     pub(crate) fn new(branch_factor: BranchFactor, height: u8) -> OutputBitStream {
         let mut out = OutputBitStream {
-            data: vec![],
+            data: Vec::new(),
             sub_index: 0,
             branch_factor,
         };
