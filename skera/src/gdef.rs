@@ -72,14 +72,12 @@ fn subset_gdef(
         0
     };
 
-    // TODO: make sure repacker will not move the target subtable before the other children
-    // ref: <https://github.com/harfbuzz/harfbuzz/blob/aad5780f5305f38ef128c61854c5d5a0c4ca3f4f/src/OT/Layout/GDEF/GDEF.hh#L665>
     // Push var store first (if it's needed) so that it's last in the
     // serialization order. Some font consumers assume that varstore runs to
     // the end of the GDEF table.
     // See: https://github.com/harfbuzz/harfbuzz/issues/4636
 
-    let subset_varstore = if version.minor >= 3 {
+    let (subset_varstore, varstore_idx) = if version.minor >= 3 {
         if let Some(var_store) = gdef
             .item_var_store()
             .transpose()
@@ -94,20 +92,25 @@ fn subset_gdef(
                 (&plan.gdef_varstore_inner_maps, false),
                 var_store_offset_pos,
             ) {
-                Ok(()) => true,
+                Ok(()) => {
+                    let Some(varstore_idx) = s.last_added_child_index() else {
+                        return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+                    };
+                    (true, varstore_idx)
+                }
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
                     s.revert_snapshot(snapshot_version2);
-                    false
+                    (false, 0)
                 }
                 Err(e) => {
                     return Err(e);
                 }
             }
         } else {
-            false
+            (false, 0)
         }
     } else {
-        false
+        (false, 0)
     };
 
     let subset_mark_glyphsets_def = if version.minor >= 2 {
@@ -231,6 +234,12 @@ fn subset_gdef(
     } else {
         false
     };
+
+    // make sure repacker will not move the target subtable before the other children
+    // ref: <https://github.com/harfbuzz/harfbuzz/blob/aad5780f5305f38ef128c61854c5d5a0c4ca3f4f/src/OT/Layout/GDEF/GDEF.hh#L665>
+    if subset_varstore {
+        s.repack_last(varstore_idx)?;
+    }
 
     if subset_glyph_classdef
         || subset_attach_list

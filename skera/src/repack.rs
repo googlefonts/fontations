@@ -335,7 +335,7 @@ pub(crate) mod test {
     use super::*;
     use crate::{
         graph::test::{
-            add_24_offset, add_object, add_offset, add_virtual_offset, add_wide_offset,
+            add_24_offset, add_object, add_offset, add_virtual_offset, add_wide_offset, extend,
             populate_serializer_with_dedup_overflow, populate_serializer_with_overflow,
             start_object,
         },
@@ -930,7 +930,7 @@ pub(crate) mod test {
         let obj_b = s.pop_pack(false).unwrap();
 
         start_object(s, b"e", 1);
-        assert!(add_virtual_offset(s, obj_b));
+        add_virtual_offset(s, obj_b);
         let obj_e = s.pop_pack(false).unwrap();
 
         start_object(s, b"c", 1);
@@ -1768,6 +1768,84 @@ pub(crate) mod test {
         s.end_serialize();
     }
 
+    fn populate_serializer_with_repack_last(s: &mut Serializer, with_overflow: bool) {
+        let large_bytes = [b'c'; 70000];
+        s.start_serialize().unwrap();
+        s.push().unwrap();
+
+        // Obj E
+        let mut obj_e_1 = if with_overflow {
+            add_object(s, b"a", 1, false)
+        } else {
+            0
+        };
+
+        let obj_e_2 = if with_overflow {
+            obj_e_1
+        } else {
+            add_object(s, b"a", 1, false)
+        };
+
+        // Obj D
+        s.push().unwrap();
+        add_offset(s, obj_e_2);
+        extend(s, &large_bytes, 30000);
+        let obj_d = s.pop_pack(false).unwrap();
+        add_offset(s, obj_d);
+        assert_eq!(s.last_added_child_index().unwrap(), obj_d);
+        if !with_overflow {
+            obj_e_1 = add_object(s, b"a", 1, false);
+        }
+
+        // Obj C
+        s.push().unwrap();
+        add_offset(s, obj_e_1);
+        extend(s, &large_bytes, 40000);
+        let obj_c = s.pop_pack(false).unwrap();
+        add_offset(s, obj_c);
+
+        // Obj B
+        let obj_b = add_object(s, b"b", 1, false);
+        add_offset(s, obj_b);
+
+        //Obj A
+        s.repack_last(obj_d).unwrap();
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+    }
+
+    fn populate_serializer_virtual(s: &mut Serializer, with_overflow: bool) {
+        let large_bytes = [b'a'; 50000];
+        s.start_serialize().unwrap();
+
+        let obj_4;
+        let obj_5;
+        if with_overflow {
+            obj_5 = add_object(s, b"55555", 5, false);
+            obj_4 = add_object(s, &large_bytes, 50000, false);
+        } else {
+            obj_4 = add_object(s, &large_bytes, 50000, false);
+            obj_5 = add_object(s, b"55555", 5, false);
+        }
+
+        start_object(s, &large_bytes, 20000);
+        add_offset(s, obj_5);
+        let obj_3 = s.pop_pack(false).unwrap();
+
+        start_object(s, b"22", 2);
+        add_virtual_offset(s, obj_5);
+        let obj_2 = s.pop_pack(false).unwrap();
+
+        // obj 1
+        start_object(s, b"1", 1);
+        add_offset(s, obj_2);
+        add_offset(s, obj_3);
+        add_offset(s, obj_4);
+
+        s.pop_pack(false);
+        s.end_serialize();
+    }
+
     fn run_resolve_overflow_test(
         overflowing: &Serializer,
         expected: &Serializer,
@@ -1986,6 +2064,28 @@ pub(crate) mod test {
         assert_eq!(out[8], b'e');
         assert_eq!(out[9], b'b');
         assert_eq!(out[12], b'd');
+    }
+
+    #[test]
+    fn test_repack_last() {
+        let buf_size = 200000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_with_repack_last(&mut overflowing, true);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_with_repack_last(&mut expected, false);
+        run_resolve_overflow_test(&overflowing, &expected, 20, false, true, Tag::new(b"abcd"));
+    }
+
+    #[test]
+    fn test_dont_duplicate_virtual() {
+        let buf_size = 200000;
+        let mut overflowing = Serializer::new(buf_size);
+        populate_serializer_virtual(&mut overflowing, true);
+
+        let mut expected = Serializer::new(buf_size);
+        populate_serializer_virtual(&mut expected, false);
+        run_resolve_overflow_test(&overflowing, &expected, 20, false, true, Tag::new(b"abcd"));
     }
 
     #[test]
