@@ -33,6 +33,303 @@ include!("../../generated/generated_layout.rs");
 #[cfg(feature = "sanitize")]
 include!("../../generated/generated_layout_sanitize.rs");
 
+#[cfg(feature = "sanitize")]
+mod sanitize_manual_impls {
+    use std::cmp::Ordering;
+
+    use types::{BigEndian, GlyphId, GlyphId16, Scalar, Tag};
+
+    use crate::sanitize::{FontPtr, ReadSanitized, ResolveSanitizedOffset};
+
+    impl crate::sanitize::Sanitize for super::FeatureParams<'_> {
+        fn sanitize(&self) -> Result<(), crate::ReadError> {
+            Ok(())
+        }
+    }
+
+    pub enum FeatureParamsSanitized<'a> {
+        StylisticSet(super::StylisticSetParamsSanitized<'a>),
+        Size(super::SizeParamsSanitized<'a>),
+        CharacterVariant(super::CharacterVariantParamsSanitized<'a>),
+    }
+
+    unsafe impl<'a> ReadSanitized<'a> for FeatureParamsSanitized<'a> {
+        type Args = Tag;
+
+        unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
+            match *args {
+                t if t == Tag::new(b"size") => Self::Size(ReadSanitized::read_sanitized(ptr, &())),
+                t if &t.to_raw()[..2] == b"ss" => {
+                    Self::StylisticSet(ReadSanitized::read_sanitized(ptr, &()))
+                }
+                t if &t.to_raw()[..2] == b"cv" => {
+                    Self::CharacterVariant(ReadSanitized::read_sanitized(ptr, &()))
+                }
+                _ => unreachable!("if ReadWithArgs worked for the base table, the tag is known"),
+            }
+        }
+    }
+
+    impl super::FeatureTableSubstitutionRecordSanitized {
+        pub fn alternate_feature<'a>(
+            &self,
+            parent: &super::FeatureTableSubstitutionSanitized<'a>,
+        ) -> super::FeatureSanitized<'a> {
+            unsafe {
+                self.alternate_feature_offset()
+                    .resolve_sanitized(parent.offset_ptr(), &Tag::new(b"NULL"))
+                    .unwrap_or_default()
+            }
+        }
+    }
+
+    impl super::RangeRecordSanitized {
+        pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
+            (self.start_glyph_id().to_u16()..=self.end_glyph_id().to_u16()).map(GlyphId16::new)
+        }
+
+        pub fn population(&self) -> usize {
+            let start = self.start_glyph_id().to_u32() as usize;
+            let end = self.end_glyph_id().to_u32() as usize;
+            if start > end {
+                0
+            } else {
+                end - start + 1
+            }
+        }
+    }
+
+    impl super::ClassRangeRecordSanitized {
+        pub fn population(&self) -> usize {
+            let start = self.start_glyph_id().to_u32() as usize;
+            let end = self.end_glyph_id().to_u32() as usize;
+            if start > end {
+                0
+            } else {
+                end - start + 1
+            }
+        }
+    }
+
+    impl super::CoverageFormat1Sanitized<'_> {
+        /// If this glyph is in the coverage table, returns its index
+        #[inline]
+        pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+            let gid16: GlyphId16 = gid.into().try_into().ok()?;
+            let be_glyph: BigEndian<GlyphId16> = gid16.into();
+            self.glyph_array()
+                .binary_search(&be_glyph)
+                .ok()
+                .map(|idx| idx as _)
+        }
+
+        pub fn population(&self) -> usize {
+            self.glyph_count() as usize
+        }
+
+        pub fn cost(&self) -> u32 {
+            super::bit_storage(self.glyph_count() as u32)
+        }
+    }
+
+    impl super::CoverageFormat2Sanitized<'_> {
+        /// If this glyph is in the coverage table, returns its index
+        #[inline]
+        pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+            let gid: GlyphId16 = gid.into().try_into().ok()?;
+            self.range_records()
+                .binary_search_by(|rec| {
+                    if rec.end_glyph_id() < gid {
+                        Ordering::Less
+                    } else if rec.start_glyph_id() > gid {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                })
+                .ok()
+                .map(|idx| {
+                    let rec = &self.range_records()[idx];
+                    rec.start_coverage_index() + gid.to_u16() - rec.start_glyph_id().to_u16()
+                })
+        }
+        pub fn population(&self) -> usize {
+            self.range_records()
+                .iter()
+                .fold(0, |acc, record| acc + record.population())
+        }
+
+        pub fn cost(&self) -> u32 {
+            super::bit_storage(self.range_count() as u32)
+        }
+    }
+
+    impl<'a> super::CoverageTableSanitized<'a> {
+        pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + 'a {
+            let (iter1, iter2) = match self {
+                super::CoverageTableSanitized::Format1(t) => {
+                    (Some(t.glyph_array().iter().map(|g| g.get())), None)
+                }
+                super::CoverageTableSanitized::Format2(t) => {
+                    let iter = t
+                        .range_records()
+                        .iter()
+                        .flat_map(super::RangeRecordSanitized::iter);
+                    (None, Some(iter))
+                }
+            };
+            iter1
+                .into_iter()
+                .flatten()
+                .chain(iter2.into_iter().flatten())
+        }
+
+        /// If this glyph is in the coverage table, returns its index
+        #[inline]
+        pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+            match self {
+                super::CoverageTableSanitized::Format1(sub) => sub.get(gid),
+                super::CoverageTableSanitized::Format2(sub) => sub.get(gid),
+            }
+        }
+
+        /// Return the number of glyphs in this table
+        pub fn population(&self) -> usize {
+            match self {
+                super::CoverageTableSanitized::Format1(sub) => sub.population(),
+                super::CoverageTableSanitized::Format2(sub) => sub.population(),
+            }
+        }
+
+        /// Return the cost of looking up a glyph in this table
+        pub fn cost(&self) -> u32 {
+            match self {
+                super::CoverageTableSanitized::Format1(sub) => sub.cost(),
+                super::CoverageTableSanitized::Format2(sub) => sub.cost(),
+            }
+        }
+    }
+
+    impl super::ClassDefFormat1Sanitized<'_> {
+        /// Get the class for this glyph id
+        #[inline]
+        pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
+            let Some(idx) = gid
+                .into()
+                .to_u32()
+                .checked_sub(self.start_glyph_id().to_u32())
+            else {
+                return 0;
+            };
+            self.class_value_array()
+                .get(idx as usize)
+                .map(|x| x.get())
+                .unwrap_or(0)
+        }
+
+        /// Iterate over each glyph and its class.
+        pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
+            let start = self.start_glyph_id();
+            self.class_value_array()
+                .iter()
+                .enumerate()
+                .map(move |(i, val)| {
+                    let gid = start.to_u16().saturating_add(i as u16);
+                    (GlyphId16::new(gid), val.get())
+                })
+        }
+
+        pub fn population(&self) -> usize {
+            self.glyph_count() as usize
+        }
+
+        pub fn cost(&self) -> u32 {
+            1
+        }
+    }
+
+    impl super::ClassDefFormat2Sanitized<'_> {
+        /// Get the class for this glyph id
+        #[inline]
+        pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
+            let gid = gid.into().to_u32();
+            let records = self.class_range_records();
+            let ix = match records.binary_search_by(|rec| rec.start_glyph_id().to_u32().cmp(&gid)) {
+                Ok(ix) => ix,
+                Err(ix) => ix.saturating_sub(1),
+            };
+            if let Some(record) = records.get(ix) {
+                if (record.start_glyph_id().to_u32()..=record.end_glyph_id().to_u32())
+                    .contains(&gid)
+                {
+                    return record.class();
+                }
+            }
+            0
+        }
+
+        /// Iterate over each glyph and its class.
+        pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
+            self.class_range_records().iter().flat_map(|range| {
+                let start = range.start_glyph_id().to_u16();
+                let end = range.end_glyph_id().to_u16();
+                (start..=end).map(|gid| (GlyphId16::new(gid), range.class()))
+            })
+        }
+
+        pub fn population(&self) -> usize {
+            self.class_range_records()
+                .iter()
+                .fold(0, |acc, record| acc + record.population())
+        }
+
+        pub fn cost(&self) -> u32 {
+            super::bit_storage(self.class_range_count() as u32)
+        }
+    }
+
+    impl super::ClassDefSanitized<'_> {
+        /// Get the class for this glyph id
+        #[inline]
+        pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
+            match self {
+                super::ClassDefSanitized::Format1(table) => table.get(gid),
+                super::ClassDefSanitized::Format2(table) => table.get(gid),
+            }
+        }
+
+        /// Iterate over each glyph and its class.
+        ///
+        /// This will not include class 0 unless it has been explicitly assigned.
+        pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
+            let (one, two) = match self {
+                super::ClassDefSanitized::Format1(inner) => (Some(inner.iter()), None),
+                super::ClassDefSanitized::Format2(inner) => (None, Some(inner.iter())),
+            };
+            one.into_iter().flatten().chain(two.into_iter().flatten())
+        }
+
+        /// Return the number of glyphs explicitly assigned to a class in this table
+        pub fn population(&self) -> usize {
+            match self {
+                super::ClassDefSanitized::Format1(table) => table.population(),
+                super::ClassDefSanitized::Format2(table) => table.population(),
+            }
+        }
+
+        /// Return the cost of looking up a glyph in this table
+        pub fn cost(&self) -> u32 {
+            match self {
+                super::ClassDefSanitized::Format1(sub) => sub.cost(),
+                super::ClassDefSanitized::Format2(sub) => sub.cost(),
+            }
+        }
+    }
+}
+
+#[cfg(feature = "sanitize")]
+pub use sanitize_manual_impls::*;
+
 impl<'a, T: FontRead<'a>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
         self.resolve_offset(offset)
@@ -155,57 +452,12 @@ impl<'a> SomeTable<'a> for FeatureParams<'a> {
     }
 }
 
-#[cfg(feature = "sanitize")]
-impl crate::sanitize::Sanitize for FeatureParams<'_> {
-    fn sanitize(&self) -> Result<(), crate::ReadError> {
-        Ok(())
-    }
-}
-
-#[cfg(feature = "sanitize")]
-pub enum FeatureParamsSanitized<'a> {
-    StylisticSet(StylisticSetParamsSanitized<'a>),
-    Size(SizeParamsSanitized<'a>),
-    CharacterVariant(CharacterVariantParamsSanitized<'a>),
-}
-
-#[cfg(feature = "sanitize")]
-unsafe impl<'a> ReadSanitized<'a> for FeatureParamsSanitized<'a> {
-    type Args = Tag;
-
-    unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
-        match *args {
-            t if t == Tag::new(b"size") => Self::Size(ReadSanitized::read_sanitized(ptr, &())),
-            t if &t.to_raw()[..2] == b"ss" => {
-                Self::StylisticSet(ReadSanitized::read_sanitized(ptr, &()))
-            }
-            t if &t.to_raw()[..2] == b"cv" => {
-                Self::CharacterVariant(ReadSanitized::read_sanitized(ptr, &()))
-            }
-            _ => unreachable!("if ReadWithArgs worked for the base table, the tag is known"),
-        }
-    }
-}
 impl FeatureTableSubstitutionRecord {
     pub fn alternate_feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         self.alternate_feature_offset()
             .resolve_with_args(data, &Tag::new(b"NULL"))
     }
 }
-#[cfg(feature = "sanitize")]
-impl FeatureTableSubstitutionRecordSanitized {
-    pub fn alternate_feature<'a>(
-        &self,
-        parent: &FeatureTableSubstitutionSanitized<'a>,
-    ) -> FeatureSanitized<'a> {
-        unsafe {
-            self.alternate_feature_offset()
-                .resolve_sanitized(parent.offset_ptr(), &Tag::new(b"NULL"))
-                .unwrap_or_default()
-        }
-    }
-}
-
 fn bit_storage(v: u32) -> u32 {
     u32::BITS - v.leading_zeros()
 }
@@ -792,262 +1044,6 @@ impl ClassDef<'_> {
         match self {
             ClassDef::Format1(table) => table.intersected_class_glyphs(glyphs, class),
             ClassDef::Format2(table) => table.intersected_class_glyphs(glyphs, class),
-        }
-    }
-}
-
-#[cfg(feature = "sanitize")]
-impl RangeRecordSanitized {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
-        (self.start_glyph_id().to_u16()..=self.end_glyph_id().to_u16()).map(GlyphId16::new)
-    }
-
-    #[cfg(feature = "std")]
-    pub fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
-        glyphs.intersects_range(
-            GlyphId::from(self.start_glyph_id())..=GlyphId::from(self.end_glyph_id()),
-        )
-    }
-
-    pub fn population(&self) -> usize {
-        let start = self.start_glyph_id().to_u32() as usize;
-        let end = self.end_glyph_id().to_u32() as usize;
-        if start > end {
-            0
-        } else {
-            end - start + 1
-        }
-    }
-}
-
-#[cfg(feature = "sanitize")]
-impl ClassRangeRecordSanitized {
-    pub fn population(&self) -> usize {
-        let start = self.start_glyph_id().to_u32() as usize;
-        let end = self.end_glyph_id().to_u32() as usize;
-        if start > end {
-            0
-        } else {
-            end - start + 1
-        }
-    }
-}
-
-#[cfg(feature = "sanitize")]
-impl CoverageFormat1Sanitized<'_> {
-    /// If this glyph is in the coverage table, returns its index
-    #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
-        let gid16: GlyphId16 = gid.into().try_into().ok()?;
-        let be_glyph: BigEndian<GlyphId16> = gid16.into();
-        self.glyph_array()
-            .binary_search(&be_glyph)
-            .ok()
-            .map(|idx| idx as _)
-    }
-
-    pub fn population(&self) -> usize {
-        self.glyph_count() as usize
-    }
-
-    pub fn cost(&self) -> u32 {
-        bit_storage(self.glyph_count() as u32)
-    }
-}
-
-#[cfg(feature = "sanitize")]
-impl CoverageFormat2Sanitized<'_> {
-    /// If this glyph is in the coverage table, returns its index
-    #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
-        let gid: GlyphId16 = gid.into().try_into().ok()?;
-        self.range_records()
-            .binary_search_by(|rec| {
-                if rec.end_glyph_id() < gid {
-                    Ordering::Less
-                } else if rec.start_glyph_id() > gid {
-                    Ordering::Greater
-                } else {
-                    Ordering::Equal
-                }
-            })
-            .ok()
-            .map(|idx| {
-                let rec = &self.range_records()[idx];
-                rec.start_coverage_index() + gid.to_u16() - rec.start_glyph_id().to_u16()
-            })
-    }
-    pub fn population(&self) -> usize {
-        self.range_records()
-            .iter()
-            .fold(0, |acc, record| acc + record.population())
-    }
-
-    pub fn cost(&self) -> u32 {
-        bit_storage(self.range_count() as u32)
-    }
-}
-
-#[cfg(feature = "sanitize")]
-impl<'a> CoverageTableSanitized<'a> {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + 'a {
-        let (iter1, iter2) = match self {
-            CoverageTableSanitized::Format1(t) => {
-                (Some(t.glyph_array().iter().map(|g| g.get())), None)
-            }
-            CoverageTableSanitized::Format2(t) => {
-                let iter = t
-                    .range_records()
-                    .iter()
-                    .flat_map(RangeRecordSanitized::iter);
-                (None, Some(iter))
-            }
-        };
-        iter1
-            .into_iter()
-            .flatten()
-            .chain(iter2.into_iter().flatten())
-    }
-
-    /// If this glyph is in the coverage table, returns its index
-    #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
-        match self {
-            CoverageTableSanitized::Format1(sub) => sub.get(gid),
-            CoverageTableSanitized::Format2(sub) => sub.get(gid),
-        }
-    }
-
-    /// Return the number of glyphs in this table
-    pub fn population(&self) -> usize {
-        match self {
-            CoverageTableSanitized::Format1(sub) => sub.population(),
-            CoverageTableSanitized::Format2(sub) => sub.population(),
-        }
-    }
-
-    /// Return the cost of looking up a glyph in this table
-    pub fn cost(&self) -> u32 {
-        match self {
-            CoverageTableSanitized::Format1(sub) => sub.cost(),
-            CoverageTableSanitized::Format2(sub) => sub.cost(),
-        }
-    }
-}
-
-#[cfg(feature = "sanitize")]
-impl ClassDefFormat1Sanitized<'_> {
-    /// Get the class for this glyph id
-    #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
-        let Some(idx) = gid
-            .into()
-            .to_u32()
-            .checked_sub(self.start_glyph_id().to_u32())
-        else {
-            return 0;
-        };
-        self.class_value_array()
-            .get(idx as usize)
-            .map(|x| x.get())
-            .unwrap_or(0)
-    }
-
-    /// Iterate over each glyph and its class.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
-        let start = self.start_glyph_id();
-        self.class_value_array()
-            .iter()
-            .enumerate()
-            .map(move |(i, val)| {
-                let gid = start.to_u16().saturating_add(i as u16);
-                (GlyphId16::new(gid), val.get())
-            })
-    }
-
-    pub fn population(&self) -> usize {
-        self.glyph_count() as usize
-    }
-
-    pub fn cost(&self) -> u32 {
-        1
-    }
-}
-
-#[cfg(feature = "sanitize")]
-impl ClassDefFormat2Sanitized<'_> {
-    /// Get the class for this glyph id
-    #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
-        let gid = gid.into().to_u32();
-        let records = self.class_range_records();
-        let ix = match records.binary_search_by(|rec| rec.start_glyph_id().to_u32().cmp(&gid)) {
-            Ok(ix) => ix,
-            Err(ix) => ix.saturating_sub(1),
-        };
-        if let Some(record) = records.get(ix) {
-            if (record.start_glyph_id().to_u32()..=record.end_glyph_id().to_u32()).contains(&gid) {
-                return record.class();
-            }
-        }
-        0
-    }
-
-    /// Iterate over each glyph and its class.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
-        self.class_range_records().iter().flat_map(|range| {
-            let start = range.start_glyph_id().to_u16();
-            let end = range.end_glyph_id().to_u16();
-            (start..=end).map(|gid| (GlyphId16::new(gid), range.class()))
-        })
-    }
-
-    pub fn population(&self) -> usize {
-        self.class_range_records()
-            .iter()
-            .fold(0, |acc, record| acc + record.population())
-    }
-
-    pub fn cost(&self) -> u32 {
-        bit_storage(self.class_range_count() as u32)
-    }
-}
-
-#[cfg(feature = "sanitize")]
-impl ClassDefSanitized<'_> {
-    /// Get the class for this glyph id
-    #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
-        match self {
-            ClassDefSanitized::Format1(table) => table.get(gid),
-            ClassDefSanitized::Format2(table) => table.get(gid),
-        }
-    }
-
-    /// Iterate over each glyph and its class.
-    ///
-    /// This will not include class 0 unless it has been explicitly assigned.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
-        let (one, two) = match self {
-            ClassDefSanitized::Format1(inner) => (Some(inner.iter()), None),
-            ClassDefSanitized::Format2(inner) => (None, Some(inner.iter())),
-        };
-        one.into_iter().flatten().chain(two.into_iter().flatten())
-    }
-
-    /// Return the number of glyphs explicitly assigned to a class in this table
-    pub fn population(&self) -> usize {
-        match self {
-            ClassDefSanitized::Format1(table) => table.population(),
-            ClassDefSanitized::Format2(table) => table.population(),
-        }
-    }
-
-    /// Return the cost of looking up a glyph in this table
-    pub fn cost(&self) -> u32 {
-        match self {
-            ClassDefSanitized::Format1(sub) => sub.cost(),
-            ClassDefSanitized::Format2(sub) => sub.cost(),
         }
     }
 }
