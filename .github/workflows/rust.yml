@@ -108,6 +108,14 @@ jobs:
       - name: cargo test shared-brotli-patch-decoder
         run: cargo test -p shared-brotli-patch-decoder --all-targets --all-features
 
+  verify-licenses:
+    name: Verify licenses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify licenses
+        run: resources/scripts/check_licenses.sh
+
   ensure-clean-codegen:
     name: check codegen is up-to-date
     runs-on: ubuntu-latest
