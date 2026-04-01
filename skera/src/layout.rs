@@ -407,7 +407,7 @@ impl<'a> Serialize<'a> for ClassDef<'a> {
             }
 
             glyph_max = glyph_max.max(*g);
-            if *g != prev_g + 1 || *class != prev_class + 1 {
+            if *g != prev_g + 1 || *class != prev_class {
                 num_ranges += 1;
             }
 
