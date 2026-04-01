@@ -1,8 +1,7 @@
 //! Operand stack for CFF/CFF2 parsing.
 
+use super::{super::error::Error, blend::BlendState};
 use types::Fixed;
-
-use super::{BlendState, Error};
 
 /// Maximum size of the operand stack.
 ///
@@ -428,13 +427,9 @@ impl std::fmt::Display for Number {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::{tables::variations::ItemVariationStore, FontData, FontRead};
     use types::{F2Dot14, Fixed};
-
-    use super::Stack;
-    use crate::{
-        tables::{postscript::BlendState, variations::ItemVariationStore},
-        FontData, FontRead,
-    };
 
     #[test]
     fn push_pop() {

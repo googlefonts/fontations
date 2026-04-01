@@ -2,7 +2,7 @@
 
 use font_types::{BigEndian, F2Dot14, Fixed};
 
-use super::Error;
+use crate::ps::error::Error;
 use crate::tables::variations::{ItemVariationData, ItemVariationStore};
 
 /// The maximum number of region scalars that we precompute.

@@ -2,15 +2,12 @@
 
 use std::collections::BTreeMap;
 
+pub use super::layout::{Condition, CoverageTable};
+use crate::ps::cff::v2::Index as Index2;
 use crate::tables::variations::{
     common_builder::{TemporaryDeltaSetId, NO_VARIATION_INDEX},
     mivs_builder::{MultiItemVariationStoreBuilder, MultiVariationIndexRemapping},
     PackedDeltas,
-};
-
-pub use super::{
-    layout::{Condition, CoverageTable},
-    postscript::Index2,
 };
 
 include!("../../generated/generated_varc.rs");

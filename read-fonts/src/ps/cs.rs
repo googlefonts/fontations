@@ -1,11 +1,14 @@
-//! Parsing for PostScript charstrings.
+//! Parsing and evaluation of charstrings.
 
-use super::{dict::FontMatrix, BlendState, Error, Index, Stack, Transform};
 use crate::{
-    tables::{
-        cff::Cff,
-        postscript::{Charset, StringId},
+    ps::{
+        cff::{blend::BlendState, charset::Charset, index::Index, stack::Stack},
+        error::Error,
+        num,
+        string::Sid,
+        transform::{FontMatrix, Transform},
     },
+    tables::cff::Cff,
     types::{Fixed, Point},
     Cursor, FontData, FontRead,
 };
@@ -70,7 +73,7 @@ impl<'a> CharstringContext for (&'a [u8], &'a Index<'a>, &'a Index<'a>, &'a Inde
         let seac_to_gid = |code: i32| {
             let code: u8 = code.try_into().ok()?;
             let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
-            charset.glyph_id(StringId::new(sid as u16)).ok()
+            charset.glyph_id(Sid::new(sid as u16)).ok()
         };
         let accent_gid = seac_to_gid(accent_code).ok_or(Error::InvalidSeacCode(accent_code))?;
         let base_gid = seac_to_gid(base_code).ok_or(Error::InvalidSeacCode(base_code))?;
@@ -244,7 +247,7 @@ where
                 //
                 // Push an integer to the stack
                 28 | 32..=254 => {
-                    self.stack.push(super::dict::parse_int(&mut cursor, b0)?)?;
+                    self.stack.push(num::parse_int(&mut cursor, b0)?)?;
                 }
                 // Push a fixed point value to the stack
                 255 => {
@@ -1397,7 +1400,7 @@ where
 }
 
 #[cfg(test)]
-pub(super) mod test_helpers {
+pub(crate) mod test_helpers {
     use super::{CommandSink, Fixed};
 
     #[derive(Copy, Clone, PartialEq, Debug)]

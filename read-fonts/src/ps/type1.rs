@@ -1,9 +1,10 @@
-//! Type1 font parsing.
+//! Type1 fonts.
 
-use super::super::{
-    charstring::{self, CharstringContext, CharstringKind, CommandSink},
-    dict::{FontMatrix, ScaledFontMatrix},
-    Error, PredefinedEncoding, Transform,
+use super::{
+    cs::{self, CharstringContext, CharstringKind, CommandSink},
+    encoding::PredefinedEncoding,
+    error::Error,
+    transform::{FontMatrix, ScaledFontMatrix, Transform},
 };
 use crate::{
     types::{Fixed, GlyphId},
@@ -16,7 +17,7 @@ pub struct Type1Font {
     matrix: ScaledFontMatrix,
     charstrings: Charstrings,
     subrs: Subrs,
-    encoding: Option<Encoding>,
+    encoding: Option<RawEncoding>,
     weight_vector: Vec<Fixed>,
 }
 
@@ -125,8 +126,8 @@ impl Type1Font {
     }
 
     /// Returns the character encoding.
-    pub fn encoding(&self) -> Option<Type1Encoding<'_>> {
-        self.encoding.as_ref().map(|enc| Type1Encoding {
+    pub fn encoding(&self) -> Option<Encoding<'_>> {
+        self.encoding.as_ref().map(|enc| Encoding {
             encoding: enc,
             charstrings: &self.charstrings,
         })
@@ -158,7 +159,7 @@ impl Type1Font {
             .charstrings
             .get(gid.to_u32())
             .ok_or(ReadError::OutOfBounds)?;
-        charstring::evaluate(self, None, charstring_data, sink)
+        cs::evaluate(self, None, charstring_data, sink)
     }
 }
 
@@ -170,7 +171,7 @@ impl CharstringContext for Type1Font {
     fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error> {
         let decode = |code: i32| {
             let name = PredefinedEncoding::Standard
-                .code_to_glyph_name(code.try_into().map_err(|_| Error::InvalidSeacCode(code))?);
+                .name(code.try_into().map_err(|_| Error::InvalidSeacCode(code))?);
             self.charstrings
                 .index_for_name(name)
                 .and_then(|idx| self.charstrings.get(idx))
@@ -197,15 +198,15 @@ impl CharstringContext for Type1Font {
 
 /// Associates character codes with glyph names and ids.
 #[derive(Clone)]
-pub struct Type1Encoding<'a> {
-    encoding: &'a Encoding,
+pub struct Encoding<'a> {
+    encoding: &'a RawEncoding,
     charstrings: &'a Charstrings,
 }
 
-impl<'a> Type1Encoding<'a> {
+impl<'a> Encoding<'a> {
     /// Returns the predefined encoding, if any.
     pub fn predefined(&self) -> Option<PredefinedEncoding> {
-        if let Encoding::Predefined(pre) = self.encoding {
+        if let RawEncoding::Predefined(pre) = self.encoding {
             Some(*pre)
         } else {
             None
@@ -215,19 +216,21 @@ impl<'a> Type1Encoding<'a> {
     /// Returns the glyph name for the given character code.
     pub fn glyph_name(&self, code: u8) -> Option<&'a str> {
         match self.encoding {
-            Encoding::Predefined(pre) => Some(pre.code_to_glyph_name(code)),
-            Encoding::Custom(custom) => self.charstrings.name(custom.get(code as usize)?.to_u32()),
+            RawEncoding::Predefined(pre) => Some(pre.name(code)),
+            RawEncoding::Custom(custom) => {
+                self.charstrings.name(custom.get(code as usize)?.to_u32())
+            }
         }
     }
 
     /// Maps a character code to a glyph identifier.
     pub fn map(&self, code: u8) -> Option<GlyphId> {
         match self.encoding {
-            Encoding::Predefined(pre) => self
+            RawEncoding::Predefined(pre) => self
                 .charstrings
-                .index_for_name(pre.code_to_glyph_name(code))
+                .index_for_name(pre.name(code))
                 .map(GlyphId::new),
-            Encoding::Custom(custom) => custom.get(code as usize).copied(),
+            RawEncoding::Custom(custom) => custom.get(code as usize).copied(),
         }
     }
 }
@@ -571,7 +574,7 @@ impl Charstrings {
 
 /// Encoding that maps characters to glyph identifiers.
 #[derive(PartialEq, Debug)]
-enum Encoding {
+enum RawEncoding {
     Predefined(PredefinedEncoding),
     Custom(Vec<GlyphId>),
 }
@@ -1016,7 +1019,7 @@ impl Parser<'_> {
     /// Parse the encoding.
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1474>
-    fn read_encoding(&mut self, charstrings: &Charstrings) -> Option<Encoding> {
+    fn read_encoding(&mut self, charstrings: &Charstrings) -> Option<RawEncoding> {
         match self.next()? {
             // Array of names where index == character code
             Token::Raw(b"[") => {
@@ -1031,7 +1034,7 @@ impl Parser<'_> {
                         *slot = gid.into();
                     }
                 });
-                Some(Encoding::Custom(map))
+                Some(RawEncoding::Custom(map))
             }
             // Map of index to glyph name
             Token::Int(count) => {
@@ -1049,14 +1052,16 @@ impl Parser<'_> {
                         *slot = gid.into();
                     }
                 });
-                Some(Encoding::Custom(map))
+                Some(RawEncoding::Custom(map))
             }
             Token::Raw(b"StandardEncoding") => {
-                Some(Encoding::Predefined(PredefinedEncoding::Standard))
+                Some(RawEncoding::Predefined(PredefinedEncoding::Standard))
             }
-            Token::Raw(b"ExpertEncoding") => Some(Encoding::Predefined(PredefinedEncoding::Expert)),
+            Token::Raw(b"ExpertEncoding") => {
+                Some(RawEncoding::Predefined(PredefinedEncoding::Expert))
+            }
             Token::Raw(b"ISOLatin1Encoding") => {
-                Some(Encoding::Predefined(PredefinedEncoding::IsoLatin1))
+                Some(RawEncoding::Predefined(PredefinedEncoding::IsoLatin1))
             }
             _ => None,
         }
@@ -1249,8 +1254,8 @@ fn decode_fixed(bytes: &[u8], mut power_ten: i32) -> Option<Fixed> {
 
 #[cfg(test)]
 mod tests {
-    use super::charstring::test_helpers::*;
     use super::*;
+    use cs::test_helpers::*;
 
     #[test]
     fn pfb_tags() {
@@ -1820,7 +1825,7 @@ mod tests {
             Type1Font::new(font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA)
                 .unwrap()
                 .encoding,
-            Some(Encoding::Predefined(PredefinedEncoding::Standard)),
+            Some(RawEncoding::Predefined(PredefinedEncoding::Standard)),
         ));
     }
 
@@ -1829,15 +1834,15 @@ mod tests {
         for (blob, encoding) in [
             (
                 "StandardEncoding",
-                Encoding::Predefined(PredefinedEncoding::Standard),
+                RawEncoding::Predefined(PredefinedEncoding::Standard),
             ),
             (
                 "ExpertEncoding",
-                Encoding::Predefined(PredefinedEncoding::Expert),
+                RawEncoding::Predefined(PredefinedEncoding::Expert),
             ),
             (
                 "ISOLatin1Encoding",
-                Encoding::Predefined(PredefinedEncoding::IsoLatin1),
+                RawEncoding::Predefined(PredefinedEncoding::IsoLatin1),
             ),
         ] {
             assert_eq!(

@@ -2,7 +2,11 @@
 
 use types::GlyphId;
 
-use super::FdSelect;
+#[doc(inline)]
+pub use super::v1::{
+    FdSelect, FdSelectFormat0 as Format0, FdSelectFormat3 as Format3, FdSelectFormat4 as Format4,
+    FdSelectRange3 as Range3, FdSelectRange4 as Range4,
+};
 
 impl FdSelect<'_> {
     /// Returns the associated font DICT index for the given glyph identifier.

@@ -143,3 +143,108 @@ impl<'a> std::fmt::Debug for Cff2Header<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> MinByteRange<'a> for Index<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.data_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<'a> FontRead<'a> for Index<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// An array of variable-sized objects in a `CFF2` table.
+#[derive(Clone)]
+pub struct Index<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> Index<'a> {
+    pub const MIN_SIZE: usize = (u32::RAW_BYTE_LEN + u8::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Number of objects stored in INDEX.
+    pub fn count(&self) -> u32 {
+        let range = self.count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Object array element size.
+    pub fn off_size(&self) -> u8 {
+        let range = self.off_size_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Bytes containing `count + 1` offsets each of `off_size`.
+    pub fn offsets(&self) -> &'a [u8] {
+        let range = self.offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// Array containing the object data.
+    pub fn data(&self) -> &'a [u8] {
+        let range = self.data_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+
+    pub fn off_size_byte_range(&self) -> Range<usize> {
+        let start = self.count_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+
+    pub fn offsets_byte_range(&self) -> Range<usize> {
+        let count = self.count();
+        let off_size = self.off_size();
+        let start = self.off_size_byte_range().end;
+        start
+            ..start
+                + (transforms::add_multiply(count, 1_usize, off_size))
+                    .saturating_mul(u8::RAW_BYTE_LEN)
+    }
+
+    pub fn data_byte_range(&self) -> Range<usize> {
+        let start = self.offsets_byte_range().end;
+        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for Index<'a> {
+    fn type_name(&self) -> &str {
+        "Index"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("count", self.count())),
+            1usize => Some(Field::new("off_size", self.off_size())),
+            2usize => Some(Field::new("offsets", self.offsets())),
+            3usize => Some(Field::new("data", self.data())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for Index<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}

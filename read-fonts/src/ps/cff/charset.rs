@@ -1,8 +1,12 @@
 //! CFF charset support.
 
-use super::{
-    CharsetFormat0, CharsetFormat1, CharsetFormat2, CharsetRange1, CharsetRange2, CustomCharset,
-    FontData, FontRead, GlyphId, ReadError, StringId,
+use crate::ps::string::Sid;
+use crate::{FontData, FontRead, GlyphId, ReadError};
+
+#[doc(inline)]
+pub use super::v1::{
+    CharsetFormat0 as Format0, CharsetFormat1 as Format1, CharsetFormat2 as Format2,
+    CharsetRange1 as Range1, CharsetRange2 as Range2, CustomCharset,
 };
 
 /// Character set for mapping from glyph to string identifiers.
@@ -43,7 +47,7 @@ impl<'a> Charset<'a> {
     }
 
     /// Returns the string identifier for the given glyph identifier.
-    pub fn string_id(&self, glyph_id: GlyphId) -> Result<StringId, ReadError> {
+    pub fn string_id(&self, glyph_id: GlyphId) -> Result<Sid, ReadError> {
         let gid = glyph_id.to_u32();
         if gid >= self.num_glyphs {
             return Err(ReadError::OutOfBounds);
@@ -54,7 +58,7 @@ impl<'a> Charset<'a> {
                 // to 228 entries
                 // <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=45>
                 if gid <= 228 {
-                    Ok(StringId::new(gid as u16))
+                    Ok(Sid::new(gid as u16))
                 } else {
                     Err(ReadError::OutOfBounds)
                 }
@@ -63,12 +67,12 @@ impl<'a> Charset<'a> {
                 .get(gid as usize)
                 .copied()
                 .ok_or(ReadError::OutOfBounds)
-                .map(StringId::new),
+                .map(Sid::new),
             CharsetKind::ExpertSubset => EXPERT_SUBSET_CHARSET
                 .get(gid as usize)
                 .copied()
                 .ok_or(ReadError::OutOfBounds)
-                .map(StringId::new),
+                .map(Sid::new),
             CharsetKind::Custom(custom) => match custom {
                 CustomCharset::Format0(fmt) => fmt.string_id(glyph_id),
                 CustomCharset::Format1(fmt) => fmt.string_id(glyph_id),
@@ -78,7 +82,7 @@ impl<'a> Charset<'a> {
     }
 
     /// Returns the glyph identifier for the given string identifier.
-    pub fn glyph_id(&self, string_id: StringId) -> Result<GlyphId, ReadError> {
+    pub fn glyph_id(&self, string_id: Sid) -> Result<GlyphId, ReadError> {
         let sid = string_id.to_u16();
         match &self.kind {
             CharsetKind::IsoAdobe => {
@@ -111,18 +115,18 @@ impl<'a> Charset<'a> {
 
     /// Returns an iterator over all of the glyph and string identifier
     /// mappings.
-    pub fn iter(&self) -> CharsetIter<'a> {
+    pub fn iter(&self) -> Iter<'a> {
         match &self.kind {
             CharsetKind::IsoAdobe
             | CharsetKind::Expert
             | CharsetKind::ExpertSubset
             | CharsetKind::Custom(CustomCharset::Format0(_)) => {
-                CharsetIter(Iter::Simple(self.clone(), 0))
+                Iter(IterKind::Simple(self.clone(), 0))
             }
-            CharsetKind::Custom(CustomCharset::Format1(custom)) => CharsetIter(Iter::Custom1(
+            CharsetKind::Custom(CustomCharset::Format1(custom)) => Iter(IterKind::Custom1(
                 RangeIter::new(custom.ranges(), self.num_glyphs),
             )),
-            CharsetKind::Custom(CustomCharset::Format2(custom)) => CharsetIter(Iter::Custom2(
+            CharsetKind::Custom(CustomCharset::Format2(custom)) => Iter(IterKind::Custom2(
                 RangeIter::new(custom.ranges(), self.num_glyphs),
             )),
         }
@@ -138,20 +142,20 @@ pub enum CharsetKind<'a> {
     Custom(CustomCharset<'a>),
 }
 
-impl CharsetFormat0<'_> {
-    fn string_id(&self, glyph_id: GlyphId) -> Result<StringId, ReadError> {
+impl Format0<'_> {
+    fn string_id(&self, glyph_id: GlyphId) -> Result<Sid, ReadError> {
         let gid = glyph_id.to_u32() as usize;
         if gid == 0 {
-            Ok(StringId::new(0))
+            Ok(Sid::new(0))
         } else {
             self.glyph()
                 .get(gid - 1)
-                .map(|id| StringId::new(id.get()))
+                .map(|id| Sid::new(id.get()))
                 .ok_or(ReadError::OutOfBounds)
         }
     }
 
-    fn glyph_id(&self, string_id: StringId) -> Result<GlyphId, ReadError> {
+    fn glyph_id(&self, string_id: Sid) -> Result<GlyphId, ReadError> {
         if string_id.to_u16() == 0 {
             return Ok(GlyphId::NOTDEF);
         }
@@ -163,22 +167,22 @@ impl CharsetFormat0<'_> {
     }
 }
 
-impl CharsetFormat1<'_> {
-    fn string_id(&self, glyph_id: GlyphId) -> Result<StringId, ReadError> {
+impl Format1<'_> {
+    fn string_id(&self, glyph_id: GlyphId) -> Result<Sid, ReadError> {
         string_id_from_ranges(self.ranges(), glyph_id)
     }
 
-    fn glyph_id(&self, string_id: StringId) -> Result<GlyphId, ReadError> {
+    fn glyph_id(&self, string_id: Sid) -> Result<GlyphId, ReadError> {
         glyph_id_from_ranges(self.ranges(), string_id)
     }
 }
 
-impl CharsetFormat2<'_> {
-    fn string_id(&self, glyph_id: GlyphId) -> Result<StringId, ReadError> {
+impl Format2<'_> {
+    fn string_id(&self, glyph_id: GlyphId) -> Result<Sid, ReadError> {
         string_id_from_ranges(self.ranges(), glyph_id)
     }
 
-    fn glyph_id(&self, string_id: StringId) -> Result<GlyphId, ReadError> {
+    fn glyph_id(&self, string_id: Sid) -> Result<GlyphId, ReadError> {
         glyph_id_from_ranges(self.ranges(), string_id)
     }
 }
@@ -186,12 +190,12 @@ impl CharsetFormat2<'_> {
 fn string_id_from_ranges<T: CharsetRange>(
     ranges: &[T],
     glyph_id: GlyphId,
-) -> Result<StringId, ReadError> {
+) -> Result<Sid, ReadError> {
     let mut gid = glyph_id.to_u32();
     // The notdef glyph isn't explicitly mapped so we need to special case
     // it and add -1 and +1 at a few places when processing ranges
     if gid == 0 {
-        return Ok(StringId::new(0));
+        return Ok(Sid::new(0));
     }
     gid -= 1;
     let mut end = 0u32;
@@ -208,7 +212,7 @@ fn string_id_from_ranges<T: CharsetRange>(
                 .checked_add(range.first())
                 .and_then(|sid| sid.try_into().ok())
                 .ok_or(ReadError::OutOfBounds)
-                .map(StringId::new);
+                .map(Sid::new);
         }
         end = next_end;
     }
@@ -217,7 +221,7 @@ fn string_id_from_ranges<T: CharsetRange>(
 
 fn glyph_id_from_ranges<T: CharsetRange>(
     ranges: &[T],
-    string_id: StringId,
+    string_id: Sid,
 ) -> Result<GlyphId, ReadError> {
     let sid = string_id.to_u16() as u32;
     // notdef glyph is not explicitly mapped
@@ -244,7 +248,7 @@ trait CharsetRange {
     fn n_left(&self) -> u32;
 }
 
-impl CharsetRange for CharsetRange1 {
+impl CharsetRange for Range1 {
     fn first(&self) -> u32 {
         self.first.get() as u32
     }
@@ -254,7 +258,7 @@ impl CharsetRange for CharsetRange1 {
     }
 }
 
-impl CharsetRange for CharsetRange2 {
+impl CharsetRange for Range2 {
     fn first(&self) -> u32 {
         self.first.get() as u32
     }
@@ -266,32 +270,32 @@ impl CharsetRange for CharsetRange2 {
 
 /// Iterator over the glyph and string identifier mappings in a character set.
 #[derive(Clone)]
-pub struct CharsetIter<'a>(Iter<'a>);
+pub struct Iter<'a>(IterKind<'a>);
 
-impl Iterator for CharsetIter<'_> {
-    type Item = (GlyphId, StringId);
+impl Iterator for Iter<'_> {
+    type Item = (GlyphId, Sid);
 
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.0 {
-            Iter::Simple(charset, cur) => {
+            IterKind::Simple(charset, cur) => {
                 let gid = GlyphId::new(*cur);
                 let sid = charset.string_id(gid).ok()?;
                 *cur = cur.checked_add(1)?;
                 Some((gid, sid))
             }
-            Iter::Custom1(custom) => custom.next(),
-            Iter::Custom2(custom) => custom.next(),
+            IterKind::Custom1(custom) => custom.next(),
+            IterKind::Custom2(custom) => custom.next(),
         }
     }
 }
 
 #[derive(Clone)]
-enum Iter<'a> {
+enum IterKind<'a> {
     /// Predefined sets and custom format 0 are just array lookups so we use
     /// the builtin mapping function.
     Simple(Charset<'a>, u32),
-    Custom1(RangeIter<'a, CharsetRange1>),
-    Custom2(RangeIter<'a, CharsetRange2>),
+    Custom1(RangeIter<'a, Range1>),
+    Custom2(RangeIter<'a, Range2>),
 }
 
 /// Custom iterator for range based formats.
@@ -325,7 +329,7 @@ where
         }
     }
 
-    fn next(&mut self) -> Option<(GlyphId, StringId)> {
+    fn next(&mut self) -> Option<(GlyphId, Sid)> {
         if self.gid >= self.num_glyphs {
             return None;
         }
@@ -333,7 +337,7 @@ where
         // it and add -1 and +1 at a few places when processing ranges
         if self.gid == 0 {
             self.gid += 1;
-            return Some((GlyphId::new(0), StringId::new(0)));
+            return Some((GlyphId::new(0), Sid::new(0)));
         }
         let gid = self.gid - 1;
         self.gid = self.gid.checked_add(1)?;
@@ -348,7 +352,7 @@ where
             .checked_add(gid.checked_sub(self.prev_end)?)?
             .try_into()
             .ok()?;
-        Some((GlyphId::new(gid + 1), StringId::new(sid)))
+        Some((GlyphId::new(gid + 1), Sid::new(sid)))
     }
 }
 
@@ -439,7 +443,7 @@ mod tests {
             let gid = GlyphId::new(gid);
             let sid = expected(gid).unwrap();
             assert_eq!(charset.string_id(gid).unwrap().to_u16() as u32, sid);
-            assert_eq!(charset.glyph_id(StringId::new(sid as _)).unwrap(), gid);
+            assert_eq!(charset.glyph_id(Sid::new(sid as _)).unwrap(), gid);
         }
         // Don't map glyphs beyond num_glyphs
         for gid in num_glyphs..u16::MAX as u32 {
@@ -525,7 +529,7 @@ mod tests {
         assert!(charset.iter().eq(expected_sids
             .iter()
             .enumerate()
-            .map(|(gid, sid)| (GlyphId::new(gid as u32), StringId::new(*sid as u16)))));
+            .map(|(gid, sid)| (GlyphId::new(gid as u32), Sid::new(*sid as u16)))));
         assert_eq!(charset.iter().count() as u32, num_glyphs);
         // Test out of bounds glyphs
         for gid in num_glyphs..u16::MAX as u32 {
@@ -534,7 +538,7 @@ mod tests {
         // Test reverse mapping
         for (gid, sid) in expected_sids.iter().enumerate() {
             assert_eq!(
-                charset.glyph_id(StringId::new(*sid as u16)),
+                charset.glyph_id(Sid::new(*sid as u16)),
                 Ok(GlyphId::new(gid as u32))
             );
         }

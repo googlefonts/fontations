@@ -11,7 +11,7 @@ use crate::table_keyed::copy_unprocessed_tables;
 use crate::{font_patch::PatchingError, patch_group::PatchInfo};
 
 use font_types::{Scalar, Uint24};
-use read_fonts::tables::postscript::Index;
+use read_fonts::ps::cff::{index::Index, v1::Index as Index1, v2::Index as Index2};
 use read_fonts::{
     collections::IntSet,
     tables::{
@@ -22,7 +22,6 @@ use read_fonts::{
         ift::{GlyphKeyedPatch, GlyphPatches},
         ift::{IFTX_TAG, IFT_TAG},
         loca::Loca,
-        postscript::{Index1, Index2},
     },
     types::Tag,
     FontData, FontRead, FontRef, ReadError, TableProvider, TopLevelTable,

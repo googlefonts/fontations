@@ -8,7 +8,7 @@ use ::freetype::{face::LoadFlag, Library};
 use ::skrifa::{
     outline::{HintingOptions, SmoothMode, Target},
     raw::{
-        tables::postscript::font::{CffFontRef, Type1Font},
+        ps::{cff::CffFontRef, type1::Type1Font},
         types::F2Dot14,
         FontRef, TableProvider,
     },

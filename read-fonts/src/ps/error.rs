@@ -1,29 +1,7 @@
-//! PostScript (CFF and CFF2) common tables.
+//! Errors that may occur when processing PostScript fonts.
 
+use crate::ReadError;
 use core::fmt;
-
-mod blend;
-mod charset;
-mod encoding;
-mod fd_select;
-mod index;
-mod stack;
-mod string;
-mod transform;
-
-pub mod charstring;
-pub mod dict;
-pub mod font;
-
-include!("../../generated/generated_postscript.rs");
-
-pub use blend::BlendState;
-pub use charset::{Charset, CharsetIter};
-pub use encoding::{CustomEncoding, Encoding, PredefinedEncoding};
-pub use index::Index;
-pub use stack::{Number, Stack};
-pub use string::{Latin1String, StringId, STANDARD_STRINGS};
-pub use transform::Transform;
 
 /// Errors that are specific to PostScript processing.
 #[derive(Clone, Debug)]
@@ -99,7 +77,7 @@ impl fmt::Display for Error {
                 write!(
                     f,
                     "exceeded subroutine nesting depth limit {} while evaluating a charstring",
-                    charstring::NESTING_DEPTH_LIMIT
+                    crate::ps::cs::NESTING_DEPTH_LIMIT
                 )
             }
             Self::MissingSubroutines => {

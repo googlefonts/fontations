@@ -1,12 +1,12 @@
-//! Postscript (CFF/CFF2) table related code.
+//! CFF version 2.
 
-include!("../../generated/generated_postscript.rs");
+include!("../../../generated/generated_cff2.rs");
 
-impl Index2 {
-    /// Construct an `Index2` from a list of byte items.
+impl Index {
+    /// Construct an `Index` from a list of byte items.
     pub fn from_items(items: Vec<Vec<u8>>) -> Self {
         if items.is_empty() {
-            return Index2::new(0, 1, vec![1], vec![]);
+            return Index::new(0, 1, vec![1], vec![]);
         }
 
         let count = items.len() as u32;
@@ -50,7 +50,7 @@ impl Index2 {
         // Concatenate item data
         let data: Vec<u8> = items.into_iter().flatten().collect();
 
-        Index2::new(count, off_size, offsets, data)
+        Index::new(count, off_size, offsets, data)
     }
 }
 
@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn test_index2_from_items() {
         let items = vec![vec![1, 2, 3], vec![4, 5]];
-        let index = Index2::from_items(items);
+        let index = Index::from_items(items);
         assert_eq!(index.count, 2);
     }
 }
