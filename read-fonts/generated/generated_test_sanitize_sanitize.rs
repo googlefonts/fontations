@@ -12,8 +12,9 @@ impl Sanitize for RootTable<'_> {
     }
 }
 
-impl<'a> RootTable<'a> {
-    pub fn try_sanitize(&self) -> Result<RootTableSanitized<'a>, ReadError> {
+impl<'a> TrySanitize for RootTable<'a> {
+    type Sanitized = RootTableSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { RootTableSanitized::read_sanitized(ptr, &()) })
@@ -70,8 +71,9 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for GenericTable<'a, T> {
     }
 }
 
-impl<'a, T: FontRead<'a> + Sanitize> GenericTable<'a, T> {
-    pub fn try_sanitize(&self) -> Result<GenericTableSanitized<'a, ()>, ReadError> {
+impl<'a, T: FontRead<'a> + Sanitize> TrySanitize for GenericTable<'a, T> {
+    type Sanitized = GenericTableSanitized<'a, ()>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { GenericTableSanitized::read_sanitized(ptr, &()) })
@@ -218,8 +220,9 @@ impl Sanitize for TableOne<'_> {
     }
 }
 
-impl<'a> TableOne<'a> {
-    pub fn try_sanitize(&self) -> Result<TableOneSanitized<'a>, ReadError> {
+impl<'a> TrySanitize for TableOne<'a> {
+    type Sanitized = TableOneSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { TableOneSanitized::read_sanitized(ptr, &()) })
@@ -296,8 +299,9 @@ impl Sanitize for TableTwoFormat1<'_> {
     }
 }
 
-impl<'a> TableTwoFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<TableTwoFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for TableTwoFormat1<'a> {
+    type Sanitized = TableTwoFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { TableTwoFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -338,8 +342,9 @@ impl Sanitize for TableTwoFormat2<'_> {
     }
 }
 
-impl<'a> TableTwoFormat2<'a> {
-    pub fn try_sanitize(&self) -> Result<TableTwoFormat2Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for TableTwoFormat2<'a> {
+    type Sanitized = TableTwoFormat2Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { TableTwoFormat2Sanitized::read_sanitized(ptr, &()) })

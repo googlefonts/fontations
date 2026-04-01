@@ -101,6 +101,7 @@ pub use table_ref::MinByteRange;
 #[cfg(feature = "sanitize")]
 pub use sanitize::{
     ArrayOfSanitizedNullableOffsets, ArrayOfSanitizedOffsets, FontPtr, ReadSanitized, Sanitize,
+    TrySanitize,
 };
 
 /// Public re-export of the font-types crate.
@@ -120,7 +121,7 @@ pub(crate) mod codegen_prelude {
     pub use crate::sanitize::{
         sanitize_ignoring_null, ArrayOfSanitizedNullableOffsets, ArrayOfSanitizedOffsets,
         ComputedArraySanitized, FontPtr, ReadSanitized, ResolveSanitizedOffset, Sanitize,
-        SanitizeRecord,
+        SanitizeRecord, TrySanitize,
     };
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;

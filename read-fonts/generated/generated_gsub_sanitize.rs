@@ -22,8 +22,9 @@ impl Sanitize for Gsub<'_> {
     }
 }
 
-impl<'a> Gsub<'a> {
-    pub fn try_sanitize(&self) -> Result<GsubSanitized<'a>, ReadError> {
+impl<'a> TrySanitize for Gsub<'a> {
+    type Sanitized = GsubSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { GsubSanitized::read_sanitized(ptr, &()) })
@@ -265,8 +266,9 @@ impl Sanitize for SingleSubstFormat1<'_> {
     }
 }
 
-impl<'a> SingleSubstFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<SingleSubstFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for SingleSubstFormat1<'a> {
+    type Sanitized = SingleSubstFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SingleSubstFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -331,8 +333,9 @@ impl Sanitize for SingleSubstFormat2<'_> {
     }
 }
 
-impl<'a> SingleSubstFormat2<'a> {
-    pub fn try_sanitize(&self) -> Result<SingleSubstFormat2Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for SingleSubstFormat2<'a> {
+    type Sanitized = SingleSubstFormat2Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SingleSubstFormat2Sanitized::read_sanitized(ptr, &()) })
@@ -407,8 +410,9 @@ impl Sanitize for MultipleSubstFormat1<'_> {
     }
 }
 
-impl<'a> MultipleSubstFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<MultipleSubstFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for MultipleSubstFormat1<'a> {
+    type Sanitized = MultipleSubstFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { MultipleSubstFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -487,8 +491,9 @@ impl Sanitize for Sequence<'_> {
     }
 }
 
-impl<'a> Sequence<'a> {
-    pub fn try_sanitize(&self) -> Result<SequenceSanitized<'a>, ReadError> {
+impl<'a> TrySanitize for Sequence<'a> {
+    type Sanitized = SequenceSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SequenceSanitized::read_sanitized(ptr, &()) })
@@ -541,8 +546,9 @@ impl Sanitize for AlternateSubstFormat1<'_> {
     }
 }
 
-impl<'a> AlternateSubstFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<AlternateSubstFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for AlternateSubstFormat1<'a> {
+    type Sanitized = AlternateSubstFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { AlternateSubstFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -625,8 +631,9 @@ impl Sanitize for AlternateSet<'_> {
     }
 }
 
-impl<'a> AlternateSet<'a> {
-    pub fn try_sanitize(&self) -> Result<AlternateSetSanitized<'a>, ReadError> {
+impl<'a> TrySanitize for AlternateSet<'a> {
+    type Sanitized = AlternateSetSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { AlternateSetSanitized::read_sanitized(ptr, &()) })
@@ -679,8 +686,9 @@ impl Sanitize for LigatureSubstFormat1<'_> {
     }
 }
 
-impl<'a> LigatureSubstFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<LigatureSubstFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for LigatureSubstFormat1<'a> {
+    type Sanitized = LigatureSubstFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { LigatureSubstFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -761,8 +769,9 @@ impl Sanitize for LigatureSet<'_> {
     }
 }
 
-impl<'a> LigatureSet<'a> {
-    pub fn try_sanitize(&self) -> Result<LigatureSetSanitized<'a>, ReadError> {
+impl<'a> TrySanitize for LigatureSet<'a> {
+    type Sanitized = LigatureSetSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { LigatureSetSanitized::read_sanitized(ptr, &()) })
@@ -819,8 +828,9 @@ impl Sanitize for Ligature<'_> {
     }
 }
 
-impl<'a> Ligature<'a> {
-    pub fn try_sanitize(&self) -> Result<LigatureSanitized<'a>, ReadError> {
+impl<'a> TrySanitize for Ligature<'a> {
+    type Sanitized = LigatureSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { LigatureSanitized::read_sanitized(ptr, &()) })
@@ -878,8 +888,9 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for ExtensionSubstFormat1<'a, T> {
     }
 }
 
-impl<'a, T: FontRead<'a> + Sanitize> ExtensionSubstFormat1<'a, T> {
-    pub fn try_sanitize(&self) -> Result<ExtensionSubstFormat1Sanitized<'a, ()>, ReadError> {
+impl<'a, T: FontRead<'a> + Sanitize> TrySanitize for ExtensionSubstFormat1<'a, T> {
+    type Sanitized = ExtensionSubstFormat1Sanitized<'a, ()>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ExtensionSubstFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -1052,8 +1063,9 @@ impl Sanitize for ReverseChainSingleSubstFormat1<'_> {
     }
 }
 
-impl<'a> ReverseChainSingleSubstFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<ReverseChainSingleSubstFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for ReverseChainSingleSubstFormat1<'a> {
+    type Sanitized = ReverseChainSingleSubstFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ReverseChainSingleSubstFormat1Sanitized::read_sanitized(ptr, &()) })

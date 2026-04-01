@@ -8,7 +8,7 @@ use font_types::Tag;
 use indexmap::IndexMap;
 use log::{debug, trace};
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 use regex::Captures;
 use syn::{
     braced, parenthesized,
@@ -51,6 +51,10 @@ pub(crate) struct Table {
 }
 
 impl Table {
+    pub(crate) fn sanitized_name(&self) -> syn::Ident {
+        format_ident!("{}Sanitized", &self.name)
+    }
+
     // here for visibility reasons
     pub(crate) fn raw_name(&self) -> &syn::Ident {
         &self.name

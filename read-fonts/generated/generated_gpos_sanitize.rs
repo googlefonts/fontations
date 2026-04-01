@@ -22,8 +22,9 @@ impl Sanitize for Gpos<'_> {
     }
 }
 
-impl<'a> Gpos<'a> {
-    pub fn try_sanitize(&self) -> Result<GposSanitized<'a>, ReadError> {
+impl<'a> TrySanitize for Gpos<'a> {
+    type Sanitized = GposSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { GposSanitized::read_sanitized(ptr, &()) })
@@ -282,8 +283,9 @@ impl Sanitize for AnchorFormat1<'_> {
     }
 }
 
-impl<'a> AnchorFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<AnchorFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for AnchorFormat1<'a> {
+    type Sanitized = AnchorFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { AnchorFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -335,8 +337,9 @@ impl Sanitize for AnchorFormat2<'_> {
     }
 }
 
-impl<'a> AnchorFormat2<'a> {
-    pub fn try_sanitize(&self) -> Result<AnchorFormat2Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for AnchorFormat2<'a> {
+    type Sanitized = AnchorFormat2Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { AnchorFormat2Sanitized::read_sanitized(ptr, &()) })
@@ -401,8 +404,9 @@ impl Sanitize for AnchorFormat3<'_> {
     }
 }
 
-impl<'a> AnchorFormat3<'a> {
-    pub fn try_sanitize(&self) -> Result<AnchorFormat3Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for AnchorFormat3<'a> {
+    type Sanitized = AnchorFormat3Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { AnchorFormat3Sanitized::read_sanitized(ptr, &()) })
@@ -484,8 +488,9 @@ impl Sanitize for MarkArray<'_> {
     }
 }
 
-impl<'a> MarkArray<'a> {
-    pub fn try_sanitize(&self) -> Result<MarkArraySanitized<'a>, ReadError> {
+impl<'a> TrySanitize for MarkArray<'a> {
+    type Sanitized = MarkArraySanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { MarkArraySanitized::read_sanitized(ptr, &()) })
@@ -654,8 +659,9 @@ impl Sanitize for SinglePosFormat1<'_> {
     }
 }
 
-impl<'a> SinglePosFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<SinglePosFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for SinglePosFormat1<'a> {
+    type Sanitized = SinglePosFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SinglePosFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -725,8 +731,9 @@ impl Sanitize for SinglePosFormat2<'_> {
     }
 }
 
-impl<'a> SinglePosFormat2<'a> {
-    pub fn try_sanitize(&self) -> Result<SinglePosFormat2Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for SinglePosFormat2<'a> {
+    type Sanitized = SinglePosFormat2Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SinglePosFormat2Sanitized::read_sanitized(ptr, &()) })
@@ -898,8 +905,9 @@ impl Sanitize for PairPosFormat1<'_> {
     }
 }
 
-impl<'a> PairPosFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<PairPosFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for PairPosFormat1<'a> {
+    type Sanitized = PairPosFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { PairPosFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -1125,8 +1133,9 @@ impl Sanitize for PairPosFormat2<'_> {
     }
 }
 
-impl<'a> PairPosFormat2<'a> {
-    pub fn try_sanitize(&self) -> Result<PairPosFormat2Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for PairPosFormat2<'a> {
+    type Sanitized = PairPosFormat2Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { PairPosFormat2Sanitized::read_sanitized(ptr, &()) })
@@ -1386,8 +1395,9 @@ impl Sanitize for CursivePosFormat1<'_> {
     }
 }
 
-impl<'a> CursivePosFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<CursivePosFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for CursivePosFormat1<'a> {
+    type Sanitized = CursivePosFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { CursivePosFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -1517,8 +1527,9 @@ impl Sanitize for MarkBasePosFormat1<'_> {
     }
 }
 
-impl<'a> MarkBasePosFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<MarkBasePosFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for MarkBasePosFormat1<'a> {
+    type Sanitized = MarkBasePosFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { MarkBasePosFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -1740,8 +1751,9 @@ impl Sanitize for MarkLigPosFormat1<'_> {
     }
 }
 
-impl<'a> MarkLigPosFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<MarkLigPosFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for MarkLigPosFormat1<'a> {
+    type Sanitized = MarkLigPosFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { MarkLigPosFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -2027,8 +2039,9 @@ impl Sanitize for MarkMarkPosFormat1<'_> {
     }
 }
 
-impl<'a> MarkMarkPosFormat1<'a> {
-    pub fn try_sanitize(&self) -> Result<MarkMarkPosFormat1Sanitized<'a>, ReadError> {
+impl<'a> TrySanitize for MarkMarkPosFormat1<'a> {
+    type Sanitized = MarkMarkPosFormat1Sanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { MarkMarkPosFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -2247,8 +2260,9 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for ExtensionPosFormat1<'a, T> {
     }
 }
 
-impl<'a, T: FontRead<'a> + Sanitize> ExtensionPosFormat1<'a, T> {
-    pub fn try_sanitize(&self) -> Result<ExtensionPosFormat1Sanitized<'a, ()>, ReadError> {
+impl<'a, T: FontRead<'a> + Sanitize> TrySanitize for ExtensionPosFormat1<'a, T> {
+    type Sanitized = ExtensionPosFormat1Sanitized<'a, ()>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ExtensionPosFormat1Sanitized::read_sanitized(ptr, &()) })

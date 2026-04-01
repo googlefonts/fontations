@@ -44,6 +44,14 @@ pub trait SanitizeRecord {
     fn sanitize_record(&self, data: FontData) -> Result<(), ReadError>;
 }
 
+/// Attempt to sanitize a table.
+///
+/// On success this returns a type that allows unchecked access to its fields.
+pub trait TrySanitize: Sanitize {
+    type Sanitized;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError>;
+}
+
 impl<'a, T> SanitizeRecord for ComputedArray<'a, T>
 where
     T: SanitizeRecord + FontReadWithArgs<'a> + ComputeSize,

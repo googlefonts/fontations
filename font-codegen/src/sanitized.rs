@@ -23,8 +23,7 @@ pub(crate) fn generate_read_sanitized_table(
         return Ok(Default::default());
     }
 
-    let name = item.raw_name();
-    let sanitized_name = format_ident!("{}Sanitized", name);
+    let sanitized_name = item.sanitized_name();
     let generic = item.attrs.generic_offset.as_ref().map(|a| &a.attr);
     let generic_with_default = generic.map(|t| quote!(#t = ()));
     let phantom_decl =
@@ -108,8 +107,7 @@ fn generate_ptr_based_read_sanitized_record(
     item: &Record,
     items: &Items,
 ) -> syn::Result<TokenStream> {
-    let name = &item.name;
-    let sanitized_name = format_ident!("{}Sanitized", name);
+    let sanitized_name = item.sanitized_name();
 
     let (args_type, extra_struct_fields, args_init_stmts, arg_getters) =
         build_args_info(&item.fields.read_args);
@@ -180,8 +178,7 @@ pub(crate) fn generate_read_sanitized_record(
         return Ok(Default::default());
     }
 
-    let name = &item.name;
-    let sanitized_name = format_ident!("{}Sanitized", name);
+    let sanitized_name = item.sanitized_name();
     let docs = &item.attrs.docs;
 
     let mut field_decls: Vec<TokenStream> = Vec::new();

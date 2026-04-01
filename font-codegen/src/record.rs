@@ -1,7 +1,7 @@
 //! codegen for record objects
 
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{format_ident, quote, ToTokens};
 
 use crate::{
     fields::FieldConstructorInfo,
@@ -498,6 +498,10 @@ impl Record {
             )),
             _ => Ok(()),
         }
+    }
+
+    pub(crate) fn sanitized_name(&self) -> syn::Ident {
+        format_ident!("{}Sanitized", &self.name)
     }
 
     fn is_zerocopy(&self) -> bool {

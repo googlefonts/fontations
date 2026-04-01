@@ -1198,7 +1198,7 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     // Generate try_sanitize on the original type unless the sanitized version
     // requires non-unit args (i.e. the table has #[read_args(...)]).
     let try_sanitize_impl = if item.fields.read_args.is_none() {
-        let sanitized_name = format_ident!("{}Sanitized", name);
+        let sanitized_name = item.sanitized_name();
         let (ts_impl_g, ts_type_g, ts_ret) = if let Some(gattr) = generic {
             let t = &gattr.attr;
             (
@@ -1210,8 +1210,9 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
             (quote!(<'a>), quote!(<'a>), quote!(#sanitized_name<'a>))
         };
         quote! {
-            impl #ts_impl_g #name #ts_type_g {
-                pub fn try_sanitize(&self) -> Result<#ts_ret, ReadError> {
+            impl #ts_impl_g TrySanitize for #name #ts_type_g {
+                type Sanitized = #ts_ret;
+                fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
                     self.sanitize()?;
                     let ptr = FontPtr::new(self.offset_data());
                     Ok(unsafe { #sanitized_name::read_sanitized(ptr, &()) })
