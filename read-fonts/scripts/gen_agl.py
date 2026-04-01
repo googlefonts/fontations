@@ -256,4 +256,4 @@ class StringNode:
 
 if __name__ == "__main__":    
     data = generate()
-    Path(SCRIPT_DIR.joinpath("../generated/generated_agl.rs")).write_text(data, encoding="utf-8")
+    Path(SCRIPT_DIR.joinpath("../data/generated/generated_agl.rs")).write_text(data, encoding="utf-8")
