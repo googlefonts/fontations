@@ -1,6 +1,7 @@
 //! Type1 fonts.
 
 use super::{
+    charmap::Charmap,
     cs::{self, CharstringContext, CharstringKind, CommandSink},
     encoding::PredefinedEncoding,
     error::Error,
@@ -19,6 +20,7 @@ pub struct Type1Font {
     subrs: Subrs,
     encoding: Option<RawEncoding>,
     weight_vector: Vec<Fixed>,
+    unicode_charmap: Charmap,
 }
 
 impl Type1Font {
@@ -44,6 +46,7 @@ impl Type1Font {
             subrs: Subrs::default(),
             encoding: None,
             weight_vector: Vec::new(),
+            unicode_charmap: Charmap::default(),
         };
         // Read base dict entries
         let mut encoding_offset = None;
@@ -98,6 +101,11 @@ impl Type1Font {
             let mut parser = Parser::new(base.get(encoding_offset..)?);
             font.encoding = Some(parser.read_encoding(&font.charstrings)?);
         }
+        // We can only generate a Unicode cmap if we have the AGL available
+        #[cfg(feature = "agl")]
+        {
+            font.unicode_charmap = Charmap::from_glyph_names(font.glyph_names());
+        }
         Some(font)
     }
 
@@ -131,6 +139,13 @@ impl Type1Font {
             encoding: enc,
             charstrings: &self.charstrings,
         })
+    }
+
+    /// Returns the Unicode charmap for this font.
+    ///
+    /// Note that this is an empty mapping if the `agl` feature is not enabled.
+    pub fn unicode_charmap(&self) -> &Charmap {
+        &self.unicode_charmap
     }
 
     /// Returns the glyph name for the given id.
