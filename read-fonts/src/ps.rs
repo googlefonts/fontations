@@ -3,6 +3,8 @@
 #[cfg(feature = "agl")]
 pub mod agl;
 pub mod cff;
+#[cfg(feature = "std")]
+pub mod charmap;
 pub mod cs;
 pub mod encoding;
 pub mod error;
