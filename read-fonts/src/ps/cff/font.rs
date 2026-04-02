@@ -381,6 +381,7 @@ impl<'a> CffFontRef<'a> {
 }
 
 /// Mapping from character codes to glyph identifiers.
+#[derive(Clone)]
 pub struct Encoding<'a> {
     encoding: RawEncoding<'a>,
     charset: Charset<'a>,
