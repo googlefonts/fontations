@@ -47,6 +47,35 @@ impl GlyphStyles {
             Self(Default::default())
         }
     }
+
+    #[cfg(feature = "autohinter")]
+    /// Returns the skrifa-internal style index for `glyph_id`, if the glyph
+    /// has been assigned to a style.  The index is into the `STYLE_CLASSES`
+    /// array.  Returns `None` for unassigned glyphs.
+    pub fn style_index(&self, glyph_id: u32) -> Option<usize> {
+        use raw::types::GlyphId;
+        self.0
+            .style(GlyphId::new(glyph_id))
+            .and_then(|s| s.style_index().map(|v| v as usize))
+    }
+
+    #[cfg(feature = "autohinter")]
+    /// Returns `true` if `glyph_id` represents an ASCII digit ('0'–'9').
+    pub fn is_digit(&self, glyph_id: u32) -> bool {
+        use raw::types::GlyphId;
+        self.0
+            .style(GlyphId::new(glyph_id))
+            .is_some_and(|s| s.is_digit())
+    }
+
+    #[cfg(feature = "autohinter")]
+    /// Returns `true` if `glyph_id` is a non-base (mark/combining) character.
+    pub fn is_non_base(&self, glyph_id: u32) -> bool {
+        use raw::types::GlyphId;
+        self.0
+            .style(GlyphId::new(glyph_id))
+            .is_some_and(|s| s.is_non_base())
+    }
 }
 
 #[derive(Clone)]
