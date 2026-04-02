@@ -152,7 +152,7 @@ fn main() {
                                         )
                                         .unwrap();
                                     }
-                                    if let Some(instances) = font_data.instantiate(&options) {
+                                    match font_data.instantiate(&options) { Some(instances) => {
                                         if !compare_glyphs(
                                             font_path,
                                             &options,
@@ -161,9 +161,9 @@ fn main() {
                                         ) {
                                             ok.store(false, Ordering::Release);
                                         }
-                                    } else {
+                                    } _ => {
                                         writeln!(std::io::stdout(), "warning: failed to load font instances for {font_path:?}").unwrap();
-                                    }
+                                    }}
                                 }
                             }
                         }

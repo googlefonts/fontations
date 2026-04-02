@@ -32,7 +32,7 @@ impl<'a> FontRead<'a> for Kern<'a> {
 
 impl<'a> Kern<'a> {
     /// Returns an iterator over all of the subtables in this `kern` table.
-    pub fn subtables(&self) -> impl Iterator<Item = Result<Subtable<'a>, ReadError>> + 'a + Clone {
+    pub fn subtables(&self) -> impl Iterator<Item = Result<Subtable<'a>, ReadError>> + 'a + Clone + use<'a> {
         let (data, is_aat, n_tables) = match self {
             Self::Ot(table) => (table.subtable_data(), false, table.n_tables() as u32),
             Self::Aat(table) => (table.subtable_data(), true, table.n_tables()),

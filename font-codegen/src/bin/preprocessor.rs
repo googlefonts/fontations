@@ -8,7 +8,7 @@
 use std::{fmt::Write, ops::Deref};
 
 macro_rules! exit_with_msg {
-    ($disp:expr, $line:expr) => {{
+    ($disp:expr_2021, $line:expr_2021) => {{
         eprintln!("ERROR: {}", $disp);
         eprintln!("Line {}: '{}'", 1 + $line.number, $line.text);
         std::process::exit(1);

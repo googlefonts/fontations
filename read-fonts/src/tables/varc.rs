@@ -100,7 +100,7 @@ pub struct VarcGlyph<'a> {
 
 impl<'a> VarcGlyph<'a> {
     /// <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otTables.py#L404-L409>
-    pub fn components(&self) -> impl Iterator<Item = Result<VarcComponent<'a>, ReadError>> {
+    pub fn components(&self) -> impl Iterator<Item = Result<VarcComponent<'a>, ReadError>> + use<'a> {
         VarcComponentIter {
             table: self.table,
             cursor: self.data.cursor(),

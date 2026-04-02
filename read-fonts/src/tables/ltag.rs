@@ -5,7 +5,7 @@ include!("../../generated/generated_ltag.rs");
 impl<'a> Ltag<'a> {
     /// Returns an iterator yielding the index and string value of each
     /// tag in the table.
-    pub fn tag_indices(&self) -> impl Iterator<Item = (u32, &'a str)> {
+    pub fn tag_indices(&self) -> impl Iterator<Item = (u32, &'a str)> + use<'a> {
         let table_data = self.offset_data().as_bytes();
         self.tag_ranges()
             .iter()

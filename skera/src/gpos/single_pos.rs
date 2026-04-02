@@ -137,9 +137,9 @@ fn compute_new_value_format(
         for record in value_records {
             new_format |= compute_effective_format(&record, strip_hints, true);
         }
-    } else if let Some(rec) = value_records.into_iter().next() {
+    } else { match value_records.into_iter().next() { Some(rec) => {
         new_format = rec.format;
-    }
+    } _ => {}}}
 
     new_format
 }

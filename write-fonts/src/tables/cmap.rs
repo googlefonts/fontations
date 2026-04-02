@@ -414,7 +414,7 @@ impl<'a> Format4SegmentComputer<'a> {
             return None;
         }
 
-        let Some(((mut prev_cp, mut prev_gid), rest)) =
+        let Some((&(mut prev_cp, mut prev_gid), rest)) =
             self.mappings[self.seg_start..].split_first()
         else {
             // if this is the last element, make a final segment

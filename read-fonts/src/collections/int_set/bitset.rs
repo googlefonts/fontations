@@ -1467,7 +1467,7 @@ mod test {
     #[test]
     fn ordering() {
         macro_rules! assert_ord {
-            ($lhs:expr, $rhs:expr, $ord:path) => {
+            ($lhs:expr_2021, $rhs:expr_2021, $ord:path) => {
                 assert_eq!(
                     U32Set::from_iter($lhs).cmp(&U32Set::from_iter($rhs)),
                     $ord,
@@ -1501,7 +1501,7 @@ mod test {
     #[test]
     fn intersects() {
         macro_rules! assert_intersects {
-            ($lhs:path, $rhs:path, $expected:expr) => {
+            ($lhs:path, $rhs:path, $expected:expr_2021) => {
                 assert_eq!($lhs.intersects_set(&$rhs), $expected);
                 assert_eq!($rhs.intersects_set(&$lhs), $expected);
             };

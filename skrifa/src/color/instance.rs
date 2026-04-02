@@ -173,7 +173,7 @@ impl<'a> ColorStops<'a> {
     pub fn resolve(
         &self,
         instance: &'a ColrInstance<'a>,
-    ) -> impl Iterator<Item = ResolvedColorStop> + 'a {
+    ) -> impl Iterator<Item = ResolvedColorStop> + 'a + use<'a> {
         self.stops
             .iter()
             .map(|stop| ResolvedColorStop {

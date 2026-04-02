@@ -120,7 +120,7 @@ impl ValueRecord {
         }
 
         macro_rules! flag_if_true {
-            ($field:expr, $flag:expr) => {
+            ($field:expr_2021, $flag:expr_2021) => {
                 $field
                     .is_some()
                     .then(|| $flag)
@@ -148,12 +148,12 @@ impl FontWrite for ValueRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         let format = self.format();
         macro_rules! write_field {
-            ($field:expr, $flag:expr) => {
+            ($field:expr_2021, $flag:expr_2021) => {
                 if format.contains($flag) {
                     $field.unwrap_or_default().write_into(writer);
                 }
             };
-            ($field:expr, $flag:expr, off) => {
+            ($field:expr_2021, $flag:expr_2021, off) => {
                 if format.contains($flag) {
                     $field.write_into(writer);
                 }

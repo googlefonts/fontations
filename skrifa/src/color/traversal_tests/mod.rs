@@ -326,7 +326,7 @@ fn colrv1_traversal_test(
 }
 
 macro_rules! colrv1_traversal_tests {
-        ($($test_name:ident: $glyph_set:ident, $settings:expr,)*) => {
+        ($($test_name:ident: $glyph_set:ident, $settings:expr_2021,)*) => {
         $(
             #[test]
             fn $test_name() {

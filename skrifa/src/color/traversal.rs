@@ -645,7 +645,7 @@ mod tests {
         const CLIPBOX_SHIFT: f32 = 200.0122;
 
         macro_rules! test_entry {
-            ($axis:literal, $shift:expr, $field:ident) => {
+            ($axis:literal, $shift:expr_2021, $field:ident) => {
                 (
                     $axis,
                     $shift,

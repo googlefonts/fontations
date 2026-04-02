@@ -366,7 +366,7 @@ impl Builder for SinglePosBuilder {
     }
 }
 
-fn cmp_coverage_key(coverage: &CoverageTable) -> impl Ord {
+fn cmp_coverage_key(coverage: &CoverageTable) -> impl Ord + use<> {
     (std::cmp::Reverse(coverage.len()), coverage.iter().next())
 }
 

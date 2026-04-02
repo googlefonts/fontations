@@ -812,7 +812,7 @@ where
     pub fn active_tuples_at(
         &self,
         coords: &'a [F2Dot14],
-    ) -> impl Iterator<Item = (TupleVariation<'a, T>, Fixed)> + 'a {
+    ) -> impl Iterator<Item = (TupleVariation<'a, T>, Fixed)> + 'a + use<'a, T> {
         ActiveTupleVariationIter {
             coords,
             parent: self.clone(),
@@ -1644,7 +1644,7 @@ impl<'a> VariationRegion<'a> {
 
     fn active_region_axes(
         &self,
-    ) -> impl Iterator<Item = (usize, F2Dot14, &'a RegionAxisCoordinates)> {
+    ) -> impl Iterator<Item = (usize, F2Dot14, &'a RegionAxisCoordinates)> + use<'a> {
         self.region_axes()
             .iter()
             .enumerate()
@@ -1662,7 +1662,7 @@ impl<'a> VariationRegion<'a> {
 impl<'a> ItemVariationData<'a> {
     /// Returns an iterator over the per-region delta values for the specified
     /// inner index.
-    pub fn delta_set(&self, inner_index: u16) -> impl Iterator<Item = i32> + 'a + Clone {
+    pub fn delta_set(&self, inner_index: u16) -> impl Iterator<Item = i32> + 'a + Clone + use<'a> {
         let word_delta_count = self.word_delta_count();
         let region_count = self.region_index_count();
         let bytes_per_row = Self::delta_row_len(word_delta_count, region_count);

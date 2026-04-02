@@ -294,7 +294,7 @@ impl<'a> SimpleGlyph<'a> {
     ///
     /// This is slower than [read_points_fast](Self::read_points_fast) but
     /// provides access to the points without requiring a preallocated buffer.
-    pub fn points(&self) -> impl Iterator<Item = CurvePoint> + 'a + Clone {
+    pub fn points(&self) -> impl Iterator<Item = CurvePoint> + 'a + Clone + use<'a> {
         self.points_impl()
             .unwrap_or_else(|| PointIter::new(&[], &[], &[]))
     }
@@ -542,7 +542,7 @@ pub enum Anchor {
 
 impl<'a> CompositeGlyph<'a> {
     /// Returns an iterator over the components of the composite glyph.
-    pub fn components(&self) -> impl Iterator<Item = Component> + 'a + Clone {
+    pub fn components(&self) -> impl Iterator<Item = Component> + 'a + Clone + use<'a> {
         ComponentIter {
             cur_flags: CompositeGlyphFlags::empty(),
             done: false,
@@ -554,7 +554,7 @@ impl<'a> CompositeGlyph<'a> {
     /// component in the composite glyph.
     pub fn component_glyphs_and_flags(
         &self,
-    ) -> impl Iterator<Item = (GlyphId16, CompositeGlyphFlags)> + 'a + Clone {
+    ) -> impl Iterator<Item = (GlyphId16, CompositeGlyphFlags)> + 'a + Clone + use<'a> {
         ComponentGlyphIdFlagsIter {
             cur_flags: CompositeGlyphFlags::empty(),
             done: false,

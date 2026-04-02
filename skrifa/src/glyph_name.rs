@@ -102,7 +102,7 @@ impl<'a> GlyphNames<'a> {
 
     /// Returns an iterator yielding the identifier and name for all glyphs in
     /// the font.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, GlyphName)> + 'a + Clone {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, GlyphName)> + 'a + Clone + use<'a> {
         match &self.inner {
             Inner::Post(post, n) => Iter::Post(0..*n, post.clone()),
             Inner::Cff(cff, charset) => Iter::Cff(cff.clone(), charset.iter()),

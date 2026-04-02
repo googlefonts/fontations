@@ -7,7 +7,7 @@ pub fn random_set(size: u32, max_value: u32) -> IntSet<u32> {
     let mut set = IntSet::<u32>::empty();
     for _ in 0..size {
         loop {
-            let candidate: u32 = rng.gen::<u32>() % max_value;
+            let candidate: u32 = rng.r#gen::<u32>() % max_value;
             if set.insert(candidate) {
                 break;
             }
@@ -22,7 +22,7 @@ pub fn random_u32_set(size: u32, max_value: u32) -> U32Set {
     let mut set = U32Set::empty();
     for _ in 0..size {
         loop {
-            let candidate: u32 = rng.gen::<u32>() % max_value;
+            let candidate: u32 = rng.r#gen::<u32>() % max_value;
             if set.insert(candidate) {
                 break;
             }

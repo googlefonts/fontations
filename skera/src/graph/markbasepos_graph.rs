@@ -354,7 +354,7 @@ fn shrink(
         .iter()
         .enumerate()
         .zip(org_mark_classes.iter())
-        .filter(|(_, &class)| (class as usize) < shrink_point)
+        .filter(|&(_, &class)| (class as usize) < shrink_point)
     {
         retained_mark_glyphs.push(g);
         retained_mark_classes.push((i, class));

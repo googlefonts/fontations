@@ -91,7 +91,7 @@ impl<'a, T: FontRead<'a> + 'a, Ext: ExtensionLookup<'a, T> + 'a> Subtables<'a, T
     }
 
     /// Return an iterator over all the subtables in the collection
-    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a + use<'a, T, Ext> {
         let (left, right) = match self {
             Subtables::Subtable(inner) => (Some(inner.iter()), None),
             Subtables::Extension(inner) => (
@@ -165,7 +165,7 @@ fn bit_storage(v: u32) -> u32 {
 }
 
 impl<'a> CoverageTable<'a> {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + 'a + use<'a> {
         // all one expression so that we have a single return type
         let (iter1, iter2) = match self {
             CoverageTable::Format1(t) => (Some(t.glyph_array().iter().map(|g| g.get())), None),
@@ -431,7 +431,7 @@ impl<'a> ClassDefFormat1<'a> {
     }
 
     /// Iterate over each glyph and its class.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + 'a + use<'a> {
         let start = self.start_glyph_id();
         self.class_value_array()
             .iter()
@@ -549,7 +549,7 @@ impl<'a> ClassDefFormat2<'a> {
     }
 
     /// Iterate over each glyph and its class.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + 'a + use<'a> {
         self.class_range_records().iter().flat_map(|range| {
             let start = range.start_glyph_id().to_u16();
             let end = range.end_glyph_id().to_u16();
@@ -752,7 +752,7 @@ impl ClassDef<'_> {
 
 impl<'a> Device<'a> {
     /// Iterate over the decoded values for this device
-    pub fn iter(&self) -> impl Iterator<Item = i8> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = i8> + 'a + use<'a> {
         let format = self.delta_format();
         let mut n = (self.end_size() - self.start_size()) as usize + 1;
         let deltas_per_word = match format {

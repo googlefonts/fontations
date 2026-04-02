@@ -81,7 +81,7 @@ where
     T: FontReadWithArgs<'a>,
     T::Args: Copy + 'static,
 {
-    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a + use<'a, T> {
         let mut i = 0;
         let data = self.data;
         let args = self.args;
@@ -154,7 +154,7 @@ impl<'a, T: FontRead<'a> + VarSize> VarLenArray<'a, T> {
     }
 
     /// Return an iterator over this array's items.
-    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a + use<'a, T> {
         let mut data = self.data;
         std::iter::from_fn(move || {
             if data.is_empty() {

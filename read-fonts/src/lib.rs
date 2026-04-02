@@ -242,7 +242,7 @@ impl<'a> FileRef<'a> {
     }
 
     /// Returns an iterator over the fonts contained in the file.
-    pub fn fonts(&self) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone {
+    pub fn fonts(&self) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone + use<'a> {
         let (iter_one, iter_two) = match self {
             Self::Font(font) => (Some(Ok(font.clone())), None),
             Self::Collection(collection) => (None, Some(collection.iter())),
@@ -297,7 +297,7 @@ impl<'a> CollectionRef<'a> {
     }
 
     /// Returns an iterator over the fonts in the collection.
-    pub fn iter(&self) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone {
+    pub fn iter(&self) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone + use<'a> {
         let copy = self.clone();
         (0..self.len()).map(move |ix| copy.get(ix))
     }

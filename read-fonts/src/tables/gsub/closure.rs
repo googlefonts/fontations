@@ -1064,7 +1064,7 @@ mod tests {
 
     /// assert a set of glyph ids matches a slice of names
     macro_rules! assert_closure_result {
-        ($glyph_map:expr, $result:expr, $expected:expr) => {
+        ($glyph_map:expr_2021, $result:expr_2021, $expected:expr_2021) => {
             let result = $result
                 .iter()
                 .map(|gid| $glyph_map.get_name(gid).unwrap())

@@ -1956,12 +1956,12 @@ mod tests {
         let mut cursor = FontData::new(&[]).cursor();
         // push some numbers and optionally evaluate an operator
         macro_rules! op {
-            ($nums:expr) => {
+            ($nums:expr_2021) => {
                 for n in $nums {
                     eval.stack.push(n).unwrap();
                 }
             };
-            ($nums:expr, $op:ident) => {
+            ($nums:expr_2021, $op:ident) => {
                 op!($nums);
                 eval.evaluate_operator(Operator::$op, &mut cursor, 0)
                     .unwrap();

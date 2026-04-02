@@ -13,13 +13,13 @@ include!("../../generated/generated_layout.rs");
 
 /// A macro to implement the [LookupSubtable] trait.
 macro_rules! lookup_type {
-    (gpos, $ty:ty, $val:expr) => {
+    (gpos, $ty:ty, $val:expr_2021) => {
         impl LookupSubtable for $ty {
             const TYPE: LookupType = LookupType::Gpos($val);
         }
     };
 
-    (gsub, $ty:ty, $val:expr) => {
+    (gsub, $ty:ty, $val:expr_2021) => {
         impl LookupSubtable for $ty {
             const TYPE: LookupType = LookupType::Gsub($val);
         }

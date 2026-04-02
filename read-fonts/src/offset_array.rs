@@ -76,7 +76,7 @@ where
     /// Iterate over all of the offset targets.
     ///
     /// Each offset will be resolved as it is encountered.
-    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a + use<'a, T, O> {
         let mut iter = self.offsets.iter();
         let args = self.args;
         let data = self.data;
@@ -136,7 +136,7 @@ where
     /// Iterate over all of the offset targets.
     ///
     /// Each offset will be resolved as it is encountered.
-    pub fn iter(&self) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a + use<'a, T, O> {
         let mut iter = self.offsets.iter();
         let args = self.args;
         let data = self.data;

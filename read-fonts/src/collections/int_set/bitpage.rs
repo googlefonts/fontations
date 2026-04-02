@@ -842,7 +842,7 @@ mod test {
     #[test]
     fn intersects() {
         macro_rules! assert_intersects {
-            ($lhs:path, $rhs:path, $expected:expr) => {
+            ($lhs:path, $rhs:path, $expected:expr_2021) => {
                 assert_eq!($lhs.intersects_set(&$rhs), $expected);
                 assert_eq!($rhs.intersects_set(&$lhs), $expected);
             };

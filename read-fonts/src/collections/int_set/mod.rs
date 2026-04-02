@@ -2484,7 +2484,7 @@ mod test {
     #[test]
     fn intersects_set() {
         macro_rules! assert_intersects {
-            ($lhs:path, $rhs:path, $expected:expr) => {
+            ($lhs:path, $rhs:path, $expected:expr_2021) => {
                 assert_eq!($lhs.intersects_set(&$rhs), $expected);
                 assert_eq!($rhs.intersects_set(&$lhs), $expected);
             };
@@ -2627,7 +2627,7 @@ mod test {
     #[test]
     fn ordering() {
         macro_rules! assert_ord {
-            ($lhs:expr, $rhs:expr, $ord:path) => {
+            ($lhs:expr_2021, $rhs:expr_2021, $ord:path) => {
                 assert_eq!(
                     IntSet::from($lhs.clone()).cmp(&IntSet::from($rhs.clone())),
                     $ord,

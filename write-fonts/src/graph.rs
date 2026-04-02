@@ -969,7 +969,7 @@ impl Graph {
         impl LookupSize {
             // I could impl Ord but then I need to impl PartialEq and it ends
             // up being way more code
-            fn sort_key(&self) -> impl Ord {
+            fn sort_key(&self) -> impl Ord + use<> {
                 let bytes_per_subtable = self.subtable_count as f64 / self.subgraph_size as f64;
                 // f64 isn't ord, so we turn it into an integer,
                 // then reverse, because we want bigger things first

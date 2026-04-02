@@ -239,7 +239,7 @@ mod tests {
     // The following are macros because functions can't return a new ValueStack
     // with a borrowed parameter.
     macro_rules! make_stack {
-        ($values:expr) => {
+        ($values:expr_2021) => {
             ValueStack {
                 values: $values,
                 len: $values.len(),
@@ -248,7 +248,7 @@ mod tests {
         };
     }
     macro_rules! make_empty_stack {
-        ($values:expr) => {
+        ($values:expr_2021) => {
             ValueStack {
                 values: $values,
                 len: 0,

@@ -622,7 +622,7 @@ impl<'a> OutlineGlyphCollection<'a> {
     }
 
     /// Returns an iterator over all of the outline glyphs in the collection.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, OutlineGlyph<'a>)> + 'a + Clone {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, OutlineGlyph<'a>)> + 'a + Clone + use<'a> {
         let len = match &self.kind {
             OutlineCollectionKind::Glyf(glyf) => glyf.glyph_count() as u32,
             OutlineCollectionKind::Cff(cff) => cff.glyph_count() as u32,

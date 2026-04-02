@@ -10,13 +10,13 @@ use nu_ansi_term::{Color, Color::Red, Style};
 
 #[macro_export]
 macro_rules! assert_hex_eq {
-    ($left:expr, $right:expr$(,)?) => ({
+    ($left:expr_2021, $right:expr_2021$(,)?) => ({
         $crate::assert_hex_eq!(@ $left, $right, "", "");
     });
-    ($left:expr, $right:expr, $($arg:tt)*) => ({
+    ($left:expr_2021, $right:expr_2021, $($arg:tt)*) => ({
         $crate::assert_hex_eq!(@ $left, $right, ": ", $($arg)+);
     });
-    (@ $left:expr, $right:expr, $maybe_semicolon:expr, $($arg:tt)*) => ({
+    (@ $left:expr_2021, $right:expr_2021, $maybe_semicolon:expr_2021, $($arg:tt)*) => ({
         let to_diff = $crate::hex_diff::ToDiff { left: $left, right: $right };
         if (to_diff.left != to_diff.right) {
             ::std::panic!("assertion failed: `(left == right)`{}{}\

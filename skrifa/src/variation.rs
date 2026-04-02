@@ -226,7 +226,7 @@ impl<'a> AxisCollection<'a> {
     /// assert_eq!(&filtered, &[("wght", 900.0).into()]);
     /// # }
     /// ```
-    pub fn filter<I>(&self, settings: I) -> impl Iterator<Item = VariationSetting> + Clone
+    pub fn filter<I>(&self, settings: I) -> impl Iterator<Item = VariationSetting> + Clone + use<I>
     where
         I: IntoIterator,
         I::Item: Into<VariationSetting>,
@@ -262,7 +262,7 @@ impl<'a> AxisCollection<'a> {
     }
 
     /// Returns an iterator over the axes in the collection.
-    pub fn iter(&self) -> impl Iterator<Item = Axis> + 'a + Clone {
+    pub fn iter(&self) -> impl Iterator<Item = Axis> + 'a + Clone + use<'a> {
         let copy = self.clone();
         (0..self.len()).filter_map(move |i| copy.get(i))
     }
@@ -293,7 +293,7 @@ impl<'a> NamedInstance<'a> {
 
     /// Returns an iterator over the ordered sequence of user space coordinates
     /// that define the instance, one coordinate per axis.
-    pub fn user_coords(&self) -> impl Iterator<Item = f32> + 'a + Clone {
+    pub fn user_coords(&self) -> impl Iterator<Item = f32> + 'a + Clone + use<'a> {
         self.record
             .coordinates
             .iter()
@@ -379,7 +379,7 @@ impl<'a> NamedInstanceCollection<'a> {
     }
 
     /// Returns an iterator over the instances in the collection.
-    pub fn iter(&self) -> impl Iterator<Item = NamedInstance<'a>> + 'a + Clone {
+    pub fn iter(&self) -> impl Iterator<Item = NamedInstance<'a>> + 'a + Clone + use<'a> {
         let copy = self.clone();
         (0..self.len()).filter_map(move |i| copy.get(i))
     }

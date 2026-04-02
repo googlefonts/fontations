@@ -348,7 +348,7 @@ fn copy_value_rec(
                 target.write(val);
             }
         };
-        ($fld:ident, $flag:expr) => {
+        ($fld:ident, $flag:expr_2021) => {
             if !rec.$fld.get().is_null() {
                 // we write this in a funny way to dodge a clippy warning
                 seen_offsets += 1;

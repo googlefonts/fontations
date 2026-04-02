@@ -50,7 +50,7 @@ impl<'a> InlineOperands<'a> {
 
     /// Returns an iterator over the operand values.
     #[inline]
-    pub fn values(&self) -> impl Iterator<Item = i32> + 'a + Clone {
+    pub fn values(&self) -> impl Iterator<Item = i32> + 'a + Clone + use<'a> {
         let (bytes, words) = if self.is_words {
             (&[][..], self.bytes)
         } else {
