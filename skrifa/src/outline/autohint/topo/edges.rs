@@ -12,7 +12,7 @@ use super::{
         outline::Direction,
         style::ScriptGroup,
     },
-    Axis, Edge, Segment,
+    Axis, BlueProvenance, Edge, Segment,
 };
 
 /// Links segments to edges, using feature analysis for selection.
@@ -309,10 +309,12 @@ pub(crate) fn compute_blue_edges(
     for edge in &mut axis.edges {
         let mut best_blue = None;
         let mut best_is_neutral = false;
+        let mut best_blue_idx = None;
+        let mut best_blue_is_shoot = false;
         // Initial threshold as a fraction of em size with a max distance
         // of 0.5 pixels
         let mut best_dist = initial_best_dest;
-        for (unscaled_blue, blue) in unscaled_blues.iter().zip(blues) {
+        for (blue_ix, (unscaled_blue, blue)) in unscaled_blues.iter().zip(blues).enumerate() {
             // Ignore inactive blue zones
             if !blue.is_active {
                 continue;
@@ -342,6 +344,8 @@ pub(crate) fn compute_blue_edges(
                     best_dist = dist;
                     best_blue = Some(matching_blue);
                     best_is_neutral = is_neutral;
+                    best_blue_idx = Some(blue_ix as u16);
+                    best_blue_is_shoot = false;
                 }
                 if group == ScriptGroup::Default {
                     // Now compare to overshoot position for the default script
@@ -358,6 +362,8 @@ pub(crate) fn compute_blue_edges(
                                 best_dist = dist;
                                 best_blue = Some(blue.overshoot);
                                 best_is_neutral = is_neutral;
+                                best_blue_idx = Some(blue_ix as u16);
+                                best_blue_is_shoot = true;
                             }
                         }
                     }
@@ -366,6 +372,10 @@ pub(crate) fn compute_blue_edges(
         }
         if let Some(best_blue) = best_blue {
             edge.blue_edge = Some(best_blue);
+            edge.blue_provenance = Some(BlueProvenance {
+                blue_ix: best_blue_idx.unwrap_or_default(),
+                is_shoot: best_blue_is_shoot,
+            });
             if best_is_neutral {
                 edge.flags |= Edge::NEUTRAL;
             }
@@ -398,6 +408,7 @@ mod tests {
                 flags: Edge::ROUND,
                 dir: Direction::Up,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(3),
                 serif_ix: None,
                 scale: 0,
@@ -411,6 +422,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Up,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(2),
                 serif_ix: None,
                 scale: 0,
@@ -424,6 +436,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Down,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(1),
                 serif_ix: None,
                 scale: 0,
@@ -437,6 +450,7 @@ mod tests {
                 flags: Edge::ROUND,
                 dir: Direction::Down,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(0),
                 serif_ix: None,
                 scale: 0,
@@ -455,6 +469,10 @@ mod tests {
                     scaled: -246,
                     fitted: -256,
                 }),
+                blue_provenance: Some(BlueProvenance {
+                    blue_ix: 2,
+                    is_shoot: false,
+                }),
                 link_ix: None,
                 serif_ix: Some(1),
                 scale: 0,
@@ -468,6 +486,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Left,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(2),
                 serif_ix: None,
                 scale: 0,
@@ -484,6 +503,10 @@ mod tests {
                     scaled: 606,
                     fitted: 576,
                 }),
+                blue_provenance: Some(BlueProvenance {
+                    blue_ix: 0,
+                    is_shoot: false,
+                }),
                 link_ix: Some(1),
                 serif_ix: None,
                 scale: 0,
@@ -497,6 +520,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Right,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: None,
                 serif_ix: Some(2),
                 scale: 0,
@@ -523,6 +547,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Up,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(1),
                 serif_ix: None,
                 scale: 0,
@@ -536,6 +561,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Down,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(0),
                 serif_ix: None,
                 scale: 0,
@@ -549,6 +575,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Down,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: None,
                 serif_ix: None,
                 scale: 0,
@@ -562,6 +589,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Down,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: None,
                 serif_ix: None,
                 scale: 0,
@@ -575,6 +603,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Up,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(6),
                 serif_ix: None,
                 scale: 0,
@@ -588,6 +617,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Up,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: None,
                 serif_ix: Some(7),
                 scale: 0,
@@ -601,6 +631,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Down,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(4),
                 serif_ix: None,
                 scale: 0,
@@ -614,6 +645,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Up,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(8),
                 serif_ix: None,
                 scale: 0,
@@ -627,6 +659,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Down,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(7),
                 serif_ix: None,
                 scale: 0,
@@ -645,6 +678,10 @@ mod tests {
                     scaled: -80,
                     fitted: -64,
                 }),
+                blue_provenance: Some(BlueProvenance {
+                    blue_ix: 1,
+                    is_shoot: false,
+                }),
                 link_ix: None,
                 serif_ix: None,
                 scale: 0,
@@ -658,6 +695,7 @@ mod tests {
                 flags: Edge::ROUND,
                 dir: Direction::Right,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: None,
                 serif_ix: None,
                 scale: 0,
@@ -671,6 +709,7 @@ mod tests {
                 flags: Edge::ROUND,
                 dir: Direction::Left,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: None,
                 serif_ix: None,
                 scale: 0,
@@ -684,6 +723,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Left,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: None,
                 serif_ix: Some(5),
                 scale: 0,
@@ -697,6 +737,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Right,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(5),
                 serif_ix: None,
                 scale: 0,
@@ -710,6 +751,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Left,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(4),
                 serif_ix: None,
                 scale: 0,
@@ -723,6 +765,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Left,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(7),
                 serif_ix: None,
                 scale: 0,
@@ -736,6 +779,7 @@ mod tests {
                 flags: 0,
                 dir: Direction::Right,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: Some(6),
                 serif_ix: None,
                 scale: 0,
@@ -749,6 +793,7 @@ mod tests {
                 flags: Edge::ROUND,
                 dir: Direction::Left,
                 blue_edge: None,
+                blue_provenance: None,
                 link_ix: None,
                 serif_ix: None,
                 scale: 0,
