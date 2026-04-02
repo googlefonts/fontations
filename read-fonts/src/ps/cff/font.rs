@@ -626,7 +626,11 @@ impl<'a> TopDict<'a> {
                         .get(offset..)
                         .and_then(|data| FdSelect::read(data.into()).ok());
                 }
-                dict::Entry::PrivateDictRange(range) => private_dict_range = range,
+                dict::Entry::PrivateDictRange(range) => {
+                    // Fail early if our private dictionary is out of bounds
+                    let _ = cff_data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
+                    private_dict_range = range;
+                }
                 dict::Entry::FontMatrix(font_matrix) => {
                     // FreeType always normalizes this and the scaling factor
                     // is dynamic so it won't make a difference to our users
