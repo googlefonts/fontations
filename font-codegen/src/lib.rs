@@ -138,7 +138,7 @@ pub(crate) fn generate_sanitize_module(
         code.push(sanitize);
 
         let read_sanitized = match item {
-            Item::Table(item) => sanitized::generate_read_sanitized_table(item, items)?,
+            Item::Table(item) => sanitized::generate_read_sanitized_table(item)?,
             Item::Format(item) => sanitized::generate_read_sanitized_format(item, items)?,
             Item::GenericGroup(item) => sanitized::generate_read_sanitized_group(item)?,
             Item::Record(item) => sanitized::generate_read_sanitized_record(item, items)?,

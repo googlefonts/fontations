@@ -15,10 +15,7 @@ use crate::parsing::{
 };
 
 /// Generate a `ReadSanitized` implementation for a table.
-pub(crate) fn generate_read_sanitized_table(
-    item: &Table,
-    items: &Items,
-) -> syn::Result<TokenStream> {
+pub(crate) fn generate_read_sanitized_table(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
         return Ok(Default::default());
     }
@@ -50,7 +47,7 @@ pub(crate) fn generate_read_sanitized_table(
     let read_sanitized_init =
         build_read_sanitized_init(&item.fields.read_args, phantom_init.as_ref());
 
-    let (pos_methods, getter_methods) = build_pos_and_getter_methods(&item.fields, items);
+    let (pos_methods, getter_methods) = build_pos_and_getter_methods(&item.fields);
 
     let impl_into_generic = generic.map(|t| {
         quote! {
@@ -103,10 +100,7 @@ pub(crate) fn generate_read_sanitized_table(
 ///
 /// The generated struct stores `ptr: FontPtr<'a>` plus one field per `#[read_args]`
 /// argument, and uses the same `_pos()` / getter pattern as table sanitized types.
-fn generate_ptr_based_read_sanitized_record(
-    item: &Record,
-    items: &Items,
-) -> syn::Result<TokenStream> {
+fn generate_ptr_based_read_sanitized_record(item: &Record) -> syn::Result<TokenStream> {
     let sanitized_name = item.sanitized_name();
 
     let (args_type, extra_struct_fields, args_init_stmts, arg_getters) =
@@ -120,7 +114,7 @@ fn generate_ptr_based_read_sanitized_record(
 
     let read_sanitized_init = build_read_sanitized_init(&item.fields.read_args, None);
 
-    let (pos_methods, getter_methods) = build_pos_and_getter_methods(&item.fields, items);
+    let (pos_methods, getter_methods) = build_pos_and_getter_methods(&item.fields);
 
     Ok(quote! {
         #[derive(Clone, Default)]
@@ -157,25 +151,9 @@ pub(crate) fn generate_read_sanitized_record(
     item: &Record,
     items: &Items,
 ) -> syn::Result<TokenStream> {
-    let has_unsupported_struct = item
-        .fields
-        .iter()
-        .any(|f| matches!(&f.typ, FieldType::Struct { typ } if !has_sanitized_record(typ, items)));
-
     // Records with read_args that can't be zerocopy get a pointer-based sanitized struct.
-    if item.fields.read_args.is_some() && (item.lifetime.is_some() || has_unsupported_struct) {
-        return generate_ptr_based_read_sanitized_record(item, items);
-    }
-
-    // Skip records with lifetimes (they contain arrays without read_args).
-    if item.lifetime.is_some() {
-        return Ok(Default::default());
-    }
-
-    // Skip records that contain embedded struct fields whose type doesn't have
-    // a sanitized version (e.g. extern types, variable-size records).
-    if has_unsupported_struct {
-        return Ok(Default::default());
+    if item.fields.read_args.is_some() || item.lifetime.is_some() {
+        return generate_ptr_based_read_sanitized_record(item);
     }
 
     let sanitized_name = item.sanitized_name();
@@ -294,7 +272,7 @@ fn generate_sanitized_format_shared_getters(
     let getters = shared.iter().map(|field| {
         let docs = &field.attrs.docs;
         let method_name = &field.name;
-        let return_type = field.sanitized_table_getter_return_type(items);
+        let return_type = field.sanitized_table_getter_return_type();
         let arms = active_variants.iter().map(|v| {
             let var_name = &v.name;
             quote!(Self::#var_name(item) => item.#method_name(),)
@@ -489,10 +467,7 @@ pub(crate) fn generate_read_sanitized_group(item: &GenericGroup) -> syn::Result<
 ///   position method, accumulating any bytes belonging to skipped fields.
 /// - A public getter method is emitted that reads the field value via the pos
 ///   method.  Offset fields additionally get a resolved offset getter.
-fn build_pos_and_getter_methods(
-    fields: &Fields,
-    items: &Items,
-) -> (Vec<TokenStream>, Vec<TokenStream>) {
+fn build_pos_and_getter_methods(fields: &Fields) -> (Vec<TokenStream>, Vec<TokenStream>) {
     let mut pos_methods: Vec<TokenStream> = Vec::new();
     let mut getter_methods: Vec<TokenStream> = Vec::new();
 
@@ -530,8 +505,8 @@ fn build_pos_and_getter_methods(
         acc = Some(this_len);
         let pos_fn = pos_fn_ident;
 
-        let ret = field.sanitized_table_getter_return_type(items);
-        let body = field.sanitized_table_getter_body(&pos_fn, items);
+        let ret = field.sanitized_table_getter_return_type();
+        let body = field.sanitized_table_getter_body(&pos_fn);
         getter_methods.push(quote! {
             pub fn #field_name(&self) -> #ret { #body }
         });
@@ -605,23 +580,6 @@ fn build_read_sanitized_init(
     }
 }
 
-/// Returns true if the given type name refers to a `Record` that will get a
-/// sanitized version generated — i.e., it has no lifetime and no struct fields
-/// whose own types lack sanitized versions.
-fn has_sanitized_record(name: &syn::Ident, items: &Items) -> bool {
-    match items.get(name) {
-        Some(Item::Record(r)) => {
-            if r.lifetime.is_some() {
-                return false;
-            }
-            !r.fields.iter().any(|f| {
-                matches!(&f.typ, FieldType::Struct { typ } if !has_sanitized_record(typ, items))
-            })
-        }
-        _ => false,
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Per-field code generation methods
 // ---------------------------------------------------------------------------
@@ -653,7 +611,7 @@ impl Field {
         }
 
         Some(match self.attrs.count.as_deref() {
-            Some(Count::All(_)) => todo!(),
+            Some(Count::All(_)) => quote!(compile_error!("count(..) not handled in sanitize")),
             Some(other) => {
                 let count_expr = other.sanitized_count_expr();
                 let size_expr = match &self.typ {
@@ -683,13 +641,13 @@ impl Field {
     // --- Table context ---
 
     /// Return type of this field's primary getter method in a table.
-    pub(crate) fn sanitized_table_getter_return_type(&self, items: &Items) -> TokenStream {
+    pub(crate) fn sanitized_table_getter_return_type(&self) -> TokenStream {
         match &self.typ {
             FieldType::Scalar { typ } => quote!(#typ),
             FieldType::Offset { typ, .. } => quote!(#typ),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Scalar { typ } => quote!(&'a [BigEndian<#typ>]),
-                FieldType::Struct { typ } if has_sanitized_record(typ, items) => {
+                FieldType::Struct { typ } => {
                     let st = format_ident!("{}Sanitized", typ);
                     quote!(&'a [#st])
                 }
@@ -716,11 +674,7 @@ impl Field {
     }
 
     /// Body of this field's primary getter method in a table.
-    pub(crate) fn sanitized_table_getter_body(
-        &self,
-        pos_fn: &syn::Ident,
-        items: &Items,
-    ) -> TokenStream {
+    pub(crate) fn sanitized_table_getter_body(&self, pos_fn: &syn::Ident) -> TokenStream {
         let read_args = self
             .attrs
             .read_with_args
@@ -736,21 +690,19 @@ impl Field {
                 // #[count] always present on arrays, would crash before sanitize
                 let count_expr = self.attrs.count.as_deref().unwrap().sanitized_count_expr();
                 match inner_typ.as_ref() {
-                    FieldType::Scalar { .. } | FieldType::Offset { .. } => {
-                        quote!(unsafe { self.ptr.read_array_at(self.#pos_fn(), #count_expr) })
-                    }
-                    FieldType::Struct { typ } if has_sanitized_record(typ, items) => {
+                    FieldType::Scalar { .. }
+                    | FieldType::Offset { .. }
+                    | FieldType::Struct { .. } => {
                         quote!(unsafe { self.ptr.read_array_at(self.#pos_fn(), #count_expr) })
                     }
                     _ => quote!(compile_error!("not a valid type")),
                 }
             }
-            FieldType::Struct { .. } => {
-                quote! {
-                    let ptr = unsafe { self.ptr.for_offset(self.#pos_fn()) };
-                    unsafe { ReadSanitized::read_sanitized(ptr, &#read_args) }
-                }
-            }
+            FieldType::Struct { .. } => quote! {
+                let ptr = unsafe { self.ptr.for_offset(self.#pos_fn()) };
+                unsafe { ReadSanitized::read_sanitized(ptr, &#read_args) }
+            },
+
             FieldType::ComputedArray(array) => {
                 let count_expr = self.attrs.count.as_deref().unwrap().sanitized_count_expr();
                 let read_args = self
@@ -869,8 +821,9 @@ impl Field {
         let name = &self.name;
         let docs = &self.attrs.docs;
         match &self.typ {
-            FieldType::Scalar { typ } => quote! { #( #docs )* pub #name: BigEndian<#typ> },
-            FieldType::Offset { typ, .. } => quote! { #( #docs )* pub #name: BigEndian<#typ> },
+            FieldType::Scalar { typ } | FieldType::Offset { typ, .. } => {
+                quote! { #( #docs )* pub #name: BigEndian<#typ> }
+            }
             FieldType::Struct { typ } => {
                 let st = format_ident!("{}Sanitized", typ);
                 quote! { #( #docs )* pub #name: #st }
@@ -883,23 +836,17 @@ impl Field {
     pub(crate) fn sanitized_record_getter(&self) -> TokenStream {
         let name = &self.name;
         let docs = &self.attrs.docs;
-        match &self.typ {
-            FieldType::Scalar { typ } => quote! {
-                #( #docs )*
-                pub fn #name(&self) -> #typ { self.#name.get() }
-            },
-            FieldType::Offset { typ, .. } => quote! {
-                #( #docs )*
-                pub fn #name(&self) -> #typ { self.#name.get() }
-            },
-            FieldType::Struct { typ } => {
-                let st = format_ident!("{}Sanitized", typ);
-                quote! {
-                    #( #docs )*
-                    pub fn #name(&self) -> #st { self.#name }
-                }
+        let (ret_typ, body) = match &self.typ {
+            FieldType::Scalar { typ } | FieldType::Offset { typ, .. } => {
+                (typ, quote!(self.#name.get()))
             }
+            FieldType::Struct { typ } => (typ, quote!(self.name)),
             _ => unreachable!("sanitized_record_getter called on unsupported field type"),
+        };
+        quote! {
+            #( #docs )*
+            pub fn #name(&self) -> #ret_typ { #body }
+
         }
     }
 
@@ -922,33 +869,21 @@ impl Field {
         Some(match target {
             OffsetTarget::Table(target_name) => {
                 let st = format_ident!("{}Sanitized", target_name);
+                let mut ret = quote!(#st<'a>);
                 if is_nullable {
-                    quote! {
-                        pub fn #getter_name<'a>(&self, parent_ptr: FontPtr<'a>) -> Option<#st<'a>> {
-                            let offset = self.#field_name();
-                            unsafe { offset.resolve_sanitized(parent_ptr, &#args_expr) }
-                        }
-                    }
-                } else {
-                    quote! {
-                        pub fn #getter_name<'a>(&self, parent_ptr: FontPtr<'a>) -> #st<'a> {
-                            let offset = self.#field_name();
-                            unsafe {
-                                offset
-                                    .resolve_sanitized(parent_ptr, &#args_expr)
-                                    .unwrap_or_default()
-                            }
-                        }
-                    }
+                    ret = quote!(Option<#ret>);
                 }
-            }
-            OffsetTarget::Array(_) => {
+                let unwrap_or_def = (!is_nullable).then(|| quote!(.unwrap_or_default()));
                 quote! {
-                    pub fn #getter_name<'a>(&self, _parent_ptr: FontPtr<'a>) {
-                        unimplemented!("offset to array not yet supported in read_sanitized records")
+                    pub fn #getter_name<'a>(&self, parent_ptr: FontPtr<'a>) -> #ret {
+                        let offset = self.#field_name();
+                        unsafe { offset.resolve_sanitized(parent_ptr, &#args_expr) #unwrap_or_def }
                     }
                 }
             }
+            OffsetTarget::Array(_) => quote!(compile_error!(
+                "offset to array not yet supported in read_sanitized records"
+            )),
         })
     }
 
