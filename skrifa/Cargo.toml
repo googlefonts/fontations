@@ -16,7 +16,8 @@ repository.workspace = true
 all-features = true
 
 [features]
-default = ["std", "autohint_shaping"]
+default = ["std", "autohint_shaping", "autohinter"]
+autohinter = []
 std = ["read-fonts/std"]
 traversal = ["std", "read-fonts/experimental_traverse"]
 # Enables extended shaping support for the autohinter. Enabled by default.
