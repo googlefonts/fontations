@@ -408,32 +408,30 @@ impl DecomposedTransform {
         // Python: t = t.rotate(self.rotation * math.pi)
         if self.rotation != 0.0 {
             let (s, c) = (self.rotation * core::f32::consts::PI).sin_cos();
-            transform = transform * Matrix::from_elements([c, s, -s, c, 0.0, 0.0]);
+            transform *= Matrix::from_elements([c, s, -s, c, 0.0, 0.0]);
         }
 
         // Python: t = t.scale(self.scaleX, self.scaleY)
         if (self.scale_x, self.scale_y) != (1.0, 1.0) {
-            transform =
-                transform * Matrix::from_elements([self.scale_x, 0.0, 0.0, self.scale_y, 0.0, 0.0]);
+            transform *= Matrix::from_elements([self.scale_x, 0.0, 0.0, self.scale_y, 0.0, 0.0]);
         }
 
         // Python: t = t.skew(-self.skewX * math.pi, self.skewY * math.pi)
         if (self.skew_x, self.skew_y) != (0.0, 0.0) {
-            transform = transform
-                * Matrix::from_elements([
-                    1.0,
-                    (self.skew_y * core::f32::consts::PI).tan(),
-                    (-self.skew_x * core::f32::consts::PI).tan(),
-                    1.0,
-                    0.0,
-                    0.0,
-                ])
+            transform *= Matrix::from_elements([
+                1.0,
+                (self.skew_y * core::f32::consts::PI).tan(),
+                (-self.skew_x * core::f32::consts::PI).tan(),
+                1.0,
+                0.0,
+                0.0,
+            ])
         }
 
         // Python: t = t.translate(-self.tCenterX, -self.tCenterY)
         if (self.center_x, self.center_y) != (0.0, 0.0) {
-            transform = transform
-                * Matrix::from_elements([1.0, 0.0, 0.0, 1.0, -self.center_x, -self.center_y]);
+            transform *=
+                Matrix::from_elements([1.0, 0.0, 0.0, 1.0, -self.center_x, -self.center_y]);
         }
 
         transform
@@ -460,7 +458,7 @@ impl<'a> MultiItemVariationData<'a> {
 mod tests {
     use types::GlyphId16;
 
-    use crate::types::{F2Dot14, Matrix};
+    use crate::types::F2Dot14;
     use crate::FontData;
     use crate::{FontRef, ReadError, TableProvider};
 
