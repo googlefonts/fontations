@@ -507,6 +507,30 @@ impl<'a> OutlineGlyph<'a> {
         }
     }
 
+    #[cfg(feature = "autohinter")]
+    /// Pass a raw scaled outline to a callback with direct point access.
+    pub fn with_scaled_glyf_outline<R>(
+        &self,
+        size: Size,
+        location: impl Into<LocationRef<'a>>,
+        user_memory: Option<&mut [u8]>,
+        mut callback: impl FnMut(&glyf::ScaledOutline<'_, raw::types::F26Dot6>) -> Result<R, DrawError>,
+    ) -> Result<R, DrawError> {
+        let ppem = size.ppem();
+        let coords = location.into().effective_coords();
+
+        match &self.kind {
+            OutlineKind::Glyf(glyf, outline) => {
+                with_temporary_memory(self, Hinting::None, user_memory, |buf| {
+                    let scaled = FreeTypeScaler::unhinted(glyf, outline, buf, ppem, coords)?
+                        .scale(&outline.glyph, outline.glyph_id)?;
+                    callback(&scaled)
+                })
+            }
+            _ => Err(DrawError::NoSources),
+        }
+    }
+
     pub(crate) fn font(&self) -> &FontRef<'a> {
         match &self.kind {
             OutlineKind::Glyf(glyf, ..) => &glyf.font,
