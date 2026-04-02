@@ -9,7 +9,7 @@ use read_fonts::{
         },
         variations::NO_VARIATION_INDEX,
     },
-    types::{F2Dot14, GlyphId},
+    types::{F2Dot14, GlyphId, Matrix},
     FontRef, ReadError, TableProvider,
 };
 
@@ -33,7 +33,7 @@ type AxisIndexVec = SmallVec<u16, 64>;
 type AxisValueVec = SmallVec<f32, 64>;
 type DeltaVec = SmallVec<f32, 64>;
 type ScalarCacheVec = SmallVec<f32, 128>;
-type Affine = [f32; 6];
+type Affine = Matrix<f32>;
 
 struct Scratchpad {
     deltas: DeltaVec,
@@ -280,7 +280,7 @@ impl<'a> Outlines<'a> {
             outline.glyph_id,
             outline.coverage_index,
             &font_coords,
-            IDENTITY_MATRIX,
+            Affine::IDENTITY,
             &ctx,
             buf,
             pen,
@@ -367,7 +367,7 @@ impl<'a> Outlines<'a> {
                 store_regions,
             )?;
             let scale = ctx.size.linear_scale(self.units_per_em);
-            let matrix = mul_matrix(parent_matrix, scale_matrix(transform.matrix(), scale));
+            let matrix = parent_matrix * scale_matrix(transform.matrix(), scale);
             if component_gid != glyph_id {
                 if let Some(coverage_index) = coverage.get(component_gid) {
                     if !stack.contains(&component_gid) {
@@ -810,22 +810,10 @@ fn compute_tuple_deltas(
 }
 
 #[inline(always)]
-fn scale_matrix(m: Affine, s: f32) -> Affine {
-    [m[0], m[1], m[2], m[3], m[4] * s, m[5] * s]
-}
-
-const IDENTITY_MATRIX: Affine = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
-
-#[inline(always)]
-fn mul_matrix(a: Affine, b: Affine) -> Affine {
-    [
-        a[0] * b[0] + a[2] * b[1],
-        a[1] * b[0] + a[3] * b[1],
-        a[0] * b[2] + a[2] * b[3],
-        a[1] * b[2] + a[3] * b[3],
-        a[0] * b[4] + a[2] * b[5] + a[4],
-        a[1] * b[4] + a[3] * b[5] + a[5],
-    ]
+fn scale_matrix(mut m: Affine, s: f32) -> Affine {
+    m.dx *= s;
+    m.dy *= s;
+    m
 }
 
 struct TransformPen<'a, P: OutlinePen + ?Sized> {
@@ -840,8 +828,7 @@ impl<'a, P: OutlinePen + ?Sized> TransformPen<'a, P> {
 
     #[inline(always)]
     fn transform(&self, x: f32, y: f32) -> (f32, f32) {
-        let [a, b, c, d, e, f] = self.matrix;
-        (a * x + c * y + e, b * x + d * y + f)
+        self.matrix.transform(x, y)
     }
 }
 
@@ -932,28 +919,10 @@ mod tests {
 
     #[test]
     fn scale_matrix_only_scales_translation() {
-        let matrix = [1.0, 2.0, 3.0, 4.0, 5.0, -6.0];
+        let matrix = Matrix::from_elements([1.0, 2.0, 3.0, 4.0, 5.0, -6.0]);
         assert_eq!(
-            scale_matrix(matrix, 10.0),
+            scale_matrix(matrix, 10.0).elements(),
             [1.0, 2.0, 3.0, 4.0, 50.0, -60.0]
-        );
-    }
-
-    #[test]
-    fn mul_matrix_identity_and_known_product() {
-        let a = [0.5, 1.0, -2.0, 0.25, 7.0, -3.0];
-        assert_eq!(mul_matrix(IDENTITY_MATRIX, a), a);
-        assert_eq!(mul_matrix(a, IDENTITY_MATRIX), a);
-
-        let translate = [1.0, 0.0, 0.0, 1.0, 10.0, 20.0];
-        let scale = [2.0, 0.0, 0.0, 3.0, 0.0, 0.0];
-        assert_eq!(
-            mul_matrix(translate, scale),
-            [2.0, 0.0, 0.0, 3.0, 10.0, 20.0]
-        );
-        assert_eq!(
-            mul_matrix(scale, translate),
-            [2.0, 0.0, 0.0, 3.0, 20.0, 60.0]
         );
     }
 

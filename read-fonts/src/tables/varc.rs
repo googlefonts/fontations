@@ -3,7 +3,7 @@
 pub use super::layout::{Condition, CoverageTable};
 use super::variations::PackedDeltas;
 pub use crate::ps::cff::index::Index2;
-use crate::types::F2Dot14;
+use crate::types::{F2Dot14, Matrix};
 
 #[cfg(feature = "libm")]
 #[allow(unused_imports)]
@@ -396,16 +396,11 @@ impl DecomposedTransform {
     /// References:
     ///   FontTools Python implementation <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/misc/transform.py#L484-L500>
     /// * Wikipedia [affine transformation](https://en.wikipedia.org/wiki/Affine_transformation)
-    pub fn matrix(&self) -> [f32; 6] {
+    pub fn matrix(&self) -> Matrix<f32> {
         // Python: t.translate(self.translateX + self.tCenterX, self.translateY + self.tCenterY)
-        let mut transform = [
-            1.0,
-            0.0,
-            0.0,
-            1.0,
-            self.translate_x + self.center_x,
-            self.translate_y + self.center_y,
-        ];
+        let mut transform = Matrix::IDENTITY;
+        transform.dx = self.translate_x + self.center_x;
+        transform.dy = self.translate_y + self.center_y;
 
         // TODO: this produces very small floats for rotations, e.g. 90 degree rotation a basic scale
         // puts 1.2246467991473532e-16 into [0]. Should we special case? Round?
@@ -413,50 +408,35 @@ impl DecomposedTransform {
         // Python: t = t.rotate(self.rotation * math.pi)
         if self.rotation != 0.0 {
             let (s, c) = (self.rotation * core::f32::consts::PI).sin_cos();
-            transform = transform.transform([c, s, -s, c, 0.0, 0.0]);
+            transform = transform * Matrix::from_elements([c, s, -s, c, 0.0, 0.0]);
         }
 
         // Python: t = t.scale(self.scaleX, self.scaleY)
         if (self.scale_x, self.scale_y) != (1.0, 1.0) {
-            transform = transform.transform([self.scale_x, 0.0, 0.0, self.scale_y, 0.0, 0.0]);
+            transform =
+                transform * Matrix::from_elements([self.scale_x, 0.0, 0.0, self.scale_y, 0.0, 0.0]);
         }
 
         // Python: t = t.skew(-self.skewX * math.pi, self.skewY * math.pi)
         if (self.skew_x, self.skew_y) != (0.0, 0.0) {
-            transform = transform.transform([
-                1.0,
-                (self.skew_y * core::f32::consts::PI).tan(),
-                (-self.skew_x * core::f32::consts::PI).tan(),
-                1.0,
-                0.0,
-                0.0,
-            ])
+            transform = transform
+                * Matrix::from_elements([
+                    1.0,
+                    (self.skew_y * core::f32::consts::PI).tan(),
+                    (-self.skew_x * core::f32::consts::PI).tan(),
+                    1.0,
+                    0.0,
+                    0.0,
+                ])
         }
 
         // Python: t = t.translate(-self.tCenterX, -self.tCenterY)
         if (self.center_x, self.center_y) != (0.0, 0.0) {
-            transform = transform.transform([1.0, 0.0, 0.0, 1.0, -self.center_x, -self.center_y]);
+            transform = transform
+                * Matrix::from_elements([1.0, 0.0, 0.0, 1.0, -self.center_x, -self.center_y]);
         }
 
         transform
-    }
-}
-
-trait Transform {
-    fn transform(self, other: Self) -> Self;
-}
-
-impl Transform for [f32; 6] {
-    fn transform(self, other: Self) -> Self {
-        // Shamelessly copied from kurbo Affine Mul
-        [
-            self[0] * other[0] + self[2] * other[1],
-            self[1] * other[0] + self[3] * other[1],
-            self[0] * other[2] + self[2] * other[3],
-            self[1] * other[2] + self[3] * other[3],
-            self[0] * other[4] + self[2] * other[5] + self[4],
-            self[1] * other[4] + self[3] * other[5] + self[5],
-        ]
     }
 }
 
@@ -480,7 +460,7 @@ impl<'a> MultiItemVariationData<'a> {
 mod tests {
     use types::GlyphId16;
 
-    use crate::types::F2Dot14;
+    use crate::types::{F2Dot14, Matrix};
     use crate::FontData;
     use crate::{FontRef, ReadError, TableProvider};
 
@@ -571,23 +551,6 @@ mod tests {
                 (value >> 16) as u8,
                 (value >> 8) as u8,
                 value as u8,
-            ]
-        }
-    }
-
-    trait Round {
-        fn round_for_test(self) -> Self;
-    }
-
-    impl Round for [f32; 6] {
-        fn round_for_test(self) -> Self {
-            [
-                round6(self[0]),
-                round6(self[1]),
-                round6(self[2]),
-                round6(self[3]),
-                round6(self[4]),
-                round6(self[5]),
             ]
         }
     }
@@ -1273,7 +1236,8 @@ mod tests {
                 ..Default::default()
             }
             .matrix()
-            .round_for_test()
+            .map(round6)
+            .elements()
         );
     }
 
@@ -1288,7 +1252,8 @@ mod tests {
                 ..Default::default()
             }
             .matrix()
-            .round_for_test()
+            .map(round6)
+            .elements()
         );
     }
 
@@ -1313,7 +1278,8 @@ mod tests {
                 ..Default::default()
             }
             .matrix()
-            .round_for_test()
+            .map(round6)
+            .elements()
         );
     }
 
@@ -1332,7 +1298,8 @@ mod tests {
                 ..Default::default()
             }
             .matrix()
-            .round_for_test()
+            .map(round6)
+            .elements()
         );
     }
 
@@ -1350,7 +1317,8 @@ mod tests {
                 ..Default::default()
             }
             .matrix()
-            .round_for_test()
+            .map(round6)
+            .elements()
         );
     }
 
@@ -1371,7 +1339,8 @@ mod tests {
                 ..Default::default()
             }
             .matrix()
-            .round_for_test()
+            .map(round6)
+            .elements()
         );
     }
 
@@ -1391,7 +1360,8 @@ mod tests {
                 ..Default::default()
             }
             .matrix()
-            .round_for_test()
+            .map(round6)
+            .elements()
         );
     }
 
