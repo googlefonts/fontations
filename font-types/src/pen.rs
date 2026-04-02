@@ -264,6 +264,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(feature = "std")]
     fn svg_pen_precision() {
         let svg_data = [None, Some(1), Some(4)].map(|prec| {
             let mut pen = match prec {
