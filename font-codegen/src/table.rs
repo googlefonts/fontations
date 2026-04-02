@@ -1209,10 +1209,12 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
         } else {
             (quote!(<'a>), quote!(<'a>), quote!(#sanitized_name<'a>))
         };
+        let const_generic = generic.is_some().then(|| quote!(::<()>));
         quote! {
             impl #ts_impl_g TrySanitize for #name #ts_type_g {
                 type Sanitized = #ts_ret;
                 fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+                    const _: () = assert!(#name #const_generic ::MIN_SIZE <= NULL_POOL_SIZE);
                     self.sanitize()?;
                     let ptr = FontPtr::new(self.offset_data());
                     Ok(unsafe { #sanitized_name::read_sanitized(ptr, &()) })

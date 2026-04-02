@@ -15,6 +15,7 @@ impl Sanitize for RootTable<'_> {
 impl<'a> TrySanitize for RootTable<'a> {
     type Sanitized = RootTableSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(RootTable::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { RootTableSanitized::read_sanitized(ptr, &()) })
@@ -74,6 +75,7 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for GenericTable<'a, T> {
 impl<'a, T: FontRead<'a> + Sanitize> TrySanitize for GenericTable<'a, T> {
     type Sanitized = GenericTableSanitized<'a, ()>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(GenericTable::<()>::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { GenericTableSanitized::read_sanitized(ptr, &()) })
@@ -223,6 +225,7 @@ impl Sanitize for TableOne<'_> {
 impl<'a> TrySanitize for TableOne<'a> {
     type Sanitized = TableOneSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(TableOne::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { TableOneSanitized::read_sanitized(ptr, &()) })
@@ -302,6 +305,7 @@ impl Sanitize for TableTwoFormat1<'_> {
 impl<'a> TrySanitize for TableTwoFormat1<'a> {
     type Sanitized = TableTwoFormat1Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(TableTwoFormat1::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { TableTwoFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -345,6 +349,7 @@ impl Sanitize for TableTwoFormat2<'_> {
 impl<'a> TrySanitize for TableTwoFormat2<'a> {
     type Sanitized = TableTwoFormat2Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(TableTwoFormat2::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { TableTwoFormat2Sanitized::read_sanitized(ptr, &()) })

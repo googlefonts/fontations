@@ -13,9 +13,10 @@ use crate::{
 };
 
 // https://github.com/harfbuzz/harfbuzz/blob/aba63bb5f8cb6cfc77ee8cfc2700b3ed9c0838ef/src/hb-null.hh#L40
-// the number of bytes required to represent the largest table we have.
-// note: this is too big for our needs, but is at least large _enough_.
-const NULL_POOL_SIZE: usize = 640;
+/// the number of bytes required to represent the largest table we have.
+///
+/// This is checked by an assert at compile time, and can be increased as needed
+pub(crate) const NULL_POOL_SIZE: usize = 16;
 static EMPTY_TABLE_BYTES: [u8; NULL_POOL_SIZE] = [0; NULL_POOL_SIZE];
 
 /// A trait for pre-validating a font table.

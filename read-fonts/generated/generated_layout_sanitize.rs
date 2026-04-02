@@ -22,6 +22,7 @@ impl Sanitize for ScriptList<'_> {
 impl<'a> TrySanitize for ScriptList<'a> {
     type Sanitized = ScriptListSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ScriptList::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ScriptListSanitized::read_sanitized(ptr, &()) })
@@ -127,6 +128,7 @@ impl Sanitize for Script<'_> {
 impl<'a> TrySanitize for Script<'a> {
     type Sanitized = ScriptSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(Script::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ScriptSanitized::read_sanitized(ptr, &()) })
@@ -238,6 +240,7 @@ impl Sanitize for LangSys<'_> {
 impl<'a> TrySanitize for LangSys<'a> {
     type Sanitized = LangSysSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(LangSys::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { LangSysSanitized::read_sanitized(ptr, &()) })
@@ -305,6 +308,7 @@ impl Sanitize for FeatureList<'_> {
 impl<'a> TrySanitize for FeatureList<'a> {
     type Sanitized = FeatureListSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(FeatureList::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { FeatureListSanitized::read_sanitized(ptr, &()) })
@@ -473,6 +477,7 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for LookupList<'a, T> {
 impl<'a, T: FontRead<'a> + Sanitize> TrySanitize for LookupList<'a, T> {
     type Sanitized = LookupListSanitized<'a, ()>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(LookupList::<()>::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { LookupListSanitized::read_sanitized(ptr, &()) })
@@ -568,6 +573,7 @@ impl<'a, T: FontRead<'a> + Sanitize> Sanitize for Lookup<'a, T> {
 impl<'a, T: FontRead<'a> + Sanitize> TrySanitize for Lookup<'a, T> {
     type Sanitized = LookupSanitized<'a, ()>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(Lookup::<()>::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { LookupSanitized::read_sanitized(ptr, &()) })
@@ -676,6 +682,7 @@ impl Sanitize for CoverageFormat1<'_> {
 impl<'a> TrySanitize for CoverageFormat1<'a> {
     type Sanitized = CoverageFormat1Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(CoverageFormat1::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { CoverageFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -741,6 +748,7 @@ impl Sanitize for CoverageFormat2<'_> {
 impl<'a> TrySanitize for CoverageFormat2<'a> {
     type Sanitized = CoverageFormat2Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(CoverageFormat2::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { CoverageFormat2Sanitized::read_sanitized(ptr, &()) })
@@ -903,6 +911,7 @@ impl Sanitize for ClassDefFormat1<'_> {
 impl<'a> TrySanitize for ClassDefFormat1<'a> {
     type Sanitized = ClassDefFormat1Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ClassDefFormat1::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ClassDefFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -975,6 +984,7 @@ impl Sanitize for ClassDefFormat2<'_> {
 impl<'a> TrySanitize for ClassDefFormat2<'a> {
     type Sanitized = ClassDefFormat2Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ClassDefFormat2::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ClassDefFormat2Sanitized::read_sanitized(ptr, &()) })
@@ -1174,6 +1184,7 @@ impl Sanitize for SequenceContextFormat1<'_> {
 impl<'a> TrySanitize for SequenceContextFormat1<'a> {
     type Sanitized = SequenceContextFormat1Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(SequenceContextFormat1::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SequenceContextFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -1259,6 +1270,7 @@ impl Sanitize for SequenceRuleSet<'_> {
 impl<'a> TrySanitize for SequenceRuleSet<'a> {
     type Sanitized = SequenceRuleSetSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(SequenceRuleSet::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SequenceRuleSetSanitized::read_sanitized(ptr, &()) })
@@ -1326,6 +1338,7 @@ impl Sanitize for SequenceRule<'_> {
 impl<'a> TrySanitize for SequenceRule<'a> {
     type Sanitized = SequenceRuleSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(SequenceRule::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SequenceRuleSanitized::read_sanitized(ptr, &()) })
@@ -1405,6 +1418,7 @@ impl Sanitize for SequenceContextFormat2<'_> {
 impl<'a> TrySanitize for SequenceContextFormat2<'a> {
     type Sanitized = SequenceContextFormat2Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(SequenceContextFormat2::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SequenceContextFormat2Sanitized::read_sanitized(ptr, &()) })
@@ -1505,6 +1519,7 @@ impl Sanitize for ClassSequenceRuleSet<'_> {
 impl<'a> TrySanitize for ClassSequenceRuleSet<'a> {
     type Sanitized = ClassSequenceRuleSetSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ClassSequenceRuleSet::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ClassSequenceRuleSetSanitized::read_sanitized(ptr, &()) })
@@ -1576,6 +1591,7 @@ impl Sanitize for ClassSequenceRule<'_> {
 impl<'a> TrySanitize for ClassSequenceRule<'a> {
     type Sanitized = ClassSequenceRuleSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ClassSequenceRule::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ClassSequenceRuleSanitized::read_sanitized(ptr, &()) })
@@ -1660,6 +1676,7 @@ impl Sanitize for SequenceContextFormat3<'_> {
 impl<'a> TrySanitize for SequenceContextFormat3<'a> {
     type Sanitized = SequenceContextFormat3Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(SequenceContextFormat3::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SequenceContextFormat3Sanitized::read_sanitized(ptr, &()) })
@@ -1817,6 +1834,7 @@ impl Sanitize for ChainedSequenceContextFormat1<'_> {
 impl<'a> TrySanitize for ChainedSequenceContextFormat1<'a> {
     type Sanitized = ChainedSequenceContextFormat1Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ChainedSequenceContextFormat1::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ChainedSequenceContextFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -1902,6 +1920,7 @@ impl Sanitize for ChainedSequenceRuleSet<'_> {
 impl<'a> TrySanitize for ChainedSequenceRuleSet<'a> {
     type Sanitized = ChainedSequenceRuleSetSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ChainedSequenceRuleSet::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ChainedSequenceRuleSetSanitized::read_sanitized(ptr, &()) })
@@ -1981,6 +2000,7 @@ impl Sanitize for ChainedSequenceRule<'_> {
 impl<'a> TrySanitize for ChainedSequenceRule<'a> {
     type Sanitized = ChainedSequenceRuleSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ChainedSequenceRule::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ChainedSequenceRuleSanitized::read_sanitized(ptr, &()) })
@@ -2102,6 +2122,7 @@ impl Sanitize for ChainedSequenceContextFormat2<'_> {
 impl<'a> TrySanitize for ChainedSequenceContextFormat2<'a> {
     type Sanitized = ChainedSequenceContextFormat2Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ChainedSequenceContextFormat2::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ChainedSequenceContextFormat2Sanitized::read_sanitized(ptr, &()) })
@@ -2236,6 +2257,7 @@ impl Sanitize for ChainedClassSequenceRuleSet<'_> {
 impl<'a> TrySanitize for ChainedClassSequenceRuleSet<'a> {
     type Sanitized = ChainedClassSequenceRuleSetSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ChainedClassSequenceRuleSet::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ChainedClassSequenceRuleSetSanitized::read_sanitized(ptr, &()) })
@@ -2315,6 +2337,7 @@ impl Sanitize for ChainedClassSequenceRule<'_> {
 impl<'a> TrySanitize for ChainedClassSequenceRule<'a> {
     type Sanitized = ChainedClassSequenceRuleSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ChainedClassSequenceRule::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ChainedClassSequenceRuleSanitized::read_sanitized(ptr, &()) })
@@ -2448,6 +2471,7 @@ impl Sanitize for ChainedSequenceContextFormat3<'_> {
 impl<'a> TrySanitize for ChainedSequenceContextFormat3<'a> {
     type Sanitized = ChainedSequenceContextFormat3Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ChainedSequenceContextFormat3::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ChainedSequenceContextFormat3Sanitized::read_sanitized(ptr, &()) })
@@ -2662,6 +2686,7 @@ impl Sanitize for Device<'_> {
 impl<'a> TrySanitize for Device<'a> {
     type Sanitized = DeviceSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(Device::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { DeviceSanitized::read_sanitized(ptr, &()) })
@@ -2728,6 +2753,7 @@ impl Sanitize for VariationIndex<'_> {
 impl<'a> TrySanitize for VariationIndex<'a> {
     type Sanitized = VariationIndexSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(VariationIndex::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { VariationIndexSanitized::read_sanitized(ptr, &()) })
@@ -2855,6 +2881,7 @@ impl Sanitize for FeatureVariations<'_> {
 impl<'a> TrySanitize for FeatureVariations<'a> {
     type Sanitized = FeatureVariationsSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(FeatureVariations::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { FeatureVariationsSanitized::read_sanitized(ptr, &()) })
@@ -2975,6 +3002,7 @@ impl Sanitize for ConditionSet<'_> {
 impl<'a> TrySanitize for ConditionSet<'a> {
     type Sanitized = ConditionSetSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ConditionSet::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ConditionSetSanitized::read_sanitized(ptr, &()) })
@@ -3112,6 +3140,7 @@ impl Sanitize for ConditionFormat1<'_> {
 impl<'a> TrySanitize for ConditionFormat1<'a> {
     type Sanitized = ConditionFormat1Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ConditionFormat1::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ConditionFormat1Sanitized::read_sanitized(ptr, &()) })
@@ -3173,6 +3202,7 @@ impl Sanitize for ConditionFormat2<'_> {
 impl<'a> TrySanitize for ConditionFormat2<'a> {
     type Sanitized = ConditionFormat2Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ConditionFormat2::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ConditionFormat2Sanitized::read_sanitized(ptr, &()) })
@@ -3231,6 +3261,7 @@ impl Sanitize for ConditionFormat3<'_> {
 impl<'a> TrySanitize for ConditionFormat3<'a> {
     type Sanitized = ConditionFormat3Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ConditionFormat3::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ConditionFormat3Sanitized::read_sanitized(ptr, &()) })
@@ -3299,6 +3330,7 @@ impl Sanitize for ConditionFormat4<'_> {
 impl<'a> TrySanitize for ConditionFormat4<'a> {
     type Sanitized = ConditionFormat4Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ConditionFormat4::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ConditionFormat4Sanitized::read_sanitized(ptr, &()) })
@@ -3364,6 +3396,7 @@ impl Sanitize for ConditionFormat5<'_> {
 impl<'a> TrySanitize for ConditionFormat5<'a> {
     type Sanitized = ConditionFormat5Sanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ConditionFormat5::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { ConditionFormat5Sanitized::read_sanitized(ptr, &()) })
@@ -3427,6 +3460,7 @@ impl Sanitize for FeatureTableSubstitution<'_> {
 impl<'a> TrySanitize for FeatureTableSubstitution<'a> {
     type Sanitized = FeatureTableSubstitutionSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(FeatureTableSubstitution::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { FeatureTableSubstitutionSanitized::read_sanitized(ptr, &()) })
@@ -3521,6 +3555,7 @@ impl Sanitize for SizeParams<'_> {
 impl<'a> TrySanitize for SizeParams<'a> {
     type Sanitized = SizeParamsSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(SizeParams::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { SizeParamsSanitized::read_sanitized(ptr, &()) })
@@ -3589,6 +3624,7 @@ impl Sanitize for StylisticSetParams<'_> {
 impl<'a> TrySanitize for StylisticSetParams<'a> {
     type Sanitized = StylisticSetParamsSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(StylisticSetParams::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { StylisticSetParamsSanitized::read_sanitized(ptr, &()) })
@@ -3640,6 +3676,7 @@ impl Sanitize for CharacterVariantParams<'_> {
 impl<'a> TrySanitize for CharacterVariantParams<'a> {
     type Sanitized = CharacterVariantParamsSanitized<'a>;
     fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(CharacterVariantParams::MIN_SIZE <= NULL_POOL_SIZE);
         self.sanitize()?;
         let ptr = FontPtr::new(self.offset_data());
         Ok(unsafe { CharacterVariantParamsSanitized::read_sanitized(ptr, &()) })
