@@ -3,7 +3,7 @@ use crate::{
     layout::intersected_glyphs_and_indices,
     offset::SerializeSerialize,
     offset_array::SubsetOffsetArray,
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{ObjIdx, SerializeErrorFlags, Serializer},
     Plan, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
@@ -71,16 +71,25 @@ impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
 
         s.embed(self.subst_format())?;
 
-        // cov offset
-        // TODO: ensure that the repacker always orders the coverage table after the LigatureSet and LigatureSubtable's
+        // Due to a bug in some older versions of windows 7 the Coverage table must be
+        // packed after the LigatureSet and Ligature tables, so serialize Coverage first
+        // which places it last in the packed order.
+        // ref: <https://github.com/harfbuzz/harfbuzz/blob/0234df4db6ee141ed357b229e9025e2b4cc290fc/src/OT/Layout/GSUB/LigatureSubstFormat1.hh#L155>
         let cov_offset_pos = s.embed(0_u16)?;
         Offset16::serialize_serialize::<CoverageTable>(s, &retained_cov_glyphs, cov_offset_pos)?;
+
+        // to ensure that the repacker always orders the coverage table after the LigatureSet
+        // and LigatureSubtable's they will be linked to the Coverage table via a virtual link
+        // the coverage table object idx is passed down to facilitate this.
+        let Some(coverage_idx) = s.last_added_child_index() else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        };
 
         // ligature set count
         s.embed(lig_set_count as u16)?;
 
         for i in retained_lig_set_idxes {
-            lig_sets.subset_offset(i, s, plan, ())?;
+            lig_sets.subset_offset(i, s, plan, coverage_idx)?;
         }
 
         Ok(())
@@ -88,13 +97,13 @@ impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
 }
 
 impl SubsetTable<'_> for LigatureSet<'_> {
-    type ArgsForSubset = ();
+    type ArgsForSubset = ObjIdx;
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: Self::ArgsForSubset,
+        coverage_idx: ObjIdx,
     ) -> Result<Self::Output, SerializeErrorFlags> {
         // ligature count
         let lig_count_pos = s.embed(0_u16)?;
@@ -103,7 +112,7 @@ impl SubsetTable<'_> for LigatureSet<'_> {
         let ligs = self.ligatures();
         let org_lig_count = self.ligature_count();
         for idx in 0..org_lig_count as usize {
-            match ligs.subset_offset(idx, s, plan, ()) {
+            match ligs.subset_offset(idx, s, plan, coverage_idx) {
                 Ok(()) => lig_count += 1,
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
                 Err(e) => return Err(e),
@@ -111,18 +120,19 @@ impl SubsetTable<'_> for LigatureSet<'_> {
         }
 
         s.copy_assign(lig_count_pos, lig_count);
-        Ok(())
+        // ensure that the repacker always orders the coverage table after this table
+        s.add_virtual_link(coverage_idx)
     }
 }
 
 impl SubsetTable<'_> for Ligature<'_> {
-    type ArgsForSubset = ();
+    type ArgsForSubset = ObjIdx;
     type Output = ();
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        _args: Self::ArgsForSubset,
+        coverage_idx: ObjIdx,
     ) -> Result<Self::Output, SerializeErrorFlags> {
         let glyph_map = &plan.glyph_map_gsub;
         let lig_glyph = glyph_map
@@ -139,7 +149,9 @@ impl SubsetTable<'_> for Ligature<'_> {
 
             s.embed(new_g.to_u32() as u16)?;
         }
-        Ok(())
+
+        // ensure that the repacker always orders the coverage table after this Ligature subtable
+        s.add_virtual_link(coverage_idx)
     }
 }
 
