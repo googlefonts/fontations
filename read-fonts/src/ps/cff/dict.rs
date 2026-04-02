@@ -611,7 +611,7 @@ mod tests {
         // From ttx: <FontMatrix value="0.001 0 0.000167 0.001 0 0"/>
         // But scaled by 1000 because that's how FreeType does it
         assert_eq!(
-            matrix.matrix.0,
+            matrix.matrix.elements(),
             [
                 Fixed::ONE,
                 Fixed::ZERO,

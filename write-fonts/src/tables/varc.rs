@@ -500,8 +500,8 @@ mod tests {
         assert_eq!(component.axis_values_var_index(), None);
         assert_eq!(component.transform_var_index(), None);
         let matrix = component.transform().matrix();
-        assert_eq!(matrix[4], 10.0); // translate x
-        assert_eq!(matrix[5], -10.0); // translate y
+        assert_eq!(matrix.dx, 10.0); // translate x
+        assert_eq!(matrix.dy, -10.0); // translate y
     }
 
     // And let's do one with a var store
@@ -585,7 +585,7 @@ mod tests {
 
         // Verify the transform base values
         let matrix = component.transform().matrix();
-        assert_eq!(matrix[4], 0.0); // translate x
-        assert_eq!(matrix[5], 0.0); // translate y
+        assert_eq!(matrix.dx, 0.0); // translate x
+        assert_eq!(matrix.dy, 0.0); // translate y
     }
 }

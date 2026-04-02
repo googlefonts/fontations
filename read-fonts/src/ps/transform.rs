@@ -4,6 +4,55 @@ use super::num;
 use crate::Cursor;
 use types::Fixed;
 
+/// A fixed point font matrix.
+pub type FontMatrix = types::Matrix<Fixed>;
+
+/// Simple fixed point matrix multiplication with a scaling factor.
+///
+/// Note: this transforms the translation component of `b` by the upper 2x2 of
+/// `a`. This matches the offset transform FreeType uses when concatenating
+/// the matrices from the top and font dicts.
+pub fn combine_scaled(a: &FontMatrix, b: &FontMatrix, scale: i32) -> FontMatrix {
+    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/base/ftcalc.c#L719>
+    let a = a.elements();
+    let b = b.elements();
+    let val = Fixed::from_i32(scale);
+    let xx = a[0].mul_div(b[0], val) + a[2].mul_div(b[1], val);
+    let yx = a[1].mul_div(b[0], val) + a[3].mul_div(b[1], val);
+    let xy = a[0].mul_div(b[2], val) + a[2].mul_div(b[3], val);
+    let yy = a[1].mul_div(b[2], val) + a[3].mul_div(b[3], val);
+    let x = b[4];
+    let y = b[5];
+    let dx = x.mul_div(a[0], val) + y.mul_div(a[2], val);
+    let dy = x.mul_div(a[1], val) + y.mul_div(a[3], val);
+    FontMatrix::from_elements([xx, yx, xy, yy, dx, dy])
+}
+
+/// Check for a degenerate matrix.
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/base/ftcalc.c#L725>
+pub(crate) fn is_degenerate(matrix: &FontMatrix) -> bool {
+    let [mut xx, mut yx, mut xy, mut yy, ..] = matrix.elements().map(|x| x.to_bits() as i64);
+    let val = xx.abs() | yx.abs() | xy.abs() | yy.abs();
+    if val == 0 || val > 0x7FFFFFFF {
+        return true;
+    }
+    // Scale the matrix to avoid temp1 overflow
+    let msb = 32 - (val as i32).leading_zeros() - 1;
+    let shift = msb as i32 - 12;
+    if shift > 0 {
+        xx >>= shift;
+        xy >>= shift;
+        yx >>= shift;
+        yy >>= shift;
+    }
+    let temp1 = 32 * (xx * yy - xy * yx).abs();
+    let temp2 = (xx * xx) + (xy * xy) + (yx * yx) + (yy * yy);
+    if temp1 <= temp2 {
+        return true;
+    }
+    false
+}
+
 /// Combination of a matrix and optional scale.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub struct Transform {
@@ -31,13 +80,12 @@ impl Transform {
     /// width.
     pub fn transform_h_metric(&self, metric: Fixed) -> Fixed {
         let mut metric = Fixed::from_bits(metric.to_i32());
-        let matrix = &self.matrix.0;
-        if matrix[0] != Fixed::ONE {
+        if self.matrix.xx != Fixed::ONE {
             // x scale
-            metric *= matrix[0];
+            metric *= self.matrix.xx;
         }
         // x translation
-        metric += matrix[4];
+        metric += self.matrix.dx;
         if let Some(scale) = self.scale {
             // Multiplying by scale converts to 26.6 but we want to keep the
             // result in 16.16
@@ -46,85 +94,6 @@ impl Transform {
             // Metric is currently in font units. Convert back to 16.16
             Fixed::from_bits(metric.to_bits() << 16)
         }
-    }
-}
-
-/// An affine matrix defining a font transform.
-///
-/// Components are in the order `[sx, ky, kx, sy, dx, dy]`.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct FontMatrix(pub [Fixed; 6]);
-
-impl FontMatrix {
-    /// The identity matrix.
-    pub const IDENTITY: Self = Self([
-        Fixed::ONE,
-        Fixed::ZERO,
-        Fixed::ZERO,
-        Fixed::ONE,
-        Fixed::ZERO,
-        Fixed::ZERO,
-    ]);
-
-    /// Applies the matrix to the given point.
-    pub fn transform(&self, x: Fixed, y: Fixed) -> (Fixed, Fixed) {
-        let matrix = &self.0;
-        (
-            matrix[0] * x + matrix[2] * y + matrix[4],
-            matrix[1] * x + matrix[3] * y + matrix[5],
-        )
-    }
-
-    /// Simple fixed point matrix multiplication with a scaling factor.
-    ///
-    /// Note: this transforms the translation component of `other` by the upper 2x2 of
-    /// `self`. This matches the offset transform FreeType uses when concatenating
-    /// the matrices from the top and font dicts.
-    pub fn combine_scaled(&self, other: &Self, scale: i32) -> Self {
-        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/base/ftcalc.c#L719>
-        let a = &self.0;
-        let b = &other.0;
-        let val = Fixed::from_i32(scale);
-        let xx = a[0].mul_div(b[0], val) + a[2].mul_div(b[1], val);
-        let yx = a[1].mul_div(b[0], val) + a[3].mul_div(b[1], val);
-        let xy = a[0].mul_div(b[2], val) + a[2].mul_div(b[3], val);
-        let yy = a[1].mul_div(b[2], val) + a[3].mul_div(b[3], val);
-        let x = b[4];
-        let y = b[5];
-        let dx = x.mul_div(a[0], val) + y.mul_div(a[2], val);
-        let dy = x.mul_div(a[1], val) + y.mul_div(a[3], val);
-        Self([xx, yx, xy, yy, dx, dy])
-    }
-
-    /// Check for a degenerate matrix.
-    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/base/ftcalc.c#L725>
-    pub(crate) fn is_degenerate(&self) -> bool {
-        let [mut xx, mut yx, mut xy, mut yy, ..] = self.0.map(|x| x.to_bits() as i64);
-        let val = xx.abs() | yx.abs() | xy.abs() | yy.abs();
-        if val == 0 || val > 0x7FFFFFFF {
-            return true;
-        }
-        // Scale the matrix to avoid temp1 overflow
-        let msb = 32 - (val as i32).leading_zeros() - 1;
-        let shift = msb as i32 - 12;
-        if shift > 0 {
-            xx >>= shift;
-            xy >>= shift;
-            yx >>= shift;
-            yy >>= shift;
-        }
-        let temp1 = 32 * (xx * yy - xy * yx).abs();
-        let temp2 = (xx * xx) + (xy * xy) + (yx * yx) + (yy * yy);
-        if temp1 <= temp2 {
-            return true;
-        }
-        false
-    }
-}
-
-impl Default for FontMatrix {
-    fn default() -> Self {
-        Self::IDENTITY
     }
 }
 
@@ -179,9 +148,9 @@ impl ScaledFontMatrix {
                 *value = Fixed::from_bits(i32::MAX / divisor);
             }
         }
-        let matrix = FontMatrix(values);
+        let matrix = FontMatrix::from_elements(values);
         // Check for a degenerate matrix
-        if matrix.is_degenerate() {
+        if is_degenerate(&matrix) {
             return None;
         }
         let scale = num::BCD_POWER_TENS[(-max_scaling) as usize];
@@ -193,7 +162,7 @@ impl ScaledFontMatrix {
     #[must_use]
     pub fn normalize(&self) -> Self {
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffobjs.c#L727>
-        let mut matrix = self.matrix.0;
+        let mut matrix = self.matrix.elements();
         let mut scaled_upem = self.scale;
         let factor = if matrix[3] != Fixed::ZERO {
             matrix[3].abs()
@@ -212,7 +181,7 @@ impl ScaledFontMatrix {
             *offset = Fixed::from_bits(offset.to_bits() >> 16);
         }
         Self {
-            matrix: FontMatrix(matrix),
+            matrix: FontMatrix::from_elements(matrix),
             scale: scaled_upem,
         }
     }
@@ -256,7 +225,7 @@ mod tests {
     #[test]
     fn h_metric_matrix_scale() {
         let transform = Transform {
-            matrix: FontMatrix([2.0, 0.0, 0.0, 1.0, 0.0, 0.0].map(Fixed::from_f64)),
+            matrix: FontMatrix::from_elements([2.0, 0.0, 0.0, 1.0, 0.0, 0.0].map(Fixed::from_f64)),
             scale: None,
         };
         // metric.round() * 2
@@ -274,7 +243,9 @@ mod tests {
     #[test]
     fn h_metric_matrix_scale_offset() {
         let transform = Transform {
-            matrix: FontMatrix([2.0, 0.0, 0.0, 1.0, 10.0 / 65536.0, 0.0].map(Fixed::from_f64)),
+            matrix: FontMatrix::from_elements(
+                [2.0, 0.0, 0.0, 1.0, 10.0 / 65536.0, 0.0].map(Fixed::from_f64),
+            ),
             scale: None,
         };
         // metric.round() * 2 + 10
@@ -311,7 +282,9 @@ mod tests {
     #[test]
     fn h_metric_scale_matrix_scale_offset() {
         let transform = Transform {
-            matrix: FontMatrix([4.0, 0.0, 0.0, 1.0, 10.0 / 65536.0, 0.0].map(Fixed::from_f64)),
+            matrix: FontMatrix::from_elements(
+                [4.0, 0.0, 0.0, 1.0, 10.0 / 65536.0, 0.0].map(Fixed::from_f64),
+            ),
             // Scale by 0.5
             scale: Some(Fixed::from_i32(32)),
         };
@@ -331,7 +304,7 @@ mod tests {
     #[test]
     fn degenerate_matrix_check_doesnt_overflow() {
         // Values taken from font in the above issue
-        let matrix = FontMatrix([
+        let matrix = FontMatrix::from_elements([
             Fixed::from_bits(639999672),
             Fixed::ZERO,
             Fixed::ZERO,
@@ -340,11 +313,11 @@ mod tests {
             Fixed::ZERO,
         ]);
         // Just don't panic with overflow
-        matrix.is_degenerate();
+        is_degenerate(&matrix);
         // Try again with all max values
-        FontMatrix([Fixed::MAX; 6]).is_degenerate();
+        is_degenerate(&FontMatrix::from_elements([Fixed::MAX; 6]));
         // And all min values
-        FontMatrix([Fixed::MIN; 6]).is_degenerate();
+        is_degenerate(&FontMatrix::from_elements([Fixed::MIN; 6]));
     }
 
     #[test]
@@ -352,21 +325,21 @@ mod tests {
         // This matrix has a y scale of 0.5 so we should produce a new matrix
         // with a y scale of 1.0 and a scale factor of 2
         let matrix = ScaledFontMatrix {
-            matrix: FontMatrix([65536, 0, 0, 32768, 0, 0].map(Fixed::from_bits)),
+            matrix: FontMatrix::from_elements([65536, 0, 0, 32768, 0, 0].map(Fixed::from_bits)),
             scale: 1,
         };
         let normalized = matrix.normalize();
         let expected_normalized = [131072, 0, 0, 65536, 0, 0].map(Fixed::from_bits);
-        assert_eq!(normalized.matrix.0, expected_normalized);
+        assert_eq!(normalized.matrix.elements(), expected_normalized);
         assert_eq!(normalized.scale, 2);
     }
 
     #[test]
     fn combine_matrix() {
-        let a = [0.5, 0.75, -1.0, 2.0, 0.0, 0.0].map(Fixed::from_f64);
-        let b = [1.5, -1.0, 0.25, -1.0, 1.0, 2.0].map(Fixed::from_f64);
+        let a = FontMatrix::from_elements([0.5, 0.75, -1.0, 2.0, 0.0, 0.0].map(Fixed::from_f64));
+        let b = FontMatrix::from_elements([1.5, -1.0, 0.25, -1.0, 1.0, 2.0].map(Fixed::from_f64));
         let expected = [1.75, -0.875, 1.125, -1.8125, -1.5, 4.75].map(Fixed::from_f64);
-        let result = FontMatrix(a).combine_scaled(&FontMatrix(b), 1);
-        assert_eq!(result.0, expected);
+        let result = combine_scaled(&a, &b, 1);
+        assert_eq!(result.elements(), expected);
     }
 }

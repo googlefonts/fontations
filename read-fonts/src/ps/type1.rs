@@ -5,7 +5,7 @@ use super::{
     cs::{self, CharstringContext, CharstringKind, CommandSink},
     encoding::PredefinedEncoding,
     error::Error,
-    transform::{FontMatrix, ScaledFontMatrix, Transform},
+    transform::{self, FontMatrix, ScaledFontMatrix, Transform},
 };
 use crate::{
     types::{Fixed, GlyphId},
@@ -873,8 +873,8 @@ impl Parser<'_> {
         for offset in components.iter_mut().skip(4) {
             *offset = Fixed::from_bits(offset.to_bits() >> 16);
         }
-        let matrix = FontMatrix(components);
-        if matrix.is_degenerate() {
+        let matrix = FontMatrix::from_elements(components);
+        if transform::is_degenerate(&matrix) {
             return None;
         }
         Some(ScaledFontMatrix {
@@ -1594,14 +1594,7 @@ mod tests {
                 .read_font_matrix()
                 .unwrap()
                 .matrix,
-            FontMatrix([
-                Fixed::ONE,
-                Fixed::ZERO,
-                Fixed::ZERO,
-                Fixed::ONE,
-                Fixed::ZERO,
-                Fixed::ZERO
-            ])
+            FontMatrix::IDENTITY,
         );
         // Matrix with a stretch along the x axis and a small
         // offset
@@ -1610,7 +1603,7 @@ mod tests {
                 .read_font_matrix()
                 .unwrap()
                 .matrix,
-            FontMatrix([
+            FontMatrix::from_elements([
                 Fixed::from_i32(2),
                 Fixed::ZERO,
                 Fixed::ZERO,
@@ -1625,7 +1618,7 @@ mod tests {
                 .read_font_matrix()
                 .unwrap(),
             ScaledFontMatrix {
-                matrix: FontMatrix([
+                matrix: FontMatrix::from_elements([
                     Fixed::from_i32(2),
                     Fixed::ZERO,
                     Fixed::ZERO,
