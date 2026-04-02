@@ -37,8 +37,8 @@ impl Type1Font {
         Self::from_dicts(raw_dicts.base, &raw_dicts.private)
     }
 
-    fn from_dicts(base: &[u8], private: &[u8]) -> Option<Self> {
-        let mut font = Type1Font {
+    fn empty() -> Self {
+        Self {
             matrix: ScaledFontMatrix {
                 matrix: FontMatrix::IDENTITY,
                 scale: 1000,
@@ -48,7 +48,11 @@ impl Type1Font {
             encoding: None,
             weight_vector: Vec::new(),
             unicode_charmap: Charmap::default(),
-        };
+        }
+    }
+
+    fn from_dicts(base: &[u8], private: &[u8]) -> Option<Self> {
+        let mut font = Self::empty();
         // Read base dict entries
         let mut encoding_offset = None;
         let mut parser = Parser::new(base);
@@ -159,6 +163,24 @@ impl Type1Font {
     pub fn glyph_names(&self) -> impl Iterator<Item = (GlyphId, &str)> {
         (0..self.num_glyphs())
             .filter_map(|idx| Some((GlyphId::new(idx), self.charstrings.name(idx)?)))
+    }
+
+    /// Given a glyph identifier in the original glyph order, returns the
+    /// possibly remapped identifier.
+    ///
+    /// This occurs if we remap or synthesize a `.notdef` glyph.
+    pub fn remapped_gid(&self, original_gid: GlyphId) -> GlyphId {
+        if let Some(orig_notdef) = self.charstrings.orig_notdef_index {
+            if original_gid == GlyphId::NOTDEF {
+                GlyphId::new(orig_notdef as u32)
+            } else if orig_notdef == original_gid.to_u32() as usize {
+                GlyphId::NOTDEF
+            } else {
+                original_gid
+            }
+        } else {
+            original_gid
+        }
     }
 
     /// Evaluates the charstring for the requested glyph and sends the results
@@ -1779,6 +1801,11 @@ mod tests {
         let expected_glyphs: &[(&str, &[u8])] =
             &[(".notdef", NOTDEF_GLYPH), ("B", b"xy"), ("H", b"ab")];
         check_charstrings(&charstrings, expected_glyphs);
+        let mut font = Type1Font::empty();
+        font.charstrings = charstrings;
+        assert_eq!(font.remapped_gid(GlyphId::new(0)), GlyphId::new(2));
+        assert_eq!(font.remapped_gid(GlyphId::new(1)), GlyphId::new(1));
+        assert_eq!(font.remapped_gid(GlyphId::new(2)), GlyphId::new(0));
     }
 
     #[test]
@@ -1789,6 +1816,11 @@ mod tests {
         assert_eq!(charstrings.orig_notdef_index, Some(1));
         let expected_glyphs: &[(&str, &[u8])] = &[(".notdef", b"nd"), ("H", b"ab"), ("B", b"xy")];
         check_charstrings(&charstrings, expected_glyphs);
+        let mut font = Type1Font::empty();
+        font.charstrings = charstrings;
+        assert_eq!(font.remapped_gid(GlyphId::new(0)), GlyphId::new(1));
+        assert_eq!(font.remapped_gid(GlyphId::new(1)), GlyphId::new(0));
+        assert_eq!(font.remapped_gid(GlyphId::new(2)), GlyphId::new(2));
     }
 
     #[track_caller]
