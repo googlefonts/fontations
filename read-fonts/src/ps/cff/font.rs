@@ -10,7 +10,7 @@ use crate::{
         encoding::PredefinedEncoding,
         error::Error,
         hinting::HintingParams,
-        transform::{ScaledFontMatrix, Transform},
+        transform::{self, ScaledFontMatrix, Transform},
     },
     tables::{cff, cff2, variations::ItemVariationStore},
     FontData, FontRead, ReadError,
@@ -256,9 +256,8 @@ impl<'a> CffFontRef<'a> {
                     1
                 };
                 // Concatenate and scale
-                let matrix = top_matrix
-                    .matrix
-                    .combine_scaled(&sub_matrix.matrix, scaling);
+                let matrix =
+                    transform::combine_scaled(&top_matrix.matrix, &sub_matrix.matrix, scaling);
                 let scaled_upem = Fixed::from_bits(sub_matrix.scale).mul_div(
                     Fixed::from_bits(top_matrix.scale),
                     Fixed::from_bits(scaling),
@@ -914,7 +913,7 @@ mod tests {
         assert_eq!(subfont.default_width, None);
         assert_eq!(subfont.nominal_width, Fixed::ZERO);
         assert_eq!(subfont.vs_index, 0);
-        let expected_matrix = FontMatrix([
+        let expected_matrix = FontMatrix::from_elements([
             Fixed::from_i32(5),
             Fixed::ZERO,
             Fixed::ZERO,
@@ -1014,11 +1013,11 @@ mod tests {
         let expected_matrix = [65536, 0, 5604, 65536, 0, 0].map(Fixed::from_bits);
         // Unscaled
         let transform = cff.transform(&subfont, None);
-        assert_eq!(transform.matrix.0, expected_matrix);
+        assert_eq!(transform.matrix.elements(), expected_matrix);
         assert_eq!(transform.scale, Some(Fixed::from_bits(32 << 16)));
         // Scaled at 16px
         let transform = cff.transform(&subfont, Some(16.0));
-        assert_eq!(transform.matrix.0, expected_matrix);
+        assert_eq!(transform.matrix.elements(), expected_matrix);
         assert_eq!(transform.scale, Some(Fixed::from_bits(1 << 16)));
     }
 

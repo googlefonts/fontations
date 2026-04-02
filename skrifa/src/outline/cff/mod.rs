@@ -9,7 +9,7 @@ use read_fonts::{
         cff::{blend::BlendState, dict, fd_select::FdSelect, index::Index},
         cs::{self, CommandSink, NopFilterSink, TransformSink},
         error::Error,
-        transform::{FontMatrix, ScaledFontMatrix},
+        transform::{self, FontMatrix, ScaledFontMatrix},
     },
     tables::variations::ItemVariationStore,
     types::{F2Dot14, Fixed, GlyphId},
@@ -172,9 +172,8 @@ impl<'a> Outlines<'a> {
                     1
                 };
                 // Concatenate and scale
-                let matrix = top_matrix
-                    .matrix
-                    .combine_scaled(&sub_matrix.matrix, scaling);
+                let matrix =
+                    transform::combine_scaled(&top_matrix.matrix, &sub_matrix.matrix, scaling);
                 let upem = Fixed::from_bits(sub_matrix.scale).mul_div(
                     Fixed::from_bits(top_matrix.scale),
                     Fixed::from_bits(scaling),
@@ -911,7 +910,7 @@ mod tests {
         assert_eq!(sink.0, 2);
     }
 
-    const TRANSFORM: FontMatrix = FontMatrix([
+    const TRANSFORM: FontMatrix = FontMatrix::from_elements([
         Fixed::ONE,
         Fixed::ZERO,
         // 0.167007446289062
@@ -944,17 +943,20 @@ mod tests {
         // Check the normalized top dict matrix
         let top_matrix = outlines.top_dict.font_matrix.unwrap();
         let expected_top_matrix = [65536, 0, 5604, 65536, 0, 0].map(Fixed::from_bits);
-        assert_eq!(top_matrix.matrix.0, expected_top_matrix);
+        assert_eq!(top_matrix.matrix.elements(), expected_top_matrix);
         assert_eq!(top_matrix.scale, 512);
         // Check the unnormalized font dict matrix
         let sub_matrix = outlines.parse_font_dict(0).unwrap().font_matrix.unwrap();
         let expected_sub_matrix = [327680, 0, 0, 327680, 0, 0].map(Fixed::from_bits);
-        assert_eq!(sub_matrix.matrix.0, expected_sub_matrix);
+        assert_eq!(sub_matrix.matrix.elements(), expected_sub_matrix);
         assert_eq!(sub_matrix.scale, 10);
         // Check the normalized combined matrix
         let subfont = outlines.subfont(0, Some(24.0), &[]).unwrap();
         let expected_combined_matrix = [65536, 0, 5604, 65536, 0, 0].map(Fixed::from_bits);
-        assert_eq!(subfont.font_matrix.unwrap().0, expected_combined_matrix);
+        assert_eq!(
+            subfont.font_matrix.unwrap().elements(),
+            expected_combined_matrix
+        );
         // Check the final scale
         assert_eq!(subfont.scale.unwrap().to_bits(), 98304);
     }

@@ -2120,7 +2120,7 @@ mod tests {
         assert_eq!(transformed, expected);
     }
 
-    const TRANSFORM: FontMatrix = FontMatrix([
+    const TRANSFORM: FontMatrix = FontMatrix::from_elements([
         Fixed::ONE,
         Fixed::ZERO,
         // 0.167007446289062
