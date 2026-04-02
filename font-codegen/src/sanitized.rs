@@ -83,7 +83,7 @@ pub(crate) fn generate_read_sanitized_table(item: &Table) -> syn::Result<TokenSt
 
         #impl_into_generic
 
-        unsafe impl #impl_generics ReadSanitized<'a> for #rs_self_type {
+        impl #impl_generics ReadSanitized<'a> for #rs_self_type {
             type Args = #args_type;
 
             unsafe fn read_sanitized(ptr: FontPtr<'a>, #args_param) -> Self {
@@ -130,7 +130,7 @@ fn generate_ptr_based_read_sanitized_record(item: &Record) -> syn::Result<TokenS
             #(#getter_methods)*
         }
 
-        unsafe impl<'a> ReadSanitized<'a> for #sanitized_name<'a> {
+        impl<'a> ReadSanitized<'a> for #sanitized_name<'a> {
             type Args = #args_type;
 
             unsafe fn read_sanitized(ptr: FontPtr<'a>, #args_param) -> Self {
@@ -368,10 +368,10 @@ pub(crate) fn generate_read_sanitized_format(
             }
         }
 
-        unsafe impl<'a> ReadSanitized<'a> for #sanitized_name<'a> {
+        impl<'a> ReadSanitized<'a> for #sanitized_name<'a> {
             type Args = ();
             unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-                let format: #format_type = ptr.read_at(#format_offset);
+                let format: #format_type = ptr.read_at_unchecked(#format_offset);
                 #maybe_allow_lint
                 match format {
                     #( #match_arms, )*
@@ -441,7 +441,7 @@ pub(crate) fn generate_read_sanitized_group(item: &GenericGroup) -> syn::Result<
             }
         }
 
-        unsafe impl<'a> ReadSanitized<'a> for #sanitized_name<'a> {
+        impl<'a> ReadSanitized<'a> for #sanitized_name<'a> {
             type Args = ();
             unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
                 let untyped: #inner_sanitized<'a, ()> = ReadSanitized::read_sanitized(ptr, &());
@@ -684,7 +684,7 @@ impl Field {
 
         match &self.typ {
             FieldType::Scalar { .. } | FieldType::Offset { .. } => {
-                quote!(unsafe { self.ptr.read_at(self.#pos_fn()) })
+                quote!(unsafe { self.ptr.read_at_unchecked(self.#pos_fn()) })
             }
             FieldType::Array { inner_typ } => {
                 // #[count] always present on arrays, would crash before sanitize
@@ -693,13 +693,13 @@ impl Field {
                     FieldType::Scalar { .. }
                     | FieldType::Offset { .. }
                     | FieldType::Struct { .. } => {
-                        quote!(unsafe { self.ptr.read_array_at(self.#pos_fn(), #count_expr) })
+                        quote!(unsafe { self.ptr.read_array_at_unchecked(self.#pos_fn(), #count_expr) })
                     }
                     _ => quote!(compile_error!("not a valid type")),
                 }
             }
             FieldType::Struct { .. } => quote! {
-                let ptr = unsafe { self.ptr.for_offset(self.#pos_fn()) };
+                let ptr = unsafe { self.ptr.split_off_unchecked(self.#pos_fn()) };
                 unsafe { ReadSanitized::read_sanitized(ptr, &#read_args) }
             },
 
@@ -717,7 +717,7 @@ impl Field {
                     let args = #read_args;
                     let item_len = <#inner as ComputeSize>::compute_size(&args).unwrap_or(0);
                     ComputedArraySanitized::new(
-                        unsafe { self.ptr.for_offset(self.#pos_fn()) },
+                        unsafe { self.ptr.split_off_unchecked(self.#pos_fn()) },
                         count,
                         item_len,
                         args,
@@ -770,7 +770,7 @@ impl Field {
                 return Some(quote! {
                     pub fn #getter_name(&self) -> #return_type #where_clause {
                         let offsets = self.#field_name();
-                        #array_type::new(offsets, self.ptr, #args_expr)
+                        unsafe { #array_type::new(offsets, self.ptr, #args_expr) }
                     }
                 });
             }

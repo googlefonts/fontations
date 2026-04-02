@@ -53,7 +53,7 @@ mod sanitize_manual_impls {
         CharacterVariant(super::CharacterVariantParamsSanitized<'a>),
     }
 
-    unsafe impl<'a> ReadSanitized<'a> for FeatureParamsSanitized<'a> {
+    impl<'a> ReadSanitized<'a> for FeatureParamsSanitized<'a> {
         type Args = Tag;
 
         unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {

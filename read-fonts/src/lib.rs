@@ -81,7 +81,7 @@ mod offset_array;
 pub mod ps;
 mod read;
 #[cfg(feature = "sanitize")]
-mod sanitize;
+pub mod sanitize;
 mod table_provider;
 mod table_ref;
 pub mod tables;
@@ -97,12 +97,6 @@ pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
 pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize};
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::MinByteRange;
-
-#[cfg(feature = "sanitize")]
-pub use sanitize::{
-    ArrayOfSanitizedNullableOffsets, ArrayOfSanitizedOffsets, FontPtr, ReadSanitized, Sanitize,
-    TrySanitize,
-};
 
 /// Public re-export of the font-types crate.
 pub extern crate font_types as types;

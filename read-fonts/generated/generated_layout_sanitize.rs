@@ -46,18 +46,18 @@ impl<'a> ScriptListSanitized<'a> {
     }
 
     pub fn script_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.script_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.script_count_pos()) }
     }
 
     pub fn script_records(&self) -> &'a [ScriptRecordSanitized] {
         unsafe {
             self.ptr
-                .read_array_at(self.script_records_pos(), self.script_count() as usize)
+                .read_array_at_unchecked(self.script_records_pos(), self.script_count() as usize)
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ScriptListSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ScriptListSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -155,7 +155,10 @@ impl<'a> ScriptSanitized<'a> {
     }
 
     pub fn default_lang_sys_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.default_lang_sys_offset_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.default_lang_sys_offset_pos())
+        }
     }
 
     pub fn default_lang_sys(&self) -> Option<LangSysSanitized<'a>> {
@@ -166,18 +169,20 @@ impl<'a> ScriptSanitized<'a> {
     }
 
     pub fn lang_sys_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.lang_sys_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lang_sys_count_pos()) }
     }
 
     pub fn lang_sys_records(&self) -> &'a [LangSysRecordSanitized] {
         unsafe {
-            self.ptr
-                .read_array_at(self.lang_sys_records_pos(), self.lang_sys_count() as usize)
+            self.ptr.read_array_at_unchecked(
+                self.lang_sys_records_pos(),
+                self.lang_sys_count() as usize,
+            )
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ScriptSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ScriptSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -267,16 +272,19 @@ impl<'a> LangSysSanitized<'a> {
     }
 
     pub fn required_feature_index(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.required_feature_index_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.required_feature_index_pos())
+        }
     }
 
     pub fn feature_index_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.feature_index_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.feature_index_count_pos()) }
     }
 
     pub fn feature_indices(&self) -> &'a [BigEndian<u16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.feature_indices_pos(),
                 self.feature_index_count() as usize,
             )
@@ -284,7 +292,7 @@ impl<'a> LangSysSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for LangSysSanitized<'a> {
+impl<'a> ReadSanitized<'a> for LangSysSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -332,18 +340,18 @@ impl<'a> FeatureListSanitized<'a> {
     }
 
     pub fn feature_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.feature_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.feature_count_pos()) }
     }
 
     pub fn feature_records(&self) -> &'a [FeatureRecordSanitized] {
         unsafe {
             self.ptr
-                .read_array_at(self.feature_records_pos(), self.feature_count() as usize)
+                .read_array_at_unchecked(self.feature_records_pos(), self.feature_count() as usize)
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for FeatureListSanitized<'a> {
+impl<'a> ReadSanitized<'a> for FeatureListSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -432,7 +440,7 @@ impl<'a> FeatureSanitized<'a> {
     }
 
     pub fn feature_params_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.feature_params_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.feature_params_offset_pos()) }
     }
 
     pub fn feature_params(&self) -> Option<FeatureParamsSanitized<'a>> {
@@ -443,12 +451,12 @@ impl<'a> FeatureSanitized<'a> {
     }
 
     pub fn lookup_index_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.lookup_index_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lookup_index_count_pos()) }
     }
 
     pub fn lookup_list_indices(&self) -> &'a [BigEndian<u16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.lookup_list_indices_pos(),
                 self.lookup_index_count() as usize,
             )
@@ -456,7 +464,7 @@ impl<'a> FeatureSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for FeatureSanitized<'a> {
+impl<'a> ReadSanitized<'a> for FeatureSanitized<'a> {
     type Args = Tag;
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let feature_tag = *args;
@@ -502,13 +510,13 @@ impl<'a, T> LookupListSanitized<'a, T> {
     }
 
     pub fn lookup_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.lookup_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lookup_count_pos()) }
     }
 
     pub fn lookup_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
-                .read_array_at(self.lookup_offsets_pos(), self.lookup_count() as usize)
+                .read_array_at_unchecked(self.lookup_offsets_pos(), self.lookup_count() as usize)
         }
     }
 
@@ -517,7 +525,7 @@ impl<'a, T> LookupListSanitized<'a, T> {
         T: ReadSanitized<'a, Args = ()>,
     {
         let offsets = self.lookup_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
@@ -541,7 +549,7 @@ impl<'a, T> LookupListSanitized<'a, T> {
     }
 }
 
-unsafe impl<'a, T> ReadSanitized<'a> for LookupListSanitized<'a, T> {
+impl<'a, T> ReadSanitized<'a> for LookupListSanitized<'a, T> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self {
@@ -608,21 +616,23 @@ impl<'a, T> LookupSanitized<'a, T> {
     }
 
     pub fn lookup_type(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.lookup_type_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lookup_type_pos()) }
     }
 
     pub fn lookup_flag(&self) -> LookupFlag {
-        unsafe { self.ptr.read_at(self.lookup_flag_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lookup_flag_pos()) }
     }
 
     pub fn sub_table_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.sub_table_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.sub_table_count_pos()) }
     }
 
     pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr
-                .read_array_at(self.subtable_offsets_pos(), self.sub_table_count() as usize)
+            self.ptr.read_array_at_unchecked(
+                self.subtable_offsets_pos(),
+                self.sub_table_count() as usize,
+            )
         }
     }
 
@@ -631,11 +641,11 @@ impl<'a, T> LookupSanitized<'a, T> {
         T: ReadSanitized<'a, Args = ()>,
     {
         let offsets = self.subtable_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 
     pub fn mark_filtering_set(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.mark_filtering_set_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_filtering_set_pos()) }
     }
 }
 
@@ -659,7 +669,7 @@ impl<'a, T> LookupSanitized<'a, T> {
     }
 }
 
-unsafe impl<'a, T> ReadSanitized<'a> for LookupSanitized<'a, T> {
+impl<'a, T> ReadSanitized<'a> for LookupSanitized<'a, T> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self {
@@ -709,22 +719,22 @@ impl<'a> CoverageFormat1Sanitized<'a> {
     }
 
     pub fn coverage_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.coverage_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_format_pos()) }
     }
 
     pub fn glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.glyph_count_pos()) }
     }
 
     pub fn glyph_array(&self) -> &'a [BigEndian<GlyphId16>] {
         unsafe {
             self.ptr
-                .read_array_at(self.glyph_array_pos(), self.glyph_count() as usize)
+                .read_array_at_unchecked(self.glyph_array_pos(), self.glyph_count() as usize)
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for CoverageFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for CoverageFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -775,22 +785,22 @@ impl<'a> CoverageFormat2Sanitized<'a> {
     }
 
     pub fn coverage_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.coverage_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_format_pos()) }
     }
 
     pub fn range_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.range_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.range_count_pos()) }
     }
 
     pub fn range_records(&self) -> &'a [RangeRecordSanitized] {
         unsafe {
             self.ptr
-                .read_array_at(self.range_records_pos(), self.range_count() as usize)
+                .read_array_at_unchecked(self.range_records_pos(), self.range_count() as usize)
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for CoverageFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for CoverageFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -886,10 +896,10 @@ impl Default for CoverageTableSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for CoverageTableSanitized<'a> {
+impl<'a> ReadSanitized<'a> for CoverageTableSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             CoverageFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
             CoverageFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
@@ -941,26 +951,26 @@ impl<'a> ClassDefFormat1Sanitized<'a> {
     }
 
     pub fn class_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.class_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.class_format_pos()) }
     }
 
     pub fn start_glyph_id(&self) -> GlyphId16 {
-        unsafe { self.ptr.read_at(self.start_glyph_id_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.start_glyph_id_pos()) }
     }
 
     pub fn glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.glyph_count_pos()) }
     }
 
     pub fn class_value_array(&self) -> &'a [BigEndian<u16>] {
         unsafe {
             self.ptr
-                .read_array_at(self.class_value_array_pos(), self.glyph_count() as usize)
+                .read_array_at_unchecked(self.class_value_array_pos(), self.glyph_count() as usize)
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ClassDefFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ClassDefFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1011,16 +1021,16 @@ impl<'a> ClassDefFormat2Sanitized<'a> {
     }
 
     pub fn class_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.class_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.class_format_pos()) }
     }
 
     pub fn class_range_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.class_range_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.class_range_count_pos()) }
     }
 
     pub fn class_range_records(&self) -> &'a [ClassRangeRecordSanitized] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.class_range_records_pos(),
                 self.class_range_count() as usize,
             )
@@ -1028,7 +1038,7 @@ impl<'a> ClassDefFormat2Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ClassDefFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ClassDefFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1124,10 +1134,10 @@ impl Default for ClassDefSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ClassDefSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ClassDefSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             ClassDefFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
             ClassDefFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
@@ -1214,11 +1224,11 @@ impl<'a> SequenceContextFormat1Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -1230,12 +1240,12 @@ impl<'a> SequenceContextFormat1Sanitized<'a> {
     }
 
     pub fn seq_rule_set_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.seq_rule_set_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.seq_rule_set_count_pos()) }
     }
 
     pub fn seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.seq_rule_set_offsets_pos(),
                 self.seq_rule_set_count() as usize,
             )
@@ -1246,11 +1256,11 @@ impl<'a> SequenceContextFormat1Sanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedNullableOffsets<'a, SequenceRuleSetSanitized<'a>, Offset16> {
         let offsets = self.seq_rule_set_offsets();
-        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SequenceContextFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for SequenceContextFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1294,23 +1304,25 @@ impl<'a> SequenceRuleSetSanitized<'a> {
     }
 
     pub fn seq_rule_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.seq_rule_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.seq_rule_count_pos()) }
     }
 
     pub fn seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr
-                .read_array_at(self.seq_rule_offsets_pos(), self.seq_rule_count() as usize)
+            self.ptr.read_array_at_unchecked(
+                self.seq_rule_offsets_pos(),
+                self.seq_rule_count() as usize,
+            )
         }
     }
 
     pub fn seq_rules(&self) -> ArrayOfSanitizedOffsets<'a, SequenceRuleSanitized<'a>, Offset16> {
         let offsets = self.seq_rule_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SequenceRuleSetSanitized<'a> {
+impl<'a> ReadSanitized<'a> for SequenceRuleSetSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1370,16 +1382,16 @@ impl<'a> SequenceRuleSanitized<'a> {
     }
 
     pub fn glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.glyph_count_pos()) }
     }
 
     pub fn seq_lookup_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.seq_lookup_count_pos()) }
     }
 
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.input_sequence_pos(),
                 transforms::subtract(self.glyph_count(), 1_usize),
             )
@@ -1388,7 +1400,7 @@ impl<'a> SequenceRuleSanitized<'a> {
 
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.seq_lookup_records_pos(),
                 self.seq_lookup_count() as usize,
             )
@@ -1396,7 +1408,7 @@ impl<'a> SequenceRuleSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SequenceRuleSanitized<'a> {
+impl<'a> ReadSanitized<'a> for SequenceRuleSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1451,11 +1463,11 @@ impl<'a> SequenceContextFormat2Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -1467,7 +1479,7 @@ impl<'a> SequenceContextFormat2Sanitized<'a> {
     }
 
     pub fn class_def_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.class_def_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.class_def_offset_pos()) }
     }
 
     pub fn class_def(&self) -> ClassDefSanitized<'a> {
@@ -1479,12 +1491,15 @@ impl<'a> SequenceContextFormat2Sanitized<'a> {
     }
 
     pub fn class_seq_rule_set_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.class_seq_rule_set_count_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.class_seq_rule_set_count_pos())
+        }
     }
 
     pub fn class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.class_seq_rule_set_offsets_pos(),
                 self.class_seq_rule_set_count() as usize,
             )
@@ -1495,11 +1510,11 @@ impl<'a> SequenceContextFormat2Sanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedNullableOffsets<'a, ClassSequenceRuleSetSanitized<'a>, Offset16> {
         let offsets = self.class_seq_rule_set_offsets();
-        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SequenceContextFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for SequenceContextFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1543,12 +1558,12 @@ impl<'a> ClassSequenceRuleSetSanitized<'a> {
     }
 
     pub fn class_seq_rule_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.class_seq_rule_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.class_seq_rule_count_pos()) }
     }
 
     pub fn class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.class_seq_rule_offsets_pos(),
                 self.class_seq_rule_count() as usize,
             )
@@ -1559,11 +1574,11 @@ impl<'a> ClassSequenceRuleSetSanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedOffsets<'a, ClassSequenceRuleSanitized<'a>, Offset16> {
         let offsets = self.class_seq_rule_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ClassSequenceRuleSetSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ClassSequenceRuleSetSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1622,16 +1637,16 @@ impl<'a> ClassSequenceRuleSanitized<'a> {
     }
 
     pub fn glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.glyph_count_pos()) }
     }
 
     pub fn seq_lookup_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.seq_lookup_count_pos()) }
     }
 
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.input_sequence_pos(),
                 transforms::subtract(self.glyph_count(), 1_usize),
             )
@@ -1640,7 +1655,7 @@ impl<'a> ClassSequenceRuleSanitized<'a> {
 
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.seq_lookup_records_pos(),
                 self.seq_lookup_count() as usize,
             )
@@ -1648,7 +1663,7 @@ impl<'a> ClassSequenceRuleSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ClassSequenceRuleSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ClassSequenceRuleSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1710,32 +1725,32 @@ impl<'a> SequenceContextFormat3Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.glyph_count_pos()) }
     }
 
     pub fn seq_lookup_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.seq_lookup_count_pos()) }
     }
 
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
             self.ptr
-                .read_array_at(self.coverage_offsets_pos(), self.glyph_count() as usize)
+                .read_array_at_unchecked(self.coverage_offsets_pos(), self.glyph_count() as usize)
         }
     }
 
     pub fn coverages(&self) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
         let offsets = self.coverage_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.seq_lookup_records_pos(),
                 self.seq_lookup_count() as usize,
             )
@@ -1743,7 +1758,7 @@ impl<'a> SequenceContextFormat3Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SequenceContextFormat3Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for SequenceContextFormat3Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1801,10 +1816,10 @@ impl Default for SequenceContextSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SequenceContextSanitized<'a> {
+impl<'a> ReadSanitized<'a> for SequenceContextSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             SequenceContextFormat1::FORMAT => {
                 Self::Format1(ReadSanitized::read_sanitized(ptr, &()))
@@ -1864,11 +1879,11 @@ impl<'a> ChainedSequenceContextFormat1Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -1880,12 +1895,15 @@ impl<'a> ChainedSequenceContextFormat1Sanitized<'a> {
     }
 
     pub fn chained_seq_rule_set_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.chained_seq_rule_set_count_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.chained_seq_rule_set_count_pos())
+        }
     }
 
     pub fn chained_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.chained_seq_rule_set_offsets_pos(),
                 self.chained_seq_rule_set_count() as usize,
             )
@@ -1896,11 +1914,11 @@ impl<'a> ChainedSequenceContextFormat1Sanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedNullableOffsets<'a, ChainedSequenceRuleSetSanitized<'a>, Offset16> {
         let offsets = self.chained_seq_rule_set_offsets();
-        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1944,12 +1962,15 @@ impl<'a> ChainedSequenceRuleSetSanitized<'a> {
     }
 
     pub fn chained_seq_rule_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.chained_seq_rule_count_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.chained_seq_rule_count_pos())
+        }
     }
 
     pub fn chained_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.chained_seq_rule_offsets_pos(),
                 self.chained_seq_rule_count() as usize,
             )
@@ -1960,11 +1981,11 @@ impl<'a> ChainedSequenceRuleSetSanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedOffsets<'a, ChainedSequenceRuleSanitized<'a>, Offset16> {
         let offsets = self.chained_seq_rule_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceRuleSetSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ChainedSequenceRuleSetSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -2046,12 +2067,12 @@ impl<'a> ChainedSequenceRuleSanitized<'a> {
     }
 
     pub fn backtrack_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.backtrack_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.backtrack_glyph_count_pos()) }
     }
 
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.backtrack_sequence_pos(),
                 self.backtrack_glyph_count() as usize,
             )
@@ -2059,12 +2080,12 @@ impl<'a> ChainedSequenceRuleSanitized<'a> {
     }
 
     pub fn input_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.input_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.input_glyph_count_pos()) }
     }
 
     pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.input_sequence_pos(),
                 transforms::subtract(self.input_glyph_count(), 1_usize),
             )
@@ -2072,12 +2093,12 @@ impl<'a> ChainedSequenceRuleSanitized<'a> {
     }
 
     pub fn lookahead_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.lookahead_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lookahead_glyph_count_pos()) }
     }
 
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.lookahead_sequence_pos(),
                 self.lookahead_glyph_count() as usize,
             )
@@ -2085,12 +2106,12 @@ impl<'a> ChainedSequenceRuleSanitized<'a> {
     }
 
     pub fn seq_lookup_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.seq_lookup_count_pos()) }
     }
 
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.seq_lookup_records_pos(),
                 self.seq_lookup_count() as usize,
             )
@@ -2098,7 +2119,7 @@ impl<'a> ChainedSequenceRuleSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceRuleSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ChainedSequenceRuleSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -2161,11 +2182,11 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -2177,7 +2198,10 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     }
 
     pub fn backtrack_class_def_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.backtrack_class_def_offset_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.backtrack_class_def_offset_pos())
+        }
     }
 
     pub fn backtrack_class_def(&self) -> ClassDefSanitized<'a> {
@@ -2189,7 +2213,10 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     }
 
     pub fn input_class_def_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.input_class_def_offset_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.input_class_def_offset_pos())
+        }
     }
 
     pub fn input_class_def(&self) -> ClassDefSanitized<'a> {
@@ -2201,7 +2228,10 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     }
 
     pub fn lookahead_class_def_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.lookahead_class_def_offset_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.lookahead_class_def_offset_pos())
+        }
     }
 
     pub fn lookahead_class_def(&self) -> ClassDefSanitized<'a> {
@@ -2215,13 +2245,13 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     pub fn chained_class_seq_rule_set_count(&self) -> u16 {
         unsafe {
             self.ptr
-                .read_at(self.chained_class_seq_rule_set_count_pos())
+                .read_at_unchecked(self.chained_class_seq_rule_set_count_pos())
         }
     }
 
     pub fn chained_class_seq_rule_set_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.chained_class_seq_rule_set_offsets_pos(),
                 self.chained_class_seq_rule_set_count() as usize,
             )
@@ -2233,11 +2263,11 @@ impl<'a> ChainedSequenceContextFormat2Sanitized<'a> {
     ) -> ArrayOfSanitizedNullableOffsets<'a, ChainedClassSequenceRuleSetSanitized<'a>, Offset16>
     {
         let offsets = self.chained_class_seq_rule_set_offsets();
-        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -2281,12 +2311,15 @@ impl<'a> ChainedClassSequenceRuleSetSanitized<'a> {
     }
 
     pub fn chained_class_seq_rule_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.chained_class_seq_rule_count_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.chained_class_seq_rule_count_pos())
+        }
     }
 
     pub fn chained_class_seq_rule_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.chained_class_seq_rule_offsets_pos(),
                 self.chained_class_seq_rule_count() as usize,
             )
@@ -2297,11 +2330,11 @@ impl<'a> ChainedClassSequenceRuleSetSanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedOffsets<'a, ChainedClassSequenceRuleSanitized<'a>, Offset16> {
         let offsets = self.chained_class_seq_rule_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ChainedClassSequenceRuleSetSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ChainedClassSequenceRuleSetSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -2383,12 +2416,12 @@ impl<'a> ChainedClassSequenceRuleSanitized<'a> {
     }
 
     pub fn backtrack_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.backtrack_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.backtrack_glyph_count_pos()) }
     }
 
     pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.backtrack_sequence_pos(),
                 self.backtrack_glyph_count() as usize,
             )
@@ -2396,12 +2429,12 @@ impl<'a> ChainedClassSequenceRuleSanitized<'a> {
     }
 
     pub fn input_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.input_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.input_glyph_count_pos()) }
     }
 
     pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.input_sequence_pos(),
                 transforms::subtract(self.input_glyph_count(), 1_usize),
             )
@@ -2409,12 +2442,12 @@ impl<'a> ChainedClassSequenceRuleSanitized<'a> {
     }
 
     pub fn lookahead_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.lookahead_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lookahead_glyph_count_pos()) }
     }
 
     pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.lookahead_sequence_pos(),
                 self.lookahead_glyph_count() as usize,
             )
@@ -2422,12 +2455,12 @@ impl<'a> ChainedClassSequenceRuleSanitized<'a> {
     }
 
     pub fn seq_lookup_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.seq_lookup_count_pos()) }
     }
 
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.seq_lookup_records_pos(),
                 self.seq_lookup_count() as usize,
             )
@@ -2435,7 +2468,7 @@ impl<'a> ChainedClassSequenceRuleSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ChainedClassSequenceRuleSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ChainedClassSequenceRuleSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -2519,16 +2552,16 @@ impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn backtrack_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.backtrack_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.backtrack_glyph_count_pos()) }
     }
 
     pub fn backtrack_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.backtrack_coverage_offsets_pos(),
                 self.backtrack_glyph_count() as usize,
             )
@@ -2539,16 +2572,16 @@ impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
         let offsets = self.backtrack_coverage_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 
     pub fn input_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.input_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.input_glyph_count_pos()) }
     }
 
     pub fn input_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.input_coverage_offsets_pos(),
                 self.input_glyph_count() as usize,
             )
@@ -2559,16 +2592,16 @@ impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
         let offsets = self.input_coverage_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 
     pub fn lookahead_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.lookahead_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lookahead_glyph_count_pos()) }
     }
 
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.lookahead_coverage_offsets_pos(),
                 self.lookahead_glyph_count() as usize,
             )
@@ -2579,16 +2612,16 @@ impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset16> {
         let offsets = self.lookahead_coverage_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 
     pub fn seq_lookup_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.seq_lookup_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.seq_lookup_count_pos()) }
     }
 
     pub fn seq_lookup_records(&self) -> &'a [SequenceLookupRecordSanitized] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.seq_lookup_records_pos(),
                 self.seq_lookup_count() as usize,
             )
@@ -2596,7 +2629,7 @@ impl<'a> ChainedSequenceContextFormat3Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat3Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat3Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -2654,10 +2687,10 @@ impl Default for ChainedSequenceContextSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ChainedSequenceContextSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ChainedSequenceContextSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             ChainedSequenceContextFormat1::FORMAT => {
                 Self::Format1(ReadSanitized::read_sanitized(ptr, &()))
@@ -2716,20 +2749,20 @@ impl<'a> DeviceSanitized<'a> {
     }
 
     pub fn start_size(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.start_size_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.start_size_pos()) }
     }
 
     pub fn end_size(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.end_size_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.end_size_pos()) }
     }
 
     pub fn delta_format(&self) -> DeltaFormat {
-        unsafe { self.ptr.read_at(self.delta_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.delta_format_pos()) }
     }
 
     pub fn delta_value(&self) -> &'a [BigEndian<u16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.delta_value_pos(),
                 DeltaFormat::value_count(self.delta_format(), self.start_size(), self.end_size()),
             )
@@ -2737,7 +2770,7 @@ impl<'a> DeviceSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for DeviceSanitized<'a> {
+impl<'a> ReadSanitized<'a> for DeviceSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -2780,19 +2813,19 @@ impl<'a> VariationIndexSanitized<'a> {
     }
 
     pub fn delta_set_outer_index(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.delta_set_outer_index_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.delta_set_outer_index_pos()) }
     }
 
     pub fn delta_set_inner_index(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.delta_set_inner_index_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.delta_set_inner_index_pos()) }
     }
 
     pub fn delta_format(&self) -> DeltaFormat {
-        unsafe { self.ptr.read_at(self.delta_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.delta_format_pos()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for VariationIndexSanitized<'a> {
+impl<'a> ReadSanitized<'a> for VariationIndexSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -2846,10 +2879,10 @@ impl Default for DeviceOrVariationIndexSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for DeviceOrVariationIndexSanitized<'a> {
+impl<'a> ReadSanitized<'a> for DeviceOrVariationIndexSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: DeltaFormat = ptr.read_at(4usize);
+        let format: DeltaFormat = ptr.read_at_unchecked(4usize);
 
         #[allow(clippy::redundant_guards)]
         match format {
@@ -2908,16 +2941,19 @@ impl<'a> FeatureVariationsSanitized<'a> {
     }
 
     pub fn version(&self) -> MajorMinor {
-        unsafe { self.ptr.read_at(self.version_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.version_pos()) }
     }
 
     pub fn feature_variation_record_count(&self) -> u32 {
-        unsafe { self.ptr.read_at(self.feature_variation_record_count_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.feature_variation_record_count_pos())
+        }
     }
 
     pub fn feature_variation_records(&self) -> &'a [FeatureVariationRecordSanitized] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.feature_variation_records_pos(),
                 self.feature_variation_record_count() as usize,
             )
@@ -2925,7 +2961,7 @@ impl<'a> FeatureVariationsSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for FeatureVariationsSanitized<'a> {
+impl<'a> ReadSanitized<'a> for FeatureVariationsSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3026,12 +3062,12 @@ impl<'a> ConditionSetSanitized<'a> {
     }
 
     pub fn condition_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.condition_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.condition_count_pos()) }
     }
 
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.condition_offsets_pos(),
                 self.condition_count() as usize,
             )
@@ -3040,11 +3076,11 @@ impl<'a> ConditionSetSanitized<'a> {
 
     pub fn conditions(&self) -> ArrayOfSanitizedOffsets<'a, ConditionSanitized<'a>, Offset32> {
         let offsets = self.condition_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ConditionSetSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ConditionSetSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3110,10 +3146,10 @@ impl Default for ConditionSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ConditionSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ConditionSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             ConditionFormat1::FORMAT => {
                 Self::Format1AxisRange(ReadSanitized::read_sanitized(ptr, &()))
@@ -3170,23 +3206,29 @@ impl<'a> ConditionFormat1Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn axis_index(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.axis_index_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.axis_index_pos()) }
     }
 
     pub fn filter_range_min_value(&self) -> F2Dot14 {
-        unsafe { self.ptr.read_at(self.filter_range_min_value_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.filter_range_min_value_pos())
+        }
     }
 
     pub fn filter_range_max_value(&self) -> F2Dot14 {
-        unsafe { self.ptr.read_at(self.filter_range_max_value_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.filter_range_max_value_pos())
+        }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ConditionFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ConditionFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3229,19 +3271,19 @@ impl<'a> ConditionFormat2Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn default_value(&self) -> i16 {
-        unsafe { self.ptr.read_at(self.default_value_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.default_value_pos()) }
     }
 
     pub fn var_index(&self) -> u32 {
-        unsafe { self.ptr.read_at(self.var_index_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.var_index_pos()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ConditionFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ConditionFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3288,16 +3330,16 @@ impl<'a> ConditionFormat3Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn condition_count(&self) -> u8 {
-        unsafe { self.ptr.read_at(self.condition_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.condition_count_pos()) }
     }
 
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.condition_offsets_pos(),
                 self.condition_count() as usize,
             )
@@ -3306,11 +3348,11 @@ impl<'a> ConditionFormat3Sanitized<'a> {
 
     pub fn conditions(&self) -> ArrayOfSanitizedOffsets<'a, ConditionSanitized<'a>, Offset24> {
         let offsets = self.condition_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ConditionFormat3Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ConditionFormat3Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3357,16 +3399,16 @@ impl<'a> ConditionFormat4Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn condition_count(&self) -> u8 {
-        unsafe { self.ptr.read_at(self.condition_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.condition_count_pos()) }
     }
 
     pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.condition_offsets_pos(),
                 self.condition_count() as usize,
             )
@@ -3375,11 +3417,11 @@ impl<'a> ConditionFormat4Sanitized<'a> {
 
     pub fn conditions(&self) -> ArrayOfSanitizedOffsets<'a, ConditionSanitized<'a>, Offset24> {
         let offsets = self.condition_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ConditionFormat4Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ConditionFormat4Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3420,11 +3462,11 @@ impl<'a> ConditionFormat5Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn condition_offset(&self) -> Offset24 {
-        unsafe { self.ptr.read_at(self.condition_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.condition_offset_pos()) }
     }
 
     pub fn condition(&self) -> ConditionSanitized<'a> {
@@ -3436,7 +3478,7 @@ impl<'a> ConditionFormat5Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ConditionFormat5Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for ConditionFormat5Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3487,22 +3529,24 @@ impl<'a> FeatureTableSubstitutionSanitized<'a> {
     }
 
     pub fn version(&self) -> MajorMinor {
-        unsafe { self.ptr.read_at(self.version_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.version_pos()) }
     }
 
     pub fn substitution_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.substitution_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.substitution_count_pos()) }
     }
 
     pub fn substitutions(&self) -> &'a [FeatureTableSubstitutionRecordSanitized] {
         unsafe {
-            self.ptr
-                .read_array_at(self.substitutions_pos(), self.substitution_count() as usize)
+            self.ptr.read_array_at_unchecked(
+                self.substitutions_pos(),
+                self.substitution_count() as usize,
+            )
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for FeatureTableSubstitutionSanitized<'a> {
+impl<'a> ReadSanitized<'a> for FeatureTableSubstitutionSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3588,27 +3632,27 @@ impl<'a> SizeParamsSanitized<'a> {
     }
 
     pub fn design_size(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.design_size_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.design_size_pos()) }
     }
 
     pub fn identifier(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.identifier_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.identifier_pos()) }
     }
 
     pub fn name_entry(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.name_entry_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.name_entry_pos()) }
     }
 
     pub fn range_start(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.range_start_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.range_start_pos()) }
     }
 
     pub fn range_end(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.range_end_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.range_end_pos()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SizeParamsSanitized<'a> {
+impl<'a> ReadSanitized<'a> for SizeParamsSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3648,15 +3692,15 @@ impl<'a> StylisticSetParamsSanitized<'a> {
     }
 
     pub fn version(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.version_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.version_pos()) }
     }
 
     pub fn ui_name_id(&self) -> NameId {
-        unsafe { self.ptr.read_at(self.ui_name_id_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.ui_name_id_pos()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for StylisticSetParamsSanitized<'a> {
+impl<'a> ReadSanitized<'a> for StylisticSetParamsSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -3718,42 +3762,48 @@ impl<'a> CharacterVariantParamsSanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn feat_ui_label_name_id(&self) -> NameId {
-        unsafe { self.ptr.read_at(self.feat_ui_label_name_id_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.feat_ui_label_name_id_pos()) }
     }
 
     pub fn feat_ui_tooltip_text_name_id(&self) -> NameId {
-        unsafe { self.ptr.read_at(self.feat_ui_tooltip_text_name_id_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.feat_ui_tooltip_text_name_id_pos())
+        }
     }
 
     pub fn sample_text_name_id(&self) -> NameId {
-        unsafe { self.ptr.read_at(self.sample_text_name_id_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.sample_text_name_id_pos()) }
     }
 
     pub fn num_named_parameters(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.num_named_parameters_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.num_named_parameters_pos()) }
     }
 
     pub fn first_param_ui_label_name_id(&self) -> NameId {
-        unsafe { self.ptr.read_at(self.first_param_ui_label_name_id_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.first_param_ui_label_name_id_pos())
+        }
     }
 
     pub fn char_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.char_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.char_count_pos()) }
     }
 
     pub fn character(&self) -> &'a [BigEndian<Uint24>] {
         unsafe {
             self.ptr
-                .read_array_at(self.character_pos(), self.char_count() as usize)
+                .read_array_at_unchecked(self.character_pos(), self.char_count() as usize)
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for CharacterVariantParamsSanitized<'a> {
+impl<'a> ReadSanitized<'a> for CharacterVariantParamsSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }

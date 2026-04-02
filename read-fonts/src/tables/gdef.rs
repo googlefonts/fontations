@@ -26,9 +26,12 @@ pub use super::layout::{
 #[cfg(feature = "sanitize")]
 pub type ItemVariationStoreSanitized<'a> = ItemVariationStore<'a>;
 #[cfg(feature = "sanitize")]
-unsafe impl<'a> ReadSanitized<'a> for ItemVariationStoreSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ItemVariationStoreSanitized<'a> {
     type Args = ();
 
+    // # Safety
+    //
+    // This uses the fully safe FontRead api, and performs normal validation.
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self::read(ptr.into_font_data()).unwrap()
     }

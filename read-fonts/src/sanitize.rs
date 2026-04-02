@@ -1,4 +1,42 @@
-//! Pre-validating font data.
+//! Pre-validating font data for more efficient access.
+//!
+//! This module contains our version of the [`sanitize` machinery][hb_sanitize]
+//! from HarfBuzz.
+//!
+//! The basic idea is straightforward: instead of doing bounds checks whenever a
+//! field is accessed (or an offset is chased) we validate an entire font table
+//! (recursively, including its subtables) once, and then elide subsequent
+//! bounds checking, which shows significant speedups for certain important uses
+//! cases, such as shaping.
+//!
+//! At a high level, sanitization follows the following process:
+//! - a 'normal' (non-sanitized) table is read using the [`FontRead`] trait.
+//!   this performs extremely basic validation.
+//! - Once the table has been read, it is sanitized, by calling its implementation
+//!   of the [`Sanitize`] trait. This implementation checks that all fields
+//!   accessible via the table are in-bounds of the table's data, and then
+//!   recursively ensures the same is true for any table reachable via an offset.
+//! - If sanitization completes successfully, a special 'Sanitized' type is returned.
+//!   This type is tied to precisely the data that was used during sanitization,
+//!   and allows for access to fields and subtables without any further bounds
+//!   checking.
+//!
+//! ```no_run
+//! # use read_fonts::TableProvider;
+//! use read_fonts::sanitize::TrySanitize;
+//!
+//! # fn get_font() -> read_fonts::FontRef<'static> { todo!() }
+//!
+//! let font = get_font();
+//! let gpos = font.gpos().expect("read gpos failed");
+//! let gpos_sanitized = gpos.try_sanitize().expect("sanitize failed");
+//! let normal_script_list = gpos.script_list().unwrap(); // normally this is checked;
+//! let sanitized_script_list = gpos_sanitized.script_list();
+//! assert_eq!(normal_script_list.script_count(), sanitized_script_list.script_count());
+//!
+//! ```
+//!
+//! [hb_sanitize]: https://github.com/harfbuzz/harfbuzz/blob/90116a529/src/hb-sanitize.hh#L38
 
 #![deny(clippy::arithmetic_side_effects)]
 
@@ -13,7 +51,7 @@ use crate::{
 };
 
 // https://github.com/harfbuzz/harfbuzz/blob/aba63bb5f8cb6cfc77ee8cfc2700b3ed9c0838ef/src/hb-null.hh#L40
-/// the number of bytes required to represent the largest table we have.
+/// The number of bytes required to represent the largest table we have.
 ///
 /// This is checked by an assert at compile time, and can be increased as needed
 pub(crate) const NULL_POOL_SIZE: usize = 16;
@@ -90,14 +128,45 @@ pub fn sanitize_ignoring_null<T: Sanitize>(result: Result<T, ReadError>) -> Resu
     }
 }
 
-/// A trait for reading a sanitized table from raw bytes
-pub unsafe trait ReadSanitized<'a> {
+/// A trait for unchecked reading of a font table from bytes.
+///
+/// This trait is part of the [sanitize system], and is generally only expected
+/// to be implemented through code generation.
+///
+/// [sanitize system]: crate::sanitize
+pub trait ReadSanitized<'a> {
+    /// Any arguments required by this table.
     type Args: Copy;
+    /// Reinterpret the provided bytes as `Self`, without any bounds checking.
+    ///
+    /// # Safety
+    ///
+    /// This should only ever be called with data that has already been validated
+    /// via the corresponding [`Sanitize`] implementation. See the [mod sanitize]
+    /// for more information.
+    ///
+    /// [mod sanitize]: crate::sanitize
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self;
 }
 
-/// A trait for resolving a sanitized table from an offset
-pub trait ResolveSanitizedOffset {
+/// A trait for resolving a sanitized table from an offset.
+///
+/// This trait is used in the typed getters of sanitized tables and records to
+/// resolve offsets to other tables.
+pub(crate) trait ResolveSanitizedOffset {
+    /// Resolve a sanitized offset.
+    ///
+    /// Should return `None` only if the offset is null.
+    ///
+    /// # Safety
+    ///
+    /// This method is only intended to be called from generated code.
+    ///
+    /// In the small number of cases where a manual offset getter is required,
+    /// the caller must ensure that the equivalent getter on the corresponding
+    /// non-sanitize table is called as part of that table's [`Sanitize`]
+    /// implementation, and that the provided `data` is derived from exactly
+    /// the data that was used to resolve this table during [`Sanitize`].
     unsafe fn resolve_sanitized<'a, T: ReadSanitized<'a>>(
         &self,
         data: FontPtr<'a>,
@@ -113,7 +182,7 @@ impl<O: Offset> ResolveSanitizedOffset for O {
     ) -> Option<T> {
         unsafe {
             self.non_null()
-                .map(|off| T::read_sanitized(data.for_offset(off), args))
+                .map(|off| T::read_sanitized(data.split_off_unchecked(off), args))
         }
     }
 }
@@ -135,7 +204,14 @@ where
     O: Scalar,
     T: ReadSanitized<'a>,
 {
-    pub(crate) fn new(offsets: &'a [BigEndian<O>], ptr: FontPtr<'a>, args: T::Args) -> Self {
+    /// # Safety
+    ///
+    /// Should only ever be created from generated code, in a table that has
+    /// already been [sanitized][crate::sanitize].
+    ///
+    /// Concretely, all offsets in the array must point to positions in the buffer
+    /// that are valid for a table of type `T`.
+    pub(crate) unsafe fn new(offsets: &'a [BigEndian<O>], ptr: FontPtr<'a>, args: T::Args) -> Self {
         Self { offsets, ptr, args }
     }
 }
@@ -145,7 +221,14 @@ where
     O: Scalar,
     T: ReadSanitized<'a>,
 {
-    pub(crate) fn new(
+    /// # Safety
+    ///
+    /// Should only ever be created from generated code, in a table that has
+    /// already been [sanitized][crate::sanitize].
+    ///
+    /// Concretely, all offsets in the array must point to positions in the buffer
+    /// that are valid for a table of type `T`.
+    pub(crate) unsafe fn new(
         offsets: &'a [BigEndian<Nullable<O>>],
         ptr: FontPtr<'a>,
         args: T::Args,
@@ -244,6 +327,12 @@ pub struct ComputedArraySanitized<'a, T: ReadSanitized<'a>> {
 }
 
 impl<'a, T: ReadSanitized<'a>> ComputedArraySanitized<'a, T> {
+    /// # Safety
+    ///
+    /// Should only ever be created from generated code, in a table that has
+    /// already been [sanitized][crate::sanitize].
+    ///
+    /// Concretely, the buffer must be large enough to contain all of the items.
     pub(crate) fn new(ptr: FontPtr<'a>, count: usize, item_len: usize, args: T::Args) -> Self {
         Self {
             ptr,
@@ -273,7 +362,7 @@ where
             return None;
         }
         let offset = idx.saturating_mul(self.item_len);
-        Some(unsafe { T::read_sanitized(self.ptr.for_offset(offset), &self.args) })
+        Some(unsafe { T::read_sanitized(self.ptr.split_off_unchecked(offset), &self.args) })
     }
 
     /// Iterate over all items.
@@ -291,15 +380,18 @@ where
             // if i == u32::MAX, our offset is out of bounds, but we don't
             // want to loop forever on corrupt data..
             i = i.checked_add(1)?;
-            Some(unsafe { T::read_sanitized(ptr.for_offset(offset), &args) })
+            Some(unsafe { T::read_sanitized(ptr.split_off_unchecked(offset), &args) })
         })
     }
 }
 
-// a utility type for reading fields from a pointer.
-//
-// This stores a `&'a u8` instead of a raw pointer in order to maintain... a lifetime..
-// does this even make sense probably not
+/// A type providing unchecked access to font data.
+// NOTE:
+// this used to be more like a pointer, and is now just a wrapper around FontData.
+// It's useful to have FontData because it means we can fallback to non-sanitize
+// types from sanitize ones, and also because we do preserve the bounds in case
+// we need them for some unknown future types? So maybe this could all just go
+// away...
 #[derive(Clone, Copy)]
 pub struct FontPtr<'a>(FontData<'a>);
 
@@ -324,13 +416,25 @@ impl<'a> FontPtr<'a> {
         self.0.as_bytes().as_ptr()
     }
 
-    pub(crate) unsafe fn read_at<T: Scalar>(&self, offset: usize) -> T {
+    /// Read a scalar from the buffer without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the position in this buffer referenced by
+    /// `offset` can represent the relevant scalar.
+    pub(crate) unsafe fn read_at_unchecked<T: Scalar>(&self, offset: usize) -> T {
         let ptr = self.raw().add(offset);
         let temp: &BigEndian<T> = &*(ptr as *const BigEndian<T>);
         temp.get()
     }
 
-    pub(crate) unsafe fn read_array_at<T: AnyBitPattern + FixedSize>(
+    /// Read a slice from the buffer, without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that the position in this buffer referenced by
+    /// `offset` contains at least `T::RAW_BYTE_LEN * len` bytes.
+    pub(crate) unsafe fn read_array_at_unchecked<T: AnyBitPattern + FixedSize>(
         &self,
         offset: usize,
         len: usize,
@@ -339,7 +443,12 @@ impl<'a> FontPtr<'a> {
         std::slice::from_raw_parts(ptr as *const _, len)
     }
 
-    pub(crate) unsafe fn for_offset(&self, offset: usize) -> Self {
+    /// Advance the pointer by `offset` bytes, without bounds checks.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `offset` is in bounds.
+    pub(crate) unsafe fn split_off_unchecked(&self, offset: usize) -> Self {
         let inner = self.0.as_bytes();
         let new = inner.get_unchecked(offset..);
         Self(FontData::new(new))

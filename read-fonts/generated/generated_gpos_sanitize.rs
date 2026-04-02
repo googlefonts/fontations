@@ -58,11 +58,11 @@ impl<'a> GposSanitized<'a> {
     }
 
     pub fn version(&self) -> MajorMinor {
-        unsafe { self.ptr.read_at(self.version_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.version_pos()) }
     }
 
     pub fn script_list_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.script_list_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.script_list_offset_pos()) }
     }
 
     pub fn script_list(&self) -> ScriptListSanitized<'a> {
@@ -74,7 +74,7 @@ impl<'a> GposSanitized<'a> {
     }
 
     pub fn feature_list_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.feature_list_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.feature_list_offset_pos()) }
     }
 
     pub fn feature_list(&self) -> FeatureListSanitized<'a> {
@@ -86,7 +86,7 @@ impl<'a> GposSanitized<'a> {
     }
 
     pub fn lookup_list_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.lookup_list_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lookup_list_offset_pos()) }
     }
 
     pub fn lookup_list(&self) -> PositionLookupListSanitized<'a> {
@@ -98,7 +98,10 @@ impl<'a> GposSanitized<'a> {
     }
 
     pub fn feature_variations_offset(&self) -> Offset32 {
-        unsafe { self.ptr.read_at(self.feature_variations_offset_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.feature_variations_offset_pos())
+        }
     }
 
     pub fn feature_variations(&self) -> Option<FeatureVariationsSanitized<'a>> {
@@ -109,7 +112,7 @@ impl<'a> GposSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for GposSanitized<'a> {
+impl<'a> ReadSanitized<'a> for GposSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -176,7 +179,7 @@ impl Default for PositionLookupSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for PositionLookupSanitized<'a> {
+impl<'a> ReadSanitized<'a> for PositionLookupSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
         let untyped: LookupSanitized<'a, ()> = ReadSanitized::read_sanitized(ptr, &());
@@ -265,10 +268,10 @@ impl Default for AnchorTableSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for AnchorTableSanitized<'a> {
+impl<'a> ReadSanitized<'a> for AnchorTableSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             AnchorFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
             AnchorFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
@@ -314,19 +317,19 @@ impl<'a> AnchorFormat1Sanitized<'a> {
     }
 
     pub fn anchor_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.anchor_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.anchor_format_pos()) }
     }
 
     pub fn x_coordinate(&self) -> i16 {
-        unsafe { self.ptr.read_at(self.x_coordinate_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.x_coordinate_pos()) }
     }
 
     pub fn y_coordinate(&self) -> i16 {
-        unsafe { self.ptr.read_at(self.y_coordinate_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.y_coordinate_pos()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for AnchorFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for AnchorFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -372,23 +375,23 @@ impl<'a> AnchorFormat2Sanitized<'a> {
     }
 
     pub fn anchor_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.anchor_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.anchor_format_pos()) }
     }
 
     pub fn x_coordinate(&self) -> i16 {
-        unsafe { self.ptr.read_at(self.x_coordinate_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.x_coordinate_pos()) }
     }
 
     pub fn y_coordinate(&self) -> i16 {
-        unsafe { self.ptr.read_at(self.y_coordinate_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.y_coordinate_pos()) }
     }
 
     pub fn anchor_point(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.anchor_point_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.anchor_point_pos()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for AnchorFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for AnchorFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -443,19 +446,19 @@ impl<'a> AnchorFormat3Sanitized<'a> {
     }
 
     pub fn anchor_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.anchor_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.anchor_format_pos()) }
     }
 
     pub fn x_coordinate(&self) -> i16 {
-        unsafe { self.ptr.read_at(self.x_coordinate_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.x_coordinate_pos()) }
     }
 
     pub fn y_coordinate(&self) -> i16 {
-        unsafe { self.ptr.read_at(self.y_coordinate_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.y_coordinate_pos()) }
     }
 
     pub fn x_device_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.x_device_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.x_device_offset_pos()) }
     }
 
     pub fn x_device(&self) -> Option<DeviceOrVariationIndexSanitized<'a>> {
@@ -463,7 +466,7 @@ impl<'a> AnchorFormat3Sanitized<'a> {
     }
 
     pub fn y_device_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.y_device_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.y_device_offset_pos()) }
     }
 
     pub fn y_device(&self) -> Option<DeviceOrVariationIndexSanitized<'a>> {
@@ -471,7 +474,7 @@ impl<'a> AnchorFormat3Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for AnchorFormat3Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for AnchorFormat3Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -519,18 +522,18 @@ impl<'a> MarkArraySanitized<'a> {
     }
 
     pub fn mark_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.mark_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_count_pos()) }
     }
 
     pub fn mark_records(&self) -> &'a [MarkRecordSanitized] {
         unsafe {
             self.ptr
-                .read_array_at(self.mark_records_pos(), self.mark_count() as usize)
+                .read_array_at_unchecked(self.mark_records_pos(), self.mark_count() as usize)
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for MarkArraySanitized<'a> {
+impl<'a> ReadSanitized<'a> for MarkArraySanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -644,10 +647,10 @@ impl Default for SinglePosSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SinglePosSanitized<'a> {
+impl<'a> ReadSanitized<'a> for SinglePosSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             SinglePosFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
             SinglePosFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
@@ -697,11 +700,11 @@ impl<'a> SinglePosFormat1Sanitized<'a> {
     }
 
     pub fn pos_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pos_format_pos()) }
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -713,16 +716,16 @@ impl<'a> SinglePosFormat1Sanitized<'a> {
     }
 
     pub fn value_format(&self) -> ValueFormat {
-        unsafe { self.ptr.read_at(self.value_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.value_format_pos()) }
     }
 
     pub fn value_record(&self) -> ValueRecordSanitized<'a> {
-        let ptr = unsafe { self.ptr.for_offset(self.value_record_pos()) };
+        let ptr = unsafe { self.ptr.split_off_unchecked(self.value_record_pos()) };
         unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SinglePosFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for SinglePosFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -773,11 +776,11 @@ impl<'a> SinglePosFormat2Sanitized<'a> {
     }
 
     pub fn pos_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pos_format_pos()) }
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -789,11 +792,11 @@ impl<'a> SinglePosFormat2Sanitized<'a> {
     }
 
     pub fn value_format(&self) -> ValueFormat {
-        unsafe { self.ptr.read_at(self.value_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.value_format_pos()) }
     }
 
     pub fn value_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.value_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.value_count_pos()) }
     }
 
     pub fn value_records(&self) -> ComputedArraySanitized<'a, ValueRecordSanitized<'a>> {
@@ -801,7 +804,7 @@ impl<'a> SinglePosFormat2Sanitized<'a> {
         let args = self.value_format();
         let item_len = <ValueRecord as ComputeSize>::compute_size(&args).unwrap_or(0);
         ComputedArraySanitized::new(
-            unsafe { self.ptr.for_offset(self.value_records_pos()) },
+            unsafe { self.ptr.split_off_unchecked(self.value_records_pos()) },
             count,
             item_len,
             args,
@@ -809,7 +812,7 @@ impl<'a> SinglePosFormat2Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for SinglePosFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for SinglePosFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -889,10 +892,10 @@ impl Default for PairPosSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for PairPosSanitized<'a> {
+impl<'a> ReadSanitized<'a> for PairPosSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             PairPosFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
             PairPosFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
@@ -951,11 +954,11 @@ impl<'a> PairPosFormat1Sanitized<'a> {
     }
 
     pub fn pos_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pos_format_pos()) }
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -967,35 +970,39 @@ impl<'a> PairPosFormat1Sanitized<'a> {
     }
 
     pub fn value_format1(&self) -> ValueFormat {
-        unsafe { self.ptr.read_at(self.value_format1_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.value_format1_pos()) }
     }
 
     pub fn value_format2(&self) -> ValueFormat {
-        unsafe { self.ptr.read_at(self.value_format2_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.value_format2_pos()) }
     }
 
     pub fn pair_set_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pair_set_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pair_set_count_pos()) }
     }
 
     pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr
-                .read_array_at(self.pair_set_offsets_pos(), self.pair_set_count() as usize)
+            self.ptr.read_array_at_unchecked(
+                self.pair_set_offsets_pos(),
+                self.pair_set_count() as usize,
+            )
         }
     }
 
     pub fn pair_sets(&self) -> ArrayOfSanitizedOffsets<'a, PairSetSanitized<'a>, Offset16> {
         let offsets = self.pair_set_offsets();
-        ArrayOfSanitizedOffsets::new(
-            offsets,
-            self.ptr,
-            (self.value_format1(), self.value_format2()),
-        )
+        unsafe {
+            ArrayOfSanitizedOffsets::new(
+                offsets,
+                self.ptr,
+                (self.value_format1(), self.value_format2()),
+            )
+        }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for PairPosFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for PairPosFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1037,7 +1044,7 @@ impl<'a> PairSetSanitized<'a> {
     }
 
     pub fn pair_value_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pair_value_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pair_value_count_pos()) }
     }
 
     pub fn pair_value_records(&self) -> ComputedArraySanitized<'a, PairValueRecordSanitized<'a>> {
@@ -1045,7 +1052,7 @@ impl<'a> PairSetSanitized<'a> {
         let args = (self.value_format1(), self.value_format2());
         let item_len = <PairValueRecord as ComputeSize>::compute_size(&args).unwrap_or(0);
         ComputedArraySanitized::new(
-            unsafe { self.ptr.for_offset(self.pair_value_records_pos()) },
+            unsafe { self.ptr.split_off_unchecked(self.pair_value_records_pos()) },
             count,
             item_len,
             args,
@@ -1053,7 +1060,7 @@ impl<'a> PairSetSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for PairSetSanitized<'a> {
+impl<'a> ReadSanitized<'a> for PairSetSanitized<'a> {
     type Args = (ValueFormat, ValueFormat);
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let (value_format1, value_format2) = *args;
@@ -1105,21 +1112,21 @@ impl<'a> PairValueRecordSanitized<'a> {
     }
 
     pub fn second_glyph(&self) -> GlyphId16 {
-        unsafe { self.ptr.read_at(self.second_glyph_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.second_glyph_pos()) }
     }
 
     pub fn value_record1(&self) -> ValueRecordSanitized<'a> {
-        let ptr = unsafe { self.ptr.for_offset(self.value_record1_pos()) };
+        let ptr = unsafe { self.ptr.split_off_unchecked(self.value_record1_pos()) };
         unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format1()) }
     }
 
     pub fn value_record2(&self) -> ValueRecordSanitized<'a> {
-        let ptr = unsafe { self.ptr.for_offset(self.value_record2_pos()) };
+        let ptr = unsafe { self.ptr.split_off_unchecked(self.value_record2_pos()) };
         unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format2()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for PairValueRecordSanitized<'a> {
+impl<'a> ReadSanitized<'a> for PairValueRecordSanitized<'a> {
     type Args = (ValueFormat, ValueFormat);
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let (value_format1, value_format2) = *args;
@@ -1189,11 +1196,11 @@ impl<'a> PairPosFormat2Sanitized<'a> {
     }
 
     pub fn pos_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pos_format_pos()) }
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -1205,15 +1212,15 @@ impl<'a> PairPosFormat2Sanitized<'a> {
     }
 
     pub fn value_format1(&self) -> ValueFormat {
-        unsafe { self.ptr.read_at(self.value_format1_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.value_format1_pos()) }
     }
 
     pub fn value_format2(&self) -> ValueFormat {
-        unsafe { self.ptr.read_at(self.value_format2_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.value_format2_pos()) }
     }
 
     pub fn class_def1_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.class_def1_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.class_def1_offset_pos()) }
     }
 
     pub fn class_def1(&self) -> ClassDefSanitized<'a> {
@@ -1225,7 +1232,7 @@ impl<'a> PairPosFormat2Sanitized<'a> {
     }
 
     pub fn class_def2_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.class_def2_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.class_def2_offset_pos()) }
     }
 
     pub fn class_def2(&self) -> ClassDefSanitized<'a> {
@@ -1237,11 +1244,11 @@ impl<'a> PairPosFormat2Sanitized<'a> {
     }
 
     pub fn class1_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.class1_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.class1_count_pos()) }
     }
 
     pub fn class2_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.class2_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.class2_count_pos()) }
     }
 
     pub fn class1_records(&self) -> ComputedArraySanitized<'a, Class1RecordSanitized<'a>> {
@@ -1253,7 +1260,7 @@ impl<'a> PairPosFormat2Sanitized<'a> {
         );
         let item_len = <Class1Record as ComputeSize>::compute_size(&args).unwrap_or(0);
         ComputedArraySanitized::new(
-            unsafe { self.ptr.for_offset(self.class1_records_pos()) },
+            unsafe { self.ptr.split_off_unchecked(self.class1_records_pos()) },
             count,
             item_len,
             args,
@@ -1261,7 +1268,7 @@ impl<'a> PairPosFormat2Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for PairPosFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for PairPosFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1309,7 +1316,7 @@ impl<'a> Class1RecordSanitized<'a> {
         let args = (self.value_format1(), self.value_format2());
         let item_len = <Class2Record as ComputeSize>::compute_size(&args).unwrap_or(0);
         ComputedArraySanitized::new(
-            unsafe { self.ptr.for_offset(self.class2_records_pos()) },
+            unsafe { self.ptr.split_off_unchecked(self.class2_records_pos()) },
             count,
             item_len,
             args,
@@ -1317,7 +1324,7 @@ impl<'a> Class1RecordSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for Class1RecordSanitized<'a> {
+impl<'a> ReadSanitized<'a> for Class1RecordSanitized<'a> {
     type Args = (u16, ValueFormat, ValueFormat);
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let (class2_count, value_format1, value_format2) = *args;
@@ -1367,17 +1374,17 @@ impl<'a> Class2RecordSanitized<'a> {
     }
 
     pub fn value_record1(&self) -> ValueRecordSanitized<'a> {
-        let ptr = unsafe { self.ptr.for_offset(self.value_record1_pos()) };
+        let ptr = unsafe { self.ptr.split_off_unchecked(self.value_record1_pos()) };
         unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format1()) }
     }
 
     pub fn value_record2(&self) -> ValueRecordSanitized<'a> {
-        let ptr = unsafe { self.ptr.for_offset(self.value_record2_pos()) };
+        let ptr = unsafe { self.ptr.split_off_unchecked(self.value_record2_pos()) };
         unsafe { ReadSanitized::read_sanitized(ptr, &self.value_format2()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for Class2RecordSanitized<'a> {
+impl<'a> ReadSanitized<'a> for Class2RecordSanitized<'a> {
     type Args = (ValueFormat, ValueFormat);
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let (value_format1, value_format2) = *args;
@@ -1437,11 +1444,11 @@ impl<'a> CursivePosFormat1Sanitized<'a> {
     }
 
     pub fn pos_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pos_format_pos()) }
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -1453,12 +1460,12 @@ impl<'a> CursivePosFormat1Sanitized<'a> {
     }
 
     pub fn entry_exit_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.entry_exit_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.entry_exit_count_pos()) }
     }
 
     pub fn entry_exit_record(&self) -> &'a [EntryExitRecordSanitized] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.entry_exit_record_pos(),
                 self.entry_exit_count() as usize,
             )
@@ -1466,7 +1473,7 @@ impl<'a> CursivePosFormat1Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for CursivePosFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for CursivePosFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1576,11 +1583,11 @@ impl<'a> MarkBasePosFormat1Sanitized<'a> {
     }
 
     pub fn pos_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pos_format_pos()) }
     }
 
     pub fn mark_coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark_coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_coverage_offset_pos()) }
     }
 
     pub fn mark_coverage(&self) -> CoverageTableSanitized<'a> {
@@ -1592,7 +1599,7 @@ impl<'a> MarkBasePosFormat1Sanitized<'a> {
     }
 
     pub fn base_coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.base_coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.base_coverage_offset_pos()) }
     }
 
     pub fn base_coverage(&self) -> CoverageTableSanitized<'a> {
@@ -1604,11 +1611,11 @@ impl<'a> MarkBasePosFormat1Sanitized<'a> {
     }
 
     pub fn mark_class_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.mark_class_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_class_count_pos()) }
     }
 
     pub fn mark_array_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark_array_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_array_offset_pos()) }
     }
 
     pub fn mark_array(&self) -> MarkArraySanitized<'a> {
@@ -1620,7 +1627,7 @@ impl<'a> MarkBasePosFormat1Sanitized<'a> {
     }
 
     pub fn base_array_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.base_array_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.base_array_offset_pos()) }
     }
 
     pub fn base_array(&self) -> BaseArraySanitized<'a> {
@@ -1632,7 +1639,7 @@ impl<'a> MarkBasePosFormat1Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for MarkBasePosFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for MarkBasePosFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1668,7 +1675,7 @@ impl<'a> BaseArraySanitized<'a> {
     }
 
     pub fn base_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.base_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.base_count_pos()) }
     }
 
     pub fn base_records(&self) -> ComputedArraySanitized<'a, BaseRecordSanitized<'a>> {
@@ -1676,7 +1683,7 @@ impl<'a> BaseArraySanitized<'a> {
         let args = self.mark_class_count();
         let item_len = <BaseRecord as ComputeSize>::compute_size(&args).unwrap_or(0);
         ComputedArraySanitized::new(
-            unsafe { self.ptr.for_offset(self.base_records_pos()) },
+            unsafe { self.ptr.split_off_unchecked(self.base_records_pos()) },
             count,
             item_len,
             args,
@@ -1684,7 +1691,7 @@ impl<'a> BaseArraySanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for BaseArraySanitized<'a> {
+impl<'a> ReadSanitized<'a> for BaseArraySanitized<'a> {
     type Args = u16;
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let mark_class_count = *args;
@@ -1726,7 +1733,7 @@ impl<'a> BaseRecordSanitized<'a> {
 
     pub fn base_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.base_anchor_offsets_pos(),
                 self.mark_class_count() as usize,
             )
@@ -1737,11 +1744,11 @@ impl<'a> BaseRecordSanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedNullableOffsets<'a, AnchorTableSanitized<'a>, Offset16> {
         let offsets = self.base_anchor_offsets();
-        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for BaseRecordSanitized<'a> {
+impl<'a> ReadSanitized<'a> for BaseRecordSanitized<'a> {
     type Args = u16;
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let mark_class_count = *args;
@@ -1801,11 +1808,11 @@ impl<'a> MarkLigPosFormat1Sanitized<'a> {
     }
 
     pub fn pos_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pos_format_pos()) }
     }
 
     pub fn mark_coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark_coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_coverage_offset_pos()) }
     }
 
     pub fn mark_coverage(&self) -> CoverageTableSanitized<'a> {
@@ -1817,7 +1824,10 @@ impl<'a> MarkLigPosFormat1Sanitized<'a> {
     }
 
     pub fn ligature_coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.ligature_coverage_offset_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.ligature_coverage_offset_pos())
+        }
     }
 
     pub fn ligature_coverage(&self) -> CoverageTableSanitized<'a> {
@@ -1829,11 +1839,11 @@ impl<'a> MarkLigPosFormat1Sanitized<'a> {
     }
 
     pub fn mark_class_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.mark_class_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_class_count_pos()) }
     }
 
     pub fn mark_array_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark_array_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_array_offset_pos()) }
     }
 
     pub fn mark_array(&self) -> MarkArraySanitized<'a> {
@@ -1845,7 +1855,7 @@ impl<'a> MarkLigPosFormat1Sanitized<'a> {
     }
 
     pub fn ligature_array_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.ligature_array_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.ligature_array_offset_pos()) }
     }
 
     pub fn ligature_array(&self) -> LigatureArraySanitized<'a> {
@@ -1857,7 +1867,7 @@ impl<'a> MarkLigPosFormat1Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for MarkLigPosFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for MarkLigPosFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -1896,12 +1906,12 @@ impl<'a> LigatureArraySanitized<'a> {
     }
 
     pub fn ligature_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.ligature_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.ligature_count_pos()) }
     }
 
     pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.ligature_attach_offsets_pos(),
                 self.ligature_count() as usize,
             )
@@ -1912,11 +1922,11 @@ impl<'a> LigatureArraySanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedOffsets<'a, LigatureAttachSanitized<'a>, Offset16> {
         let offsets = self.ligature_attach_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, self.mark_class_count())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, self.mark_class_count()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for LigatureArraySanitized<'a> {
+impl<'a> ReadSanitized<'a> for LigatureArraySanitized<'a> {
     type Args = u16;
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let mark_class_count = *args;
@@ -1957,7 +1967,7 @@ impl<'a> LigatureAttachSanitized<'a> {
     }
 
     pub fn component_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.component_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.component_count_pos()) }
     }
 
     pub fn component_records(&self) -> ComputedArraySanitized<'a, ComponentRecordSanitized<'a>> {
@@ -1965,7 +1975,7 @@ impl<'a> LigatureAttachSanitized<'a> {
         let args = self.mark_class_count();
         let item_len = <ComponentRecord as ComputeSize>::compute_size(&args).unwrap_or(0);
         ComputedArraySanitized::new(
-            unsafe { self.ptr.for_offset(self.component_records_pos()) },
+            unsafe { self.ptr.split_off_unchecked(self.component_records_pos()) },
             count,
             item_len,
             args,
@@ -1973,7 +1983,7 @@ impl<'a> LigatureAttachSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for LigatureAttachSanitized<'a> {
+impl<'a> ReadSanitized<'a> for LigatureAttachSanitized<'a> {
     type Args = u16;
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let mark_class_count = *args;
@@ -2015,7 +2025,7 @@ impl<'a> ComponentRecordSanitized<'a> {
 
     pub fn ligature_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.ligature_anchor_offsets_pos(),
                 self.mark_class_count() as usize,
             )
@@ -2026,11 +2036,11 @@ impl<'a> ComponentRecordSanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedNullableOffsets<'a, AnchorTableSanitized<'a>, Offset16> {
         let offsets = self.ligature_anchor_offsets();
-        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ComponentRecordSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ComponentRecordSanitized<'a> {
     type Args = u16;
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let mark_class_count = *args;
@@ -2090,11 +2100,11 @@ impl<'a> MarkMarkPosFormat1Sanitized<'a> {
     }
 
     pub fn pos_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pos_format_pos()) }
     }
 
     pub fn mark1_coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark1_coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark1_coverage_offset_pos()) }
     }
 
     pub fn mark1_coverage(&self) -> CoverageTableSanitized<'a> {
@@ -2106,7 +2116,7 @@ impl<'a> MarkMarkPosFormat1Sanitized<'a> {
     }
 
     pub fn mark2_coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark2_coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark2_coverage_offset_pos()) }
     }
 
     pub fn mark2_coverage(&self) -> CoverageTableSanitized<'a> {
@@ -2118,11 +2128,11 @@ impl<'a> MarkMarkPosFormat1Sanitized<'a> {
     }
 
     pub fn mark_class_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.mark_class_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_class_count_pos()) }
     }
 
     pub fn mark1_array_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark1_array_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark1_array_offset_pos()) }
     }
 
     pub fn mark1_array(&self) -> MarkArraySanitized<'a> {
@@ -2134,7 +2144,7 @@ impl<'a> MarkMarkPosFormat1Sanitized<'a> {
     }
 
     pub fn mark2_array_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark2_array_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark2_array_offset_pos()) }
     }
 
     pub fn mark2_array(&self) -> Mark2ArraySanitized<'a> {
@@ -2146,7 +2156,7 @@ impl<'a> MarkMarkPosFormat1Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for MarkMarkPosFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for MarkMarkPosFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -2182,7 +2192,7 @@ impl<'a> Mark2ArraySanitized<'a> {
     }
 
     pub fn mark2_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.mark2_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark2_count_pos()) }
     }
 
     pub fn mark2_records(&self) -> ComputedArraySanitized<'a, Mark2RecordSanitized<'a>> {
@@ -2190,7 +2200,7 @@ impl<'a> Mark2ArraySanitized<'a> {
         let args = self.mark_class_count();
         let item_len = <Mark2Record as ComputeSize>::compute_size(&args).unwrap_or(0);
         ComputedArraySanitized::new(
-            unsafe { self.ptr.for_offset(self.mark2_records_pos()) },
+            unsafe { self.ptr.split_off_unchecked(self.mark2_records_pos()) },
             count,
             item_len,
             args,
@@ -2198,7 +2208,7 @@ impl<'a> Mark2ArraySanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for Mark2ArraySanitized<'a> {
+impl<'a> ReadSanitized<'a> for Mark2ArraySanitized<'a> {
     type Args = u16;
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let mark_class_count = *args;
@@ -2240,7 +2250,7 @@ impl<'a> Mark2RecordSanitized<'a> {
 
     pub fn mark2_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.mark2_anchor_offsets_pos(),
                 self.mark_class_count() as usize,
             )
@@ -2251,11 +2261,11 @@ impl<'a> Mark2RecordSanitized<'a> {
         &self,
     ) -> ArrayOfSanitizedNullableOffsets<'a, AnchorTableSanitized<'a>, Offset16> {
         let offsets = self.mark2_anchor_offsets();
-        ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for Mark2RecordSanitized<'a> {
+impl<'a> ReadSanitized<'a> for Mark2RecordSanitized<'a> {
     type Args = u16;
     unsafe fn read_sanitized(ptr: FontPtr<'a>, args: &Self::Args) -> Self {
         let mark_class_count = *args;
@@ -2304,15 +2314,15 @@ impl<'a, T> ExtensionPosFormat1Sanitized<'a, T> {
     }
 
     pub fn pos_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.pos_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.pos_format_pos()) }
     }
 
     pub fn extension_lookup_type(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.extension_lookup_type_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.extension_lookup_type_pos()) }
     }
 
     pub fn extension_offset(&self) -> Offset32 {
-        unsafe { self.ptr.read_at(self.extension_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.extension_offset_pos()) }
     }
 
     pub fn extension(&self) -> T
@@ -2347,7 +2357,7 @@ impl<'a, T> ExtensionPosFormat1Sanitized<'a, T> {
     }
 }
 
-unsafe impl<'a, T> ReadSanitized<'a> for ExtensionPosFormat1Sanitized<'a, T> {
+impl<'a, T> ReadSanitized<'a> for ExtensionPosFormat1Sanitized<'a, T> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self {
@@ -2414,7 +2424,7 @@ impl Default for ExtensionSubtableSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for ExtensionSubtableSanitized<'a> {
+impl<'a> ReadSanitized<'a> for ExtensionSubtableSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
         let untyped: ExtensionPosFormat1Sanitized<'a, ()> = ReadSanitized::read_sanitized(ptr, &());

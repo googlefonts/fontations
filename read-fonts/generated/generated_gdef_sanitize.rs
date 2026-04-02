@@ -81,11 +81,14 @@ impl<'a> GdefSanitized<'a> {
     }
 
     pub fn version(&self) -> MajorMinor {
-        unsafe { self.ptr.read_at(self.version_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.version_pos()) }
     }
 
     pub fn glyph_class_def_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.glyph_class_def_offset_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.glyph_class_def_offset_pos())
+        }
     }
 
     pub fn glyph_class_def(&self) -> Option<ClassDefSanitized<'a>> {
@@ -96,7 +99,7 @@ impl<'a> GdefSanitized<'a> {
     }
 
     pub fn attach_list_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.attach_list_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.attach_list_offset_pos()) }
     }
 
     pub fn attach_list(&self) -> Option<AttachListSanitized<'a>> {
@@ -104,7 +107,7 @@ impl<'a> GdefSanitized<'a> {
     }
 
     pub fn lig_caret_list_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.lig_caret_list_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lig_caret_list_offset_pos()) }
     }
 
     pub fn lig_caret_list(&self) -> Option<LigCaretListSanitized<'a>> {
@@ -115,7 +118,10 @@ impl<'a> GdefSanitized<'a> {
     }
 
     pub fn mark_attach_class_def_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark_attach_class_def_offset_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.mark_attach_class_def_offset_pos())
+        }
     }
 
     pub fn mark_attach_class_def(&self) -> Option<ClassDefSanitized<'a>> {
@@ -126,7 +132,10 @@ impl<'a> GdefSanitized<'a> {
     }
 
     pub fn mark_glyph_sets_def_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.mark_glyph_sets_def_offset_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.mark_glyph_sets_def_offset_pos())
+        }
     }
 
     pub fn mark_glyph_sets_def(&self) -> Option<MarkGlyphSetsSanitized<'a>> {
@@ -137,7 +146,7 @@ impl<'a> GdefSanitized<'a> {
     }
 
     pub fn item_var_store_offset(&self) -> Offset32 {
-        unsafe { self.ptr.read_at(self.item_var_store_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.item_var_store_offset_pos()) }
     }
 
     pub fn item_var_store(&self) -> Option<ItemVariationStoreSanitized<'a>> {
@@ -148,7 +157,7 @@ impl<'a> GdefSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for GdefSanitized<'a> {
+impl<'a> ReadSanitized<'a> for GdefSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -196,7 +205,7 @@ impl<'a> AttachListSanitized<'a> {
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -208,23 +217,25 @@ impl<'a> AttachListSanitized<'a> {
     }
 
     pub fn glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.glyph_count_pos()) }
     }
 
     pub fn attach_point_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr
-                .read_array_at(self.attach_point_offsets_pos(), self.glyph_count() as usize)
+            self.ptr.read_array_at_unchecked(
+                self.attach_point_offsets_pos(),
+                self.glyph_count() as usize,
+            )
         }
     }
 
     pub fn attach_points(&self) -> ArrayOfSanitizedOffsets<'a, AttachPointSanitized<'a>, Offset16> {
         let offsets = self.attach_point_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for AttachListSanitized<'a> {
+impl<'a> ReadSanitized<'a> for AttachListSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -268,18 +279,18 @@ impl<'a> AttachPointSanitized<'a> {
     }
 
     pub fn point_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.point_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.point_count_pos()) }
     }
 
     pub fn point_indices(&self) -> &'a [BigEndian<u16>] {
         unsafe {
             self.ptr
-                .read_array_at(self.point_indices_pos(), self.point_count() as usize)
+                .read_array_at_unchecked(self.point_indices_pos(), self.point_count() as usize)
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for AttachPointSanitized<'a> {
+impl<'a> ReadSanitized<'a> for AttachPointSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -327,7 +338,7 @@ impl<'a> LigCaretListSanitized<'a> {
     }
 
     pub fn coverage_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.coverage_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coverage_offset_pos()) }
     }
 
     pub fn coverage(&self) -> CoverageTableSanitized<'a> {
@@ -339,12 +350,12 @@ impl<'a> LigCaretListSanitized<'a> {
     }
 
     pub fn lig_glyph_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.lig_glyph_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.lig_glyph_count_pos()) }
     }
 
     pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.lig_glyph_offsets_pos(),
                 self.lig_glyph_count() as usize,
             )
@@ -353,11 +364,11 @@ impl<'a> LigCaretListSanitized<'a> {
 
     pub fn lig_glyphs(&self) -> ArrayOfSanitizedOffsets<'a, LigGlyphSanitized<'a>, Offset16> {
         let offsets = self.lig_glyph_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for LigCaretListSanitized<'a> {
+impl<'a> ReadSanitized<'a> for LigCaretListSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -401,23 +412,25 @@ impl<'a> LigGlyphSanitized<'a> {
     }
 
     pub fn caret_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.caret_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.caret_count_pos()) }
     }
 
     pub fn caret_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr
-                .read_array_at(self.caret_value_offsets_pos(), self.caret_count() as usize)
+            self.ptr.read_array_at_unchecked(
+                self.caret_value_offsets_pos(),
+                self.caret_count() as usize,
+            )
         }
     }
 
     pub fn caret_values(&self) -> ArrayOfSanitizedOffsets<'a, CaretValueSanitized<'a>, Offset16> {
         let offsets = self.caret_value_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for LigGlyphSanitized<'a> {
+impl<'a> ReadSanitized<'a> for LigGlyphSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -475,10 +488,10 @@ impl Default for CaretValueSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for CaretValueSanitized<'a> {
+impl<'a> ReadSanitized<'a> for CaretValueSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             CaretValueFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
             CaretValueFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),
@@ -521,15 +534,15 @@ impl<'a> CaretValueFormat1Sanitized<'a> {
     }
 
     pub fn caret_value_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.caret_value_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.caret_value_format_pos()) }
     }
 
     pub fn coordinate(&self) -> i16 {
-        unsafe { self.ptr.read_at(self.coordinate_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coordinate_pos()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for CaretValueFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for CaretValueFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -569,15 +582,18 @@ impl<'a> CaretValueFormat2Sanitized<'a> {
     }
 
     pub fn caret_value_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.caret_value_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.caret_value_format_pos()) }
     }
 
     pub fn caret_value_point_index(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.caret_value_point_index_pos()) }
+        unsafe {
+            self.ptr
+                .read_at_unchecked(self.caret_value_point_index_pos())
+        }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for CaretValueFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for CaretValueFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -621,15 +637,15 @@ impl<'a> CaretValueFormat3Sanitized<'a> {
     }
 
     pub fn caret_value_format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.caret_value_format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.caret_value_format_pos()) }
     }
 
     pub fn coordinate(&self) -> i16 {
-        unsafe { self.ptr.read_at(self.coordinate_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.coordinate_pos()) }
     }
 
     pub fn device_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.device_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.device_offset_pos()) }
     }
 
     pub fn device(&self) -> DeviceOrVariationIndexSanitized<'a> {
@@ -641,7 +657,7 @@ impl<'a> CaretValueFormat3Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for CaretValueFormat3Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for CaretValueFormat3Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -688,16 +704,16 @@ impl<'a> MarkGlyphSetsSanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn mark_glyph_set_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.mark_glyph_set_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.mark_glyph_set_count_pos()) }
     }
 
     pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset32>] {
         unsafe {
-            self.ptr.read_array_at(
+            self.ptr.read_array_at_unchecked(
                 self.coverage_offsets_pos(),
                 self.mark_glyph_set_count() as usize,
             )
@@ -706,11 +722,11 @@ impl<'a> MarkGlyphSetsSanitized<'a> {
 
     pub fn coverages(&self) -> ArrayOfSanitizedOffsets<'a, CoverageTableSanitized<'a>, Offset32> {
         let offsets = self.coverage_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for MarkGlyphSetsSanitized<'a> {
+impl<'a> ReadSanitized<'a> for MarkGlyphSetsSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }

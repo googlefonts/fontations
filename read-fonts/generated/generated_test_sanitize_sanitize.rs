@@ -39,11 +39,11 @@ impl<'a> RootTableSanitized<'a> {
     }
 
     pub fn version(&self) -> MajorMinor {
-        unsafe { self.ptr.read_at(self.version_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.version_pos()) }
     }
 
     pub fn subtable_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.subtable_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.subtable_offset_pos()) }
     }
 
     pub fn subtable(&self) -> TableGroupSanitized<'a> {
@@ -55,7 +55,7 @@ impl<'a> RootTableSanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for RootTableSanitized<'a> {
+impl<'a> ReadSanitized<'a> for RootTableSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -103,17 +103,19 @@ impl<'a, T> GenericTableSanitized<'a, T> {
     }
 
     pub fn subtable_type(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.subtable_type_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.subtable_type_pos()) }
     }
 
     pub fn subtable_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.subtable_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.subtable_count_pos()) }
     }
 
     pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         unsafe {
-            self.ptr
-                .read_array_at(self.subtable_offsets_pos(), self.subtable_count() as usize)
+            self.ptr.read_array_at_unchecked(
+                self.subtable_offsets_pos(),
+                self.subtable_count() as usize,
+            )
         }
     }
 
@@ -122,7 +124,7 @@ impl<'a, T> GenericTableSanitized<'a, T> {
         T: ReadSanitized<'a, Args = ()>,
     {
         let offsets = self.subtable_offsets();
-        ArrayOfSanitizedOffsets::new(offsets, self.ptr, ())
+        unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 }
 
@@ -146,7 +148,7 @@ impl<'a, T> GenericTableSanitized<'a, T> {
     }
 }
 
-unsafe impl<'a, T> ReadSanitized<'a> for GenericTableSanitized<'a, T> {
+impl<'a, T> ReadSanitized<'a> for GenericTableSanitized<'a, T> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self {
@@ -195,7 +197,7 @@ impl Default for TableGroupSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for TableGroupSanitized<'a> {
+impl<'a> ReadSanitized<'a> for TableGroupSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
         let untyped: GenericTableSanitized<'a, ()> = ReadSanitized::read_sanitized(ptr, &());
@@ -249,18 +251,18 @@ impl<'a> TableOneSanitized<'a> {
     }
 
     pub fn record_count(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.record_count_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.record_count_pos()) }
     }
 
     pub fn records(&self) -> &'a [TestRecordSanitized] {
         unsafe {
             self.ptr
-                .read_array_at(self.records_pos(), self.record_count() as usize)
+                .read_array_at_unchecked(self.records_pos(), self.record_count() as usize)
         }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for TableOneSanitized<'a> {
+impl<'a> ReadSanitized<'a> for TableOneSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -326,11 +328,11 @@ impl<'a> TableTwoFormat1Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for TableTwoFormat1Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for TableTwoFormat1Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -373,11 +375,11 @@ impl<'a> TableTwoFormat2Sanitized<'a> {
     }
 
     pub fn format(&self) -> u16 {
-        unsafe { self.ptr.read_at(self.format_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
     }
 
     pub fn child_offset(&self) -> Offset16 {
-        unsafe { self.ptr.read_at(self.child_offset_pos()) }
+        unsafe { self.ptr.read_at_unchecked(self.child_offset_pos()) }
     }
 
     pub fn child(&self) -> Option<TableOneSanitized<'a>> {
@@ -385,7 +387,7 @@ impl<'a> TableTwoFormat2Sanitized<'a> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for TableTwoFormat2Sanitized<'a> {
+impl<'a> ReadSanitized<'a> for TableTwoFormat2Sanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
         Self { ptr }
@@ -438,10 +440,10 @@ impl Default for TableTwoSanitized<'_> {
     }
 }
 
-unsafe impl<'a> ReadSanitized<'a> for TableTwoSanitized<'a> {
+impl<'a> ReadSanitized<'a> for TableTwoSanitized<'a> {
     type Args = ();
     unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &()) -> Self {
-        let format: u16 = ptr.read_at(0usize);
+        let format: u16 = ptr.read_at_unchecked(0usize);
         match format {
             TableTwoFormat1::FORMAT => Self::Format1(ReadSanitized::read_sanitized(ptr, &())),
             TableTwoFormat2::FORMAT => Self::Format2(ReadSanitized::read_sanitized(ptr, &())),

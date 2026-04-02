@@ -83,7 +83,7 @@ mod sanitize_manual_impls {
             ];
             for (i, format) in formats.into_iter().enumerate() {
                 if self.format.contains(format) {
-                    out[i] = unsafe { self.ptr.read_at(pos) };
+                    out[i] = unsafe { self.ptr.read_at_unchecked(pos) };
                     pos += 2;
                 }
             }
@@ -120,7 +120,7 @@ mod sanitize_manual_impls {
             ];
             for (i, format) in formats.into_iter().enumerate() {
                 if self.format.contains(format) {
-                    out[i] = unsafe { self.ptr.read_at(pos) };
+                    out[i] = unsafe { self.ptr.read_at_unchecked(pos) };
                     pos += 2;
                 }
             }
@@ -132,7 +132,7 @@ mod sanitize_manual_impls {
         }
     }
 
-    unsafe impl<'a> ReadSanitized<'a> for ValueRecordSanitized<'a> {
+    impl<'a> ReadSanitized<'a> for ValueRecordSanitized<'a> {
         type Args = super::ValueFormat;
         #[inline]
         unsafe fn read_sanitized(ptr: crate::sanitize::FontPtr<'a>, args: &Self::Args) -> Self {
