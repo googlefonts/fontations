@@ -23,6 +23,7 @@ mod int24;
 mod longdatetime;
 mod name_id;
 mod offset;
+pub mod pen;
 mod point;
 mod raw;
 mod tag;

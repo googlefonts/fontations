@@ -4,12 +4,8 @@ use skrifa::{
     outline::{DrawError, DrawSettings, HintingInstance, HintingOptions, OutlinePen},
     prelude::{LocationRef, Size},
     raw::{
-        ps::{
-            cff::CffFontRef,
-            cs::{CommandSink, NopFilterSink, TransformSink},
-            type1::Type1Font,
-        },
-        types::{F2Dot14, Fixed},
+        ps::{cff::CffFontRef, type1::Type1Font},
+        types::F2Dot14,
         FontRef, ReadError, TableProvider,
     },
     GlyphId, MetadataProvider, OutlineGlyphCollection,
@@ -192,16 +188,7 @@ impl SkrifaType1Instance<'_> {
         glyph_id: GlyphId,
         pen: &mut impl OutlinePen,
     ) -> Result<Option<f32>, DrawError> {
-        let mut pen = PenCommandSink(pen);
-        let mut nop_filter = NopFilterSink::new(&mut pen);
-        let transform = self.font.transform(self.ppem);
-        let mut transformer = TransformSink::new(&mut nop_filter, transform);
-        let width = self
-            .font
-            .evaluate_charstring(glyph_id, &mut transformer)
-            .map_err(DrawError::PostScript)?;
-        let width = width.map(|w| transform.transform_h_metric(w));
-        Ok(width.map(|w| w.to_f32().max(0.0)))
+        Ok(self.font.draw(glyph_id, self.ppem, pen)?)
     }
 }
 
@@ -230,42 +217,6 @@ impl<'a> SkrifaCffInstance<'a> {
                 .ok_or(ReadError::OutOfBounds)?,
             &[],
         )?;
-        let mut pen = PenCommandSink(pen);
-        let mut nop_filter = NopFilterSink::new(&mut pen);
-        let transform = self.font.transform(&subfont, self.ppem);
-        let mut transformer = TransformSink::new(&mut nop_filter, transform);
-        let width = self
-            .font
-            .evaluate_charstring(&subfont, &[], glyph_id, &mut transformer)
-            .map_err(DrawError::PostScript)?;
-        let width = width.map(|w| transform.transform_h_metric(w));
-        Ok(width.map(|w| w.to_f32().max(0.0)))
-    }
-}
-
-struct PenCommandSink<'a, P: OutlinePen>(&'a mut P);
-
-impl<P: OutlinePen> CommandSink for PenCommandSink<'_, P> {
-    fn move_to(&mut self, x: Fixed, y: Fixed) {
-        self.0.move_to(x.to_f32(), y.to_f32());
-    }
-
-    fn line_to(&mut self, x: Fixed, y: Fixed) {
-        self.0.line_to(x.to_f32(), y.to_f32());
-    }
-
-    fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed) {
-        self.0.curve_to(
-            cx0.to_f32(),
-            cy0.to_f32(),
-            cx1.to_f32(),
-            cy1.to_f32(),
-            x.to_f32(),
-            y.to_f32(),
-        );
-    }
-
-    fn close(&mut self) {
-        self.0.close()
+        Ok(self.font.draw(&subfont, glyph_id, &[], self.ppem, pen)?)
     }
 }
