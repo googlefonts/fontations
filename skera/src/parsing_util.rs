@@ -46,25 +46,37 @@ pub fn parse_unicodes(unicode_str: &str) -> Result<IntSet<u32>, SubsetError> {
     if unicode_str.is_empty() {
         return Ok(result);
     }
-    let re = regex::Regex::new(r"[><\+,;&#}{\\xXuUnNiI\n\t\v\f\r]").unwrap();
-    let s = re.replace_all(unicode_str, " ");
-    for cp in s.split_whitespace() {
+    let unicode_str: String = unicode_str
+        .chars()
+        // Similar to fonttools, but 'x' and 'X' are left for `parse_hex` to deal with. This does
+        // mean we support things like "x12", but not "xx12".
+        .map(|c| match c {
+            '>' | '<' | '+' | ',' | ';' | '&' | '#' | '{' | '}' | '\\' | 'u' | 'U' | 'n' | 'N'
+            | 'i' | 'I' | '\n' | '\t' | '\x0B' | '\x0C' | '\r' => ' ',
+            _ => c,
+        })
+        .collect();
+    for cp in unicode_str.split_whitespace() {
         if let Some((start, end)) = cp.split_once('-') {
-            let start: u32 = u32::from_str_radix(start, 16)
-                .map_err(|_| SubsetError::InvalidUnicode(start.to_owned()))?;
-            let end: u32 = u32::from_str_radix(end, 16)
-                .map_err(|_| SubsetError::InvalidUnicode(end.to_owned()))?;
+            let (start, end) = (parse_hex(start)?, parse_hex(end)?);
             if start > end {
                 return Err(SubsetError::InvalidUnicodeRange { start, end });
             }
             result.extend(start..=end);
         } else {
-            let unicode: u32 = u32::from_str_radix(cp, 16)
-                .map_err(|_| SubsetError::InvalidUnicode(cp.to_owned()))?;
-            result.insert(unicode);
+            result.insert(parse_hex(cp)?);
         }
     }
     Ok(result)
+}
+
+fn parse_hex(hex: &str) -> Result<u32, SubsetError> {
+    let hex = hex
+        .trim_start_matches("0x")
+        .trim_start_matches("0X")
+        .trim_start_matches("x")
+        .trim_start_matches("X");
+    u32::from_str_radix(hex, 16).map_err(|_| SubsetError::InvalidUnicode(hex.to_owned()))
 }
 
 /// Parse a comma or whitespace list of things
@@ -136,6 +148,13 @@ fn test_parse_unicodes() {
     assert!(output.contains(99_u32));
 
     let output = parse_unicodes("u+61,U+65-67").unwrap();
+    assert_eq!(output.len(), 4);
+    assert!(output.contains(97_u32));
+    assert!(output.contains(101_u32));
+    assert!(output.contains(102_u32));
+    assert!(output.contains(103_u32));
+
+    let output = parse_unicodes("0x61,0x65-67").unwrap();
     assert_eq!(output.len(), 4);
     assert!(output.contains(97_u32));
     assert!(output.contains(101_u32));
