@@ -2,12 +2,13 @@
 
 use super::{
     charmap::Charmap,
-    cs::{self, CharstringContext, CharstringKind, CommandSink},
+    cs::{self, CharstringContext, CharstringKind, CommandSink, NopFilterSink, TransformSink},
     encoding::PredefinedEncoding,
     error::Error,
     transform::{self, FontMatrix, ScaledFontMatrix, Transform},
 };
 use crate::{
+    model::pen::OutlinePen,
     types::{Fixed, GlyphId},
     ReadError,
 };
@@ -176,6 +177,23 @@ impl Type1Font {
             .get(gid.to_u32())
             .ok_or(ReadError::OutOfBounds)?;
         cs::evaluate(self, None, charstring_data, sink)
+    }
+
+    /// Draws the glyph with an optional size in ppem to the given pen.
+    ///
+    /// Returns the advance width of the glyph if the charstring provides
+    /// one.
+    pub fn draw(
+        &self,
+        gid: GlyphId,
+        ppem: Option<f32>,
+        pen: &mut impl OutlinePen,
+    ) -> Result<Option<f32>, Error> {
+        let mut nop_filter = NopFilterSink::new(pen);
+        let transform = self.transform(ppem);
+        let mut transformer = TransformSink::new(&mut nop_filter, transform);
+        let width = self.evaluate_charstring(gid, &mut transformer)?;
+        Ok(width.map(|w| transform.transform_h_metric(w).to_f32().max(0.0)))
     }
 }
 

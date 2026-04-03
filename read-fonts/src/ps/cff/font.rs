@@ -1,12 +1,13 @@
 //! Unified access to CFF/CFF2 fonts.
 
 use crate::{
+    model::pen::OutlinePen,
     ps::{
         cff::{
             blend::BlendState, charset::Charset, dict, encoding::Encoding as RawEncoding,
             fd_select::FdSelect, index::Index,
         },
-        cs::{self, CommandSink},
+        cs::{self, CommandSink, NopFilterSink, TransformSink},
         encoding::PredefinedEncoding,
         error::Error,
         hinting::HintingParams,
@@ -310,8 +311,8 @@ impl<'a> CffFontRef<'a> {
     pub fn evaluate_charstring(
         &self,
         subfont: &Subfont,
-        coords: &[F2Dot14],
         gid: GlyphId,
+        coords: &[F2Dot14],
         sink: &mut impl CommandSink,
     ) -> Result<Option<Fixed>, Error> {
         let charstrings = self.top_dict.charstrings.clone();
@@ -332,6 +333,25 @@ impl<'a> CffFontRef<'a> {
         } else {
             Ok(subfont.default_width)
         }
+    }
+
+    /// Draws the glyph with an optional size in ppem to the given pen.
+    ///
+    /// Returns the advance width of the glyph if the charstring provides
+    /// one.
+    pub fn draw(
+        &self,
+        subfont: &Subfont,
+        gid: GlyphId,
+        coords: &[F2Dot14],
+        ppem: Option<f32>,
+        pen: &mut impl OutlinePen,
+    ) -> Result<Option<f32>, Error> {
+        let mut nop_filter = NopFilterSink::new(pen);
+        let transform = self.transform(subfont, ppem);
+        let mut transformer = TransformSink::new(&mut nop_filter, transform);
+        let width = self.evaluate_charstring(subfont, gid, coords, &mut transformer)?;
+        Ok(width.map(|w| transform.transform_h_metric(w).to_f32().max(0.0)))
     }
 
     /// Returns a blend state for the given variation store index and
@@ -919,7 +939,7 @@ mod tests {
             CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         let mut sink = CharstringCommandCounter::default();
         let subfont = cff.subfont(0, &[]).unwrap();
-        cff.evaluate_charstring(&subfont, &[], GlyphId::new(2), &mut sink)
+        cff.evaluate_charstring(&subfont, GlyphId::new(2), &[], &mut sink)
             .unwrap();
         // Charstring eval is tested elsewhere so just make sure we're processing the
         // *correct* charstring.
@@ -933,7 +953,7 @@ mod tests {
             CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes(), None).unwrap();
         let mut sink = CharstringCommandCounter::default();
         let subfont = cff.subfont(0, &[]).unwrap();
-        cff.evaluate_charstring(&subfont, &[], GlyphId::new(2), &mut sink)
+        cff.evaluate_charstring(&subfont, GlyphId::new(2), &[], &mut sink)
             .unwrap();
         // Charstring eval is tested elsewhere so just make sure we're processing the
         // *correct* charstring.
