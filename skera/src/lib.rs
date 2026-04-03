@@ -1,6 +1,8 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod avar;
 mod base;
+mod bidi;
 mod cblc;
 mod cmap;
 mod colr;
@@ -35,7 +37,11 @@ mod variations;
 mod vmtx;
 mod vorg;
 mod vvar;
-use crate::repack::resolve_overflows;
+use crate::{
+    bidi::UNICODE_BIDI_MIRRORED,
+    repack::resolve_overflows,
+    variations::solver::{Triple, TripleDistances},
+};
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
@@ -43,12 +49,19 @@ use layout::{
     remap_feature_indices, PruneLangSysContext, SubsetLayoutContext,
 };
 pub use parsing_util::{
-    parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
+    parse_instancing_spec, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
+    populate_gids, InstancingSpec,
 };
 
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
-use skrifa::MetadataProvider;
+use skrifa::{
+    raw::{
+        tables::{avar::Avar, fvar::Fvar},
+        ReadError,
+    },
+    MetadataProvider,
+};
 use thiserror::Error;
 use write_fonts::{
     read::{
@@ -85,7 +98,7 @@ use write_fonts::{
             vorg::Vorg,
             vvar::Vvar,
         },
-        types::{GlyphId, NameId, Tag},
+        types::{F2Dot14, GlyphId, NameId, Tag},
         FontRef, TableProvider, TopLevelTable,
     },
     FontBuilder,
@@ -239,6 +252,12 @@ impl SubsetFlags {
     //This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
 
+    //If set force the use of long format in the 'loca' table even if the offsets would fit in the short format.
+    pub const SUBSET_FLAGS_FORCE_LONG_LOCA: Self = Self(0x0800);
+
+    //If set do not pull mirrored versions of input codepoints into the subset
+    pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x1000);
+
     /// Returns `true` if all of the flags in `other` are contained within `self`.
     #[inline]
     pub const fn contains(&self, other: Self) -> bool {
@@ -353,6 +372,21 @@ pub struct Plan {
     layout_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
     //GDEF table varstore retained varidx mapping
     gdef_varstore_inner_maps: Vec<IncBiMap>,
+
+    // normalized axes range map
+    axes_location: FnvHashMap<Tag, Triple<f64>>,
+    normalized_coords: Vec<F2Dot14>,
+
+    // user specified axes range map
+    user_axes_location: FnvHashMap<Tag, Triple<f64>>,
+    axes_triple_distances: FnvHashMap<Tag, TripleDistances<f64>>,
+    pinned_at_default: bool,
+    all_axes_pinned: bool,
+
+    //retained old axis index -> new axis index mapping in fvar axis array
+    axes_index_map: FnvHashMap<usize, usize>,
+    axis_tags: Vec<Tag>,
+    axes_old_index_tag_map: FnvHashMap<usize, Tag>,
 }
 
 #[derive(Default)]
@@ -373,6 +407,7 @@ impl Plan {
         layout_features: &IntSet<Tag>,
         name_ids: &IntSet<NameId>,
         name_languages: &IntSet<u16>,
+        variations: &Option<InstancingSpec>,
     ) -> Self {
         let mut this = Plan {
             glyphs_requested: input_gids.clone(),
@@ -383,14 +418,20 @@ impl Plan {
             layout_features: layout_features.clone(),
             name_ids: name_ids.clone(),
             name_languages: name_languages.clone(),
+            pinned_at_default: true,
             ..Default::default()
         };
+
+        if let Some(variations) = variations {
+            let _ = this.apply_instancing_spec(variations, font); // XXX Propagate
+        }
 
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-subset-input.cc#L71>
         let default_no_subset_tables = [gasp::Gasp::TAG, FPGM, PREP, VDMX, DSIG];
         this.no_subset_tables
             .extend(default_no_subset_tables.iter().copied());
 
+        let _ = this.normalize_axes_location(font); // Proper error handling later
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
         this.create_old_gid_to_new_gid_map();
@@ -407,12 +448,115 @@ impl Plan {
         this
     }
 
+    fn normalize_axes_location(&mut self, font: &FontRef) -> Result<(), ReadError> {
+        if self.user_axes_location.is_empty() {
+            return Ok(());
+        }
+        let axes = font.axes();
+        let has_avar = font.avar().is_ok();
+        let mut axis_not_pinned = false;
+        let mut new_axis_idx = 0;
+        let mut normalized_mins = vec![];
+        let mut normalized_defaults = vec![];
+        let mut normalized_maxs = vec![];
+        self.normalized_coords = vec![F2Dot14::ZERO; axes.len()];
+        for (i, axis) in axes.iter().enumerate() {
+            let axis_tag = axis.tag();
+            self.axes_old_index_tag_map.insert(i, axis_tag);
+            let is_still_variable = self
+                .user_axes_location
+                .get(&axis_tag)
+                .map(|t: &Triple<f64>| !t.is_point())
+                .unwrap_or(true); // If not mentioned, it's variable (not pinned)
+
+            if is_still_variable {
+                axis_not_pinned = true;
+                self.axes_index_map.insert(i, new_axis_idx);
+                self.axis_tags.push(axis_tag);
+                new_axis_idx += 1;
+            }
+            if let Some(axis_range) = self.user_axes_location.get(&axis_tag) {
+                self.axes_triple_distances.insert(
+                    axis_tag,
+                    // These are for the whole axis, not the user chosen subspace
+                    Triple::new(
+                        axis.min_value() as f64,
+                        axis.default_value() as f64,
+                        axis.max_value() as f64,
+                    )
+                    .into(),
+                );
+                // This rounds to f2dot14. Behdad says it should be 16.16
+                // Don't use axis.normalize here, it rounds badly to F2Dot14. Do the normalization in f32 and then round to F2Dot14 at the end.
+                let normalized_min = normalize_axis_value(&axis, axis_range.minimum as f32);
+                let normalized_default = normalize_axis_value(&axis, axis_range.middle as f32);
+                let normalized_max = normalize_axis_value(&axis, axis_range.maximum as f32);
+                let normalized_min = (normalized_min * 16384.0).round() / 16384.0;
+                let normalized_default = (normalized_default * 16384.0).round() / 16384.0;
+                let normalized_max = (normalized_max * 16384.0).round() / 16384.0;
+                if has_avar {
+                    normalized_mins.push(normalized_min);
+                    normalized_defaults.push(normalized_default);
+                    normalized_maxs.push(normalized_max);
+                } else {
+                    self.axes_location.insert(
+                        axis_tag,
+                        Triple::new(
+                            normalized_min.into(),
+                            normalized_default.into(),
+                            normalized_max.into(),
+                        ),
+                    );
+                    self.normalized_coords[i] = F2Dot14::from_f32(normalized_default);
+                    if normalized_default != 0.0 {
+                        self.pinned_at_default = false;
+                    }
+                }
+            }
+        }
+        self.all_axes_pinned = !axis_not_pinned;
+        if let Ok(avar) = font.avar() {
+            if avar.version().major == 2 {
+                log::warn!("Partial-instancing avar2 table is not supported.");
+                return Err(ReadError::InvalidFormat(2));
+            }
+            normalized_mins = avar::map_coords_2_14(&avar, normalized_mins)?;
+            normalized_defaults = avar::map_coords_2_14(&avar, normalized_defaults)?;
+            normalized_maxs = avar::map_coords_2_14(&avar, normalized_maxs)?;
+            for (i, axis) in axes.iter().enumerate() {
+                let axis_tag = axis.tag();
+                if self.user_axes_location.contains_key(&axis_tag) {
+                    self.axes_location.insert(
+                        axis_tag,
+                        Triple::new(
+                            normalized_mins[i].into(),
+                            normalized_defaults[i].into(),
+                            normalized_maxs[i].into(),
+                        ),
+                    );
+                    self.normalized_coords[i] = F2Dot14::from_f32(normalized_defaults[i]);
+                    if normalized_defaults[i] != 0.0 {
+                        self.pinned_at_default = false;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn populate_unicodes_to_retain(
         &mut self,
         input_gids: &IntSet<GlyphId>,
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
     ) {
+        let input_unicodes = self.unicode_closure(
+            input_unicodes,
+            !self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE),
+        );
         let charmap = font.charmap();
         if input_gids.is_empty() && input_unicodes.len() < (self.font_num_glyphs as u64) {
             let cap: usize = input_unicodes.len().try_into().unwrap_or(usize::MAX);
@@ -483,9 +627,26 @@ impl Plan {
         self.os2_info.min_cmap_codepoint = self.unicodes.first().unwrap_or(0xFFFF_u32);
         self.os2_info.max_cmap_codepoint = self.unicodes.last().unwrap_or(0xFFFF_u32);
 
-        self.collect_variation_selectors(font, input_unicodes);
+        self.collect_variation_selectors(font, &input_unicodes);
     }
 
+    fn unicode_closure(&self, input_unicodes: &IntSet<u32>, do_bidi_closure: bool) -> IntSet<u32> {
+        let mut unicodes = input_unicodes.clone();
+        if do_bidi_closure {
+            let mut to_add = fnv::FnvHashSet::default();
+            // Glyphsets are unbounded, bidi glyphs are small, so apply it the other way around
+            for (&orig, &mirrored_cp) in UNICODE_BIDI_MIRRORED.iter() {
+                if unicodes.contains(orig) {
+                    to_add.insert(mirrored_cp);
+                }
+                if unicodes.contains(mirrored_cp) {
+                    to_add.insert(orig);
+                }
+            }
+            unicodes.extend(to_add);
+        }
+        unicodes
+    }
     fn collect_variation_selectors(&mut self, font: &FontRef, input_unicodes: &IntSet<u32>) {
         if let Ok(cmap) = font.cmap() {
             let encoding_records = cmap.encoding_records();
@@ -800,9 +961,69 @@ impl Plan {
             &mut self.base_varstore_inner_maps,
         );
     }
+
+    fn apply_instancing_spec(
+        &mut self,
+        spec: &InstancingSpec,
+        font: &FontRef,
+    ) -> Result<(), SubsetError> {
+        if spec.pin_all_axes_to_default {
+            for axis in font.axes().iter() {
+                self.user_axes_location
+                    .insert(axis.tag(), Triple::point(axis.default_value().into()));
+            }
+            return Ok(());
+        }
+        for font_axis in font.axes().iter() {
+            let tag = font_axis.tag();
+            let spec_axis = spec.axes.get(&tag);
+            match spec_axis {
+                Some(parsing_util::AxisSpec::PinToDefault) => {
+                    self.user_axes_location
+                        .insert(tag, Triple::point(font_axis.default_value().into()));
+                }
+                Some(parsing_util::AxisSpec::Range { min, def, max }) => {
+                    let new_min = min.clamp(font_axis.min_value(), font_axis.max_value());
+                    let new_max = max.clamp(font_axis.min_value(), font_axis.max_value());
+                    let new_def = def.clamp(new_min, new_max);
+                    self.user_axes_location.insert(
+                        tag,
+                        Triple::new(new_min as f64, new_def as f64, new_max as f64),
+                    );
+                }
+                None => {
+                    // If an axis is not specified in the instancing spec, we keep it as is, which means it's not pinned and will not be removed.
+                    self.user_axes_location.insert(
+                        tag,
+                        Triple::new(
+                            font_axis.min_value().into(),
+                            font_axis.default_value().into(),
+                            font_axis.max_value().into(),
+                        ),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 // TODO: when instancing, calculate delta value and set new varidx to NO_VARIATIONS_IDX if all axes are pinned
+
+fn normalize_axis_value(axis: &skrifa::Axis, v: f32) -> f32 {
+    let min_value = axis.min_value();
+    let default_value = axis.default_value();
+    let max_value = axis.max_value();
+    let v = v.clamp(min_value, max_value);
+
+    if v == default_value {
+        0.0
+    } else if v < default_value {
+        (v - default_value) / (default_value - min_value)
+    } else {
+        (v - default_value) / (max_value - default_value)
+    }
+}
 fn remap_variation_indices(
     vardata_count: u32,
     varidx_set: &IntSet<u32>,
@@ -984,6 +1205,9 @@ pub enum SubsetError {
 
     #[error("Subsetting table '{0}' failed")]
     SubsetTableError(Tag),
+
+    #[error("Invalid input to --variations: {0}")]
+    InvalidInstancingSpec(String),
 }
 
 pub trait NameIdClosure {
@@ -1177,6 +1401,11 @@ fn try_subset<'a>(
         s.end_serialize();
         return ret;
     }
+    log::warn!(
+        "Subsetting table {:?} ran out of room, needed at least {} bytes",
+        table_tag,
+        s.allocated()
+    );
 
     // ran out of room, reallocate more bytes
     let buf_size = s.allocated() * 2 + 16;
@@ -1200,6 +1429,11 @@ fn subset_table<'a>(
     }
 
     match tag {
+        Avar::TAG => font
+            .avar()
+            .map_err(|_| SubsetError::SubsetTableError(Avar::TAG))?
+            .subset(plan, font, s, builder),
+
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
@@ -1228,6 +1462,11 @@ fn subset_table<'a>(
         Cpal::TAG => font
             .cpal()
             .map_err(|_| SubsetError::SubsetTableError(Cpal::TAG))?
+            .subset(plan, font, s, builder),
+
+        Fvar::TAG => font
+            .fvar()
+            .map_err(|_| SubsetError::SubsetTableError(Fvar::TAG))?
             .subset(plan, font, s, builder),
 
         Gdef::TAG => font
