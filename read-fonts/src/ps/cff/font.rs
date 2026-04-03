@@ -11,6 +11,7 @@ use crate::{
         encoding::PredefinedEncoding,
         error::Error,
         hinting::HintingParams,
+        string::Sid,
         transform::{self, ScaledFontMatrix, Transform},
     },
     tables::{cff, cff2, variations::ItemVariationStore},
@@ -133,6 +134,22 @@ impl<'a> CffFontRef<'a> {
     /// Returns the charstring index.
     pub fn charstrings(&self) -> &Index<'a> {
         &self.top_dict.charstrings
+    }
+
+    /// Returns the string index.
+    pub fn strings(&self) -> Option<&Index<'a>> {
+        match &self.top_dict.kind {
+            CffFontKind::Sid { strings, .. } => Some(strings),
+            _ => None,
+        }
+    }
+
+    /// Returns the string for the given identifier.
+    pub fn string(&self, sid: Sid) -> Option<&'a [u8]> {
+        match sid.resolve_standard() {
+            Ok(s) => Some(s),
+            Err(idx) => self.strings()?.get(idx).ok(),
+        }
     }
 
     /// Returns the mapping for glyph identifiers.
@@ -365,6 +382,7 @@ impl<'a> CffFontRef<'a> {
 }
 
 /// Mapping from character codes to glyph identifiers.
+#[derive(Clone)]
 pub struct Encoding<'a> {
     encoding: RawEncoding<'a>,
     charset: Charset<'a>,
@@ -398,7 +416,7 @@ enum CffFontKind<'a> {
     /// A CFF font.
     Sid {
         /// Index for resolving glyph names.
-        _strings: Index<'a>,
+        strings: Index<'a>,
         /// Byte range of the private dict from the base of the font data.
         private_dict: Range<u32>,
     },
@@ -609,7 +627,11 @@ impl<'a> TopDict<'a> {
                         .get(offset..)
                         .and_then(|data| FdSelect::read(data.into()).ok());
                 }
-                dict::Entry::PrivateDictRange(range) => private_dict_range = range,
+                dict::Entry::PrivateDictRange(range) => {
+                    // Fail early if our private dictionary is out of bounds
+                    let _ = cff_data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
+                    private_dict_range = range;
+                }
                 dict::Entry::FontMatrix(font_matrix) => {
                     // FreeType always normalizes this and the scaling factor
                     // is dynamic so it won't make a difference to our users
@@ -646,7 +668,7 @@ impl<'a> TopDict<'a> {
                 return Err(Error::MissingFdArray);
             }
             CffFontKind::Sid {
-                _strings: strings,
+                strings,
                 private_dict: private_dict_range.start as u32..private_dict_range.end as u32,
             }
         };
