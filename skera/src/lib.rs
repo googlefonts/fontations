@@ -54,6 +54,7 @@ use write_fonts::{
     read::{
         collections::{int_set::Domain, IntSet},
         tables::{
+            avar::Avar,
             base::Base,
             cbdt::Cbdt,
             cblc::Cblc,
@@ -63,6 +64,7 @@ use write_fonts::{
             colr::Colr,
             cpal::Cpal,
             cvar::Cvar,
+            fvar::Fvar,
             gasp,
             gdef::Gdef,
             glyf::{Glyf, Glyph},
@@ -80,6 +82,8 @@ use write_fonts::{
             os2::Os2,
             post::Post,
             sbix::Sbix,
+            stat::Stat,
+            variations::NO_VARIATION_INDEX,
             vhea::Vhea,
             vmtx::Vmtx,
             vorg::Vorg,
@@ -190,54 +194,81 @@ pub static DEFAULT_LAYOUT_FEATURES: &[Tag] = &[
     Tag::new(b"blwm"),
 ];
 
+//ref: <https://github.com/harfbuzz/harfbuzz/blob/5cbce05a7c/src/hb-subset-input.cc#L46>
+pub static DEFAULT_DROP_TABLES: &[Tag] = &[
+    // Layout disabled by default
+    Tag::new(b"morx"),
+    Tag::new(b"mort"),
+    Tag::new(b"kerx"),
+    Tag::new(b"kern"),
+    // Copied from fontTools:
+    Tag::new(b"JSTF"),
+    Tag::new(b"DSIG"),
+    Tag::new(b"EBDT"),
+    Tag::new(b"EBLC"),
+    Tag::new(b"EBSC"),
+    Tag::new(b"SVG "),
+    Tag::new(b"PCLT"),
+    Tag::new(b"LTSH"),
+    // Graphite tables
+    Tag::new(b"Feat"),
+    Tag::new(b"Glat"),
+    Tag::new(b"Gloc"),
+    Tag::new(b"Silf"),
+    Tag::new(b"Sill"),
+];
+
 #[derive(Clone, Copy, Debug)]
 pub struct SubsetFlags(u16);
 
 impl SubsetFlags {
-    //all flags at their default value of false.
+    /// all flags at their default value of false.
     pub const SUBSET_FLAGS_DEFAULT: Self = Self(0x0000);
 
-    //If set hinting instructions will be dropped in the produced subset.
-    //Otherwise hinting instructions will be retained.
+    /// If set hinting instructions will be dropped in the produced subset.
+    /// Otherwise hinting instructions will be retained.
     pub const SUBSET_FLAGS_NO_HINTING: Self = Self(0x0001);
 
-    //If set glyph indices will not be modified in the produced subset.
-    //If glyphs are dropped their indices will be retained as an empty glyph.
+    /// If set glyph indices will not be modified in the produced subset.
+    /// If glyphs are dropped their indices will be retained as an empty glyph.
     pub const SUBSET_FLAGS_RETAIN_GIDS: Self = Self(0x0002);
 
-    //If set and subsetting a CFF font the subsetter will attempt to remove subroutines from the CFF glyphs.
-    //This flag is UNIMPLEMENTED yet
+    /// If set and subsetting a CFF font the subsetter will attempt to remove subroutines from the CFF glyphs.
+    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_DESUBROUTINIZE: Self = Self(0x0004);
 
-    //If set non-unicode name records will be retained in the subset.
-    //This flag is UNIMPLEMENTED yet
+    /// If set non-unicode name records will be retained in the subset.
+    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_NAME_LEGACY: Self = Self(0x0008);
 
-    //If set the subsetter will set the OVERLAP_SIMPLE flag on each simple glyph.
+    /// If set the subsetter will set the OVERLAP_SIMPLE flag on each simple glyph.
     pub const SUBSET_FLAGS_SET_OVERLAPS_FLAG: Self = Self(0x0010);
 
-    //If set the subsetter will not drop unrecognized tables and instead pass them through untouched.
-    //This flag is UNIMPLEMENTED yet
+    /// If set the subsetter will not drop unrecognized tables and instead pass them through untouched.
+    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED: Self = Self(0x0020);
 
-    //If set the notdef glyph outline will be retained in the final subset.
+    /// If set the notdef glyph outline will be retained in the final subset.
     pub const SUBSET_FLAGS_NOTDEF_OUTLINE: Self = Self(0x0040);
 
-    //If set the PS glyph names will be retained in the final subset.
-    //This flag is UNIMPLEMENTED yet
+    /// If set the PS glyph names will be retained in the final subset.
+    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_GLYPH_NAMES: Self = Self(0x0080);
 
-    //If set then the unicode ranges in OS/2 will not be recalculated.
-    //This flag is UNIMPLEMENTED yet
+    /// If set then the unicode ranges in OS/2 will not be recalculated.
+    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES: Self = Self(0x0100);
 
-    //If set don't perform glyph closure on layout substitution rules (GSUB)
-    //This flag is UNIMPLEMENTED yet
+    /// If set don't perform glyph closure on layout substitution rules (GSUB)
     pub const SUBSET_FLAGS_NO_LAYOUT_CLOSURE: Self = Self(0x0200);
 
-    //If set perform IUP delta optimization on the remaining gvar table's deltas.
-    //This flag is UNIMPLEMENTED yet
+    /// If set perform IUP delta optimization on the remaining gvar table's deltas.
+    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
+
+    /// If set do not pull mirrored versions of input codepoints into the subset.
+    /// This flag is UNIMPLEMENTED yet
+    pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
     /// Returns `true` if all of the flags in `other` are contained within `self`.
     #[inline]
@@ -640,6 +671,7 @@ impl Plan {
             if variation_indices.is_empty() {
                 return;
             }
+
             // generate 3 maps:
             // colr_varidx_delta_map
             // When delta set index map is not included, it's a mapping from varIdx-> (new varIdx,delta).
@@ -755,7 +787,9 @@ impl Plan {
         let mut varidx_set = IntSet::empty();
         gdef.collect_variation_indices(self, &mut varidx_set);
 
-        //TODO: collect variation indices from GPOS
+        if let Ok(gpos) = font.gpos() {
+            gpos.collect_variation_indices(self, &mut varidx_set);
+        }
 
         let vardata_count = var_store.item_variation_data_count() as u32;
         remap_variation_indices(
@@ -865,16 +899,20 @@ fn remap_delta_set_indices(
     let mut new_idx = 0_u32;
 
     for deltaset_idx in delta_set_indices.iter() {
-        let Some(var_idx) = deltaset_idx_var_idx_map.get(&deltaset_idx) else {
+        let Some(&var_idx) = deltaset_idx_var_idx_map.get(&deltaset_idx) else {
             continue;
         };
 
-        let Some((new_var_idx, delta)) = varidx_delta_map.get(var_idx) else {
+        let (new_var_idx, delta) = if var_idx == NO_VARIATION_INDEX {
+            (var_idx, 0)
+        } else if let Some((new_idx, d)) = varidx_delta_map.get(&var_idx) {
+            (*new_idx, *d)
+        } else {
             continue;
         };
 
-        new_deltaset_idx_varidx_map.insert(new_idx, *new_var_idx);
-        deltaset_idx_delta_map.insert(deltaset_idx, (new_idx, *delta));
+        new_deltaset_idx_varidx_map.insert(new_idx, new_var_idx);
+        deltaset_idx_delta_map.insert(deltaset_idx, (new_idx, delta));
         new_idx += 1;
     }
     (new_deltaset_idx_varidx_map, deltaset_idx_delta_map)
@@ -1038,6 +1076,7 @@ pub const PREP: Tag = Tag::new(b"prep");
 pub const SILF: Tag = Tag::new(b"Silf");
 pub const SILL: Tag = Tag::new(b"Sill");
 pub const VDMX: Tag = Tag::new(b"VDMX");
+pub const MVAR: Tag = Tag::new(b"MVAR");
 // This trait is implemented for all font top-level tables
 pub trait Subset {
     /// Subset this table, if successful a subset version of this table will be added to builder
@@ -1293,6 +1332,10 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?
             .subset(plan, font, s, builder),
 
+        Fvar::TAG | Cvar::TAG | Avar::TAG => passthrough_table(tag, font, s),
+        // MVAR/CVT: not supported by read-fonts, but we want to pass through it during subsetting
+        MVAR | CVT => passthrough_table(tag, font, s),
+
         //Skip, handled by glyf
         Loca::TAG => Ok(()),
 
@@ -1326,7 +1369,15 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Vorg::TAG))?
             .subset(plan, font, s, builder),
 
-        _ => passthrough_table(tag, font, s),
+        Stat::TAG => passthrough_table(tag, font, s),
+
+        _ if plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED) =>
+        {
+            passthrough_table(tag, font, s)
+        }
+        _ => Ok(()),
     }
 }
 
