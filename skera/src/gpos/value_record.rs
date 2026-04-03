@@ -174,13 +174,7 @@ fn apply_value_delta(
         // combine outer and inner indices as (outer << 16) | inner
         let combined_idx = ((varidx.delta_set_outer_index() as u32) << 16)
             | (varidx.delta_set_inner_index() as u32);
-        if let Some((_idx, delta)) = plan.layout_varidx_delta_map.get(&combined_idx) {
-            log::info!(
-                "Applying value delta for {:?} with record: {:?}, delta {}",
-                which_one,
-                value_record,
-                delta
-            );
+        if let Some((_idx, delta)) = plan.layout_varidx_delta_map.borrow().get(&combined_idx) {
             return base.saturating_add(*delta as i16);
         }
     }
@@ -236,7 +230,7 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                     &device,
                     s,
                     _plan,
-                    &_plan.layout_varidx_delta_map,
+                    &_plan.layout_varidx_delta_map.borrow(),
                     offset_pos,
                 )?;
             }
@@ -253,7 +247,7 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                     &device,
                     s,
                     _plan,
-                    &_plan.layout_varidx_delta_map,
+                    &_plan.layout_varidx_delta_map.borrow(),
                     offset_pos,
                 )?;
             }
@@ -269,7 +263,7 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                     &device,
                     s,
                     _plan,
-                    &_plan.layout_varidx_delta_map,
+                    &_plan.layout_varidx_delta_map.borrow(),
                     offset_pos,
                 )?;
             }
@@ -285,7 +279,7 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                     &device,
                     s,
                     _plan,
-                    &_plan.layout_varidx_delta_map,
+                    &_plan.layout_varidx_delta_map.borrow(),
                     offset_pos,
                 )?;
             }

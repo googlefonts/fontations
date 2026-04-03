@@ -287,12 +287,16 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(405_u32));
 
         plan.layout_varidx_delta_map
+            .borrow_mut()
             .insert(0x820044_u32, (0x40001_u32, 0));
         plan.layout_varidx_delta_map
+            .borrow_mut()
             .insert(0x160004_u32, (0x10000_u32, 0));
         plan.layout_varidx_delta_map
+            .borrow_mut()
             .insert(0x110002_u32, (0x0_u32, 0));
         plan.layout_varidx_delta_map
+            .borrow_mut()
             .insert(0x820018_u32, (0x40000_u32, 0));
 
         let mut s = Serializer::new(1024);
@@ -353,14 +357,19 @@ mod test {
         plan.glyphset_gsub.insert(GlyphId::from(409_u32));
 
         plan.layout_varidx_delta_map
+            .borrow_mut()
             .insert(0x40001_u32, (0x0_u32, 0));
         plan.layout_varidx_delta_map
+            .borrow_mut()
             .insert(0x160004_u32, (0x30000_u32, 0));
         plan.layout_varidx_delta_map
+            .borrow_mut()
             .insert(0x6f000c_u32, (0x40000_u32, 0));
         plan.layout_varidx_delta_map
+            .borrow_mut()
             .insert(0x830015_u32, (0x50000_u32, 0));
         plan.layout_varidx_delta_map
+            .borrow_mut()
             .insert(0x860011_u32, (0x70000_u32, 0));
 
         let mut s = Serializer::new(1024);
