@@ -102,6 +102,9 @@ jobs:
           pip install -r resources/scripts/skera_ci_requirements.txt
           cargo test -p skera --all-targets --all-features
 
+      - name: cargo test skera (no cli)
+        run: cargo test -p skera --no-default-features
+
       - name: cargo test incremental-font-transfer
         run: cargo test -p incremental-font-transfer --all-targets --all-features
 
