@@ -1209,6 +1209,11 @@ fn try_subset<'a>(
         s.end_serialize();
         return ret;
     }
+    log::warn!(
+        "Subsetting table {:?} ran out of room, needed at least {} bytes",
+        table_tag,
+        s.allocated()
+    );
 
     // ran out of room, reallocate more bytes
     let buf_size = s.allocated() * 2 + 16;
