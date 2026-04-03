@@ -1582,7 +1582,7 @@ fn remap_varidx_after_instantiation(
     for (old_varidx, (old_new_varidx, delta)) in layout_varidx_delta_map.iter() {
         // The old_new_varidx is from the initial subsetting pass
         // We need to map it through the instantiation varidx_map
-        let remapped_varidx = if let Some(&new_varidx) = varidx_map.get(&old_new_varidx) {
+        let remapped_varidx = if let Some(&new_varidx) = varidx_map.get(old_new_varidx) {
             new_varidx
         } else {
             NO_VARIATIONS_INDEX
