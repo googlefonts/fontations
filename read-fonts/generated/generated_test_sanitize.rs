@@ -621,3 +621,533 @@ impl<'a> SomeTable<'a> for TableTwo<'a> {
         self.dyn_inner().get_field(idx)
     }
 }
+
+impl<'a> MinByteRange<'a> for VersionedTable<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.always_present_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<'a> FontRead<'a> for VersionedTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// Table with version-conditional fields
+#[derive(Clone)]
+pub struct VersionedTable<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> VersionedTable<'a> {
+    pub const MIN_SIZE: usize = (MajorMinor::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn version(&self) -> MajorMinor {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn always_present(&self) -> u16 {
+        let range = self.always_present_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn if_11_offset(&self) -> Option<Offset16> {
+        let range = self.if_11_offset_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    /// Attempt to resolve [`if_11_offset`][Self::if_11_offset].
+    pub fn if_11(&self) -> Option<Result<FlagTable<'a>, ReadError>> {
+        let data = self.data;
+        self.if_11_offset().map(|x| x.resolve(data))
+    }
+
+    pub fn if_20(&self) -> Option<u32> {
+        let range = self.if_20_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+
+    pub fn always_present_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn if_11_offset_byte_range(&self) -> Range<usize> {
+        let start = self.always_present_byte_range().end;
+        start
+            ..(self.version().compatible((1u16, 1u16)))
+                .then(|| start + Offset16::RAW_BYTE_LEN)
+                .unwrap_or(start)
+    }
+
+    pub fn if_20_byte_range(&self) -> Range<usize> {
+        let start = self.if_11_offset_byte_range().end;
+        start
+            ..(self.version().compatible((2u16, 0u16)))
+                .then(|| start + u32::RAW_BYTE_LEN)
+                .unwrap_or(start)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for VersionedTable<'a> {
+    fn type_name(&self) -> &str {
+        "VersionedTable"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("always_present", self.always_present())),
+            2usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
+                "if_11_offset",
+                FieldType::offset(self.if_11_offset().unwrap(), self.if_11().unwrap()),
+            )),
+            3usize if self.version().compatible((2u16, 0u16)) => {
+                Some(Field::new("if_20", self.if_20().unwrap()))
+            }
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for VersionedTable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// Flags for FlagTable
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
+pub struct FlagTableFlags {
+    bits: u8,
+}
+
+impl FlagTableFlags {
+    pub const FOO: Self = Self { bits: 0x01 };
+
+    pub const BAR: Self = Self { bits: 0x02 };
+}
+
+impl FlagTableFlags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::FOO.bits | Self::BAR.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u8 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u8) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u8) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for FlagTableFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: FlagTableFlags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for FlagTableFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for FlagTableFlags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for FlagTableFlags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for FlagTableFlags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for FlagTableFlags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for FlagTableFlags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for FlagTableFlags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for FlagTableFlags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for FlagTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[("FOO", Self::FOO), ("BAR", Self::BAR)];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for FlagTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for FlagTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for FlagTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for FlagTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for FlagTableFlags {
+    type Raw = <u8 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u8>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> From<FlagTableFlags> for FieldType<'a> {
+    fn from(src: FlagTableFlags) -> FieldType<'a> {
+        src.bits().into()
+    }
+}
+
+impl<'a> MinByteRange<'a> for FlagTable<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.always_present_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<'a> FontRead<'a> for FlagTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// Table with flag-conditional fields
+#[derive(Clone)]
+pub struct FlagTable<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FlagTable<'a> {
+    pub const MIN_SIZE: usize = (FlagTableFlags::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn flags(&self) -> FlagTableFlags {
+        let range = self.flags_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn always_present(&self) -> u16 {
+        let range = self.always_present_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn if_foo(&self) -> Option<u16> {
+        let range = self.if_foo_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    pub fn if_bar(&self) -> Option<u16> {
+        let range = self.if_bar_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + FlagTableFlags::RAW_BYTE_LEN
+    }
+
+    pub fn always_present_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn if_foo_byte_range(&self) -> Range<usize> {
+        let start = self.always_present_byte_range().end;
+        start
+            ..(self.flags().contains(FlagTableFlags::FOO))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
+    }
+
+    pub fn if_bar_byte_range(&self) -> Range<usize> {
+        let start = self.if_foo_byte_range().end;
+        start
+            ..(self.flags().contains(FlagTableFlags::BAR))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for FlagTable<'a> {
+    fn type_name(&self) -> &str {
+        "FlagTable"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("flags", self.flags())),
+            1usize => Some(Field::new("always_present", self.always_present())),
+            2usize if self.flags().contains(FlagTableFlags::FOO) => {
+                Some(Field::new("if_foo", self.if_foo().unwrap()))
+            }
+            3usize if self.flags().contains(FlagTableFlags::BAR) => {
+                Some(Field::new("if_bar", self.if_bar().unwrap()))
+            }
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for FlagTable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}

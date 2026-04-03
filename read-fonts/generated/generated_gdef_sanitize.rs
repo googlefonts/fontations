@@ -131,27 +131,29 @@ impl<'a> GdefSanitized<'a> {
         }
     }
 
-    pub fn mark_glyph_sets_def_offset(&self) -> Offset16 {
-        unsafe {
+    pub fn mark_glyph_sets_def_offset(&self) -> Option<Offset16> {
+        self.version().compatible((1u16, 2u16)).then(|| unsafe {
             self.ptr
                 .read_at_unchecked(self.mark_glyph_sets_def_offset_pos())
-        }
+        })
     }
 
     pub fn mark_glyph_sets_def(&self) -> Option<MarkGlyphSetsSanitized<'a>> {
         unsafe {
-            self.mark_glyph_sets_def_offset()
+            self.mark_glyph_sets_def_offset()?
                 .resolve_sanitized(self.ptr, &())
         }
     }
 
-    pub fn item_var_store_offset(&self) -> Offset32 {
-        unsafe { self.ptr.read_at_unchecked(self.item_var_store_offset_pos()) }
+    pub fn item_var_store_offset(&self) -> Option<Offset32> {
+        self.version()
+            .compatible((1u16, 3u16))
+            .then(|| unsafe { self.ptr.read_at_unchecked(self.item_var_store_offset_pos()) })
     }
 
     pub fn item_var_store(&self) -> Option<ItemVariationStoreSanitized<'a>> {
         unsafe {
-            self.item_var_store_offset()
+            self.item_var_store_offset()?
                 .resolve_sanitized(self.ptr, &())
         }
     }

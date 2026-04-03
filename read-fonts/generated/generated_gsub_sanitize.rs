@@ -97,16 +97,16 @@ impl<'a> GsubSanitized<'a> {
         }
     }
 
-    pub fn feature_variations_offset(&self) -> Offset32 {
-        unsafe {
+    pub fn feature_variations_offset(&self) -> Option<Offset32> {
+        self.version().compatible((1u16, 1u16)).then(|| unsafe {
             self.ptr
                 .read_at_unchecked(self.feature_variations_offset_pos())
-        }
+        })
     }
 
     pub fn feature_variations(&self) -> Option<FeatureVariationsSanitized<'a>> {
         unsafe {
-            self.feature_variations_offset()
+            self.feature_variations_offset()?
                 .resolve_sanitized(self.ptr, &())
         }
     }

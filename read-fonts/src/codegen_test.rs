@@ -433,4 +433,144 @@ pub mod sanitize {
         let table = RootTable::read(buf.data().into()).unwrap();
         assert!(table.sanitize().is_err());
     }
+
+    // --- VersionedTable: version-conditional fields ---
+
+    #[test]
+    fn sanitize_versioned_table_1_0() {
+        // v1.0: only always_present, conditional fields absent
+        let buf = BeBuffer::new().push(MajorMinor::VERSION_1_0).push(42u16); // always_present
+        let table = VersionedTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.always_present(), 42);
+    }
+
+    #[test]
+    fn sanitize_versioned_table_1_1() {
+        // v1.1: always_present + if_11, if_20 absent
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_1)
+            .push(42u16) // always_present
+            .push(8u16) // if_11 = table at pos 8
+            .push(0u8) // flags table flags
+            .push(303u16); // flags.always_present
+        let table = VersionedTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.always_present(), 42);
+        assert!(san.if_11_offset().is_some());
+        let if11 = san.if_11().unwrap();
+        assert_eq!(if11.always_present(), 303)
+    }
+
+    #[test]
+    fn sanitize_versioned_table_2_0() {
+        // v2.0: all fields present
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_2_0)
+            .push(42u16) // always_present
+            .push(99u16) // if_11
+            .push(0xdeadbeefu32); // if_20
+        let table = VersionedTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.always_present(), 42);
+    }
+
+    #[test]
+    fn sanitize_versioned_table_fails_1_1_truncated() {
+        // v1.1 declared but buffer missing if_11 — sanitize must fail
+        let buf = BeBuffer::new().push(MajorMinor::VERSION_1_1).push(42u16); // always_present, no if_11
+        let table = VersionedTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+
+    #[test]
+    fn sanitize_versioned_table_fails_2_0_truncated() {
+        // v2.0 declared but buffer missing if_11 and if_20 — sanitize must fail
+        let buf = BeBuffer::new().push(MajorMinor::VERSION_2_0).push(42u16); // always_present only
+        let table = VersionedTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+
+    #[test]
+    fn missing_field_is_missing() {
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(0xd00du16);
+        let table = VersionedTable::read(buf.data().into()).unwrap();
+        let sanitized = table.try_sanitize().unwrap();
+        assert_eq!(sanitized.always_present(), 0xd00d);
+        assert!(sanitized.if_11_offset().is_none());
+        assert!(sanitized.if_11().is_none());
+        assert!(sanitized.if_20().is_none());
+    }
+    // --- FlagTable: flag-conditional fields ---
+
+    #[test]
+    fn sanitize_flag_table_no_flags() {
+        // No flags set: only always_present is present
+        let buf = BeBuffer::new()
+            .push(0u8) // flags = none
+            .push(42u16); // always_present
+        let table = FlagTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.always_present(), 42);
+    }
+
+    #[test]
+    fn sanitize_flag_table_foo_only() {
+        // FOO set: always_present + if_foo present
+        let buf = BeBuffer::new()
+            .push(FlagTableFlags::FOO)
+            .push(42u16) // always_present
+            .push(99u16); // if_foo
+        let table = FlagTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.if_foo(), Some(99));
+    }
+
+    #[test]
+    fn sanitize_flag_table_bar_only() {
+        // FOO set: always_present + if_foo present
+        let buf = BeBuffer::new()
+            .push(FlagTableFlags::BAR)
+            .push(42u16) // always_present
+            .push(1234u16); // if_bar
+        let table = FlagTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.if_bar_pos(), 3);
+        assert_eq!(san.if_bar(), Some(1234));
+    }
+    #[test]
+    fn sanitize_flag_table_both() {
+        // FOO | BAR set: all fields present
+        let buf = BeBuffer::new()
+            .push(FlagTableFlags::FOO | FlagTableFlags::BAR) // flags = FOO | BAR
+            .push(42u16) // always_present
+            .push(99u16) // if_foo
+            .push(77u16); // if_bar
+        let table = FlagTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.always_present(), 42);
+    }
+
+    #[test]
+    fn sanitize_flag_table_fails_foo_truncated() {
+        // FOO set but no if_foo bytes — sanitize must fail
+        let buf = BeBuffer::new()
+            .push(0x01u8) // flags = FOO
+            .push(42u16); // always_present, no if_foo
+        let table = FlagTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+
+    #[test]
+    fn sanitize_flag_table_fails_bar_truncated() {
+        // FOO | BAR set but no if_bar bytes — sanitize must fail
+        let buf = BeBuffer::new()
+            .push(0x03u8) // flags = FOO | BAR
+            .push(42u16) // always_present
+            .push(99u16); // if_foo, no if_bar
+        let table = FlagTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
 }

@@ -644,8 +644,10 @@ impl<'a, T> LookupSanitized<'a, T> {
         unsafe { ArrayOfSanitizedOffsets::new(offsets, self.ptr, ()) }
     }
 
-    pub fn mark_filtering_set(&self) -> u16 {
-        unsafe { self.ptr.read_at_unchecked(self.mark_filtering_set_pos()) }
+    pub fn mark_filtering_set(&self) -> Option<u16> {
+        self.lookup_flag()
+            .contains(LookupFlag::USE_MARK_FILTERING_SET)
+            .then(|| unsafe { self.ptr.read_at_unchecked(self.mark_filtering_set_pos()) })
     }
 }
 

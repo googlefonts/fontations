@@ -53,3 +53,30 @@ format u16 TableTwo {
     Format1(TableTwoFormat1),
     Format2(TableTwoFormat2),
 }
+
+/// Table with version-conditional fields
+table VersionedTable {
+    #[version]
+    version: MajorMinor,
+    always_present: u16,
+    #[since_version(1.1)]
+    if_11_offset: Offset16<FlagTable>,
+    #[since_version(2.0)]
+    if_20: u32,
+}
+
+/// Flags for FlagTable
+flags u8 FlagTableFlags {
+    FOO = 0x01,
+    BAR = 0x02,
+}
+
+/// Table with flag-conditional fields
+table FlagTable {
+    flags: FlagTableFlags,
+    always_present: u16,
+    #[if_flag($flags, FlagTableFlags::FOO)]
+    if_foo: u16,
+    #[if_flag($flags, FlagTableFlags::BAR)]
+    if_bar: u16,
+}

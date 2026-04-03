@@ -451,3 +451,178 @@ impl<'a> ReadSanitized<'a> for TableTwoSanitized<'a> {
         }
     }
 }
+
+impl Sanitize for VersionedTable<'_> {
+    fn sanitize(&self) -> Result<(), ReadError> {
+        if self.version().compatible((1u16, 1u16)) && self.if_11_offset().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(if_11_offset),
+            });
+        }
+        if let Some(r) = self.if_11() {
+            r?.sanitize()?;
+        }
+        if self.version().compatible((2u16, 0u16)) && self.if_20().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(if_20),
+            });
+        }
+        Ok(())
+    }
+}
+
+impl<'a> TrySanitize for VersionedTable<'a> {
+    type Sanitized = VersionedTableSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(VersionedTable::MIN_SIZE <= NULL_POOL_SIZE);
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { VersionedTableSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct VersionedTableSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> VersionedTableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn version_pos(&self) -> usize {
+        0
+    }
+    fn always_present_pos(&self) -> usize {
+        self.version_pos() + MajorMinor::RAW_BYTE_LEN
+    }
+    fn if_11_offset_pos(&self) -> usize {
+        if self.version().compatible((1u16, 1u16)) {
+            self.always_present_pos() + u16::RAW_BYTE_LEN
+        } else {
+            self.always_present_pos()
+        }
+    }
+    fn if_20_pos(&self) -> usize {
+        if self.version().compatible((2u16, 0u16)) {
+            self.if_11_offset_pos() + Offset16::RAW_BYTE_LEN
+        } else {
+            self.if_11_offset_pos()
+        }
+    }
+
+    pub fn version(&self) -> MajorMinor {
+        unsafe { self.ptr.read_at_unchecked(self.version_pos()) }
+    }
+
+    pub fn always_present(&self) -> u16 {
+        unsafe { self.ptr.read_at_unchecked(self.always_present_pos()) }
+    }
+
+    pub fn if_11_offset(&self) -> Option<Offset16> {
+        self.version()
+            .compatible((1u16, 1u16))
+            .then(|| unsafe { self.ptr.read_at_unchecked(self.if_11_offset_pos()) })
+    }
+
+    pub fn if_11(&self) -> Option<FlagTableSanitized<'a>> {
+        unsafe { self.if_11_offset()?.resolve_sanitized(self.ptr, &()) }
+    }
+
+    pub fn if_20(&self) -> Option<u32> {
+        self.version()
+            .compatible((2u16, 0u16))
+            .then(|| unsafe { self.ptr.read_at_unchecked(self.if_20_pos()) })
+    }
+}
+
+impl<'a> ReadSanitized<'a> for VersionedTableSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
+impl Sanitize for FlagTable<'_> {
+    fn sanitize(&self) -> Result<(), ReadError> {
+        if self.flags().contains(FlagTableFlags::FOO) && self.if_foo().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(if_foo),
+            });
+        }
+        if self.flags().contains(FlagTableFlags::BAR) && self.if_bar().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(if_bar),
+            });
+        }
+        Ok(())
+    }
+}
+
+impl<'a> TrySanitize for FlagTable<'a> {
+    type Sanitized = FlagTableSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(FlagTable::MIN_SIZE <= NULL_POOL_SIZE);
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { FlagTableSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct FlagTableSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> FlagTableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn flags_pos(&self) -> usize {
+        0
+    }
+    fn always_present_pos(&self) -> usize {
+        self.flags_pos() + FlagTableFlags::RAW_BYTE_LEN
+    }
+    fn if_foo_pos(&self) -> usize {
+        if self.flags().contains(FlagTableFlags::FOO) {
+            self.always_present_pos() + u16::RAW_BYTE_LEN
+        } else {
+            self.always_present_pos()
+        }
+    }
+    fn if_bar_pos(&self) -> usize {
+        if self.flags().contains(FlagTableFlags::BAR) {
+            self.if_foo_pos() + u16::RAW_BYTE_LEN
+        } else {
+            self.if_foo_pos()
+        }
+    }
+
+    pub fn flags(&self) -> FlagTableFlags {
+        unsafe { self.ptr.read_at_unchecked(self.flags_pos()) }
+    }
+
+    pub fn always_present(&self) -> u16 {
+        unsafe { self.ptr.read_at_unchecked(self.always_present_pos()) }
+    }
+
+    pub fn if_foo(&self) -> Option<u16> {
+        self.flags()
+            .contains(FlagTableFlags::FOO)
+            .then(|| unsafe { self.ptr.read_at_unchecked(self.if_foo_pos()) })
+    }
+
+    pub fn if_bar(&self) -> Option<u16> {
+        self.flags()
+            .contains(FlagTableFlags::BAR)
+            .then(|| unsafe { self.ptr.read_at_unchecked(self.if_bar_pos()) })
+    }
+}
+
+impl<'a> ReadSanitized<'a> for FlagTableSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}

@@ -471,42 +471,51 @@ fn build_pos_and_getter_methods(fields: &Fields) -> (Vec<TokenStream>, Vec<Token
     let mut pos_methods: Vec<TokenStream> = Vec::new();
     let mut getter_methods: Vec<TokenStream> = Vec::new();
 
-    // `prev_fn`: ident of the last emitted _pos() method (None = start of struct).
+    // `prev_fn`: ident of the last emitted _pos() method
     // `acc`: accumulated byte count since `prev_fn` (None means 0).
-    let mut prev_fn: Option<syn::Ident> = None;
-    let mut acc: Option<TokenStream> = None;
+    let mut prev_pos = quote!(0);
+    let mut acc = quote!(0);
+    let mut is_first = true;
 
     for field in fields.iter() {
         let this_len = field.sanitized_byte_len().unwrap();
 
         if field.attrs.skip_getter.is_some() {
             // Don't generate getter/pos, but account for this field's bytes.
-            acc = Some(match acc.take() {
-                None => this_len,
-                Some(prev) => quote!(#prev + #this_len),
-            });
+            acc = quote!( #acc + #this_len );
             continue;
         }
 
         let field_name = &field.name;
         let pos_fn_ident = format_ident!("{}_pos", field_name);
+        let condition = field
+            .attrs
+            .conditional
+            .as_ref()
+            .map(|cond| cond.condition_tokens_for_read());
 
-        let pos_body = match (&prev_fn, &acc) {
-            (None, None) => quote!(0),
-            (None, Some(offset)) => quote!(#offset),
-            (Some(f), None) => quote!(self.#f()),
-            (Some(f), Some(a)) => quote!(self.#f() + #a),
+        let new_pos = if is_first {
+            is_first = false;
+            // avoid 0 + 0 for first item :shrug:
+            quote!(0)
+        } else {
+            quote!( #prev_pos + #acc )
         };
+
+        let pos_body = match condition {
+            Some(cond) => quote!( if #cond { #new_pos } else { #prev_pos } ),
+            None => quote!( #new_pos ),
+        };
+
         pos_methods.push(quote! {
             fn #pos_fn_ident(&self) -> usize { #pos_body }
         });
 
-        prev_fn = Some(pos_fn_ident.clone());
-        acc = Some(this_len);
-        let pos_fn = pos_fn_ident;
+        prev_pos = quote!(self. #pos_fn_ident());
+        acc = this_len;
 
         let ret = field.sanitized_table_getter_return_type();
-        let body = field.sanitized_table_getter_body(&pos_fn);
+        let body = field.sanitized_table_getter_body(&pos_fn_ident);
         getter_methods.push(quote! {
             pub fn #field_name(&self) -> #ret { #body }
         });
@@ -642,7 +651,7 @@ impl Field {
 
     /// Return type of this field's primary getter method in a table.
     pub(crate) fn sanitized_table_getter_return_type(&self) -> TokenStream {
-        match &self.typ {
+        let typ = match &self.typ {
             FieldType::Scalar { typ } => quote!(#typ),
             FieldType::Offset { typ, .. } => quote!(#typ),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
@@ -670,6 +679,12 @@ impl Field {
                 quote!(#st<'a>)
             }
             _ => quote!(()),
+        };
+
+        if self.is_conditional() {
+            quote!(Option<#typ>)
+        } else {
+            typ
         }
     }
 
@@ -682,7 +697,7 @@ impl Field {
             .map(FieldReadArgs::to_tokens_for_table_getter)
             .unwrap_or_else(|| quote!(()));
 
-        match &self.typ {
+        let body = match &self.typ {
             FieldType::Scalar { .. } | FieldType::Offset { .. } => {
                 quote!(unsafe { self.ptr.read_at_unchecked(self.#pos_fn()) })
             }
@@ -732,6 +747,14 @@ impl Field {
             FieldType::PendingResolution { .. } => {
                 panic!("unresolved field type in sanitized_table_getter_body")
             }
+        };
+
+        match self.attrs.conditional.as_ref() {
+            Some(cond) => {
+                let condition = cond.condition_tokens_for_read();
+                quote!(  #condition.then(||  #body ) )
+            }
+            None => body,
         }
     }
 
@@ -798,9 +821,10 @@ impl Field {
                     .then(|| quote!(where T: ReadSanitized<'a, Args = ()> + Default));
                 let args_expr = self.sanitized_offset_args_expr();
                 let unwrap_or_default = (!is_nullable).then(|| quote!(.unwrap_or_default()));
+                let maybe_question = self.is_conditional().then(|| quote!(?));
                 quote! {
                     pub fn #getter_name(&self) -> #return_type #where_clause {
-                        unsafe { self.#field_name().resolve_sanitized(self.ptr, &#args_expr) #unwrap_or_default }
+                        unsafe { self.#field_name() #maybe_question .resolve_sanitized(self.ptr, &#args_expr) #unwrap_or_default }
                     }
                 }
             }
