@@ -18,7 +18,7 @@ use crate::{
     FontData, FontRead, ReadError,
 };
 use core::ops::Range;
-use types::{pen::OutlinePen, F2Dot14, Fixed, GlyphId};
+use types::{F2Dot14, Fixed, GlyphId};
 
 /// A CFF or CFF2 font.
 ///

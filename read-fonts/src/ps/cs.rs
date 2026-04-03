@@ -10,7 +10,7 @@ use crate::{
         transform::{FontMatrix, Transform},
     },
     tables::cff::Cff,
-    types::{pen::OutlinePen, Fixed, Point},
+    types::{Fixed, Point},
     Cursor, FontData, FontRead,
 };
 
