@@ -1,6 +1,7 @@
 //! Unified access to CFF/CFF2 fonts.
 
 use crate::{
+    model::pen::OutlinePen,
     ps::{
         cff::{
             blend::BlendState, charset::Charset, dict, encoding::Encoding as RawEncoding,
@@ -16,7 +17,7 @@ use crate::{
     FontData, FontRead, ReadError,
 };
 use core::ops::Range;
-use types::{pen::OutlinePen, F2Dot14, Fixed, GlyphId};
+use types::{F2Dot14, Fixed, GlyphId};
 
 /// A CFF or CFF2 font.
 ///

@@ -1,6 +1,7 @@
 //! Parsing and evaluation of charstrings.
 
 use crate::{
+    model::pen::OutlinePen,
     ps::{
         cff::{blend::BlendState, charset::Charset, index::Index, stack::Stack},
         error::Error,
@@ -9,7 +10,7 @@ use crate::{
         transform::{FontMatrix, Transform},
     },
     tables::cff::Cff,
-    types::{pen::OutlinePen, Fixed, Point},
+    types::{Fixed, Point},
     Cursor, FontData, FontRead,
 };
 

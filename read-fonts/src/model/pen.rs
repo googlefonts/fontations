@@ -1,6 +1,8 @@
 //! Types for collecting the output when drawing a glyph outline.
 
-use super::BoundingBox;
+use alloc::{string::String, vec::Vec};
+use core::fmt::{self, Write};
+use types::BoundingBox;
 
 /// Interface for accepting a sequence of path commands.
 pub trait OutlinePen {
@@ -46,7 +48,6 @@ pub enum PathElement {
     Close,
 }
 
-#[cfg(feature = "std")]
 impl OutlinePen for Vec<PathElement> {
     fn move_to(&mut self, x: f32, y: f32) {
         self.push(PathElement::MoveTo { x, y })
@@ -87,120 +88,111 @@ impl OutlinePen for NullPen {
     fn close(&mut self) {}
 }
 
-#[cfg(feature = "std")]
-pub use svg::SvgPen;
+/// Pen that generates SVG style path data.
+#[derive(Clone, Default, Debug)]
+pub struct SvgPen(String, Option<usize>);
 
-#[cfg(feature = "std")]
-mod svg {
-    use super::OutlinePen;
-    use core::fmt::{self, Write};
-
-    /// Pen that generates SVG style path data.
-    #[derive(Clone, Default, Debug)]
-    pub struct SvgPen(String, Option<usize>);
-
-    impl SvgPen {
-        /// Creates a new SVG pen that formats floating point values with the
-        /// standard behavior.
-        pub fn new() -> Self {
-            Self::default()
-        }
-
-        /// Creates a new SVG pen with the given precision (the number of digits
-        /// that will be printed after the decimal).
-        pub fn with_precision(precision: usize) -> Self {
-            Self(String::default(), Some(precision))
-        }
-
-        /// Clears the content of the internal string.
-        pub fn clear(&mut self) {
-            self.0.clear();
-        }
-
-        fn maybe_push_space(&mut self) {
-            if !self.0.is_empty() {
-                self.0.push(' ');
-            }
-        }
+impl SvgPen {
+    /// Creates a new SVG pen that formats floating point values with the
+    /// standard behavior.
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    impl core::ops::Deref for SvgPen {
-        type Target = str;
-
-        fn deref(&self) -> &Self::Target {
-            self.0.as_str()
-        }
+    /// Creates a new SVG pen with the given precision (the number of digits
+    /// that will be printed after the decimal).
+    pub fn with_precision(precision: usize) -> Self {
+        Self(String::default(), Some(precision))
     }
 
-    impl OutlinePen for SvgPen {
-        fn move_to(&mut self, x: f32, y: f32) {
-            self.maybe_push_space();
-            let _ = if let Some(prec) = self.1 {
-                write!(self.0, "M{x:.0$},{y:.0$}", prec)
-            } else {
-                write!(self.0, "M{x},{y}")
-            };
-        }
-
-        fn line_to(&mut self, x: f32, y: f32) {
-            self.maybe_push_space();
-            let _ = if let Some(prec) = self.1 {
-                write!(self.0, "L{x:.0$},{y:.0$}", prec)
-            } else {
-                write!(self.0, "L{x},{y}")
-            };
-        }
-
-        fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-            self.maybe_push_space();
-            let _ = if let Some(prec) = self.1 {
-                write!(self.0, "Q{cx0:.0$},{cy0:.0$} {x:.0$},{y:.0$}", prec)
-            } else {
-                write!(self.0, "Q{cx0},{cy0} {x},{y}")
-            };
-        }
-
-        fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-            self.maybe_push_space();
-            let _ = if let Some(prec) = self.1 {
-                write!(
-                    self.0,
-                    "C{cx0:.0$},{cy0:.0$} {cx1:.0$},{cy1:.0$} {x:.0$},{y:.0$}",
-                    prec
-                )
-            } else {
-                write!(self.0, "C{cx0},{cy0} {cx1},{cy1} {x},{y}")
-            };
-        }
-
-        fn close(&mut self) {
-            self.maybe_push_space();
-            self.0.push('Z');
-        }
+    /// Clears the content of the internal string.
+    pub fn clear(&mut self) {
+        self.0.clear();
     }
 
-    impl AsRef<str> for SvgPen {
-        fn as_ref(&self) -> &str {
-            self.0.as_ref()
+    fn maybe_push_space(&mut self) {
+        if !self.0.is_empty() {
+            self.0.push(' ');
         }
     }
+}
 
-    impl From<String> for SvgPen {
-        fn from(value: String) -> Self {
-            Self(value, None)
-        }
+impl core::ops::Deref for SvgPen {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_str()
+    }
+}
+
+impl OutlinePen for SvgPen {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.maybe_push_space();
+        let _ = if let Some(prec) = self.1 {
+            write!(self.0, "M{x:.0$},{y:.0$}", prec)
+        } else {
+            write!(self.0, "M{x},{y}")
+        };
     }
 
-    impl From<SvgPen> for String {
-        fn from(value: SvgPen) -> Self {
-            value.0
-        }
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.maybe_push_space();
+        let _ = if let Some(prec) = self.1 {
+            write!(self.0, "L{x:.0$},{y:.0$}", prec)
+        } else {
+            write!(self.0, "L{x},{y}")
+        };
     }
 
-    impl fmt::Display for SvgPen {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", self.0)
-        }
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        self.maybe_push_space();
+        let _ = if let Some(prec) = self.1 {
+            write!(self.0, "Q{cx0:.0$},{cy0:.0$} {x:.0$},{y:.0$}", prec)
+        } else {
+            write!(self.0, "Q{cx0},{cy0} {x},{y}")
+        };
+    }
+
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        self.maybe_push_space();
+        let _ = if let Some(prec) = self.1 {
+            write!(
+                self.0,
+                "C{cx0:.0$},{cy0:.0$} {cx1:.0$},{cy1:.0$} {x:.0$},{y:.0$}",
+                prec
+            )
+        } else {
+            write!(self.0, "C{cx0},{cy0} {cx1},{cy1} {x},{y}")
+        };
+    }
+
+    fn close(&mut self) {
+        self.maybe_push_space();
+        self.0.push('Z');
+    }
+}
+
+impl AsRef<str> for SvgPen {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl From<String> for SvgPen {
+    fn from(value: String) -> Self {
+        Self(value, None)
+    }
+}
+
+impl From<SvgPen> for String {
+    fn from(value: SvgPen) -> Self {
+        value.0
+    }
+}
+
+impl fmt::Display for SvgPen {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -264,7 +256,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(feature = "std")]
     fn svg_pen_precision() {
         let svg_data = [None, Some(1), Some(4)].map(|prec| {
             let mut pen = match prec {

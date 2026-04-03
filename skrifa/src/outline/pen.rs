@@ -1,8 +1,6 @@
 //! Types for collecting the output when drawing a glyph outline.
 
-#[cfg(feature = "std")]
-pub use read_fonts::types::pen::SvgPen;
-pub use read_fonts::types::pen::{ControlBoundsPen, NullPen, OutlinePen, PathElement};
+pub use read_fonts::model::pen::{ControlBoundsPen, NullPen, OutlinePen, PathElement, SvgPen};
 
 /// Style for path conversion.
 ///
