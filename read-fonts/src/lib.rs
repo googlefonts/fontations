@@ -76,6 +76,7 @@ extern crate alloc;
 pub mod array;
 pub mod collections;
 mod font_data;
+pub mod model;
 mod offset;
 mod offset_array;
 pub mod ps;

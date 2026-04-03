@@ -8,7 +8,8 @@ use super::{
     transform::{self, FontMatrix, ScaledFontMatrix, Transform},
 };
 use crate::{
-    types::{pen::OutlinePen, Fixed, GlyphId},
+    model::pen::OutlinePen,
+    types::{Fixed, GlyphId},
     ReadError,
 };
 use alloc::vec::Vec;

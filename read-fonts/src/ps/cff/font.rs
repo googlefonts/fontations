@@ -1,6 +1,7 @@
 //! Unified access to CFF/CFF2 fonts.
 
 use crate::{
+    model::pen::OutlinePen,
     ps::{
         cff::{
             blend::BlendState, charset::Charset, dict, encoding::Encoding as RawEncoding,
