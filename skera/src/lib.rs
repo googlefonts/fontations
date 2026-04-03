@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod avar;
 mod base;
 mod bidi;
 mod cblc;
@@ -49,13 +50,16 @@ use layout::{
 };
 pub use parsing_util::{
     parse_instancing_spec, parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes,
-    populate_gids,
+    populate_gids, InstancingSpec,
 };
 
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::{
-    raw::{tables::fvar::Fvar, ReadError},
+    raw::{
+        tables::{avar::Avar, fvar::Fvar},
+        ReadError,
+    },
     MetadataProvider,
 };
 use thiserror::Error;
@@ -370,12 +374,12 @@ pub struct Plan {
     gdef_varstore_inner_maps: Vec<IncBiMap>,
 
     // normalized axes range map
-    axes_location: FnvHashMap<Tag, Triple>,
+    axes_location: FnvHashMap<Tag, Triple<f64>>,
     normalized_coords: Vec<F2Dot14>,
 
     // user specified axes range map
-    user_axes_location: FnvHashMap<Tag, Triple>,
-    axes_triple_distances: FnvHashMap<Tag, TripleDistances>,
+    user_axes_location: FnvHashMap<Tag, Triple<f64>>,
+    axes_triple_distances: FnvHashMap<Tag, TripleDistances<f64>>,
     pinned_at_default: bool,
     all_axes_pinned: bool,
 
@@ -459,12 +463,13 @@ impl Plan {
         for (i, axis) in axes.iter().enumerate() {
             let axis_tag = axis.tag();
             self.axes_old_index_tag_map.insert(i, axis_tag);
-            if self
+            let is_still_variable = self
                 .user_axes_location
                 .get(&axis_tag)
-                .map(|t| !t.is_point())
-                .unwrap_or(false)
-            {
+                .map(|t: &Triple<f64>| !t.is_point())
+                .unwrap_or(true); // If not mentioned, it's variable (not pinned)
+
+            if is_still_variable {
                 axis_not_pinned = true;
                 self.axes_index_map.insert(i, new_axis_idx);
                 self.axis_tags.push(axis_tag);
@@ -474,12 +479,21 @@ impl Plan {
                 self.axes_triple_distances.insert(
                     axis_tag,
                     // These are for the whole axis, not the user chosen subspace
-                    Triple::new(axis.min_value(), axis.default_value(), axis.max_value()).into(),
+                    Triple::new(
+                        axis.min_value() as f64,
+                        axis.default_value() as f64,
+                        axis.max_value() as f64,
+                    )
+                    .into(),
                 );
                 // This rounds to f2dot14. Behdad says it should be 16.16
-                let normalized_min = axis.normalize(axis_range.minimum);
-                let normalized_default = axis.normalize(axis_range.middle);
-                let normalized_max = axis.normalize(axis_range.maximum);
+                // Don't use axis.normalize here, it rounds badly to F2Dot14. Do the normalization in f32 and then round to F2Dot14 at the end.
+                let normalized_min = normalize_axis_value(&axis, axis_range.minimum as f32);
+                let normalized_default = normalize_axis_value(&axis, axis_range.middle as f32);
+                let normalized_max = normalize_axis_value(&axis, axis_range.maximum as f32);
+                let normalized_min = (normalized_min * 16384.0).round() / 16384.0;
+                let normalized_default = (normalized_default * 16384.0).round() / 16384.0;
+                let normalized_max = (normalized_max * 16384.0).round() / 16384.0;
                 if has_avar {
                     normalized_mins.push(normalized_min);
                     normalized_defaults.push(normalized_default);
@@ -488,13 +502,13 @@ impl Plan {
                     self.axes_location.insert(
                         axis_tag,
                         Triple::new(
-                            normalized_min.to_f32(),
-                            normalized_default.to_f32(),
-                            normalized_max.to_f32(),
+                            normalized_min.into(),
+                            normalized_default.into(),
+                            normalized_max.into(),
                         ),
                     );
-                    self.normalized_coords[i] = normalized_default;
-                    if normalized_default.to_f32() != 0.0 {
+                    self.normalized_coords[i] = F2Dot14::from_f32(normalized_default);
+                    if normalized_default != 0.0 {
                         self.pinned_at_default = false;
                     }
                 }
@@ -515,13 +529,13 @@ impl Plan {
                     self.axes_location.insert(
                         axis_tag,
                         Triple::new(
-                            normalized_mins[i].to_f32(),
-                            normalized_defaults[i].to_f32(),
-                            normalized_maxs[i].to_f32(),
+                            normalized_mins[i].into(),
+                            normalized_defaults[i].into(),
+                            normalized_maxs[i].into(),
                         ),
                     );
-                    self.normalized_coords[i] = normalized_defaults[i];
-                    if normalized_defaults[i].to_f32() != 0.0 {
+                    self.normalized_coords[i] = F2Dot14::from_f32(normalized_defaults[i]);
+                    if normalized_defaults[i] != 0.0 {
                         self.pinned_at_default = false;
                     }
                 }
@@ -956,7 +970,7 @@ impl Plan {
         if spec.pin_all_axes_to_default {
             for axis in font.axes().iter() {
                 self.user_axes_location
-                    .insert(axis.tag(), Triple::point(axis.default_value()));
+                    .insert(axis.tag(), Triple::point(axis.default_value().into()));
             }
             return Ok(());
         }
@@ -966,23 +980,25 @@ impl Plan {
             match spec_axis {
                 Some(parsing_util::AxisSpec::PinToDefault) => {
                     self.user_axes_location
-                        .insert(tag, Triple::point(font_axis.default_value()));
+                        .insert(tag, Triple::point(font_axis.default_value().into()));
                 }
                 Some(parsing_util::AxisSpec::Range { min, def, max }) => {
                     let new_min = min.clamp(font_axis.min_value(), font_axis.max_value());
                     let new_max = max.clamp(font_axis.min_value(), font_axis.max_value());
                     let new_def = def.clamp(new_min, new_max);
-                    self.user_axes_location
-                        .insert(tag, Triple::new(new_min, new_def, new_max));
+                    self.user_axes_location.insert(
+                        tag,
+                        Triple::new(new_min as f64, new_def as f64, new_max as f64),
+                    );
                 }
                 None => {
                     // If an axis is not specified in the instancing spec, we keep it as is, which means it's not pinned and will not be removed.
                     self.user_axes_location.insert(
                         tag,
                         Triple::new(
-                            font_axis.min_value(),
-                            font_axis.default_value(),
-                            font_axis.max_value(),
+                            font_axis.min_value().into(),
+                            font_axis.default_value().into(),
+                            font_axis.max_value().into(),
                         ),
                     );
                 }
@@ -993,6 +1009,21 @@ impl Plan {
 }
 
 // TODO: when instancing, calculate delta value and set new varidx to NO_VARIATIONS_IDX if all axes are pinned
+
+fn normalize_axis_value(axis: &skrifa::Axis, v: f32) -> f32 {
+    let min_value = axis.min_value();
+    let default_value = axis.default_value();
+    let max_value = axis.max_value();
+    let v = v.clamp(min_value, max_value);
+
+    if v == default_value {
+        0.0
+    } else if v < default_value {
+        (v - default_value) / (default_value - min_value)
+    } else {
+        (v - default_value) / (max_value - default_value)
+    }
+}
 fn remap_variation_indices(
     vardata_count: u32,
     varidx_set: &IntSet<u32>,
@@ -1398,6 +1429,11 @@ fn subset_table<'a>(
     }
 
     match tag {
+        Avar::TAG => font
+            .avar()
+            .map_err(|_| SubsetError::SubsetTableError(Avar::TAG))?
+            .subset(plan, font, s, builder),
+
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
