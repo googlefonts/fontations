@@ -465,7 +465,7 @@ impl Plan {
         }
         this.collect_base_var_indices(font);
         this.get_instance_glyphs_contour_points(font);
-        this.get_instance_deltas(font);
+        let _ = this.get_instance_deltas(font); // Proper error handling later
         this.collect_new_metrics(font);
         this
     }
@@ -1712,10 +1712,15 @@ fn try_subset<'a>(
     table_len: u32,
     state: &mut SubsetState,
 ) -> Result<(), SubsetError> {
+    log::info!("Subsetting table {:?}", table_tag);
+
     s.start_serialize()
         .map_err(|_| SubsetError::SubsetTableError(table_tag))?;
 
     let ret = subset_table(table_tag, font, plan, builder, s, state);
+    if let Err(ret) = ret.as_ref() {
+        log::warn!("Subsetting table {} failed with error {:?}", table_tag, ret);
+    }
     if !s.ran_out_of_room() {
         s.end_serialize();
         return ret;
