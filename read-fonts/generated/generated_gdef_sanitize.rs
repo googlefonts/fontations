@@ -74,10 +74,18 @@ impl<'a> GdefSanitized<'a> {
         self.lig_caret_list_offset_pos() + Offset16::RAW_BYTE_LEN
     }
     fn mark_glyph_sets_def_offset_pos(&self) -> usize {
-        self.mark_attach_class_def_offset_pos() + Offset16::RAW_BYTE_LEN
+        if self.version().compatible((1u16, 2u16)) {
+            self.mark_attach_class_def_offset_pos() + Offset16::RAW_BYTE_LEN
+        } else {
+            self.mark_attach_class_def_offset_pos()
+        }
     }
     fn item_var_store_offset_pos(&self) -> usize {
-        self.mark_glyph_sets_def_offset_pos() + Offset16::RAW_BYTE_LEN
+        if self.version().compatible((1u16, 3u16)) {
+            self.mark_glyph_sets_def_offset_pos() + Offset16::RAW_BYTE_LEN
+        } else {
+            self.mark_glyph_sets_def_offset_pos()
+        }
     }
 
     pub fn version(&self) -> MajorMinor {
@@ -169,6 +177,9 @@ impl<'a> ReadSanitized<'a> for GdefSanitized<'a> {
 impl Sanitize for AttachList<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        if self.attach_point_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.attach_points();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -246,8 +257,7 @@ impl<'a> ReadSanitized<'a> for AttachListSanitized<'a> {
 
 impl Sanitize for AttachPoint<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        let range = self.point_indices_byte_range();
-        if range.end > self.offset_data().len() {
+        if self.point_indices_byte_range().end > self.offset_data().len() {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
@@ -302,6 +312,9 @@ impl<'a> ReadSanitized<'a> for AttachPointSanitized<'a> {
 impl Sanitize for LigCaretList<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        if self.lig_glyph_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.lig_glyphs();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -379,6 +392,9 @@ impl<'a> ReadSanitized<'a> for LigCaretListSanitized<'a> {
 
 impl Sanitize for LigGlyph<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.caret_value_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.caret_values();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -668,6 +684,9 @@ impl<'a> ReadSanitized<'a> for CaretValueFormat3Sanitized<'a> {
 
 impl Sanitize for MarkGlyphSets<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.coverage_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.coverages();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;

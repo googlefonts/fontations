@@ -64,6 +64,9 @@ impl<'a> ReadSanitized<'a> for RootTableSanitized<'a> {
 
 impl<'a, T: FontRead<'a> + Sanitize> Sanitize for GenericTable<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.subtable_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.subtables();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -212,9 +215,8 @@ impl<'a> ReadSanitized<'a> for TableGroupSanitized<'a> {
 
 impl Sanitize for TableOne<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        let range = self.records_byte_range();
-        if range.end > self.offset_data().len() {
-            return Err(ReadError::OutOfBounds);
+        if self.records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
         }
         let data = self.offset_data();
         for record in self.records() {

@@ -54,7 +54,11 @@ impl<'a> GsubSanitized<'a> {
         self.feature_list_offset_pos() + Offset16::RAW_BYTE_LEN
     }
     fn feature_variations_offset_pos(&self) -> usize {
-        self.lookup_list_offset_pos() + Offset16::RAW_BYTE_LEN
+        if self.version().compatible((1u16, 1u16)) {
+            self.lookup_list_offset_pos() + Offset16::RAW_BYTE_LEN
+        } else {
+            self.lookup_list_offset_pos()
+        }
     }
 
     pub fn version(&self) -> MajorMinor {
@@ -330,8 +334,7 @@ impl<'a> ReadSanitized<'a> for SingleSubstFormat1Sanitized<'a> {
 impl Sanitize for SingleSubstFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
-        let range = self.substitute_glyph_ids_byte_range();
-        if range.end > self.offset_data().len() {
+        if self.substitute_glyph_ids_byte_range().end > self.offset_data().len() {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
@@ -410,6 +413,9 @@ impl<'a> ReadSanitized<'a> for SingleSubstFormat2Sanitized<'a> {
 impl Sanitize for MultipleSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        if self.sequence_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.sequences();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -494,8 +500,7 @@ impl<'a> ReadSanitized<'a> for MultipleSubstFormat1Sanitized<'a> {
 
 impl Sanitize for Sequence<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        let range = self.substitute_glyph_ids_byte_range();
-        if range.end > self.offset_data().len() {
+        if self.substitute_glyph_ids_byte_range().end > self.offset_data().len() {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
@@ -552,6 +557,9 @@ impl<'a> ReadSanitized<'a> for SequenceSanitized<'a> {
 impl Sanitize for AlternateSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        if self.alternate_set_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.alternate_sets();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -638,8 +646,7 @@ impl<'a> ReadSanitized<'a> for AlternateSubstFormat1Sanitized<'a> {
 
 impl Sanitize for AlternateSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        let range = self.alternate_glyph_ids_byte_range();
-        if range.end > self.offset_data().len() {
+        if self.alternate_glyph_ids_byte_range().end > self.offset_data().len() {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
@@ -696,6 +703,9 @@ impl<'a> ReadSanitized<'a> for AlternateSetSanitized<'a> {
 impl Sanitize for LigatureSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        if self.ligature_set_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.ligature_sets();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -780,6 +790,9 @@ impl<'a> ReadSanitized<'a> for LigatureSubstFormat1Sanitized<'a> {
 
 impl Sanitize for LigatureSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.ligature_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.ligatures();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -842,8 +855,7 @@ impl<'a> ReadSanitized<'a> for LigatureSetSanitized<'a> {
 
 impl Sanitize for Ligature<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        let range = self.component_glyph_ids_byte_range();
-        if range.end > self.offset_data().len() {
+        if self.component_glyph_ids_byte_range().end > self.offset_data().len() {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
@@ -1071,16 +1083,21 @@ impl<'a> ReadSanitized<'a> for ExtensionSubtableSanitized<'a> {
 impl Sanitize for ReverseChainSingleSubstFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        if self.backtrack_coverage_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.backtrack_coverages();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
+        }
+        if self.lookahead_coverage_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
         }
         let arr = self.lookahead_coverages();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
         }
-        let range = self.substitute_glyph_ids_byte_range();
-        if range.end > self.offset_data().len() {
+        if self.substitute_glyph_ids_byte_range().end > self.offset_data().len() {
             return Err(ReadError::InvalidArrayLen);
         }
         Ok(())

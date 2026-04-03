@@ -1120,67 +1120,58 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
                 }
             }
 
-            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-                FieldType::Scalar { .. } => {
-                    let range_fn = field.shape_byte_range_fn_name();
-                    quote! {
-                        let range = self.#range_fn();
-                        if range.end > self.offset_data().len() {
-                            return Err(ReadError::InvalidArrayLen);
-                        }
+            FieldType::Array { inner_typ } => {
+                let range_fn = field.shape_byte_range_fn_name();
+                let sanitize_range = quote! {
+                    if self.#range_fn().end > self.offset_data().len() {
+                        return Err(ReadError::InvalidArrayLen);
                     }
-                }
+                };
 
-                FieldType::Struct { .. } => {
-                    let range_fn = field.shape_byte_range_fn_name();
-                    quote! {
-                        let range = self.#range_fn();
-                        if range.end > self.offset_data().len() {
-                            return Err(ReadError::OutOfBounds);
-                        }
+                let sanitize_recurse = match inner_typ.as_ref() {
+                    FieldType::Struct { .. } => Some(quote! {
                         let data = self.offset_data();
                         for record in self.#field_name() {
                             record.sanitize_record(data)?;
                         }
+                    }),
+
+                    FieldType::Offset {
+                        target: OffsetTarget::Table(_),
+                        ..
+                    } => {
+                        let getter = field.offset_getter_name().unwrap();
+                        let is_nullable = field.attrs.nullable.is_some();
+                        let is_conditional = field.attrs.conditional.is_some();
+
+                        let inner_iter = if is_nullable {
+                            quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
+                        } else {
+                            quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
+                        };
+
+                        Some(if is_conditional {
+                            quote! { if let Some(arr) = self.#getter() { #inner_iter } }
+                        } else {
+                            quote! { let arr = self.#getter(); #inner_iter }
+                        })
                     }
+                    FieldType::Scalar { .. } => None,
+
+                    FieldType::Offset {
+                        target: OffsetTarget::Array(_),
+                        ..
+                    } => Some(quote!(compile_error!(
+                        "offset to array needs addtional validation"
+                    ))),
+
+                    _ => Some(quote! { compile_error!("unexpected type in sanitize") }),
+                };
+                quote! {
+                    #sanitize_range
+                    #sanitize_recurse
                 }
-
-                FieldType::Offset {
-                    target: OffsetTarget::Table(_),
-                    ..
-                } => {
-                    let getter = field.offset_getter_name().unwrap();
-                    let is_nullable = field.attrs.nullable.is_some();
-                    let is_conditional = field.attrs.conditional.is_some();
-
-                    let inner_iter = if is_nullable {
-                        quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
-                    } else {
-                        quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
-                    };
-
-                    if is_conditional {
-                        quote! { if let Some(arr) = self.#getter() { #inner_iter } }
-                    } else {
-                        quote! { let arr = self.#getter(); #inner_iter }
-                    }
-                }
-
-                FieldType::Offset {
-                    target: OffsetTarget::Array(_),
-                    ..
-                } => {
-                    let range_fn = field.shape_byte_range_fn_name();
-                    quote! {
-                        let range = self.#range_fn();
-                        if range.end > self.offset_data().len() {
-                            return Err(ReadError::OutOfBounds);
-                        }
-                    }
-                }
-
-                _ => quote! { compile_error!("unexpected type in sanitize") },
-            },
+            }
 
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
                 let field_name = &field.name;

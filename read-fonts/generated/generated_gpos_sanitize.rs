@@ -54,7 +54,11 @@ impl<'a> GposSanitized<'a> {
         self.feature_list_offset_pos() + Offset16::RAW_BYTE_LEN
     }
     fn feature_variations_offset_pos(&self) -> usize {
-        self.lookup_list_offset_pos() + Offset16::RAW_BYTE_LEN
+        if self.version().compatible((1u16, 1u16)) {
+            self.lookup_list_offset_pos() + Offset16::RAW_BYTE_LEN
+        } else {
+            self.lookup_list_offset_pos()
+        }
     }
 
     pub fn version(&self) -> MajorMinor {
@@ -483,9 +487,8 @@ impl<'a> ReadSanitized<'a> for AnchorFormat3Sanitized<'a> {
 
 impl Sanitize for MarkArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        let range = self.mark_records_byte_range();
-        if range.end > self.offset_data().len() {
-            return Err(ReadError::OutOfBounds);
+        if self.mark_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
         }
         let data = self.offset_data();
         for record in self.mark_records() {
@@ -907,6 +910,9 @@ impl<'a> ReadSanitized<'a> for PairPosSanitized<'a> {
 impl Sanitize for PairPosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        if self.pair_set_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.pair_sets();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -1399,9 +1405,8 @@ impl<'a> ReadSanitized<'a> for Class2RecordSanitized<'a> {
 impl Sanitize for CursivePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
-        let range = self.entry_exit_record_byte_range();
-        if range.end > self.offset_data().len() {
-            return Err(ReadError::OutOfBounds);
+        if self.entry_exit_record_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
         }
         let data = self.offset_data();
         for record in self.entry_exit_record() {
@@ -1876,6 +1881,9 @@ impl<'a> ReadSanitized<'a> for MarkLigPosFormat1Sanitized<'a> {
 
 impl Sanitize for LigatureArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.ligature_attach_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         let arr = self.ligature_attaches();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;

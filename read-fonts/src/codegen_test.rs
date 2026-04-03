@@ -305,19 +305,23 @@ pub mod sanitize {
     #[cfg(test)]
     use font_test_data::bebuffer::BeBuffer;
 
-    // Builds a TableOne buffer: record_count followed by (ident, derp) pairs.
-    #[cfg(test)]
-    fn make_table_one(records: &[(u16, u16)]) -> BeBuffer {
-        let mut buf = BeBuffer::new().push(records.len() as u16);
-        for (ident, derp) in records {
-            buf = buf.push(*ident).push(*derp);
-        }
-        buf
+    #[test]
+    fn bad_array_of_offsets() {
+        let buf = BeBuffer::new().push(1u16).push(1337u16).push(0xdeadu16);
+        let table = GenericTable::<()>::read(buf.data().into()).unwrap();
+        let table = table.into_concrete::<TableOne>();
+        assert!(
+            table.sanitize().is_err(),
+            "not enough data for reported number of offsets"
+        );
     }
 
     #[test]
     fn try_sanitize_table_one() {
-        let buf = make_table_one(&[(10, 20), (30, 40)]);
+        let buf = BeBuffer::new()
+            .push(2u16) // record count
+            .extend([10u16, 20]) // record 1
+            .extend([30u16, 40]); // record 2
         let table = TableOne::read(buf.data().into()).unwrap();
         let san = table.try_sanitize().unwrap();
         assert_eq!(san.record_count(), 2);
@@ -326,6 +330,18 @@ pub mod sanitize {
         assert_eq!(records[0].derp(), 20);
         assert_eq!(records[1].ident(), 30);
         assert_eq!(records[1].derp(), 40);
+    }
+
+    #[test]
+    fn table_one_not_enough_data() {
+        let buf = BeBuffer::new()
+            .push(13u16) // record count
+            .extend([10u16, 20]) // record 1
+            .extend([30u16, 40]); // record 2
+                                  // we're missing lots more data tho
+
+        let table = TableOne::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
     }
 
     #[test]
@@ -411,7 +427,7 @@ pub mod sanitize {
             .push(1u16) // records[0].ident
             .push(2u16); // records[0].derp
         let table = TableOne::read(buf.data().into()).unwrap();
-        assert_eq!(table.sanitize(), Err(ReadError::OutOfBounds));
+        assert_eq!(table.sanitize(), Err(ReadError::InvalidArrayLen));
     }
 
     #[test]
