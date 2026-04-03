@@ -18,7 +18,9 @@ rust-brotli = ["dep:brotli-decompressor"]
 
 
 [dependencies]
-brotlic-sys = {version = "0.2.2", optional = true}
+# Can be updated once https://github.com/AronParker/brotlic/pull/5 is merged and
+# released
+brotlic-sys = { git = "https://github.com/wmedrano/brotlic.git", branch = "wm-lic", optional = true }
 brotli-decompressor = {version = "5.0.0", optional = true}
 cfg-if = "1.0.0"
 
