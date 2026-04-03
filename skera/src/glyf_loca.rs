@@ -59,8 +59,9 @@ impl Subset for Glyf<'_> {
                             .subset_flags
                             .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE)
                     {
-                        subset_glyphs.push(Vec::new());
-                        continue;
+                        // We still need to go through with this to set up the metrics,
+                        // so we need an empty glyph.
+                        maybe_glyph = None;
                     }
 
                     let Some(glyph) = g else {
@@ -202,15 +203,14 @@ fn write_glyf_loca(
     Ok(loca_out)
 }
 
-fn subset_glyph(glyph: &Glyph, plan: &Plan) -> Vec<u8> {
-    //TODO: support set_overlaps_flag and drop_hints
+fn subset_glyph(glyph: Option<&Glyph>, plan: &Plan) -> Vec<u8> {
     match glyph {
-        Composite(comp_g) => subset_composite_glyph(comp_g, plan),
-        Simple(simple_g) => subset_simple_glyph(simple_g, plan),
+        Some(Composite(comp_g)) => subset_composite_glyph(comp_g, plan),
+        Some(Simple(simple_g)) => subset_simple_glyph(simple_g, plan),
+        None => Vec::new(),
     }
 }
 
-// TODO: drop_hints and set_overlaps_flag
 fn subset_simple_glyph(g: &SimpleGlyph, plan: &Plan) -> Vec<u8> {
     let mut out = Vec::with_capacity(g.offset_data().len());
 
@@ -390,7 +390,98 @@ fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
     i
 }
 
-fn instantiate_and_subset_glyph(
+struct GlyfAccelerator<'a> {
+    loca: Loca<'a>,
+    head: Head<'a>,
+    instance_deltas: &'a FnvHashMap<GlyphId, Vec<Point<f32>>>, // *new* GID deltas
+    hmtx: skrifa::raw::tables::hmtx::Hmtx<'a>,
+    vmtx: Option<skrifa::raw::tables::vmtx::Vmtx<'a>>,
+    glyf: Glyf<'a>,
+    glyph_map: &'a FnvHashMap<GlyphId, GlyphId>,
+}
+
+impl<'a> GlyfAccelerator<'a> {
+    fn new(font: &'a FontRef, plan: &'a Plan) -> GlyfAccelerator<'a> {
+        let loca = font
+            .loca(None)
+            .expect("glyf/loca tables are required for subsetting");
+        let head = font.head().expect("head table is required for subsetting");
+        let hmtx = font.hmtx().expect("hmtx table is required for subsetting");
+        let vmtx = font.vmtx().ok();
+        let glyf = font.glyf().expect("glyf table is required for subsetting");
+
+        Self {
+            loca,
+            head,
+            hmtx,
+            vmtx,
+            glyf,
+            instance_deltas: &plan.new_gid_instance_deltas_map,
+            glyph_map: &plan.glyph_map,
+        }
+    }
+
+    fn left_side_bearing(&self, gid: GlyphId) -> f32 {
+        self.hmtx.side_bearing(gid).unwrap_or(0) as f32
+    }
+
+    fn advance_width(&self, gid: GlyphId) -> f32 {
+        self.hmtx.advance(gid).unwrap_or(0) as f32
+    }
+
+    fn get_glyph(&self, gid: GlyphId) -> Option<Glyph> {
+        self.loca.get_glyf(gid, &self.glyf).ok()?
+    }
+
+    fn units_per_em(&self) -> f32 {
+        self.head.units_per_em() as f32
+    }
+
+    fn apply_gvar_deltas_to_points(
+        &self,
+        gid: GlyphId,
+        _coords: &[F2Dot14],
+        target_points: &mut ContourPoints,
+    ) {
+        // Harfbuzz has to do this in a generic way, but we only care about deltas at the
+        // point of instantiation, which are known and collected in the plan in advance. The
+        // Deltas in the plan are keyed by new gid. But at this stage we're pretending to be the
+        // old font.
+        let new_gid = self
+            .glyph_map
+            .get(&gid)
+            .cloned()
+            .expect("BUG: all glyphs in the new font should have a mapping to the old font");
+        if let Some(deltas) = self.instance_deltas.get(&new_gid) {
+            let apply_len = deltas.len().min(target_points.0.len());
+            if apply_len == 0 {
+                return;
+            }
+            if apply_len == PHANTOM_POINT_COUNT && target_points.0.len() > PHANTOM_POINT_COUNT {
+                let start = target_points.0.len() - PHANTOM_POINT_COUNT;
+                for (point, delta) in target_points.0[start..].iter_mut().zip(deltas.iter()) {
+                    point.add_delta(delta.x, delta.y);
+                }
+            } else {
+                for (point, delta) in target_points
+                    .0
+                    .iter_mut()
+                    .zip(deltas.iter())
+                    .take(apply_len)
+                {
+                    point.add_delta(delta.x, delta.y);
+                }
+            }
+        } else {
+            log::warn!(
+                "No deltas found for gid {}, not applying any gvar deltas",
+                gid
+            );
+        }
+    }
+}
+
+fn compile_bytes_with_deltas(
     glyph: Glyph,
     plan: &Plan,
     glyph_accelerator: &GlyfAccelerator,
@@ -449,23 +540,65 @@ fn instantiate_and_subset_glyph(
             }
             simple_glyph.contours = vec![];
             let mut last_contour: Vec<CurvePoint> = vec![];
+            let mut x_min = 0;
+            let mut y_min = 0;
+            let mut x_max = 0;
+            let mut y_max = 0;
             for point in contour_points.0 {
                 last_contour.push(CurvePoint {
                     x: point.x.ot_round(),
                     y: point.y.ot_round(),
                     on_curve: point.is_on_curve,
                 });
+                x_min = x_min.min(point.x.ot_round());
+                y_min = y_min.min(point.y.ot_round());
+                x_max = x_max.max(point.x.ot_round());
+                y_max = y_max.max(point.y.ot_round());
                 if point.is_end_point {
                     simple_glyph.contours.push(last_contour.into());
                     last_contour = vec![];
                 }
             }
-            // Remove the final four contours, they're just phantom points!
-            simple_glyph.contours.truncate(
-                simple_glyph
-                    .contours
-                    .len()
-                    .saturating_sub(PHANTOM_POINT_COUNT),
+        }
+    }
+    // }
+
+    compile_header_bytes(&mut write_glyph, plan, all_points, old_gid);
+    write_fonts::dump_table(&write_glyph).map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)
+}
+
+fn compile_header_bytes(
+    write_glyph: &mut write_fonts::tables::glyf::Glyph,
+    plan: &Plan,
+    all_points: Vec<ContourPoint>,
+    old_gid: GlyphId,
+) {
+    let points = ContourPoints(all_points);
+    points.update_mtx(plan, new_gid);
+    let Some(points_without_phantoms) = points.without_phantoms() else {
+        if let write_fonts::tables::glyf::Glyph::Simple(simple_glyph) = write_glyph {
+            simple_glyph.recompute_bounding_box()
+        }
+        // We *just* have phantoms?
+        return;
+    };
+    let bounds = points_without_phantoms.get_bounds_without_phantoms();
+    match write_glyph {
+        write_fonts::tables::glyf::Glyph::Empty => {}
+        write_fonts::tables::glyf::Glyph::Simple(simple_glyph) => {
+            simple_glyph.bbox = bounds.into();
+            plan.head_maxp_info.borrow_mut().update_extrema(
+                bounds.x_min as i16,
+                bounds.y_min as i16,
+                bounds.x_max as i16,
+                bounds.y_max as i16,
+            );
+        }
+        write_fonts::tables::glyf::Glyph::Composite(composite_glyph) => {
+            log::warn!(
+                "Setting bbox for composite glyph {} to {:?} based on points without phantoms",
+                new_gid,
+                bounds
             );
             if plan
                 .subset_flags
@@ -474,6 +607,9 @@ fn instantiate_and_subset_glyph(
                 // Oops, write_fonts doesn't let us do this
                 // simple_glyph.flags.insert(SimpleGlyphFlags::OVERLAP_SIMPLE);
             }
+            plan.head_maxp_info
+                .borrow_mut()
+                .update_extrema(x_min, y_min, x_max, y_max);
             simple_glyph.recompute_bounding_box();
         }
         write_fonts::tables::glyf::Glyph::Composite(ref mut composite_glyph) => {
@@ -526,8 +662,158 @@ fn instantiate_and_subset_glyph(
             *composite_glyph = new_composite;
         }
     }
+}
 
-    write_fonts::dump_table(&write_glyph)
+fn make_composite_glyph_with_deltas(
+    composite_glyph: &mut WriteCompositeGlyph,
+    points_with_deltas: Option<Vec<ContourPoint>>,
+    plan: &Plan,
+) -> write_fonts::tables::glyf::Glyph {
+    // We can't mutate components, we have to rebuild the glyph
+    let Some(points_with_deltas) = points_with_deltas else {
+        log::debug!("We don't have any deltas for composite glyph?!");
+        return write_fonts::tables::glyf::Glyph::Composite(composite_glyph.clone());
+    };
+    let mut new_components = vec![];
+    let component_count = composite_glyph.components().len();
+    assert!(points_with_deltas.len() >= component_count + PHANTOM_POINT_COUNT,
+        "There should be at least as many points with deltas ({}) as there are components plus the phantom points ({})",
+        points_with_deltas.len(),
+        component_count + PHANTOM_POINT_COUNT,
+    );
+    log::debug!(
+        "Points with deltas for composite glyph: {:?}",
+        points_with_deltas
+    );
+    let points_without_phantoms: Vec<ContourPoint> = points_with_deltas
+        .into_iter()
+        .take(component_count)
+        .collect();
+    log::debug!(
+        "After delta application our points are: {:?}",
+        points_without_phantoms
+    );
+
+    for (component, transform) in composite_glyph
+        .components()
+        .iter()
+        .zip(points_without_phantoms.iter())
+    {
+        let mut new_component = component.clone();
+        if let Anchor::Offset { .. } = component.anchor {
+            new_component.anchor = Anchor::Offset {
+                x: transform.x.round() as i16,
+                y: transform.y.round() as i16,
+            };
+        }
+        // Harfbuzz creates an intermediate SubsetGlyph which remaps the glyph IDs.
+        // We don't have that step, so do it here.
+        new_component.glyph = plan
+            .new_to_old_gid_list
+            .iter()
+            .find_map(|(new, old)| {
+                if *old == component.glyph {
+                    Some(*new)
+                } else {
+                    None
+                }
+            })
+            .expect("BUG: all component glyphs should have been mapped in Plan::new()")
+            .try_into()
+            .unwrap();
+        // XXX I'm not entirely sure what deltas are generated for other uses
+        new_components.push(new_component);
+    }
+    let first = new_components.remove(0);
+    let mut new_composite = WriteCompositeGlyph::new(first, composite_glyph.bbox);
+    for component in new_components {
+        new_composite.add_component(component, composite_glyph.bbox);
+    }
+    // Copy instructions
+    new_composite.add_instructions(composite_glyph.instructions());
+    write_fonts::tables::glyf::Glyph::Composite(new_composite)
+}
+
+/// Wrapper around get_points_harfbuzz_standalone that returns point data in the format expected by subsetting code
+/// Returns: (all_points, ContourPoints with deltas, composite_contours_count)
+fn get_points(
+    read_glyph: Option<&Glyph>,
+    plan: &Plan,
+    glyph_accelerator: &GlyfAccelerator,
+    gid: GlyphId,
+    mut head_maxp_opt: Option<std::cell::RefMut<HeadMaxpInfo>>,
+) -> Result<(Vec<ContourPoint>, Option<Vec<ContourPoint>>), SerializeErrorFlags> {
+    // TODO: Implement wrapper that:
+    // 1. Looks up original glyph from loca/glyf
+    // 2. Gets FontRef from plan
+    // 3. Converts write_glyph back to read form
+    // 4. Calls get_points_harfbuzz_standalone with normalized coords from plan
+    // 5. Returns results in the expected format
+
+    // For now, return empty results as placeholder
+    let mut comp_points_scratch: Vec<ContourPoint> = Vec::new();
+    let mut composite_contours: usize = 0;
+    get_points_harfbuzz_standalone(
+        read_glyph,
+        gid,
+        glyph_accelerator,
+        &mut head_maxp_opt,
+        &mut comp_points_scratch,
+        &plan.normalized_coords,
+        false,
+        0,
+        &mut HashSet::new(),
+        &mut composite_contours,
+    )
+}
+
+fn make_simple_glyph_with_deltas(
+    simple_glyph: &mut write_fonts::tables::glyf::SimpleGlyph,
+    points_with_deltas: &[ContourPoint],
+    no_hinting: bool,
+) {
+    if no_hinting {
+        simple_glyph.instructions = vec![];
+    }
+    simple_glyph.contours = vec![];
+    let mut last_contour: Vec<CurvePoint> = vec![];
+    let mut x_min: i16 = i16::MAX;
+    let mut y_min: i16 = i16::MAX;
+    let mut x_max: i16 = i16::MIN;
+    let mut y_max: i16 = i16::MIN;
+    // unsigned num_points = all_points.length - 4; ->
+    // last 4 points in points_with_deltas are phantom points and should not be included
+    log::debug!(
+        "Points with deltas for simple glyph: {:?}",
+        points_with_deltas
+    );
+    for (ix, point) in points_with_deltas.iter().enumerate() {
+        if ix >= points_with_deltas.len() - 4 {
+            break;
+        }
+        let x_otround: i16 = point.x.ot_round();
+        let y_otround: i16 = point.y.ot_round();
+
+        last_contour.push(CurvePoint {
+            x: x_otround,
+            y: y_otround,
+            on_curve: point.is_on_curve,
+        });
+        x_min = x_min.min(x_otround);
+        y_min = y_min.min(y_otround);
+        x_max = x_max.max(x_otround);
+        y_max = y_max.max(y_otround);
+        if point.is_end_point {
+            simple_glyph.contours.push(last_contour.into());
+            last_contour = vec![];
+        }
+    }
+    simple_glyph.bbox = Bbox {
+        x_min,
+        y_min,
+        x_max,
+        y_max,
+    };
 }
 
 #[derive(Clone, Copy)]
@@ -565,20 +851,61 @@ impl ContourPoint {
     }
 }
 
+impl From<CurvePoint> for ContourPoint {
+    fn from(curve_point: CurvePoint) -> Self {
+        Self {
+            x: curve_point.x as f32,
+            y: curve_point.y as f32,
+            is_end_point: false,
+            is_on_curve: curve_point.on_curve,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ContourPoints(pub Vec<ContourPoint>);
 impl ContourPoints {
     fn new() -> Self {
         Self(Vec::new())
     }
-    fn add_deltas(&mut self, deltas: &[Point<f32>]) {
+    pub(crate) fn add_deltas(&mut self, deltas: &[Point<f32>]) {
         for i in 0..deltas.len() {
             self.0[i].add_delta(deltas[i].x, deltas[i].y);
         }
     }
+    pub(crate) fn add_deltas_with_indices(
+        &mut self,
+        deltas_x: &[f32],
+        deltas_y: &[f32],
+        indices: &[bool],
+    ) {
+        for i in 0..deltas_x.len() {
+            if indices[i] {
+                self.0[i].add_delta(deltas_x[i], deltas_y[i]);
+            }
+        }
+    }
+
+    fn without_phantoms(&self) -> Option<ContourPoints> {
+        if self.0.len() < PHANTOM_POINT_COUNT {
+            return None;
+        }
+        Some(ContourPoints(
+            self.0
+                .iter()
+                .take(self.0.len() - PHANTOM_POINT_COUNT)
+                .cloned()
+                .collect(),
+        ))
+    }
 }
 
 impl ContourPoints {
+    /// Recursively gather contour points from a glyph and its components.
+    /// This faithfully follows the Harfbuzz algorithm in Glyph::get_points().
+    /// For simple glyphs: collects the contour points directly.
+    /// For composite glyphs: recursively gathers points from all components.
+    /// For empty glyphs: returns an empty vector.
     fn get_points_and_metrics(
         glyph: &Glyph,
         gid: GlyphId,
@@ -589,6 +916,7 @@ impl ContourPoints {
 
         match glyph {
             Simple(simple_glyph) => {
+                // Collect contour points and mark end points
                 let end_points = simple_glyph
                     .end_pts_of_contours()
                     .iter()
@@ -627,7 +955,9 @@ impl ContourPoints {
             }
         }
 
-        let (lsb, aw) = if let Some(gid) = steal_metrics {
+        // Get metrics for this glyph
+        let (lsb, aw) = if let Some(steal_gid) = steal_metrics {
+            // Steal metrics from the first component with USE_MY_METRICS flag
             let loca = font.loca(None)?;
             let glyf = font.glyf()?;
             let other_glyph = loca.get_glyf(gid.into(), &glyf)?;
@@ -642,13 +972,67 @@ impl ContourPoints {
             (lsb, aw)
         };
 
-        // Now get metrics
-
         Ok((contour_points, steal_metrics, lsb, aw))
     }
 
-    pub(crate) fn from_glyph_no_var(
-        glyph: &Glyph<'_>,
+    /// Apply component transformation and translation to gathered points.
+    /// This follows the Harfbuzz algorithm where component points are transformed
+    /// according to the component's anchor (translation) and optional transform matrix.
+    fn apply_component_transform(
+        points: &mut Vec<ContourPoint>,
+        component: &write_fonts::read::tables::glyf::Component,
+    ) {
+        // Get translation from component anchor
+        let (dx, dy) = match component.anchor {
+            Anchor::Point { .. } => {
+                // Anchor point mode doesn't translate points independently
+                (0.0, 0.0)
+            }
+            Anchor::Offset { x, y } => (x as f32, y as f32),
+        };
+
+        // Get scale/rotation from component transformation
+        // Default identity transform: [1, 0, 0, 1]
+        let transform = component.transform;
+        let scale_x = transform.xx.to_f32();
+        let scale_y = transform.yy.to_f32();
+        let skew_xy = transform.xy.to_f32();
+        let skew_yx = transform.yx.to_f32();
+
+        if points.len() > 0 {
+            debug!(
+                "Applying transform: dx={}, dy={}, scale_x={}, scale_y={}, skew_xy={}, skew_yx={}",
+                dx, dy, scale_x, scale_y, skew_xy, skew_yx
+            );
+            let first_point = &points[0];
+            debug!(
+                "First point before transform: x={}, y={}",
+                first_point.x, first_point.y
+            );
+        }
+
+        // Apply transformation and translation to each point (including phantom points)
+        // Phantom points carry metric information and must be transformed too
+        for point in points.iter_mut() {
+            let x = point.x;
+            let y = point.y;
+
+            // Apply 2x2 matrix transformation: [x', y'] = [[xx, xy], [yx, yy]] * [x, y] + [dx, dy]
+            point.x = x * scale_x + y * skew_xy + dx;
+            point.y = x * skew_yx + y * scale_y + dy;
+        }
+
+        if points.len() > 0 {
+            let first_point = &points[0];
+            debug!(
+                "First point after transform: x={}, y={}",
+                first_point.x, first_point.y
+            );
+        }
+    }
+
+    pub(crate) fn get_all_points_without_var(
+        glyph: &Option<Glyph<'_>>,
         font: &FontRef<'_>,
         glyph_id: GlyphId,
     ) -> Result<Self, ReadError> {
@@ -678,6 +1062,341 @@ impl ContourPoints {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+/// Port of Harfbuzz's Glyph::get_points() - Recursively gathers contour points with gvar deltas applied at each level.
+fn get_points_harfbuzz_standalone(
+    glyph: Option<&Glyph<'_>>,
+    gid: GlyphId,
+    glyph_accelerator: &GlyfAccelerator,
+    head_maxp_info_opt: &mut Option<std::cell::RefMut<HeadMaxpInfo>>,
+    comp_points_scratch: &mut Vec<ContourPoint>,
+    coords: &[font_types::F2Dot14],
+    shift_points_hori: bool,
+    depth: usize,
+    decycler: &mut HashSet<GlyphId>,
+    composite_contours: &mut usize,
+) -> Result<(Vec<ContourPoint>, Option<Vec<ContourPoint>>), SerializeErrorFlags> {
+    // log::debug!("Getting points for gid {} at depth {}", gid, depth);
+    let mut all_points = Vec::new();
+    let mut points_with_deltas = None;
+    const HB_MAX_NESTING_LEVEL: usize = 100;
+    // const HB_MAX_GRAPH_EDGE_COUNT: usize = 10000;
+
+    // // Edge counter for cycle detection in the point graph
+    // static mut EDGE_COUNT: usize = 0;
+    // unsafe {
+    //     if EDGE_COUNT > HB_MAX_GRAPH_EDGE_COUNT {
+    //         log::error!(
+    //             "Exceeded maximum graph edge count of {}",
+    //             HB_MAX_GRAPH_EDGE_COUNT
+    //         );
+    //         return Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW);
+    //     }
+    //     EDGE_COUNT += 1;
+    // }
+
+    if depth > HB_MAX_NESTING_LEVEL {
+        log::error!(
+            "Exceeded maximum glyph nesting level of {}",
+            HB_MAX_NESTING_LEVEL
+        );
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW);
+    }
+
+    if let Some(ref mut info) = head_maxp_info_opt {
+        info.update_max_component_depth(depth);
+    }
+
+    // Select target buffer based on glyph type
+    // Simple glyphs / empty → all_points, Composite glyphs → comp_points_scratch (anchors only)
+    // We use a scratch buffer since we're going to be accumulating them recursively.
+    let is_simple = matches!(glyph, Some(Glyph::Simple(_)) | None);
+    let target_points: &mut Vec<ContourPoint> = if is_simple {
+        &mut all_points
+    } else {
+        comp_points_scratch
+    };
+
+    let old_length = target_points.len();
+
+    // ========== SECTION 1: Load contour points based on glyph type ==========
+    // This follows Harfbuzz lines ~336-355
+    match glyph {
+        Some(Glyph::Simple(simple_glyph)) => {
+            if depth == 0 {
+                if let Some(ref mut info) = head_maxp_info_opt {
+                    info.update_max_contours(simple_glyph.number_of_contours() as u16);
+                }
+            }
+            if depth > 0 {
+                let num_contours = simple_glyph.number_of_contours();
+                if num_contours > 0 {
+                    *composite_contours += num_contours as usize;
+                }
+            }
+
+            // Collect contour points from simple glyph. No variations yet.
+            let end_points = simple_glyph
+                .end_pts_of_contours()
+                .iter()
+                .map(|e| e.get())
+                .collect::<Vec<u16>>();
+
+            target_points.extend(simple_glyph.points().enumerate().map(|(ix, p)| {
+                ContourPoint::new(
+                    p.x as f32,
+                    p.y as f32,
+                    p.on_curve,
+                    end_points.contains(&(ix as u16)),
+                )
+            }));
+        }
+        Some(Glyph::Composite(composite_glyph)) => {
+            // Collect composite anchor points (these hold transformation info)
+            // equivalent of item.get_points() in Harfbuzz's CompositeGlyph.hh
+            // log::debug!(
+            //     "Adding points to the target for a composite glyph with {} components",
+            //     composite_glyph.components().count()
+            // );
+            for component in composite_glyph.components() {
+                match component.anchor {
+                    Anchor::Point { .. } => {
+                        target_points.push(ContourPoint::new(0.0, 0.0, false, false));
+                    }
+                    Anchor::Offset { x, y } => {
+                        target_points.push(ContourPoint::new(x as f32, y as f32, false, false));
+                    }
+                }
+            }
+        }
+        None => {
+            // Empty glyph - nothing to collect
+        }
+    }
+
+    /* Init phantom points */
+    // Section should be repeated from get_all_points_without_var
+    // Get glyph metrics from hmtx/vmtx tables (not instantiated, just defaults)
+
+    let x_min = match glyph {
+        Some(Glyph::Simple(sg)) => sg.x_min() as f32,
+        Some(Glyph::Composite(cg)) => cg.x_min() as f32,
+        None => 0.0,
+    };
+    let y_max = match glyph {
+        Some(Glyph::Simple(sg)) => sg.y_max() as f32,
+        Some(Glyph::Composite(cg)) => cg.y_max() as f32,
+        None => 0.0,
+    };
+
+    let lsb = glyph_accelerator.left_side_bearing(gid);
+    let h_adv = glyph_accelerator.advance_width(gid);
+    let h_delta = x_min - lsb;
+
+    let tsb = 0.0; // TODO: use vmtx if available
+    let v_orig = y_max + tsb;
+    let v_adv = -glyph_accelerator.units_per_em(); // TODO: use vmtx if available
+
+    // Set phantom point coordinates (PHANTOM_LEFT, PHANTOM_RIGHT, PHANTOM_TOP, PHANTOM_BOTTOM)
+    let phantoms_start = target_points.len();
+    target_points.push(ContourPoint::new(h_delta, 0.0, false, false));
+    target_points.push(ContourPoint::new(h_adv + h_delta, 0.0, false, false));
+    target_points.push(ContourPoint::new(0.0, v_orig, false, false));
+    target_points.push(ContourPoint::new(0.0, v_orig - v_adv, false, false));
+    let mut phantoms = target_points[phantoms_start..phantoms_start + PHANTOM_POINT_COUNT].to_vec();
+
+    // ========== SECTION 3: Apply gvar deltas to just-added points ==========
+    if !coords.is_empty() {
+        // This is ugly but will do for now.
+        // if !is_simple {
+        //     log::debug!("Points before gvar deltas: {:?}", target_points);
+        // }
+        let mut cp = ContourPoints(target_points[old_length..].to_vec());
+        glyph_accelerator.apply_gvar_deltas_to_points(
+            gid, coords, &mut cp,
+            // scratch, gvar cache, phantom_only
+        );
+        target_points[old_length..].copy_from_slice(cp.0.as_slice());
+        phantoms = target_points[phantoms_start..phantoms_start + PHANTOM_POINT_COUNT].to_vec();
+        // if !is_simple {
+        //     log::debug!("Points after applying gvar deltas: {:?}", target_points);
+        // }
+    }
+
+    let anchor_points = if is_simple {
+        None
+    } else {
+        Some(comp_points_scratch.clone())
+    };
+
+    // mainly used by CompositeGlyph calculating new X/Y offset value so no need to extend it
+    // with child glyphs' points
+    if points_with_deltas.is_none() && depth == 0 && !is_simple {
+        if let Some(ref points) = anchor_points {
+            points_with_deltas = Some(points.clone());
+        }
+    }
+
+    let mut shift: f32 = 0.0;
+
+    match glyph {
+        Some(Glyph::Simple(_)) => {
+            // Harfbuzz lines ~414-418
+            shift = phantoms[0].x;
+
+            if let Some(ref mut info) = head_maxp_info_opt {
+                if depth == 0 {
+                    info.update_max_points(
+                        all_points.len() as u16 - old_length as u16 - PHANTOM_POINT_COUNT as u16,
+                    );
+                }
+            }
+        }
+        Some(Glyph::Composite(composite_glyph)) => {
+            // Harfbuzz lines ~419-467: This is the complex recursive section
+
+            if depth == 0 && !coords.is_empty() {
+                // log::debug!(
+                //     "Composite glyph {} phantoms before component processing: {:?}",
+                //     gid,
+                //     &phantoms
+                // );
+            }
+
+            for (comp_index, component) in composite_glyph.components().enumerate() {
+                let item_gid = component.glyph.into();
+
+                // Skip if this component creates a cycle
+                if decycler.contains(&item_gid) {
+                    continue;
+                }
+
+                decycler.insert(item_gid);
+
+                let old_count = all_points.len();
+
+                // Recursively get points for this component (with deltas applied at ITS level)
+                let use_my_metrics = component
+                    .flags
+                    .contains(CompositeGlyphFlags::USE_MY_METRICS);
+
+                let component_glyph = glyph_accelerator.get_glyph(item_gid);
+
+                // RECURSIVE CALL: get_points_harfbuzz applies deltas for THIS component
+                let (mut child_points, _child_points_with_deltas) = get_points_harfbuzz_standalone(
+                    component_glyph.as_ref(),
+                    item_gid,
+                    glyph_accelerator,
+                    head_maxp_info_opt,
+                    comp_points_scratch,
+                    coords,
+                    shift_points_hori,
+                    depth + 1,
+                    decycler,
+                    composite_contours,
+                )?;
+
+                let comp_points_len = child_points.len();
+                all_points.append(&mut child_points);
+
+                // Copy USE_MY_METRICS phantoms if needed
+                // NOTE: According to Harfbuzz behavior and testing, USE_MY_METRICS affects
+                // rasterizer behavior but does NOT change which phantom points are used for
+                // the final metrics table. The composite glyph's own phantom points (after
+                // applying the composite's gvar deltas) should be used, not the component's.
+                // Copying the component's phantoms here causes incorrect advance widths.
+                // See: https://github.com/harfbuzz/harfbuzz/blob/main/src/OT/glyf/Glyph.hh
+                if false && use_my_metrics && comp_points_len >= PHANTOM_POINT_COUNT {
+                    let comp_phantom_start = all_points.len() - PHANTOM_POINT_COUNT;
+                    phantoms[..PHANTOM_POINT_COUNT].copy_from_slice(
+                        &all_points[comp_phantom_start..(PHANTOM_POINT_COUNT + comp_phantom_start)],
+                    );
+                }
+
+                // ========== Apply component transformation ==========
+                // Harfbuzz lines ~467-475: Component points are transformed by matrix + translation
+                if comp_points_len > 0 {
+                    let transform = component.transform;
+                    let scale_x = transform.xx.to_f32();
+                    let scale_y = transform.yy.to_f32();
+                    let skew_xy = transform.xy.to_f32();
+                    let skew_yx = transform.yx.to_f32();
+
+                    let anchor_point = anchor_points
+                        .as_ref()
+                        .and_then(|points| points.get(old_length + comp_index))
+                        .copied()
+                        .unwrap_or_else(|| ContourPoint::new(0.0, 0.0, false, false));
+                    let (dx, dy) = (anchor_point.x, anchor_point.y);
+
+                    for point in all_points.iter_mut().skip(old_count).take(comp_points_len) {
+                        let x = point.x;
+                        let y = point.y;
+                        point.x = x * scale_x + y * skew_xy + dx;
+                        point.y = x * skew_yx + y * scale_y + dy;
+                    }
+                }
+
+                // ========== Handle anchored components ==========
+                // Harfbuzz lines ~451-463: Anchor-based positioning adjustment
+                // TODO: Implement anchor point matching:
+                // if (item.is_anchored() && !phantom_only) {
+                //   p1 = composite reference point (in all_points)
+                //   p2 = component reference point (in component's points)
+                //   delta = (all_points[p1] - comp_points[p2])
+                //   translate all component points by delta
+                // }
+
+                // Remove phantom points from component before continuing
+                // They'll be re-added to top-level phantoms after processing all components
+                if all_points.len() >= PHANTOM_POINT_COUNT {
+                    all_points.truncate(all_points.len() - PHANTOM_POINT_COUNT);
+                }
+
+                decycler.remove(&item_gid);
+            }
+
+            // Re-attach top-level phantom points at the end
+            // These have been potentially updated by USE_MY_METRICS components
+            all_points.extend(phantoms.iter().copied());
+
+            if let Some(ref mut info) = head_maxp_info_opt {
+                if depth == 0 {
+                    info.update_max_composite_contours(*composite_contours as u16);
+                    info.update_max_composite_points(
+                        all_points.len() as u16 - PHANTOM_POINT_COUNT as u16,
+                    );
+                    info.update_max_component_elements(composite_glyph.components().count() as u16);
+                }
+            }
+            shift = phantoms[0].x;
+
+            // Clear scratch buffer
+            comp_points_scratch.clear();
+        }
+        None => {
+            // ========== SECTION 5c: Empty glyph ==========
+            // Just return phantoms, no shift needed in most cases
+            shift = if all_points.len() >= PHANTOM_POINT_COUNT {
+                all_points[all_points.len() - PHANTOM_POINT_COUNT].x
+            } else {
+                0.0
+            };
+        }
+    }
+
+    // ========== SECTION 6: Apply horizontal shift at top level ==========
+    // Harfbuzz lines ~469-475: "Shift points horizontally by the updated left side bearing"
+    // This is an undocumented rasterizer behavior that Harfbuzz maintains for compatibility
+    if depth == 0 && shift_points_hori && shift != 0.0 {
+        for point in all_points.iter_mut() {
+            point.x -= shift;
+        }
+    }
+
+    Ok((all_points, points_with_deltas))
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -690,7 +1409,7 @@ mod test {
         let glyf = font.glyf().unwrap();
         let glyph = loca.get_glyf(GlyphId::from(1_u16), &glyf).unwrap().unwrap();
 
-        let subset_output = subset_glyph(&glyph, &plan);
+        let subset_output = subset_glyph(Some(&glyph), &plan);
         assert_eq!(subset_output.len(), 23);
         assert_eq!(
             subset_output,
@@ -712,7 +1431,7 @@ mod test {
         plan.glyph_map
             .insert(GlyphId::from(1_u16), GlyphId::from(2_u16));
 
-        let subset_glyph = subset_glyph(&glyph, &plan);
+        let subset_glyph = subset_glyph(Some(&glyph), &plan);
         assert_eq!(subset_glyph.len(), 20);
         assert_eq!(
             subset_glyph,

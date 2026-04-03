@@ -1,9 +1,7 @@
 //! impl subset() for head
-use crate::{serialize::Serializer, Plan, Subset, SubsetError};
-use write_fonts::{
-    read::{tables::head::Head, FontRef, TopLevelTable},
-    FontBuilder,
-};
+use crate::Plan;
+use skrifa::raw::tables::head;
+use write_fonts::read::tables::head::Head;
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct HeadMaxpInfo {
@@ -23,9 +21,9 @@ impl Default for HeadMaxpInfo {
     fn default() -> Self {
         Self {
             x_min: i16::MAX,
-            x_max: i16::MIN,
+            x_max: -32767,
             y_min: i16::MAX,
-            y_max: i16::MIN,
+            y_max: -32767,
             max_points: 0,
             max_contours: 0,
             max_composite_points: 0,

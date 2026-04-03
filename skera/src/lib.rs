@@ -383,6 +383,7 @@ pub struct Plan {
     // normalized axes range map
     axes_location: FnvHashMap<Tag, Triple<f64>>,
     normalized_coords: Vec<F2Dot14>,
+    normalized_coords_16_16: Vec<F2Dot14>,
     //map: new_gid -> contour points vector
     new_gid_contour_points_map: FnvHashMap<GlyphId, ContourPoints>,
     // new gids set for composite glyphs
@@ -1058,6 +1059,12 @@ impl Plan {
     }
 
     fn get_instance_glyphs_contour_points(&mut self, font: &FontRef) -> Result<(), SubsetError> {
+        if self.normalized_coords.is_empty() || self.all_axes_pinned {
+            // Per harfbuzz:
+            // contour_points vector only needed for updating gvar table (infer delta and
+            // iup delta optimization) during partial instancing
+            return Ok(());
+        }
         let Ok(loca) = font.loca(None) else {
             return Ok(());
         }; // Could be CFF
@@ -1065,93 +1072,16 @@ impl Plan {
             return Ok(());
         }; // loca but no glyf? No outlines for you.
         for (new_gid, old_gid) in self.new_to_old_gid_list.iter() {
-            if new_gid.to_u32() == 0
-                && !(self
-                    .subset_flags
-                    .contains(SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE))
-            {
-                // .notdef with no outline, but still needs phantom points
-                let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
-                let lsb = metrics.left_side_bearing(*old_gid).unwrap_or(0.0);
-                let aw = metrics.advance_width(*old_gid).unwrap_or(0.0);
-
-                let mut contour_points = ContourPoints(Vec::new());
-                contour_points.0.push(ContourPoint {
-                    x: lsb,
-                    y: 0.0,
-                    is_end_point: true,
-                    is_on_curve: true,
-                });
-                contour_points.0.push(ContourPoint {
-                    x: aw,
-                    y: 0.0,
-                    is_end_point: true,
-                    is_on_curve: true,
-                });
-                contour_points.0.push(ContourPoint {
-                    x: 0.0,
-                    y: 0.0,
-                    is_end_point: true,
-                    is_on_curve: true,
-                });
-                contour_points.0.push(ContourPoint {
-                    x: 0.0,
-                    y: 0.0,
-                    is_end_point: true,
-                    is_on_curve: true,
-                });
-
-                self.new_gid_contour_points_map
-                    .insert(*new_gid, contour_points);
-                continue;
-            }
             let glyph_result = loca.get_glyf(*old_gid, &glyf);
 
             let glyph = match glyph_result {
-                Ok(Some(glyph)) => {
+                Ok(glyph) => {
                     self.new_gid_contour_points_map.insert(
                         *new_gid,
                         ContourPoints::from_glyph_no_var(&glyph, font, *old_gid)
                             .map_err(SubsetError::ReadError)?,
                     );
-                    Some(glyph)
-                }
-                Ok(None) => {
-                    // Empty glyph (no outline), but still needs phantom points for metrics
-                    let metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
-                    let lsb = metrics.left_side_bearing(*old_gid).unwrap_or(0.0);
-                    let aw = metrics.advance_width(*old_gid).unwrap_or(0.0);
-
-                    let mut contour_points = ContourPoints(Vec::new());
-                    // Add 4 phantom points for empty glyph
-                    contour_points.0.push(ContourPoint {
-                        x: lsb,
-                        y: 0.0,
-                        is_end_point: true,
-                        is_on_curve: true,
-                    });
-                    contour_points.0.push(ContourPoint {
-                        x: aw,
-                        y: 0.0,
-                        is_end_point: true,
-                        is_on_curve: true,
-                    });
-                    contour_points.0.push(ContourPoint {
-                        x: 0.0,
-                        y: 0.0,
-                        is_end_point: true,
-                        is_on_curve: true,
-                    });
-                    contour_points.0.push(ContourPoint {
-                        x: 0.0,
-                        y: 0.0,
-                        is_end_point: true,
-                        is_on_curve: true,
-                    });
-
-                    self.new_gid_contour_points_map
-                        .insert(*new_gid, contour_points);
-                    None
+                    glyph
                 }
                 Err(_) => {
                     // Error reading glyph - insert empty for safety
@@ -1167,12 +1097,6 @@ impl Plan {
             {
                 self.composite_new_gids.insert(*new_gid);
             }
-        }
-        for (new_gid, _) in self.new_to_old_gid_list.iter() {
-            assert!(
-                self.new_gid_contour_points_map.contains_key(new_gid),
-                "Contour points should be collected for all glyphs when instancing, even empty or error glyphs, to ensure phantom points are available for delta calculations and metrics."
-            );
         }
         Ok(())
     }
