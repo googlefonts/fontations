@@ -36,7 +36,10 @@ mod variations;
 mod vmtx;
 mod vorg;
 mod vvar;
-use crate::repack::resolve_overflows;
+use crate::{
+    repack::resolve_overflows,
+    variations::solver::{Triple, TripleDistances},
+};
 use gdef::CollectUsedMarkSets;
 use inc_bimap::IncBiMap;
 use layout::{
@@ -50,7 +53,7 @@ pub use parsing_util::{
 
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
-use skrifa::MetadataProvider;
+use skrifa::{raw::ReadError, MetadataProvider};
 use thiserror::Error;
 use write_fonts::{
     read::{
@@ -91,7 +94,7 @@ use write_fonts::{
             vorg::Vorg,
             vvar::Vvar,
         },
-        types::{GlyphId, NameId, Tag},
+        types::{F2Dot14, GlyphId, NameId, Tag},
         FontRef, TableProvider, TopLevelTable,
     },
     FontBuilder,
@@ -386,6 +389,22 @@ pub struct Plan {
     layout_varidx_delta_map: FnvHashMap<u32, (u32, i32)>,
     //GDEF table varstore retained varidx mapping
     gdef_varstore_inner_maps: Vec<IncBiMap>,
+
+    // normalized axes range map
+    axes_location: FnvHashMap<Tag, Triple>,
+    normalized_coords: Vec<F2Dot14>,
+    normalized_coords_16_16: Vec<F2Dot14>,
+
+    // user specified axes range map
+    user_axes_location: FnvHashMap<Tag, Triple>,
+    axes_triple_distances: FnvHashMap<Tag, TripleDistances>,
+    pinned_at_default: bool,
+    all_axes_pinned: bool,
+
+    //retained old axis index -> new axis index mapping in fvar axis array
+    axes_index_map: FnvHashMap<usize, usize>,
+    axis_tags: Vec<Tag>,
+    axes_old_index_tag_map: FnvHashMap<usize, Tag>,
 }
 
 #[derive(Default)]
@@ -416,6 +435,7 @@ impl Plan {
             layout_features: layout_features.clone(),
             name_ids: name_ids.clone(),
             name_languages: name_languages.clone(),
+            pinned_at_default: true,
             ..Default::default()
         };
 
@@ -424,6 +444,7 @@ impl Plan {
         this.no_subset_tables
             .extend(default_no_subset_tables.iter().copied());
 
+        let _ = this.normalize_axes_location(font); // Proper error handling later
         this.populate_unicodes_to_retain(input_gids, input_unicodes, font);
         this.populate_gids_to_retain(font);
         this.create_old_gid_to_new_gid_map();
@@ -438,6 +459,156 @@ impl Plan {
         }
         this.collect_base_var_indices(font);
         this
+    }
+
+    fn normalize_axes_location(&mut self, font: &FontRef) -> Result<(), ReadError> {
+        if self.user_axes_location.is_empty() {
+            return Ok(());
+        }
+        let axes = font.axes();
+        let has_avar = font.avar().is_ok();
+        let mut axis_not_pinned = false;
+        let mut new_axis_idx = 0;
+        let mut normalized_mins = vec![];
+        let mut normalized_defaults = vec![];
+        let mut normalized_maxs = vec![];
+        let mut normalized_mins_16_16 = vec![];
+        let mut normalized_defaults_16_16 = vec![];
+        let mut normalized_maxs_16_16 = vec![];
+        self.normalized_coords = vec![F2Dot14::ZERO; axes.len()];
+        let mut normalized_coords_16_16 = vec![0i32; axes.len()];
+        for (i, axis) in axes.iter().enumerate() {
+            let axis_tag = axis.tag();
+            self.axes_old_index_tag_map.insert(i, axis_tag);
+            let is_still_variable = self
+                .user_axes_location
+                .get(&axis_tag)
+                .map(|t: &Triple| !t.is_point())
+                .unwrap_or(true); // If not mentioned, it's variable (not pinned)
+
+            if is_still_variable {
+                axis_not_pinned = true;
+                self.axes_index_map.insert(i, new_axis_idx);
+                self.axis_tags.push(axis_tag);
+                new_axis_idx += 1;
+            }
+            if let Some(axis_range) = self.user_axes_location.get(&axis_tag) {
+                self.axes_triple_distances.insert(
+                    axis_tag,
+                    // These are for the whole axis, not the user chosen subspace
+                    Triple::new(
+                        axis.min_value() as f64,
+                        axis.default_value() as f64,
+                        axis.max_value() as f64,
+                    )
+                    .into(),
+                );
+                // This rounds to f2dot14. Behdad says it should be 16.16
+                // Don't use axis.normalize here, it rounds badly to F2Dot14. Do the normalization in f32 and then round to F2Dot14 at the end.
+                let normalized_min = normalize_axis_value(&axis, axis_range.minimum as f32);
+                let normalized_default = normalize_axis_value(&axis, axis_range.middle as f32);
+                let normalized_max = normalize_axis_value(&axis, axis_range.maximum as f32);
+
+                // Compute 16.16 values BEFORE rounding to 2.14 (from original unrounded floats)
+                let normalized_min_16_16 = (normalized_min * 65536.0).round() as i32;
+                let normalized_default_16_16 = (normalized_default * 65536.0).round() as i32;
+                let normalized_max_16_16 = (normalized_max * 65536.0).round() as i32;
+
+                // Round to 2.14 for 2.14 path
+                let normalized_min = (normalized_min * 16384.0).round() / 16384.0;
+                let normalized_default = (normalized_default * 16384.0).round() / 16384.0;
+                let normalized_max = (normalized_max * 16384.0).round() / 16384.0;
+
+                if has_avar {
+                    normalized_mins.push(normalized_min);
+                    normalized_defaults.push(normalized_default);
+                    normalized_maxs.push(normalized_max);
+                    normalized_mins_16_16.push(normalized_min_16_16);
+                    normalized_defaults_16_16.push(normalized_default_16_16);
+                    normalized_maxs_16_16.push(normalized_max_16_16);
+                } else {
+                    self.axes_location.insert(
+                        axis_tag,
+                        Triple::new(
+                            normalized_min.into(),
+                            normalized_default.into(),
+                            normalized_max.into(),
+                        ),
+                    );
+                    self.normalized_coords[i] = F2Dot14::from_f32(normalized_default);
+                    normalized_coords_16_16[i] = normalized_default_16_16;
+                    if normalized_default != 0.0 {
+                        self.pinned_at_default = false;
+                    }
+                }
+            }
+        }
+        self.all_axes_pinned = !axis_not_pinned;
+        if let Ok(avar) = font.avar() {
+            if avar.version().major == 2 {
+                // Partial-instancing avar2 table is not supported
+                return Err(ReadError::InvalidFormat(2));
+            }
+            normalized_mins = avar::map_coords_2_14(&avar, normalized_mins)?;
+            normalized_defaults = avar::map_coords_2_14(&avar, normalized_defaults)?;
+            normalized_maxs = avar::map_coords_2_14(&avar, normalized_maxs)?;
+
+            // Round avar-mapped values back to 2.14 precision
+            normalized_mins = normalized_mins
+                .iter()
+                .map(|&v| (v * 16384.0).round() / 16384.0)
+                .collect();
+            normalized_defaults = normalized_defaults
+                .iter()
+                .map(|&v| (v * 16384.0).round() / 16384.0)
+                .collect();
+            normalized_maxs = normalized_maxs
+                .iter()
+                .map(|&v| (v * 16384.0).round() / 16384.0)
+                .collect();
+
+            // Apply avar mapping to 16.16 coordinates as well
+            // Convert 16.16 to floats for avar processing
+            let defaults_16_16_float: Vec<f32> = normalized_defaults_16_16
+                .iter()
+                .map(|&v| v as f32 / 65536.0)
+                .collect();
+
+            let defaults_16_16_float = avar::map_coords_2_14(&avar, defaults_16_16_float)?;
+
+            // Convert back to 16.16 format
+            for (i, val) in defaults_16_16_float.iter().enumerate() {
+                normalized_defaults_16_16[i] = (val * 65536.0).round() as i32;
+            }
+
+            for (i, axis) in axes.iter().enumerate() {
+                let axis_tag = axis.tag();
+                if self.user_axes_location.contains_key(&axis_tag) {
+                    self.axes_location.insert(
+                        axis_tag,
+                        Triple::new(
+                            normalized_mins[i].into(),
+                            normalized_defaults[i].into(),
+                            normalized_maxs[i].into(),
+                        ),
+                    );
+                    self.normalized_coords[i] =
+                        F2Dot14::from_bits((normalized_defaults[i] * 16384.0).round() as i16);
+                    normalized_coords_16_16[i] = normalized_defaults_16_16[i];
+                    if normalized_defaults[i] != 0.0 {
+                        self.pinned_at_default = false;
+                    }
+                }
+            }
+        }
+
+        // Convert 16.16 coords to F2DOT14.
+        self.normalized_coords_16_16 = normalized_coords_16_16
+            .iter()
+            .map(|&v| F2Dot14::from_bits(((v + 2) >> 2).try_into().unwrap_or(i16::MAX)))
+            .collect();
+
+        Ok(())
     }
 
     fn populate_unicodes_to_retain(
@@ -1349,7 +1520,7 @@ fn subset_table<'a>(
             .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?
             .subset(plan, font, s, builder),
 
-        Fvar::TAG | Cvar::TAG | Avar::TAG => passthrough_table(tag, font, s),
+        Fvar::TAG | Cvar::TAG => passthrough_table(tag, font, s),
         // MVAR/CVT: not supported by read-fonts, but we want to pass through it during subsetting
         MVAR | CVT => passthrough_table(tag, font, s),
 
