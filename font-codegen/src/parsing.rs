@@ -1629,14 +1629,15 @@ impl Count {
     }
 
     pub(crate) fn count_expr(&self) -> TokenStream {
-        self.count_expr_impl(false)
+        self.count_expr_impl(false, false)
     }
 
-    pub(crate) fn sanitized_count_expr(&self) -> TokenStream {
-        self.count_expr_impl(true)
+    pub(crate) fn sanitized_count_expr(&self, is_conditional: bool) -> TokenStream {
+        self.count_expr_impl(true, is_conditional)
     }
 
-    fn count_expr_impl(&self, has_self_param: bool) -> TokenStream {
+    fn count_expr_impl(&self, has_self_param: bool, is_conditional: bool) -> TokenStream {
+        let maybe_unwrap_or_def = is_conditional.then(|| quote!(.unwrap_or_default()));
         let arg = |a: &CountArg| -> TokenStream {
             match a {
                 CountArg::Field(f) if has_self_param => quote!(self.#f()),
@@ -1647,7 +1648,7 @@ impl Count {
         match self {
             Count::All(_) => unreachable!("handled before now"),
             Count::SingleArg(CountArg::Field(f)) if has_self_param => {
-                quote!(self.#f() as usize)
+                quote!(self.#f() #maybe_unwrap_or_def as usize)
             }
             Count::SingleArg(CountArg::Field(f)) => quote!(#f as usize),
             Count::SingleArg(CountArg::Literal(n)) => quote!(#n),

@@ -619,10 +619,12 @@ impl Field {
             return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args).unwrap_or(0) ));
         }
 
+        let is_conditional = self.is_conditional();
+
         Some(match self.attrs.count.as_deref() {
             Some(Count::All(_)) => quote!(compile_error!("count(..) not handled in sanitize")),
             Some(other) => {
-                let count_expr = other.sanitized_count_expr();
+                let count_expr = other.sanitized_count_expr(is_conditional);
                 let size_expr = match &self.typ {
                     FieldType::Array { inner_typ } => {
                         let inner_typ = inner_typ.cooked_type_tokens();
@@ -703,7 +705,12 @@ impl Field {
             }
             FieldType::Array { inner_typ } => {
                 // #[count] always present on arrays, would crash before sanitize
-                let count_expr = self.attrs.count.as_deref().unwrap().sanitized_count_expr();
+                let count_expr = self
+                    .attrs
+                    .count
+                    .as_deref()
+                    .unwrap()
+                    .sanitized_count_expr(self.is_conditional());
                 match inner_typ.as_ref() {
                     FieldType::Scalar { .. }
                     | FieldType::Offset { .. }
@@ -719,7 +726,12 @@ impl Field {
             },
 
             FieldType::ComputedArray(array) => {
-                let count_expr = self.attrs.count.as_deref().unwrap().sanitized_count_expr();
+                let count_expr = self
+                    .attrs
+                    .count
+                    .as_deref()
+                    .unwrap()
+                    .sanitized_count_expr(self.is_conditional());
                 let read_args = self
                     .attrs
                     .read_with_args

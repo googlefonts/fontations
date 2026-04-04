@@ -1042,6 +1042,294 @@ impl<'a> From<FlagTableFlags> for FieldType<'a> {
     }
 }
 
+impl<'a> MinByteRange<'a> for ScalarArrayTable<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.values_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<'a> FontRead<'a> for ScalarArrayTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// Table with an array of scalars (no inner recursion needed)
+#[derive(Clone)]
+pub struct ScalarArrayTable<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ScalarArrayTable<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    pub fn count(&self) -> u16 {
+        let range = self.count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn values(&self) -> &'a [BigEndian<u16>] {
+        let range = self.values_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn values_byte_range(&self) -> Range<usize> {
+        let count = self.count();
+        let start = self.count_byte_range().end;
+        start..start + (count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for ScalarArrayTable<'a> {
+    fn type_name(&self) -> &str {
+        "ScalarArrayTable"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("count", self.count())),
+            1usize => Some(Field::new("values", self.values())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for ScalarArrayTable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> MinByteRange<'a> for NullableOffsetArrayTable<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.child_offsets_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<'a> FontRead<'a> for NullableOffsetArrayTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// Table with a nullable array of offsets
+#[derive(Clone)]
+pub struct NullableOffsetArrayTable<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> NullableOffsetArrayTable<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    pub fn count(&self) -> u16 {
+        let range = self.count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn child_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        let range = self.child_offsets_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    /// A dynamically resolving wrapper for [`child_offsets`][Self::child_offsets].
+    pub fn childs(&self) -> ArrayOfNullableOffsets<'a, ScalarArrayTable<'a>, Offset16> {
+        let data = self.data;
+        let offsets = self.child_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
+    }
+
+    pub fn count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn child_offsets_byte_range(&self) -> Range<usize> {
+        let count = self.count();
+        let start = self.count_byte_range().end;
+        start..start + (count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for NullableOffsetArrayTable<'a> {
+    fn type_name(&self) -> &str {
+        "NullableOffsetArrayTable"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("count", self.count())),
+            1usize => Some({
+                let data = self.data;
+                Field::new(
+                    "child_offsets",
+                    FieldType::array_of_offsets(
+                        better_type_name::<ScalarArrayTable>(),
+                        self.child_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<ScalarArrayTable>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for NullableOffsetArrayTable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl<'a> MinByteRange<'a> for ConditionalArrayTable<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.flags_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<'a> FontRead<'a> for ConditionalArrayTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// Table with a conditional array (flag-gated)
+#[derive(Clone)]
+pub struct ConditionalArrayTable<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ConditionalArrayTable<'a> {
+    pub const MIN_SIZE: usize = FlagTableFlags::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    pub fn flags(&self) -> FlagTableFlags {
+        let range = self.flags_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn extra_count(&self) -> Option<u16> {
+        let range = self.extra_count_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    pub fn extra_values(&self) -> Option<&'a [BigEndian<u16>]> {
+        let range = self.extra_values_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_array(range).ok())
+            .flatten()
+    }
+
+    pub fn another_field(&self) -> Option<u16> {
+        let range = self.another_field_byte_range();
+        (!range.is_empty())
+            .then(|| self.data.read_at(range.start).ok())
+            .flatten()
+    }
+
+    pub fn flags_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + FlagTableFlags::RAW_BYTE_LEN
+    }
+
+    pub fn extra_count_byte_range(&self) -> Range<usize> {
+        let start = self.flags_byte_range().end;
+        start
+            ..(self.flags().contains(FlagTableFlags::FOO))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
+    }
+
+    pub fn extra_values_byte_range(&self) -> Range<usize> {
+        let extra_count = self.extra_count().unwrap_or_default();
+        let start = self.extra_count_byte_range().end;
+        start
+            ..(self.flags().contains(FlagTableFlags::FOO))
+                .then(|| start + (extra_count as usize).saturating_mul(u16::RAW_BYTE_LEN))
+                .unwrap_or(start)
+    }
+
+    pub fn another_field_byte_range(&self) -> Range<usize> {
+        let start = self.extra_values_byte_range().end;
+        start
+            ..(self.flags().contains(FlagTableFlags::FOO))
+                .then(|| start + u16::RAW_BYTE_LEN)
+                .unwrap_or(start)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for ConditionalArrayTable<'a> {
+    fn type_name(&self) -> &str {
+        "ConditionalArrayTable"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("flags", self.flags())),
+            1usize if self.flags().contains(FlagTableFlags::FOO) => {
+                Some(Field::new("extra_count", self.extra_count().unwrap()))
+            }
+            2usize if self.flags().contains(FlagTableFlags::FOO) => {
+                Some(Field::new("extra_values", self.extra_values().unwrap()))
+            }
+            3usize if self.flags().contains(FlagTableFlags::FOO) => {
+                Some(Field::new("another_field", self.another_field().unwrap()))
+            }
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for ConditionalArrayTable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
 impl<'a> MinByteRange<'a> for FlagTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.always_present_byte_range().end

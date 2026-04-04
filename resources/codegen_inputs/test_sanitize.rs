@@ -71,6 +71,33 @@ flags u8 FlagTableFlags {
     BAR = 0x02,
 }
 
+/// Table with an array of scalars (no inner recursion needed)
+table ScalarArrayTable {
+    count: u16,
+    #[count($count)]
+    values: [u16],
+}
+
+/// Table with a nullable array of offsets
+table NullableOffsetArrayTable {
+    count: u16,
+    #[count($count)]
+    #[nullable]
+    child_offsets: [Offset16<ScalarArrayTable>],
+}
+
+/// Table with a conditional array (flag-gated)
+table ConditionalArrayTable {
+    flags: FlagTableFlags,
+    #[if_flag($flags, FlagTableFlags::FOO)]
+    extra_count: u16,
+    #[if_flag($flags, FlagTableFlags::FOO)]
+    #[count($extra_count)]
+    extra_values: [u16],
+    #[if_flag($flags, FlagTableFlags::FOO)]
+    another_field: u16,
+}
+
 /// Table with flag-conditional fields
 table FlagTable {
     flags: FlagTableFlags,

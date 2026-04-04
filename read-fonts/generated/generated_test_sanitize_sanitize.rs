@@ -545,6 +545,228 @@ impl<'a> ReadSanitized<'a> for VersionedTableSanitized<'a> {
     }
 }
 
+impl Sanitize for ScalarArrayTable<'_> {
+    fn sanitize(&self) -> Result<(), ReadError> {
+        if self.values_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        Ok(())
+    }
+}
+
+impl<'a> TrySanitize for ScalarArrayTable<'a> {
+    type Sanitized = ScalarArrayTableSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ScalarArrayTable::MIN_SIZE <= NULL_POOL_SIZE);
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ScalarArrayTableSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ScalarArrayTableSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ScalarArrayTableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn count_pos(&self) -> usize {
+        0
+    }
+    fn values_pos(&self) -> usize {
+        self.count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn count(&self) -> u16 {
+        unsafe { self.ptr.read_at_unchecked(self.count_pos()) }
+    }
+
+    pub fn values(&self) -> &'a [BigEndian<u16>] {
+        unsafe {
+            self.ptr
+                .read_array_at_unchecked(self.values_pos(), self.count() as usize)
+        }
+    }
+}
+
+impl<'a> ReadSanitized<'a> for ScalarArrayTableSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
+impl Sanitize for NullableOffsetArrayTable<'_> {
+    fn sanitize(&self) -> Result<(), ReadError> {
+        if self.child_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        let arr = self.childs();
+        for r in arr.iter().flatten() {
+            r?.sanitize()?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> TrySanitize for NullableOffsetArrayTable<'a> {
+    type Sanitized = NullableOffsetArrayTableSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(NullableOffsetArrayTable::MIN_SIZE <= NULL_POOL_SIZE);
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { NullableOffsetArrayTableSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct NullableOffsetArrayTableSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> NullableOffsetArrayTableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn count_pos(&self) -> usize {
+        0
+    }
+    fn child_offsets_pos(&self) -> usize {
+        self.count_pos() + u16::RAW_BYTE_LEN
+    }
+
+    pub fn count(&self) -> u16 {
+        unsafe { self.ptr.read_at_unchecked(self.count_pos()) }
+    }
+
+    pub fn child_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
+        unsafe {
+            self.ptr
+                .read_array_at_unchecked(self.child_offsets_pos(), self.count() as usize)
+        }
+    }
+
+    pub fn childs(
+        &self,
+    ) -> ArrayOfSanitizedNullableOffsets<'a, ScalarArrayTableSanitized<'a>, Offset16> {
+        let offsets = self.child_offsets();
+        unsafe { ArrayOfSanitizedNullableOffsets::new(offsets, self.ptr, ()) }
+    }
+}
+
+impl<'a> ReadSanitized<'a> for NullableOffsetArrayTableSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
+impl Sanitize for ConditionalArrayTable<'_> {
+    fn sanitize(&self) -> Result<(), ReadError> {
+        if self.flags().contains(FlagTableFlags::FOO) && self.extra_count().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(extra_count),
+            });
+        }
+        if self.flags().contains(FlagTableFlags::FOO) && self.extra_values().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(extra_values),
+            });
+        }
+        if self.extra_values_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        if self.flags().contains(FlagTableFlags::FOO) && self.another_field().is_none() {
+            return Err(ReadError::MissingFieldForCondition {
+                field: stringify!(another_field),
+            });
+        }
+        Ok(())
+    }
+}
+
+impl<'a> TrySanitize for ConditionalArrayTable<'a> {
+    type Sanitized = ConditionalArrayTableSanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(ConditionalArrayTable::MIN_SIZE <= NULL_POOL_SIZE);
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { ConditionalArrayTableSanitized::read_sanitized(ptr, &()) })
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct ConditionalArrayTableSanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> ConditionalArrayTableSanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn flags_pos(&self) -> usize {
+        0
+    }
+    fn extra_count_pos(&self) -> usize {
+        if self.flags().contains(FlagTableFlags::FOO) {
+            self.flags_pos() + FlagTableFlags::RAW_BYTE_LEN
+        } else {
+            self.flags_pos()
+        }
+    }
+    fn extra_values_pos(&self) -> usize {
+        if self.flags().contains(FlagTableFlags::FOO) {
+            self.extra_count_pos() + u16::RAW_BYTE_LEN
+        } else {
+            self.extra_count_pos()
+        }
+    }
+    fn another_field_pos(&self) -> usize {
+        if self.flags().contains(FlagTableFlags::FOO) {
+            self.extra_values_pos()
+                + (self.extra_count().unwrap_or_default() as usize)
+                    .saturating_mul(u16::RAW_BYTE_LEN)
+        } else {
+            self.extra_values_pos()
+        }
+    }
+
+    pub fn flags(&self) -> FlagTableFlags {
+        unsafe { self.ptr.read_at_unchecked(self.flags_pos()) }
+    }
+
+    pub fn extra_count(&self) -> Option<u16> {
+        self.flags()
+            .contains(FlagTableFlags::FOO)
+            .then(|| unsafe { self.ptr.read_at_unchecked(self.extra_count_pos()) })
+    }
+
+    pub fn extra_values(&self) -> Option<&'a [BigEndian<u16>]> {
+        self.flags().contains(FlagTableFlags::FOO).then(|| unsafe {
+            self.ptr.read_array_at_unchecked(
+                self.extra_values_pos(),
+                self.extra_count().unwrap_or_default() as usize,
+            )
+        })
+    }
+
+    pub fn another_field(&self) -> Option<u16> {
+        self.flags()
+            .contains(FlagTableFlags::FOO)
+            .then(|| unsafe { self.ptr.read_at_unchecked(self.another_field_pos()) })
+    }
+}
+
+impl<'a> ReadSanitized<'a> for ConditionalArrayTableSanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}
+
 impl Sanitize for FlagTable<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.flags().contains(FlagTableFlags::FOO) && self.if_foo().is_none() {

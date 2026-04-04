@@ -589,4 +589,210 @@ pub mod sanitize {
         let table = FlagTable::read(buf.data().into()).unwrap();
         assert!(table.sanitize().is_err());
     }
+
+    // --- ScalarArrayTable: array of plain scalars ---
+
+    #[test]
+    fn try_sanitize_scalar_array() {
+        let buf = BeBuffer::new()
+            .push(3u16) // count = 3
+            .extend([10u16, 20, 30]); // values
+        let table = ScalarArrayTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.count(), 3);
+        let vals = san.values();
+        assert_eq!(vals[0].get(), 10);
+        assert_eq!(vals[1].get(), 20);
+        assert_eq!(vals[2].get(), 30);
+    }
+
+    #[test]
+    fn sanitize_scalar_array_bad_count() {
+        let buf = BeBuffer::new()
+            .push(100u16) // count = 100 (way too many)
+            .extend([10u16, 20]); // only 2 values
+        let table = ScalarArrayTable::read(buf.data().into()).unwrap();
+        assert_eq!(table.sanitize(), Err(ReadError::InvalidArrayLen));
+    }
+
+    #[test]
+    fn sanitize_scalar_array_empty() {
+        let buf = BeBuffer::new().push(0u16); // count = 0
+        let table = ScalarArrayTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.count(), 0);
+        assert!(san.values().is_empty());
+    }
+
+    // --- NullableOffsetArrayTable: nullable array of offsets ---
+
+    #[test]
+    fn try_sanitize_nullable_offset_array_all_null() {
+        let buf = BeBuffer::new()
+            .push(2u16) // count = 2
+            .push(0u16) // child_offsets[0] = null
+            .push(0u16); // child_offsets[1] = null
+        let table = NullableOffsetArrayTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.count(), 2);
+        // All offsets are null, so iterating resolved children yields None
+        for child in san.childs().iter() {
+            assert!(child.is_none());
+        }
+    }
+
+    #[test]
+    fn try_sanitize_nullable_offset_array_mixed() {
+        // Header: count(2) + 2 offsets = 6 bytes
+        // ScalarArrayTable at offset 6: count(1) + value(42) = 4 bytes
+        let buf = BeBuffer::new()
+            .push(2u16) // count = 2
+            .push(0u16) // child_offsets[0] = null
+            .push(6u16) // child_offsets[1] = offset 6 (relative to table start)
+            // ScalarArrayTable at byte 6
+            .push(1u16) // count = 1
+            .push(42u16); // values[0]
+        let table = NullableOffsetArrayTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        let mut iter = san.childs().iter();
+        assert!(iter.next().unwrap().is_none()); // null
+        let child = iter.next().unwrap().unwrap(); // resolved
+        assert_eq!(child.count(), 1);
+        assert_eq!(child.values()[0].get(), 42);
+    }
+
+    #[test]
+    fn sanitize_nullable_offset_array_bad_offset() {
+        let buf = BeBuffer::new()
+            .push(1u16) // count = 1
+            .push(0x7fffu16); // child_offsets[0] = way out of bounds
+        let table = NullableOffsetArrayTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+
+    #[test]
+    fn sanitize_nullable_offset_array_bad_count() {
+        // count claims 1000 offsets but only 1 present
+        let buf = BeBuffer::new().push(1000u16).push(0u16);
+        let table = NullableOffsetArrayTable::read(buf.data().into()).unwrap();
+        assert_eq!(table.sanitize(), Err(ReadError::InvalidArrayLen));
+    }
+
+    // --- ConditionalArrayTable: flag-gated arrays ---
+
+    #[test]
+    fn sanitize_conditional_array_no_flag() {
+        // No flags: only the flags byte is present, all conditional fields absent
+        let buf = BeBuffer::new().push(0u8); // flags = none
+        let table = ConditionalArrayTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert!(san.extra_count().is_none());
+        assert!(san.extra_values().is_none());
+        assert!(san.another_field().is_none());
+    }
+
+    #[test]
+    fn sanitize_conditional_array_with_flag() {
+        // FOO set: extra_count + extra_values + another_field present
+        // Layout: flags(1) + extra_count(2) + extra_values(2*2) + another_field(2) = 9 bytes
+        let buf = BeBuffer::new()
+            .push(FlagTableFlags::FOO) // flags = FOO
+            .push(2u16) // extra_count = 2
+            .extend([100u16, 200]) // extra_values
+            .push(0xbeefu16); // another_field
+        let table = ConditionalArrayTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.extra_count(), Some(2));
+        let extra = san.extra_values().unwrap();
+        assert_eq!(extra[0].get(), 100);
+        assert_eq!(extra[1].get(), 200);
+        assert_eq!(san.another_field(), Some(0xbeef));
+    }
+
+    #[test]
+    fn sanitize_conditional_array_flag_truncated_count() {
+        // FOO set but no extra_count bytes — sanitize must fail
+        let buf = BeBuffer::new().push(FlagTableFlags::FOO); // flags = FOO, nothing else
+        let table = ConditionalArrayTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+
+    #[test]
+    fn sanitize_conditional_array_flag_truncated_values() {
+        // FOO set, extra_count claims 10 values but data is too short.
+        // The read-fonts shape can't read_array for the claimed count,
+        // so extra_values() returns None → MissingFieldForCondition.
+        let buf = BeBuffer::new()
+            .push(FlagTableFlags::FOO)
+            .push(10u16) // extra_count = 10 (claims 20 bytes of values)
+            .extend([1u16, 2]) // only 4 bytes of values
+            .push(0u16); // another_field
+        let table = ConditionalArrayTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+
+    #[test]
+    fn sanitize_conditional_array_range_check() {
+        // FOO set, all fields present in shape, but sanitize range check
+        // catches that extra_values extends beyond the actual data.
+        // We need extra_values_byte_range to succeed in the read-fonts shape
+        // but fail the sanitize range check. This happens when extra_count
+        // is large enough that the byte range end exceeds offset_data().len().
+        let buf = BeBuffer::new()
+            .push(FlagTableFlags::FOO)
+            .push(100u16) // extra_count = 100 (claims 200 bytes)
+            .extend([1u16, 2]) // 4 bytes of values
+            .push(0u16); // another_field
+        let table = ConditionalArrayTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+
+    #[test]
+    fn sanitize_conditional_array_flag_missing_another_field() {
+        // FOO set, extra_values present but another_field missing
+        let buf = BeBuffer::new()
+            .push(FlagTableFlags::FOO)
+            .push(1u16) // extra_count = 1
+            .push(42u16); // extra_values[0], no another_field
+        let table = ConditionalArrayTable::read(buf.data().into()).unwrap();
+        assert!(table.sanitize().is_err());
+    }
+
+    // --- Strengthen existing versioned table tests ---
+
+    #[test]
+    fn sanitize_versioned_table_1_0_conditional_fields_absent() {
+        // v1.0: conditional fields absent — getters should return None
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(0xd00du16);
+        let table = VersionedTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.always_present(), 0xd00d);
+        assert!(san.if_11_offset().is_none());
+        assert!(san.if_11().is_none());
+        assert!(san.if_20().is_none());
+    }
+
+    #[test]
+    fn sanitize_versioned_table_1_1_verify_child() {
+        // v1.1: if_11_offset present, resolves to FlagTable — verify child field values
+        // Layout: MajorMinor(4) + always_present(2) + if_11_offset(2) = 8 bytes
+        // FlagTable at byte 8: flags(1) + always_present(2) = 3 bytes
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_1)
+            .push(42u16) // always_present
+            .push(8u16) // if_11_offset -> FlagTable at byte 8
+            // FlagTable at byte 8
+            .push(0u8) // flags = none
+            .push(303u16); // always_present
+        let table = VersionedTable::read(buf.data().into()).unwrap();
+        let san = table.try_sanitize().unwrap();
+        assert_eq!(san.always_present(), 42);
+        assert!(san.if_11_offset().is_some());
+        let child = san.if_11().unwrap();
+        assert_eq!(child.always_present(), 303);
+        // v1.1 does not have if_20
+        assert!(san.if_20().is_none());
+    }
 }
