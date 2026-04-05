@@ -297,12 +297,7 @@ fn sanitize_version_conditional_field_absent() {
               // feature_variations_offset absent (would need bytes 10..13)
     ];
     let table = Gpos::read(FontData::new(bytes)).unwrap();
-    assert_eq!(
-        table.sanitize(),
-        Err(ReadError::MissingFieldForCondition {
-            field: "feature_variations_offset"
-        })
-    );
+    assert_eq!(table.sanitize(), Err(ReadError::OutOfBounds));
 }
 
 #[cfg(feature = "sanitize")]

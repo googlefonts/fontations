@@ -1013,9 +1013,6 @@ fn field_sanitize_stmt(
 }
 
 /// Generate the sanitize body for an `Array { .. }` field.
-///
-/// For table contexts this includes a byte-range bounds check; for record
-/// contexts the caller is responsible for range checking.
 fn array_sanitize_stmt(
     field: &Field,
     inner_typ: &FieldType,
@@ -1065,19 +1062,7 @@ fn array_sanitize_stmt(
         _ => Some(quote! { compile_error!("unexpected type in sanitize") }),
     };
 
-    // Tables have a shape byte-range function we can use for a bounds check.
-    // Records don't expose per-field byte ranges, so skip it there.
-    if !in_record {
-        let range_fn = field.shape_byte_range_fn_name();
-        quote! {
-            if self.#range_fn().end > self.offset_data().len() {
-                return Err(ReadError::InvalidArrayLen);
-            }
-            #recurse
-        }
-    } else {
-        quote! { #recurse }
-    }
+    quote! { #recurse }
 }
 
 /// Generate `Sanitize` and `TrySanitize` impls for a table.
@@ -1098,6 +1083,23 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     let data_expr = quote!(self.offset_data());
     let mut stmts = Vec::new();
 
+    // Single bounds check: the last field's byte_range().end covers all preceding
+    // fields (they lay out sequentially). Conditional fields already encode their
+    // condition in their byte_range function (returning start..start when absent).
+    let last_field = item
+        .fields
+        .iter()
+        .filter(|f| f.attrs.skip_getter.is_none())
+        .last();
+    if let Some(last) = last_field {
+        let range_fn = last.shape_byte_range_fn_name();
+        stmts.push(quote! {
+            if self.#range_fn().end > self.offset_data().len() {
+                return Err(ReadError::OutOfBounds);
+            }
+        });
+    }
+
     for field in item.fields.iter() {
         if field.attrs.skip_getter.is_some() {
             continue;
@@ -1116,24 +1118,9 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
             });
         }
 
-        // ComputedArray/VarLenArray also need a range check in the table context.
-        let stmt = match &field.typ {
-            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
-                let range_fn = field.shape_byte_range_fn_name();
-                let inner = field_sanitize_stmt(field, &data_expr, false).unwrap();
-                quote! {
-                    if self.#range_fn().end > self.offset_data().len() {
-                        return Err(ReadError::InvalidArrayLen);
-                    }
-                    #inner
-                }
-            }
-            _ => match field_sanitize_stmt(field, &data_expr, false) {
-                Some(s) => s,
-                None => continue,
-            },
+        let Some(stmt) = field_sanitize_stmt(field, &data_expr, false) else {
+            continue;
         };
-
         stmts.push(stmt);
     }
 

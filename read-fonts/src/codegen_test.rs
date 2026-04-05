@@ -427,7 +427,7 @@ pub mod sanitize {
             .push(1u16) // records[0].ident
             .push(2u16); // records[0].derp
         let table = TableOne::read(buf.data().into()).unwrap();
-        assert_eq!(table.sanitize(), Err(ReadError::InvalidArrayLen));
+        assert_eq!(table.sanitize(), Err(ReadError::OutOfBounds));
     }
 
     #[test]
@@ -612,7 +612,7 @@ pub mod sanitize {
             .push(100u16) // count = 100 (way too many)
             .extend([10u16, 20]); // only 2 values
         let table = ScalarArrayTable::read(buf.data().into()).unwrap();
-        assert_eq!(table.sanitize(), Err(ReadError::InvalidArrayLen));
+        assert_eq!(table.sanitize(), Err(ReadError::OutOfBounds));
     }
 
     #[test]
@@ -675,7 +675,7 @@ pub mod sanitize {
         // count claims 1000 offsets but only 1 present
         let buf = BeBuffer::new().push(1000u16).push(0u16);
         let table = NullableOffsetArrayTable::read(buf.data().into()).unwrap();
-        assert_eq!(table.sanitize(), Err(ReadError::InvalidArrayLen));
+        assert_eq!(table.sanitize(), Err(ReadError::OutOfBounds));
     }
 
     // --- ConditionalArrayTable: flag-gated arrays ---

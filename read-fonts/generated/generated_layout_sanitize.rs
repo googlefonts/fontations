@@ -8,11 +8,10 @@ use crate::codegen_prelude::*;
 impl Sanitize for ScriptList<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.script_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.script_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -109,15 +108,14 @@ impl ScriptRecordSanitized {
 
 impl Sanitize for Script<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.lang_sys_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         if let Some(r) = self.default_lang_sys() {
             r?.sanitize()?;
         }
-        if self.lang_sys_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
-        let data = self.offset_data();
         for record in self.lang_sys_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -233,7 +231,7 @@ impl LangSysRecordSanitized {
 impl Sanitize for LangSys<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.feature_indices_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         Ok(())
     }
@@ -299,11 +297,10 @@ impl<'a> ReadSanitized<'a> for LangSysSanitized<'a> {
 impl Sanitize for FeatureList<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.feature_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.feature_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -400,11 +397,11 @@ impl FeatureRecordSanitized {
 
 impl Sanitize for Feature<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.lookup_list_indices_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         if let Some(r) = self.feature_params() {
             r?.sanitize()?;
-        }
-        if self.lookup_list_indices_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
         }
         Ok(())
     }
@@ -470,7 +467,7 @@ impl<'a> ReadSanitized<'a> for FeatureSanitized<'a> {
 impl<'a, T: FontRead<'a> + Sanitize> Sanitize for LookupList<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.lookup_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.lookups();
         for item in arr.iter() {
@@ -559,8 +556,8 @@ impl<'a, T> ReadSanitized<'a> for LookupListSanitized<'a, T> {
 
 impl<'a, T: FontRead<'a> + Sanitize> Sanitize for Lookup<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        if self.subtable_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+        if self.mark_filtering_set_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.subtables();
         for item in arr.iter() {
@@ -692,7 +689,7 @@ impl<'a, T> ReadSanitized<'a> for LookupSanitized<'a, T> {
 impl Sanitize for CoverageFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.glyph_array_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         Ok(())
     }
@@ -753,11 +750,10 @@ impl<'a> ReadSanitized<'a> for CoverageFormat1Sanitized<'a> {
 impl Sanitize for CoverageFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.range_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.range_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -919,7 +915,7 @@ impl<'a> ReadSanitized<'a> for CoverageTableSanitized<'a> {
 impl Sanitize for ClassDefFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.class_value_array_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         Ok(())
     }
@@ -987,11 +983,10 @@ impl<'a> ReadSanitized<'a> for ClassDefFormat1Sanitized<'a> {
 impl Sanitize for ClassDefFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.class_range_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.class_range_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -1188,10 +1183,10 @@ impl SequenceLookupRecordSanitized {
 
 impl Sanitize for SequenceContextFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        sanitize_ignoring_null(self.coverage())?;
         if self.seq_rule_set_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.seq_rule_sets();
         for r in arr.iter().flatten() {
             r?.sanitize()?;
@@ -1279,7 +1274,7 @@ impl<'a> ReadSanitized<'a> for SequenceContextFormat1Sanitized<'a> {
 impl Sanitize for SequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.seq_rule_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.seq_rules();
         for item in arr.iter() {
@@ -1343,15 +1338,11 @@ impl<'a> ReadSanitized<'a> for SequenceRuleSetSanitized<'a> {
 
 impl Sanitize for SequenceRule<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        if self.input_sequence_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
         if self.seq_lookup_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.seq_lookup_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -1427,11 +1418,11 @@ impl<'a> ReadSanitized<'a> for SequenceRuleSanitized<'a> {
 
 impl Sanitize for SequenceContextFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.class_seq_rule_set_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.coverage())?;
         sanitize_ignoring_null(self.class_def())?;
-        if self.class_seq_rule_set_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
         let arr = self.class_seq_rule_sets();
         for r in arr.iter().flatten() {
             r?.sanitize()?;
@@ -1537,7 +1528,7 @@ impl<'a> ReadSanitized<'a> for SequenceContextFormat2Sanitized<'a> {
 impl Sanitize for ClassSequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.class_seq_rule_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.class_seq_rules();
         for item in arr.iter() {
@@ -1603,15 +1594,11 @@ impl<'a> ReadSanitized<'a> for ClassSequenceRuleSetSanitized<'a> {
 
 impl Sanitize for ClassSequenceRule<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        if self.input_sequence_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
         if self.seq_lookup_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.seq_lookup_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -1686,19 +1673,15 @@ impl<'a> ReadSanitized<'a> for ClassSequenceRuleSanitized<'a> {
 
 impl Sanitize for SequenceContextFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        if self.coverage_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+        if self.seq_lookup_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.coverages();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
         }
-        if self.seq_lookup_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
-        let data = self.offset_data();
         for record in self.seq_lookup_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -1853,10 +1836,10 @@ impl<'a> ReadSanitized<'a> for SequenceContextSanitized<'a> {
 
 impl Sanitize for ChainedSequenceContextFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        sanitize_ignoring_null(self.coverage())?;
         if self.chained_seq_rule_set_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.chained_seq_rule_sets();
         for r in arr.iter().flatten() {
             r?.sanitize()?;
@@ -1947,7 +1930,7 @@ impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat1Sanitized<'a> {
 impl Sanitize for ChainedSequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.chained_seq_rule_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.chained_seq_rules();
         for item in arr.iter() {
@@ -2016,21 +1999,11 @@ impl<'a> ReadSanitized<'a> for ChainedSequenceRuleSetSanitized<'a> {
 
 impl Sanitize for ChainedSequenceRule<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        if self.backtrack_sequence_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
-        if self.input_sequence_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
-        if self.lookahead_sequence_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
         if self.seq_lookup_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.seq_lookup_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -2146,13 +2119,13 @@ impl<'a> ReadSanitized<'a> for ChainedSequenceRuleSanitized<'a> {
 
 impl Sanitize for ChainedSequenceContextFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.chained_class_seq_rule_set_offsets_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.coverage())?;
         sanitize_ignoring_null(self.backtrack_class_def())?;
         sanitize_ignoring_null(self.input_class_def())?;
         sanitize_ignoring_null(self.lookahead_class_def())?;
-        if self.chained_class_seq_rule_set_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
         let arr = self.chained_class_seq_rule_sets();
         for r in arr.iter().flatten() {
             r?.sanitize()?;
@@ -2298,7 +2271,7 @@ impl<'a> ReadSanitized<'a> for ChainedSequenceContextFormat2Sanitized<'a> {
 impl Sanitize for ChainedClassSequenceRuleSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.chained_class_seq_rule_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.chained_class_seq_rules();
         for item in arr.iter() {
@@ -2367,21 +2340,11 @@ impl<'a> ReadSanitized<'a> for ChainedClassSequenceRuleSetSanitized<'a> {
 
 impl Sanitize for ChainedClassSequenceRule<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        if self.backtrack_sequence_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
-        if self.input_sequence_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
-        if self.lookahead_sequence_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
         if self.seq_lookup_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.seq_lookup_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -2497,33 +2460,23 @@ impl<'a> ReadSanitized<'a> for ChainedClassSequenceRuleSanitized<'a> {
 
 impl Sanitize for ChainedSequenceContextFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        if self.backtrack_coverage_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+        if self.seq_lookup_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.backtrack_coverages();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
         }
-        if self.input_coverage_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
         let arr = self.input_coverages();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
-        }
-        if self.lookahead_coverage_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
         }
         let arr = self.lookahead_coverages();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
         }
-        if self.seq_lookup_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
-        let data = self.offset_data();
         for record in self.seq_lookup_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -2737,7 +2690,7 @@ impl<'a> ReadSanitized<'a> for ChainedSequenceContextSanitized<'a> {
 impl Sanitize for Device<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.delta_value_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         Ok(())
     }
@@ -2806,6 +2759,9 @@ impl<'a> ReadSanitized<'a> for DeviceSanitized<'a> {
 
 impl Sanitize for VariationIndex<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.delta_format_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -2927,11 +2883,10 @@ impl<'a> ReadSanitized<'a> for DeviceOrVariationIndexSanitized<'a> {
 impl Sanitize for FeatureVariations<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.feature_variation_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.feature_variation_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -3054,7 +3009,7 @@ impl FeatureVariationRecordSanitized {
 impl Sanitize for ConditionSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.condition_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.conditions();
         for item in arr.iter() {
@@ -3198,6 +3153,9 @@ impl<'a> ReadSanitized<'a> for ConditionSanitized<'a> {
 
 impl Sanitize for ConditionFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.filter_range_max_value_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -3266,6 +3224,9 @@ impl<'a> ReadSanitized<'a> for ConditionFormat1Sanitized<'a> {
 
 impl Sanitize for ConditionFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.var_index_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -3322,7 +3283,7 @@ impl<'a> ReadSanitized<'a> for ConditionFormat2Sanitized<'a> {
 impl Sanitize for ConditionFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.condition_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.conditions();
         for item in arr.iter() {
@@ -3394,7 +3355,7 @@ impl<'a> ReadSanitized<'a> for ConditionFormat3Sanitized<'a> {
 impl Sanitize for ConditionFormat4<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.condition_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.conditions();
         for item in arr.iter() {
@@ -3465,6 +3426,9 @@ impl<'a> ReadSanitized<'a> for ConditionFormat4Sanitized<'a> {
 
 impl Sanitize for ConditionFormat5<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.condition_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.condition())?;
         Ok(())
     }
@@ -3523,11 +3487,10 @@ impl<'a> ReadSanitized<'a> for ConditionFormat5Sanitized<'a> {
 impl Sanitize for FeatureTableSubstitution<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.substitutions_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.substitutions() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -3626,6 +3589,9 @@ impl FeatureTableSubstitutionRecordSanitized {
 
 impl Sanitize for SizeParams<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.range_end_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -3695,6 +3661,9 @@ impl<'a> ReadSanitized<'a> for SizeParamsSanitized<'a> {
 
 impl Sanitize for StylisticSetParams<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.ui_name_id_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -3744,7 +3713,7 @@ impl<'a> ReadSanitized<'a> for StylisticSetParamsSanitized<'a> {
 impl Sanitize for CharacterVariantParams<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.character_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         Ok(())
     }

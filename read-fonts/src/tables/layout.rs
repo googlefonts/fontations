@@ -1226,7 +1226,7 @@ mod tests {
             0x00, 0x01, // one actual glyph entry (truncated)
         ];
         let table = CoverageFormat1::read(FontData::new(bytes)).unwrap();
-        assert_eq!(table.sanitize(), Err(ReadError::InvalidArrayLen));
+        assert_eq!(table.sanitize(), Err(ReadError::OutOfBounds));
     }
 
     #[cfg(feature = "sanitize")]
@@ -1242,12 +1242,7 @@ mod tests {
                   // mark_filtering_set absent
         ];
         let table = Lookup::<SequenceContextFormat1>::read(FontData::new(bytes)).unwrap();
-        assert_eq!(
-            table.sanitize(),
-            Err(ReadError::MissingFieldForCondition {
-                field: "mark_filtering_set"
-            })
-        );
+        assert_eq!(table.sanitize(), Err(ReadError::OutOfBounds));
     }
 
     #[test]

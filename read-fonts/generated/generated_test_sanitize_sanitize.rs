@@ -7,6 +7,9 @@ use crate::codegen_prelude::*;
 
 impl Sanitize for RootTable<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.subtable_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.subtable())?;
         Ok(())
     }
@@ -65,7 +68,7 @@ impl<'a> ReadSanitized<'a> for RootTableSanitized<'a> {
 impl<'a, T: FontRead<'a> + Sanitize> Sanitize for GenericTable<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.subtable_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.subtables();
         for item in arr.iter() {
@@ -216,11 +219,10 @@ impl<'a> ReadSanitized<'a> for TableGroupSanitized<'a> {
 impl Sanitize for TableOne<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -302,6 +304,9 @@ impl TestRecordSanitized {
 
 impl Sanitize for TableTwoFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.format_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -343,6 +348,9 @@ impl<'a> ReadSanitized<'a> for TableTwoFormat1Sanitized<'a> {
 
 impl Sanitize for TableTwoFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.child_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         if let Some(r) = self.child() {
             r?.sanitize()?;
         }
@@ -456,6 +464,9 @@ impl<'a> ReadSanitized<'a> for TableTwoSanitized<'a> {
 
 impl Sanitize for VersionedTable<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.if_20_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         if self.version().compatible((1u16, 1u16)) && self.if_11_offset().is_none() {
             return Err(ReadError::MissingFieldForCondition {
                 field: stringify!(if_11_offset),
@@ -548,7 +559,7 @@ impl<'a> ReadSanitized<'a> for VersionedTableSanitized<'a> {
 impl Sanitize for ScalarArrayTable<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.values_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         Ok(())
     }
@@ -602,7 +613,7 @@ impl<'a> ReadSanitized<'a> for ScalarArrayTableSanitized<'a> {
 impl Sanitize for NullableOffsetArrayTable<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.child_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.childs();
         for r in arr.iter().flatten() {
@@ -666,6 +677,9 @@ impl<'a> ReadSanitized<'a> for NullableOffsetArrayTableSanitized<'a> {
 
 impl Sanitize for ConditionalArrayTable<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.another_field_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         if self.flags().contains(FlagTableFlags::FOO) && self.extra_count().is_none() {
             return Err(ReadError::MissingFieldForCondition {
                 field: stringify!(extra_count),
@@ -675,9 +689,6 @@ impl Sanitize for ConditionalArrayTable<'_> {
             return Err(ReadError::MissingFieldForCondition {
                 field: stringify!(extra_values),
             });
-        }
-        if self.extra_values_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
         }
         if self.flags().contains(FlagTableFlags::FOO) && self.another_field().is_none() {
             return Err(ReadError::MissingFieldForCondition {
@@ -769,6 +780,9 @@ impl<'a> ReadSanitized<'a> for ConditionalArrayTableSanitized<'a> {
 
 impl Sanitize for FlagTable<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.if_bar_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         if self.flags().contains(FlagTableFlags::FOO) && self.if_foo().is_none() {
             return Err(ReadError::MissingFieldForCondition {
                 field: stringify!(if_foo),
@@ -854,7 +868,7 @@ impl<'a> ReadSanitized<'a> for FlagTableSanitized<'a> {
 impl Sanitize for HasComputedArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         self.records().sanitize_record(self.offset_data())?;
         Ok(())

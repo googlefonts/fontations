@@ -7,6 +7,9 @@ use crate::codegen_prelude::*;
 
 impl Sanitize for Gdef<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.item_var_store_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         if let Some(r) = self.glyph_class_def() {
             r?.sanitize()?;
         }
@@ -176,10 +179,10 @@ impl<'a> ReadSanitized<'a> for GdefSanitized<'a> {
 
 impl Sanitize for AttachList<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        sanitize_ignoring_null(self.coverage())?;
         if self.attach_point_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.attach_points();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -258,7 +261,7 @@ impl<'a> ReadSanitized<'a> for AttachListSanitized<'a> {
 impl Sanitize for AttachPoint<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.point_indices_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         Ok(())
     }
@@ -311,10 +314,10 @@ impl<'a> ReadSanitized<'a> for AttachPointSanitized<'a> {
 
 impl Sanitize for LigCaretList<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        sanitize_ignoring_null(self.coverage())?;
         if self.lig_glyph_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.lig_glyphs();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -393,7 +396,7 @@ impl<'a> ReadSanitized<'a> for LigCaretListSanitized<'a> {
 impl Sanitize for LigGlyph<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.caret_value_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.caret_values();
         for item in arr.iter() {
@@ -521,6 +524,9 @@ impl<'a> ReadSanitized<'a> for CaretValueSanitized<'a> {
 
 impl Sanitize for CaretValueFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.coordinate_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -569,6 +575,9 @@ impl<'a> ReadSanitized<'a> for CaretValueFormat1Sanitized<'a> {
 
 impl Sanitize for CaretValueFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.caret_value_point_index_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -620,6 +629,9 @@ impl<'a> ReadSanitized<'a> for CaretValueFormat2Sanitized<'a> {
 
 impl Sanitize for CaretValueFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.device_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.device())?;
         Ok(())
     }
@@ -685,7 +697,7 @@ impl<'a> ReadSanitized<'a> for CaretValueFormat3Sanitized<'a> {
 impl Sanitize for MarkGlyphSets<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.coverage_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.coverages();
         for item in arr.iter() {

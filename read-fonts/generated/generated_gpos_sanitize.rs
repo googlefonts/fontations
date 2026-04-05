@@ -7,6 +7,9 @@ use crate::codegen_prelude::*;
 
 impl Sanitize for Gpos<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.feature_variations_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.script_list())?;
         sanitize_ignoring_null(self.feature_list())?;
         sanitize_ignoring_null(self.lookup_list())?;
@@ -287,6 +290,9 @@ impl<'a> ReadSanitized<'a> for AnchorTableSanitized<'a> {
 
 impl Sanitize for AnchorFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.y_coordinate_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -342,6 +348,9 @@ impl<'a> ReadSanitized<'a> for AnchorFormat1Sanitized<'a> {
 
 impl Sanitize for AnchorFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.anchor_point_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         Ok(())
     }
 }
@@ -404,6 +413,9 @@ impl<'a> ReadSanitized<'a> for AnchorFormat2Sanitized<'a> {
 
 impl Sanitize for AnchorFormat3<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.y_device_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         if let Some(r) = self.x_device() {
             r?.sanitize()?;
         }
@@ -488,11 +500,10 @@ impl<'a> ReadSanitized<'a> for AnchorFormat3Sanitized<'a> {
 impl Sanitize for MarkArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.mark_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
         for record in self.mark_records() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -664,6 +675,9 @@ impl<'a> ReadSanitized<'a> for SinglePosSanitized<'a> {
 
 impl Sanitize for SinglePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.value_record_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.coverage())?;
         self.value_record().sanitize_record(self.offset_data())?;
         Ok(())
@@ -737,10 +751,10 @@ impl<'a> ReadSanitized<'a> for SinglePosFormat1Sanitized<'a> {
 
 impl Sanitize for SinglePosFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        sanitize_ignoring_null(self.coverage())?;
         if self.value_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
+        sanitize_ignoring_null(self.coverage())?;
         self.value_records().sanitize_record(self.offset_data())?;
         Ok(())
     }
@@ -912,10 +926,10 @@ impl<'a> ReadSanitized<'a> for PairPosSanitized<'a> {
 
 impl Sanitize for PairPosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        sanitize_ignoring_null(self.coverage())?;
         if self.pair_set_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
+        sanitize_ignoring_null(self.coverage())?;
         let arr = self.pair_sets();
         for item in arr.iter() {
             sanitize_ignoring_null(item)?;
@@ -1021,7 +1035,7 @@ impl<'a> ReadSanitized<'a> for PairPosFormat1Sanitized<'a> {
 impl Sanitize for PairSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.pair_value_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         self.pair_value_records()
             .sanitize_record(self.offset_data())?;
@@ -1152,12 +1166,12 @@ impl<'a> ReadSanitized<'a> for PairValueRecordSanitized<'a> {
 
 impl Sanitize for PairPosFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.class1_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.coverage())?;
         sanitize_ignoring_null(self.class_def1())?;
         sanitize_ignoring_null(self.class_def2())?;
-        if self.class1_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
-        }
         self.class1_records().sanitize_record(self.offset_data())?;
         Ok(())
     }
@@ -1413,13 +1427,12 @@ impl<'a> ReadSanitized<'a> for Class2RecordSanitized<'a> {
 
 impl Sanitize for CursivePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
-        sanitize_ignoring_null(self.coverage())?;
         if self.entry_exit_record_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
-        let data = self.offset_data();
+        sanitize_ignoring_null(self.coverage())?;
         for record in self.entry_exit_record() {
-            record.sanitize_record(data)?;
+            record.sanitize_record(self.offset_data())?;
         }
         Ok(())
     }
@@ -1550,6 +1563,9 @@ impl EntryExitRecordSanitized {
 
 impl Sanitize for MarkBasePosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.base_array_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.mark_coverage())?;
         sanitize_ignoring_null(self.base_coverage())?;
         sanitize_ignoring_null(self.mark_array())?;
@@ -1663,7 +1679,7 @@ impl<'a> ReadSanitized<'a> for MarkBasePosFormat1Sanitized<'a> {
 impl Sanitize for BaseArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.base_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         self.base_records().sanitize_record(self.offset_data())?;
         Ok(())
@@ -1778,6 +1794,9 @@ impl<'a> ReadSanitized<'a> for BaseRecordSanitized<'a> {
 
 impl Sanitize for MarkLigPosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.ligature_array_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.mark_coverage())?;
         sanitize_ignoring_null(self.ligature_coverage())?;
         sanitize_ignoring_null(self.mark_array())?;
@@ -1894,7 +1913,7 @@ impl<'a> ReadSanitized<'a> for MarkLigPosFormat1Sanitized<'a> {
 impl Sanitize for LigatureArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.ligature_attach_offsets_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         let arr = self.ligature_attaches();
         for item in arr.iter() {
@@ -1960,7 +1979,7 @@ impl<'a> ReadSanitized<'a> for LigatureArraySanitized<'a> {
 impl Sanitize for LigatureAttach<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.component_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         self.component_records()
             .sanitize_record(self.offset_data())?;
@@ -2076,6 +2095,9 @@ impl<'a> ReadSanitized<'a> for ComponentRecordSanitized<'a> {
 
 impl Sanitize for MarkMarkPosFormat1<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.mark2_array_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.mark1_coverage())?;
         sanitize_ignoring_null(self.mark2_coverage())?;
         sanitize_ignoring_null(self.mark1_array())?;
@@ -2189,7 +2211,7 @@ impl<'a> ReadSanitized<'a> for MarkMarkPosFormat1Sanitized<'a> {
 impl Sanitize for Mark2Array<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         if self.mark2_records_byte_range().end > self.offset_data().len() {
-            return Err(ReadError::InvalidArrayLen);
+            return Err(ReadError::OutOfBounds);
         }
         self.mark2_records().sanitize_record(self.offset_data())?;
         Ok(())
@@ -2304,6 +2326,9 @@ impl<'a> ReadSanitized<'a> for Mark2RecordSanitized<'a> {
 
 impl<'a, T: FontRead<'a> + Sanitize> Sanitize for ExtensionPosFormat1<'a, T> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.extension_offset_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::OutOfBounds);
+        }
         sanitize_ignoring_null(self.extension())?;
         Ok(())
     }
