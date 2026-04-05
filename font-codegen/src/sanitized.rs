@@ -952,6 +952,134 @@ impl Field {
 // Sanitize / SanitizeRecord / TrySanitize trait impls
 // ---------------------------------------------------------------------------
 
+/// Generate the sanitize body statement for a single field, used by both
+/// `generate_sanitize` (tables) and `generate_sanitize_record` (records).
+///
+/// Returns `None` for scalar fields (nothing to validate).
+///
+/// `data_expr` is the expression that yields `FontData` for `sanitize_record`
+/// calls on nested structs — `self.offset_data()` for tables, `data` for records.
+fn field_sanitize_stmt(
+    field: &Field,
+    data_expr: &TokenStream,
+    in_record: bool,
+) -> Option<TokenStream> {
+    let field_name = &field.name;
+    let data = in_record.then(|| quote!(data));
+    Some(match &field.typ {
+        FieldType::Scalar { .. } => return None,
+        FieldType::Struct { .. } => {
+            quote! { self.#field_name().sanitize_record(#data_expr)?; }
+        }
+
+        FieldType::Offset {
+            target: OffsetTarget::Table(_),
+            ..
+        } => {
+            let getter = field.offset_getter_name().unwrap();
+            let is_optional = field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
+            if is_optional {
+                quote! { if let Some(r) = self.#getter(#data) { r?.sanitize()?; } }
+            } else {
+                quote! { sanitize_ignoring_null(self.#getter(#data))?; }
+            }
+        }
+
+        FieldType::Offset {
+            target: OffsetTarget::Array(_),
+            ..
+        } => {
+            let getter = field.offset_getter_name().unwrap();
+            let is_optional = field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
+            if is_optional {
+                quote! { if let Some(r) = self.#getter(#data) { let _ = r?; } }
+            } else {
+                quote! { let _ = self.#getter(#data)?; }
+            }
+        }
+
+        FieldType::Array { inner_typ } => {
+            return Some(array_sanitize_stmt(field, inner_typ, data_expr, in_record));
+        }
+
+        FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
+            quote! { self.#field_name().sanitize_record(#data_expr)?; }
+        }
+
+        FieldType::PendingResolution { .. } => {
+            panic!("unresolved field type in field_sanitize_stmt")
+        }
+    })
+}
+
+/// Generate the sanitize body for an `Array { .. }` field.
+///
+/// For table contexts this includes a byte-range bounds check; for record
+/// contexts the caller is responsible for range checking.
+fn array_sanitize_stmt(
+    field: &Field,
+    inner_typ: &FieldType,
+    data_expr: &TokenStream,
+    in_record: bool,
+) -> TokenStream {
+    let field_name = &field.name;
+    let data = in_record.then(|| quote!(data));
+
+    let recurse = match inner_typ {
+        FieldType::Struct { .. } => Some(quote! {
+            for record in self.#field_name() {
+                record.sanitize_record(#data_expr)?;
+            }
+        }),
+
+        FieldType::Offset {
+            target: OffsetTarget::Table(_),
+            ..
+        } => {
+            let getter = field.offset_getter_name().unwrap();
+            let is_nullable = field.attrs.nullable.is_some();
+            let is_conditional = field.attrs.conditional.is_some();
+
+            let inner_iter = if is_nullable {
+                quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
+            } else {
+                quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
+            };
+
+            Some(if is_conditional {
+                quote! { if let Some(arr) = self.#getter(#data) { #inner_iter } }
+            } else {
+                quote! { let arr = self.#getter(#data); #inner_iter }
+            })
+        }
+
+        FieldType::Scalar { .. } => None,
+
+        FieldType::Offset {
+            target: OffsetTarget::Array(_),
+            ..
+        } => Some(quote!(compile_error!(
+            "offset to array needs addtional validation"
+        ))),
+
+        _ => Some(quote! { compile_error!("unexpected type in sanitize") }),
+    };
+
+    // Tables have a shape byte-range function we can use for a bounds check.
+    // Records don't expose per-field byte ranges, so skip it there.
+    if !in_record {
+        let range_fn = field.shape_byte_range_fn_name();
+        quote! {
+            if self.#range_fn().end > self.offset_data().len() {
+                return Err(ReadError::InvalidArrayLen);
+            }
+            #recurse
+        }
+    } else {
+        quote! { #recurse }
+    }
+}
+
 /// Generate `Sanitize` and `TrySanitize` impls for a table.
 pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
@@ -967,6 +1095,7 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
         (quote!(), quote!(<'_>))
     };
 
+    let data_expr = quote!(self.offset_data());
     let mut stmts = Vec::new();
 
     for field in item.fields.iter() {
@@ -987,107 +1116,22 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
             });
         }
 
+        // ComputedArray/VarLenArray also need a range check in the table context.
         let stmt = match &field.typ {
-            FieldType::Scalar { .. } => continue,
-            FieldType::Struct { .. } => {
-                quote! { self.#field_name().sanitize_record(self.offset_data())?; }
-            }
-
-            FieldType::Offset {
-                target: OffsetTarget::Table(_),
-                ..
-            } => {
-                let getter = field.offset_getter_name().unwrap();
-                let is_optional =
-                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
-                if is_optional {
-                    quote! { if let Some(r) = self.#getter() { r?.sanitize()?; } }
-                } else {
-                    quote! { sanitize_ignoring_null(self.#getter())?; }
-                }
-            }
-
-            FieldType::Offset {
-                target: OffsetTarget::Array(_),
-                ..
-            } => {
-                let getter = field.offset_getter_name().unwrap();
-                let is_optional =
-                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
-                if is_optional {
-                    quote! { if let Some(r) = self.#getter() { let _ = r?; } }
-                } else {
-                    quote! { let _ = self.#getter()?; }
-                }
-            }
-
-            FieldType::Array { inner_typ } => {
-                let range_fn = field.shape_byte_range_fn_name();
-                let sanitize_range = quote! {
-                    if self.#range_fn().end > self.offset_data().len() {
-                        return Err(ReadError::InvalidArrayLen);
-                    }
-                };
-
-                let sanitize_recurse = match inner_typ.as_ref() {
-                    FieldType::Struct { .. } => Some(quote! {
-                        let data = self.offset_data();
-                        for record in self.#field_name() {
-                            record.sanitize_record(data)?;
-                        }
-                    }),
-
-                    FieldType::Offset {
-                        target: OffsetTarget::Table(_),
-                        ..
-                    } => {
-                        let getter = field.offset_getter_name().unwrap();
-                        let is_nullable = field.attrs.nullable.is_some();
-                        let is_conditional = field.attrs.conditional.is_some();
-
-                        let inner_iter = if is_nullable {
-                            quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
-                        } else {
-                            quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
-                        };
-
-                        Some(if is_conditional {
-                            quote! { if let Some(arr) = self.#getter() { #inner_iter } }
-                        } else {
-                            quote! { let arr = self.#getter(); #inner_iter }
-                        })
-                    }
-                    FieldType::Scalar { .. } => None,
-
-                    FieldType::Offset {
-                        target: OffsetTarget::Array(_),
-                        ..
-                    } => Some(quote!(compile_error!(
-                        "offset to array needs addtional validation"
-                    ))),
-
-                    _ => Some(quote! { compile_error!("unexpected type in sanitize") }),
-                };
-                quote! {
-                    #sanitize_range
-                    #sanitize_recurse
-                }
-            }
-
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
-                let field_name = &field.name;
                 let range_fn = field.shape_byte_range_fn_name();
+                let inner = field_sanitize_stmt(field, &data_expr, false).unwrap();
                 quote! {
                     if self.#range_fn().end > self.offset_data().len() {
                         return Err(ReadError::InvalidArrayLen);
                     }
-                    self.#field_name().sanitize_record(self.offset_data())?;
+                    #inner
                 }
             }
-
-            FieldType::PendingResolution { .. } => {
-                panic!("unresolved field type in generate_sanitize")
-            }
+            _ => match field_sanitize_stmt(field, &data_expr, false) {
+                Some(s) => s,
+                None => continue,
+            },
         };
 
         stmts.push(stmt);
@@ -1203,79 +1247,16 @@ pub(crate) fn generate_sanitize_record(item: &Record) -> syn::Result<TokenStream
     let name = &item.name;
     let has_lifetime = item.lifetime.is_some();
 
+    let data_expr = quote!(data);
     let mut stmts: Vec<TokenStream> = Vec::new();
 
     for field in item.fields.iter() {
         if field.attrs.skip_getter.is_some() {
             continue;
         }
-
-        let field_name = &field.name;
-        let stmt = match &field.typ {
-            FieldType::Scalar { .. } => continue,
-            FieldType::Struct { .. } => {
-                quote! { self.#field_name().sanitize_record(data)?; }
-            }
-
-            FieldType::Offset {
-                target: OffsetTarget::Table(_),
-                ..
-            } => {
-                let getter = field.offset_getter_name().unwrap();
-                let is_optional =
-                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
-                if is_optional {
-                    quote! { if let Some(r) = self.#getter(data) { r?.sanitize()?; } }
-                } else {
-                    quote! { sanitize_ignoring_null(self.#getter(data))?; }
-                }
-            }
-
-            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-                FieldType::Offset {
-                    target: OffsetTarget::Table(_),
-                    ..
-                } => {
-                    let getter = field.offset_getter_name().unwrap();
-                    let is_nullable = field.attrs.nullable.is_some();
-                    let is_conditional = field.attrs.conditional.is_some();
-
-                    let inner_iter = if is_nullable {
-                        quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
-                    } else {
-                        quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
-                    };
-
-                    if is_conditional {
-                        quote! { if let Some(arr) = self.#getter(data) { #inner_iter } }
-                    } else {
-                        quote! { let arr = self.#getter(data); #inner_iter }
-                    }
-                }
-                FieldType::Struct { .. } => {
-                    quote! {
-                        for record in self.#field_name() {
-                            record.sanitize_record(data)?;
-                        }
-                    }
-                }
-                _ => quote!(compile_error!("unexpected field type")),
-            },
-
-            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
-                quote! { self.#field_name().sanitize_record(data)?; }
-            }
-
-            FieldType::Offset {
-                target: OffsetTarget::Array(_),
-                ..
-            } => quote!(compile_error!("offset to array needs sanitize handling")),
-            FieldType::PendingResolution { .. } => {
-                panic!("unresolved field type in generate_sanitize_record")
-            }
-        };
-
-        stmts.push(stmt);
+        if let Some(stmt) = field_sanitize_stmt(field, &data_expr, true) {
+            stmts.push(stmt);
+        }
     }
 
     let (impl_type, data_param) = if stmts.is_empty() {
