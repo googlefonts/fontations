@@ -1439,3 +1439,112 @@ impl<'a> std::fmt::Debug for FlagTable<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+impl<'a> MinByteRange<'a> for HasComputedArray<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<'a> FontRead<'a> for HasComputedArray<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+#[derive(Clone)]
+pub struct HasComputedArray<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> HasComputedArray<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + ValueFormat::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    pub fn version(&self) -> u16 {
+        let range = self.version_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn records_count(&self) -> u16 {
+        let range = self.records_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn format(&self) -> ValueFormat {
+        let range = self.format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn records(&self) -> ComputedArray<'a, ValueRecord> {
+        let range = self.records_byte_range();
+        self.data
+            .read_with_args(range, &self.format())
+            .unwrap_or_default()
+    }
+
+    pub fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn records_count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn format_byte_range(&self) -> Range<usize> {
+        let start = self.records_count_byte_range().end;
+        start..start + ValueFormat::RAW_BYTE_LEN
+    }
+
+    pub fn records_byte_range(&self) -> Range<usize> {
+        let records_count = self.records_count();
+        let start = self.format_byte_range().end;
+        start
+            ..start
+                + (records_count as usize).saturating_mul(
+                    <ValueRecord as ComputeSize>::compute_size(&self.format()).unwrap_or(0),
+                )
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for HasComputedArray<'a> {
+    fn type_name(&self) -> &str {
+        "HasComputedArray"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("records_count", self.records_count())),
+            2usize => Some(Field::new("format", self.format())),
+            3usize => Some(Field::new(
+                "records",
+                traversal::FieldType::computed_array(
+                    "ValueRecord",
+                    self.records(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for HasComputedArray<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}

@@ -1175,7 +1175,13 @@ pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
 
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
                 let field_name = &field.name;
-                quote! { self.#field_name().sanitize_record(self.offset_data())?; }
+                let range_fn = field.shape_byte_range_fn_name();
+                quote! {
+                    if self.#range_fn().end > self.offset_data().len() {
+                        return Err(ReadError::InvalidArrayLen);
+                    }
+                    self.#field_name().sanitize_record(self.offset_data())?;
+                }
             }
 
             FieldType::PendingResolution { .. } => {

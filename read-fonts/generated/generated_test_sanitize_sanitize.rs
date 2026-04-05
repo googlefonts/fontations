@@ -850,3 +850,77 @@ impl<'a> ReadSanitized<'a> for FlagTableSanitized<'a> {
         Self { ptr }
     }
 }
+
+impl Sanitize for HasComputedArray<'_> {
+    fn sanitize(&self) -> Result<(), ReadError> {
+        if self.records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        self.records().sanitize_record(self.offset_data())?;
+        Ok(())
+    }
+}
+
+impl<'a> TrySanitize for HasComputedArray<'a> {
+    type Sanitized = HasComputedArraySanitized<'a>;
+    fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+        const _: () = assert!(HasComputedArray::MIN_SIZE <= NULL_POOL_SIZE);
+        self.sanitize()?;
+        let ptr = FontPtr::new(self.offset_data());
+        Ok(unsafe { HasComputedArraySanitized::read_sanitized(ptr, &()) })
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct HasComputedArraySanitized<'a> {
+    pub(crate) ptr: FontPtr<'a>,
+}
+
+impl<'a> HasComputedArraySanitized<'a> {
+    pub fn offset_ptr(&self) -> FontPtr<'a> {
+        self.ptr
+    }
+    fn version_pos(&self) -> usize {
+        0
+    }
+    fn records_count_pos(&self) -> usize {
+        self.version_pos() + u16::RAW_BYTE_LEN
+    }
+    fn format_pos(&self) -> usize {
+        self.records_count_pos() + u16::RAW_BYTE_LEN
+    }
+    fn records_pos(&self) -> usize {
+        self.format_pos() + ValueFormat::RAW_BYTE_LEN
+    }
+
+    pub fn version(&self) -> u16 {
+        unsafe { self.ptr.read_at_unchecked(self.version_pos()) }
+    }
+
+    pub fn records_count(&self) -> u16 {
+        unsafe { self.ptr.read_at_unchecked(self.records_count_pos()) }
+    }
+
+    pub fn format(&self) -> ValueFormat {
+        unsafe { self.ptr.read_at_unchecked(self.format_pos()) }
+    }
+
+    pub fn records(&self) -> ComputedArraySanitized<'a, ValueRecordSanitized<'a>> {
+        let count = self.records_count() as usize;
+        let args = self.format();
+        let item_len = <ValueRecord as ComputeSize>::compute_size(&args).unwrap_or(0);
+        ComputedArraySanitized::new(
+            unsafe { self.ptr.split_off_unchecked(self.records_pos()) },
+            count,
+            item_len,
+            args,
+        )
+    }
+}
+
+impl<'a> ReadSanitized<'a> for HasComputedArraySanitized<'a> {
+    type Args = ();
+    unsafe fn read_sanitized(ptr: FontPtr<'a>, _args: &Self::Args) -> Self {
+        Self { ptr }
+    }
+}

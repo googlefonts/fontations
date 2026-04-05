@@ -738,6 +738,9 @@ impl<'a> ReadSanitized<'a> for SinglePosFormat1Sanitized<'a> {
 impl Sanitize for SinglePosFormat2<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
         sanitize_ignoring_null(self.coverage())?;
+        if self.value_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         self.value_records().sanitize_record(self.offset_data())?;
         Ok(())
     }
@@ -1017,6 +1020,9 @@ impl<'a> ReadSanitized<'a> for PairPosFormat1Sanitized<'a> {
 
 impl Sanitize for PairSet<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.pair_value_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         self.pair_value_records()
             .sanitize_record(self.offset_data())?;
         Ok(())
@@ -1149,6 +1155,9 @@ impl Sanitize for PairPosFormat2<'_> {
         sanitize_ignoring_null(self.coverage())?;
         sanitize_ignoring_null(self.class_def1())?;
         sanitize_ignoring_null(self.class_def2())?;
+        if self.class1_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         self.class1_records().sanitize_record(self.offset_data())?;
         Ok(())
     }
@@ -1653,6 +1662,9 @@ impl<'a> ReadSanitized<'a> for MarkBasePosFormat1Sanitized<'a> {
 
 impl Sanitize for BaseArray<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.base_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         self.base_records().sanitize_record(self.offset_data())?;
         Ok(())
     }
@@ -1947,6 +1959,9 @@ impl<'a> ReadSanitized<'a> for LigatureArraySanitized<'a> {
 
 impl Sanitize for LigatureAttach<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.component_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         self.component_records()
             .sanitize_record(self.offset_data())?;
         Ok(())
@@ -2173,6 +2188,9 @@ impl<'a> ReadSanitized<'a> for MarkMarkPosFormat1Sanitized<'a> {
 
 impl Sanitize for Mark2Array<'_> {
     fn sanitize(&self) -> Result<(), ReadError> {
+        if self.mark2_records_byte_range().end > self.offset_data().len() {
+            return Err(ReadError::InvalidArrayLen);
+        }
         self.mark2_records().sanitize_record(self.offset_data())?;
         Ok(())
     }

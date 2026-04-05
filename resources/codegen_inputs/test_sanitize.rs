@@ -1,5 +1,7 @@
 #![parse_module(read_fonts::codegen_test::sanitize)]
 
+extern scalar ValueFormat;
+
 // what are some things I want?
 //
 // - arrays
@@ -107,3 +109,13 @@ table FlagTable {
     #[if_flag($flags, FlagTableFlags::BAR)]
     if_bar: u16,
 }
+
+table HasComputedArray {
+    version: u16,
+    records_count: u16,
+    format: ValueFormat,
+    #[count($records_count)]
+    #[read_with($format)]
+    records: ComputedArray<ValueRecord>,
+}
+

@@ -795,4 +795,27 @@ pub mod sanitize {
         // v1.1 does not have if_20
         assert!(san.if_20().is_none());
     }
+
+    use crate::tables::gpos::{ValueFormat, ValueRecord, ValueRecordSanitized};
+    #[test]
+    fn computed_array_len() {
+        let buf = BeBuffer::new()
+            .push(0u16)
+            .push(2u16) // records count
+            .push(ValueFormat::X_ADVANCE | ValueFormat::X_PLACEMENT) // value count
+            .push(69u16) // record1->X_ADVANCE
+            .push(404u16); // record1->X_PLACEMENT
+                           // <- record 2 is missing
+
+        let table = HasComputedArray::read(buf.data().into()).unwrap();
+        assert_eq!(table.version(), 0);
+        assert_eq!(table.records_count(), 2);
+        assert_eq!(
+            table.format(),
+            ValueFormat::X_ADVANCE | ValueFormat::X_PLACEMENT
+        );
+        assert_eq!(table.records().iter().count(), 0);
+
+        assert!(table.sanitize().is_err());
+    }
 }
