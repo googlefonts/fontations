@@ -259,7 +259,7 @@ impl<'a> LangSysSanitized<'a> {
         self.ptr
     }
     fn required_feature_index_pos(&self) -> usize {
-        0
+        0 + u16::RAW_BYTE_LEN
     }
     fn feature_index_count_pos(&self) -> usize {
         self.required_feature_index_pos() + u16::RAW_BYTE_LEN

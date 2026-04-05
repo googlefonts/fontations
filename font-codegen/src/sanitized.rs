@@ -482,7 +482,12 @@ fn build_pos_and_getter_methods(fields: &Fields) -> (Vec<TokenStream>, Vec<Token
 
         if field.attrs.skip_getter.is_some() {
             // Don't generate getter/pos, but account for this field's bytes.
-            acc = quote!( #acc + #this_len );
+            if is_first {
+                acc = this_len;
+            } else {
+                acc = quote!( #acc + #this_len );
+            }
+            is_first = false;
             continue;
         }
 

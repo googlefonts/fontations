@@ -1262,4 +1262,17 @@ mod tests {
         assert_eq!(bit_storage(0xffff), 16);
         assert_eq!(bit_storage(0xffff_ffff), 32);
     }
+
+    #[test]
+    #[cfg(feature = "sanitize")]
+    fn handle_skip_getter_field_correctly() {
+        let data = [0u8, 0, 255, 255, 0, 0, 0, 0, 0, 0];
+        let langsys = LangSys::read(data.as_slice().into()).unwrap();
+        let sanitized = langsys.try_sanitize().unwrap();
+        assert_eq!(langsys.lookup_order_offset_byte_range().start, 0);
+        assert_eq!(
+            langsys.required_feature_index_byte_range().start,
+            sanitized.required_feature_index_pos()
+        );
+    }
 }
