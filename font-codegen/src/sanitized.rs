@@ -1,7 +1,9 @@
-//! Code generation for `ReadSanitized` types.
+//! Code generation for the `sanitize` feature.
 //!
-//! These are high-efficiency types for reading pre-validated font data without
-//! bounds checking, using raw pointer arithmetic via `FontPtr`.
+//! This includes:
+//! - `Sanitize` / `SanitizeRecord` / `TrySanitize` trait impls (validation)
+//! - `ReadSanitized` types (high-efficiency reading of pre-validated font data
+//!   without bounds checking, using raw pointer arithmetic via `FontPtr`)
 
 use std::collections::HashMap;
 
@@ -944,4 +946,366 @@ impl Field {
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Sanitize / SanitizeRecord / TrySanitize trait impls
+// ---------------------------------------------------------------------------
+
+/// Generate `Sanitize` and `TrySanitize` impls for a table.
+pub(crate) fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
+    if item.attrs.write_only.is_some() {
+        return Ok(Default::default());
+    }
+
+    let name = item.raw_name();
+    let generic = item.attrs.generic_offset.as_ref();
+
+    let (impl_generics, type_generics) = if let Some(t) = generic {
+        (quote!(<'a, #t: FontRead<'a> + Sanitize>), quote!(<'a, #t>))
+    } else {
+        (quote!(), quote!(<'_>))
+    };
+
+    let mut stmts = Vec::new();
+
+    for field in item.fields.iter() {
+        if field.attrs.skip_getter.is_some() {
+            continue;
+        }
+
+        let field_name = &field.name;
+
+        // Conditional presence check: if the condition is met but the field is absent
+        // (i.e., the data is too short to include it), the table is malformed.
+        if let Some(cond_attr) = &field.attrs.conditional {
+            let condition = cond_attr.condition_tokens_for_read();
+            stmts.push(quote! {
+                if #condition && self.#field_name().is_none() {
+                    return Err(ReadError::MissingFieldForCondition { field: stringify!( #field_name ) });
+                }
+            });
+        }
+
+        let stmt = match &field.typ {
+            FieldType::Scalar { .. } => continue,
+            FieldType::Struct { .. } => {
+                quote! { self.#field_name().sanitize_record(self.offset_data())?; }
+            }
+
+            FieldType::Offset {
+                target: OffsetTarget::Table(_),
+                ..
+            } => {
+                let getter = field.offset_getter_name().unwrap();
+                let is_optional =
+                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
+                if is_optional {
+                    quote! { if let Some(r) = self.#getter() { r?.sanitize()?; } }
+                } else {
+                    quote! { sanitize_ignoring_null(self.#getter())?; }
+                }
+            }
+
+            FieldType::Offset {
+                target: OffsetTarget::Array(_),
+                ..
+            } => {
+                let getter = field.offset_getter_name().unwrap();
+                let is_optional =
+                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
+                if is_optional {
+                    quote! { if let Some(r) = self.#getter() { let _ = r?; } }
+                } else {
+                    quote! { let _ = self.#getter()?; }
+                }
+            }
+
+            FieldType::Array { inner_typ } => {
+                let range_fn = field.shape_byte_range_fn_name();
+                let sanitize_range = quote! {
+                    if self.#range_fn().end > self.offset_data().len() {
+                        return Err(ReadError::InvalidArrayLen);
+                    }
+                };
+
+                let sanitize_recurse = match inner_typ.as_ref() {
+                    FieldType::Struct { .. } => Some(quote! {
+                        let data = self.offset_data();
+                        for record in self.#field_name() {
+                            record.sanitize_record(data)?;
+                        }
+                    }),
+
+                    FieldType::Offset {
+                        target: OffsetTarget::Table(_),
+                        ..
+                    } => {
+                        let getter = field.offset_getter_name().unwrap();
+                        let is_nullable = field.attrs.nullable.is_some();
+                        let is_conditional = field.attrs.conditional.is_some();
+
+                        let inner_iter = if is_nullable {
+                            quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
+                        } else {
+                            quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
+                        };
+
+                        Some(if is_conditional {
+                            quote! { if let Some(arr) = self.#getter() { #inner_iter } }
+                        } else {
+                            quote! { let arr = self.#getter(); #inner_iter }
+                        })
+                    }
+                    FieldType::Scalar { .. } => None,
+
+                    FieldType::Offset {
+                        target: OffsetTarget::Array(_),
+                        ..
+                    } => Some(quote!(compile_error!(
+                        "offset to array needs addtional validation"
+                    ))),
+
+                    _ => Some(quote! { compile_error!("unexpected type in sanitize") }),
+                };
+                quote! {
+                    #sanitize_range
+                    #sanitize_recurse
+                }
+            }
+
+            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
+                let field_name = &field.name;
+                let range_fn = field.shape_byte_range_fn_name();
+                quote! {
+                    if self.#range_fn().end > self.offset_data().len() {
+                        return Err(ReadError::InvalidArrayLen);
+                    }
+                    self.#field_name().sanitize_record(self.offset_data())?;
+                }
+            }
+
+            FieldType::PendingResolution { .. } => {
+                panic!("unresolved field type in generate_sanitize")
+            }
+        };
+
+        stmts.push(stmt);
+    }
+
+    // Generate try_sanitize on the original type unless the sanitized version
+    // requires non-unit args (i.e. the table has #[read_args(...)]).
+    let try_sanitize_impl = if item.fields.read_args.is_none() {
+        let sanitized_name = item.sanitized_name();
+        let (ts_impl_g, ts_type_g, ts_ret) = if let Some(gattr) = generic {
+            let t = &gattr.attr;
+            (
+                quote!(<'a, #t: FontRead<'a> + Sanitize>),
+                quote!(<'a, #t>),
+                quote!(#sanitized_name<'a, ()>),
+            )
+        } else {
+            (quote!(<'a>), quote!(<'a>), quote!(#sanitized_name<'a>))
+        };
+        let const_generic = generic.is_some().then(|| quote!(::<()>));
+        quote! {
+            impl #ts_impl_g TrySanitize for #name #ts_type_g {
+                type Sanitized = #ts_ret;
+                fn try_sanitize(&self) -> Result<Self::Sanitized, ReadError> {
+                    const _: () = assert!(#name #const_generic ::MIN_SIZE <= NULL_POOL_SIZE);
+                    self.sanitize()?;
+                    let ptr = FontPtr::new(self.offset_data());
+                    Ok(unsafe { #sanitized_name::read_sanitized(ptr, &()) })
+                }
+            }
+        }
+    } else {
+        quote!()
+    };
+
+    Ok(quote! {
+        impl #impl_generics Sanitize for #name #type_generics {
+            fn sanitize(&self) -> Result<(), ReadError> {
+                #(#stmts)*
+                Ok(())
+            }
+        }
+        #try_sanitize_impl
+    })
+}
+
+/// Generate `Sanitize` and `TrySanitize` impls for a format-dispatch table.
+pub(crate) fn generate_format_sanitize(item: &TableFormat) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let sanitized_name = format_ident!("{}Sanitized", name);
+
+    let match_arms = item
+        .variants
+        .iter()
+        .filter(|v| v.attrs.write_only.is_none())
+        .map(|variant| {
+            let var_name = &variant.name;
+            quote!(Self::#var_name(t) => t.sanitize(),)
+        });
+
+    Ok(quote! {
+        #[allow(clippy::needless_lifetimes)]
+        impl<'a> Sanitize for #name<'a> {
+            fn sanitize(&self) -> Result<(), ReadError> {
+                match self {
+                    #(#match_arms)*
+                }
+            }
+        }
+
+        impl<'a> #name<'a> {
+            pub fn try_sanitize(&self) -> Result<#sanitized_name<'a>, ReadError> {
+                self.sanitize()?;
+                let ptr = FontPtr::new(self.offset_data());
+                Ok(unsafe { #sanitized_name::read_sanitized(ptr, &()) })
+            }
+        }
+    })
+}
+
+/// Generate `Sanitize` and `TrySanitize` impls for a generic-group table.
+pub(crate) fn generate_group_sanitize(item: &GenericGroup) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let sanitized_name = format_ident!("{}Sanitized", name);
+
+    let match_arms = item.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        quote!(Self::#var_name(t) => t.sanitize(),)
+    });
+
+    Ok(quote! {
+        #[allow(clippy::needless_lifetimes)]
+        impl<'a> Sanitize for #name<'a> {
+            fn sanitize(&self) -> Result<(), ReadError> {
+                match self {
+                    #(#match_arms)*
+                }
+            }
+        }
+
+        impl<'a> #name<'a> {
+            pub fn try_sanitize(&self) -> Result<#sanitized_name<'a>, ReadError> {
+                self.sanitize()?;
+                let ptr = FontPtr::new(self.of_unit_type().offset_data());
+                Ok(unsafe { #sanitized_name::read_sanitized(ptr, &()) })
+            }
+        }
+    })
+}
+
+/// Generate a `SanitizeRecord` impl for a record type.
+pub(crate) fn generate_sanitize_record(item: &Record) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let has_lifetime = item.lifetime.is_some();
+
+    let mut stmts: Vec<TokenStream> = Vec::new();
+
+    for field in item.fields.iter() {
+        if field.attrs.skip_getter.is_some() {
+            continue;
+        }
+
+        let field_name = &field.name;
+        let stmt = match &field.typ {
+            FieldType::Scalar { .. } => continue,
+            FieldType::Struct { .. } => {
+                quote! { self.#field_name().sanitize_record(data)?; }
+            }
+
+            FieldType::Offset {
+                target: OffsetTarget::Table(_),
+                ..
+            } => {
+                let getter = field.offset_getter_name().unwrap();
+                let is_optional =
+                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
+                if is_optional {
+                    quote! { if let Some(r) = self.#getter(data) { r?.sanitize()?; } }
+                } else {
+                    quote! { sanitize_ignoring_null(self.#getter(data))?; }
+                }
+            }
+
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset {
+                    target: OffsetTarget::Table(_),
+                    ..
+                } => {
+                    let getter = field.offset_getter_name().unwrap();
+                    let is_nullable = field.attrs.nullable.is_some();
+                    let is_conditional = field.attrs.conditional.is_some();
+
+                    let inner_iter = if is_nullable {
+                        quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
+                    } else {
+                        quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
+                    };
+
+                    if is_conditional {
+                        quote! { if let Some(arr) = self.#getter(data) { #inner_iter } }
+                    } else {
+                        quote! { let arr = self.#getter(data); #inner_iter }
+                    }
+                }
+                FieldType::Struct { .. } => {
+                    quote! {
+                        for record in self.#field_name() {
+                            record.sanitize_record(data)?;
+                        }
+                    }
+                }
+                _ => quote!(compile_error!("unexpected field type")),
+            },
+
+            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
+                quote! { self.#field_name().sanitize_record(data)?; }
+            }
+
+            FieldType::Offset {
+                target: OffsetTarget::Array(_),
+                ..
+            } => quote!(compile_error!("offset to array needs sanitize handling")),
+            FieldType::PendingResolution { .. } => {
+                panic!("unresolved field type in generate_sanitize_record")
+            }
+        };
+
+        stmts.push(stmt);
+    }
+
+    let (impl_type, data_param) = if stmts.is_empty() {
+        // trivial impl; suppress unused-variable warning for data
+        (
+            if has_lifetime {
+                quote! { #name<'_> }
+            } else {
+                quote! { #name }
+            },
+            quote! { _data: FontData },
+        )
+    } else {
+        (
+            if has_lifetime {
+                quote! { #name<'_> }
+            } else {
+                quote! { #name }
+            },
+            quote! { data: FontData },
+        )
+    };
+
+    Ok(quote! {
+        #[allow(clippy::needless_lifetimes)]
+        impl SanitizeRecord for #impl_type {
+            fn sanitize_record(&self, #data_param) -> Result<(), ReadError> {
+                #(#stmts)*
+                Ok(())
+            }
+        }
+    })
 }

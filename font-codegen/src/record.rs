@@ -6,8 +6,8 @@ use quote::{format_ident, quote, ToTokens};
 use crate::{
     fields::FieldConstructorInfo,
     parsing::{
-        logged_syn_error, CustomCompile, Field, FieldType, Fields, Item, Items, OffsetTarget,
-        Phase, Record, TableAttrs,
+        logged_syn_error, CustomCompile, Field, FieldType, Fields, Item, Items, Phase, Record,
+        TableAttrs,
     },
 };
 
@@ -364,117 +364,6 @@ fn generate_from_obj_impl(item: &Record, parse_module: &syn::Path) -> syn::Resul
                 #name {
                     #( #field_to_owned_stmts, )*
                 }
-            }
-        }
-    })
-}
-
-pub(crate) fn generate_sanitize_record(item: &Record) -> syn::Result<TokenStream> {
-    let name = &item.name;
-    let has_lifetime = item.lifetime.is_some();
-
-    let mut stmts: Vec<TokenStream> = Vec::new();
-
-    for field in item.fields.iter() {
-        if field.attrs.skip_getter.is_some() {
-            continue;
-        }
-
-        let field_name = &field.name;
-        let stmt = match &field.typ {
-            FieldType::Scalar { .. } => continue,
-            FieldType::Struct { .. } => {
-                quote! { self.#field_name().sanitize_record(data)?; }
-            }
-
-            FieldType::Offset {
-                target: OffsetTarget::Table(_),
-                ..
-            } => {
-                let getter = field.offset_getter_name().unwrap();
-                let is_optional =
-                    field.attrs.nullable.is_some() || field.attrs.conditional.is_some();
-                if is_optional {
-                    quote! { if let Some(r) = self.#getter(data) { r?.sanitize()?; } }
-                } else {
-                    quote! { sanitize_ignoring_null(self.#getter(data))?; }
-                }
-            }
-
-            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-                FieldType::Offset {
-                    target: OffsetTarget::Table(_),
-                    ..
-                } => {
-                    let getter = field.offset_getter_name().unwrap();
-                    let is_nullable = field.attrs.nullable.is_some();
-                    let is_conditional = field.attrs.conditional.is_some();
-
-                    let inner_iter = if is_nullable {
-                        quote! { for r in arr.iter().flatten() { r?.sanitize()?; } }
-                    } else {
-                        quote! { for item in arr.iter() { sanitize_ignoring_null(item)?; } }
-                    };
-
-                    if is_conditional {
-                        quote! { if let Some(arr) = self.#getter(data) { #inner_iter } }
-                    } else {
-                        quote! { let arr = self.#getter(data); #inner_iter }
-                    }
-                }
-                FieldType::Struct { .. } => {
-                    quote! {
-                        for record in self.#field_name() {
-                            record.sanitize_record(data)?;
-                        }
-                    }
-                }
-                _ => quote!(compile_error!("unexpected field type")),
-            },
-
-            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
-                quote! { self.#field_name().sanitize_record(data)?; }
-            }
-
-            FieldType::Offset {
-                target: OffsetTarget::Array(_),
-                ..
-            } => quote!(compile_error!("offset to array needs sanitize handling")),
-            FieldType::PendingResolution { .. } => {
-                panic!("unresolved field type in generate_sanitize_record")
-            }
-        };
-
-        stmts.push(stmt);
-    }
-
-    let (impl_type, data_param) = if stmts.is_empty() {
-        // trivial impl; suppress unused-variable warning for data
-        (
-            if has_lifetime {
-                quote! { #name<'_> }
-            } else {
-                quote! { #name }
-            },
-            quote! { _data: FontData },
-        )
-    } else {
-        (
-            if has_lifetime {
-                quote! { #name<'_> }
-            } else {
-                quote! { #name }
-            },
-            quote! { data: FontData },
-        )
-    };
-
-    Ok(quote! {
-        #[allow(clippy::needless_lifetimes)]
-        impl SanitizeRecord for #impl_type {
-            fn sanitize_record(&self, #data_param) -> Result<(), ReadError> {
-                #(#stmts)*
-                Ok(())
             }
         }
     })
