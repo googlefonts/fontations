@@ -9,14 +9,23 @@ use super::{
 };
 use crate::{
     model::pen::OutlinePen,
-    types::{Fixed, GlyphId},
+    types::{BoundingBox, Fixed, GlyphId},
     ReadError,
 };
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use core::ops::Range;
 
 /// A Type1 font.
 pub struct Type1Font {
+    name: Option<String>,
+    full_name: Option<String>,
+    family_name: Option<String>,
+    weight: Option<String>,
+    bbox: BoundingBox<Fixed>,
+    italic_angle: i32,
+    is_fixed_pitch: bool,
+    underline_position: i32,
+    underline_thickness: i32,
     matrix: ScaledFontMatrix,
     charstrings: Charstrings,
     subrs: Subrs,
@@ -40,10 +49,19 @@ impl Type1Font {
 
     fn empty() -> Self {
         Self {
+            name: None,
+            full_name: None,
+            family_name: None,
+            weight: None,
+            italic_angle: 0,
+            is_fixed_pitch: false,
+            underline_position: 0,
+            underline_thickness: 0,
             matrix: ScaledFontMatrix {
                 matrix: FontMatrix::IDENTITY,
                 scale: 1000,
             },
+            bbox: BoundingBox::default(),
             charstrings: Charstrings::default(),
             subrs: Subrs::default(),
             encoding: None,
@@ -59,6 +77,36 @@ impl Type1Font {
         let mut parser = Parser::new(base);
         while let Some(token) = parser.next() {
             match token {
+                Token::Name(b"FontName") => font.name = parser.read_string(),
+                Token::Name(b"FullName") => font.full_name = parser.read_string(),
+                Token::Name(b"FamilyName") => font.family_name = parser.read_string(),
+                Token::Name(b"Weight") => {
+                    // The /Weight token can appear elsewhere in MM fonts so take
+                    // the first one
+                    if font.weight.is_none() {
+                        font.weight = parser.read_string();
+                    }
+                }
+                Token::Name(b"ItalicAngle") => font.italic_angle = parser.read_int()? as i32,
+                Token::Name(b"IsFixedPitch") => {
+                    font.is_fixed_pitch = parser.next() == Some(Token::Raw(b"true"))
+                }
+                Token::Name(b"UnderlinePosition") => {
+                    font.underline_position = parser.read_int()? as i32
+                }
+                Token::Name(b"UnderlineThickness") => {
+                    font.underline_thickness = parser.read_int()? as i32
+                }
+                Token::Name(b"FontBBox") => {
+                    if let Some([x_min, y_min, x_max, y_max]) = parser.read_font_bbox() {
+                        font.bbox = BoundingBox {
+                            x_min,
+                            y_min,
+                            x_max,
+                            y_max,
+                        };
+                    }
+                }
                 Token::Name(b"FontMatrix") => font.matrix = parser.read_font_matrix()?,
                 // Simply save the encoding offset. We'll parse it after
                 // we have read charstrings so we have an accurate mapping
@@ -103,6 +151,11 @@ impl Type1Font {
                 _ => {}
             }
         }
+        // Reject fonts that are missing a /CharStrings array
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L2665>
+        if font.charstrings.index.is_empty() {
+            return None;
+        }
         if let Some(encoding_offset) = encoding_offset {
             let mut parser = Parser::new(base.get(encoding_offset..)?);
             font.encoding = Some(parser.read_encoding(&font.charstrings)?);
@@ -115,19 +168,64 @@ impl Type1Font {
         Some(font)
     }
 
+    /// Returns the PostScript name.
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_ref().map(|s| s.as_str())
+    }
+
+    /// Returns the full font name.
+    pub fn full_name(&self) -> Option<&str> {
+        self.full_name.as_ref().map(|s| s.as_str())
+    }
+
+    /// Returns the font family name.
+    pub fn family_name(&self) -> Option<&str> {
+        self.family_name.as_ref().map(|s| s.as_str())
+    }
+
+    /// Returns the weight or style name.
+    pub fn weight(&self) -> Option<&str> {
+        self.weight.as_ref().map(|s| s.as_str())
+    }
+
+    /// Returns the italic angle.
+    pub fn italic_angle(&self) -> i32 {
+        self.italic_angle
+    }
+
+    /// Returns true if the glyphs in this font have the same width.
+    pub fn is_fixed_pitch(&self) -> bool {
+        self.is_fixed_pitch
+    }
+
+    /// Returns the position of the top of an underline decoration.
+    pub fn underline_position(&self) -> i32 {
+        self.underline_position
+    }
+
+    /// Returns the suggested size for an underline decoration.
+    pub fn underline_thickness(&self) -> i32 {
+        self.underline_thickness
+    }
+
+    /// Returns the font bounding box.
+    pub fn bbox(&self) -> BoundingBox<Fixed> {
+        self.bbox
+    }
+
     /// Returns the number of glyphs in the Type1 font.
     pub fn num_glyphs(&self) -> u32 {
         self.charstrings.num_glyphs()
     }
 
-    /// Returns the top level font matrix.
-    pub fn matrix(&self) -> FontMatrix {
-        self.matrix.matrix
-    }
-
     /// Returns the units per em.
     pub fn upem(&self) -> i32 {
         self.matrix.scale
+    }
+
+    /// Returns the top level font matrix.
+    pub fn matrix(&self) -> FontMatrix {
+        self.matrix.matrix
     }
 
     /// Returns the appropriate transform for adjusting points and metrics.
@@ -864,6 +962,16 @@ impl<'a> Parser<'a> {
             _ => None,
         })
     }
+
+    fn read_string(&mut self) -> Option<String> {
+        let bytes = match self.next()? {
+            // FreeType accepts a name or a string here
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L1123>
+            Token::Name(bytes) | Token::LitString(bytes) => bytes,
+            _ => return None,
+        };
+        core::str::from_utf8(bytes).ok().map(|s| s.to_owned())
+    }
 }
 
 impl Parser<'_> {
@@ -1056,6 +1164,31 @@ impl Parser<'_> {
         charstrings.names.shrink_to_fit();
         charstrings.index.shrink_to_fit();
         Some(charstrings)
+    }
+
+    fn read_font_bbox(&mut self) -> Option<[Fixed; 4]> {
+        let mut bbox = [Fixed::ZERO; 4];
+        // accept [ or { to match FreeType
+        // Note that we parse { as a procedure so this needs some special
+        // handling
+        let mut parser;
+        let parser = if self.accept(Token::Raw(b"[")) {
+            self
+        } else if let Token::Proc(proc) = self.next()? {
+            parser = Parser::new(proc);
+            &mut parser
+        } else {
+            return None;
+        };
+        // read all components
+        for component in &mut bbox {
+            *component = match parser.next()? {
+                Token::Int(int) => Fixed::from_i32(int as i32),
+                Token::Raw(bytes) => decode_fixed(bytes, 0)?,
+                _ => return None,
+            }
+        }
+        Some(bbox)
     }
 
     fn read_weight_vector(&mut self) -> Option<Vec<Fixed>> {
@@ -1727,7 +1860,7 @@ mod tests {
     fn parse_subrs_duplicate_def() {
         // Two definitions of subrs.. we want to keep the first
         // one which has two entries at 5 and 42
-        let private = b"/Subrs 2 array dup 5 2 RD nd NP dup 42 2 RD ab NP ND\n/Subrs 1 array dup 0 2 RD xy NP ND";
+        let private = b"/Subrs 2 array dup 5 2 RD nd NP dup 42 2 RD ab NP ND\n/Subrs 1 array dup 0 2 RD xy NP ND /CharStrings 0";
         let font = Type1Font::from_dicts(b"", private).unwrap();
         assert_eq!(font.subrs.index.len(), 2);
         assert_eq!(font.subrs.index[0].0, 5);
@@ -1862,6 +1995,23 @@ mod tests {
 
     #[track_caller]
     fn check_type1_font(font: &Type1Font) {
+        assert_eq!(font.name(), Some("NotoSerif-Regular"));
+        assert_eq!(font.full_name(), Some("Noto Serif Regular"));
+        assert_eq!(font.family_name(), Some("Noto Serif"));
+        assert_eq!(font.weight(), Some("Book"));
+        assert_eq!(font.italic_angle(), 0);
+        assert_eq!(font.is_fixed_pitch(), false);
+        assert_eq!(font.underline_position(), -125);
+        assert_eq!(font.underline_thickness(), 50);
+        assert_eq!(
+            font.bbox(),
+            BoundingBox {
+                x_min: Fixed::from_i32(5),
+                y_min: Fixed::ZERO,
+                x_max: Fixed::from_i32(989),
+                y_max: Fixed::from_i32(775)
+            }
+        );
         assert_eq!(font.num_glyphs(), 9);
         assert_eq!(font.subrs.index.len(), 5);
         assert_eq!(
