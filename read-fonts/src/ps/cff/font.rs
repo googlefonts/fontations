@@ -66,7 +66,7 @@ impl<'a> CffFontRef<'a> {
             false,
             upem,
             top_dict_data,
-            top_dict_index as u16,
+            top_dict_index,
             cff.strings().into(),
             cff.global_subrs().into(),
         )
