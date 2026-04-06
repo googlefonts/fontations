@@ -148,9 +148,11 @@ mod sanitize_manual_impls {
                     }
                 })
                 .ok()
-                .map(|idx| {
+                .and_then(|idx| {
                     let rec = &self.range_records()[idx];
-                    rec.start_coverage_index() + gid.to_u16() - rec.start_glyph_id().to_u16()
+                    rec.start_coverage_index()
+                        .checked_add(gid.to_u16())?
+                        .checked_sub(rec.start_glyph_id().to_u16())
                 })
         }
         pub fn population(&self) -> usize {
