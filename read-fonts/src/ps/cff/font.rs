@@ -753,10 +753,13 @@ impl<'a> Metadata<'a> {
             core::str::from_utf8(bytes).ok()
         };
         let top_dict_data = cff.top_dicts().get(top_dict_index as usize).ok()?;
-        let mut meta = Metadata::default();
-        meta.name = cff
+        let name = cff
             .name(top_dict_index as usize)
             .and_then(|bytes| core::str::from_utf8(bytes).ok());
+        let mut meta = Metadata {
+            name,
+            ..Default::default()
+        };
         for entry in dict::entries(top_dict_data, None).filter_map(|e| e.ok()) {
             match entry {
                 dict::Entry::FullName(sid) => meta.full_name = get_str(sid),
@@ -888,7 +891,7 @@ mod tests {
             }
         );
         assert_eq!(meta.italic_angle(), Fixed::ZERO);
-        assert_eq!(meta.is_fixed_pitch(), false);
+        assert!(!meta.is_fixed_pitch());
         assert_eq!(meta.underline_position(), Fixed::from_i32(-100));
         assert_eq!(meta.underline_thickness(), Fixed::from_i32(50));
         let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET).unwrap();
@@ -908,7 +911,7 @@ mod tests {
             }
         );
         assert_eq!(meta.italic_angle(), Fixed::ZERO);
-        assert_eq!(meta.is_fixed_pitch(), false);
+        assert!(!meta.is_fixed_pitch());
         assert_eq!(meta.underline_position(), Fixed::from_i32(-100));
         assert_eq!(meta.underline_thickness(), Fixed::from_i32(50));
     }

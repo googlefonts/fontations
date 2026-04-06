@@ -175,17 +175,17 @@ impl Type1Font {
 
     /// Returns the full font name.
     pub fn full_name(&self) -> Option<&str> {
-        self.name.as_deref()
+        self.full_name.as_deref()
     }
 
     /// Returns the font family name.
     pub fn family_name(&self) -> Option<&str> {
-        self.name.as_deref()
+        self.family_name.as_deref()
     }
 
     /// Returns the weight or style name.
     pub fn weight(&self) -> Option<&str> {
-        self.name.as_deref()
+        self.weight.as_deref()
     }
 
     /// Returns the italic angle.
