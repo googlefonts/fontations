@@ -12,4 +12,4 @@ pub mod v2;
 
 mod font;
 
-pub use font::{CffFontRef, Encoding, Subfont};
+pub use font::{CffFontRef, Encoding, Metadata, Subfont};

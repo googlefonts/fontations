@@ -170,22 +170,22 @@ impl Type1Font {
 
     /// Returns the PostScript name.
     pub fn name(&self) -> Option<&str> {
-        self.name.as_ref().map(|s| s.as_str())
+        self.name.as_deref()
     }
 
     /// Returns the full font name.
     pub fn full_name(&self) -> Option<&str> {
-        self.full_name.as_ref().map(|s| s.as_str())
+        self.name.as_deref()
     }
 
     /// Returns the font family name.
     pub fn family_name(&self) -> Option<&str> {
-        self.family_name.as_ref().map(|s| s.as_str())
+        self.name.as_deref()
     }
 
     /// Returns the weight or style name.
     pub fn weight(&self) -> Option<&str> {
-        self.weight.as_ref().map(|s| s.as_str())
+        self.name.as_deref()
     }
 
     /// Returns the italic angle.
@@ -964,6 +964,7 @@ impl<'a> Parser<'a> {
     }
 
     fn read_string(&mut self) -> Option<String> {
+        use alloc::borrow::ToOwned;
         let bytes = match self.next()? {
             // FreeType accepts a name or a string here
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L1123>
@@ -2000,7 +2001,7 @@ mod tests {
         assert_eq!(font.family_name(), Some("Noto Serif"));
         assert_eq!(font.weight(), Some("Book"));
         assert_eq!(font.italic_angle(), 0);
-        assert_eq!(font.is_fixed_pitch(), false);
+        assert!(!font.is_fixed_pitch());
         assert_eq!(font.underline_position(), -125);
         assert_eq!(font.underline_thickness(), 50);
         assert_eq!(

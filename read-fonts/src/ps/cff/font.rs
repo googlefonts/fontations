@@ -18,7 +18,7 @@ use crate::{
     FontData, FontRead, ReadError,
 };
 use core::ops::Range;
-use types::{F2Dot14, Fixed, GlyphId};
+use types::{BoundingBox, F2Dot14, Fixed, GlyphId};
 
 /// A CFF or CFF2 font.
 ///
@@ -31,6 +31,7 @@ pub struct CffFontRef<'a> {
     upem: i32,
     global_subrs: Index<'a>,
     top_dict: TopDict<'a>,
+    top_dict_index: u16,
 }
 
 impl<'a> CffFontRef<'a> {
@@ -57,11 +58,15 @@ impl<'a> CffFontRef<'a> {
     pub fn new_cff(data: &'a [u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
         let cff = cff::Cff::read(data.into())?;
         let top_dict_data = cff.top_dicts().get(top_dict_index as usize)?;
+        let top_dict_index: u16 = top_dict_index
+            .try_into()
+            .map_err(|_| ReadError::OutOfBounds)?;
         Self::new_impl(
             data,
             false,
             upem,
             top_dict_data,
+            top_dict_index as u16,
             cff.strings().into(),
             cff.global_subrs().into(),
         )
@@ -78,6 +83,7 @@ impl<'a> CffFontRef<'a> {
             true,
             upem,
             cff.top_dict_data(),
+            0,
             Index::Empty,
             cff.global_subrs().into(),
         )
@@ -88,6 +94,7 @@ impl<'a> CffFontRef<'a> {
         is_cff2: bool,
         upem: Option<i32>,
         top_dict_data: &'a [u8],
+        top_dict_index: u16,
         strings: Index<'a>,
         global_subrs: Index<'a>,
     ) -> Result<Self, Error> {
@@ -99,6 +106,7 @@ impl<'a> CffFontRef<'a> {
             upem: upem.unwrap_or(top_upem),
             global_subrs,
             top_dict,
+            top_dict_index,
         })
     }
 
@@ -114,6 +122,11 @@ impl<'a> CffFontRef<'a> {
         } else {
             1
         }
+    }
+
+    /// Returns additional metadata such as font names and metrics.
+    pub fn metadata(&self) -> Option<Metadata<'a>> {
+        Metadata::new(self.data, self.top_dict_index)
     }
 
     /// Returns true if this is a CID-keyed font.
@@ -711,6 +724,124 @@ impl FontDict {
     }
 }
 
+/// Extra metadata for a CFF font.
+///
+/// This is accessed separately because this information is redundant when a
+/// CFF blob is used in an OpenType font.
+#[derive(Clone, Debug)]
+pub struct Metadata<'a> {
+    name: Option<&'a str>,
+    full_name: Option<&'a str>,
+    family_name: Option<&'a str>,
+    weight: Option<&'a str>,
+    bbox: BoundingBox<Fixed>,
+    italic_angle: Fixed,
+    is_fixed_pitch: bool,
+    underline_position: Fixed,
+    underline_thickness: Fixed,
+}
+
+impl<'a> Metadata<'a> {
+    fn new(data: &'a [u8], top_dict_index: u16) -> Option<Self> {
+        let cff = cff::Cff::read(FontData::new(data)).ok()?;
+        let strings = cff.strings();
+        let get_str = |sid: Sid| {
+            let bytes = match sid.resolve_standard() {
+                Ok(bytes) => bytes,
+                Err(idx) => strings.get(idx).ok()?,
+            };
+            core::str::from_utf8(bytes).ok()
+        };
+        let top_dict_data = cff.top_dicts().get(top_dict_index as usize).ok()?;
+        let mut meta = Metadata::default();
+        meta.name = cff
+            .name(top_dict_index as usize)
+            .and_then(|bytes| core::str::from_utf8(bytes).ok());
+        for entry in dict::entries(top_dict_data, None).filter_map(|e| e.ok()) {
+            match entry {
+                dict::Entry::FullName(sid) => meta.full_name = get_str(sid),
+                dict::Entry::FamilyName(sid) => meta.family_name = get_str(sid),
+                dict::Entry::Weight(sid) => meta.weight = get_str(sid),
+                dict::Entry::FontBbox([x_min, y_min, x_max, y_max]) => {
+                    meta.bbox = BoundingBox {
+                        x_min,
+                        x_max,
+                        y_min,
+                        y_max,
+                    }
+                }
+                dict::Entry::ItalicAngle(angle) => meta.italic_angle = angle,
+                dict::Entry::IsFixedPitch(fixed_pitch) => meta.is_fixed_pitch = fixed_pitch,
+                dict::Entry::UnderlinePosition(pos) => meta.underline_position = pos,
+                dict::Entry::UnderlineThickness(size) => meta.underline_thickness = size,
+                _ => {}
+            }
+        }
+        Some(meta)
+    }
+
+    /// Returns the PostScript name.
+    pub fn name(&self) -> Option<&'a str> {
+        self.name
+    }
+
+    /// Returns the full font name.
+    pub fn full_name(&self) -> Option<&'a str> {
+        self.full_name
+    }
+
+    /// Returns the font family name.
+    pub fn family_name(&self) -> Option<&'a str> {
+        self.family_name
+    }
+
+    /// Returns the weight or style name.
+    pub fn weight(&self) -> Option<&'a str> {
+        self.weight
+    }
+
+    /// Returns the italic angle.
+    pub fn italic_angle(&self) -> Fixed {
+        self.italic_angle
+    }
+
+    /// Returns true if the glyphs in this font have the same width.
+    pub fn is_fixed_pitch(&self) -> bool {
+        self.is_fixed_pitch
+    }
+
+    /// Returns the position of the top of an underline decoration.
+    pub fn underline_position(&self) -> Fixed {
+        self.underline_position
+    }
+
+    /// Returns the suggested size for an underline decoration.
+    pub fn underline_thickness(&self) -> Fixed {
+        self.underline_thickness
+    }
+
+    /// Returns the font bounding box.
+    pub fn bbox(&self) -> BoundingBox<Fixed> {
+        self.bbox
+    }
+}
+
+impl Default for Metadata<'_> {
+    fn default() -> Self {
+        Self {
+            name: None,
+            full_name: None,
+            family_name: None,
+            weight: None,
+            bbox: BoundingBox::default(),
+            italic_angle: Fixed::ZERO,
+            is_fixed_pitch: false,
+            underline_position: Fixed::from_i32(-100),
+            underline_thickness: Fixed::from_i32(50),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -736,6 +867,50 @@ mod tests {
         assert_eq!(cff.num_subfonts(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), Some(0));
         assert_eq!(cff.global_subrs.count(), 17);
+    }
+
+    #[test]
+    fn read_cff_metadata() {
+        let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let cff = CffFontRef::new(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
+        let meta = cff.metadata().unwrap();
+        assert_eq!(meta.name(), Some("NotoSerifDisplay-Regular"));
+        assert_eq!(meta.full_name(), Some("Noto Serif Display Regular"));
+        assert_eq!(meta.family_name(), Some("Noto Serif Display"));
+        assert_eq!(meta.weight(), None);
+        assert_eq!(
+            meta.bbox(),
+            BoundingBox {
+                x_min: Fixed::from_i32(-693),
+                y_min: Fixed::from_i32(-470),
+                x_max: Fixed::from_i32(2797),
+                y_max: Fixed::from_i32(1048)
+            }
+        );
+        assert_eq!(meta.italic_angle(), Fixed::ZERO);
+        assert_eq!(meta.is_fixed_pitch(), false);
+        assert_eq!(meta.underline_position(), Fixed::from_i32(-100));
+        assert_eq!(meta.underline_thickness(), Fixed::from_i32(50));
+        let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET).unwrap();
+        let cff = CffFontRef::new(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
+        let meta = cff.metadata().unwrap();
+        assert_eq!(meta.name(), Some("GoogleMaterialIcons-Regular"));
+        assert_eq!(meta.full_name(), Some("GoogleMaterialIcons-Regular"));
+        assert_eq!(meta.family_name(), None);
+        assert_eq!(meta.weight(), None);
+        assert_eq!(
+            meta.bbox(),
+            BoundingBox {
+                x_min: Fixed::from_i32(-1),
+                y_min: Fixed::ZERO,
+                x_max: Fixed::from_i32(513),
+                y_max: Fixed::from_i32(512)
+            }
+        );
+        assert_eq!(meta.italic_angle(), Fixed::ZERO);
+        assert_eq!(meta.is_fixed_pitch(), false);
+        assert_eq!(meta.underline_position(), Fixed::from_i32(-100));
+        assert_eq!(meta.underline_thickness(), Fixed::from_i32(50));
     }
 
     #[test]
