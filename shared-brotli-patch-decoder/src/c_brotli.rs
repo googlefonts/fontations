@@ -1,5 +1,5 @@
 use crate::decode_error::DecodeError;
-use brotlic_sys::{
+use crate::sys::{
     BrotliDecoderAttachDictionary, BrotliDecoderCreateInstance, BrotliDecoderDecompressStream,
     BrotliDecoderDestroyInstance, BrotliDecoderResult_BROTLI_DECODER_RESULT_ERROR,
     BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT,

@@ -13,14 +13,16 @@ all-features = true
 
 [features]
 default = ["c-brotli"]
-c-brotli = ["dep:brotlic-sys"]
+c-brotli = ["cc"]
 rust-brotli = ["dep:brotli-decompressor"]
 
 
 [dependencies]
-brotlic-sys = {version = "0.2.2", optional = true}
 brotli-decompressor = {version = "5.0.0", optional = true}
 cfg-if = "1.0.0"
+
+[build-dependencies]
+cc = { version = "1.2", optional = true }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(fuzzing)'] }

@@ -1,6 +1,9 @@
 #[cfg(feature = "c-brotli")]
 mod c_brotli;
 
+#[cfg(feature = "c-brotli")]
+mod sys;
+
 #[cfg(feature = "rust-brotli")]
 mod rust_brotli;
 
