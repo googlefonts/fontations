@@ -180,13 +180,22 @@ fn align_stem_edges(
     // Now align all other stem edges
     // This code starts at: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3123>
     for edge_ix in 0..axis.edges.len() {
-        let edges = axis.edges.as_mut_slice();
-        let edge = &edges[edge_ix];
-        if edge.flags & Edge::DONE != 0 {
+        // Read the values we need to decide on early-exit paths before taking
+        // any &mut borrow that would conflict with align_linked_edge(&mut axis).
+        let (edge_flags, edge_link_ix, edge_pos, edge2_pos_for_cjk, edge2_has_blue) = {
+            let edges = axis.edges.as_slice();
+            let edge = &edges[edge_ix];
+            let link_ix = edge.link_ix.map(|ix| ix as usize);
+            let (edge2_pos, edge2_has_blue) = link_ix
+                .map(|ix| (edges[ix].pos, edges[ix].blue_edge.is_some()))
+                .unwrap_or((0, false));
+            (edge.flags, link_ix, edge.pos, edge2_pos, edge2_has_blue)
+        };
+        if edge_flags & Edge::DONE != 0 {
             continue;
         }
         // Skip all non-stem edges
-        let Some(edge2_ix) = edge.link_ix.map(|ix| ix as usize) else {
+        let Some(edge2_ix) = edge_link_ix else {
             serif_count += 1;
             continue;
         };
@@ -194,15 +203,14 @@ fn align_stem_edges(
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1912>
         if group != ScriptGroup::Default {
             if let Some(last_pos) = last_stem_pos {
-                if edge.pos < last_pos + 64 || edges[edge2_ix].pos < last_pos + 64 {
+                if edge_pos < last_pos + 64 || edge2_pos_for_cjk < last_pos + 64 {
                     serif_count += 1;
                     continue;
                 }
             }
         }
-        // This shouldn't happen?
-        if edges[edge2_ix].blue_edge.is_some() {
-            edges[edge2_ix].flags |= Edge::DONE;
+        // This should not happen, but match the C fallback.
+        if edge2_has_blue {
             align_linked_edge(
                 axis,
                 metrics,
@@ -212,8 +220,10 @@ fn align_stem_edges(
                 edge_ix,
                 recorder.as_deref_mut(),
             );
+            axis.edges[edge_ix].flags |= Edge::DONE;
             continue;
         }
+        let edges = axis.edges.as_mut_slice();
         if group == ScriptGroup::Default {
             // Now align the stem
             // Note: the branches here are reversed from the FreeType code
@@ -456,14 +466,17 @@ fn align_remaining_edges(
     if group == ScriptGroup::Default {
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3418>
         for edge_ix in 0..axis.edges.len() {
-            let edges = &mut axis.edges;
-            let edge = &edges[edge_ix];
-            if edge.flags & Edge::DONE != 0 {
+            let (edge_flags, edge_opos, edge_serif_ix, delta) = {
+                let edges = axis.edges.as_slice();
+                let edge = &edges[edge_ix];
+                let delta = edge
+                    .serif(edges)
+                    .map(|serif| (serif.opos - edge.opos).abs())
+                    .unwrap_or(1000);
+                (edge.flags, edge.opos, edge.serif_ix, delta)
+            };
+            if edge_flags & Edge::DONE != 0 {
                 continue;
-            }
-            let mut delta = 1000;
-            if let Some(serif) = edge.serif(edges) {
-                delta = (serif.opos - edge.opos).abs();
             }
             if delta < 64 + 16 {
                 // delta is only < 1000 if edge.serif_ix is Some(_)
