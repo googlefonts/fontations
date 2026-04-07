@@ -1,6 +1,7 @@
 //! Parsing and evaluation of charstrings.
 
 use crate::{
+    model::pen::OutlinePen,
     ps::{
         cff::{blend::BlendState, charset::Charset, index::Index, stack::Stack},
         error::Error,
@@ -1396,6 +1397,31 @@ where
     fn finish(&mut self) {
         self.close();
         self.inner.finish();
+    }
+}
+
+impl<P: OutlinePen> CommandSink for P {
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.move_to(x.to_f32(), y.to_f32());
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        self.line_to(x.to_f32(), y.to_f32());
+    }
+
+    fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed) {
+        self.curve_to(
+            cx0.to_f32(),
+            cy0.to_f32(),
+            cx1.to_f32(),
+            cy1.to_f32(),
+            x.to_f32(),
+            y.to_f32(),
+        );
+    }
+
+    fn close(&mut self) {
+        self.close()
     }
 }
 

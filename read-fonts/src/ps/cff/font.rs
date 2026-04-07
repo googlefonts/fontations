@@ -1,22 +1,24 @@
 //! Unified access to CFF/CFF2 fonts.
 
 use crate::{
+    model::pen::OutlinePen,
     ps::{
         cff::{
             blend::BlendState, charset::Charset, dict, encoding::Encoding as RawEncoding,
             fd_select::FdSelect, index::Index,
         },
-        cs::{self, CommandSink},
+        cs::{self, CommandSink, NopFilterSink, TransformSink},
         encoding::PredefinedEncoding,
         error::Error,
         hinting::HintingParams,
+        string::Sid,
         transform::{self, ScaledFontMatrix, Transform},
     },
     tables::{cff, cff2, variations::ItemVariationStore},
     FontData, FontRead, ReadError,
 };
 use core::ops::Range;
-use types::{F2Dot14, Fixed, GlyphId};
+use types::{BoundingBox, F2Dot14, Fixed, GlyphId};
 
 /// A CFF or CFF2 font.
 ///
@@ -29,6 +31,7 @@ pub struct CffFontRef<'a> {
     upem: i32,
     global_subrs: Index<'a>,
     top_dict: TopDict<'a>,
+    top_dict_index: u16,
 }
 
 impl<'a> CffFontRef<'a> {
@@ -55,11 +58,15 @@ impl<'a> CffFontRef<'a> {
     pub fn new_cff(data: &'a [u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
         let cff = cff::Cff::read(data.into())?;
         let top_dict_data = cff.top_dicts().get(top_dict_index as usize)?;
+        let top_dict_index: u16 = top_dict_index
+            .try_into()
+            .map_err(|_| ReadError::OutOfBounds)?;
         Self::new_impl(
             data,
             false,
             upem,
             top_dict_data,
+            top_dict_index,
             cff.strings().into(),
             cff.global_subrs().into(),
         )
@@ -76,6 +83,7 @@ impl<'a> CffFontRef<'a> {
             true,
             upem,
             cff.top_dict_data(),
+            0,
             Index::Empty,
             cff.global_subrs().into(),
         )
@@ -86,6 +94,7 @@ impl<'a> CffFontRef<'a> {
         is_cff2: bool,
         upem: Option<i32>,
         top_dict_data: &'a [u8],
+        top_dict_index: u16,
         strings: Index<'a>,
         global_subrs: Index<'a>,
     ) -> Result<Self, Error> {
@@ -97,6 +106,7 @@ impl<'a> CffFontRef<'a> {
             upem: upem.unwrap_or(top_upem),
             global_subrs,
             top_dict,
+            top_dict_index,
         })
     }
 
@@ -112,6 +122,11 @@ impl<'a> CffFontRef<'a> {
         } else {
             1
         }
+    }
+
+    /// Returns additional metadata such as font names and metrics.
+    pub fn metadata(&self) -> Option<Metadata<'a>> {
+        Metadata::new(self.data, self.top_dict_index)
     }
 
     /// Returns true if this is a CID-keyed font.
@@ -132,6 +147,22 @@ impl<'a> CffFontRef<'a> {
     /// Returns the charstring index.
     pub fn charstrings(&self) -> &Index<'a> {
         &self.top_dict.charstrings
+    }
+
+    /// Returns the string index.
+    pub fn strings(&self) -> Option<&Index<'a>> {
+        match &self.top_dict.kind {
+            CffFontKind::Sid { strings, .. } => Some(strings),
+            _ => None,
+        }
+    }
+
+    /// Returns the string for the given identifier.
+    pub fn string(&self, sid: Sid) -> Option<&'a [u8]> {
+        match sid.resolve_standard() {
+            Ok(s) => Some(s),
+            Err(idx) => self.strings()?.get(idx).ok(),
+        }
     }
 
     /// Returns the mapping for glyph identifiers.
@@ -310,8 +341,8 @@ impl<'a> CffFontRef<'a> {
     pub fn evaluate_charstring(
         &self,
         subfont: &Subfont,
-        coords: &[F2Dot14],
         gid: GlyphId,
+        coords: &[F2Dot14],
         sink: &mut impl CommandSink,
     ) -> Result<Option<Fixed>, Error> {
         let charstrings = self.top_dict.charstrings.clone();
@@ -334,6 +365,25 @@ impl<'a> CffFontRef<'a> {
         }
     }
 
+    /// Draws the glyph with an optional size in ppem to the given pen.
+    ///
+    /// Returns the advance width of the glyph if the charstring provides
+    /// one.
+    pub fn draw(
+        &self,
+        subfont: &Subfont,
+        gid: GlyphId,
+        coords: &[F2Dot14],
+        ppem: Option<f32>,
+        pen: &mut impl OutlinePen,
+    ) -> Result<Option<f32>, Error> {
+        let mut nop_filter = NopFilterSink::new(pen);
+        let transform = self.transform(subfont, ppem);
+        let mut transformer = TransformSink::new(&mut nop_filter, transform);
+        let width = self.evaluate_charstring(subfont, gid, coords, &mut transformer)?;
+        Ok(width.map(|w| transform.transform_h_metric(w).to_f32().max(0.0)))
+    }
+
     /// Returns a blend state for the given variation store index and
     /// normalized coordinates.
     fn blend_state(&self, vs_index: u16, coords: &'a [F2Dot14]) -> Option<BlendState<'a>> {
@@ -345,6 +395,7 @@ impl<'a> CffFontRef<'a> {
 }
 
 /// Mapping from character codes to glyph identifiers.
+#[derive(Clone)]
 pub struct Encoding<'a> {
     encoding: RawEncoding<'a>,
     charset: Charset<'a>,
@@ -378,7 +429,7 @@ enum CffFontKind<'a> {
     /// A CFF font.
     Sid {
         /// Index for resolving glyph names.
-        _strings: Index<'a>,
+        strings: Index<'a>,
         /// Byte range of the private dict from the base of the font data.
         private_dict: Range<u32>,
     },
@@ -589,7 +640,11 @@ impl<'a> TopDict<'a> {
                         .get(offset..)
                         .and_then(|data| FdSelect::read(data.into()).ok());
                 }
-                dict::Entry::PrivateDictRange(range) => private_dict_range = range,
+                dict::Entry::PrivateDictRange(range) => {
+                    // Fail early if our private dictionary is out of bounds
+                    let _ = cff_data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
+                    private_dict_range = range;
+                }
                 dict::Entry::FontMatrix(font_matrix) => {
                     // FreeType always normalizes this and the scaling factor
                     // is dynamic so it won't make a difference to our users
@@ -626,7 +681,7 @@ impl<'a> TopDict<'a> {
                 return Err(Error::MissingFdArray);
             }
             CffFontKind::Sid {
-                _strings: strings,
+                strings,
                 private_dict: private_dict_range.start as u32..private_dict_range.end as u32,
             }
         };
@@ -669,6 +724,127 @@ impl FontDict {
     }
 }
 
+/// Extra metadata for a CFF font.
+///
+/// This is accessed separately because this information is redundant when a
+/// CFF blob is used in an OpenType font.
+#[derive(Clone, Debug)]
+pub struct Metadata<'a> {
+    name: Option<&'a str>,
+    full_name: Option<&'a str>,
+    family_name: Option<&'a str>,
+    weight: Option<&'a str>,
+    bbox: BoundingBox<Fixed>,
+    italic_angle: Fixed,
+    is_fixed_pitch: bool,
+    underline_position: Fixed,
+    underline_thickness: Fixed,
+}
+
+impl<'a> Metadata<'a> {
+    fn new(data: &'a [u8], top_dict_index: u16) -> Option<Self> {
+        let cff = cff::Cff::read(FontData::new(data)).ok()?;
+        let strings = cff.strings();
+        let get_str = |sid: Sid| {
+            let bytes = match sid.resolve_standard() {
+                Ok(bytes) => bytes,
+                Err(idx) => strings.get(idx).ok()?,
+            };
+            core::str::from_utf8(bytes).ok()
+        };
+        let top_dict_data = cff.top_dicts().get(top_dict_index as usize).ok()?;
+        let name = cff
+            .name(top_dict_index as usize)
+            .and_then(|bytes| core::str::from_utf8(bytes).ok());
+        let mut meta = Metadata {
+            name,
+            ..Default::default()
+        };
+        for entry in dict::entries(top_dict_data, None).filter_map(|e| e.ok()) {
+            match entry {
+                dict::Entry::FullName(sid) => meta.full_name = get_str(sid),
+                dict::Entry::FamilyName(sid) => meta.family_name = get_str(sid),
+                dict::Entry::Weight(sid) => meta.weight = get_str(sid),
+                dict::Entry::FontBbox([x_min, y_min, x_max, y_max]) => {
+                    meta.bbox = BoundingBox {
+                        x_min,
+                        x_max,
+                        y_min,
+                        y_max,
+                    }
+                }
+                dict::Entry::ItalicAngle(angle) => meta.italic_angle = angle,
+                dict::Entry::IsFixedPitch(fixed_pitch) => meta.is_fixed_pitch = fixed_pitch,
+                dict::Entry::UnderlinePosition(pos) => meta.underline_position = pos,
+                dict::Entry::UnderlineThickness(size) => meta.underline_thickness = size,
+                _ => {}
+            }
+        }
+        Some(meta)
+    }
+
+    /// Returns the PostScript name.
+    pub fn name(&self) -> Option<&'a str> {
+        self.name
+    }
+
+    /// Returns the full font name.
+    pub fn full_name(&self) -> Option<&'a str> {
+        self.full_name
+    }
+
+    /// Returns the font family name.
+    pub fn family_name(&self) -> Option<&'a str> {
+        self.family_name
+    }
+
+    /// Returns the weight or style name.
+    pub fn weight(&self) -> Option<&'a str> {
+        self.weight
+    }
+
+    /// Returns the italic angle.
+    pub fn italic_angle(&self) -> Fixed {
+        self.italic_angle
+    }
+
+    /// Returns true if the glyphs in this font have the same width.
+    pub fn is_fixed_pitch(&self) -> bool {
+        self.is_fixed_pitch
+    }
+
+    /// Returns the position of the top of an underline decoration.
+    pub fn underline_position(&self) -> Fixed {
+        self.underline_position
+    }
+
+    /// Returns the suggested size for an underline decoration.
+    pub fn underline_thickness(&self) -> Fixed {
+        self.underline_thickness
+    }
+
+    /// Returns the font bounding box.
+    pub fn bbox(&self) -> BoundingBox<Fixed> {
+        self.bbox
+    }
+}
+
+impl Default for Metadata<'_> {
+    fn default() -> Self {
+        Self {
+            name: None,
+            full_name: None,
+            family_name: None,
+            weight: None,
+            bbox: BoundingBox::default(),
+            italic_angle: Fixed::ZERO,
+            is_fixed_pitch: false,
+            underline_position: Fixed::from_i32(-100),
+            underline_thickness: Fixed::from_i32(50),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -694,6 +870,50 @@ mod tests {
         assert_eq!(cff.num_subfonts(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), Some(0));
         assert_eq!(cff.global_subrs.count(), 17);
+    }
+
+    #[test]
+    fn read_cff_metadata() {
+        let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let cff = CffFontRef::new(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
+        let meta = cff.metadata().unwrap();
+        assert_eq!(meta.name(), Some("NotoSerifDisplay-Regular"));
+        assert_eq!(meta.full_name(), Some("Noto Serif Display Regular"));
+        assert_eq!(meta.family_name(), Some("Noto Serif Display"));
+        assert_eq!(meta.weight(), None);
+        assert_eq!(
+            meta.bbox(),
+            BoundingBox {
+                x_min: Fixed::from_i32(-693),
+                y_min: Fixed::from_i32(-470),
+                x_max: Fixed::from_i32(2797),
+                y_max: Fixed::from_i32(1048)
+            }
+        );
+        assert_eq!(meta.italic_angle(), Fixed::ZERO);
+        assert!(!meta.is_fixed_pitch());
+        assert_eq!(meta.underline_position(), Fixed::from_i32(-100));
+        assert_eq!(meta.underline_thickness(), Fixed::from_i32(50));
+        let font = FontRef::new(font_test_data::MATERIAL_ICONS_SUBSET).unwrap();
+        let cff = CffFontRef::new(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
+        let meta = cff.metadata().unwrap();
+        assert_eq!(meta.name(), Some("GoogleMaterialIcons-Regular"));
+        assert_eq!(meta.full_name(), Some("GoogleMaterialIcons-Regular"));
+        assert_eq!(meta.family_name(), None);
+        assert_eq!(meta.weight(), None);
+        assert_eq!(
+            meta.bbox(),
+            BoundingBox {
+                x_min: Fixed::from_i32(-1),
+                y_min: Fixed::ZERO,
+                x_max: Fixed::from_i32(513),
+                y_max: Fixed::from_i32(512)
+            }
+        );
+        assert_eq!(meta.italic_angle(), Fixed::ZERO);
+        assert!(!meta.is_fixed_pitch());
+        assert_eq!(meta.underline_position(), Fixed::from_i32(-100));
+        assert_eq!(meta.underline_thickness(), Fixed::from_i32(50));
     }
 
     #[test]
@@ -919,7 +1139,7 @@ mod tests {
             CffFontRef::new_cff(font.cff().unwrap().offset_data().as_bytes(), 0, None).unwrap();
         let mut sink = CharstringCommandCounter::default();
         let subfont = cff.subfont(0, &[]).unwrap();
-        cff.evaluate_charstring(&subfont, &[], GlyphId::new(2), &mut sink)
+        cff.evaluate_charstring(&subfont, GlyphId::new(2), &[], &mut sink)
             .unwrap();
         // Charstring eval is tested elsewhere so just make sure we're processing the
         // *correct* charstring.
@@ -933,7 +1153,7 @@ mod tests {
             CffFontRef::new_cff2(font.cff2().unwrap().offset_data().as_bytes(), None).unwrap();
         let mut sink = CharstringCommandCounter::default();
         let subfont = cff.subfont(0, &[]).unwrap();
-        cff.evaluate_charstring(&subfont, &[], GlyphId::new(2), &mut sink)
+        cff.evaluate_charstring(&subfont, GlyphId::new(2), &[], &mut sink)
             .unwrap();
         // Charstring eval is tested elsewhere so just make sure we're processing the
         // *correct* charstring.
