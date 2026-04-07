@@ -2,11 +2,170 @@
 
 include!("../../generated/generated_variations.rs");
 
+use indexmap::IndexMap;
+
 pub use read_fonts::tables::variations::{DeltaRunType, TupleIndex, TupleVariationCount};
 
 pub mod common_builder;
 pub mod ivs_builder;
 pub mod mivs_builder;
+
+/// The influence of a single axis on a variation region.
+///
+/// The values here end up serialized in peak/start/end tuples in
+/// [`TupleVariationHeader`].
+///
+/// The name "Tent" is taken from HarfBuzz.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Tent {
+    peak: F2Dot14,
+    min: F2Dot14,
+    max: F2Dot14,
+}
+
+impl Tent {
+    /// Construct a new tent from a peak value and optional intermediate values.
+    ///
+    /// If the intermediate values are `None`, they will be inferred from the
+    /// peak value.
+    pub fn new(peak: F2Dot14, intermediate: Option<(F2Dot14, F2Dot14)>) -> Self {
+        let (min, max) = intermediate.unwrap_or_else(|| Tent::implied_intermediates_for_peak(peak));
+        Self { peak, min, max }
+    }
+
+    pub(crate) fn peak(&self) -> F2Dot14 {
+        self.peak
+    }
+
+    pub(crate) fn bounds(&self) -> (F2Dot14, F2Dot14) {
+        (self.min, self.max)
+    }
+
+    pub(crate) fn requires_intermediate(&self) -> bool {
+        (self.min, self.max) != Self::implied_intermediates_for_peak(self.peak)
+    }
+
+    pub(crate) fn implied_intermediates_for_peak(peak: F2Dot14) -> (F2Dot14, F2Dot14) {
+        (peak.min(F2Dot14::ZERO), peak.max(F2Dot14::ZERO))
+    }
+}
+
+/// Like [Iterator::max_by_key][1] but returns the first instead of last in case of a tie.
+///
+/// Intended to match Python's [max()][2] behavior.
+///
+/// [1]: https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.max_by_key
+/// [2]: https://docs.python.org/3/library/functions.html#max
+pub(crate) fn max_by_first_key<I, B, F>(iter: I, mut key: F) -> Option<I::Item>
+where
+    I: Iterator,
+    B: Ord,
+    F: FnMut(&I::Item) -> B,
+{
+    iter.fold(None, |max_elem: Option<(_, _)>, item| {
+        let item_key = key(&item);
+        match &max_elem {
+            // current item's key not greater than max key so far, keep max unchanged
+            Some((_, max_key)) if item_key <= *max_key => max_elem,
+            // either no max yet, or a new max found, update max
+            _ => Some((item, item_key)),
+        }
+    })
+    .map(|(item, _)| item)
+}
+
+#[derive(Clone, Debug)]
+pub struct Deltas<T> {
+    pub peak_tuple: Tuple,
+    // start and end tuples of optional intermediate region
+    pub intermediate_region: Option<(Tuple, Tuple)>,
+    // delta values for points in the variation, in the same order as the point numbers in `points`
+    pub deltas: Vec<T>,
+    pub best_point_packing: PackedPointNumbers,
+}
+
+/// Determine if we should use 'shared point numbers'
+///
+/// If multiple tuple variations for a given glyph use the same point numbers,
+/// it is possible to store this in the glyph table, avoiding duplicating
+/// data.
+///
+/// This implementation is currently based on the one in fonttools, where it
+/// is part of the compileTupleVariationStore method:
+/// <https://github.com/fonttools/fonttools/blob/0a3360e52727cdefce2e9b28286b074faf99033c/Lib/fontTools/ttLib/tables/TupleVariation.py#L641>
+///
+/// # Note
+///
+/// There is likely room for some optimization here, depending on the
+/// structure of the point numbers. If it is common for point numbers to only
+/// vary by an item or two, it may be worth picking a set of shared points
+/// that is a subset of multiple different tuples; this would mean you could
+/// make some tuples include deltas that they might otherwise omit, but let
+/// them omit their explicit point numbers.
+///
+/// For fonts with a large number of variations, this could produce reasonable
+/// savings, at the cost of a significantly more complicated algorithm.
+///
+/// (issue <https://github.com/googlefonts/fontations/issues/634>)
+///
+/// If multiple tuple variations use the same point-number encoding, sharing can
+/// avoid duplicate serialized data.
+///
+/// The scoring and tie-breaking behavior matches fonttools:
+/// - only point sets with more than one occurrence are candidates
+/// - candidate score is `(count - 1) * encoded_size`
+/// - ties pick the first occurrence in iteration order
+pub(crate) fn compute_shared_points<T>(variations: &[Deltas<T>]) -> Option<PackedPointNumbers> {
+    let mut point_number_counts = IndexMap::new();
+    // count how often each set of numbers occurs
+    for deltas in variations {
+        // for each set points, get compiled size + number of occurrences
+        let (_, count) = point_number_counts
+            .entry(&deltas.best_point_packing)
+            .or_insert_with(|| {
+                let size = deltas.best_point_packing.compute_size();
+                (size as usize, 0usize)
+            });
+        *count += 1;
+    }
+
+    let (pts, _) = max_by_first_key(
+        point_number_counts
+            .into_iter()
+            // no use sharing points if they only occur once
+            .filter(|(_, (_, count))| *count > 1),
+        |(_, (size, count))| (*count - 1) * *size,
+    )?;
+
+    Some(pts.to_owned())
+}
+
+/// Compute tupleVariationCount bits from header count and shared-point usage.
+pub(crate) fn compute_tuple_variation_count(
+    n_headers: usize,
+    has_shared_points: bool,
+) -> TupleVariationCount {
+    assert!(n_headers <= 4095);
+    let mut bits = n_headers as u16;
+    if has_shared_points {
+        bits |= TupleVariationCount::SHARED_POINT_NUMBERS;
+    }
+    TupleVariationCount::from_bits(bits)
+}
+
+/// Compute data offset for a tuple variation store.
+///
+/// `header_prefix_len` is the number of bytes before `tupleVariationHeaders`.
+pub(crate) fn compute_tuple_variation_data_offset(
+    headers: &[TupleVariationHeader],
+    header_prefix_len: usize,
+) -> u16 {
+    let header_len = headers.iter().fold(0usize, |acc, header| {
+        acc.checked_add(header.compute_size() as usize).unwrap()
+    });
+    (header_prefix_len + header_len).try_into().unwrap()
+}
 
 impl TupleVariationHeader {
     pub fn new(
@@ -467,6 +626,59 @@ where
         };
         delta_set_index_map
     }
+}
+
+/// An error representing invalid input when building a tuple variation store
+#[derive(Clone, Debug)]
+pub enum TupleVariationStoreInputError<T: std::fmt::Display> {
+    /// Glyph variations do not have the expected axis count
+    UnexpectedAxisCount {
+        index: T,
+        expected: u16,
+        actual: u16,
+    },
+    /// A single entry contains variations with inconsistent axis counts
+    InconsistentAxisCount(T),
+    /// A single entry contains variations with different delta counts
+    InconsistentDeltaLength(T),
+    /// A variation in this entry contains an intermediate region with a
+    /// different length than the peak.
+    InconsistentTupleLengths(T),
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for TupleVariationStoreInputError<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TupleVariationStoreInputError::UnexpectedAxisCount {
+                index,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Expected {} axes for entry {}, got {}",
+                    expected, index, actual
+                )
+            }
+            TupleVariationStoreInputError::InconsistentAxisCount(gid) => write!(
+                f,
+                "Entry {gid} contains variations with inconsistent axis counts"
+            ),
+            TupleVariationStoreInputError::InconsistentDeltaLength(gid) => write!(
+                f,
+                "Entry {gid} contains variations with inconsistent delta counts"
+            ),
+            TupleVariationStoreInputError::InconsistentTupleLengths(gid) => write!(
+                f,
+                "Entry {gid} contains variations with inconsistent intermediate region sizes"
+            ),
+        }
+    }
+}
+
+impl<T: std::fmt::Display + std::fmt::Debug> std::error::Error
+    for TupleVariationStoreInputError<T>
+{
 }
 
 #[cfg(test)]

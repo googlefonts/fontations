@@ -6,11 +6,18 @@ use std::collections::HashMap;
 
 use indexmap::IndexMap;
 
-use crate::{collections::HasLen, OffsetMarker};
+use crate::{
+    collections::HasLen,
+    tables::variations::{Deltas, TupleVariationStoreInputError},
+    OffsetMarker,
+};
 
 use super::variations::{
+    compute_shared_points, compute_tuple_variation_count, compute_tuple_variation_data_offset,
     PackedDeltas, PackedPointNumbers, Tuple, TupleVariationCount, TupleVariationHeader,
 };
+
+pub use super::variations::Tent;
 
 pub mod iup;
 
@@ -22,15 +29,7 @@ pub struct GlyphVariations {
 }
 
 /// Glyph deltas for one point in the design space.
-#[derive(Clone, Debug)]
-pub struct GlyphDeltas {
-    peak_tuple: Tuple,
-    // start and end tuples of optional intermediate region
-    intermediate_region: Option<(Tuple, Tuple)>,
-    // (x, y) deltas or None for do not encode. One entry per point in the glyph.
-    deltas: Vec<GlyphDelta>,
-    best_point_packing: PackedPointNumbers,
-}
+pub type GlyphDeltas = Deltas<GlyphDelta>;
 
 /// A delta for a single value in a glyph.
 ///
@@ -49,24 +48,6 @@ pub struct GlyphDelta {
     pub required: bool,
 }
 
-/// An error representing invalid input when building a gvar table
-#[derive(Clone, Debug)]
-pub enum GvarInputError {
-    /// Glyph variations do not have the expected axis count
-    UnexpectedAxisCount {
-        gid: GlyphId,
-        expected: u16,
-        actual: u16,
-    },
-    /// A single glyph contains variations with inconsistent axis counts
-    InconsistentGlyphAxisCount(GlyphId),
-    /// A single glyph contains variations with different delta counts
-    InconsistentDeltaLength(GlyphId),
-    /// A variation in this glyph contains an intermediate region with a
-    /// different length than the peak.
-    InconsistentTupleLengths(GlyphId),
-}
-
 impl Gvar {
     /// Construct a gvar table from a vector of per-glyph variations and the axis count.
     ///
@@ -76,7 +57,7 @@ impl Gvar {
     pub fn new(
         mut variations: Vec<GlyphVariations>,
         axis_count: u16,
-    ) -> Result<Self, GvarInputError> {
+    ) -> Result<Self, TupleVariationStoreInputError<GlyphId>> {
         fn compute_shared_peak_tuples(glyphs: &[GlyphVariations]) -> Vec<Tuple> {
             const MAX_SHARED_TUPLES: usize = 4095;
             let mut peak_tuple_counts = IndexMap::new();
@@ -103,8 +84,8 @@ impl Gvar {
             .iter()
             .find(|var| var.axis_count().is_some() && var.axis_count().unwrap() != axis_count)
         {
-            return Err(GvarInputError::UnexpectedAxisCount {
-                gid: bad_var.gid,
+            return Err(TupleVariationStoreInputError::UnexpectedAxisCount {
+                index: bad_var.gid,
                 expected: axis_count,
                 actual: bad_var.axis_count().unwrap(),
             });
@@ -182,30 +163,6 @@ impl Gvar {
     }
 }
 
-/// Like [Iterator::max_by_key][1] but returns the first instead of last in case of a tie.
-///
-/// Intended to match Python's [max()][2] behavior.
-///
-/// [1]: https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.max_by_key
-/// [2]: https://docs.python.org/3/library/functions.html#max
-fn max_by_first_key<I, B, F>(iter: I, mut key: F) -> Option<I::Item>
-where
-    I: Iterator,
-    B: Ord,
-    F: FnMut(&I::Item) -> B,
-{
-    iter.fold(None, |max_elem: Option<(_, _)>, item| {
-        let item_key = key(&item);
-        match &max_elem {
-            // current item's key not greater than max key so far, keep max unchanged
-            Some((_, max_key)) if item_key <= *max_key => max_elem,
-            // either no max yet, or a new max found, update max
-            _ => Some((item, item_key)),
-        }
-    })
-    .map(|(item, _)| item)
-}
-
 impl GlyphVariations {
     /// Construct a new set of variation deltas for a glyph.
     pub fn new(gid: GlyphId, variations: Vec<GlyphDeltas>) -> Self {
@@ -213,7 +170,7 @@ impl GlyphVariations {
     }
 
     /// called when we build gvar, so we only return errors in one place
-    fn validate(&self) -> Result<(), GvarInputError> {
+    fn validate(&self) -> Result<(), TupleVariationStoreInputError<GlyphId>> {
         let (axis_count, delta_len) = self
             .variations
             .first()
@@ -221,15 +178,21 @@ impl GlyphVariations {
             .unwrap_or_default();
         for var in &self.variations {
             if var.peak_tuple.len() != axis_count {
-                return Err(GvarInputError::InconsistentGlyphAxisCount(self.gid));
+                return Err(TupleVariationStoreInputError::InconsistentAxisCount(
+                    self.gid,
+                ));
             }
             if let Some((start, end)) = var.intermediate_region.as_ref() {
                 if start.len() != axis_count || end.len() != axis_count {
-                    return Err(GvarInputError::InconsistentTupleLengths(self.gid));
+                    return Err(TupleVariationStoreInputError::InconsistentTupleLengths(
+                        self.gid,
+                    ));
                 }
             }
             if var.deltas.len() != delta_len {
-                return Err(GvarInputError::InconsistentDeltaLength(self.gid));
+                return Err(TupleVariationStoreInputError::InconsistentDeltaLength(
+                    self.gid,
+                ));
             }
         }
         Ok(())
@@ -246,58 +209,8 @@ impl GlyphVariations {
         }
     }
 
-    /// Determine if we should use 'shared point numbers'
-    ///
-    /// If multiple tuple variations for a given glyph use the same point numbers,
-    /// it is possible to store this in the glyph table, avoiding duplicating
-    /// data.
-    ///
-    /// This implementation is currently based on the one in fonttools, where it
-    /// is part of the compileTupleVariationStore method:
-    /// <https://github.com/fonttools/fonttools/blob/0a3360e52727cdefce2e9b28286b074faf99033c/Lib/fontTools/ttLib/tables/TupleVariation.py#L641>
-    ///
-    /// # Note
-    ///
-    /// There is likely room for some optimization here, depending on the
-    /// structure of the point numbers. If it is common for point numbers to only
-    /// vary by an item or two, it may be worth picking a set of shared points
-    /// that is a subset of multiple different tuples; this would mean you could
-    /// make some tuples include deltas that they might otherwise omit, but let
-    /// them omit their explicit point numbers.
-    ///
-    /// For fonts with a large number of variations, this could produce reasonable
-    /// savings, at the cost of a significantly more complicated algorithm.
-    ///
-    /// (issue <https://github.com/googlefonts/fontations/issues/634>)
-    fn compute_shared_points(&self) -> Option<PackedPointNumbers> {
-        let mut point_number_counts = IndexMap::new();
-        // count how often each set of numbers occurs
-        for deltas in &self.variations {
-            // for each set points, get compiled size + number of occurrences
-            let (_, count) = point_number_counts
-                .entry(&deltas.best_point_packing)
-                .or_insert_with(|| {
-                    let size = deltas.best_point_packing.compute_size();
-                    (size as usize, 0usize)
-                });
-            *count += 1;
-        }
-        // find the one that saves the most bytes; if multiple are tied, pick the
-        // first one like python max() does (Rust's max_by_key() would pick the last),
-        // so that we match the behavior of fonttools
-        let (pts, _) = max_by_first_key(
-            point_number_counts
-                .into_iter()
-                // no use sharing points if they only occur once
-                .filter(|(_, (_, count))| *count > 1),
-            |(_, (size, count))| (*count - 1) * *size,
-        )?;
-
-        Some(pts.to_owned())
-    }
-
     fn build(self, shared_tuple_map: &HashMap<&Tuple, u16>) -> GlyphVariationData {
-        let shared_points = self.compute_shared_points();
+        let shared_points = compute_shared_points(&self.variations);
 
         let (tuple_headers, tuple_data): (Vec<_>, Vec<_>) = self
             .variations
@@ -334,53 +247,19 @@ impl GlyphDelta {
     }
 }
 
-/// The influence of a single axis on a variation region.
-///
-/// The values here end up serialized in the peak/start/end tuples in the
-/// [`TupleVariationHeader`].
-///
-/// The name 'Tent' is taken from HarfBuzz.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Tent {
-    peak: F2Dot14,
-    min: F2Dot14,
-    max: F2Dot14,
-}
-
-impl Tent {
-    /// Construct a new tent from a peak value and optional intermediate values.
-    ///
-    /// If the intermediate values are `None`, they will be inferred from the
-    /// peak value. If all of the intermediate values in all `Tent`s can be
-    /// inferred for a given variation, they can be omitted from the [`TupleVariationHeader`].
-    pub fn new(peak: F2Dot14, intermediate: Option<(F2Dot14, F2Dot14)>) -> Self {
-        let (min, max) = intermediate.unwrap_or_else(|| Tent::implied_intermediates_for_peak(peak));
-        Self { peak, min, max }
-    }
-
-    fn requires_intermediate(&self) -> bool {
-        (self.min, self.max) != Self::implied_intermediates_for_peak(self.peak)
-    }
-
-    fn implied_intermediates_for_peak(peak: F2Dot14) -> (F2Dot14, F2Dot14) {
-        (peak.min(F2Dot14::ZERO), peak.max(F2Dot14::ZERO))
-    }
-}
-
 impl GlyphDeltas {
     /// Create a new set of deltas.
     ///
     /// A None delta means do not explicitly encode, typically because IUP suggests
     /// it isn't required.
     pub fn new(tents: Vec<Tent>, deltas: Vec<GlyphDelta>) -> Self {
-        let peak_tuple = Tuple::new(tents.iter().map(|coords| coords.peak).collect());
+        let peak_tuple = Tuple::new(tents.iter().map(Tent::peak).collect());
 
         // File size optimisation: if all the intermediates can be derived from
         // the relevant peak values, don't serialize them.
         // https://github.com/fonttools/fonttools/blob/b467579c/Lib/fontTools/ttLib/tables/TupleVariation.py#L184-L193
         let intermediate_region = if tents.iter().any(Tent::requires_intermediate) {
-            Some(tents.iter().map(|tent| (tent.min, tent.max)).unzip())
+            Some(tents.iter().map(Tent::bounds).unzip())
         } else {
             None
         };
@@ -597,12 +476,10 @@ impl FontWrite for GlyphDataWriter<'_> {
 
 impl GlyphVariationData {
     fn compute_tuple_variation_count(&self) -> TupleVariationCount {
-        assert!(self.tuple_variation_headers.len() <= 4095);
-        let mut bits = self.tuple_variation_headers.len() as u16;
-        if self.shared_point_numbers.is_some() {
-            bits |= TupleVariationCount::SHARED_POINT_NUMBERS;
-        }
-        TupleVariationCount::from_bits(bits)
+        compute_tuple_variation_count(
+            self.tuple_variation_headers.len(),
+            self.shared_point_numbers.is_some(),
+        )
     }
 
     fn is_empty(&self) -> bool {
@@ -610,15 +487,10 @@ impl GlyphVariationData {
     }
 
     fn compute_data_offset(&self) -> u16 {
-        let header_len = self
-            .tuple_variation_headers
-            .iter()
-            .fold(0usize, |acc, header| {
-                acc.checked_add(header.compute_size() as usize).unwrap()
-            });
-        (header_len + TupleVariationCount::RAW_BYTE_LEN + u16::RAW_BYTE_LEN)
-            .try_into()
-            .unwrap()
+        compute_tuple_variation_data_offset(
+            &self.tuple_variation_headers,
+            TupleVariationCount::RAW_BYTE_LEN + u16::RAW_BYTE_LEN,
+        )
     }
 
     fn compute_size(&self) -> u32 {
@@ -678,38 +550,6 @@ impl FontWrite for TupleVariationCount {
         self.bits().write_into(writer)
     }
 }
-
-impl std::fmt::Display for GvarInputError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GvarInputError::UnexpectedAxisCount {
-                gid,
-                expected,
-                actual,
-            } => {
-                write!(
-                    f,
-                    "Expected {} axes for glyph {}, got {}",
-                    expected, gid, actual
-                )
-            }
-            GvarInputError::InconsistentGlyphAxisCount(gid) => write!(
-                f,
-                "Glyph {gid} contains variations with inconsistent axis counts"
-            ),
-            GvarInputError::InconsistentDeltaLength(gid) => write!(
-                f,
-                "Glyph {gid} contains variations with inconsistent delta counts"
-            ),
-            GvarInputError::InconsistentTupleLengths(gid) => write!(
-                f,
-                "Glyph {gid} contains variations with inconsistent intermediate region sizes"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for GvarInputError {}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -929,7 +769,7 @@ mod tests {
         );
 
         assert_eq!(
-            variations.compute_shared_points(),
+            compute_shared_points(&variations.variations),
             Some(PackedPointNumbers::Some(vec![0, 2, 4]))
         )
     }
@@ -1046,7 +886,7 @@ mod tests {
                 ),
             ],
         );
-        assert!(variations.compute_shared_points().is_none());
+        assert!(compute_shared_points(&variations.variations).is_none());
         let tups = HashMap::new();
         let built = variations.build(&tups);
         assert_eq!(
@@ -1181,7 +1021,7 @@ mod tests {
         );
 
         assert_eq!(
-            variations.compute_shared_points(),
+            compute_shared_points(&variations.variations),
             // Also PackedPointNumbers::All would work, but Some([1, 3]) happens
             // to be the first one that fits the bill when iterating over the
             // tuple variations in the order they are listed for this glyph.
@@ -1347,8 +1187,8 @@ mod tests {
         let gvar = Gvar::new(vec![variations], 2);
         assert!(matches!(
             gvar,
-            Err(GvarInputError::UnexpectedAxisCount {
-                gid: GlyphId::NOTDEF,
+            Err(TupleVariationStoreInputError::UnexpectedAxisCount {
+                index: GlyphId::NOTDEF,
                 expected: 2,
                 actual: 1
             })
