@@ -1,6 +1,6 @@
 [package]
 name = "incremental-font-transfer"
-version = "0.2.0"
+version = "0.2.1"
 description = "Client side implementation of the Incremental Font Transfer standard (https://w3c.github.io/IFT/Overview.html)"
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
