@@ -19,13 +19,15 @@ mod skrifa_ffi {
         Custom = 4,
     }
 
+    // Should match SkPathVerb
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+    #[repr(u8)]
     pub enum PathVerb {
         MoveTo = 0,
         LineTo = 1,
         QuadTo = 2,
-        CurveTo = 3,
-        Close = 4,
+        CurveTo = 4,
+        Close = 5,
     }
 
     #[derive(Copy, Clone, PartialEq, Debug)]
@@ -53,6 +55,9 @@ mod skrifa_ffi {
         fn code_to_gid(&self, code: u8) -> u32;
         fn scaled_outline(&self, gid: u32, ppem: f32, outline: &mut Outline) -> bool;
         fn unscaled_outline(&self, gid: u32, outline: &mut Outline) -> bool;
+
+        fn agl_name_to_unicode(name: &str, unicode: &mut u32) -> bool;
+        fn agl_unicode_to_name(unicode: u32, name: &mut [u8]) -> bool;
     }
 
     unsafe extern "C++" {
@@ -156,7 +161,12 @@ impl PsFont<'_> {
                 .and_then(|encoding| encoding.map(code)),
             Self::Error => return 0,
         };
-        gid.unwrap_or_default().to_u32()
+        let gid = gid.unwrap_or_default().to_u32();
+        if gid < self.num_glyphs() {
+            gid
+        } else {
+            0
+        }
     }
 
     fn is_cid(&self) -> bool {
@@ -212,33 +222,47 @@ impl Point {
     }
 }
 
+impl Outline {
+    fn push<const N: usize>(&mut self, verb: PathVerb, points: [(f32, f32); N]) {
+        self.verbs.push(verb);
+        self.points
+            .extend(points.into_iter().map(|(x, y)| Point::new(x, y)));
+    }
+}
+
 impl OutlinePen for Outline {
     fn move_to(&mut self, x: f32, y: f32) {
-        self.verbs.push(PathVerb::MoveTo);
-        self.points.push(Point::new(x, y));
+        self.push(PathVerb::MoveTo, [(x, y)]);
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        self.verbs.push(PathVerb::LineTo);
-        self.points.push(Point::new(x, y));
+        self.push(PathVerb::LineTo, [(x, y)]);
     }
 
     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        self.verbs.push(PathVerb::QuadTo);
-        self.points.push(Point::new(cx0, cy0));
-        self.points.push(Point::new(x, y));
+        self.push(PathVerb::QuadTo, [(cx0, cy0), (x, y)]);
     }
 
     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        self.verbs.push(PathVerb::CurveTo);
-        self.points.push(Point::new(cx0, cy0));
-        self.points.push(Point::new(cx1, cy1));
-        self.points.push(Point::new(x, y));
+        self.push(PathVerb::CurveTo, [(cx0, cy0), (cx1, cy1), (x, y)]);
     }
 
     fn close(&mut self) {
-        self.verbs.push(PathVerb::Close)
+        self.push(PathVerb::Close, []);
     }
+}
+
+fn agl_name_to_unicode(name: &str, unicode: &mut u32) -> bool {
+    if let Some(uni) = read_fonts::ps::agl::name_to_char(name) {
+        *unicode = uni as u32;
+        true
+    } else {
+        false
+    }
+}
+
+fn agl_unicode_to_name(unicode: u32, name: &mut [u8]) -> bool {
+    read_fonts::ps::agl::char_to_name(unicode, name).is_some()
 }
 
 fn main() {

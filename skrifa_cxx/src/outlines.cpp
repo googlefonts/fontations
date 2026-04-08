@@ -14,8 +14,10 @@ void skrifa::run() {
          (std::istreambuf_iterator<char>(input)),
          (std::istreambuf_iterator<char>()));
     input.close();
+
     // Create a rust slice containing the font data
     rust::Slice<const uint8_t> slice((const uint8_t*)bytes.data(), bytes.size());
+
     // Load the font. Note that the bytes vector must live as long as the font
     auto font = skrifa::new_ps_font(slice);
     if (!font->is_ok()) {
@@ -23,17 +25,39 @@ void skrifa::run() {
         return;
     }
     // How many glyphs?
-    printf("Font as %d glyphs\n", font->num_glyphs());
-    // Get gid for x
+    printf("Font has %d glyphs\n", font->num_glyphs());
+
+    // The font's encoding is Adobe standard
+    assert(font->encoding() == PsEncodingKind::Standard);
+
+    // The Adobe standard code for 'x' is 120
+    auto gid_from_code = font->code_to_gid(120);
+
+    // But we also generate a Unicode mapping for glyphs present in the AGL
     auto gid = font->unicode_to_gid('x');
+
+    assert(gid_from_code == gid);
+
     // Storage for our outline
     skrifa::Outline outline;
+
     // Load an unscaled outline
     font->unscaled_outline(gid, outline);
     dump_outline(outline);
-    // Load an outline at 16px  
-    font->scaled_outline(1, 16.0, outline);
-    dump_outline(outline);    
+
+    // Load the same outline at 16px  
+    font->scaled_outline(gid, 16.0, outline);
+    dump_outline(outline);
+
+    // Convert glyph name to unicode
+    uint32_t period_unicode;
+    assert(skrifa::agl_name_to_unicode("period", period_unicode));
+    assert(period_unicode == '.');
+
+    // Convert unicode to glyph name
+    uint8_t period_name[64];
+    assert(skrifa::agl_unicode_to_name('.', rust::Slice<uint8_t>(period_name, 40)));
+    assert(!strcmp((char*)&period_name[0], "period"));
 }
 
 void dump_outline(skrifa::Outline& outline) {
