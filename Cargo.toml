@@ -49,7 +49,7 @@ read-fonts = { version = "0.39.1", path = "read-fonts", default-features = false
 skrifa = { version = "0.42.0", path = "skrifa", default-features = false, features = ["std"] }
 write-fonts = { version = "0.47.0", path = "write-fonts" }
 shared-brotli-patch-decoder = { version = "0.1.1", path = "shared-brotli-patch-decoder", default-features = false }
-incremental-font-transfer = { version = "0.2.0", path = "incremental-font-transfer" }
+incremental-font-transfer = { version = "0.2.1", path = "incremental-font-transfer" }
 skera = { version = "0.1.2", path = "skera" }
 
 [workspace.metadata.release]
