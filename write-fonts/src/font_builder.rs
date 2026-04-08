@@ -330,7 +330,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         let mut builder = FontBuilder::default();
         for tag in [Tag::new(b"head"), Tag::new(b"FOO "), Tag::new(b"BAR ")] {
-            let data: Vec<u8> = (0..=head_size).map(|_| rng.gen()).collect();
+            let data: Vec<u8> = (0..=head_size).map(|_| rng.r#gen()).collect();
             builder.add_raw(tag, data);
         }
         let font_data = builder.build();
