@@ -23,6 +23,10 @@ cli = ["clap"]
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"], optional = true }
 fnv = "1.0.7"
+font-types = { workspace = true }
+log = "0.4.29"
+num-traits = "0.2.18"
+regex = "1.10.4"
 hashbrown = "0.16.1"
 skrifa = { workspace = true }
 thiserror = "2.0"

@@ -37,6 +37,14 @@ const MAX_FEATURE_INDICES: u16 = 1500;
 const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
 const MAX_LANGSYS_FEATURE_COUNT: u16 = 5000;
 
+// Coverage tables may (but really shouldn't) contain the same glyph ID more
+// than one. Harfbuzz keeps this duplication - it walks over the existing coverage
+// and throws out anything not in the glyphset. We have an optimization which walks
+// the *glyphset* and throws out anything not in the coverage; since the glyphset
+// doesn't contain any duplicates, we don't get any duplicates out.
+// We turn off this optimization if we really want to match what HB is doing.
+const STRICT_HARFBUZZ_COMPATIBILITY: bool = true;
+
 impl NameIdClosure for StylisticSetParams<'_> {
     fn collect_name_ids(&self, plan: &mut Plan) {
         plan.name_ids.insert(self.ui_name_id());
@@ -559,25 +567,27 @@ impl<'a> SubsetTable<'a> for CoverageFormat1<'a> {
         let num_bits = 16 - (glyph_count as u16).leading_zeros() as usize;
         // if/else branches return the same result, it's just an optimization that
         // we pick the faster approach depending on the number of glyphs
-        let retained_glyphs: Vec<GlyphId> =
-            if glyph_count > (plan.glyphset_gsub.len() as usize) * num_bits {
-                plan.glyphset_gsub
-                    .iter()
-                    .filter_map(|old_gid| {
-                        glyph_array
-                            .binary_search_by(|g| g.get().to_u32().cmp(&old_gid.to_u32()))
-                            .ok()
-                            .and_then(|_| plan.glyph_map_gsub.get(&old_gid))
-                            .copied()
-                    })
-                    .collect()
-            } else {
-                glyph_array
-                    .iter()
-                    .filter_map(|g| plan.glyph_map_gsub.get(&GlyphId::from(g.get())))
-                    .copied()
-                    .collect()
-            };
+        let retained_glyphs: Vec<GlyphId> = if glyph_count
+            > (plan.glyphset_gsub.len() as usize) * num_bits
+            && !STRICT_HARFBUZZ_COMPATIBILITY
+        {
+            plan.glyphset_gsub
+                .iter()
+                .filter_map(|old_gid| {
+                    glyph_array
+                        .binary_search_by(|g| g.get().to_u32().cmp(&old_gid.to_u32()))
+                        .ok()
+                        .and_then(|_| plan.glyph_map_gsub.get(&old_gid))
+                        .copied()
+                })
+                .collect()
+        } else {
+            glyph_array
+                .iter()
+                .filter_map(|g| plan.glyph_map_gsub.get(&GlyphId::from(g.get())))
+                .copied()
+                .collect()
+        };
 
         if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -602,37 +612,39 @@ impl<'a> SubsetTable<'a> for CoverageFormat2<'a> {
         let num_bits = 16 - range_count.leading_zeros() as usize;
         // if/else branches return the same result, it's just an optimization that
         // we pick the faster approach depending on the number of glyphs
-        let retained_glyphs: Vec<GlyphId> =
-            if self.population() > plan.glyph_map_gsub.len() * num_bits {
-                let range_records = self.range_records();
-                plan.glyphset_gsub
-                    .iter()
-                    .filter_map(|g| {
-                        range_records
-                            .binary_search_by(|rec| {
-                                if rec.end_glyph_id().to_u32() < g.to_u32() {
-                                    Ordering::Less
-                                } else if rec.start_glyph_id().to_u32() > g.to_u32() {
-                                    Ordering::Greater
-                                } else {
-                                    Ordering::Equal
-                                }
-                            })
-                            .ok()
-                            .and_then(|_| plan.glyph_map_gsub.get(&g))
-                    })
-                    .copied()
-                    .collect()
-            } else {
-                self.range_records()
-                    .iter()
-                    .flat_map(|r| {
-                        r.iter()
-                            .filter_map(|g| plan.glyph_map_gsub.get(&GlyphId::from(g)))
-                    })
-                    .copied()
-                    .collect()
-            };
+        let retained_glyphs: Vec<GlyphId> = if self.population()
+            > plan.glyph_map_gsub.len() * num_bits
+            && !STRICT_HARFBUZZ_COMPATIBILITY
+        {
+            let range_records = self.range_records();
+            plan.glyphset_gsub
+                .iter()
+                .filter_map(|g| {
+                    range_records
+                        .binary_search_by(|rec| {
+                            if rec.end_glyph_id().to_u32() < g.to_u32() {
+                                Ordering::Less
+                            } else if rec.start_glyph_id().to_u32() > g.to_u32() {
+                                Ordering::Greater
+                            } else {
+                                Ordering::Equal
+                            }
+                        })
+                        .ok()
+                        .and_then(|_| plan.glyph_map_gsub.get(&g))
+                })
+                .copied()
+                .collect()
+        } else {
+            self.range_records()
+                .iter()
+                .flat_map(|r| {
+                    r.iter()
+                        .filter_map(|g| plan.glyph_map_gsub.get(&GlyphId::from(g)))
+                })
+                .copied()
+                .collect()
+        };
 
         if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -880,7 +892,7 @@ pub(crate) fn find_duplicate_features(
     feature_indices: IntSet<u16>,
 ) -> FnvHashMap<u16, u16> {
     let mut out = FnvHashMap::default();
-    if lookup_indices.is_empty() {
+    if feature_indices.is_empty() {
         return out;
     }
 
@@ -1745,6 +1757,97 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
         let feature_offset_pos = s.embed(0_u32)?;
         Offset32::serialize_subset(&alternate_feature, s, plan, c, feature_offset_pos)
     }
+}
+
+/// A wrapper for subsetting subtables as Extension lookups (GPOS type 9, GSUB type 7).
+pub(crate) struct ExtensionSubtable<'a, T> {
+    subtable: T,
+    extension_lookup_type: u16,
+    _phantom: std::marker::PhantomData<&'a ()>,
+}
+
+impl<T> ExtensionSubtable<'_, T> {
+    pub fn new(subtable: T, extension_lookup_type: u16) -> Self {
+        Self {
+            subtable,
+            extension_lookup_type,
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a, T> SubsetTable<'a> for ExtensionSubtable<'a, T>
+where
+    T: SubsetTable<'a>,
+{
+    type ArgsForSubset = T::ArgsForSubset;
+    type Output = T::Output;
+
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        // Format identifier = 1
+        s.embed(1_u16)?;
+        s.embed(self.extension_lookup_type)?;
+        let extension_offset_pos = s.embed(0_u32)?;
+        // Serialize the actual subtable at the 32-bit offset
+        let result =
+            Offset32::serialize_subset(&self.subtable, s, plan, args, extension_offset_pos);
+        log::trace!(
+            "ExtensionSubtable: serialized subtable, result: {:?}",
+            result.is_ok()
+        );
+        result
+    }
+}
+
+/// Helper function to subset Subtables as Extension lookups.
+///
+/// This iterates over subtables and wraps each in an ExtensionSubtable structure,
+/// using 16-bit offsets to the extension wrappers (per spec).
+pub(crate) fn subset_subtables_as_extension<'a, T, Ext>(
+    subtables: &Subtables<'a, T, Ext>,
+    extension_lookup_type: u16,
+    plan: &Plan,
+    s: &mut Serializer,
+    args: T::ArgsForSubset,
+) -> Result<u16, SerializeErrorFlags>
+where
+    T: SubsetTable<
+            'a,
+            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+        > + Intersect
+        + FontRead<'a>
+        + 'a,
+    Ext: ExtensionLookup<'a, T> + 'a,
+{
+    let mut count = 0_u16;
+    for sub in subtables.iter() {
+        let sub = sub.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        if !sub
+            .intersects(&plan.glyphset_gsub)
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        {
+            continue;
+        }
+        let snap = s.snapshot();
+        let offset_pos = s.embed(0_u16)?;
+
+        let wrapper = ExtensionSubtable::new(sub, extension_lookup_type);
+        match Offset16::serialize_subset(&wrapper, s, plan, args, offset_pos) {
+            Ok(_) => count += 1,
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
+            Err(e) => {
+                s.revert_snapshot(snap);
+                return Err(e);
+            }
+        }
+    }
+    Ok(count)
 }
 
 impl<'a, T, Ext> SubsetTable<'a> for Subtables<'a, T, Ext>

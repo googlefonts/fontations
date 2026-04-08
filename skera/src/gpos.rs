@@ -218,7 +218,7 @@ impl<'a> SubsetTable<'a> for PositionLookup<'_> {
             .subtables()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        let lookup_type: u16 = match subtables {
+        let mut lookup_type: u16 = match subtables {
             PositionSubtables::Single(_) => 1,
             PositionSubtables::Pair(_) => 2,
             PositionSubtables::Cursive(_) => 3,
@@ -228,12 +228,25 @@ impl<'a> SubsetTable<'a> for PositionLookup<'_> {
             PositionSubtables::Contextual(_) => 7,
             PositionSubtables::ChainContextual(_) => 8,
         };
+
+        let is_extension = matches!(self, PositionLookup::Extension(_));
+        if is_extension {
+            lookup_type = 9; // extension lookup type
+        }
+
         s.embed(lookup_type)?;
 
         let lookup_flag = self.lookup_flag();
         let lookup_flag_pos = s.embed(lookup_flag)?;
         let lookup_count_pos = s.embed(0_u16)?;
-        let lookup_count = subtables.subset(plan, s, args)?;
+
+        // For extension lookups, wrap each subtable in an ExtensionSubtable structure
+        let lookup_count = if is_extension {
+            subset_position_subtables_as_extension(&subtables, plan, s, args)?
+        } else {
+            subtables.subset(plan, s, args)?
+        };
+
         s.copy_assign(lookup_count_pos, lookup_count);
 
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/a790c38b782f9d8e6f0299d2837229e5726fc669/src/hb-ot-layout-common.hh#L1385>
@@ -250,7 +263,6 @@ impl<'a> SubsetTable<'a> for PositionLookup<'_> {
     }
 }
 
-// TODO: support extension lookup type
 impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = u16;
@@ -269,6 +281,46 @@ impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
             PositionSubtables::MarkToMark(subtables) => subtables.subset(plan, s, args),
             PositionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
             PositionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
+        }
+    }
+}
+
+/// Helper function to subset PositionSubtables as Extension lookups (type 9).
+///
+/// This wraps each subtable in an ExtensionSubtable structure with the appropriate
+/// extension lookup type.
+fn subset_position_subtables_as_extension<'a>(
+    subtables: &PositionSubtables<'a>,
+    plan: &Plan,
+    s: &mut Serializer,
+    args: (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+) -> Result<u16, SerializeErrorFlags> {
+    use crate::layout::subset_subtables_as_extension;
+
+    match subtables {
+        PositionSubtables::Single(subtables) => {
+            subset_subtables_as_extension(subtables, 1, plan, s, args)
+        }
+        PositionSubtables::Pair(subtables) => {
+            subset_subtables_as_extension(subtables, 2, plan, s, args)
+        }
+        PositionSubtables::Cursive(subtables) => {
+            subset_subtables_as_extension(subtables, 3, plan, s, args)
+        }
+        PositionSubtables::MarkToBase(subtables) => {
+            subset_subtables_as_extension(subtables, 4, plan, s, args)
+        }
+        PositionSubtables::MarkToLig(subtables) => {
+            subset_subtables_as_extension(subtables, 5, plan, s, args)
+        }
+        PositionSubtables::MarkToMark(subtables) => {
+            subset_subtables_as_extension(subtables, 6, plan, s, args)
+        }
+        PositionSubtables::Contextual(subtables) => {
+            subset_subtables_as_extension(subtables, 7, plan, s, args)
+        }
+        PositionSubtables::ChainContextual(subtables) => {
+            subset_subtables_as_extension(subtables, 8, plan, s, args)
         }
     }
 }
