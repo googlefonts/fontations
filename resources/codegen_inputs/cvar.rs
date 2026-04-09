@@ -15,6 +15,7 @@ table Cvar {
     /// are the number of tuple variation tables for this glyph. The
     /// number of tuple variation tables can be any number between 1
     /// and 4095.
+    #[compile(skip)]
     #[traverse_with(skip)]
     tuple_variation_count: TupleVariationCount,
     /// Offset from the start of the 'cvar' table to the serialized data.
@@ -23,6 +24,7 @@ table Cvar {
     data_offset: Offset16<FontData>,
     /// Array of tuple variation headers.
     #[count(..)]
+    #[compile_type(CvarVariationData)]
     #[traverse_with(skip)]
     tuple_variation_headers: VarLenArray<TupleVariationHeader<'_>>,
 }

@@ -8,6 +8,7 @@ pub mod base;
 pub mod cmap;
 pub mod colr;
 pub mod cpal;
+pub mod cvar;
 pub mod dsig;
 pub mod fvar;
 pub mod gasp;
@@ -49,6 +50,7 @@ fn do_we_even_serde() {
         base: base::Base,
         cmap: cmap::Cmap,
         cpal: cpal::Cpal,
+        cvar: cvar::Cvar,
         dsig: dsig::Dsig,
         fvar: fvar::Fvar,
         gasp: gasp::Gasp,
