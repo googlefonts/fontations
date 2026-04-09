@@ -24,6 +24,15 @@ void skrifa::run() {
         printf("Failed to load font!\n");
         return;
     }
+
+    // Get the PostScript name
+    auto name = (std::string)font->name();
+
+    // And the family name
+    auto family_name = (std::string)font->family_name();
+
+    printf("ps name = %s, family name = %s\n", name.c_str(), family_name.c_str());
+
     // How many glyphs?
     printf("Font has %d glyphs\n", font->num_glyphs());
 

@@ -1,11 +1,16 @@
-use read_fonts::ps::{
-    cff::{
-        charset::Charset as CffCharset, CffFontRef, Encoding as CffEncoding, Subfont as CffSubfont,
+use read_fonts::{
+    model::pen::OutlinePen,
+    ps::{
+        cff::{
+            charset::Charset as CffCharset, CffFontRef, Encoding as CffEncoding,
+            Metadata as CffMetadata, Subfont as CffSubfont,
+        },
+        charmap::Charmap as PsCharmap,
+        encoding::PredefinedEncoding,
+        string::Sid,
+        type1::Type1Font,
     },
-    charmap::Charmap as PsCharmap,
-    encoding::PredefinedEncoding,
-    string::Sid,
-    type1::Type1Font,
+    types::GlyphId,
 };
 
 #[cxx::bridge(namespace = "skrifa")]
@@ -47,6 +52,11 @@ mod skrifa_ffi {
         type PsFont<'a>;
         unsafe fn new_ps_font<'a>(data: &'a [u8]) -> Box<PsFont<'a>>;
         fn is_ok(&self) -> bool;
+        unsafe fn name<'a>(&'a self) -> &'a str;
+        unsafe fn family_name<'a>(&'a self) -> &'a str;
+        fn units_per_em(&self) -> i32;
+        fn ascent(&self) -> f32;
+        fn descent(&self) -> f32;
         fn num_glyphs(&self) -> u32;
         fn is_cid(&self) -> bool;
         fn cid_to_gid(&self, cid: u16) -> u32;
@@ -67,17 +77,17 @@ mod skrifa_ffi {
     }
 }
 
-use skrifa::{outline::OutlinePen, GlyphId};
 use skrifa_ffi::{Outline, PathVerb, Point, PsEncodingKind};
 
 pub enum PsFont<'a> {
-    Error,
     Type1(Type1Font),
     Cff(CffFont<'a>),
+    Error,
 }
 
 pub struct CffFont<'a> {
     font: CffFontRef<'a>,
+    meta: Option<CffMetadata<'a>>,
     charset: Option<CffCharset<'a>>,
     encoding: Option<CffEncoding<'a>>,
     unicode_cmap: Option<PsCharmap>,
@@ -86,6 +96,7 @@ pub struct CffFont<'a> {
 
 pub fn new_ps_font(data: &[u8]) -> Box<PsFont<'_>> {
     let font = if let Ok(cff) = CffFontRef::new(data, 0, None) {
+        let meta = cff.metadata();
         let charset = cff.charset();
         let encoding = cff.encoding();
         let subfonts = (0..cff.num_subfonts())
@@ -100,6 +111,7 @@ pub fn new_ps_font(data: &[u8]) -> Box<PsFont<'_>> {
         };
         PsFont::Cff(CffFont {
             font: cff,
+            meta,
             charset,
             encoding,
             unicode_cmap,
@@ -116,6 +128,64 @@ pub fn new_ps_font(data: &[u8]) -> Box<PsFont<'_>> {
 impl PsFont<'_> {
     fn is_ok(&self) -> bool {
         !matches!(self, Self::Error)
+    }
+
+    fn name(&self) -> &str {
+        match self {
+            Self::Type1(type1) => type1.name().unwrap_or_default(),
+            Self::Cff(cff) => cff
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.name())
+                .unwrap_or_default(),
+            Self::Error => "",
+        }
+    }
+
+    fn family_name(&self) -> &str {
+        match self {
+            Self::Type1(type1) => type1.family_name().unwrap_or_default(),
+            Self::Cff(cff) => cff
+                .meta
+                .as_ref()
+                .and_then(|meta| meta.family_name())
+                .unwrap_or_default(),
+            Self::Error => "",
+        }
+    }
+
+    fn units_per_em(&self) -> i32 {
+        match self {
+            Self::Type1(type1) => type1.upem(),
+            Self::Cff(cff) => cff.font.upem(),
+            Self::Error => 0,
+        }
+    }
+
+    fn ascent(&self) -> f32 {
+        let bbox = match self {
+            Self::Type1(type1) => type1.bbox(),
+            Self::Cff(cff) => cff
+                .meta
+                .as_ref()
+                .map(|meta| meta.bbox())
+                .unwrap_or_default(),
+            Self::Error => return 0.0,
+        };
+        bbox.y_max.to_f32()
+    }
+
+    fn descent(&self) -> f32 {
+        let bbox = match self {
+            Self::Type1(type1) => type1.bbox(),
+            Self::Cff(cff) => cff
+                .meta
+                .as_ref()
+                .map(|meta| meta.bbox())
+                .unwrap_or_default(),
+            Self::Error => return 0.0,
+        };
+        bbox.y_min.to_f32()
     }
 
     fn num_glyphs(&self) -> u32 {
@@ -175,6 +245,7 @@ impl PsFont<'_> {
             _ => false,
         }
     }
+
     fn cid_to_gid(&self, cid: u16) -> u32 {
         match self {
             Self::Cff(cff) if cff.font.is_cid() => cff
