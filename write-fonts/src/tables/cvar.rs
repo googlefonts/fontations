@@ -7,6 +7,8 @@
 use read_fonts::TopLevelTable;
 use types::{MajorMinor, Offset16, Tag};
 
+include!("../../generated/generated_cvar.rs");
+
 use crate::{
     table_type::TableType,
     tables::variations::{Deltas, TupleVariationStoreInputError},
@@ -20,20 +22,12 @@ use super::variations::{
     PackedDeltas, PackedPointNumbers, Tent, Tuple, TupleVariationCount, TupleVariationHeader,
 };
 
-/// Writer-side representation of the `cvar` table.
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Cvar {
-    axis_count: u16,
-    tuples: CvarVariationData,
-}
-
 /// Delta values for one region in design space.
 pub type CvtDeltas = Deltas<i32>;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-struct CvarVariationData {
+pub struct CvarVariationData {
     tuple_variation_headers: Vec<TupleVariationHeader>,
     shared_point_numbers: Option<PackedPointNumbers>,
     per_tuple_data: Vec<CvarTupleVariationData>,
@@ -44,10 +38,6 @@ struct CvarVariationData {
 struct CvarTupleVariationData {
     private_point_numbers: Option<PackedPointNumbers>,
     deltas: PackedDeltas,
-}
-
-impl TopLevelTable for Cvar {
-    const TAG: Tag = Tag::new(b"cvar");
 }
 
 impl Cvar {
@@ -74,25 +64,8 @@ impl Cvar {
         }
 
         let tuples = CvarVariationData::from_variations(variations);
-        Ok(Self { axis_count, tuples })
-    }
-}
-
-impl FontWrite for Cvar {
-    fn write_into(&self, writer: &mut TableWriter) {
-        MajorMinor::VERSION_1_0.write_into(writer);
-        self.tuples.write_into(writer);
-    }
-
-    fn table_type(&self) -> TableType {
-        TableType::TopLevel(Cvar::TAG)
-    }
-}
-
-impl Validate for Cvar {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Cvar", |ctx| {
-            self.tuples.validate_impl(ctx);
+        Ok(Self {
+            tuple_variation_headers: tuples,
         })
     }
 }
