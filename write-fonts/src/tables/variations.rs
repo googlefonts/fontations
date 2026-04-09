@@ -630,7 +630,7 @@ where
 
 /// An error representing invalid input when building a tuple variation store
 #[derive(Clone, Debug)]
-pub enum TupleVariationStoreInputError<T: std::fmt::Display> {
+pub enum TupleVariationStoreInputError<T> {
     /// Glyph variations do not have the expected axis count
     UnexpectedAxisCount {
         index: T,
