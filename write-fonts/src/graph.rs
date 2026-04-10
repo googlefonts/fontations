@@ -1316,6 +1316,55 @@ mod tests {
         assert_eq!(&graph.order, &[ids[0], ids[1], ids[3], ids[2]]);
     }
 
+    // Regression test: Dijkstra must use a min-heap, not a max-heap.
+    //
+    // When a node is reachable via two paths, a max-heap (Rust's default
+    // BinaryHeap) pops the farthest node first, causing it to be visited
+    // via the longer path and assigned the wrong (larger) distance.
+    //
+    // Layout:
+    //              +--> A(5) -----+
+    //              |               +--> C(100)  (shared)
+    //  root(10) ---+--> B(200) ---+
+    //              |          |
+    //              |          +----+--> D(10)   (shared)
+    //              +--> E(150) ----+
+    //
+    // min-heap (correct): C.dist = 5+100 = 105 (via A),
+    //                     D.dist = 150+10 = 160 (via E)  -> C before D
+    // max-heap (bug):     C.dist = 200+100 = 300 (via B),
+    //                     D.dist = 200+10 = 210 (via B)  -> D before C
+    #[test]
+    fn dijkstra_min_heap() {
+        let [root, a, b, c, d, e] = make_ids::<6>();
+        let sizes = [10, 5, 200, 100, 10, 150];
+        let mut graph = TestGraphBuilder::new([root, a, b, c, d, e], sizes)
+            // root -> A, B, E
+            .add_link(root, a, OffsetLen::Offset16)
+            .add_link(root, b, OffsetLen::Offset16)
+            .add_link(root, e, OffsetLen::Offset16)
+            // A -> C (short path to C)
+            .add_link(a, c, OffsetLen::Offset16)
+            // B -> C (long path to C), B -> D (long path to D)
+            .add_link(b, c, OffsetLen::Offset16)
+            .add_link(b, d, OffsetLen::Offset16)
+            // E -> D (short path to D)
+            .add_link(e, d, OffsetLen::Offset16)
+            .build();
+
+        graph.sort_shortest_distance();
+
+        // C (dist=105) must come before D (dist=160).
+        // A max-heap bug would reverse this since C gets dist=300, D gets 210.
+        let c_pos = graph.order.iter().position(|&id| id == c).unwrap();
+        let d_pos = graph.order.iter().position(|&id| id == d).unwrap();
+        assert!(
+            c_pos < d_pos,
+            "C (shortest dist=105) should be sorted before D (shortest dist=160), \
+             got C at position {c_pos}, D at position {d_pos}"
+        );
+    }
+
     #[test]
     fn overflow_basic() {
         let ids = make_ids::<3>();
