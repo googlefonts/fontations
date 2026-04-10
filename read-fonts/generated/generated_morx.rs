@@ -96,6 +96,13 @@ impl Default for Morx<'_> {
     }
 }
 
+impl Morx<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Morx<'a> {
     fn type_name(&self) -> &str {
@@ -236,6 +243,13 @@ impl Default for Chain<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Chain<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -417,6 +431,13 @@ impl Default for Subtable<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Subtable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

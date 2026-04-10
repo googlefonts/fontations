@@ -105,6 +105,13 @@ impl Default for Ankr<'_> {
     }
 }
 
+impl Ankr<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Ankr<'a> {
     fn type_name(&self) -> &str {
@@ -196,6 +203,13 @@ impl Default for GlyphDataEntry<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl GlyphDataEntry<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

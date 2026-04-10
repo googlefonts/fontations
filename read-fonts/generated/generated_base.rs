@@ -120,6 +120,13 @@ impl Default for Base<'_> {
     }
 }
 
+impl Base<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Base<'a> {
     fn type_name(&self) -> &str {
@@ -230,6 +237,13 @@ impl Default for Axis<'_> {
     }
 }
 
+impl Axis<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Axis<'a> {
     fn type_name(&self) -> &str {
@@ -325,6 +339,13 @@ impl Default for BaseTagList<'_> {
     }
 }
 
+impl BaseTagList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseTagList<'a> {
     fn type_name(&self) -> &str {
@@ -410,6 +431,13 @@ impl Default for BaseScriptList<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl BaseScriptList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -597,6 +625,13 @@ impl Default for BaseScript<'_> {
     }
 }
 
+impl BaseScript<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseScript<'a> {
     fn type_name(&self) -> &str {
@@ -778,6 +813,13 @@ impl Default for BaseValues<'_> {
     }
 }
 
+impl BaseValues<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseValues<'a> {
     fn type_name(&self) -> &str {
@@ -920,6 +962,13 @@ impl Default for MinMax<'_> {
     }
 }
 
+impl MinMax<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MinMax<'a> {
     fn type_name(&self) -> &str {
@@ -1047,6 +1096,13 @@ pub enum BaseCoord<'a> {
 impl Default for BaseCoord<'_> {
     fn default() -> Self {
         Self::Format1(Default::default())
+    }
+}
+
+impl BaseCoord<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
     }
 }
 
@@ -1201,6 +1257,13 @@ impl Default for BaseCoordFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
+    }
+}
+
+impl BaseCoordFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 

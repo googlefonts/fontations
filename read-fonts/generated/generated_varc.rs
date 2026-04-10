@@ -150,6 +150,13 @@ impl Default for Varc<'_> {
     }
 }
 
+impl Varc<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Varc<'a> {
     fn type_name(&self) -> &str {
@@ -295,6 +302,13 @@ impl Default for MultiItemVariationStore<'_> {
     }
 }
 
+impl MultiItemVariationStore<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
     fn type_name(&self) -> &str {
@@ -407,6 +421,13 @@ impl Default for SparseVariationRegionList<'_> {
     }
 }
 
+impl SparseVariationRegionList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
     fn type_name(&self) -> &str {
@@ -504,6 +525,13 @@ impl Default for SparseVariationRegion<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl SparseVariationRegion<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -672,6 +700,13 @@ impl Default for MultiItemVariationData<'_> {
     }
 }
 
+impl MultiItemVariationData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u8_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultiItemVariationData<'a> {
     fn type_name(&self) -> &str {
@@ -762,6 +797,13 @@ impl Default for ConditionList<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl ConditionList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

@@ -23,6 +23,13 @@ impl Default for Lookup<'_> {
     }
 }
 
+impl Lookup<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format0 (t) if t . is_default ())
+    }
+}
+
 impl<'a> Lookup<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -184,6 +191,13 @@ impl Default for Lookup0<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Lookup0<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1059,6 +1073,13 @@ impl Default for StateHeader<'_> {
     }
 }
 
+impl StateHeader<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for StateHeader<'a> {
     fn type_name(&self) -> &str {
@@ -1169,6 +1190,13 @@ impl Default for ClassSubtable<'_> {
     }
 }
 
+impl ClassSubtable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClassSubtable<'a> {
     fn type_name(&self) -> &str {
@@ -1242,6 +1270,13 @@ impl Default for RawBytes<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl RawBytes<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1373,6 +1408,13 @@ impl Default for StxHeader<'_> {
     }
 }
 
+impl StxHeader<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for StxHeader<'a> {
     fn type_name(&self) -> &str {
@@ -1456,6 +1498,13 @@ impl Default for RawWords<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl RawWords<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

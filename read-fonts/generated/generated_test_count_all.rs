@@ -66,6 +66,13 @@ impl Default for CountAll16<'_> {
     }
 }
 
+impl CountAll16<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CountAll16<'a> {
     fn type_name(&self) -> &str {
@@ -146,6 +153,13 @@ impl Default for CountAll32<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl CountAll32<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

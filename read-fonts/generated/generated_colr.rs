@@ -237,6 +237,13 @@ impl Default for Colr<'_> {
     }
 }
 
+impl Colr<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Colr<'a> {
     fn type_name(&self) -> &str {
@@ -465,6 +472,13 @@ impl Default for BaseGlyphList<'_> {
     }
 }
 
+impl BaseGlyphList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseGlyphList<'a> {
     fn type_name(&self) -> &str {
@@ -621,6 +635,13 @@ impl Default for LayerList<'_> {
     }
 }
 
+impl LayerList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LayerList<'a> {
     fn type_name(&self) -> &str {
@@ -732,6 +753,13 @@ impl Default for ClipList<'_> {
     }
 }
 
+impl ClipList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClipList<'a> {
     fn type_name(&self) -> &str {
@@ -834,6 +862,13 @@ pub enum ClipBox<'a> {
 impl Default for ClipBox<'_> {
     fn default() -> Self {
         Self::Format1(Default::default())
+    }
+}
+
+impl ClipBox<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
     }
 }
 
@@ -1042,6 +1077,13 @@ impl Default for ClipBoxFormat1<'_> {
         Self {
             data: FontData::default_format_1_u8_table_data(),
         }
+    }
+}
+
+impl ClipBoxFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u8_table_data()
     }
 }
 
@@ -1479,6 +1521,13 @@ impl Default for ColorLine<'_> {
     }
 }
 
+impl ColorLine<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ColorLine<'a> {
     fn type_name(&self) -> &str {
@@ -1582,6 +1631,13 @@ impl Default for VarColorLine<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl VarColorLine<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1702,6 +1758,13 @@ pub enum Paint<'a> {
 impl Default for Paint<'_> {
     fn default() -> Self {
         Self::ColrLayers(Default::default())
+    }
+}
+
+impl Paint<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: ColrLayers (t) if t . is_default ())
     }
 }
 
@@ -2042,6 +2105,13 @@ impl Default for PaintColrLayers<'_> {
         Self {
             data: FontData::default_format_1_u8_table_data(),
         }
+    }
+}
+
+impl PaintColrLayers<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u8_table_data()
     }
 }
 
@@ -3793,6 +3863,13 @@ impl Default for Affine2x3<'_> {
     }
 }
 
+impl Affine2x3<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Affine2x3<'a> {
     fn type_name(&self) -> &str {
@@ -3945,6 +4022,13 @@ impl Default for VarAffine2x3<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl VarAffine2x3<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

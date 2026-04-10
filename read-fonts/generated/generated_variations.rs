@@ -305,6 +305,13 @@ impl Default for DeltaSetIndexMapFormat0<'_> {
     }
 }
 
+impl DeltaSetIndexMapFormat0<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat0<'a> {
     fn type_name(&self) -> &str {
@@ -424,6 +431,13 @@ impl Default for DeltaSetIndexMapFormat1<'_> {
     }
 }
 
+impl DeltaSetIndexMapFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u8_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -458,6 +472,13 @@ pub enum DeltaSetIndexMap<'a> {
 impl Default for DeltaSetIndexMap<'_> {
     fn default() -> Self {
         Self::Format0(Default::default())
+    }
+}
+
+impl DeltaSetIndexMap<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format0 (t) if t . is_default ())
     }
 }
 
@@ -944,6 +965,13 @@ impl Default for VariationRegionList<'_> {
     }
 }
 
+impl VariationRegionList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VariationRegionList<'a> {
     fn type_name(&self) -> &str {
@@ -1200,6 +1228,13 @@ impl Default for ItemVariationStore<'_> {
     }
 }
 
+impl ItemVariationStore<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ItemVariationStore<'a> {
     fn type_name(&self) -> &str {
@@ -1352,6 +1387,13 @@ impl Default for ItemVariationData<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl ItemVariationData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

@@ -80,6 +80,13 @@ impl Default for OtKern<'_> {
     }
 }
 
+impl OtKern<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for OtKern<'a> {
     fn type_name(&self) -> &str {
@@ -175,6 +182,13 @@ impl Default for AatKern<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl AatKern<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -287,6 +301,13 @@ impl Default for OtSubtable<'_> {
     }
 }
 
+impl OtSubtable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for OtSubtable<'a> {
     fn type_name(&self) -> &str {
@@ -394,6 +415,13 @@ impl Default for AatSubtable<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl AatSubtable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -520,6 +548,13 @@ impl Default for Subtable0<'_> {
     }
 }
 
+impl Subtable0<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Subtable0<'a> {
     fn type_name(&self) -> &str {
@@ -625,6 +660,13 @@ impl Default for Subtable2ClassTable<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Subtable2ClassTable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -801,6 +843,13 @@ impl Default for Subtable3<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Subtable3<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

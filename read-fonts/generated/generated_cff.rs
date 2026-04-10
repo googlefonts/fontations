@@ -115,6 +115,13 @@ impl Default for CffHeader<'_> {
     }
 }
 
+impl CffHeader<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CffHeader<'a> {
     fn type_name(&self) -> &str {
@@ -232,6 +239,13 @@ impl Default for Index<'_> {
     }
 }
 
+impl Index<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Index<'a> {
     fn type_name(&self) -> &str {
@@ -267,6 +281,13 @@ pub enum FdSelect<'a> {
 impl Default for FdSelect<'_> {
     fn default() -> Self {
         Self::Format0(Default::default())
+    }
+}
+
+impl FdSelect<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format0 (t) if t . is_default ())
     }
 }
 
@@ -412,6 +433,13 @@ impl Default for FdSelectFormat0<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl FdSelectFormat0<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -759,6 +787,13 @@ impl Default for CustomCharset<'_> {
     }
 }
 
+impl CustomCharset<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format0 (t) if t . is_default ())
+    }
+}
+
 impl<'a> CustomCharset<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -904,6 +939,13 @@ impl Default for CharsetFormat0<'_> {
     }
 }
 
+impl CharsetFormat0<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CharsetFormat0<'a> {
     fn type_name(&self) -> &str {
@@ -994,6 +1036,13 @@ impl Default for CharsetFormat1<'_> {
         Self {
             data: FontData::default_format_1_u8_table_data(),
         }
+    }
+}
+
+impl CharsetFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u8_table_data()
     }
 }
 

@@ -223,6 +223,13 @@ impl Default for Cpal<'_> {
     }
 }
 
+impl Cpal<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cpal<'a> {
     fn type_name(&self) -> &str {

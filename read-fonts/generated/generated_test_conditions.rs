@@ -96,6 +96,13 @@ impl Default for MajorMinorVersion<'_> {
     }
 }
 
+impl MajorMinorVersion<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MajorMinorVersion<'a> {
     fn type_name(&self) -> &str {
@@ -517,6 +524,13 @@ impl Default for FlagDay<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl FlagDay<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

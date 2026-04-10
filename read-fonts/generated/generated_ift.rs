@@ -17,6 +17,13 @@ impl Default for Ift<'_> {
     }
 }
 
+impl Ift<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
+}
+
 impl<'a> Ift<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -686,6 +693,13 @@ impl Default for PatchMapFormat1<'_> {
         Self {
             data: FontData::default_format_1_u8_table_data(),
         }
+    }
+}
+
+impl PatchMapFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u8_table_data()
     }
 }
 
@@ -1477,6 +1491,13 @@ impl Default for MappingEntries<'_> {
     }
 }
 
+impl MappingEntries<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MappingEntries<'a> {
     fn type_name(&self) -> &str {
@@ -1663,6 +1684,13 @@ impl Default for EntryData<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl EntryData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -2167,6 +2195,13 @@ impl Default for IdStringData<'_> {
     }
 }
 
+impl IdStringData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IdStringData<'a> {
     fn type_name(&self) -> &str {
@@ -2284,6 +2319,13 @@ impl Default for TableKeyedPatch<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl TableKeyedPatch<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -2407,6 +2449,13 @@ impl Default for TablePatch<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl TablePatch<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -2840,6 +2889,13 @@ impl Default for GlyphKeyedPatch<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl GlyphKeyedPatch<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -3390,6 +3446,13 @@ impl Default for GlyphData<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl GlyphData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

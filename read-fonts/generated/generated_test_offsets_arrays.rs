@@ -211,6 +211,13 @@ impl Default for KindsOfOffsets<'_> {
     }
 }
 
+impl KindsOfOffsets<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
     fn type_name(&self) -> &str {
@@ -426,6 +433,13 @@ impl Default for KindsOfArraysOfOffsets<'_> {
     }
 }
 
+impl KindsOfArraysOfOffsets<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
     fn type_name(&self) -> &str {
@@ -624,6 +638,13 @@ impl Default for KindsOfArrays<'_> {
     }
 }
 
+impl KindsOfArrays<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfArrays<'a> {
     fn type_name(&self) -> &str {
@@ -745,6 +766,13 @@ impl Default for VarLenHaver<'_> {
     }
 }
 
+impl VarLenHaver<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VarLenHaver<'a> {
     fn type_name(&self) -> &str {
@@ -821,6 +849,13 @@ impl Default for Dummy<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Dummy<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

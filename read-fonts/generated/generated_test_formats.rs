@@ -80,6 +80,13 @@ impl Default for Table1<'_> {
     }
 }
 
+impl Table1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Table1<'a> {
     fn type_name(&self) -> &str {
@@ -279,6 +286,13 @@ pub enum MyTable<'a> {
 impl Default for MyTable<'_> {
     fn default() -> Self {
         Self::Format1(Default::default())
+    }
+}
+
+impl MyTable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
     }
 }
 

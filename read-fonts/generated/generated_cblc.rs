@@ -97,6 +97,13 @@ impl Default for Cblc<'_> {
     }
 }
 
+impl Cblc<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cblc<'a> {
     fn type_name(&self) -> &str {

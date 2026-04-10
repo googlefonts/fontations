@@ -165,6 +165,13 @@ impl Default for Stat<'_> {
     }
 }
 
+impl Stat<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Stat<'a> {
     fn type_name(&self) -> &str {
@@ -391,6 +398,13 @@ impl Default for AxisValue<'_> {
     }
 }
 
+impl AxisValue<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
+}
+
 impl<'a> AxisValue<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -600,6 +614,13 @@ impl Default for AxisValueFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
+    }
+}
+
+impl AxisValueFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 

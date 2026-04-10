@@ -185,6 +185,13 @@ impl Default for Gdef<'_> {
     }
 }
 
+impl Gdef<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gdef<'a> {
     fn type_name(&self) -> &str {
@@ -375,6 +382,13 @@ impl Default for AttachList<'_> {
     }
 }
 
+impl AttachList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AttachList<'a> {
     fn type_name(&self) -> &str {
@@ -476,6 +490,13 @@ impl Default for AttachPoint<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl AttachPoint<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -591,6 +612,13 @@ impl Default for LigCaretList<'_> {
     }
 }
 
+impl LigCaretList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigCaretList<'a> {
     fn type_name(&self) -> &str {
@@ -703,6 +731,13 @@ impl Default for LigGlyph<'_> {
     }
 }
 
+impl LigGlyph<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigGlyph<'a> {
     fn type_name(&self) -> &str {
@@ -749,6 +784,13 @@ pub enum CaretValue<'a> {
 impl Default for CaretValue<'_> {
     fn default() -> Self {
         Self::Format1(Default::default())
+    }
+}
+
+impl CaretValue<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
     }
 }
 
@@ -894,6 +936,13 @@ impl Default for CaretValueFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
+    }
+}
+
+impl CaretValueFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -1190,6 +1239,13 @@ impl Default for MarkGlyphSets<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
+    }
+}
+
+impl MarkGlyphSets<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 

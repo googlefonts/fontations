@@ -105,6 +105,13 @@ impl Default for BasicTable<'_> {
     }
 }
 
+impl BasicTable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BasicTable<'a> {
     fn type_name(&self) -> &str {
@@ -391,6 +398,13 @@ impl Default for VarLenItem<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl VarLenItem<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

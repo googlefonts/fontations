@@ -70,6 +70,13 @@ impl Default for ScriptList<'_> {
     }
 }
 
+impl ScriptList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ScriptList<'a> {
     fn type_name(&self) -> &str {
@@ -233,6 +240,13 @@ impl Default for Script<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Script<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -404,6 +418,13 @@ impl Default for LangSys<'_> {
     }
 }
 
+impl LangSys<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LangSys<'a> {
     fn type_name(&self) -> &str {
@@ -496,6 +517,13 @@ impl Default for FeatureList<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl FeatureList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -809,6 +837,13 @@ impl Default for LookupList<'_> {
     }
 }
 
+impl LookupList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, T> {
     fn type_name(&self) -> &str {
@@ -988,6 +1023,13 @@ impl Default for Lookup<'_> {
     }
 }
 
+impl Lookup<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
     fn type_name(&self) -> &str {
@@ -1112,6 +1154,13 @@ impl Default for CoverageFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
+    }
+}
+
+impl CoverageFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -1305,6 +1354,13 @@ impl Default for CoverageTable<'_> {
     }
 }
 
+impl CoverageTable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
+}
+
 impl<'a> CoverageTable<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -1464,6 +1520,13 @@ impl Default for ClassDefFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
+    }
+}
+
+impl ClassDefFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -1652,6 +1715,13 @@ pub enum ClassDef<'a> {
 impl Default for ClassDef<'_> {
     fn default() -> Self {
         Self::Format1(Default::default())
+    }
+}
+
+impl ClassDef<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
     }
 }
 
@@ -1874,6 +1944,13 @@ impl Default for SequenceContextFormat1<'_> {
     }
 }
 
+impl SequenceContextFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -1984,6 +2061,13 @@ impl Default for SequenceRuleSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl SequenceRuleSet<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -2111,6 +2195,13 @@ impl Default for SequenceRule<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl SequenceRule<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -2382,6 +2473,13 @@ impl Default for ClassSequenceRuleSet<'_> {
     }
 }
 
+impl ClassSequenceRuleSet<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
     fn type_name(&self) -> &str {
@@ -2508,6 +2606,13 @@ impl Default for ClassSequenceRule<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl ClassSequenceRule<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -2702,6 +2807,13 @@ impl Default for SequenceContext<'_> {
     }
 }
 
+impl SequenceContext<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
+}
+
 impl<'a> SequenceContext<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -2887,6 +2999,13 @@ impl Default for ChainedSequenceContextFormat1<'_> {
     }
 }
 
+impl ChainedSequenceContextFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -3000,6 +3119,13 @@ impl Default for ChainedSequenceRuleSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl ChainedSequenceRuleSet<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -3177,6 +3303,13 @@ impl Default for ChainedSequenceRule<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl ChainedSequenceRule<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -3517,6 +3650,13 @@ impl Default for ChainedClassSequenceRuleSet<'_> {
     }
 }
 
+impl ChainedClassSequenceRuleSet<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
     fn type_name(&self) -> &str {
@@ -3692,6 +3832,13 @@ impl Default for ChainedClassSequenceRule<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl ChainedClassSequenceRule<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -3995,6 +4142,13 @@ impl Default for ChainedSequenceContext<'_> {
     }
 }
 
+impl ChainedSequenceContext<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
+}
+
 impl<'a> ChainedSequenceContext<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -4218,6 +4372,13 @@ impl Default for Device<'_> {
     }
 }
 
+impl Device<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Device<'a> {
     fn type_name(&self) -> &str {
@@ -4319,6 +4480,13 @@ impl Default for VariationIndex<'_> {
     }
 }
 
+impl VariationIndex<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VariationIndex<'a> {
     fn type_name(&self) -> &str {
@@ -4358,6 +4526,13 @@ pub enum DeviceOrVariationIndex<'a> {
 impl Default for DeviceOrVariationIndex<'_> {
     fn default() -> Self {
         Self::Device(Default::default())
+    }
+}
+
+impl DeviceOrVariationIndex<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Device (t) if t . is_default ())
     }
 }
 
@@ -4505,6 +4680,13 @@ impl Default for FeatureVariations<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl FeatureVariations<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -4693,6 +4875,13 @@ impl Default for ConditionSet<'_> {
     }
 }
 
+impl ConditionSet<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ConditionSet<'a> {
     fn type_name(&self) -> &str {
@@ -4744,6 +4933,13 @@ pub enum Condition<'a> {
 impl Default for Condition<'_> {
     fn default() -> Self {
         Self::Format1AxisRange(Default::default())
+    }
+}
+
+impl Condition<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1AxisRange (t) if t . is_default ())
     }
 }
 
@@ -4927,6 +5123,13 @@ impl Default for ConditionFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
+    }
+}
+
+impl ConditionFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -5446,6 +5649,13 @@ impl Default for FeatureTableSubstitution<'_> {
     }
 }
 
+impl FeatureTableSubstitution<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FeatureTableSubstitution<'a> {
     fn type_name(&self) -> &str {
@@ -5646,6 +5856,13 @@ impl Default for SizeParams<'_> {
     }
 }
 
+impl SizeParams<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SizeParams<'a> {
     fn type_name(&self) -> &str {
@@ -5738,6 +5955,13 @@ impl Default for StylisticSetParams<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl StylisticSetParams<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -5910,6 +6134,13 @@ impl Default for CharacterVariantParams<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl CharacterVariantParams<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

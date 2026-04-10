@@ -121,6 +121,13 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                     }
                 }
             }
+
+            impl #raw_name<'_> {
+                /// Returns `true` if this table was created from default (null) data.
+                pub fn is_default(&self) -> bool {
+                    self.data == FontData::#data_method()
+                }
+            }
         }
     });
 
@@ -871,6 +878,13 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
         impl Default for #name<'_> {
             fn default() -> Self {
                 Self::#first_var_name(Default::default())
+            }
+        }
+
+        impl #name<'_> {
+            /// Returns `true` if this table was created from default (null) data.
+            pub fn is_default(&self) -> bool {
+                matches!(self, Self::#first_var_name(t) if t.is_default())
             }
         }
 

@@ -85,6 +85,13 @@ impl Default for Cmap<'_> {
     }
 }
 
+impl Cmap<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap<'a> {
     fn type_name(&self) -> &str {
@@ -248,6 +255,13 @@ pub enum CmapSubtable<'a> {
 impl Default for CmapSubtable<'_> {
     fn default() -> Self {
         Self::Format0(Default::default())
+    }
+}
+
+impl CmapSubtable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format0 (t) if t . is_default ())
     }
 }
 
@@ -453,6 +467,13 @@ impl Default for Cmap0<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Cmap0<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1934,6 +1955,13 @@ impl Default for DefaultUvs<'_> {
     }
 }
 
+impl DefaultUvs<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DefaultUvs<'a> {
     fn type_name(&self) -> &str {
@@ -2026,6 +2054,13 @@ impl Default for NonDefaultUvs<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl NonDefaultUvs<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

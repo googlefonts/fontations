@@ -43,6 +43,13 @@ impl Default for Glyf<'_> {
     }
 }
 
+impl Glyf<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Glyf<'a> {
     fn type_name(&self) -> &str {
@@ -216,6 +223,13 @@ impl Default for SimpleGlyph<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl SimpleGlyph<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -764,6 +778,13 @@ impl Default for CompositeGlyph<'_> {
     }
 }
 
+impl CompositeGlyph<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
     fn type_name(&self) -> &str {
@@ -1178,6 +1199,13 @@ pub enum Glyph<'a> {
 impl Default for Glyph<'_> {
     fn default() -> Self {
         Self::Simple(Default::default())
+    }
+}
+
+impl Glyph<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Simple (t) if t . is_default ())
     }
 }
 

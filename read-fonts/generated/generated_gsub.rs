@@ -140,6 +140,13 @@ impl Default for Gsub<'_> {
     }
 }
 
+impl Gsub<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gsub<'a> {
     fn type_name(&self) -> &str {
@@ -271,6 +278,13 @@ pub enum SingleSubst<'a> {
 impl Default for SingleSubst<'_> {
     fn default() -> Self {
         Self::Format1(Default::default())
+    }
+}
+
+impl SingleSubst<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
     }
 }
 
@@ -437,6 +451,13 @@ impl Default for SingleSubstFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
+    }
+}
+
+impl SingleSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -690,6 +711,13 @@ impl Default for MultipleSubstFormat1<'_> {
     }
 }
 
+impl MultipleSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -793,6 +821,13 @@ impl Default for Sequence<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Sequence<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -927,6 +962,13 @@ impl Default for AlternateSubstFormat1<'_> {
     }
 }
 
+impl AlternateSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -1032,6 +1074,13 @@ impl Default for AlternateSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl AlternateSet<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1166,6 +1215,13 @@ impl Default for LigatureSubstFormat1<'_> {
     }
 }
 
+impl LigatureSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -1276,6 +1332,13 @@ impl Default for LigatureSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl LigatureSet<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1391,6 +1454,13 @@ impl Default for Ligature<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl Ligature<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1534,6 +1604,13 @@ impl Default for ExtensionSubstFormat1<'_> {
             data: FontData::default_format_1_u16_table_data(),
             offset_type: std::marker::PhantomData,
         }
+    }
+}
+
+impl ExtensionSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -1804,6 +1881,13 @@ impl Default for ReverseChainSingleSubstFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
+    }
+}
+
+impl ReverseChainSingleSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 

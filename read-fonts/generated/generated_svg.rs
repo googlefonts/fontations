@@ -86,6 +86,13 @@ impl Default for Svg<'_> {
     }
 }
 
+impl Svg<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Svg<'a> {
     fn type_name(&self) -> &str {
@@ -173,6 +180,13 @@ impl Default for SVGDocumentList<'_> {
         Self {
             data: FontData::default_table_data(),
         }
+    }
+}
+
+impl SVGDocumentList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

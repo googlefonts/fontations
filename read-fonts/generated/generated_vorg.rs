@@ -102,6 +102,13 @@ impl Default for Vorg<'_> {
     }
 }
 
+impl Vorg<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Vorg<'a> {
     fn type_name(&self) -> &str {
