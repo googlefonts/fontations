@@ -86,6 +86,16 @@ impl<'a> Morx<'a> {
     }
 }
 
+const _: () = assert!(Morx::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Morx<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Morx<'a> {
     fn type_name(&self) -> &str {
@@ -215,6 +225,16 @@ impl<'a> Chain<'a> {
         start..start + {
             let data = self.data.split_off(start).unwrap_or_default();
             <Subtable as VarSize>::total_len_for_count(data, n_subtables as usize).unwrap_or(0)
+        }
+    }
+}
+
+const _: () = assert!(Chain::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Chain<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
         }
     }
 }
@@ -387,6 +407,16 @@ impl<'a> Subtable<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.sub_feature_flags_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(Subtable::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Subtable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

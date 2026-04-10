@@ -213,6 +213,16 @@ impl<'a> Cpal<'a> {
     }
 }
 
+const _: () = assert!(Cpal::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Cpal<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cpal<'a> {
     fn type_name(&self) -> &str {

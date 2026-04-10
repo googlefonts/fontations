@@ -201,6 +201,16 @@ impl<'a> KindsOfOffsets<'a> {
     }
 }
 
+const _: () = assert!(KindsOfOffsets::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for KindsOfOffsets<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
     fn type_name(&self) -> &str {
@@ -406,6 +416,16 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 }
 
+const _: () = assert!(KindsOfArraysOfOffsets::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for KindsOfArraysOfOffsets<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
     fn type_name(&self) -> &str {
@@ -594,6 +614,16 @@ impl<'a> KindsOfArrays<'a> {
     }
 }
 
+const _: () = assert!(KindsOfArrays::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for KindsOfArrays<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfArrays<'a> {
     fn type_name(&self) -> &str {
@@ -705,6 +735,16 @@ impl<'a> VarLenHaver<'a> {
     }
 }
 
+const _: () = assert!(VarLenHaver::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for VarLenHaver<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VarLenHaver<'a> {
     fn type_name(&self) -> &str {
@@ -771,6 +811,16 @@ impl<'a> Dummy<'a> {
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.value_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(Dummy::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Dummy<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

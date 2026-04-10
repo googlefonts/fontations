@@ -107,6 +107,16 @@ impl<'a> Trak<'a> {
     }
 }
 
+const _: () = assert!(Trak::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Trak<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Trak<'a> {
     fn type_name(&self) -> &str {
@@ -211,6 +221,16 @@ impl<'a> TrackData<'a> {
         let n_tracks = self.n_tracks();
         let start = self.size_table_offset_byte_range().end;
         start..start + (n_tracks as usize).saturating_mul(TrackTableEntry::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(TrackData::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for TrackData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

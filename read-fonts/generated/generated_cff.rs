@@ -105,6 +105,16 @@ impl<'a> CffHeader<'a> {
     }
 }
 
+const _: () = assert!(CffHeader::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for CffHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CffHeader<'a> {
     fn type_name(&self) -> &str {
@@ -212,6 +222,16 @@ impl<'a> Index<'a> {
     }
 }
 
+const _: () = assert!(Index::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Index<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Index<'a> {
     fn type_name(&self) -> &str {
@@ -242,6 +262,12 @@ pub enum FdSelect<'a> {
     Format0(FdSelectFormat0<'a>),
     Format3(FdSelectFormat3<'a>),
     Format4(FdSelectFormat4<'a>),
+}
+
+impl Default for FdSelect<'_> {
+    fn default() -> Self {
+        Self::Format0(Default::default())
+    }
 }
 
 impl<'a> FdSelect<'a> {
@@ -376,6 +402,16 @@ impl<'a> FdSelectFormat0<'a> {
     pub fn fds_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FdSelectFormat0::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for FdSelectFormat0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -717,6 +753,12 @@ pub enum CustomCharset<'a> {
     Format2(CharsetFormat2<'a>),
 }
 
+impl Default for CustomCharset<'_> {
+    fn default() -> Self {
+        Self::Format0(Default::default())
+    }
+}
+
 impl<'a> CustomCharset<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -852,6 +894,16 @@ impl<'a> CharsetFormat0<'a> {
     }
 }
 
+const _: () = assert!(CharsetFormat0::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for CharsetFormat0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CharsetFormat0<'a> {
     fn type_name(&self) -> &str {
@@ -932,6 +984,16 @@ impl<'a> CharsetFormat1<'a> {
             ..start
                 + self.data.len().saturating_sub(start) / CharsetRange1::RAW_BYTE_LEN
                     * CharsetRange1::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(CharsetFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for CharsetFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
     }
 }
 

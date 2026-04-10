@@ -86,6 +86,16 @@ impl<'a> Kerx<'a> {
     }
 }
 
+const _: () = assert!(Kerx::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Kerx<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Kerx<'a> {
     fn type_name(&self) -> &str {
@@ -185,6 +195,16 @@ impl<'a> Subtable<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.tuple_count_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(Subtable::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Subtable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -298,6 +318,16 @@ impl<'a> Subtable0<'a> {
         let n_pairs = self.n_pairs();
         let start = self.range_shift_byte_range().end;
         start..start + (n_pairs as usize).saturating_mul(Subtable0Pair::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(Subtable0::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Subtable0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

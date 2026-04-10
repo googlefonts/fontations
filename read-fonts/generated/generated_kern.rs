@@ -70,6 +70,16 @@ impl<'a> OtKern<'a> {
     }
 }
 
+const _: () = assert!(OtKern::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for OtKern<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for OtKern<'a> {
     fn type_name(&self) -> &str {
@@ -155,6 +165,16 @@ impl<'a> AatKern<'a> {
     pub fn subtable_data_byte_range(&self) -> Range<usize> {
         let start = self.n_tables_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(AatKern::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for AatKern<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -257,6 +277,16 @@ impl<'a> OtSubtable<'a> {
     }
 }
 
+const _: () = assert!(OtSubtable::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for OtSubtable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for OtSubtable<'a> {
     fn type_name(&self) -> &str {
@@ -354,6 +384,16 @@ impl<'a> AatSubtable<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.tuple_index_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(AatSubtable::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for AatSubtable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -470,6 +510,16 @@ impl<'a> Subtable0<'a> {
     }
 }
 
+const _: () = assert!(Subtable0::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Subtable0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Subtable0<'a> {
     fn type_name(&self) -> &str {
@@ -565,6 +615,16 @@ impl<'a> Subtable2ClassTable<'a> {
         let n_glyphs = self.n_glyphs();
         let start = self.n_glyphs_byte_range().end;
         start..start + (n_glyphs as usize).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(Subtable2ClassTable::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Subtable2ClassTable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -731,6 +791,16 @@ impl<'a> Subtable3<'a> {
             ..start
                 + (transforms::add_multiply(left_class_count, 0_usize, right_class_count))
                     .saturating_mul(u8::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(Subtable3::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Subtable3<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

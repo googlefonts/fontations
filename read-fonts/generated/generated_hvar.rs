@@ -126,6 +126,16 @@ impl<'a> Hvar<'a> {
     }
 }
 
+const _: () = assert!(Hvar::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Hvar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Hvar<'a> {
     fn type_name(&self) -> &str {

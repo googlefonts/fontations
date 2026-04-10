@@ -32,6 +32,17 @@ impl<'a> Glyf<'a> {
     basic_table_impls!(impl_the_methods);
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(Glyf::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Glyf<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Glyf<'a> {
     fn type_name(&self) -> &str {
@@ -195,6 +206,16 @@ impl<'a> SimpleGlyph<'a> {
     pub fn glyph_data_byte_range(&self) -> Range<usize> {
         let start = self.instructions_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(SimpleGlyph::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for SimpleGlyph<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -733,6 +754,16 @@ impl<'a> CompositeGlyph<'a> {
     }
 }
 
+const _: () = assert!(CompositeGlyph::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for CompositeGlyph<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
     fn type_name(&self) -> &str {
@@ -1142,6 +1173,12 @@ impl<'a> From<CompositeGlyphFlags> for FieldType<'a> {
 pub enum Glyph<'a> {
     Simple(SimpleGlyph<'a>),
     Composite(CompositeGlyph<'a>),
+}
+
+impl Default for Glyph<'_> {
+    fn default() -> Self {
+        Self::Simple(Default::default())
+    }
 }
 
 impl<'a> Glyph<'a> {

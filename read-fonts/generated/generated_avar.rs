@@ -132,6 +132,16 @@ impl<'a> Avar<'a> {
     }
 }
 
+const _: () = assert!(Avar::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Avar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Avar<'a> {
     fn type_name(&self) -> &str {

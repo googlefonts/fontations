@@ -75,6 +75,16 @@ impl<'a> Cmap<'a> {
     }
 }
 
+const _: () = assert!(Cmap::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Cmap<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cmap<'a> {
     fn type_name(&self) -> &str {
@@ -233,6 +243,12 @@ pub enum CmapSubtable<'a> {
     Format12(Cmap12<'a>),
     Format13(Cmap13<'a>),
     Format14(Cmap14<'a>),
+}
+
+impl Default for CmapSubtable<'_> {
+    fn default() -> Self {
+        Self::Format0(Default::default())
+    }
 }
 
 impl<'a> CmapSubtable<'a> {
@@ -427,6 +443,16 @@ impl<'a> Cmap0<'a> {
     pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
         start..start + (256_usize).saturating_mul(u8::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(Cmap0::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Cmap0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1898,6 +1924,16 @@ impl<'a> DefaultUvs<'a> {
     }
 }
 
+const _: () = assert!(DefaultUvs::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for DefaultUvs<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DefaultUvs<'a> {
     fn type_name(&self) -> &str {
@@ -1980,6 +2016,16 @@ impl<'a> NonDefaultUvs<'a> {
         let num_uvs_mappings = self.num_uvs_mappings();
         let start = self.num_uvs_mappings_byte_range().end;
         start..start + (num_uvs_mappings as usize).saturating_mul(UvsMapping::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(NonDefaultUvs::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for NonDefaultUvs<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

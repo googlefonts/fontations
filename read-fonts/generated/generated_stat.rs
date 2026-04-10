@@ -155,6 +155,16 @@ impl<'a> Stat<'a> {
     }
 }
 
+const _: () = assert!(Stat::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Stat<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Stat<'a> {
     fn type_name(&self) -> &str {
@@ -375,6 +385,12 @@ pub enum AxisValue<'a> {
     Format4(AxisValueFormat4<'a>),
 }
 
+impl Default for AxisValue<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl<'a> AxisValue<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -574,6 +590,16 @@ impl<'a> AxisValueFormat1<'a> {
     pub fn value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(AxisValueFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for AxisValueFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 

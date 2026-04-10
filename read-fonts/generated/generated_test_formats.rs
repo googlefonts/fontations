@@ -70,6 +70,16 @@ impl<'a> Table1<'a> {
     }
 }
 
+const _: () = assert!(Table1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Table1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Table1<'a> {
     fn type_name(&self) -> &str {
@@ -264,6 +274,12 @@ pub enum MyTable<'a> {
     Format1(Table1<'a>),
     MyFormat22(Table2<'a>),
     Format3(Table3<'a>),
+}
+
+impl Default for MyTable<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> MyTable<'a> {

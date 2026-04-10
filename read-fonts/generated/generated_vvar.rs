@@ -144,6 +144,16 @@ impl<'a> Vvar<'a> {
     }
 }
 
+const _: () = assert!(Vvar::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Vvar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Vvar<'a> {
     fn type_name(&self) -> &str {
