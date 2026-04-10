@@ -1088,7 +1088,9 @@ impl Graph {
         visited.clear();
         while !queue.is_empty() {
             let next = queue.pop_front().unwrap();
-            visited.insert(next);
+            if !visited.insert(next) {
+                continue;
+            }
             let obj = self.objects.get(&next).unwrap();
             size += obj.bytes.len();
             queue.extend(
@@ -1790,5 +1792,34 @@ mod tests {
             .build();
 
         assert!(!graph.pack_objects());
+    }
+
+    // find_subgraph_size must count each node exactly once, even when the
+    // same node is reachable via multiple parents (i.e. shared/deduplicated
+    // objects).  Before the fix, a shared child would be enqueued once per
+    // parent; because the visited-check only happened *after* dequeue, the
+    // node's byte size was added to the total once per enqueue.
+    #[test]
+    fn find_subgraph_size_counts_shared_node_once() {
+        // Layout:  A(10) --+--> B(20) --+
+        //                  |            +--> D(30)   (shared)
+        //                  +--> C(20) --+
+        //
+        // Correct size: 10 + 20 + 20 + 30 = 80
+        // Buggy size:   10 + 20 + 20 + 30 + 30 = 110  (D counted twice)
+        let ids = make_ids::<4>();
+        let [a, b, c, d] = ids;
+        let sizes = [10, 20, 20, 30];
+        let graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(a, b, OffsetLen::Offset16)
+            .add_link(a, c, OffsetLen::Offset16)
+            .add_link(b, d, OffsetLen::Offset16)
+            .add_link(c, d, OffsetLen::Offset16)
+            .build();
+
+        let mut queue = VecDeque::from([a]);
+        let mut visited = HashSet::new();
+        let size = graph.find_subgraph_size(&mut queue, &mut visited);
+        assert_eq!(size, 80);
     }
 }
