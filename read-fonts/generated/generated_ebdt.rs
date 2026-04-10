@@ -64,6 +64,16 @@ impl<'a> Ebdt<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Ebdt::MIN_SIZE));
+
+impl Default for Ebdt<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Ebdt<'a> {
     fn type_name(&self) -> &str {

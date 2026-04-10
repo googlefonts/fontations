@@ -227,6 +227,16 @@ impl<'a> Hhea<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Hhea::MIN_SIZE));
+
+impl Default for Hhea<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Hhea<'a> {
     fn type_name(&self) -> &str {

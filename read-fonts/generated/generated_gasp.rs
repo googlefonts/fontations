@@ -76,6 +76,16 @@ impl<'a> Gasp<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Gasp::MIN_SIZE));
+
+impl Default for Gasp<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gasp<'a> {
     fn type_name(&self) -> &str {

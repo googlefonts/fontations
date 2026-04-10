@@ -93,6 +93,16 @@ impl<'a> Meta<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Meta::MIN_SIZE));
+
+impl Default for Meta<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Meta<'a> {
     fn type_name(&self) -> &str {
