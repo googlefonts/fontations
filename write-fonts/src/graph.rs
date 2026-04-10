@@ -1383,6 +1383,49 @@ mod tests {
         assert_eq!(graph.find_overflows()[0].child, ids[2]);
     }
 
+    // Regression test: edge weights must include an offset-width penalty.
+    //
+    // Without the penalty `(1 << (link_width * 8))`, edge weight is just
+    // `child_size` and Dijkstra produces a depth-first-ish ordering where
+    // a small deep node (A1) is sorted before a larger shallow sibling (B).
+    // With the penalty, each hop adds 2^16 (for Offset16), guaranteeing
+    // breadth-first ordering: all depth-1 nodes sort before depth-2 nodes.
+    //
+    // This breadth-first ordering is critical for keeping children connected
+    // via narrow (16-bit) offsets close to their parents, preventing
+    // unnecessary Extension promotion in large OTL tables.
+    //
+    // Layout:
+    //              +--> A(10) ---> A1(5)    (depth 2)
+    //  root(10) ---+
+    //              +--> B(100)              (depth 1)
+    //
+    // Without penalty: A.dist=10, A1.dist=15, B.dist=100 → A1 before B
+    // With penalty:    A.dist=65546, A1.dist=131087, B.dist=65636 → B before A1
+    #[test]
+    fn offset_width_penalty_breadth_first() {
+        let [root, a, a1, b] = make_ids::<4>();
+        let sizes = [10, 10, 5, 100];
+        let mut graph = TestGraphBuilder::new([root, a, a1, b], sizes)
+            .add_link(root, a, OffsetLen::Offset16)
+            .add_link(root, b, OffsetLen::Offset16)
+            .add_link(a, a1, OffsetLen::Offset16)
+            .build();
+
+        graph.sort_shortest_distance();
+
+        // With the offset-width penalty, B (depth 1) must be sorted before
+        // A1 (depth 2). Without the penalty, A1.dist=15 < B.dist=100 and
+        // A1 would incorrectly come first (depth-first ordering).
+        let b_pos = graph.order.iter().position(|&id| id == b).unwrap();
+        let a1_pos = graph.order.iter().position(|&id| id == a1).unwrap();
+        assert!(
+            b_pos < a1_pos,
+            "B (depth 1) should be sorted before A1 (depth 2) with offset-width penalty, \
+             got B at position {b_pos}, A1 at position {a1_pos}"
+        );
+    }
+
     #[test]
     fn duplicate_subgraph() {
         let _ = env_logger::builder().is_test(true).try_init();
