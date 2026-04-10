@@ -106,7 +106,7 @@ pub struct Graph {
 #[derive(Debug)]
 struct Node {
     size: u32,
-    distance: u32,
+    distance: u64,
     /// overall position after sorting
     position: u32,
     space: Space,
@@ -542,10 +542,20 @@ impl Graph {
         }
     }
 
+    /// Compute shortest distances from root using Dijkstra's algorithm.
+    ///
+    /// Each edge weight is `child_size + (1 << (link_width * 8))`, matching
+    /// the formula in HarfBuzz's [`graph_t::update_distances`][hb-dist] and
+    /// skera. The offset-width penalty (2^16 for Offset16, 2^24 for Offset24,
+    /// 2^32 for Offset32) biases the sort so that children connected via
+    /// narrow offsets are placed close to their parents, within the range
+    /// addressable by that offset width.
+    ///
+    /// [hb-dist]: https://github.com/harfbuzz/harfbuzz/blob/7c110fdf/src/graph/graph.hh#L1537-L1567
     fn update_distances(&mut self) {
         self.nodes
             .values_mut()
-            .for_each(|node| node.distance = u32::MAX);
+            .for_each(|node| node.distance = u64::MAX);
         self.nodes.get_mut(&self.root).unwrap().distance = 0;
 
         // HarfBuzz uses a min-heap (hb_priority_queue_t::pop_minimum):
@@ -553,7 +563,7 @@ impl Graph {
         // Rust's BinaryHeap is a max-heap, so we wrap keys in Reverse.
         let mut queue = BinaryHeap::new();
         let mut visited = HashSet::new();
-        queue.push((std::cmp::Reverse(0u32), self.root));
+        queue.push((std::cmp::Reverse(0u64), self.root));
 
         while let Some((_, next_id)) = queue.pop() {
             if !visited.insert(next_id) {
@@ -567,7 +577,13 @@ impl Graph {
                 }
 
                 let child = self.nodes.get_mut(&link.object).unwrap();
-                let child_distance = next_distance + child.size;
+                // Match HarfBuzz's edge weight formula:
+                // https://github.com/harfbuzz/harfbuzz/blob/7c110fdf/src/graph/graph.hh#L1559-L1560
+                // HarfBuzz also multiplies by (space + 1), but we handle space
+                // ordering via the Distance struct's space field instead.
+                let link_width = link.len as u32; // 2, 3, or 4
+                let child_weight = child.size as u64 + (1u64 << (link_width * 8));
+                let child_distance = next_distance.saturating_add(child_weight);
 
                 if child_distance < child.distance {
                     child.distance = child_distance;
