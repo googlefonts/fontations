@@ -4,6 +4,10 @@ fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     println!("cargo:rerun-if-changed={}/build.rs", manifest_dir);
 
+    if std::env::var("DOCS_RS").is_ok() {
+        return;
+    }
+
     #[cfg(feature = "c-brotli")]
     c_brotli::build_brotli();
 }
