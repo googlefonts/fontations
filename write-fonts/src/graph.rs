@@ -546,11 +546,14 @@ impl Graph {
         self.nodes
             .values_mut()
             .for_each(|node| node.distance = u32::MAX);
-        self.nodes.get_mut(&self.root).unwrap().distance = u32::MIN;
+        self.nodes.get_mut(&self.root).unwrap().distance = 0;
 
+        // HarfBuzz uses a min-heap (hb_priority_queue_t::pop_minimum):
+        // https://github.com/harfbuzz/harfbuzz/blob/7c110fdf/src/hb-priority-queue.hh#L34-L44
+        // Rust's BinaryHeap is a max-heap, so we wrap keys in Reverse.
         let mut queue = BinaryHeap::new();
         let mut visited = HashSet::new();
-        queue.push((Default::default(), self.root));
+        queue.push((std::cmp::Reverse(0u32), self.root));
 
         while let Some((_, next_id)) = queue.pop() {
             if !visited.insert(next_id) {
@@ -568,7 +571,7 @@ impl Graph {
 
                 if child_distance < child.distance {
                     child.distance = child_distance;
-                    queue.push((child_distance, link.object));
+                    queue.push((std::cmp::Reverse(child_distance), link.object));
                 }
             }
         }
