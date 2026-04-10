@@ -295,6 +295,18 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    DeltaSetIndexMapFormat0::MIN_SIZE
+));
+
+impl Default for DeltaSetIndexMapFormat0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat0<'a> {
     fn type_name(&self) -> &str {
@@ -404,6 +416,18 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    DeltaSetIndexMapFormat1::MIN_SIZE
+));
+
+impl Default for DeltaSetIndexMapFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -433,6 +457,12 @@ impl<'a> std::fmt::Debug for DeltaSetIndexMapFormat1<'a> {
 pub enum DeltaSetIndexMap<'a> {
     Format0(DeltaSetIndexMapFormat0<'a>),
     Format1(DeltaSetIndexMapFormat1<'a>),
+}
+
+impl Default for DeltaSetIndexMap<'_> {
+    fn default() -> Self {
+        Self::Format0(Default::default())
+    }
 }
 
 impl<'a> DeltaSetIndexMap<'a> {
@@ -908,6 +938,18 @@ impl<'a> VariationRegionList<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    VariationRegionList::MIN_SIZE
+));
+
+impl Default for VariationRegionList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VariationRegionList<'a> {
     fn type_name(&self) -> &str {
@@ -1154,6 +1196,18 @@ impl<'a> ItemVariationStore<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    ItemVariationStore::MIN_SIZE
+));
+
+impl Default for ItemVariationStore<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ItemVariationStore<'a> {
     fn type_name(&self) -> &str {
@@ -1296,6 +1350,18 @@ impl<'a> ItemVariationData<'a> {
                     region_index_count,
                 ))
                 .saturating_mul(u8::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ItemVariationData::MIN_SIZE
+));
+
+impl Default for ItemVariationData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

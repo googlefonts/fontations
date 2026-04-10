@@ -32,6 +32,55 @@ pub struct Cursor<'a> {
     data: FontData<'a>,
 }
 
+// we reuse a single buffer for all tables, but it gets padded with a u16
+// to accurately represent format-1 tables
+const ARR_LEN: usize = FontData::NULL_POOL_SIZE + u16::RAW_BYTE_LEN;
+
+/// This is [0, 1] ('1' in u16be) followed by NULL_POOL_SIZE zeros.
+///
+/// - this same array is reused both for format-1 tables (which need a leading 1)
+///   as well as all other tables, which don't.
+static EMPTY_TABLE_BYTES: [u8; ARR_LEN] = {
+    let mut arr = [0u8; ARR_LEN];
+    arr[1] = 1;
+    arr
+};
+
+impl FontData<'static> {
+    // https://github.com/harfbuzz/harfbuzz/blob/aba63bb5/src/hb-null.hh#L40
+    /// The number of bytes required to represent the largest table we have.
+    ///
+    /// This is checked by an assert at compile time, and can be increased as needed.
+    const NULL_POOL_SIZE: usize = 262;
+
+    /// Return all zeroes suitable for the default impl of a table.
+    pub(crate) fn default_table_data() -> Self {
+        FontData::new(&EMPTY_TABLE_BYTES[2..])
+    }
+
+    /// Return a [0x0, 0x01] byte pair (u16be) and then all zeros, to represent
+    /// the default impl of a format 1 table with u16 format.
+    pub(crate) fn default_format_1_u16_table_data() -> Self {
+        FontData::new(&EMPTY_TABLE_BYTES)
+    }
+
+    /// Return a single 0x01 and then all zeros, to represent the default impl
+    /// of a format 1 table with u8 format.
+    pub(crate) fn default_format_1_u8_table_data() -> Self {
+        FontData::new(&EMPTY_TABLE_BYTES[1..])
+    }
+
+    /// Return `true` if our default data can represent a table `n_bytes` long
+    ///
+    /// This is used in codegen'd asserts
+    // only used to evaluate anonymous const items (const_: () = ...) which isn't
+    // visible to the dead_code lint
+    #[expect(dead_code)]
+    pub(crate) const fn default_data_long_enough(n_bytes: usize) -> bool {
+        n_bytes <= Self::NULL_POOL_SIZE
+    }
+}
+
 impl<'a> FontData<'a> {
     /// Empty data, useful for some tests and examples
     pub const EMPTY: FontData<'static> = FontData { bytes: &[] };
@@ -315,5 +364,20 @@ impl<'a> From<&'a [u8]> for FontData<'a> {
 impl<'a> From<FontData<'a>> for std::borrow::Cow<'a, [u8]> {
     fn from(src: FontData<'a>) -> Self {
         src.bytes.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn how_does_big_endian_work_again() {
+        let data = FontData::default_format_1_u16_table_data();
+        assert_eq!(data.read_at(0), Ok(1u16));
+
+        assert_eq!(
+            FontData::default_format_1_u8_table_data().read_at(0),
+            Ok(1u8)
+        );
     }
 }

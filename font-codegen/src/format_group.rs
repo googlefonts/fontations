@@ -85,6 +85,11 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
         min_byte_arms.push(quote!(Self::#var_name(item) => item.min_byte_range(), ));
         min_table_byte_arms.push(quote!(Self::#var_name(item) => item.min_table_bytes(), ));
     }
+    let first_variant = item.variants.first().expect("format group needs variants");
+    // this attribute is currently used only once and we expect it to only ever
+    // be the last variant, but let's be defensive
+    assert!(first_variant.attrs.write_only.is_none(), "sanity check");
+    let first_var_name = &first_variant.name;
 
     Ok(quote! {
         #( #docs )*
@@ -92,6 +97,13 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
         pub enum #name<'a> {
             #( #variants ),*
         }
+
+        impl Default for #name<'_> {
+            fn default() -> Self {
+                Self::#first_var_name(Default::default())
+            }
+        }
+
 
         #getters
 

@@ -87,6 +87,16 @@ impl<'a> Ltag<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Ltag::MIN_SIZE));
+
+impl Default for Ltag<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Ltag<'a> {
     fn type_name(&self) -> &str {

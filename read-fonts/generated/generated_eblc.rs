@@ -87,6 +87,16 @@ impl<'a> Eblc<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Eblc::MIN_SIZE));
+
+impl Default for Eblc<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Eblc<'a> {
     fn type_name(&self) -> &str {

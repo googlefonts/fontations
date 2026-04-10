@@ -102,6 +102,17 @@ impl<'a, T> MyLookup<'a, T> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(MyLookup::<()>::MIN_SIZE));
+
+impl Default for MyLookup<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for MyLookup<'a, T> {
     fn type_name(&self) -> &str {
@@ -143,6 +154,12 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for MyLookup<'a, 
 pub enum MySubtable<'a> {
     Format1(MySubtableFormat1<'a>),
     Format2(MySubtableFormat2<'a>),
+}
+
+impl Default for MySubtable<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> MySubtable<'a> {
@@ -267,6 +284,18 @@ impl<'a> MySubtableFormat1<'a> {
     pub fn value_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    MySubtableFormat1::MIN_SIZE
+));
+
+impl Default for MySubtableFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -492,6 +521,18 @@ impl<'a> ContainsLookupGroup<'a> {
     pub fn lookup_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ContainsLookupGroup::MIN_SIZE
+));
+
+impl Default for ContainsLookupGroup<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

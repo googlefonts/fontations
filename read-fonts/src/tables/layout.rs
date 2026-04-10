@@ -928,4 +928,17 @@ mod tests {
         assert_eq!(bit_storage(0xffff), 16);
         assert_eq!(bit_storage(0xffff_ffff), 32);
     }
+
+    #[test]
+    fn default_coverage() {
+        let coverage = CoverageTable::default();
+        assert_eq!(coverage.iter().count(), 0)
+    }
+
+    #[test]
+    fn default_classdef() {
+        let classdef = ClassDef::default();
+        assert_eq!(classdef.population(), 0);
+        assert_eq!(classdef.iter().count(), 0);
+    }
 }

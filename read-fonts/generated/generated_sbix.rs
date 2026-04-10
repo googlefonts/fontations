@@ -652,6 +652,16 @@ impl<'a> GlyphData<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(GlyphData::MIN_SIZE));
+
+impl Default for GlyphData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for GlyphData<'a> {
     fn type_name(&self) -> &str {

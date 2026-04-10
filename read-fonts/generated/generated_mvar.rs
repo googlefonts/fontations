@@ -114,6 +114,16 @@ impl<'a> Mvar<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Mvar::MIN_SIZE));
+
+impl Default for Mvar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Mvar<'a> {
     fn type_name(&self) -> &str {
