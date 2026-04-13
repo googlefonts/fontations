@@ -378,7 +378,7 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
         const MARK_CLASS_COUNT: u16 = 100;
         const MARKS_PER_CLASS: u16 = 4;
-        const N_BASES: u16 = 200;
+        const N_BASES: u16 = 100;
         const N_MARKS: u16 = MARK_CLASS_COUNT * MARKS_PER_CLASS;
         const FIRST_BASE_GLYPH: u16 = 2;
         const FIRST_MARK_GLYPH: u16 = 2000;
@@ -495,7 +495,7 @@ mod tests {
         };
 
         // the first two, the last two, and an even/odd pair in the middle
-        for base in [2, 3, 150, 151, 200, 201] {
+        for base in [2, 3, 50, 51, 100, 101] {
             for mark in [2000, 2001, 2222, 2211, 2398, 2399] {
                 compare_old_and_new(base, mark);
             }

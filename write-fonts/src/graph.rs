@@ -106,7 +106,7 @@ pub struct Graph {
 #[derive(Debug)]
 struct Node {
     size: u32,
-    distance: u32,
+    distance: u64,
     /// overall position after sorting
     position: u32,
     space: Space,
@@ -542,10 +542,20 @@ impl Graph {
         }
     }
 
+    /// Compute shortest distances from root using Dijkstra's algorithm.
+    ///
+    /// Each edge weight is `child_size + (1 << (link_width * 8))`, matching
+    /// the formula in HarfBuzz's [`graph_t::update_distances`][hb-dist] and
+    /// skera. The offset-width penalty (2^16 for Offset16, 2^24 for Offset24,
+    /// 2^32 for Offset32) biases the sort so that children connected via
+    /// narrow offsets are placed close to their parents, within the range
+    /// addressable by that offset width.
+    ///
+    /// [hb-dist]: https://github.com/harfbuzz/harfbuzz/blob/7c110fdf/src/graph/graph.hh#L1537-L1567
     fn update_distances(&mut self) {
         self.nodes
             .values_mut()
-            .for_each(|node| node.distance = u32::MAX);
+            .for_each(|node| node.distance = u64::MAX);
         self.nodes.get_mut(&self.root).unwrap().distance = 0;
 
         // HarfBuzz uses a min-heap (hb_priority_queue_t::pop_minimum):
@@ -553,7 +563,7 @@ impl Graph {
         // Rust's BinaryHeap is a max-heap, so we wrap keys in Reverse.
         let mut queue = BinaryHeap::new();
         let mut visited = HashSet::new();
-        queue.push((std::cmp::Reverse(0u32), self.root));
+        queue.push((std::cmp::Reverse(0u64), self.root));
 
         while let Some((_, next_id)) = queue.pop() {
             if !visited.insert(next_id) {
@@ -567,7 +577,13 @@ impl Graph {
                 }
 
                 let child = self.nodes.get_mut(&link.object).unwrap();
-                let child_distance = next_distance + child.size;
+                // Match HarfBuzz's edge weight formula:
+                // https://github.com/harfbuzz/harfbuzz/blob/7c110fdf/src/graph/graph.hh#L1559-L1560
+                // HarfBuzz also multiplies by (space + 1), but we handle space
+                // ordering via the Distance struct's space field instead.
+                let link_width = link.len as u32; // 2, 3, or 4
+                let child_weight = child.size as u64 + (1u64 << (link_width * 8));
+                let child_distance = next_distance.saturating_add(child_weight);
 
                 if child_distance < child.distance {
                     child.distance = child_distance;
@@ -1383,6 +1399,49 @@ mod tests {
         assert_eq!(graph.find_overflows().len(), 1);
         assert_eq!(graph.find_overflows()[0].parent, ids[0]);
         assert_eq!(graph.find_overflows()[0].child, ids[2]);
+    }
+
+    // Regression test: edge weights must include an offset-width penalty.
+    //
+    // Without the penalty `(1 << (link_width * 8))`, edge weight is just
+    // `child_size` and Dijkstra produces a depth-first-ish ordering where
+    // a small deep node (A1) is sorted before a larger shallow sibling (B).
+    // With the penalty, each hop adds 2^16 (for Offset16), guaranteeing
+    // breadth-first ordering: all depth-1 nodes sort before depth-2 nodes.
+    //
+    // This breadth-first ordering is critical for keeping children connected
+    // via narrow (16-bit) offsets close to their parents, preventing
+    // unnecessary Extension promotion in large OTL tables.
+    //
+    // Layout:
+    //              +--> A(10) ---> A1(5)    (depth 2)
+    //  root(10) ---+
+    //              +--> B(100)              (depth 1)
+    //
+    // Without penalty: A.dist=10, A1.dist=15, B.dist=100 → A1 before B
+    // With penalty:    A.dist=65546, A1.dist=131087, B.dist=65636 → B before A1
+    #[test]
+    fn offset_width_penalty_breadth_first() {
+        let [root, a, a1, b] = make_ids::<4>();
+        let sizes = [10, 10, 5, 100];
+        let mut graph = TestGraphBuilder::new([root, a, a1, b], sizes)
+            .add_link(root, a, OffsetLen::Offset16)
+            .add_link(root, b, OffsetLen::Offset16)
+            .add_link(a, a1, OffsetLen::Offset16)
+            .build();
+
+        graph.sort_shortest_distance();
+
+        // With the offset-width penalty, B (depth 1) must be sorted before
+        // A1 (depth 2). Without the penalty, A1.dist=15 < B.dist=100 and
+        // A1 would incorrectly come first (depth-first ordering).
+        let b_pos = graph.order.iter().position(|&id| id == b).unwrap();
+        let a1_pos = graph.order.iter().position(|&id| id == a1).unwrap();
+        assert!(
+            b_pos < a1_pos,
+            "B (depth 1) should be sorted before A1 (depth 2) with offset-width penalty, \
+             got B at position {b_pos}, A1 at position {a1_pos}"
+        );
     }
 
     #[test]
