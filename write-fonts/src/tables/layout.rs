@@ -328,6 +328,14 @@ impl ClassDef {
             .try_into()
             .unwrap()
     }
+
+    /// Returns `true` if no glyphs are explicitly assigned to a class in this table
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Format1(table) => table.class_value_array.is_empty(),
+            Self::Format2(table) => table.class_range_records.is_empty(),
+        }
+    }
 }
 
 impl CoverageFormat1 {
