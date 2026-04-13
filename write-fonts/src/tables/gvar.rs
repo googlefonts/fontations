@@ -31,6 +31,9 @@ pub struct GlyphVariations {
 /// Glyph deltas for one point in the design space.
 pub type GlyphDeltas = Deltas<GlyphDelta>;
 
+/// An error representing invalid input when building a gvar table
+pub type GvarInputError = TupleVariationStoreInputError<GlyphId>;
+
 /// A delta for a single value in a glyph.
 ///
 /// This includes a flag indicating whether or not this delta is required (i.e
@@ -57,7 +60,7 @@ impl Gvar {
     pub fn new(
         mut variations: Vec<GlyphVariations>,
         axis_count: u16,
-    ) -> Result<Self, TupleVariationStoreInputError<GlyphId>> {
+    ) -> Result<Self, GvarInputError> {
         fn compute_shared_peak_tuples(glyphs: &[GlyphVariations]) -> Vec<Tuple> {
             const MAX_SHARED_TUPLES: usize = 4095;
             let mut peak_tuple_counts = IndexMap::new();
@@ -170,7 +173,7 @@ impl GlyphVariations {
     }
 
     /// called when we build gvar, so we only return errors in one place
-    fn validate(&self) -> Result<(), TupleVariationStoreInputError<GlyphId>> {
+    fn validate(&self) -> Result<(), GvarInputError> {
         let (axis_count, delta_len) = self
             .variations
             .first()
