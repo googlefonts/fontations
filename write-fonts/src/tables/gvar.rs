@@ -19,6 +19,7 @@ use super::variations::{
 
 pub use super::variations::Tent;
 
+#[cfg(feature = "kurbo")]
 pub mod iup;
 
 /// Variation data for a single glyph, before it is compiled

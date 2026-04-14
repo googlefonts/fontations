@@ -93,7 +93,7 @@ impl Default for GlyfLocaBuilder {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "kurbo"))]
 mod tests {
     use super::super::{Anchor, Component, ComponentFlags, Transform};
     use crate::from_obj::FromTableRef;

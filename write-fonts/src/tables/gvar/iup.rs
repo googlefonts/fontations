@@ -1,3 +1,4 @@
+#![cfg(feature = "kurbo")]
 //! Interpolate Untouched Points
 //!
 //! This module contains code for optimizing variable glyph deltas, by removing
