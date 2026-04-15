@@ -30,6 +30,9 @@ impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -50,6 +53,13 @@ impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
         let mut retained_cov_glyphs = Vec::with_capacity(cap);
         let mut retained_lig_set_idxes = Vec::with_capacity(cap);
         for (g, idx) in cov_glyphs.iter().zip(lig_set_idxes.iter()) {
+            if lig_sets
+                .get_offset(idx as usize)
+                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                .is_null()
+            {
+                continue;
+            }
             let lig_set = lig_sets
                 .get(idx as usize)
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -112,6 +122,13 @@ impl SubsetTable<'_> for LigatureSet<'_> {
         let ligs = self.ligatures();
         let org_lig_count = self.ligature_count();
         for idx in 0..org_lig_count as usize {
+            if ligs
+                .get_offset(idx)
+                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                .is_null()
+            {
+                continue;
+            }
             match ligs.subset_offset(idx, s, plan, coverage_idx) {
                 Ok(()) => lig_count += 1,
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
@@ -159,8 +176,10 @@ fn intersects_lig_glyph(
     lig_set: &LigatureSet,
     glyphs: &IntSet<GlyphId>,
 ) -> Result<bool, ReadError> {
-    for lig in lig_set.ligatures().iter() {
-        let lig = lig?;
+    for lig in lig_set.ligatures().iter_as_nullable() {
+        let Some(lig) = lig.transpose()? else {
+            continue;
+        };
         let lig_glyph = lig.ligature_glyph();
         if glyphs.contains(GlyphId::from(lig_glyph)) && lig.intersects(glyphs)? {
             return Ok(true);

@@ -28,6 +28,9 @@ impl<'a> SubsetTable<'a> for MultipleSubstFormat1<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -52,6 +55,13 @@ impl<'a> SubsetTable<'a> for MultipleSubstFormat1<'_> {
 
         let mut glyphs = Vec::with_capacity(cov_glyphs.len());
         for (g, idx) in cov_glyphs.iter().zip(seq_idxes.iter()) {
+            if sequences
+                .get_offset(idx as usize)
+                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                .is_null()
+            {
+                continue;
+            }
             match sequences.subset_offset(idx as usize, s, plan, ()) {
                 Ok(()) => {
                     glyphs.push(*g);

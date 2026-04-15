@@ -140,6 +140,97 @@ impl<'a> PositionLookup<'a> {
             other => Err(ReadError::InvalidFormat(other as _)),
         }
     }
+
+    /// Return the subtables(nullable) for this lookup.
+    ///
+    /// This method handles both extension and non-extension lookups, and saves
+    /// the caller needing to dig into the `PositionLookup` enum itself.
+    pub fn subtables_nullable(&self) -> Result<Option<PositionSubtables<'a>>, ReadError> {
+        let raw_lookup = self.of_unit_type();
+        let offsets = raw_lookup.subtable_offsets();
+        if raw_lookup.sub_table_count() == 0 || offsets.is_empty() {
+            return Ok(None);
+        }
+        let data = raw_lookup.offset_data();
+        match raw_lookup.lookup_type() {
+            1 => Ok(Some(PositionSubtables::Single(Subtables::new(
+                offsets, data,
+            )))),
+            2 => Ok(Some(PositionSubtables::Pair(Subtables::new(offsets, data)))),
+            3 => Ok(Some(PositionSubtables::Cursive(Subtables::new(
+                offsets, data,
+            )))),
+            4 => Ok(Some(PositionSubtables::MarkToBase(Subtables::new(
+                offsets, data,
+            )))),
+            5 => Ok(Some(PositionSubtables::MarkToLig(Subtables::new(
+                offsets, data,
+            )))),
+            6 => Ok(Some(PositionSubtables::MarkToMark(Subtables::new(
+                offsets, data,
+            )))),
+            7 => Ok(Some(PositionSubtables::Contextual(Subtables::new(
+                offsets, data,
+            )))),
+            8 => Ok(Some(PositionSubtables::ChainContextual(Subtables::new(
+                offsets, data,
+            )))),
+            9 => {
+                for offset in offsets {
+                    let offset = offset.get();
+                    if offset.is_null() {
+                        continue;
+                    }
+                    let ext: ExtensionPosFormat1<()> = offset.resolve(data)?;
+                    match ext.extension_lookup_type() {
+                        1 => {
+                            return Ok(Some(PositionSubtables::Single(Subtables::new_ext(
+                                offsets, data,
+                            ))));
+                        }
+                        2 => {
+                            return Ok(Some(PositionSubtables::Pair(Subtables::new_ext(
+                                offsets, data,
+                            ))));
+                        }
+                        3 => {
+                            return Ok(Some(PositionSubtables::Cursive(Subtables::new_ext(
+                                offsets, data,
+                            ))));
+                        }
+                        4 => {
+                            return Ok(Some(PositionSubtables::MarkToBase(Subtables::new_ext(
+                                offsets, data,
+                            ))));
+                        }
+                        5 => {
+                            return Ok(Some(PositionSubtables::MarkToLig(Subtables::new_ext(
+                                offsets, data,
+                            ))))
+                        }
+                        6 => {
+                            return Ok(Some(PositionSubtables::MarkToMark(Subtables::new_ext(
+                                offsets, data,
+                            ))))
+                        }
+                        7 => {
+                            return Ok(Some(PositionSubtables::Contextual(Subtables::new_ext(
+                                offsets, data,
+                            ))))
+                        }
+                        8 => {
+                            return Ok(Some(PositionSubtables::ChainContextual(
+                                Subtables::new_ext(offsets, data),
+                            )))
+                        }
+                        other => return Err(ReadError::InvalidFormat(other as _)),
+                    }
+                }
+                Ok(None)
+            }
+            other => Err(ReadError::InvalidFormat(other as _)),
+        }
+    }
 }
 
 impl PairPosFormat2<'_> {

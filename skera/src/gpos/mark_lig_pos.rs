@@ -51,6 +51,12 @@ impl CollectVariationIndices for MarkLigPosFormat1<'_> {
         let lig_attaches = lig_array.ligature_attaches();
         let lig_attach_idxes = intersected_coverage_indices(&lig_coverage, glyph_set);
         for i in lig_attach_idxes.iter() {
+            let Ok(offset) = lig_attaches.get_offset(i as usize) else {
+                return;
+            };
+            if offset.is_null() {
+                continue;
+            }
             let Ok(lig_attach) = lig_attaches.get(i as usize) else {
                 return;
             };
@@ -81,6 +87,13 @@ impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.mark_coverage_offset().is_null()
+            || self.mark_array_offset().is_null()
+            || self.ligature_coverage_offset().is_null()
+            || self.ligature_array_offset().is_null()
+        {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let mark_coverage = self
             .mark_coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -169,6 +182,13 @@ impl<'a> SubsetTable<'a> for LigatureArray<'_> {
 
         let lig_attaches = self.ligature_attaches();
         for (g, i) in lig_glyphs.iter().zip(lig_attach_idxes.iter()) {
+            if lig_attaches
+                .get_offset(i as usize)
+                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                .is_null()
+            {
+                continue;
+            }
             match lig_attaches.subset_offset(i as usize, s, plan, mark_class_map) {
                 Ok(()) => retained_lig_glyphs.push(*g),
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),

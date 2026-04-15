@@ -85,6 +85,30 @@ where
                 .map(|off| off.get().resolve_with_args(data, &args))
         })
     }
+
+    /// Return the offset at specified index
+    pub fn get_offset(&self, idx: usize) -> Result<O, ReadError> {
+        self.offsets
+            .get(idx)
+            .ok_or(ReadError::InvalidCollectionIndex(idx as _))
+            .map(|o| o.get())
+    }
+
+    /// Iterate over all of the offset targets.
+    ///
+    /// Offset is treated as nullable and each offset will be resolved as it is encountered.
+    pub fn iter_as_nullable(&self) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a {
+        let mut iter = self.offsets.iter();
+        let args = self.args;
+        let data = self.data;
+        std::iter::from_fn(move || {
+            iter.next().map(|off| {
+                off.get()
+                    .non_null()
+                    .map(|_| off.get().resolve_with_args(data, &args))
+            })
+        })
+    }
 }
 
 impl<'a, T, O> ArrayOfNullableOffsets<'a, T, O>

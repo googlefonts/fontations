@@ -265,6 +265,9 @@ impl SubsetTable<'_> for AttachList<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() || self.glyph_count() == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         //coverage offset
         let coverage_offset_pos = s.embed(0_u16)?;
         //glyph_count
@@ -325,6 +328,9 @@ impl SubsetTable<'_> for LigCaretList<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() || self.lig_glyph_count() == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         //coverage offset
         let coverage_offset_pos = s.embed(0_u16)?;
         //lig_glyph_count
@@ -340,18 +346,27 @@ impl SubsetTable<'_> for LigCaretList<'_> {
         let mut retained_glyphs =
             Vec::with_capacity(plan.glyph_map_gsub.len().min(src_lig_glyph_count));
 
-        for (idx, glyph) in coverage
+        for (idx, (glyph, lig_glyph)) in coverage
             .iter()
+            .zip(lig_glyphs.iter_as_nullable())
             .enumerate()
             .take(plan.font_num_glyphs.min(src_lig_glyph_count))
         {
+            if lig_glyph.is_none() {
+                continue;
+            }
             let Some(new_gid) = plan.glyph_map_gsub.get(&GlyphId::from(glyph)) else {
                 continue;
             };
 
-            lig_glyphs.subset_offset(idx, s, plan, ())?;
-            count += 1;
-            retained_glyphs.push(*new_gid);
+            match lig_glyphs.subset_offset(idx, s, plan, ()) {
+                Ok(()) => {
+                    count += 1;
+                    retained_glyphs.push(*new_gid);
+                }
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
+                Err(e) => return Err(e),
+            }
         }
 
         if retained_glyphs.is_empty() {
@@ -372,12 +387,18 @@ impl SubsetTable<'_> for LigGlyph<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.caret_count() == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         // caret count
         let caret_count_pos = s.embed(0_u16)?;
 
         let caret_values = self.caret_values();
         let mut count = 0_u16;
-        for idx in 0..caret_values.len() {
+        for (idx, caret_value) in caret_values.iter_as_nullable().enumerate() {
+            if caret_value.is_none() {
+                continue;
+            }
             caret_values.subset_offset(idx, s, plan, ())?;
             count += 1;
         }
@@ -400,16 +421,21 @@ impl SubsetTable<'_> for MarkGlyphSets<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.mark_glyph_set_count() == 0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         s.embed(self.format())?;
 
         let count_pos = s.embed(0_u16)?;
 
         let coverages = self.coverages();
-        let src_count = self.mark_glyph_set_count() as usize;
         let mut count = 0_u16;
 
         // skip empty coverage, don't error out
-        for idx in 0..src_count {
+        for (idx, coverage) in coverages.iter_as_nullable().enumerate() {
+            if coverage.is_none() {
+                continue;
+            }
             match coverages.subset_offset(idx, s, plan, ()) {
                 Ok(()) => {
                     count += 1;
@@ -482,10 +508,15 @@ impl SubsetTable<'_> for CaretValueFormat3<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.device_offset().is_null() {
+            s.embed(1_u16)?;
+            return s.embed(self.coordinate()).map(|_| ());
+        }
+
         s.embed(self.caret_value_format())?;
         s.embed(self.coordinate())?;
-        let device_offset_pos = s.embed(0_u16)?;
 
+        let device_offset_pos = s.embed(0_u16)?;
         let Ok(device) = self.device() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
@@ -509,12 +540,18 @@ impl CollectVariationIndices for Gdef<'_> {
 
 impl CollectVariationIndices for LigCaretList<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        if self.coverage_offset().is_null() {
+            return;
+        }
         let Ok(coverage) = self.coverage() else {
             return;
         };
 
         let lig_glyphs = self.lig_glyphs();
-        for (gid, lig_glyph) in coverage.iter().zip(lig_glyphs.iter()) {
+        for (gid, lig_glyph) in coverage.iter().zip(lig_glyphs.iter_as_nullable()) {
+            let Some(lig_glyph) = lig_glyph else {
+                continue;
+            };
             let Ok(lig_glyph) = lig_glyph else {
                 return;
             };
@@ -528,7 +565,10 @@ impl CollectVariationIndices for LigCaretList<'_> {
 
 impl CollectVariationIndices for LigGlyph<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        for caret in self.caret_values().iter() {
+        for caret in self.caret_values().iter_as_nullable() {
+            let Some(caret) = caret else {
+                continue;
+            };
             let Ok(caret) = caret else {
                 return;
             };
@@ -540,6 +580,9 @@ impl CollectVariationIndices for LigGlyph<'_> {
 impl CollectVariationIndices for CaretValue<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         if let Self::Format3(item) = self {
+            if item.device_offset().is_null() {
+                return;
+            }
             if let Ok(device) = item.device() {
                 device.collect_variation_indices(plan, varidx_set);
             }
@@ -561,7 +604,10 @@ impl CollectUsedMarkSets for Gdef<'_> {
 
 impl CollectUsedMarkSets for MarkGlyphSets<'_> {
     fn collect_used_mark_sets(&self, plan: &Plan, used_mark_sets: &mut IntSet<u16>) {
-        for (i, coverage) in self.coverages().iter().enumerate() {
+        for (i, coverage) in self.coverages().iter_as_nullable().enumerate() {
+            let Some(coverage) = coverage else {
+                continue;
+            };
             let Ok(coverage) = coverage else {
                 return;
             };

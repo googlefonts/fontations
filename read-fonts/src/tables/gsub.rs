@@ -121,4 +121,95 @@ impl<'a> SubstitutionLookup<'a> {
             other => Err(ReadError::InvalidFormat(other as _)),
         }
     }
+
+    /// Return the subtables(nullable) for this lookup.
+    ///
+    /// This method handles both extension and non-extension lookups, and saves
+    /// the caller needing to dig into the `SubstitutionLookup` enum itself.
+    pub fn subtables_nullable(&self) -> Result<Option<SubstitutionSubtables<'a>>, ReadError> {
+        let raw_lookup = self.of_unit_type();
+        let offsets = raw_lookup.subtable_offsets();
+        if raw_lookup.sub_table_count() == 0 || offsets.is_empty() {
+            return Ok(None);
+        }
+        let data = raw_lookup.offset_data();
+        match raw_lookup.lookup_type() {
+            1 => Ok(Some(SubstitutionSubtables::Single(Subtables::new(
+                offsets, data,
+            )))),
+
+            2 => Ok(Some(SubstitutionSubtables::Multiple(Subtables::new(
+                offsets, data,
+            )))),
+
+            3 => Ok(Some(SubstitutionSubtables::Alternate(Subtables::new(
+                offsets, data,
+            )))),
+
+            4 => Ok(Some(SubstitutionSubtables::Ligature(Subtables::new(
+                offsets, data,
+            )))),
+
+            5 => Ok(Some(SubstitutionSubtables::Contextual(Subtables::new(
+                offsets, data,
+            )))),
+
+            6 => Ok(Some(SubstitutionSubtables::ChainContextual(
+                Subtables::new(offsets, data),
+            ))),
+
+            8 => Ok(Some(SubstitutionSubtables::Reverse(Subtables::new(
+                offsets, data,
+            )))),
+            7 => {
+                for offset in offsets {
+                    let offset = offset.get();
+                    if offset.is_null() {
+                        continue;
+                    }
+                    let ext: ExtensionSubstFormat1<()> = offset.resolve(data)?;
+                    match ext.extension_lookup_type() {
+                        1 => {
+                            return Ok(Some(SubstitutionSubtables::Single(Subtables::new_ext(
+                                offsets, data,
+                            ))))
+                        }
+                        2 => {
+                            return Ok(Some(SubstitutionSubtables::Multiple(Subtables::new_ext(
+                                offsets, data,
+                            ))))
+                        }
+                        3 => {
+                            return Ok(Some(SubstitutionSubtables::Alternate(Subtables::new_ext(
+                                offsets, data,
+                            ))))
+                        }
+                        4 => {
+                            return Ok(Some(SubstitutionSubtables::Ligature(Subtables::new_ext(
+                                offsets, data,
+                            ))))
+                        }
+                        5 => {
+                            return Ok(Some(SubstitutionSubtables::Contextual(Subtables::new_ext(
+                                offsets, data,
+                            ))))
+                        }
+                        6 => {
+                            return Ok(Some(SubstitutionSubtables::ChainContextual(
+                                Subtables::new_ext(offsets, data),
+                            )))
+                        }
+                        8 => {
+                            return Ok(Some(SubstitutionSubtables::Reverse(Subtables::new_ext(
+                                offsets, data,
+                            ))))
+                        }
+                        other => return Err(ReadError::InvalidFormat(other as _)),
+                    }
+                }
+                Ok(None)
+            }
+            other => Err(ReadError::InvalidFormat(other as _)),
+        }
+    }
 }

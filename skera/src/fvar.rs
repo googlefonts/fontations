@@ -6,6 +6,9 @@ use write_fonts::read::tables::fvar::Fvar;
 impl NameIdClosure for Fvar<'_> {
     //TODO: support partial-instancing
     fn collect_name_ids(&self, plan: &mut Plan) {
+        if self.axis_instance_arrays_offset().is_null() {
+            return;
+        }
         let Ok(axis_instance_array) = self.axis_instance_arrays() else {
             return;
         };

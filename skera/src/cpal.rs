@@ -46,7 +46,7 @@ fn subset_v0(cpal: &Cpal, plan: &Plan, s: &mut Serializer) -> Result<(), Seriali
         .filter(|&n| *n != 0xFFFF)
         .copied()
         .collect();
-    if retained_entries.is_empty() || cpal.num_palettes() == 0 {
+    if retained_entries.is_empty() {
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
     }
 
@@ -92,12 +92,12 @@ fn subset_v1(cpal: &Cpal, plan: &Plan, s: &mut Serializer) -> Result<(), Seriali
     let palette_entry_labels_offset_pos = s.embed(0_u32)?;
 
     let num_palettes = cpal.num_palettes();
+    // v1 must have this field
+    let Some(palette_types_offset) = cpal.palette_types_array_offset() else {
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+    };
 
-    let palette_types_offset = cpal
-        .palette_types_array_offset()
-        .unwrap()
-        .offset()
-        .to_usize();
+    let palette_types_offset = palette_types_offset.offset().to_usize();
     if palette_types_offset != 0 {
         //size of PaletteType is 4
         let bytes_len = (num_palettes as usize) * 4;
@@ -110,11 +110,11 @@ fn subset_v1(cpal: &Cpal, plan: &Plan, s: &mut Serializer) -> Result<(), Seriali
         Offset32::serialize_copy_from_bytes(src_bytes, s, palette_types_offset_pos)?;
     }
 
-    let palette_labels_offset = cpal
-        .palette_labels_array_offset()
-        .unwrap()
-        .offset()
-        .to_usize();
+    // v1 must have this field
+    let Some(palette_labels_offset) = cpal.palette_labels_array_offset() else {
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+    };
+    let palette_labels_offset = palette_labels_offset.offset().to_usize();
     if palette_labels_offset != 0 {
         let bytes_len = (num_palettes as usize) * NameId::RAW_BYTE_LEN;
         let src_bytes = cpal
