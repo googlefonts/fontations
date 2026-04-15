@@ -15,7 +15,7 @@ use write_fonts::read::{
         layout::CoverageTable,
     },
     types::{GlyphId, Offset16},
-    FontData, FontRef,
+    FontData, FontRef, ReadError,
 };
 
 impl CollectVariationIndices for MarkLigPosFormat1<'_> {
@@ -51,8 +51,10 @@ impl CollectVariationIndices for MarkLigPosFormat1<'_> {
         let lig_attaches = lig_array.ligature_attaches();
         let lig_attach_idxes = intersected_coverage_indices(&lig_coverage, glyph_set);
         for i in lig_attach_idxes.iter() {
-            let Ok(lig_attach) = lig_attaches.get(i as usize) else {
-                return;
+            let lig_attach = match lig_attaches.get(i as usize) {
+                Err(ReadError::NullOffset) => continue,
+                Err(_) => return,
+                Ok(lig_attach) => lig_attach,
             };
 
             let lig_attach_data = lig_attach.offset_data();
@@ -81,6 +83,13 @@ impl<'a> SubsetTable<'a> for MarkLigPosFormat1<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.mark_coverage_offset().is_null()
+            || self.mark_array_offset().is_null()
+            || self.ligature_coverage_offset().is_null()
+            || self.ligature_array_offset().is_null()
+        {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let mark_coverage = self
             .mark_coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;

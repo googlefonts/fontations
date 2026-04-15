@@ -3,15 +3,15 @@
 use crate::{
     hvar::{serialize_index_maps, HvarVvarSubsetPlan, ListupIndexMaps},
     offset::SerializeSubset,
-    serialize::Serializer,
-    Plan, Subset, SubsetError,
+    serialize::{SerializeErrorFlags, Serializer},
+    Plan, Serialize, Subset, SubsetError,
 };
 use write_fonts::{
     read::{
         tables::{variations::DeltaSetIndexMap, vvar::Vvar},
         FontRef, ReadError, TopLevelTable,
     },
-    types::Offset32,
+    types::{FixedSize, Offset32},
     FontBuilder,
 };
 
@@ -25,23 +25,32 @@ impl Subset for Vvar<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        let var_store = self
-            .item_variation_store()
-            .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
+        Self::serialize(s, (self, plan)).map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))
+    }
+}
 
-        let index_maps = self
+impl<'a> Serialize<'a> for Vvar<'_> {
+    type Args = (&'a Vvar<'a>, &'a Plan);
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
+        let (vvar, plan) = args;
+        s.embed(vvar.version())?;
+        if vvar.item_variation_store_offset().is_null() {
+            return s
+                .allocate_size(5 * Offset32::RAW_BYTE_LEN, true)
+                .map(|_| ());
+        }
+        let var_store = vvar
+            .item_variation_store()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        let index_maps = vvar
             .listup_index_maps()
-            .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
         let vvar_subset_plan = HvarVvarSubsetPlan::new(plan, &var_store, &index_maps)
-            .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        s.embed(self.version())
-            .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
-
-        let var_store_offset_pos = s
-            .embed(0_u32)
-            .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
+        let var_store_offset_pos = s.embed(0_u32)?;
 
         Offset32::serialize_subset(
             &var_store,
@@ -49,8 +58,7 @@ impl Subset for Vvar<'_> {
             plan,
             (vvar_subset_plan.inner_maps(), true),
             var_store_offset_pos,
-        )
-        .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))?;
+        )?;
 
         serialize_index_maps(
             s,
@@ -58,7 +66,6 @@ impl Subset for Vvar<'_> {
             &index_maps,
             vvar_subset_plan.index_map_subset_plans(),
         )
-        .map_err(|_| SubsetError::SubsetTableError(Vvar::TAG))
     }
 }
 

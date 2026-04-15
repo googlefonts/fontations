@@ -32,6 +32,17 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         }
         s.embed(self.format())?;
 
+        if self.variation_region_list_offset().is_null() {
+            if keep_empty {
+                // in case of null var_region_list, set vardata count = 0 and return
+                s.embed(Offset32::new(0))?;
+                s.embed(0_u16)?;
+                return Ok(());
+            } else {
+                return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+            }
+        }
+
         let var_region_list = self
             .variation_region_list()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;

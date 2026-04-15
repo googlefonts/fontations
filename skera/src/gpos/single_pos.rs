@@ -47,6 +47,9 @@ impl<'a> SubsetTable<'a> for SinglePosFormat1<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -153,6 +156,9 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;

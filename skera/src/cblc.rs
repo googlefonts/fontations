@@ -90,6 +90,8 @@ impl<'a> SubsetTable<'a> for BitmapSize {
 
         if self.start_glyph_index() > plan.glyphset.last().unwrap()
             || self.end_glyph_index() < plan.glyphset.first().unwrap()
+            || self.index_subtable_list_offset() == 0
+            || self.index_subtable_list_size() == 0
         {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
@@ -156,8 +158,11 @@ impl<'a> SubsetTable<'a> for IndexSubtableList<'a> {
         let mut table_list_size = 0;
         let init_len = s.length();
         // serialize subtables in reverse order
-        for idx in 0..src_num_records {
-            let record = records[src_num_records - 1 - idx];
+        for idx in (0..src_num_records).rev() {
+            let record = records[idx];
+            if record.index_subtable_offset().is_null() {
+                continue;
+            }
             let Ok(subtable) = record.index_subtable(self.offset_data()) else {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
             };

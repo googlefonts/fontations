@@ -76,6 +76,13 @@ impl<'a> SubsetTable<'a> for MarkBasePosFormat1<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.mark_coverage_offset().is_null()
+            || self.mark_array_offset().is_null()
+            || self.base_coverage_offset().is_null()
+            || self.base_array_offset().is_null()
+        {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let mark_coverage = self
             .mark_coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
