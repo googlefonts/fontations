@@ -107,7 +107,10 @@ impl LayoutClosure for Gpos<'_> {
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
-        let Ok(_) = self.closure_lookups(&plan.glyphset_gsub, &mut lookup_indices) else {
+        if self
+            .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
+            .is_err()
+        {
             return;
         };
 

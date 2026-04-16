@@ -10,7 +10,7 @@ use crate::{
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
-    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError,
+    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError, SubsetFlags,
     SubsetLayoutContext, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
@@ -97,14 +97,22 @@ impl LayoutClosure for Gsub<'_> {
         else {
             return;
         };
-
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
-        let Ok(_) = self.closure_glyphs(&lookup_indices, &mut plan.glyphset_gsub) else {
+        if !plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE)
+            && self
+                .closure_glyphs(&lookup_indices, &mut plan.glyphset_gsub)
+                .is_err()
+        {
             return;
         };
-        let Ok(_) = self.closure_lookups(&plan.glyphset_gsub, &mut lookup_indices) else {
+        if self
+            .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
+            .is_err()
+        {
             return;
         };
 
