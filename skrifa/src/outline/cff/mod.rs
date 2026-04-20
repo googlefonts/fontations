@@ -9,7 +9,7 @@ use read_fonts::{
         cff::{blend::BlendState, dict, fd_select::FdSelect, index::Index},
         cs::{self, CommandSink, NopFilterSink, TransformSink},
         error::Error,
-        transform::{self, FontMatrix, ScaledFontMatrix},
+        transform::{self, FontMatrix, ScaledFontMatrix, Transform},
     },
     tables::variations::ItemVariationStore,
     types::{F2Dot14, Fixed, GlyphId},
@@ -224,6 +224,8 @@ impl<'a> Outlines<'a> {
             scale,
             scale_requested,
             subrs_offset: private_dict.subrs_offset,
+            default_width: private_dict.default_width,
+            nominal_width: private_dict.nominal_width,
             hint_state,
             store_index: private_dict.store_index,
             font_matrix,
@@ -248,7 +250,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         hint: bool,
         pen: &mut impl OutlinePen,
-    ) -> Result<(), Error> {
+    ) -> Result<CharstringMetrics, Error> {
         let cff_data = self.offset_data.as_bytes();
         let charstrings = self.top_dict.charstrings.clone();
         let charstring_data = charstrings.get(glyph_id.to_u32() as usize)?;
@@ -266,34 +268,51 @@ impl<'a> Outlines<'a> {
         let apply_hinting = hint && subfont.scale_requested;
         let mut pen_sink = PenSink::new(pen);
         let mut simplifying_adapter = NopFilterSink::new(&mut pen_sink);
-        if let Some(matrix) = subfont.font_matrix {
+        let maybe_width = if let Some(matrix) = subfont.font_matrix {
             if apply_hinting {
                 let mut transform_sink =
                     HintedTransformingSink::new(&mut simplifying_adapter, matrix);
                 let mut hinting_adapter =
                     HintingSink::new(&subfont.hint_state, &mut transform_sink);
-                cs_eval.evaluate(&mut hinting_adapter)?;
+                cs_eval.evaluate(&mut hinting_adapter)?
             } else {
                 let mut transform_sink = TransformSink::from_matrix_scale(
                     &mut simplifying_adapter,
                     matrix,
                     subfont.scale,
                 );
-                cs_eval.evaluate(&mut transform_sink)?;
+                cs_eval.evaluate(&mut transform_sink)?
             }
         } else if apply_hinting {
             let mut hinting_adapter =
                 HintingSink::new(&subfont.hint_state, &mut simplifying_adapter);
-            cs_eval.evaluate(&mut hinting_adapter)?;
+            cs_eval.evaluate(&mut hinting_adapter)?
         } else {
             let mut scaling_adapter = TransformSink::from_matrix_scale(
                 &mut simplifying_adapter,
                 FontMatrix::IDENTITY,
                 subfont.scale,
             );
-            cs_eval.evaluate(&mut scaling_adapter)?;
+            cs_eval.evaluate(&mut scaling_adapter)?
+        };
+        let maybe_width = maybe_width
+            .map(|w| w + subfont.nominal_width)
+            .or(subfont.default_width);
+        let has_cs_width = maybe_width.is_some();
+        let width = maybe_width
+            .unwrap_or_else(|| self.glyph_metrics.advance_width(glyph_id, coords).into());
+        let transform = Transform {
+            matrix: subfont.font_matrix.unwrap_or_default(),
+            scale: subfont.scale,
+        };
+        let mut width = transform.transform_h_metric(width);
+        if apply_hinting {
+            width = width.round();
         }
-        Ok(())
+        Ok(CharstringMetrics {
+            has_cs_width,
+            width: width.to_f32(),
+        })
     }
 
     fn parse_font_dict(&self, subfont_index: u32) -> Result<FontDict, Error> {
@@ -355,6 +374,8 @@ pub(crate) struct Subfont {
     /// requested unscaled output. In this case, we shouldn't apply hinting
     /// and this keeps track of that.
     scale_requested: bool,
+    default_width: Option<Fixed>,
+    nominal_width: Fixed,
     subrs_offset: Option<usize>,
     pub(crate) hint_state: HintState,
     store_index: u16,
@@ -388,12 +409,23 @@ impl Subfont {
     }
 }
 
+#[derive(Copy, Clone, Default, Debug)]
+pub(crate) struct CharstringMetrics {
+    /// True if the advance width came from the charstring.
+    // Used for comparing advances in tests.
+    #[allow(unused)]
+    pub has_cs_width: bool,
+    pub width: f32,
+}
+
 /// Entries that we parse from the Private DICT to support charstring
 /// evaluation.
 #[derive(Default)]
 struct PrivateDict {
     hint_params: HintParams,
     subrs_offset: Option<usize>,
+    default_width: Option<Fixed>,
+    nominal_width: Fixed,
     store_index: u16,
 }
 
@@ -416,6 +448,8 @@ impl PrivateDict {
                 BlueShift(value) => dict.hint_params.blue_shift = value,
                 BlueFuzz(value) => dict.hint_params.blue_fuzz = value,
                 LanguageGroup(group) => dict.hint_params.language_group = group,
+                DefaultWidthX(width) => dict.default_width = Some(width),
+                NominalWidthX(width) => dict.nominal_width = width,
                 // Subrs offset is relative to the private DICT
                 SubrsOffset(offset) => {
                     dict.subrs_offset = Some(
@@ -638,7 +672,7 @@ mod tests {
         MetadataProvider,
     };
     use font_test_data::bebuffer::BeBuffer;
-    use raw::tables::cff2::Cff2;
+    use raw::{model::pen::NullPen, tables::cff2::Cff2};
     use read_fonts::ps::hinting::Blues;
     use read_fonts::FontRef;
 
@@ -968,5 +1002,41 @@ mod tests {
     fn subfont_hint_scale_overflow() {
         // Just don't panic with overflow
         let _ = scale_for_hinting(Some(Fixed::from_bits(i32::MAX)));
+    }
+
+    /// Where we read advance widths directly from the charstring
+    #[test]
+    fn cff_widths_from_charstrings() {
+        let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let outlines = Outlines::from_cff(&font, 1000).unwrap();
+        let subfont = outlines.subfont(0, None, &[]).unwrap();
+        let expected_widths = [600.0f32, 320.0, 300.0, 585.0, 310.0];
+        for (gid, expected_width) in expected_widths.into_iter().enumerate() {
+            let gid = GlyphId::new(gid as _);
+            let cs_metrics = outlines
+                .draw(&subfont, gid, &[], false, &mut NullPen)
+                .unwrap();
+            let hmtx_width = outlines.glyph_metrics.advance_width(gid, &[]) as f32;
+            // Make sure we actually loaded a width from the charstring
+            assert!(cs_metrics.has_cs_width);
+            assert_eq!(cs_metrics.width, expected_width);
+            assert_eq!(cs_metrics.width, hmtx_width);
+        }
+    }
+
+    #[test]
+    fn cff_hinted_widths_are_rounded() {
+        let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
+        let outlines = Outlines::from_cff(&font, 1000).unwrap();
+        let gid = GlyphId::new(1);
+        let subfont = outlines.subfont(0, Some(16.0), &[]).unwrap();
+        let [unhinted_width, hinted_width] = [false, true].map(|hint| {
+            outlines
+                .draw(&subfont, gid, &[], hint, &mut NullPen)
+                .unwrap()
+                .width
+        });
+        assert_eq!(unhinted_width, 5.125);
+        assert_eq!(hinted_width, 5.0);
     }
 }

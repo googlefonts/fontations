@@ -438,8 +438,12 @@ impl<'a> OutlineGlyph<'a> {
             }
             OutlineKind::Cff(cff, glyph_id, subfont_ix) => {
                 let subfont = cff.subfont(*subfont_ix, ppem, coords)?;
-                cff.draw(&subfont, *glyph_id, coords, false, pen)?;
-                Ok(AdjustedMetrics::default())
+                let cs_metrics = cff.draw(&subfont, *glyph_id, coords, false, pen)?;
+                Ok(AdjustedMetrics {
+                    has_overlaps: false,
+                    lsb: None,
+                    advance_width: Some(cs_metrics.width),
+                })
             }
             OutlineKind::Varc(varc, outline) => {
                 with_temporary_memory(self, Hinting::None, user_memory, |buf| {
@@ -491,9 +495,10 @@ impl<'a> OutlineGlyph<'a> {
             OutlineKind::Cff(cff, glyph_id, subfont_ix) => {
                 let subfont = cff.subfont(*subfont_ix, ppem, coords)?;
                 let mut adapter = unscaled::UnscaledPenAdapter::new(sink);
-                cff.draw(&subfont, *glyph_id, coords, false, &mut adapter)?;
+                let advance = cff
+                    .draw(&subfont, *glyph_id, coords, false, &mut adapter)?
+                    .width as i32;
                 adapter.finish()?;
-                let advance = cff.glyph_metrics.advance_width(*glyph_id, coords);
                 Ok(advance)
             }
             OutlineKind::Varc(varc, outline) => {
