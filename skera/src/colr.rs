@@ -49,11 +49,18 @@ impl Subset for Colr<'_> {
             .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
         let subset_to_v0 = downgrade_to_v0(base_glyph_list.as_ref(), plan);
 
-        serialize_v0(self, plan, s, subset_to_v0)
-            .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
-
-        if subset_to_v0 {
-            return Ok(());
+        match serialize_v0(self, plan, s, subset_to_v0) {
+            Ok(()) => {
+                if subset_to_v0 {
+                    return Ok(());
+                }
+            }
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
+                if subset_to_v0 {
+                    return Err(SubsetError::SubsetTableError(Colr::TAG));
+                }
+            }
+            Err(_) => return Err(SubsetError::SubsetTableError(Colr::TAG)),
         }
 
         // set version to 1, format pos = 0
@@ -151,22 +158,34 @@ fn serialize_v0(
         .transpose()
         .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
 
-    // allocate V0 header: min byte size = 14
-    s.allocate_size(14, false)?;
+    let layer_records = colr
+        .layer_records()
+        .transpose()
+        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
+
+    if base_glyph_records.is_none() || layer_records.is_none() {
+        if subset_to_v0 {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        } else {
+            // allocate V0 header: min byte size = 14
+            // all v0 fields are 0, return
+            s.allocate_size(14, false)?;
+            return Ok(());
+        }
+    }
+
+    let base_glyph_records = base_glyph_records.unwrap();
+    let layer_records = layer_records.unwrap();
+    if layer_records.len() != base_glyph_records.len() {
+        return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+    }
 
     // if needed, allocate additional V1 header size = 20
     if !subset_to_v0 {
         s.allocate_size(20, false)?;
     }
 
-    // all v0 fields are 0, return
-    if base_glyph_records.is_none() {
-        return Ok(());
-    }
-
-    let base_glyph_records = base_glyph_records.unwrap();
     let num_bit_storage = 16 - num_records.leading_zeros() as usize;
-
     let glyph_set = &plan.glyphset_colred;
     let retained_record_idxes: Vec<usize> =
         if num_records as usize > glyph_set.len() as usize * num_bit_storage {
@@ -215,21 +234,13 @@ fn serialize_v0(
     s.copy_assign(12, num_layers);
 
     //serialize layer records, offset_pos = 8
-    let layer_records = colr
-        .layer_records()
-        .transpose()
-        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
-        .unwrap();
-
     Offset32::serialize_subset(
         &layer_records,
         s,
         plan,
         (base_glyph_records, &retained_record_idxes),
         8,
-    )?;
-
-    Ok(())
+    )
 }
 
 impl<'a> SubsetTable<'a> for &[BaseGlyph] {
@@ -315,6 +326,9 @@ impl SubsetTable<'_> for BaseGlyphList<'_> {
 
         let mut num = 0_u32;
         for paint_record in self.base_glyph_paint_records() {
+            if paint_record.paint_offset().is_null() {
+                continue;
+            }
             if !plan
                 .glyphset_colred
                 .contains(GlyphId::from(paint_record.glyph_id()))
@@ -401,12 +415,15 @@ impl SubsetTable<'_> for ClipList<'_> {
         let mut new_gids_set = IntSet::empty();
         let mut new_gids_offset_map = FnvHashMap::default();
         for clip in self.clips() {
+            let offset = clip.clip_box_offset();
+            if offset.is_null() {
+                continue;
+            }
             let start_gid = clip.start_glyph_id().to_u32();
             let end_gid = clip.end_glyph_id().to_u32();
             if end_gid < retained_first_gid || start_gid > retained_last_gid {
                 continue;
             }
-            let offset = clip.clip_box_offset();
             for gid in start_gid..=end_gid {
                 let g = GlyphId::from(gid);
                 if !glyph_set.contains(g) {
@@ -450,7 +467,9 @@ fn serialize_clips(
     let mut prev_offset = gids_offset_map.get(&start_gid).unwrap();
 
     for g in gids_set.iter().skip(1) {
-        let offset = gids_offset_map.get(&g).unwrap();
+        let offset = gids_offset_map
+            .get(&g)
+            .ok_or(SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
         if g == prev_gid + 1 && offset == prev_offset {
             prev_gid = g;
             continue;
@@ -813,8 +832,10 @@ impl SubsetTable<'_> for PaintLinearGradient<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.color_line_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
-
         let Ok(color_line) = self.color_line() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
@@ -833,8 +854,10 @@ impl SubsetTable<'_> for PaintVarLinearGradient<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.color_line_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
-
         let Ok(color_line) = self.color_line() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
@@ -864,8 +887,10 @@ impl SubsetTable<'_> for PaintRadialGradient<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.color_line_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
-
         let Ok(color_line) = self.color_line() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
@@ -884,8 +909,10 @@ impl SubsetTable<'_> for PaintVarRadialGradient<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.color_line_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
-
         let Ok(color_line) = self.color_line() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
@@ -915,8 +942,10 @@ impl SubsetTable<'_> for PaintSweepGradient<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.color_line_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
-
         let Ok(color_line) = self.color_line() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
@@ -935,6 +964,9 @@ impl SubsetTable<'_> for PaintVarSweepGradient<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.color_line_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
 
         let Ok(color_line) = self.color_line() else {
@@ -966,6 +998,9 @@ impl SubsetTable<'_> for PaintGlyph<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         s.embed(self.format())?;
         let offset_pos = s.embed_bytes(&[0_u8; 3])?;
 
@@ -1050,6 +1085,9 @@ impl SubsetTable<'_> for PaintTransform<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() || self.transform_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         s.embed(self.format())?;
 
         let paint_pos = s.embed_bytes(&[0_u8; 3])?;
@@ -1077,6 +1115,9 @@ impl SubsetTable<'_> for PaintVarTransform<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() || self.transform_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         s.embed(self.format())?;
 
         let paint_pos = s.embed_bytes(&[0_u8; 3])?;
@@ -1104,6 +1145,9 @@ impl SubsetTable<'_> for PaintTranslate<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1122,6 +1166,9 @@ impl SubsetTable<'_> for PaintVarTranslate<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1151,6 +1198,9 @@ impl SubsetTable<'_> for PaintScale<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1169,6 +1219,9 @@ impl SubsetTable<'_> for PaintVarScale<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1198,6 +1251,9 @@ impl SubsetTable<'_> for PaintScaleAroundCenter<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1216,6 +1272,9 @@ impl SubsetTable<'_> for PaintVarScaleAroundCenter<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1245,6 +1304,9 @@ impl SubsetTable<'_> for PaintScaleUniform<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1263,6 +1325,9 @@ impl SubsetTable<'_> for PaintVarScaleUniform<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1292,6 +1357,9 @@ impl SubsetTable<'_> for PaintScaleUniformAroundCenter<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1310,6 +1378,9 @@ impl SubsetTable<'_> for PaintVarScaleUniformAroundCenter<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1339,6 +1410,9 @@ impl SubsetTable<'_> for PaintRotate<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1357,6 +1431,9 @@ impl SubsetTable<'_> for PaintVarRotate<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1386,6 +1463,9 @@ impl SubsetTable<'_> for PaintRotateAroundCenter<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1404,6 +1484,9 @@ impl SubsetTable<'_> for PaintVarRotateAroundCenter<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1433,6 +1516,9 @@ impl SubsetTable<'_> for PaintSkew<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1451,6 +1537,9 @@ impl SubsetTable<'_> for PaintVarSkew<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1480,6 +1569,9 @@ impl SubsetTable<'_> for PaintSkewAroundCenter<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1498,6 +1590,9 @@ impl SubsetTable<'_> for PaintVarSkewAroundCenter<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.paint_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let start_pos = s.embed_bytes(self.min_table_bytes())?;
         let Ok(paint) = self.paint() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
@@ -1527,38 +1622,57 @@ impl SubsetTable<'_> for PaintComposite<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        let source_paint_offset = self.source_paint_offset();
+        let backdrop_paint_offset = self.backdrop_paint_offset();
+        if source_paint_offset.is_null() && backdrop_paint_offset.is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         s.embed(self.format())?;
         let src_paint_pos = s.embed_bytes(&[0_u8; 3])?;
         s.embed(self.composite_mode())?;
         let backdrop_paint_pos = s.embed_bytes(&[0_u8; 3])?;
 
-        let Ok(src_paint) = self.source_paint() else {
-            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-        };
-        Offset24::serialize_subset(&src_paint, s, plan, (), src_paint_pos)?;
+        if !source_paint_offset.is_null() {
+            let Ok(src_paint) = self.source_paint() else {
+                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+            };
+            match Offset24::serialize_subset(&src_paint, s, plan, (), src_paint_pos) {
+                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
+        }
 
-        let Ok(backdrop_paint) = self.backdrop_paint() else {
-            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-        };
-        Offset24::serialize_subset(&backdrop_paint, s, plan, (), backdrop_paint_pos)
+        if !backdrop_paint_offset.is_null() {
+            let Ok(backdrop_paint) = self.backdrop_paint() else {
+                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+            };
+            match Offset24::serialize_subset(&backdrop_paint, s, plan, (), backdrop_paint_pos) {
+                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => return Ok(()),
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
     }
 }
 
 // downgrade to v0 if we have no v1 glyphs to retain
 fn downgrade_to_v0(base_glyph_list: Option<&BaseGlyphList>, plan: &Plan) -> bool {
-    if base_glyph_list.is_none() {
-        return true;
-    }
-
-    for paint_record in base_glyph_list.unwrap().base_glyph_paint_records() {
-        if plan
-            .glyphset_colred
-            .contains(GlyphId::from(paint_record.glyph_id()))
-        {
-            return false;
+    if let Some(base_glyph_list) = base_glyph_list {
+        for paint_record in base_glyph_list.base_glyph_paint_records() {
+            if paint_record.paint_offset().is_null() {
+                continue;
+            }
+            if plan
+                .glyphset_colred
+                .contains(GlyphId::from(paint_record.glyph_id()))
+            {
+                return false;
+            }
         }
+        true
+    } else {
+        true
     }
-    true
 }
 
 #[cfg(test)]

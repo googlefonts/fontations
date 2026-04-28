@@ -30,6 +30,9 @@ use write_fonts::{
 impl NameIdClosure for Gsub<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
     fn collect_name_ids(&self, plan: &mut Plan) {
+        if self.feature_list_offset().is_null() {
+            return;
+        }
         let Ok(feature_list) = self.feature_list() else {
             return;
         };
@@ -152,36 +155,41 @@ fn subset_gsub(
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
     let version_pos = s.embed(gsub.version())?;
-
+    let mut c = SubsetLayoutContext::new(Gsub::TAG);
     // script_list
     let script_list_offset_pos = s.embed(0_u16)?;
 
-    let script_list = gsub
-        .script_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+    if !gsub.script_list_offset().is_null() {
+        let script_list = gsub
+            .script_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-    let mut c = SubsetLayoutContext::new(Gsub::TAG);
-    Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+        Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+    }
 
     // feature list
     let feature_list_offset_pos = s.embed(0_u16)?;
-    let feature_list = gsub
-        .feature_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    if !gsub.feature_list_offset().is_null() {
+        let feature_list = gsub
+            .feature_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    }
 
     // lookup list
     let lookup_list_offset_pos = s.embed(0_u16)?;
-    let lookup_list = gsub
-        .lookup_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(
-        &lookup_list,
-        s,
-        plan,
-        (state, font, &plan.gsub_lookups),
-        lookup_list_offset_pos,
-    )?;
+    if !gsub.lookup_list_offset().is_null() {
+        let lookup_list = gsub
+            .lookup_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(
+            &lookup_list,
+            s,
+            plan,
+            (state, font, &plan.gsub_lookups),
+            lookup_list_offset_pos,
+        )?;
+    }
 
     if let Some(feature_variations) = gsub
         .feature_variations()
@@ -218,9 +226,13 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let subtables = self
-            .subtables()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        let Some(subtables) = self
+            .subtables_nullable()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+        else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        };
+
         let lookup_type: u16 = match subtables {
             SubstitutionSubtables::Single(_) => 1,
             SubstitutionSubtables::Multiple(_) => 2,

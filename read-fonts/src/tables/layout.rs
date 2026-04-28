@@ -103,6 +103,25 @@ impl<'a, T: FontRead<'a> + 'a, Ext: ExtensionLookup<'a, T> + 'a> Subtables<'a, T
             .flatten()
             .chain(right.into_iter().flatten())
     }
+
+    /// Return an iterator over all the subtables(treated as nullable)
+    pub fn iter_as_nullable(&self) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a {
+        let (left, right) = match self {
+            Subtables::Subtable(inner) => (Some(inner.iter_as_nullable()), None),
+            Subtables::Extension(inner) => (
+                None,
+                Some(inner.iter_as_nullable().map(|o| match o {
+                    None => None,
+                    Some(Err(e)) => Some(Err(e)),
+                    Some(Ok(ext)) => Some(ext.extension()),
+                })),
+            ),
+        };
+
+        left.into_iter()
+            .flatten()
+            .chain(right.into_iter().flatten())
+    }
 }
 
 /// An enum for different possible tables referenced by [Feature::feature_params_offset]

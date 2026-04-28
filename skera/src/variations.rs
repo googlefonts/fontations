@@ -32,9 +32,14 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
         }
         s.embed(self.format())?;
 
-        let var_region_list = self
-            .variation_region_list()
-            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
+        let var_region_list = if self.variation_region_list_offset().is_null() {
+            None
+        } else {
+            Some(
+                self.variation_region_list()
+                    .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?,
+            )
+        };
 
         let var_data_array = self.item_variation_data();
         let mut region_indices = IntSet::empty();
@@ -57,6 +62,11 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
+        let region_list_offset_pos = s.embed(Offset32::new(0))?;
+        let Some(var_region_list) = var_region_list else {
+            // in case of null var_region_list, set vardata count = 0 and return
+            return s.embed(0_u16).map(|_| ());
+        };
         // varRegionList
         let max_region_count = var_region_list.region_count();
         region_indices.remove_range(max_region_count..=u16::MAX);
@@ -66,7 +76,6 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
             region_map.add(region as u32);
         }
 
-        let region_list_offset_pos = s.embed(Offset32::new(0))?;
         Offset32::serialize_subset(
             &var_region_list,
             s,

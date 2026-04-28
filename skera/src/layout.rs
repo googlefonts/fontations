@@ -817,6 +817,9 @@ pub(crate) fn collect_features_with_retained_subs(
         };
 
         for rec in subs.substitutions() {
+            if rec.alternate_feature_offset().is_null() {
+                continue;
+            }
             let Ok(sub_f) = rec.alternate_feature(subs.offset_data()) else {
                 return IntSet::empty();
             };
@@ -1032,6 +1035,9 @@ impl<'a> PruneLangSysContext<'a> {
             }
 
             for (i, langsys_rec) in script.lang_sys_records().iter().enumerate() {
+                if langsys_rec.lang_sys_offset().is_null() {
+                    continue;
+                }
                 let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
                     return;
                 };
@@ -1047,6 +1053,9 @@ impl<'a> PruneLangSysContext<'a> {
             }
         } else {
             for (i, langsys_rec) in script.lang_sys_records().iter().enumerate() {
+                if langsys_rec.lang_sys_offset().is_null() {
+                    continue;
+                }
                 let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
                     return;
                 };
@@ -1073,6 +1082,9 @@ impl<'a> PruneLangSysContext<'a> {
         layout_scripts: &IntSet<Tag>,
     ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>) {
         for (i, script_rec) in script_list.script_records().iter().enumerate() {
+            if script_rec.script_offset().is_null() {
+                continue;
+            }
             let script_tag = script_rec.script_tag();
             if !layout_scripts.contains(script_tag) {
                 continue;
@@ -1175,6 +1187,9 @@ impl<'a> SubsetTable<'a> for ScriptList<'_> {
         let mut num_records = 0_u16;
         let font_data = self.offset_data();
         for (i, script_record) in self.script_records().iter().enumerate() {
+            if script_record.script_offset().is_null() {
+                continue;
+            }
             let tag = script_record.script_tag();
             if !plan.layout_scripts.contains(tag) {
                 continue;
@@ -1643,6 +1658,14 @@ impl SubsetTable<'_> for ConditionSet<'_> {
 
         let conditions = self.conditions();
         for i in 0..self.condition_count() {
+            if conditions
+                .get_offset(i as usize)
+                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
+                .is_null()
+            {
+                s.embed(0_u32)?;
+                continue;
+            }
             match conditions.subset_offset(i as usize, s, plan, ()) {
                 Ok(()) => count += 1,
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
@@ -1732,6 +1755,9 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.alternate_feature_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let (feature_index_map, c, font_data) = args;
         let Some(new_feature_indx) = feature_index_map.get(&self.feature_index()) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -1766,9 +1792,13 @@ where
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
         let mut count = 0_u16;
-        for sub in self.iter() {
-            let sub =
-                sub.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        for sub in self.iter_as_nullable() {
+            let Some(sub) = sub
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            else {
+                continue;
+            };
 
             if !sub
                 .intersects(&plan.glyphset_gsub)
