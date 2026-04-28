@@ -235,7 +235,25 @@ macro_rules! fixed_mul_div {
 /// We convert to different float types in order to ensure we can roundtrip
 /// without floating point error.
 macro_rules! float_conv {
+    // default invocation: we will impl Display/Default
     ($name:ident, $to:ident, $from:ident, $ty:ty) => {
+        float_conv!($name, $to, $from, $ty, no_fmt);
+
+        //hack: we can losslessly go to float, so use those fmt impls
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                self.$to().fmt(f)
+            }
+        }
+
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                self.$to().fmt(f)
+            }
+        }
+    };
+    // explicitly opt out of Display/Default (for types that get both f32 & f64)
+    ($name:ident, $to:ident, $from:ident, $ty:ty, no_fmt) => {
         impl $name {
             #[doc = concat!("Creates a fixed point value from a", stringify!($ty), ".")]
             ///
@@ -260,19 +278,6 @@ macro_rules! float_conv {
                 int + fract
             }
         }
-
-        //hack: we can losslessly go to float, so use those fmt impls
-        impl std::fmt::Display for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                self.$to().fmt(f)
-            }
-        }
-
-        impl std::fmt::Debug for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                self.$to().fmt(f)
-            }
-        }
     };
 }
 
@@ -286,6 +291,10 @@ fixed_mul_div!(F26Dot6);
 float_conv!(F2Dot14, to_f32, from_f32, f32);
 float_conv!(F4Dot12, to_f32, from_f32, f32);
 float_conv!(F6Dot10, to_f32, from_f32, f32);
+float_conv!(F2Dot14, to_f64, from_f64, f64, no_fmt);
+float_conv!(F4Dot12, to_f64, from_f64, f64, no_fmt);
+float_conv!(F6Dot10, to_f64, from_f64, f64, no_fmt);
+
 float_conv!(Fixed, to_f64, from_f64, f64);
 float_conv!(F26Dot6, to_f64, from_f64, f64);
 crate::newtype_scalar!(F2Dot14, [u8; 2]);
