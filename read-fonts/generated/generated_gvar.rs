@@ -159,6 +159,23 @@ impl<'a> Gvar<'a> {
     }
 }
 
+const _: () = assert!(Gvar::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Gvar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Gvar<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gvar<'a> {
     fn type_name(&self) -> &str {
@@ -680,6 +697,23 @@ impl<'a> GlyphVariationDataHeader<'a> {
     pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
         let start = self.serialized_data_offset_byte_range().end;
         start..start + self.data.len().saturating_sub(start)
+    }
+}
+
+const _: () = assert!(GlyphVariationDataHeader::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for GlyphVariationDataHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl GlyphVariationDataHeader<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

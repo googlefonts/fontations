@@ -130,6 +130,23 @@ impl<'a> Gsub<'a> {
     }
 }
 
+const _: () = assert!(Gsub::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Gsub<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Gsub<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gsub<'a> {
     fn type_name(&self) -> &str {
@@ -256,6 +273,19 @@ impl std::fmt::Debug for SubstitutionLookup<'_> {
 pub enum SingleSubst<'a> {
     Format1(SingleSubstFormat1<'a>),
     Format2(SingleSubstFormat2<'a>),
+}
+
+impl Default for SingleSubst<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl SingleSubst<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
 }
 
 impl<'a> SingleSubst<'a> {
@@ -411,6 +441,23 @@ impl<'a> SingleSubstFormat1<'a> {
     pub fn delta_glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(SingleSubstFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for SingleSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl SingleSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -654,6 +701,23 @@ impl<'a> MultipleSubstFormat1<'a> {
     }
 }
 
+const _: () = assert!(MultipleSubstFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MultipleSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl MultipleSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -747,6 +811,23 @@ impl<'a> Sequence<'a> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
         start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(Sequence::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Sequence<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Sequence<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -871,6 +952,23 @@ impl<'a> AlternateSubstFormat1<'a> {
     }
 }
 
+const _: () = assert!(AlternateSubstFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for AlternateSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl AlternateSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -966,6 +1064,23 @@ impl<'a> AlternateSet<'a> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
         start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(AlternateSet::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for AlternateSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl AlternateSet<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1090,6 +1205,23 @@ impl<'a> LigatureSubstFormat1<'a> {
     }
 }
 
+const _: () = assert!(LigatureSubstFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for LigatureSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl LigatureSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -1190,6 +1322,23 @@ impl<'a> LigatureSet<'a> {
         let ligature_count = self.ligature_count();
         let start = self.ligature_count_byte_range().end;
         start..start + (ligature_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(LigatureSet::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for LigatureSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl LigatureSet<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1295,6 +1444,23 @@ impl<'a> Ligature<'a> {
             ..start
                 + (transforms::subtract(component_count, 1_usize))
                     .saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(Ligature::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Ligature<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Ligature<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1427,6 +1593,24 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     pub fn extension_offset_byte_range(&self) -> Range<usize> {
         let start = self.extension_lookup_type_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(ExtensionSubstFormat1::<()>::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for ExtensionSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
+impl ExtensionSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -1687,6 +1871,23 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
         start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(ReverseChainSingleSubstFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for ReverseChainSingleSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl ReverseChainSingleSubstFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 

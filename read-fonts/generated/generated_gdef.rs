@@ -175,6 +175,23 @@ impl<'a> Gdef<'a> {
     }
 }
 
+const _: () = assert!(Gdef::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Gdef<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Gdef<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gdef<'a> {
     fn type_name(&self) -> &str {
@@ -355,6 +372,23 @@ impl<'a> AttachList<'a> {
     }
 }
 
+const _: () = assert!(AttachList::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for AttachList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl AttachList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AttachList<'a> {
     fn type_name(&self) -> &str {
@@ -446,6 +480,23 @@ impl<'a> AttachPoint<'a> {
         let point_count = self.point_count();
         let start = self.point_count_byte_range().end;
         start..start + (point_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(AttachPoint::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for AttachPoint<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl AttachPoint<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -551,6 +602,23 @@ impl<'a> LigCaretList<'a> {
     }
 }
 
+const _: () = assert!(LigCaretList::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for LigCaretList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl LigCaretList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigCaretList<'a> {
     fn type_name(&self) -> &str {
@@ -653,6 +721,23 @@ impl<'a> LigGlyph<'a> {
     }
 }
 
+const _: () = assert!(LigGlyph::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for LigGlyph<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl LigGlyph<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigGlyph<'a> {
     fn type_name(&self) -> &str {
@@ -694,6 +779,19 @@ pub enum CaretValue<'a> {
     Format1(CaretValueFormat1<'a>),
     Format2(CaretValueFormat2<'a>),
     Format3(CaretValueFormat3<'a>),
+}
+
+impl Default for CaretValue<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl CaretValue<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
 }
 
 impl<'a> CaretValue<'a> {
@@ -828,6 +926,23 @@ impl<'a> CaretValueFormat1<'a> {
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(CaretValueFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for CaretValueFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl CaretValueFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -1114,6 +1229,23 @@ impl<'a> MarkGlyphSets<'a> {
         let mark_glyph_set_count = self.mark_glyph_set_count();
         let start = self.mark_glyph_set_count_byte_range().end;
         start..start + (mark_glyph_set_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(MarkGlyphSets::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MarkGlyphSets<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl MarkGlyphSets<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 

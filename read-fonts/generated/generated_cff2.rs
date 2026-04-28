@@ -117,6 +117,23 @@ impl<'a> Cff2Header<'a> {
     }
 }
 
+const _: () = assert!(Cff2Header::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Cff2Header<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Cff2Header<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Cff2Header<'a> {
     fn type_name(&self) -> &str {
@@ -222,6 +239,23 @@ impl<'a> Index<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(Index::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Index<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Index<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

@@ -86,6 +86,23 @@ impl<'a> MajorMinorVersion<'a> {
     }
 }
 
+const _: () = assert!(MajorMinorVersion::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MajorMinorVersion<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl MajorMinorVersion<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MajorMinorVersion<'a> {
     fn type_name(&self) -> &str {
@@ -497,6 +514,23 @@ impl<'a> FlagDay<'a> {
             ..(self.flags().contains(GotFlags::BAR))
                 .then(|| start + u16::RAW_BYTE_LEN)
                 .unwrap_or(start)
+    }
+}
+
+const _: () = assert!(FlagDay::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for FlagDay<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl FlagDay<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

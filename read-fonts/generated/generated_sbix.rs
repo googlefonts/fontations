@@ -652,6 +652,23 @@ impl<'a> GlyphData<'a> {
     }
 }
 
+const _: () = assert!(GlyphData::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for GlyphData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl GlyphData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for GlyphData<'a> {
     fn type_name(&self) -> &str {

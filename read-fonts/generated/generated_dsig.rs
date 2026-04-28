@@ -88,6 +88,23 @@ impl<'a> Dsig<'a> {
     }
 }
 
+const _: () = assert!(Dsig::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Dsig<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Dsig<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Dsig<'a> {
     fn type_name(&self) -> &str {
@@ -538,6 +555,23 @@ impl<'a> SignatureBlockFormat1<'a> {
         let signature_length = self.signature_length();
         let start = self.signature_length_byte_range().end;
         start..start + (signature_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(SignatureBlockFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for SignatureBlockFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl SignatureBlockFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

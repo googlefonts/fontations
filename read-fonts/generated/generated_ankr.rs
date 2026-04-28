@@ -95,6 +95,23 @@ impl<'a> Ankr<'a> {
     }
 }
 
+const _: () = assert!(Ankr::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Ankr<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Ankr<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Ankr<'a> {
     fn type_name(&self) -> &str {
@@ -176,6 +193,23 @@ impl<'a> GlyphDataEntry<'a> {
         let num_points = self.num_points();
         let start = self.num_points_byte_range().end;
         start..start + (num_points as usize).saturating_mul(AnchorPoint::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(GlyphDataEntry::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for GlyphDataEntry<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl GlyphDataEntry<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
