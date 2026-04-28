@@ -56,6 +56,7 @@ impl OtRound<f32> for f32 {
     }
 }
 
+#[cfg(feature = "kurbo")]
 impl OtRound<(i16, i16)> for kurbo::Point {
     #[inline]
     fn ot_round(self) -> (i16, i16) {
@@ -63,6 +64,7 @@ impl OtRound<(i16, i16)> for kurbo::Point {
     }
 }
 
+#[cfg(feature = "kurbo")]
 impl OtRound<kurbo::Vec2> for kurbo::Vec2 {
     #[inline]
     fn ot_round(self) -> kurbo::Vec2 {
