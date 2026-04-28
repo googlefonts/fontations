@@ -27,7 +27,7 @@ const BLUE_STRING_MAX_LEN: usize = 51;
 /// Defines the zone(s) that are associated with a blue value.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 #[repr(transparent)]
-pub(crate) struct BlueZones(u16);
+pub struct BlueZones(u16);
 
 impl BlueZones {
     // These properties ostensibly come from

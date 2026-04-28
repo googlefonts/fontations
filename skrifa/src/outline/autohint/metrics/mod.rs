@@ -19,6 +19,169 @@ use std::sync::{Arc, RwLock};
 pub(crate) use blues::{BlueZones, ScaledBlue, ScaledBlues, UnscaledBlue, UnscaledBlues};
 pub(crate) use scale::{compute_unscaled_style_metrics, scale_style_metrics};
 
+#[cfg(feature = "autohinter")]
+/// Public snapshot of a single unscaled blue zone.
+#[derive(Clone, Debug, Default)]
+pub struct ExportedUnscaledBlue {
+    pub reference: i32,
+    pub shoot: i32,
+    pub is_adjustment: bool,
+}
+
+#[cfg(feature = "autohinter")]
+/// Public snapshot of unscaled style metrics needed by ttfautohint.
+#[derive(Clone, Debug, Default)]
+pub struct ExportedUnscaledStyleMetrics {
+    pub digits_have_same_width: bool,
+    pub horizontal_widths: Vec<i32>,
+    pub vertical_widths: Vec<i32>,
+    pub blues: Vec<ExportedUnscaledBlue>,
+}
+
+#[cfg(feature = "autohinter")]
+/// Public snapshot of a single scaled width entry.
+#[derive(Clone, Debug, Default)]
+pub struct ExportedScaledWidth {
+    pub scaled: i32,
+    pub fitted: i32,
+}
+
+#[cfg(feature = "autohinter")]
+/// Public snapshot of a single scaled blue zone.
+#[derive(Clone, Debug, Default)]
+pub struct ExportedScaledBlue {
+    pub reference_scaled: i32,
+    pub reference_fitted: i32,
+    pub shoot_scaled: i32,
+    pub shoot_fitted: i32,
+    pub is_active: bool,
+    pub is_top: bool,
+    pub is_sub_top: bool,
+    pub is_neutral: bool,
+    pub is_adjustment: bool,
+}
+
+#[cfg(feature = "autohinter")]
+/// Public snapshot of scaled style metrics needed by ttfautohint.
+#[derive(Clone, Debug, Default)]
+pub struct ExportedScaledStyleMetrics {
+    pub digits_have_same_width: bool,
+    pub x_scale: i32,
+    pub y_scale: i32,
+    pub x_delta: i32,
+    pub y_delta: i32,
+    pub horizontal_widths: Vec<ExportedScaledWidth>,
+    pub vertical_widths: Vec<ExportedScaledWidth>,
+    pub blues: Vec<ExportedScaledBlue>,
+}
+
+#[cfg(feature = "autohinter")]
+/// Compute unscaled style metrics for a style class and expose a stable,
+/// allocation-owned representation suitable for FFI consumers.
+pub fn compute_unscaled_style_metrics_exported(
+    font: &FontRef,
+    coords: &[F2Dot14],
+    style: &StyleClass,
+) -> ExportedUnscaledStyleMetrics {
+    let shaper_mode = if cfg!(feature = "autohint_shaping") {
+        ShaperMode::BestEffort
+    } else {
+        ShaperMode::Nominal
+    };
+    let shaper = Shaper::new(font, shaper_mode);
+    let metrics = compute_unscaled_style_metrics(&shaper, coords, style);
+
+    ExportedUnscaledStyleMetrics {
+        digits_have_same_width: metrics.digits_have_same_width,
+        horizontal_widths: metrics.axes[0].widths.iter().copied().collect(),
+        vertical_widths: metrics.axes[1].widths.iter().copied().collect(),
+        blues: metrics.axes[1]
+            .blues
+            .iter()
+            .map(|blue| ExportedUnscaledBlue {
+                reference: blue.position,
+                shoot: blue.overshoot,
+                is_adjustment: blue.zones.contains(BlueZones::ADJUSTMENT),
+            })
+            .collect(),
+    }
+}
+
+#[cfg(feature = "autohinter")]
+#[allow(clippy::too_many_arguments)]
+/// Compute scaled style metrics for a style class and expose a stable,
+/// allocation-owned representation.
+pub fn compute_scaled_style_metrics_exported(
+    font: &FontRef,
+    coords: &[F2Dot14],
+    style: &StyleClass,
+    x_scale: i32,
+    y_scale: i32,
+    x_delta: i32,
+    y_delta: i32,
+    flags: u32,
+    units_per_em: i32,
+) -> ExportedScaledStyleMetrics {
+    let shaper_mode = if cfg!(feature = "autohint_shaping") {
+        ShaperMode::BestEffort
+    } else {
+        ShaperMode::Nominal
+    };
+    let shaper = Shaper::new(font, shaper_mode);
+    let unscaled = compute_unscaled_style_metrics(&shaper, coords, style);
+    let scaled = scale_style_metrics(
+        &unscaled,
+        Scale {
+            x_scale,
+            y_scale,
+            x_delta,
+            y_delta,
+            size: 0.0,
+            units_per_em,
+            flags,
+        },
+    );
+
+    ExportedScaledStyleMetrics {
+        digits_have_same_width: unscaled.digits_have_same_width,
+        x_scale: scaled.scale.x_scale,
+        y_scale: scaled.scale.y_scale,
+        x_delta: scaled.scale.x_delta,
+        y_delta: scaled.scale.y_delta,
+        horizontal_widths: scaled.axes[0]
+            .widths
+            .iter()
+            .map(|width| ExportedScaledWidth {
+                scaled: width.scaled,
+                fitted: width.fitted,
+            })
+            .collect(),
+        vertical_widths: scaled.axes[1]
+            .widths
+            .iter()
+            .map(|width| ExportedScaledWidth {
+                scaled: width.scaled,
+                fitted: width.fitted,
+            })
+            .collect(),
+        blues: scaled.axes[1]
+            .blues
+            .iter()
+            .map(|blue| ExportedScaledBlue {
+                reference_scaled: blue.position.scaled,
+                reference_fitted: blue.position.fitted,
+                shoot_scaled: blue.overshoot.scaled,
+                shoot_fitted: blue.overshoot.fitted,
+                is_active: blue.is_active,
+                is_top: blue.zones.contains(BlueZones::TOP),
+                is_sub_top: blue.zones.contains(BlueZones::SUB_TOP),
+                is_neutral: blue.zones.contains(BlueZones::NEUTRAL),
+                is_adjustment: blue.zones.contains(BlueZones::ADJUSTMENT),
+            })
+            .collect(),
+    }
+}
+
 /// Maximum number of widths, same for Latin and CJK.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L65>

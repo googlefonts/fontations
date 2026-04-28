@@ -17,6 +17,7 @@
 use super::super::{
     metrics::{fixed_div, fixed_mul, Scale},
     outline::{Outline, Point},
+    recorder::HintsRecorder,
     style::ScriptGroup,
     topo::{Axis, Dimension},
 };
@@ -76,7 +77,11 @@ pub(crate) fn align_edge_points(
 /// Align the strong points; equivalent to the TrueType `IP` instruction.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1399>
-pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Option<()> {
+pub(crate) fn align_strong_points(
+    outline: &mut Outline,
+    axis: &mut Axis,
+    mut recorder: Option<&mut HintsRecorder>,
+) -> Option<()> {
     if axis.edges.is_empty() {
         return Some(());
     }
@@ -87,7 +92,7 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
         PointMarker::TOUCHED_Y
     };
     let points = outline.points.as_mut_slice();
-    'points: for point in points {
+    'points: for (point_ix, point) in points.iter_mut().enumerate() {
         // Skip points that are already touched; do weak interpolation in the
         // next pass
         if point
@@ -106,6 +111,9 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
         let edge = edges.first()?;
         let delta = edge.fpos as i32 - u;
         if delta >= 0 {
+            if let Some(recorder) = recorder.as_mut() {
+                recorder.record_ip_before(dim, point_ix);
+            }
             store_point(point, dim, edge.pos - (edge.opos - ou));
             continue;
         }
@@ -113,6 +121,9 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
         let edge = edges.last()?;
         let delta = u - edge.fpos as i32;
         if delta >= 0 {
+            if let Some(recorder) = recorder.as_mut() {
+                recorder.record_ip_after(dim, point_ix);
+            }
             store_point(point, dim, edge.pos + (ou - edge.opos));
             continue;
         }
@@ -129,6 +140,9 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
                 .find(|(_ix, edge)| edge.fpos as i32 >= u)
             {
                 if edge.fpos as i32 == u {
+                    if let Some(recorder) = recorder.as_mut() {
+                        recorder.record_ip_on(dim, point_ix, min_ix);
+                    }
                     store_point(point, dim, edge.pos);
                     continue 'points;
                 }
@@ -148,6 +162,9 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
                     Ordering::Greater => min_ix = mid_ix + 1,
                     Ordering::Equal => {
                         // We are on an edge
+                        if let Some(recorder) = recorder.as_mut() {
+                            recorder.record_ip_on(dim, point_ix, mid_ix);
+                        }
                         store_point(point, dim, edge.pos);
                         continue 'points;
                     }
@@ -171,6 +188,9 @@ pub(crate) fn align_strong_points(outline: &mut Outline, axis: &mut Axis) -> Opt
             } else {
                 edge_before.scale
             };
+            if let Some(recorder) = recorder.as_mut() {
+                recorder.record_ip_between(dim, point_ix, before_ix, min_ix);
+            }
             store_point(point, dim, before_pos + fixed_mul(u - before_fpos, scale));
         }
     }
@@ -360,6 +380,7 @@ mod tests {
     use super::{
         super::super::{
             metrics::{compute_unscaled_style_metrics, Scale},
+            recorder::{Action, HintRecord, HintsRecorder},
             shape::{Shaper, ShaperMode},
             style,
         },
@@ -435,6 +456,55 @@ mod tests {
             }),
         };
         assert_eq!(metrics, expected_metrics);
+    }
+
+    #[test]
+    fn recorder_collects_edge_and_point_actions() {
+        let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::Nominal);
+        let glyph = font.outline_glyphs().get(GlyphId::new(9)).unwrap();
+        let mut outline = Outline::default();
+        outline.fill(&glyph, Default::default()).unwrap();
+        let metrics = compute_unscaled_style_metrics(
+            &shaper,
+            Default::default(),
+            &style::STYLE_CLASSES[style::StyleClass::HEBR],
+        );
+        let scale = Scale::new(
+            16.0,
+            font.head().unwrap().units_per_em() as i32,
+            Style::Normal,
+            Default::default(),
+            metrics.style_class().script.group,
+        );
+        let mut recorder = HintsRecorder::default();
+
+        super::super::hint_outline_with_recorder(
+            &mut outline,
+            &metrics,
+            &scale,
+            None,
+            Some(&mut recorder),
+        );
+
+        assert!(recorder
+            .records
+            .iter()
+            .any(|record| matches!(record, HintRecord::Edge(edge) if edge.blue.is_some())));
+        assert!(recorder.records.iter().any(|record| {
+            matches!(
+                record,
+                HintRecord::Edge(edge)
+                    if matches!(edge.action, Action::Blue | Action::BlueAnchor | Action::Anchor | Action::Stem | Action::Adjust)
+            )
+        }));
+        assert!(recorder.records.iter().any(|record| {
+            matches!(
+                record,
+                HintRecord::Point(point)
+                    if matches!(point.action, Action::IpBefore | Action::IpAfter | Action::IpOn | Action::IpBetween)
+            )
+        }));
     }
 
     #[test]

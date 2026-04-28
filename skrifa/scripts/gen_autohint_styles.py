@@ -1354,7 +1354,7 @@ def generate() -> str:
     char_map = {}
 
     buf += "#[rustfmt::skip]\n"
-    buf += "pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[\n"
+    buf += "pub const SCRIPT_CLASSES: &[ScriptClass] = &[\n"
     # some scripts generate multiple styles so keep track of the style index
     style_index = 0
     for i, script in enumerate(SCRIPT_CLASSES):
@@ -1426,7 +1426,7 @@ def generate() -> str:
 
     # Now run through scripts again and generate style classes
     buf += "#[rustfmt::skip]\n"
-    buf += "pub(super) const STYLE_CLASSES: &[StyleClass] = &[\n"
+    buf += "pub const STYLE_CLASSES: &[StyleClass] = &[\n"
     style_class_tags = []
     style_index = 0
     for i, script in enumerate(SCRIPT_CLASSES):
@@ -1474,7 +1474,7 @@ def generate() -> str:
 
     # and finally output the ranges
     buf += "#[rustfmt::skip]\n"
-    buf += "pub(super) const STYLE_RANGES: &[StyleRange] = &[\n"
+    buf += "pub const STYLE_RANGES: &[StyleRange] = &[\n"
     for char_range in ranges:
         first = char_range[0]
         last = char_range[1]

@@ -12,6 +12,12 @@ use crate::collections::SmallVec;
 pub(crate) use edges::{compute_blue_edges, compute_edges};
 pub(crate) use segments::{compute_segments, link_segments};
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+pub(crate) struct BlueProvenance {
+    pub blue_ix: u16,
+    pub is_shoot: bool,
+}
+
 /// Maximum number of segments and edges stored inline.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L306>
@@ -210,6 +216,9 @@ pub(crate) struct Edge {
     pub dir: Direction,
     /// Present if this is a blue edge.
     pub blue_edge: Option<ScaledWidth>,
+    /// Retains which blue zone was selected and whether the overshoot
+    /// position won so recorders can reproduce CVT references later.
+    pub blue_provenance: Option<BlueProvenance>,
     /// Index of linked edge.
     pub link_ix: Option<u16>,
     /// Index of primary edge for serif.

@@ -49,6 +49,18 @@ impl GlyphStyle {
         }
     }
 
+    #[cfg(feature = "autohinter")]
+    pub(crate) fn from_parts(style_index: u16, non_base: bool, digit: bool) -> Self {
+        let mut bits = style_index & Self::STYLE_INDEX_MASK;
+        if non_base {
+            bits |= Self::NON_BASE;
+        }
+        if digit {
+            bits |= Self::DIGIT;
+        }
+        Self(bits)
+    }
+
     fn maybe_assign(&mut self, other: Self) {
         // FreeType walks the style array in order so earlier styles
         // have precedence. Since we walk the cmap and binary search
@@ -307,7 +319,7 @@ impl Default for GlyphStyleMap {
 /// Determines which algorithms the autohinter will use while generating
 /// metrics and processing a glyph outline.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub(crate) enum ScriptGroup {
+pub enum ScriptGroup {
     /// All scripts that are not CJK or Indic.
     ///
     /// FreeType calls this Latin.
@@ -320,7 +332,7 @@ pub(crate) enum ScriptGroup {
 /// Defines the basic properties for each script supported by the
 /// autohinter.
 #[derive(Clone, Debug)]
-pub(crate) struct ScriptClass {
+pub struct ScriptClass {
     #[allow(unused)]
     pub name: &'static str,
     /// Group that defines how glyphs belonging to this script are hinted.
@@ -343,7 +355,7 @@ pub(crate) struct ScriptClass {
 /// in the cases where style coverage is determined by OpenType feature
 /// coverage.
 #[derive(Clone, Debug)]
-pub(crate) struct StyleClass {
+pub struct StyleClass {
     #[allow(unused)]
     pub name: &'static str,
     /// Index of self in the STYLE_CLASSES array.

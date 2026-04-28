@@ -156,14 +156,23 @@ fn scale_default_axis_metrics(
             }
         }
     }
-    // Now scale the widths
+    // Now scale the widths. FreeType ensures there is always at least one
+    // width entry (the standard width), even if width extraction found none.
     axis.width_metrics = width_metrics;
-    for unscaled_width in widths {
-        let scaled = fixed_mul(axis.scale, *unscaled_width);
+    if widths.is_empty() {
+        let scaled = fixed_mul(axis.scale, axis.width_metrics.standard_width);
         axis.widths.push(ScaledWidth {
             scaled,
             fitted: scaled,
         });
+    } else {
+        for unscaled_width in widths {
+            let scaled = fixed_mul(axis.scale, *unscaled_width);
+            axis.widths.push(ScaledWidth {
+                scaled,
+                fitted: scaled,
+            });
+        }
     }
     // Compute extra light property: this is a standard width that is
     // less than 5/8 pixels

@@ -451,21 +451,10 @@ impl Outline {
 
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftcalc.c#L1026>
 fn is_corner_flat(in_x: i32, in_y: i32, out_x: i32, out_y: i32) -> bool {
-    let ax = in_x + out_x;
-    let ay = in_y + out_y;
-    fn hypot(x: i32, y: i32) -> i32 {
-        let x = x.abs();
-        let y = y.abs();
-        if x > y {
-            x + ((3 * y) >> 3)
-        } else {
-            y + ((3 * x) >> 3)
-        }
-    }
-    let d_in = hypot(in_x, in_y);
-    let d_out = hypot(out_x, out_y);
-    let d_hypot = hypot(ax, ay);
-    (d_in + d_out - d_hypot) < (d_hypot >> 4)
+    let d_in = in_x.abs() + in_y.abs();
+    let d_out = out_x.abs() + out_y.abs();
+    let d_corner = (in_x + out_x).abs() + (in_y + out_y).abs();
+    (d_in + d_out - d_corner) < (d_corner >> 4)
 }
 
 #[derive(Copy, Clone, Default, Debug)]

@@ -96,6 +96,16 @@ pub mod error;
 pub mod pen;
 
 pub use autohint::GlyphStyles;
+#[cfg(feature = "autohinter")]
+pub use autohint::{
+    compute_hint_plan_exported, compute_hint_records_exported,
+    compute_scaled_style_metrics_exported, compute_unscaled_style_metrics_exported,
+    ExportedHintEdge, ExportedHintPlan, ExportedHintRecord, ExportedHintSegment,
+    ExportedScaledBlue, ExportedScaledStyleMetrics, ExportedScaledWidth, ExportedUnscaledBlue,
+    ExportedUnscaledStyleMetrics,
+};
+#[cfg(feature = "autohinter")]
+pub use autohint::{SCRIPT_CLASSES, STYLE_CLASSES};
 pub use hint::{
     Engine, HintingInstance, HintingMode, HintingOptions, LcdLayout, SmoothMode, Target,
 };
@@ -504,6 +514,30 @@ impl<'a> OutlineGlyph<'a> {
                     Ok(advance)
                 })
             }
+        }
+    }
+
+    #[cfg(feature = "autohinter")]
+    /// Pass a raw scaled outline to a callback with direct point access.
+    pub fn with_scaled_glyf_outline<R>(
+        &self,
+        size: Size,
+        location: impl Into<LocationRef<'a>>,
+        user_memory: Option<&mut [u8]>,
+        mut callback: impl FnMut(&glyf::ScaledOutline<'_, raw::types::F26Dot6>) -> Result<R, DrawError>,
+    ) -> Result<R, DrawError> {
+        let ppem = size.ppem();
+        let coords = location.into().effective_coords();
+
+        match &self.kind {
+            OutlineKind::Glyf(glyf, outline) => {
+                with_temporary_memory(self, Hinting::None, user_memory, |buf| {
+                    let scaled = FreeTypeScaler::unhinted(glyf, outline, buf, ppem, coords)?
+                        .scale(&outline.glyph, outline.glyph_id)?;
+                    callback(&scaled)
+                })
+            }
+            _ => Err(DrawError::NoSources),
         }
     }
 

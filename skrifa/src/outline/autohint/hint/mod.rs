@@ -6,6 +6,7 @@ mod outline;
 use super::{
     metrics::{scale_style_metrics, Scale, UnscaledStyleMetrics},
     outline::Outline,
+    recorder::HintsRecorder,
     style::{GlyphStyle, ScriptGroup},
     topo::{self, Axis},
 };
@@ -39,6 +40,45 @@ pub(crate) fn hint_outline(
     scale: &Scale,
     glyph_style: Option<GlyphStyle>,
 ) -> HintedMetrics {
+    hint_outline_impl(outline, metrics, scale, glyph_style, None).hinted_metrics
+}
+
+pub(crate) struct HintedPlan {
+    pub hinted_metrics: HintedMetrics,
+    #[allow(dead_code)]
+    pub vertical_axis: Option<Axis>,
+}
+
+#[allow(dead_code)] // used in tests
+#[cfg(feature = "autohinter")]
+pub(crate) fn hint_outline_with_recorder(
+    outline: &mut Outline,
+    metrics: &UnscaledStyleMetrics,
+    scale: &Scale,
+    glyph_style: Option<GlyphStyle>,
+    recorder: Option<&mut HintsRecorder>,
+) -> HintedMetrics {
+    hint_outline_impl(outline, metrics, scale, glyph_style, recorder).hinted_metrics
+}
+
+#[cfg(feature = "autohinter")]
+pub(crate) fn hint_outline_with_plan(
+    outline: &mut Outline,
+    metrics: &UnscaledStyleMetrics,
+    scale: &Scale,
+    glyph_style: Option<GlyphStyle>,
+    recorder: Option<&mut HintsRecorder>,
+) -> HintedPlan {
+    hint_outline_impl(outline, metrics, scale, glyph_style, recorder)
+}
+
+fn hint_outline_impl(
+    outline: &mut Outline,
+    metrics: &UnscaledStyleMetrics,
+    scale: &Scale,
+    glyph_style: Option<GlyphStyle>,
+    mut recorder: Option<&mut HintsRecorder>,
+) -> HintedPlan {
     let scaled_metrics = scale_style_metrics(metrics, *scale);
     let scale = &scaled_metrics.scale;
     let mut axis = Axis::default();
@@ -49,11 +89,15 @@ pub(crate) fn hint_outline(
         ..Default::default()
     };
     let group = metrics.style_class().script.group;
+    let mut vertical_axis = None;
     // For default script group, we don't proceed with hinting if we're
     // missing alignment zones. FreeType swaps in a "dummy" hinter here
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.c#L475>
     if group == ScriptGroup::Default && scaled_metrics.axes[1].blues.is_empty() {
-        return hinted_metrics;
+        return HintedPlan {
+            hinted_metrics,
+            vertical_axis,
+        };
     }
     for dim in 0..2 {
         if (dim == Axis::HORIZONTAL && scale.flags & Scale::NO_HORIZONTAL != 0)
@@ -100,9 +144,10 @@ pub(crate) fn hint_outline(
             group,
             scale,
             hint_top_to_bottom,
+            recorder.as_deref_mut(),
         );
         outline::align_edge_points(outline, &axis, group, scale);
-        outline::align_strong_points(outline, &mut axis);
+        outline::align_strong_points(outline, &mut axis, recorder.as_deref_mut());
         outline::align_weak_points(outline, dim);
         if dim == 0 && axis.edges.len() > 1 {
             let left = axis.edges.first().unwrap();
@@ -114,6 +159,12 @@ pub(crate) fn hint_outline(
                 right_opos: right.opos,
             });
         }
+        if dim == Axis::VERTICAL {
+            vertical_axis = Some(axis.clone());
+        }
     }
-    hinted_metrics
+    HintedPlan {
+        hinted_metrics,
+        vertical_axis,
+    }
 }

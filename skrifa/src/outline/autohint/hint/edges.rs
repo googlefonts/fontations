@@ -6,8 +6,9 @@
 
 use super::super::{
     metrics::{fixed_mul_div, pix_floor, pix_round, Scale, ScaledAxisMetrics, ScaledWidth},
+    recorder::{Action, HintsRecorder},
     style::ScriptGroup,
-    topo::{Axis, Edge},
+    topo::{Axis, Dimension, Edge},
 };
 
 /// Main Latin grid-fitting routine.
@@ -21,12 +22,13 @@ pub(crate) fn hint_edges(
     group: ScriptGroup,
     scale: &Scale,
     mut top_to_bottom_hinting: bool,
+    mut recorder: Option<&mut HintsRecorder>,
 ) {
     if axis.dim != Axis::VERTICAL {
         top_to_bottom_hinting = false;
     }
     // First align horizontal edges to blue zones if needed
-    let anchor_ix = align_edges_to_blues(axis, metrics, group, scale);
+    let anchor_ix = align_edges_to_blues(axis, metrics, group, scale, recorder.as_deref_mut());
     // Now align the stem edges
     let (serif_count, anchor_ix) = align_stem_edges(
         axis,
@@ -35,6 +37,7 @@ pub(crate) fn hint_edges(
         scale,
         top_to_bottom_hinting,
         anchor_ix,
+        recorder.as_deref_mut(),
     );
     let edges = axis.edges.as_mut_slice();
     // Special case for lowercase m
@@ -43,7 +46,14 @@ pub(crate) fn hint_edges(
     }
     // Handle serifs and single segment edges
     if serif_count > 0 || anchor_ix.is_none() {
-        align_remaining_edges(axis, group, top_to_bottom_hinting, serif_count, anchor_ix);
+        align_remaining_edges(
+            axis,
+            group,
+            top_to_bottom_hinting,
+            serif_count,
+            anchor_ix,
+            recorder,
+        );
     }
 }
 
@@ -55,6 +65,7 @@ fn align_edges_to_blues(
     metrics: &ScaledAxisMetrics,
     group: ScriptGroup,
     scale: &Scale,
+    mut recorder: Option<&mut HintsRecorder>,
 ) -> Option<usize> {
     let mut anchor_ix = None;
     // For default script group, only do vertical blues
@@ -62,51 +73,87 @@ fn align_edges_to_blues(
         return anchor_ix;
     }
     for edge_ix in 0..axis.edges.len() {
-        let edges = axis.edges.as_mut_slice();
-        let edge = &edges[edge_ix];
-        if edge.flags & Edge::DONE != 0 {
-            continue;
-        }
-        let edge2_ix = edge.link_ix.map(|x| x as usize);
-        let edge2 = edge2_ix.map(|ix| &edges[ix]);
-        // If we have two neutral zones, skip one of them.
-        if let (true, Some(edge2)) = (edge.blue_edge.is_some(), edge2) {
-            if edge2.blue_edge.is_some() {
-                let skip_ix = if edge2.flags & Edge::NEUTRAL != 0 {
-                    edge2_ix
-                } else if edge.flags & Edge::NEUTRAL != 0 {
-                    Some(edge_ix)
+        let mut linked_edge_to_align = None;
+        {
+            let edges = axis.edges.as_mut_slice();
+            let edge = &edges[edge_ix];
+            if edge.flags & Edge::DONE != 0 {
+                continue;
+            }
+            let edge2_ix = edge.link_ix.map(|x| x as usize);
+            let edge2 = edge2_ix.map(|ix| &edges[ix]);
+            // If we have two neutral zones, skip one of them.
+            if let (true, Some(edge2)) = (edge.blue_edge.is_some(), edge2) {
+                if edge2.blue_edge.is_some() {
+                    let skip_ix = if edge2.flags & Edge::NEUTRAL != 0 {
+                        edge2_ix
+                    } else if edge.flags & Edge::NEUTRAL != 0 {
+                        Some(edge_ix)
+                    } else {
+                        None
+                    };
+                    if let Some(skip_ix) = skip_ix {
+                        let skip_edge = &mut edges[skip_ix];
+                        skip_edge.blue_edge = None;
+                        skip_edge.flags &= !Edge::NEUTRAL;
+                    }
+                }
+            }
+            // Flip edges if the other is aligned to a blue zone
+            let blue = edges[edge_ix].blue_edge;
+            let (blue, edge1_ix, edge2_ix) = if let Some(blue) = blue {
+                (blue, Some(edge_ix), edge2_ix)
+            } else if let Some(edge2_blue) = edge2_ix.and_then(|ix| edges[ix].blue_edge) {
+                (edge2_blue, edge2_ix, Some(edge_ix))
+            } else {
+                (Default::default(), None, None)
+            };
+            let Some(edge1_ix) = edge1_ix else {
+                continue;
+            };
+            // Skip if edge1 was already positioned by a previous iteration
+            // (e.g. edge[i] has no blue but its linked-edge does, and that
+            // linked-edge was already processed when the loop visited it directly).
+            if edges[edge1_ix].flags & Edge::DONE != 0 {
+                continue;
+            }
+            let edge1 = &mut edges[edge1_ix];
+            edge1.pos = blue.fitted;
+            edge1.flags |= Edge::DONE;
+            if let Some(recorder) = recorder.as_mut() {
+                let action = if anchor_ix.is_none() {
+                    Action::BlueAnchor
                 } else {
-                    None
+                    Action::Blue
                 };
-                if let Some(skip_ix) = skip_ix {
-                    let skip_edge = &mut edges[skip_ix];
-                    skip_edge.blue_edge = None;
-                    skip_edge.flags &= !Edge::NEUTRAL;
+                recorder.record_edge(
+                    axis.dim,
+                    action,
+                    edge1_ix,
+                    anchor_ix.is_none().then_some(edge_ix),
+                    None,
+                    None,
+                    None,
+                    edges[edge1_ix].blue_provenance,
+                );
+            }
+            if let Some(edge2_ix) = edge2_ix {
+                if edges[edge2_ix].blue_edge.is_none() {
+                    edges[edge2_ix].flags |= Edge::DONE;
+                    linked_edge_to_align = Some((edge1_ix, edge2_ix));
                 }
             }
         }
-        // Flip edges if the other is aligned to a blue zone
-        let blue = edges[edge_ix].blue_edge;
-        let (blue, edge1_ix, edge2_ix) = if let Some(blue) = blue {
-            (blue, Some(edge_ix), edge2_ix)
-        } else if let Some(edge2_blue) = edge2_ix.and_then(|ix| edges[ix].blue_edge) {
-            (edge2_blue, edge2_ix, Some(edge_ix))
-        } else {
-            (Default::default(), None, None)
-        };
-        let Some(edge1_ix) = edge1_ix else {
-            continue;
-        };
-        let edge1 = &mut edges[edge1_ix];
-        edge1.pos = blue.fitted;
-        edge1.flags |= Edge::DONE;
-        if let Some(edge2_ix) = edge2_ix {
-            let edge2 = &mut edges[edge2_ix];
-            if edge2.blue_edge.is_none() {
-                edge2.flags |= Edge::DONE;
-                align_linked_edge(axis, metrics, group, scale, edge1_ix, edge2_ix);
-            }
+        if let Some((edge1_ix, edge2_ix)) = linked_edge_to_align {
+            align_linked_edge(
+                axis,
+                metrics,
+                group,
+                scale,
+                edge1_ix,
+                edge2_ix,
+                recorder.as_deref_mut(),
+            );
         }
         if anchor_ix.is_none() {
             anchor_ix = Some(edge_ix);
@@ -125,6 +172,7 @@ fn align_stem_edges(
     scale: &Scale,
     top_to_bottom_hinting: bool,
     mut anchor_ix: Option<usize>,
+    mut recorder: Option<&mut HintsRecorder>,
 ) -> (usize, Option<usize>) {
     let mut serif_count = 0;
     let mut last_stem_pos = None;
@@ -132,13 +180,22 @@ fn align_stem_edges(
     // Now align all other stem edges
     // This code starts at: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3123>
     for edge_ix in 0..axis.edges.len() {
-        let edges = axis.edges.as_mut_slice();
-        let edge = &edges[edge_ix];
-        if edge.flags & Edge::DONE != 0 {
+        // Read the values we need to decide on early-exit paths before taking
+        // any &mut borrow that would conflict with align_linked_edge(&mut axis).
+        let (edge_flags, edge_link_ix, edge_pos, edge2_pos_for_cjk, edge2_has_blue) = {
+            let edges = axis.edges.as_slice();
+            let edge = &edges[edge_ix];
+            let link_ix = edge.link_ix.map(|ix| ix as usize);
+            let (edge2_pos, edge2_has_blue) = link_ix
+                .map(|ix| (edges[ix].pos, edges[ix].blue_edge.is_some()))
+                .unwrap_or((0, false));
+            (edge.flags, link_ix, edge.pos, edge2_pos, edge2_has_blue)
+        };
+        if edge_flags & Edge::DONE != 0 {
             continue;
         }
         // Skip all non-stem edges
-        let Some(edge2_ix) = edge.link_ix.map(|ix| ix as usize) else {
+        let Some(edge2_ix) = edge_link_ix else {
             serif_count += 1;
             continue;
         };
@@ -146,18 +203,27 @@ fn align_stem_edges(
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1912>
         if group != ScriptGroup::Default {
             if let Some(last_pos) = last_stem_pos {
-                if edge.pos < last_pos + 64 || edges[edge2_ix].pos < last_pos + 64 {
+                if edge_pos < last_pos + 64 || edge2_pos_for_cjk < last_pos + 64 {
                     serif_count += 1;
                     continue;
                 }
             }
         }
-        // This shouldn't happen?
-        if edges[edge2_ix].blue_edge.is_some() {
-            edges[edge2_ix].flags |= Edge::DONE;
-            align_linked_edge(axis, metrics, group, scale, edge2_ix, edge_ix);
+        // This should not happen, but match the C fallback.
+        if edge2_has_blue {
+            align_linked_edge(
+                axis,
+                metrics,
+                group,
+                scale,
+                edge2_ix,
+                edge_ix,
+                recorder.as_deref_mut(),
+            );
+            axis.edges[edge_ix].flags |= Edge::DONE;
             continue;
         }
+        let edges = axis.edges.as_mut_slice();
         if group == ScriptGroup::Default {
             // Now align the stem
             // Note: the branches here are reversed from the FreeType code
@@ -181,6 +247,18 @@ fn align_stem_edges(
                 if edge2.flags & Edge::DONE != 0 {
                     let new_pos = edge2.pos - cur_len;
                     edges[edge_ix].pos = new_pos;
+                    if let Some(recorder) = recorder.as_mut() {
+                        recorder.record_edge(
+                            axis.dim,
+                            Action::Adjust,
+                            edge_ix,
+                            Some(edge2_ix),
+                            None,
+                            edge_ix.checked_sub(1),
+                            None,
+                            None,
+                        );
+                    }
                 } else if cur_len < 96 {
                     let cur_pos1 = pix_round(original_center);
                     let (u_off, d_off) = if cur_len <= 64 { (32, 32) } else { (38, 26) };
@@ -193,6 +271,18 @@ fn align_stem_edges(
                     };
                     edges[edge_ix].pos = cur_pos1 - cur_len / 2;
                     edges[edge2_ix].pos = cur_pos1 + cur_len / 2;
+                    if let Some(recorder) = recorder.as_mut() {
+                        recorder.record_edge(
+                            axis.dim,
+                            Action::Stem,
+                            edge_ix,
+                            Some(edge2_ix),
+                            None,
+                            edge_ix.checked_sub(1),
+                            None,
+                            None,
+                        );
+                    }
                 } else {
                     let cur_pos1 = pix_round(original_pos);
                     let delta1 = (cur_pos1 + (cur_len >> 1) - original_center).abs();
@@ -202,11 +292,30 @@ fn align_stem_edges(
                     let new_pos2 = new_pos + cur_len;
                     edges[edge_ix].pos = new_pos;
                     edges[edge2_ix].pos = new_pos2;
+                    if let Some(recorder) = recorder.as_mut() {
+                        recorder.record_edge(
+                            axis.dim,
+                            Action::Stem,
+                            edge_ix,
+                            Some(edge2_ix),
+                            None,
+                            edge_ix.checked_sub(1),
+                            None,
+                            None,
+                        );
+                    }
                 }
                 edges[edge_ix].flags |= Edge::DONE;
                 edges[edge2_ix].flags |= Edge::DONE;
                 if edge_ix > 0 {
-                    adjust_link(edges, edge_ix, LinkDir::Prev, top_to_bottom_hinting);
+                    adjust_link(
+                        edges,
+                        axis.dim,
+                        edge_ix,
+                        LinkDir::Prev,
+                        top_to_bottom_hinting,
+                        recorder.as_deref_mut(),
+                    );
                 }
             } else {
                 // No stem has been aligned yet
@@ -247,16 +356,44 @@ fn align_stem_edges(
                     edges[edge_ix].pos = pix_round(edge.opos);
                 }
                 edges[edge_ix].flags |= Edge::DONE;
-                align_linked_edge(axis, metrics, group, scale, edge_ix, edge2_ix);
+                if let Some(recorder) = recorder.as_mut() {
+                    recorder.record_edge(
+                        axis.dim,
+                        Action::Anchor,
+                        edge_ix,
+                        Some(edge2_ix),
+                        None,
+                        None,
+                        None,
+                        None,
+                    );
+                }
+                align_linked_edge(
+                    axis,
+                    metrics,
+                    group,
+                    scale,
+                    edge_ix,
+                    edge2_ix,
+                    recorder.as_deref_mut(),
+                );
                 anchor_ix = Some(edge_ix);
             }
         } else {
             // More CJK divergence
             // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1937>
             if edge2_ix < edge_ix {
-                last_stem_pos = Some(edge.pos);
+                last_stem_pos = Some(edge_pos);
                 edges[edge_ix].flags |= Edge::DONE;
-                align_linked_edge(axis, metrics, group, scale, edge2_ix, edge_ix);
+                align_linked_edge(
+                    axis,
+                    metrics,
+                    group,
+                    scale,
+                    edge2_ix,
+                    edge_ix,
+                    recorder.as_deref_mut(),
+                );
                 continue;
             }
             if axis.dim != Axis::VERTICAL && anchor_ix.is_none() {
@@ -324,24 +461,43 @@ fn align_remaining_edges(
     top_to_bottom_hinting: bool,
     mut serif_count: usize,
     mut anchor_ix: Option<usize>,
+    mut recorder: Option<&mut HintsRecorder>,
 ) {
     if group == ScriptGroup::Default {
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3418>
         for edge_ix in 0..axis.edges.len() {
-            let edges = &mut axis.edges;
-            let edge = &edges[edge_ix];
-            if edge.flags & Edge::DONE != 0 {
+            let (edge_flags, edge_opos, edge_serif_ix, delta) = {
+                let edges = axis.edges.as_slice();
+                let edge = &edges[edge_ix];
+                let delta = edge
+                    .serif(edges)
+                    .map(|serif| (serif.opos - edge.opos).abs())
+                    .unwrap_or(1000);
+                (edge.flags, edge.opos, edge.serif_ix, delta)
+            };
+            if edge_flags & Edge::DONE != 0 {
                 continue;
-            }
-            let mut delta = 1000;
-            if let Some(serif) = edge.serif(edges) {
-                delta = (serif.opos - edge.opos).abs();
             }
             if delta < 64 + 16 {
                 // delta is only < 1000 if edge.serif_ix is Some(_)
-                let serif_ix = edge.serif_ix.unwrap() as usize;
-                align_serif_edge(axis, serif_ix, edge_ix)
+                let serif_ix = edge_serif_ix.unwrap() as usize;
+                align_serif_edge(axis, serif_ix, edge_ix);
+                if let Some(recorder) = recorder.as_mut() {
+                    let edges = axis.edges.as_slice();
+                    let [lower_bound_ix, upper_bound_ix] = latin_remaining_bounds(edges, edge_ix);
+                    recorder.record_edge(
+                        axis.dim,
+                        Action::Serif,
+                        edge_ix,
+                        Some(serif_ix),
+                        None,
+                        lower_bound_ix,
+                        upper_bound_ix,
+                        None,
+                    );
+                }
             } else if let Some(anchor_ix) = anchor_ix {
+                let edges = axis.edges.as_mut_slice();
                 let [before_ix, after_ix] = find_bounding_completed_edges(edges, edge_ix);
                 if let Some((before_ix, after_ix)) = before_ix.zip(after_ix) {
                     let before = &edges[before_ix];
@@ -351,26 +507,82 @@ fn align_remaining_edges(
                     } else {
                         before.pos
                             + fixed_mul_div(
-                                edge.opos - before.opos,
+                                edge_opos - before.opos,
                                 after.pos - before.pos,
                                 after.opos - before.opos,
                             )
                     };
                     edges[edge_ix].pos = new_pos;
+                    if let Some(recorder) = recorder.as_mut() {
+                        let [lower_bound_ix, upper_bound_ix] =
+                            latin_remaining_bounds(edges, edge_ix);
+                        recorder.record_edge(
+                            axis.dim,
+                            Action::SerifLink1,
+                            edge_ix,
+                            Some(before_ix),
+                            Some(after_ix),
+                            lower_bound_ix,
+                            upper_bound_ix,
+                            None,
+                        );
+                    }
                 } else {
                     let anchor = &edges[anchor_ix];
-                    let new_pos = anchor.pos + ((edge.opos - anchor.opos + 16) & !31);
+                    let new_pos = anchor.pos + ((edge_opos - anchor.opos + 16) & !31);
                     edges[edge_ix].pos = new_pos;
+                    if let Some(recorder) = recorder.as_mut() {
+                        let [lower_bound_ix, upper_bound_ix] =
+                            latin_remaining_bounds(edges, edge_ix);
+                        recorder.record_edge(
+                            axis.dim,
+                            Action::SerifLink2,
+                            edge_ix,
+                            None,
+                            None,
+                            lower_bound_ix,
+                            upper_bound_ix,
+                            None,
+                        );
+                    }
                 }
             } else {
                 anchor_ix = Some(edge_ix);
-                let new_pos = pix_round(edge.opos);
+                let edges = axis.edges.as_mut_slice();
+                let new_pos = pix_round(edge_opos);
                 edges[edge_ix].pos = new_pos;
+                if let Some(recorder) = recorder.as_mut() {
+                    let [lower_bound_ix, upper_bound_ix] = latin_remaining_bounds(edges, edge_ix);
+                    recorder.record_edge(
+                        axis.dim,
+                        Action::SerifAnchor,
+                        edge_ix,
+                        None,
+                        None,
+                        lower_bound_ix,
+                        upper_bound_ix,
+                        None,
+                    );
+                }
             }
             let edges = &mut axis.edges;
             edges[edge_ix].flags |= Edge::DONE;
-            adjust_link(edges, edge_ix, LinkDir::Prev, top_to_bottom_hinting);
-            adjust_link(edges, edge_ix, LinkDir::Next, top_to_bottom_hinting);
+            adjust_link(
+                edges,
+                axis.dim,
+                edge_ix,
+                LinkDir::Prev,
+                top_to_bottom_hinting,
+                recorder.as_deref_mut(),
+            );
+            adjust_link(
+                edges,
+                axis.dim,
+                edge_ix,
+                LinkDir::Next,
+                top_to_bottom_hinting,
+                recorder.as_deref_mut(),
+            );
         }
     } else {
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L2119>
@@ -433,9 +645,11 @@ enum LinkDir {
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3499>
 fn adjust_link(
     edges: &mut [Edge],
+    dim: Dimension,
     edge_ix: usize,
     link_dir: LinkDir,
     top_to_bottom_hinting: bool,
+    mut recorder: Option<&mut HintsRecorder>,
 ) -> Option<()> {
     let edge = &edges[edge_ix];
     let (edge2, prev_edge) = if link_dir == LinkDir::Next {
@@ -462,8 +676,18 @@ fn adjust_link(
     if (link.pos - prev_edge.pos).abs() > 16 {
         let new_pos = edge2.pos;
         edges[edge_ix].pos = new_pos;
+        if let Some(recorder) = recorder.as_mut() {
+            recorder.record_edge(dim, Action::Bound, edge_ix, None, None, None, None, None);
+        }
     }
     Some(())
+}
+
+fn latin_remaining_bounds(edges: &[Edge], edge_ix: usize) -> [Option<usize>; 2] {
+    let lower_bound_ix = edge_ix.checked_sub(1);
+    let upper_bound_ix = (edge_ix + 1 < edges.len() && edges[edge_ix + 1].flags & Edge::DONE != 0)
+        .then_some(edge_ix + 1);
+    [lower_bound_ix, upper_bound_ix]
 }
 
 /// Returns the indices of the "completed" edges before and after the given
@@ -665,6 +889,7 @@ fn align_linked_edge(
     scale: &Scale,
     base_edge_ix: usize,
     stem_edge_ix: usize,
+    mut recorder: Option<&mut HintsRecorder>,
 ) {
     let edges = axis.edges.as_mut_slice();
     let base_edge = &edges[base_edge_ix];
@@ -681,6 +906,18 @@ fn align_linked_edge(
         stem_edge.flags,
     );
     edges[stem_edge_ix].pos = base_edge.pos + fitted_width;
+    if let Some(recorder) = recorder.as_mut() {
+        recorder.record_edge(
+            axis.dim,
+            Action::Link,
+            base_edge_ix,
+            Some(stem_edge_ix),
+            None,
+            None,
+            None,
+            None,
+        );
+    }
 }
 
 /// Shift the serif edge by the adjustment made to base edge.
@@ -930,6 +1167,7 @@ mod tests {
                 class.script.group,
                 &scale,
                 class.script.hint_top_to_bottom,
+                None,
             );
         }
         // Only pos and flags fields are modified by edge hinting
