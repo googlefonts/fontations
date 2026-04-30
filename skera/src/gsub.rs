@@ -229,6 +229,7 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
             SubstitutionSubtables::Contextual(_) => 5,
             SubstitutionSubtables::ChainContextual(_) => 6,
             SubstitutionSubtables::Reverse(_) => 8,
+            SubstitutionSubtables::EmptyExtension => 9, // should we just skip this? probably?
         };
         s.embed(lookup_type)?;
 
@@ -270,6 +271,7 @@ impl<'a> SubsetTable<'a> for SubstitutionSubtables<'a> {
             SubstitutionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
             SubstitutionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
             SubstitutionSubtables::Reverse(subtables) => subtables.subset(plan, s, args),
+            SubstitutionSubtables::EmptyExtension => Ok(0),
         }
     }
 }

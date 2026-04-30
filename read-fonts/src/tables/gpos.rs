@@ -75,6 +75,8 @@ pub enum PositionSubtables<'a> {
     MarkToMark(PosSubtables<'a, MarkMarkPosFormat1<'a>>),
     Contextual(PosSubtables<'a, PositionSequenceContext<'a>>),
     ChainContextual(PosSubtables<'a, PositionChainContext<'a>>),
+    /// An extension lookup did not have any subtables
+    EmptyExtension,
 }
 
 impl<'a> PositionLookup<'a> {
@@ -111,9 +113,19 @@ impl<'a> PositionLookup<'a> {
                 offsets, data,
             ))),
             9 => {
-                let first = offsets.first().ok_or(ReadError::OutOfBounds)?.get();
-                let ext: ExtensionPosFormat1<()> = first.resolve(data)?;
-                match ext.extension_lookup_type() {
+                // look through subtable offsets to try and find a lookup type.
+                // this is robust in the case where the first subtable offset is
+                // malformed, but a later one is okay.
+                let Some(lookup_type) = offsets.iter().find_map(|off| {
+                    off.get()
+                        .resolve::<ExtensionPosFormat1<()>>(data)
+                        .ok()
+                        .map(|ext| ext.extension_lookup_type())
+                }) else {
+                    return Ok(PositionSubtables::EmptyExtension);
+                };
+
+                match lookup_type {
                     1 => Ok(PositionSubtables::Single(Subtables::new_ext(offsets, data))),
                     2 => Ok(PositionSubtables::Pair(Subtables::new_ext(offsets, data))),
                     3 => Ok(PositionSubtables::Cursive(Subtables::new_ext(

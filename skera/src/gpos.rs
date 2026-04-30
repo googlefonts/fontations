@@ -230,6 +230,7 @@ impl<'a> SubsetTable<'a> for PositionLookup<'_> {
             PositionSubtables::MarkToMark(_) => 6,
             PositionSubtables::Contextual(_) => 7,
             PositionSubtables::ChainContextual(_) => 8,
+            PositionSubtables::EmptyExtension => 9, // should we just skip this?
         };
         s.embed(lookup_type)?;
 
@@ -272,6 +273,7 @@ impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
             PositionSubtables::MarkToMark(subtables) => subtables.subset(plan, s, args),
             PositionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
             PositionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
+            PositionSubtables::EmptyExtension => Ok(0),
         }
     }
 }

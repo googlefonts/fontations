@@ -114,6 +114,7 @@ impl Intersect for PositionSubtables<'_> {
             PositionSubtables::MarkToMark(subtables) => subtables.intersects(glyph_set),
             PositionSubtables::Contextual(subtables) => subtables.intersects(glyph_set),
             PositionSubtables::ChainContextual(subtables) => subtables.intersects(glyph_set),
+            PositionSubtables::EmptyExtension => Ok(false),
         }
     }
 }
