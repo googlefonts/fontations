@@ -316,6 +316,7 @@ impl GlyphClosure for SubstitutionSubtables<'_> {
             SubstitutionSubtables::ChainContextual(tables) => {
                 tables.closure_glyphs(ctx, lookup_list, lookup_index)
             }
+            SubstitutionSubtables::EmptyExtension => Ok(()),
         }
     }
 
@@ -328,6 +329,7 @@ impl GlyphClosure for SubstitutionSubtables<'_> {
             SubstitutionSubtables::Reverse(_) => Ok(false),
             SubstitutionSubtables::Contextual(_) => Ok(true),
             SubstitutionSubtables::ChainContextual(_) => Ok(true),
+            SubstitutionSubtables::EmptyExtension => Ok(false),
         }
     }
 }
@@ -913,6 +915,7 @@ impl Intersect for SubstitutionSubtables<'_> {
             SubstitutionSubtables::Contextual(subtables) => subtables.intersects(glyph_set),
             SubstitutionSubtables::ChainContextual(subtables) => subtables.intersects(glyph_set),
             SubstitutionSubtables::Reverse(subtables) => subtables.intersects(glyph_set),
+            SubstitutionSubtables::EmptyExtension => Ok(false),
         }
     }
 }
