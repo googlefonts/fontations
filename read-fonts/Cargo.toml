@@ -39,6 +39,9 @@ font-types = { workspace = true, features = ["bytemuck"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
+once_cell = { version = "1.21.4", default-features = false, features = [
+    "race",
+] }
 
 [dev-dependencies]
 font-test-data = { workspace = true }
