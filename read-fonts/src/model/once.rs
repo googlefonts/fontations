@@ -16,6 +16,10 @@ mod once_impl {
     pub struct Once<T>(OnceBox<T>);
 
     impl<T> Once<T> {
+        pub const fn new() -> Self {
+            Self(OnceBox::new())
+        }
+
         pub fn get_or_init(&self, f: impl FnOnce() -> T) -> &T {
             self.0.get_or_init(|| Box::new(f()))
         }

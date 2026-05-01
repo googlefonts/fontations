@@ -71,7 +71,7 @@ impl Font {
         let inner = FontInner {
             source,
             kind,
-            shaping_data: Default::default(),
+            shaping_data: Once::new(),
         };
         Ok(Self(Arc::new(inner)))
     }
@@ -101,7 +101,7 @@ struct FontInner {
     source: FontSource,
     kind: FontKind,
     // Storage cell for lazily loaded HarfRust shaping data.
-    shaping_data: Once<Box<dyn Any>>,
+    shaping_data: Once<Box<dyn Any + Send + Sync>>,
 }
 
 /// The underlying type of a font.
