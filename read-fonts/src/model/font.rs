@@ -15,7 +15,7 @@ pub mod interop;
 
 use super::once::Once;
 use crate::{ps::type1::Type1Font, types::Tag, ReadError};
-use alloc::sync::Arc;
+use alloc::{boxed::Box, sync::Arc};
 use core::any::Any;
 
 /// Source for font data.
@@ -33,8 +33,8 @@ impl<T: Into<FontBlob>> From<T> for FontSource {
     }
 }
 
-impl From<Arc<dyn Fn(Tag) -> Option<FontBlob>>> for FontSource {
-    fn from(value: Arc<dyn Fn(Tag) -> Option<FontBlob>>) -> Self {
+impl From<Arc<dyn Fn(Tag) -> Option<FontBlob> + Send + Sync>> for FontSource {
+    fn from(value: Arc<dyn Fn(Tag) -> Option<FontBlob> + Send + Sync>) -> Self {
         Self::TableFunction(FontTableFunction::new(value))
     }
 }
@@ -105,6 +105,7 @@ struct FontInner {
 }
 
 /// The underlying type of a font.
+#[allow(clippy::large_enum_variant)]
 pub enum FontKind {
     /// An OpenType font represented by a set of tables and an index.
     OpenType(FontTables, u32),

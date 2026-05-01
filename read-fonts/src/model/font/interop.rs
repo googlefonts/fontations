@@ -3,6 +3,7 @@
 //! This should not be used directly.
 
 use crate::model::font::Font;
+use alloc::boxed::Box;
 use core::any::Any;
 
 /// Internal interop point for HarfRust.
