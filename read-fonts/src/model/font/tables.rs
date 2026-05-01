@@ -47,14 +47,14 @@ type TableFunctionEntry = Once<Option<(AtomicU8, FontBlob)>>;
 /// Lazy, per table font data provided by a function.
 #[derive(Clone)]
 pub struct FontTableFunction {
-    table_fn: Arc<dyn Fn(Tag) -> Option<FontBlob>>,
+    table_fn: Arc<dyn Fn(Tag) -> Option<FontBlob> + Send + Sync>,
     tables: Arc<PerTableData<TableFunctionEntry>>,
 }
 
 impl FontTableFunction {
     /// Creates a new font table function with the given callback that should
     /// return a blob containing the table data for the requested tag.
-    pub fn new(table_fn: Arc<dyn Fn(Tag) -> Option<FontBlob>>) -> Self {
+    pub fn new(table_fn: Arc<dyn Fn(Tag) -> Option<FontBlob> + Send + Sync>) -> Self {
         Self {
             table_fn,
             tables: Arc::new(PerTableData::default()),
