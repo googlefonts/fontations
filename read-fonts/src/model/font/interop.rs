@@ -14,5 +14,5 @@ pub fn _get_or_init_shaping_data(
     font: &Font,
     f: impl FnOnce() -> Box<dyn Any + Send + Sync>,
 ) -> &dyn Any {
-    font.0.shaping_data.get_or_init(|| f())
+    &*font.0.shaping_data.get_or_init(|| f())
 }
