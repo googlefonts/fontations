@@ -4,34 +4,46 @@ use crate::sys::{
     BrotliDecoderDestroyInstance, BrotliDecoderResult_BROTLI_DECODER_RESULT_ERROR,
     BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT,
     BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT,
-    BrotliDecoderResult_BROTLI_DECODER_RESULT_SUCCESS,
+    BrotliDecoderResult_BROTLI_DECODER_RESULT_SUCCESS, BrotliDecoderState,
     BrotliSharedDictionaryType_BROTLI_SHARED_DICTIONARY_RAW, BROTLI_FALSE,
 };
 use core::ptr;
+use std::ptr::NonNull;
 
 pub fn shared_brotli_decode_c(
     encoded: &[u8],
     shared_dictionary: Option<&[u8]>,
     max_uncompressed_length: usize,
 ) -> Result<Vec<u8>, DecodeError> {
-    let decoder = unsafe { BrotliDecoderCreateInstance(None, None, ptr::null_mut()) };
-    if decoder.is_null() {
-        return Err(DecodeError::InitFailure);
-    }
+    // Safety: Both `alloc_func` and `free_func` are `None` which is allowed. This also makes the
+    // `opaque` (3rd argument) irrelevant.
+    let decoder = NonNull::new(unsafe { BrotliDecoderCreateInstance(None, None, ptr::null_mut()) })
+        .ok_or(DecodeError::InitFailure)?;
+    let res = decode(decoder, encoded, shared_dictionary, max_uncompressed_length);
+    // Safety: decoder points to a valid decoder object.
+    unsafe { BrotliDecoderDestroyInstance(decoder.as_ptr()) }
+    res
+}
 
+#[inline(always)]
+fn decode(
+    decoder: NonNull<BrotliDecoderState>,
+    encoded: &[u8],
+    shared_dictionary: Option<&[u8]>,
+    max_uncompressed_length: usize,
+) -> Result<Vec<u8>, DecodeError> {
     if let Some(shared_dictionary) = shared_dictionary {
-        if unsafe {
+        // Safety: Decoder points to a valid `BrotliDecoderState` object. The shared dictionary
+        // pointer and length are valid as they come from a Rust slice.
+        let attach_dictionary_succeeded = unsafe {
             BrotliDecoderAttachDictionary(
-                decoder,
+                decoder.as_ptr(),
                 BrotliSharedDictionaryType_BROTLI_SHARED_DICTIONARY_RAW,
                 shared_dictionary.len(),
                 shared_dictionary.as_ptr(),
             )
-        } == BROTLI_FALSE
-        {
-            unsafe {
-                BrotliDecoderDestroyInstance(decoder);
-            }
+        };
+        if attach_dictionary_succeeded == BROTLI_FALSE {
             return Err(DecodeError::InvalidDictionary);
         }
     }
@@ -44,11 +56,14 @@ pub fn shared_brotli_decode_c(
     let mut available_out = sink.len();
     let mut total_out = 0;
 
-    let mut error: Option<DecodeError> = None;
     loop {
+        // Safety: All pointers are valid and non-null. `next_out` is a pointer with at
+        // `available_in` bytes available within `sink`. This is managed by
+        // `BrotliDecoderDecompressStream` itself and the variables are not mutated outside of this
+        // context.
         let result = unsafe {
             BrotliDecoderDecompressStream(
-                decoder,
+                decoder.as_ptr(),
                 &mut available_in,
                 &mut next_in,
                 &mut available_out,
@@ -61,32 +76,22 @@ pub fn shared_brotli_decode_c(
         match result {
             BrotliDecoderResult_BROTLI_DECODER_RESULT_SUCCESS => break,
             BrotliDecoderResult_BROTLI_DECODER_RESULT_ERROR => {
-                error = Some(DecodeError::InvalidStream);
-                break;
+                return Err(DecodeError::InvalidStream);
             }
             BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT if available_in == 0 => {
                 // Needs more input and none is available.
-                error = Some(DecodeError::InvalidStream);
-                break;
+                return Err(DecodeError::InvalidStream);
             }
             BrotliDecoderResult_BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT if available_out == 0 => {
                 // Needs more output space, but none is available.
-                error = Some(DecodeError::MaxSizeExceeded);
-                break;
+                return Err(DecodeError::MaxSizeExceeded);
             }
             _ => continue,
         }
     }
 
-    unsafe {
-        BrotliDecoderDestroyInstance(decoder);
-    }
-    if let Some(error) = error {
-        return Err(error);
-    }
-
+    // There's is data left in the input stream, which is not allowed
     if available_in > 0 {
-        // There's is data left in the input stream, which is not allowed
         return Err(DecodeError::ExcessInputData);
     }
 
@@ -95,6 +100,5 @@ pub fn shared_brotli_decode_c(
     }
 
     sink.resize(total_out, 0);
-
     Ok(sink)
 }
