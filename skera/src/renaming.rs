@@ -87,7 +87,7 @@ fn sort_axis_value_tables<'a>(axis_value_tables: Vec<AxisValue<'a>>) -> Vec<Axis
         .into_iter()
         .partition(|v| matches!(v, AxisValue::Format4(_)));
     format_4.sort_by_key(|v| match v {
-        AxisValue::Format4(v) => v.axis_values().len(),
+        AxisValue::Format4(v) => core::cmp::Reverse(v.axis_values().len()),
         _ => unreachable!(),
     });
     let mut seen_axis = HashSet::new();
@@ -102,7 +102,7 @@ fn sort_axis_value_tables<'a>(axis_value_tables: Vec<AxisValue<'a>>) -> Vec<Axis
             _ => unreachable!(),
         });
         let min_index = axes_indices.iter().copied().min().unwrap();
-        if !seen_axis.contains(&min_index) {
+        if seen_axis.is_disjoint(&axes_indices) {
             seen_axis.extend(axes_indices);
             results.push((min_index, value));
         }
@@ -125,20 +125,27 @@ fn sort_axis_value_tables<'a>(axis_value_tables: Vec<AxisValue<'a>>) -> Vec<Axis
 
 pub fn update_name_table_from_stat(plan: &Plan, fontref: &FontRef) -> Result<Vec<u8>, SubsetError> {
     let stat = fontref.stat().map_err(SubsetError::ReadError)?;
-    let mut axis_value_tables = axis_values_from_axis_limits(&stat, &plan.user_axes_location)?;
+    let default_axis_coords: FnvHashMap<Tag, Triple<f64>> = plan
+        .user_axes_location
+        .iter()
+        .map(|(tag, triple)| (*tag, Triple::point(triple.middle)))
+        .collect();
+    let mut axis_value_tables = axis_values_from_axis_limits(&stat, &default_axis_coords)?;
     // Check they exist here
     axis_value_tables.retain(|v| {
         !v.flags()
             .contains(AxisValueTableFlags::ELIDABLE_AXIS_VALUE_NAME)
     });
     let axis_value_tables = sort_axis_value_tables(axis_value_tables);
-    //     update_name_records(fontref, &axis_value_tables)
-    // }
+    let elided_fallback_name_id = stat.elided_fallback_name_id();
+    update_name_records(fontref, &axis_value_tables, elided_fallback_name_id)
+}
 
-    // fn update_name_records<'a>(
-    //     fontref: FontRef<'a>,
-    //     axis_value_tables: Vec<AxisValue<'a>>,
-    // ) -> Result<FontRef<'a>, GftoolsError> {
+fn update_name_records<'a>(
+    fontref: &FontRef<'a>,
+    axis_value_tables: &[AxisValue<'a>],
+    elided_fallback_name_id: Option<NameId>,
+) -> Result<Vec<u8>, SubsetError> {
     let mut name_table: Name = fontref
         .name()
         .map_err(SubsetError::ReadError)?
@@ -153,7 +160,6 @@ pub fn update_name_table_from_stat(plan: &Plan, fontref: &FontRef) -> Result<Vec
         .map_err(SubsetError::ReadError)?
         .ach_vend_id()
         .to_string();
-    let elided_fallback_name_id = stat.elided_fallback_name_id();
     let axis_value_name_ids: Vec<NameId> = axis_value_tables
         .iter()
         .map(|v| v.value_name_id())
@@ -277,9 +283,14 @@ pub fn update_name_table_from_stat(plan: &Plan, fontref: &FontRef) -> Result<Vec
 }
 
 fn is_ribbi(strings: LocalizedStrings) -> bool {
-    strings
-        .map(|s| s.to_string())
-        .any(|s| s.contains("Regular") || s.contains("Italic") || s.contains("Bold"))
+    let Some(english_record) = strings.into_iter().find(|s| s.language() == Some("en-US")) else {
+        return false;
+    };
+    let english = english_record.to_string();
+    matches!(
+        english.as_str(),
+        "Regular" | "Italic" | "Bold" | "Bold Italic"
+    )
 }
 
 fn update_name_table_style_records(
@@ -520,4 +531,74 @@ pub(crate) fn set_ribbi_bits(font_data: Vec<u8>) -> Result<Vec<u8>, SubsetError>
         .map_err(|_| SubsetError::SubsetTableError(Os2::TAG))?;
     new_font.copy_missing_tables(font);
     Ok(new_font.build())
+}
+
+#[cfg(test)]
+mod tests {
+    use skrifa::raw::collections::IntSet;
+
+    use crate::{parse_instancing_spec, InstancingSpec, SubsetFlags};
+
+    use super::*;
+
+    fn subspace_font(
+        fontref: &FontRef,
+        instancing_spec: InstancingSpec,
+    ) -> Result<Vec<u8>, SubsetError> {
+        let plan = Plan::new(
+            &IntSet::all(),
+            &IntSet::all(),
+            fontref,
+            SubsetFlags::SUBSET_FLAGS_UPDATE_NAME_TABLE,
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &Some(instancing_spec),
+        );
+        crate::subset_font(fontref, &plan)
+    }
+
+    #[test]
+    fn test_is_renamed() {
+        let vfstat = include_bytes!("../test-data/rename/NotoSansArabic-VF-STAT.ttf");
+        let fontref = FontRef::new(vfstat).unwrap();
+        let renamed_font =
+            subspace_font(&fontref, parse_instancing_spec("wdth=75,wght=700").unwrap()).unwrap();
+        let renamed_fontref = FontRef::new(&renamed_font).unwrap();
+        for (name_id, expected_value) in [
+            (NameId::FAMILY_NAME, "Noto Sans Arabic Condensed"),
+            (NameId::SUBFAMILY_NAME, "Bold"),
+            (NameId::UNIQUE_ID, "2.013;GOOG;NotoSansArabic-BoldCondensed"),
+            (NameId::TYPOGRAPHIC_FAMILY_NAME, "Noto Sans Arabic"),
+            (NameId::TYPOGRAPHIC_SUBFAMILY_NAME, "Bold Condensed"),
+        ] {
+            let value = renamed_fontref
+                .localized_strings(name_id)
+                .english_or_first()
+                .unwrap()
+                .to_string();
+            assert_eq!(
+                value, expected_value,
+                "Name ID {:?} was not renamed as expected",
+                name_id
+            );
+        }
+        // Old stat names should be removed - one day, but NameIdClosure for Stat<'_> doesn't support instancing yet.
+        // let name_table = renamed_fontref.name().unwrap();
+        // let all_english_names = name_table
+        //     .name_record()
+        //     .iter()
+        //     .filter_map(|record| {
+        //         if record.platform_id == 3 && record.encoding_id == 1 && record.language_id == 0x409
+        //         {
+        //             Some(record.string(name_table.string_data()).unwrap().to_string())
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .collect::<HashSet<_>>();
+        // assert!(!all_english_names.contains("ExtraCondensed"));
+    }
 }
