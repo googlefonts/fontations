@@ -25,7 +25,7 @@ fn axis_values_from_axis_limits<'a>(
     axis_limits: &FnvHashMap<Tag, Triple<f64>>,
 ) -> Result<Vec<AxisValue<'a>>, SubsetError> {
     let Some(Ok(subtable)) = stat.offset_to_axis_values() else {
-        unreachable!("stat table has no axis values subtable, even though we checked it did");
+        return Ok(vec![]);
     };
     let axis_tags = stat
         .design_axes()
