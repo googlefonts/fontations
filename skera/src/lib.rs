@@ -1789,7 +1789,7 @@ pub fn subset_font(font: &FontRef, plan: &Plan) -> Result<Vec<u8>, SubsetError> 
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_UPDATE_NAME_TABLE)
     {
-        byte_buffer = crate::renaming::update_name_table_from_stat(plan, font)?;
+        byte_buffer = crate::renaming::update_name_table(plan, font)?;
         FontRef::new(&byte_buffer).map_err(SubsetError::ReadError)?
     } else {
         font.clone()

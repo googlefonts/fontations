@@ -25,7 +25,7 @@ fn axis_values_from_axis_limits<'a>(
     axis_limits: &FnvHashMap<Tag, Triple<f64>>,
 ) -> Result<Vec<AxisValue<'a>>, SubsetError> {
     let Some(Ok(subtable)) = stat.offset_to_axis_values() else {
-        return Ok(vec![]);
+        return Err(SubsetError::SubsetTableError(Stat::TAG));
     };
     let axis_tags = stat
         .design_axes()
@@ -123,7 +123,7 @@ fn sort_axis_value_tables<'a>(axis_value_tables: Vec<AxisValue<'a>>) -> Vec<Axis
     results.into_iter().map(|(_, v)| v).collect()
 }
 
-pub fn update_name_table_from_stat(plan: &Plan, fontref: &FontRef) -> Result<Vec<u8>, SubsetError> {
+fn update_name_table_from_stat(plan: &Plan, fontref: &FontRef) -> Result<Vec<u8>, SubsetError> {
     let stat = fontref.stat().map_err(SubsetError::ReadError)?;
     let default_axis_coords: FnvHashMap<Tag, Triple<f64>> = plan
         .user_axes_location
@@ -139,6 +139,150 @@ pub fn update_name_table_from_stat(plan: &Plan, fontref: &FontRef) -> Result<Vec
     let axis_value_tables = sort_axis_value_tables(axis_value_tables);
     let elided_fallback_name_id = stat.elided_fallback_name_id();
     update_name_records(fontref, &axis_value_tables, elided_fallback_name_id)
+}
+
+fn update_name_table_from_fvar(plan: &Plan, fontref: &FontRef) -> Result<Vec<u8>, SubsetError> {
+    let instances = fontref.named_instances();
+    if !plan.all_axes_pinned {
+        return Ok(fontref.data().as_bytes().to_vec());
+    }
+    let fallback_version = fontref
+        .head()
+        .map_err(SubsetError::ReadError)?
+        .font_revision()
+        .to_string();
+    let vendor_id = fontref
+        .os2()
+        .map_err(SubsetError::ReadError)?
+        .ach_vend_id()
+        .to_string();
+
+    // Build user location in fvar axis order, so comparison with named instances is stable.
+    let user_loc = fontref
+        .axes()
+        .iter()
+        .filter_map(|axis| {
+            plan.user_axes_location
+                .get(&axis.tag())
+                .map(|triple| triple.middle as f32)
+        })
+        .collect::<Vec<_>>();
+    let Some(this_instance) = instances.iter().find(|instance| {
+        let coords = instance.user_coords().collect::<Vec<_>>();
+        coords.len() == user_loc.len()
+            && coords
+                .iter()
+                .zip(user_loc.iter())
+                .all(|(a, b)| (*a - *b).abs() <= 1e-4)
+    }) else {
+        log::warn!(
+            "No matching instance found for user location {:?}, skipping name table update",
+            user_loc
+        );
+        return Ok(fontref.data().as_bytes().to_vec());
+    };
+    let subfamily_name_id = this_instance.subfamily_name_id();
+    // Split English subfamily name into particles and classify each as RIBBI/non-RIBBI.
+    // We then apply the same split pattern by position to each platform string.
+    let english_particles = fontref
+        .localized_strings(subfamily_name_id)
+        .english_or_first()
+        .map(|s| s.to_string())
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
+    let ribbi_particles = english_particles
+        .iter()
+        .map(|s| matches!(s.to_lowercase().as_str(), "regular" | "italic" | "bold"))
+        .collect::<Vec<_>>();
+
+    let mut name_table: Name = fontref
+        .name()
+        .map_err(SubsetError::ReadError)?
+        .to_owned_table();
+    let mut name_records = name_table.name_record;
+    let platforms: HashSet<_> = name_records
+        .iter()
+        .map(|record| (record.platform_id, record.encoding_id, record.language_id))
+        .collect();
+    for platform in platforms.into_iter() {
+        let records_for_platform = name_records
+            .iter()
+            .filter(|record| {
+                record.platform_id == platform.0
+                    && record.encoding_id == platform.1
+                    && record.language_id == platform.2
+            })
+            .collect::<Vec<_>>();
+        if !records_for_platform
+            .iter()
+            .any(|record| record.name_id == NameId::FAMILY_NAME)
+            || !records_for_platform
+                .iter()
+                .any(|record| record.name_id == NameId::SUBFAMILY_NAME)
+        {
+            continue;
+        }
+
+        let full_subfamily = records_for_platform
+            .iter()
+            .find(|record| record.name_id == subfamily_name_id)
+            .map(|record| record.string.to_string())
+            .unwrap_or_default();
+
+        let localized_particles = full_subfamily
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>();
+
+        let mut ribbi_parts = Vec::new();
+        let mut non_ribbi_parts = Vec::new();
+        for (idx, particle) in localized_particles.iter().enumerate() {
+            if ribbi_particles.get(idx).copied().unwrap_or(false) {
+                ribbi_parts.push(particle.clone());
+            } else {
+                non_ribbi_parts.push(particle.clone());
+            }
+        }
+
+        let subfamily_name = ribbi_parts.join(" ");
+        let family_name_suffix = non_ribbi_parts.join(" ");
+        let typo_subfamily_name = if family_name_suffix.is_empty() {
+            None
+        } else {
+            Some(full_subfamily)
+        };
+
+        update_name_table_style_records(
+            &mut name_records,
+            family_name_suffix,
+            subfamily_name,
+            typo_subfamily_name,
+            platform,
+            &fallback_version,
+            vendor_id.clone(),
+        )
+        .map_err(SubsetError::ReadError)?;
+    }
+
+    // Sort the name records, rebuild the name table
+    name_table.name_record = name_records;
+    name_table.name_record.sort();
+    let mut new_font = FontBuilder::new();
+    new_font
+        .add_table(&name_table)
+        .map_err(|_| SubsetError::SubsetTableError(Stat::TAG))?;
+    new_font.copy_missing_tables(fontref.clone());
+    Ok(new_font.build())
+}
+
+pub fn update_name_table(plan: &Plan, fontref: &FontRef) -> Result<Vec<u8>, SubsetError> {
+    if let Ok(newfont) = update_name_table_from_stat(plan, fontref) {
+        Ok(newfont)
+    } else {
+        update_name_table_from_fvar(plan, fontref)
+    }
 }
 
 fn update_name_records<'a>(
@@ -561,7 +705,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_renamed() {
+    fn test_stat_is_renamed() {
         let vfstat = include_bytes!("../test-data/rename/NotoSansArabic-VF-STAT.ttf");
         let fontref = FontRef::new(vfstat).unwrap();
         let renamed_font =
@@ -573,6 +717,48 @@ mod tests {
             (NameId::UNIQUE_ID, "2.013;GOOG;NotoSansArabic-BoldCondensed"),
             (NameId::TYPOGRAPHIC_FAMILY_NAME, "Noto Sans Arabic"),
             (NameId::TYPOGRAPHIC_SUBFAMILY_NAME, "Bold Condensed"),
+        ] {
+            let value = renamed_fontref
+                .localized_strings(name_id)
+                .english_or_first()
+                .unwrap()
+                .to_string();
+            assert_eq!(
+                value, expected_value,
+                "Name ID {:?} was not renamed as expected",
+                name_id
+            );
+        }
+        // Old stat names should be removed - one day, but NameIdClosure for Stat<'_> doesn't support instancing yet.
+        // let name_table = renamed_fontref.name().unwrap();
+        // let all_english_names = name_table
+        //     .name_record()
+        //     .iter()
+        //     .filter_map(|record| {
+        //         if record.platform_id == 3 && record.encoding_id == 1 && record.language_id == 0x409
+        //         {
+        //             Some(record.string(name_table.string_data()).unwrap().to_string())
+        //         } else {
+        //             None
+        //         }
+        //     })
+        //     .collect::<HashSet<_>>();
+        // assert!(!all_english_names.contains("ExtraCondensed"));
+    }
+
+    #[test]
+    fn test_fvar_is_renamed() {
+        let vfstat = include_bytes!("../test-data/rename/NotoSansArabic-VF-fvar.ttf");
+        let fontref = FontRef::new(vfstat).unwrap();
+        let renamed_font =
+            subspace_font(&fontref, parse_instancing_spec("wdth=75,wght=700").unwrap()).unwrap();
+        let renamed_fontref = FontRef::new(&renamed_font).unwrap();
+        for (name_id, expected_value) in [
+            (NameId::FAMILY_NAME, "Noto Sans Arabic Condensed"),
+            (NameId::SUBFAMILY_NAME, "Bold"),
+            (NameId::UNIQUE_ID, "2.013;GOOG;NotoSansArabic-CondensedBold"),
+            (NameId::TYPOGRAPHIC_FAMILY_NAME, "Noto Sans Arabic"),
+            (NameId::TYPOGRAPHIC_SUBFAMILY_NAME, "Condensed Bold"), // That's what the fvar instances say
         ] {
             let value = renamed_fontref
                 .localized_strings(name_id)
