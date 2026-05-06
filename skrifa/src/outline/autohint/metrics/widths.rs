@@ -6,7 +6,7 @@ use super::super::{
     outline::Outline,
     shape::{ShapedCluster, Shaper},
     style::{ScriptGroup, StyleClass},
-    topo::{compute_segments, link_segments, Axis},
+    topo::{compute_segments, link_segments, Axis, Dimension},
 };
 use crate::MetadataProvider;
 use raw::{types::F2Dot14, TableProvider};
@@ -51,7 +51,10 @@ pub(super) fn compute_widths(
     if let Some(glyph) = glyph {
         if outline.fill(&glyph, coords).is_ok() && !outline.points.is_empty() {
             // Now process each dimension
-            for (dim, (_metrics, widths)) in result.iter_mut().enumerate() {
+            for (dim, (_metrics, widths)) in [Dimension::Horizontal, Dimension::Vertical]
+                .into_iter()
+                .zip(result.iter_mut())
+            {
                 axis.reset(dim, outline.orientation);
                 // Segment computation for widths always uses the default
                 // script group

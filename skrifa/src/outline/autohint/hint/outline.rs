@@ -39,8 +39,8 @@ pub(crate) fn align_edge_points(
     // Snapping is configurable for CJK
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L2195>
     let snap = group == ScriptGroup::Default
-        || ((axis.dim == Axis::HORIZONTAL && scale.flags & Scale::HORIZONTAL_SNAP != 0)
-            || (axis.dim == Axis::VERTICAL && scale.flags & Scale::VERTICAL_SNAP != 0));
+        || ((axis.dim == Dimension::Horizontal && scale.flags & Scale::HORIZONTAL_SNAP != 0)
+            || (axis.dim == Dimension::Vertical && scale.flags & Scale::VERTICAL_SNAP != 0));
     for segment in segments {
         let Some(edge) = segment.edge(edges) else {
             continue;
@@ -50,7 +50,7 @@ pub(crate) fn align_edge_points(
         let last_ix = segment.last();
         loop {
             let point = points.get_mut(point_ix)?;
-            if axis.dim == Axis::HORIZONTAL {
+            if axis.dim == Dimension::Horizontal {
                 if snap {
                     point.x = edge.pos;
                 } else {
@@ -86,7 +86,7 @@ pub(crate) fn align_strong_points(
         return Some(());
     }
     let dim = axis.dim;
-    let touch_flag = if dim == Axis::HORIZONTAL {
+    let touch_flag = if dim == Dimension::Horizontal {
         PointMarker::TOUCHED_X
     } else {
         PointMarker::TOUCHED_Y
@@ -101,7 +101,7 @@ pub(crate) fn align_strong_points(
         {
             continue;
         }
-        let (u, ou) = if dim == Axis::VERTICAL {
+        let (u, ou) = if dim == Dimension::Vertical {
             (point.fy, point.oy)
         } else {
             (point.fx, point.ox)
@@ -201,7 +201,7 @@ pub(crate) fn align_strong_points(
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1673>
 pub(crate) fn align_weak_points(outline: &mut Outline, dim: Dimension) -> Option<()> {
-    let touch_marker = if dim == Axis::HORIZONTAL {
+    let touch_marker = if dim == Dimension::Horizontal {
         for point in &mut outline.points {
             point.u = point.x;
             point.v = point.ox;
@@ -277,7 +277,7 @@ pub(crate) fn align_weak_points(outline: &mut Outline, dim: Dimension) -> Option
         }
     }
     // Save interpolated values
-    if dim == Axis::HORIZONTAL {
+    if dim == Dimension::Horizontal {
         for point in &mut outline.points {
             point.x = point.u;
         }
@@ -291,7 +291,7 @@ pub(crate) fn align_weak_points(outline: &mut Outline, dim: Dimension) -> Option
 
 #[inline(always)]
 fn store_point(point: &mut Point, dim: Dimension, u: i32) {
-    if dim == Axis::HORIZONTAL {
+    if dim == Dimension::Horizontal {
         point.x = u;
         point.flags.set_marker(PointMarker::TOUCHED_X);
     } else {
@@ -380,7 +380,7 @@ mod tests {
     use super::{
         super::super::{
             metrics::{compute_unscaled_style_metrics, Scale},
-            recorder::{Action, HintRecord, HintsRecorder},
+            recorder::{EdgeAction, Hint, HintsRecorder, PointAction},
             shape::{Shaper, ShaperMode},
             style,
         },
@@ -490,19 +490,19 @@ mod tests {
         assert!(recorder
             .records
             .iter()
-            .any(|record| matches!(record, HintRecord::Edge(edge) if edge.blue.is_some())));
+            .any(|record| matches!(record, Hint::Edge(edge) if edge.blue.is_some())));
         assert!(recorder.records.iter().any(|record| {
             matches!(
                 record,
-                HintRecord::Edge(edge)
-                    if matches!(edge.action, Action::Blue | Action::BlueAnchor | Action::Anchor | Action::Stem | Action::Adjust)
+                Hint::Edge(edge)
+                    if matches!(edge.action, EdgeAction::Blue | EdgeAction::BlueAnchor | EdgeAction::Anchor | EdgeAction::Stem | EdgeAction::Adjust)
             )
         }));
         assert!(recorder.records.iter().any(|record| {
             matches!(
                 record,
-                HintRecord::Point(point)
-                    if matches!(point.action, Action::IpBefore | Action::IpAfter | Action::IpOn | Action::IpBetween)
+                Hint::Point(point)
+                    if matches!(point.action, PointAction::IpBefore | PointAction::IpAfter | PointAction::IpOn | PointAction::IpBetween)
             )
         }));
     }

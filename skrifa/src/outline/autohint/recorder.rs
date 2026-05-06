@@ -2,13 +2,18 @@ use alloc::vec::Vec;
 
 use crate::outline::autohint::topo::{BlueProvenance, Dimension};
 
-#[allow(dead_code)]
+/// Hinting action for a point.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum Action {
+pub enum PointAction {
     IpBefore,
     IpAfter,
     IpOn,
     IpBetween,
+}
+
+/// Hinting action for an edge.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum EdgeAction {
     Blue,
     BlueAnchor,
     Anchor,
@@ -22,18 +27,20 @@ pub enum Action {
     Bound,
 }
 
+/// Hinting information for a point.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct PointHintRecord {
-    pub action: Action,
+pub struct PointHint {
+    pub action: PointAction,
     pub dim: Dimension,
     pub point_ix: u16,
     pub edge_ix: Option<u16>,
     pub edge2_ix: Option<u16>,
 }
 
+/// Hinting information for an edge.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub struct EdgeHintRecord {
-    pub action: Action,
+pub struct EdgeHint {
+    pub action: EdgeAction,
     pub dim: Dimension,
     pub edge_ix: u16,
     pub edge2_ix: Option<u16>,
@@ -43,21 +50,22 @@ pub struct EdgeHintRecord {
     pub blue: Option<BlueProvenance>,
 }
 
+/// Hinting information for a point or an edge.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum HintRecord {
-    Point(PointHintRecord),
-    Edge(EdgeHintRecord),
+pub enum Hint {
+    Point(PointHint),
+    Edge(EdgeHint),
 }
 
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct HintsRecorder {
-    pub records: Vec<HintRecord>,
+    pub records: Vec<Hint>,
 }
 
 impl HintsRecorder {
     pub fn record_ip_before(&mut self, dim: Dimension, point_ix: usize) {
-        self.records.push(HintRecord::Point(PointHintRecord {
-            action: Action::IpBefore,
+        self.records.push(Hint::Point(PointHint {
+            action: PointAction::IpBefore,
             dim,
             point_ix: narrow(point_ix),
             edge_ix: None,
@@ -66,8 +74,8 @@ impl HintsRecorder {
     }
 
     pub fn record_ip_after(&mut self, dim: Dimension, point_ix: usize) {
-        self.records.push(HintRecord::Point(PointHintRecord {
-            action: Action::IpAfter,
+        self.records.push(Hint::Point(PointHint {
+            action: PointAction::IpAfter,
             dim,
             point_ix: narrow(point_ix),
             edge_ix: None,
@@ -76,8 +84,8 @@ impl HintsRecorder {
     }
 
     pub fn record_ip_on(&mut self, dim: Dimension, point_ix: usize, edge_ix: usize) {
-        self.records.push(HintRecord::Point(PointHintRecord {
-            action: Action::IpOn,
+        self.records.push(Hint::Point(PointHint {
+            action: PointAction::IpOn,
             dim,
             point_ix: narrow(point_ix),
             edge_ix: Some(narrow(edge_ix)),
@@ -92,8 +100,8 @@ impl HintsRecorder {
         before_edge_ix: usize,
         after_edge_ix: usize,
     ) {
-        self.records.push(HintRecord::Point(PointHintRecord {
-            action: Action::IpBetween,
+        self.records.push(Hint::Point(PointHint {
+            action: PointAction::IpBetween,
             dim,
             point_ix: narrow(point_ix),
             edge_ix: Some(narrow(before_edge_ix)),
@@ -105,7 +113,7 @@ impl HintsRecorder {
     pub fn record_edge(
         &mut self,
         dim: Dimension,
-        action: Action,
+        action: EdgeAction,
         edge_ix: usize,
         edge2_ix: Option<usize>,
         edge3_ix: Option<usize>,
@@ -113,7 +121,7 @@ impl HintsRecorder {
         upper_bound_ix: Option<usize>,
         blue: Option<BlueProvenance>,
     ) {
-        self.records.push(HintRecord::Edge(EdgeHintRecord {
+        self.records.push(Hint::Edge(EdgeHint {
             action,
             dim,
             edge_ix: narrow(edge_ix),

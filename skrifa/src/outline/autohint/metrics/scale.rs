@@ -12,12 +12,31 @@ use super::super::{
         ScaledBlue, ScaledStyleMetrics, ScaledWidth, UnscaledAxisMetrics, UnscaledBlue,
         UnscaledStyleMetrics, WidthMetrics,
     },
-    shape::Shaper,
+    shape::{Shaper, ShaperMode},
     style::{ScriptGroup, StyleClass},
-    topo::{Axis, Dimension},
+    topo::Dimension,
 };
-use crate::{prelude::Size, MetadataProvider};
+use crate::{instance::NormalizedCoord, prelude::Size, FontRef, MetadataProvider};
 use raw::types::F2Dot14;
+
+impl UnscaledStyleMetrics {
+    /// Creates a set of metrics for the given font, normalized coordinates
+    /// and style class.
+    pub fn new(font: &FontRef, coords: &[NormalizedCoord], style: &StyleClass) -> Self {
+        let shaper_mode = if cfg!(feature = "autohint_shaping") {
+            ShaperMode::BestEffort
+        } else {
+            ShaperMode::Nominal
+        };
+        let shaper = Shaper::new(font, shaper_mode);
+        compute_unscaled_style_metrics(&shaper, coords, style)
+    }
+
+    /// Applies the given scale to this set of style metrics.
+    pub fn scale(&self, scale: Scale) -> ScaledStyleMetrics {
+        scale_style_metrics(self, scale)
+    }
+}
 
 /// Computes unscaled metrics for the Latin writing system.
 ///
@@ -36,11 +55,11 @@ pub(crate) fn compute_unscaled_style_metrics(
             class_ix: style.index as u16,
             axes: [
                 UnscaledAxisMetrics {
-                    dim: Axis::HORIZONTAL,
+                    dim: Dimension::Horizontal,
                     ..Default::default()
                 },
                 UnscaledAxisMetrics {
-                    dim: Axis::VERTICAL,
+                    dim: Dimension::Vertical,
                     ..Default::default()
                 },
             ],
@@ -69,13 +88,13 @@ pub(crate) fn compute_unscaled_style_metrics(
         digits_have_same_width,
         axes: [
             UnscaledAxisMetrics {
-                dim: Axis::HORIZONTAL,
+                dim: Dimension::Horizontal,
                 blues: hblues,
                 width_metrics: hwidths.0,
                 widths: hwidths.1,
             },
             UnscaledAxisMetrics {
-                dim: Axis::VERTICAL,
+                dim: Dimension::Vertical,
                 blues: vblues,
                 width_metrics: vwidths.0,
                 widths: vwidths.1,
@@ -126,7 +145,7 @@ fn scale_default_axis_metrics(
         dim,
         ..Default::default()
     };
-    if dim == Axis::HORIZONTAL {
+    if dim == Dimension::Horizontal {
         axis.scale = scale.x_scale;
         axis.delta = scale.x_delta;
     } else {
@@ -141,7 +160,7 @@ fn scale_default_axis_metrics(
         let unscaled_blue = &blues[blue_ix];
         let scaled = fixed_mul(axis.scale, unscaled_blue.overshoot);
         let fitted = (scaled + 40) & !63;
-        if scaled != fitted && dim == Axis::VERTICAL {
+        if scaled != fitted && dim == Dimension::Vertical {
             let new_scale = fixed_mul_div(axis.scale, fitted, scaled);
             // Scaling should not adjust by more than 2 pixels
             let mut max_height = scale.units_per_em;
@@ -178,7 +197,7 @@ fn scale_default_axis_metrics(
     // less than 5/8 pixels
     axis.width_metrics.is_extra_light =
         fixed_mul(axis.width_metrics.standard_width, axis.scale) < (32 + 8);
-    if dim == Axis::VERTICAL {
+    if dim == Dimension::Vertical {
         // And scale the blue zones
         for unscaled_blue in blues {
             let scaled_position = fixed_mul(axis.scale, unscaled_blue.position) + axis.delta;
@@ -253,7 +272,7 @@ fn scale_cjk_axis_metrics(
         ..Default::default()
     };
     axis.dim = dim;
-    if dim == Axis::HORIZONTAL {
+    if dim == Dimension::Horizontal {
         axis.scale = scale.x_scale;
         axis.delta = scale.x_delta;
     } else {

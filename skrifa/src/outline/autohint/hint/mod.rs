@@ -8,7 +8,7 @@ use super::{
     outline::Outline,
     recorder::HintsRecorder,
     style::{GlyphStyle, ScriptGroup},
-    topo::{self, Axis},
+    topo::{self, Axis, Dimension},
 };
 
 /// Captures adjusted horizontal scale and outer edge positions to be used
@@ -99,9 +99,9 @@ fn hint_outline_impl(
             vertical_axis,
         };
     }
-    for dim in 0..2 {
-        if (dim == Axis::HORIZONTAL && scale.flags & Scale::NO_HORIZONTAL != 0)
-            || (dim == Axis::VERTICAL && scale.flags & Scale::NO_VERTICAL != 0)
+    for dim in [Dimension::Horizontal, Dimension::Vertical] {
+        if (dim == Dimension::Horizontal && scale.flags & Scale::NO_HORIZONTAL != 0)
+            || (dim == Dimension::Vertical && scale.flags & Scale::NO_VERTICAL != 0)
         {
             continue;
         }
@@ -121,7 +121,7 @@ fn hint_outline_impl(
             scaled_metrics.scale.y_scale,
             group,
         );
-        if dim == Axis::VERTICAL {
+        if dim == Dimension::Vertical {
             if group != ScriptGroup::Default
                 || glyph_style
                     .map(|style| !style.is_non_base())
@@ -149,7 +149,7 @@ fn hint_outline_impl(
         outline::align_edge_points(outline, &axis, group, scale);
         outline::align_strong_points(outline, &mut axis, recorder.as_deref_mut());
         outline::align_weak_points(outline, dim);
-        if dim == 0 && axis.edges.len() > 1 {
+        if dim == Dimension::Horizontal && axis.edges.len() > 1 {
             let left = axis.edges.first().unwrap();
             let right = axis.edges.last().unwrap();
             hinted_metrics.edge_metrics = Some(EdgeMetrics {
@@ -159,7 +159,7 @@ fn hint_outline_impl(
                 right_opos: right.opos,
             });
         }
-        if dim == Axis::VERTICAL {
+        if dim == Dimension::Vertical {
             vertical_axis = Some(axis.clone());
         }
     }

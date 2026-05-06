@@ -11,12 +11,14 @@ mod topo;
 
 pub use instance::GlyphStyles;
 pub(crate) use instance::Instance;
-#[cfg(feature = "autohinter")]
 pub use metrics::{
-    compute_scaled_style_metrics_exported, compute_unscaled_style_metrics_exported,
-    ExportedScaledBlue, ExportedScaledStyleMetrics, ExportedScaledWidth, ExportedUnscaledBlue,
-    ExportedUnscaledStyleMetrics,
+    BlueZones, Scale, ScaledAxisMetrics, ScaledBlue, ScaledStyleMetrics, ScaledWidth,
+    UnscaledAxisMetrics, UnscaledBlue, UnscaledStyleMetrics, WidthMetrics,
 };
+pub use outline::Direction;
+pub use recorder::{EdgeAction, EdgeHint, Hint, PointAction, PointHint};
+pub use style::{GlyphStyle, ScriptClass, ScriptGroup, StyleClass};
+pub use topo::{BlueProvenance, Dimension};
 
 #[cfg(feature = "autohinter")]
 pub use style::{SCRIPT_CLASSES, STYLE_CLASSES};
@@ -29,19 +31,6 @@ use crate::{FontRef, MetadataProvider};
 use alloc::vec::Vec;
 #[cfg(feature = "autohinter")]
 use raw::types::{F2Dot14, GlyphId};
-
-#[cfg(feature = "autohinter")]
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub struct ExportedHintRecord {
-    pub action: u8,
-    pub dim: u8,
-    pub point_ix: u16,
-    pub edge_ix: u16,
-    pub edge2_ix: u16,
-    pub edge3_ix: u16,
-    pub lower_bound_ix: u16,
-    pub upper_bound_ix: u16,
-}
 
 #[cfg(feature = "autohinter")]
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
@@ -83,143 +72,75 @@ pub struct ExportedHintEdge {
     pub blue_is_shoot: u8,
 }
 
+/// Plan for hinting an outline.
 #[cfg(feature = "autohinter")]
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
-pub struct ExportedHintPlan {
-    pub records: Vec<ExportedHintRecord>,
+pub struct HintPlan {
+    pub hints: Vec<Hint>,
     pub segments: Vec<ExportedHintSegment>,
     pub edges: Vec<ExportedHintEdge>,
 }
 
 #[cfg(feature = "autohinter")]
-pub fn compute_hint_plan_exported(
-    font: &FontRef,
-    coords: &[F2Dot14],
-    glyph_id: u32,
-    style_index: usize,
-    is_non_base: bool,
-    is_digit: bool,
-    ppem: f32,
-) -> Option<ExportedHintPlan> {
-    let style_class = STYLE_CLASSES.get(style_index)?;
-    let outline_glyph = font.outline_glyphs().get(GlyphId::new(glyph_id))?;
+impl HintPlan {
+    /// Creates a new hint plan.
+    pub fn new(
+        font: &FontRef,
+        coords: &[F2Dot14],
+        ppem: f32,
+        glyph_id: u32,
+        glyph_style: GlyphStyle,
+    ) -> Option<Self> {
+        let style_class = glyph_style.style_class()?;
+        let outline_glyph = font.outline_glyphs().get(GlyphId::new(glyph_id))?;
 
-    let shaper_mode = if cfg!(feature = "autohint_shaping") {
-        shape::ShaperMode::BestEffort
-    } else {
-        shape::ShaperMode::Nominal
-    };
-    let shaper = shape::Shaper::new(font, shaper_mode);
-    let metrics = metrics::compute_unscaled_style_metrics(&shaper, coords, style_class);
+        let shaper_mode = if cfg!(feature = "autohint_shaping") {
+            shape::ShaperMode::BestEffort
+        } else {
+            shape::ShaperMode::Nominal
+        };
+        let shaper = shape::Shaper::new(font, shaper_mode);
+        let metrics = metrics::compute_unscaled_style_metrics(&shaper, coords, style_class);
 
-    let mut outline = outline::Outline::default();
-    outline.fill(&outline_glyph, coords).ok()?;
+        let mut outline = outline::Outline::default();
+        outline.fill(&outline_glyph, coords).ok()?;
 
-    let glyph_style = style::GlyphStyle::from_parts(style_index as u16, is_non_base, is_digit);
-    let scale = metrics::Scale::new(
-        ppem,
-        outline_glyph.units_per_em() as i32,
-        font.attributes().style,
-        Target::Smooth {
-            mode: SmoothMode::Normal,
-            symmetric_rendering: true,
-            preserve_linear_metrics: false,
-        },
-        metrics.style_class().script.group,
-    );
-
-    let mut recorder = recorder::HintsRecorder::default();
-    let hinted_plan = hint::hint_outline_with_plan(
-        &mut outline,
-        &metrics,
-        &scale,
-        Some(glyph_style),
-        Some(&mut recorder),
-    );
-
-    let vertical_axis = hinted_plan.vertical_axis;
-    let records = export_records(recorder.records);
-    let (segments, edges) = if let Some(axis) = vertical_axis {
-        let segments = axis.segments.iter().copied().map(export_segment).collect();
-        let edges = axis.edges.iter().copied().map(export_edge).collect();
-        (segments, edges)
-    } else {
-        (Vec::new(), Vec::new())
-    };
-
-    Some(ExportedHintPlan {
-        records,
-        segments,
-        edges,
-    })
-}
-
-#[cfg(feature = "autohinter")]
-pub fn compute_hint_records_exported(
-    font: &FontRef,
-    coords: &[F2Dot14],
-    glyph_id: u32,
-    style_index: usize,
-    is_non_base: bool,
-    is_digit: bool,
-    ppem: f32,
-) -> Option<Vec<ExportedHintRecord>> {
-    Some(
-        compute_hint_plan_exported(
-            font,
-            coords,
-            glyph_id,
-            style_index,
-            is_non_base,
-            is_digit,
+        let scale = metrics::Scale::new(
             ppem,
-        )?
-        .records,
-    )
-}
+            outline_glyph.units_per_em() as i32,
+            font.attributes().style,
+            Target::Smooth {
+                mode: SmoothMode::Normal,
+                symmetric_rendering: true,
+                preserve_linear_metrics: false,
+            },
+            metrics.style_class().script.group,
+        );
 
-#[cfg(feature = "autohinter")]
-fn export_records(records: Vec<recorder::HintRecord>) -> Vec<ExportedHintRecord> {
-    let mut out = Vec::with_capacity(records.len());
-    for record in records {
-        match record {
-            recorder::HintRecord::Point(point) => {
-                // Skip horizontal hints: C's TA_compare_record_hint filters
-                // out TA_DIMENSION_HORZ (= 0) and only records vertical hints.
-                if point.dim == topo::Axis::HORIZONTAL {
-                    continue;
-                }
-                out.push(ExportedHintRecord {
-                    action: action_code(point.action),
-                    dim: point.dim as u8,
-                    point_ix: point.point_ix,
-                    edge_ix: point.edge_ix.unwrap_or(u16::MAX),
-                    edge2_ix: point.edge2_ix.unwrap_or(u16::MAX),
-                    edge3_ix: u16::MAX,
-                    lower_bound_ix: u16::MAX,
-                    upper_bound_ix: u16::MAX,
-                });
-            }
-            recorder::HintRecord::Edge(edge) => {
-                // Skip horizontal hints (same reason as above).
-                if edge.dim == topo::Axis::HORIZONTAL {
-                    continue;
-                }
-                out.push(ExportedHintRecord {
-                    action: action_code(edge.action),
-                    dim: edge.dim as u8,
-                    point_ix: u16::MAX,
-                    edge_ix: edge.edge_ix,
-                    edge2_ix: edge.edge2_ix.unwrap_or(u16::MAX),
-                    edge3_ix: edge.edge3_ix.unwrap_or(u16::MAX),
-                    lower_bound_ix: edge.lower_bound_ix.unwrap_or(u16::MAX),
-                    upper_bound_ix: edge.upper_bound_ix.unwrap_or(u16::MAX),
-                });
-            }
-        }
+        let mut recorder = recorder::HintsRecorder::default();
+        let hinted_plan = hint::hint_outline_with_plan(
+            &mut outline,
+            &metrics,
+            &scale,
+            Some(glyph_style),
+            Some(&mut recorder),
+        );
+
+        let vertical_axis = hinted_plan.vertical_axis;
+        let (segments, edges) = if let Some(axis) = vertical_axis {
+            let segments = axis.segments.iter().copied().map(export_segment).collect();
+            let edges = axis.edges.iter().copied().map(export_edge).collect();
+            (segments, edges)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+
+        Some(Self {
+            hints: recorder.records,
+            segments,
+            edges,
+        })
     }
-
-    out
 }
 
 #[cfg(feature = "autohinter")]
@@ -275,29 +196,38 @@ fn export_edge(edge: topo::Edge) -> ExportedHintEdge {
     }
 }
 
-#[cfg(feature = "autohinter")]
-fn action_code(action: recorder::Action) -> u8 {
-    // Values must match the C TA_Action enum's base variant for each family,
-    // as produced by TA_compare_normalize_action() in tabytecode.c,
-    // so that the exported records can be compared directly via memcmp.
-    match action {
-        recorder::Action::IpBefore => 0,     // ta_ip_before
-        recorder::Action::IpAfter => 1,      // ta_ip_after
-        recorder::Action::IpOn => 2,         // ta_ip_on
-        recorder::Action::IpBetween => 3,    // ta_ip_between
-        recorder::Action::Blue => 4,         // ta_blue
-        recorder::Action::BlueAnchor => 5,   // ta_blue_anchor
-        recorder::Action::Anchor => 6,       // ta_anchor
-        recorder::Action::Adjust => 10,      // ta_adjust
-        recorder::Action::Link => 22,        // ta_link
-        recorder::Action::Stem => 26,        // ta_stem
-        recorder::Action::Serif => 38,       // ta_serif
-        recorder::Action::SerifAnchor => 45, // ta_serif_anchor
-        recorder::Action::SerifLink1 => 52,  // ta_serif_link1
-        recorder::Action::SerifLink2 => 59,  // ta_serif_link2
-        recorder::Action::Bound => 66,       // ta_bound
-    }
-}
+// #[cfg(feature = "autohinter")]
+// fn point_action_code(action: recorder::PointAction) -> u8 {
+//     // Values must match the C TA_Action enum's base variant for each family,
+//     // as produced by TA_compare_normalize_action() in tabytecode.c,
+//     // so that the exported records can be compared directly via memcmp.
+//     match action {
+//         recorder::PointAction::IpBefore => 0,  // ta_ip_before
+//         recorder::PointAction::IpAfter => 1,   // ta_ip_after
+//         recorder::PointAction::IpOn => 2,      // ta_ip_on
+//         recorder::PointAction::IpBetween => 3, // ta_ip_between
+//     }
+// }
+
+// #[cfg(feature = "autohinter")]
+// fn edge_action_code(action: recorder::EdgeAction) -> u8 {
+//     // Values must match the C TA_Action enum's base variant for each family,
+//     // as produced by TA_compare_normalize_action() in tabytecode.c,
+//     // so that the exported records can be compared directly via memcmp.
+//     match action {
+//         recorder::EdgeAction::Blue => 4,         // ta_blue
+//         recorder::EdgeAction::BlueAnchor => 5,   // ta_blue_anchor
+//         recorder::EdgeAction::Anchor => 6,       // ta_anchor
+//         recorder::EdgeAction::Adjust => 10,      // ta_adjust
+//         recorder::EdgeAction::Link => 22,        // ta_link
+//         recorder::EdgeAction::Stem => 26,        // ta_stem
+//         recorder::EdgeAction::Serif => 38,       // ta_serif
+//         recorder::EdgeAction::SerifAnchor => 45, // ta_serif_anchor
+//         recorder::EdgeAction::SerifLink1 => 52,  // ta_serif_link1
+//         recorder::EdgeAction::SerifLink2 => 59,  // ta_serif_link2
+//         recorder::EdgeAction::Bound => 66,       // ta_bound
+//     }
+// }
 
 /// All constants are defined based on a UPEM of 2048.
 ///

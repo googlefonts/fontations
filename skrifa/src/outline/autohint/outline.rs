@@ -21,15 +21,20 @@ use raw::{
 /// The values are such that `dir1 + dir2 == 0` when the directions are
 /// opposite.
 ///
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L45>
+// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L45>
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 #[repr(i8)]
-pub(crate) enum Direction {
+pub enum Direction {
+    /// Undetermined direction.
     #[default]
     None = 4,
+    /// Toward the right.
     Right = 1,
+    /// Toward the left.
     Left = -1,
+    /// Toward the top.
     Up = 2,
+    /// Toward the bottom.
     Down = -2,
 }
 
@@ -66,7 +71,7 @@ impl Direction {
         (self as i8).abs() == (other as i8).abs()
     }
 
-    pub fn normalize(self) -> Self {
+    pub(crate) fn normalize(self) -> Self {
         // FreeType uses absolute value for this.
         match self {
             Self::Left => Self::Right,

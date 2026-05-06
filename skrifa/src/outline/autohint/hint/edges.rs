@@ -6,7 +6,7 @@
 
 use super::super::{
     metrics::{fixed_mul_div, pix_floor, pix_round, Scale, ScaledAxisMetrics, ScaledWidth},
-    recorder::{Action, HintsRecorder},
+    recorder::{EdgeAction, HintsRecorder},
     style::ScriptGroup,
     topo::{Axis, Dimension, Edge},
 };
@@ -24,7 +24,7 @@ pub(crate) fn hint_edges(
     mut top_to_bottom_hinting: bool,
     mut recorder: Option<&mut HintsRecorder>,
 ) {
-    if axis.dim != Axis::VERTICAL {
+    if axis.dim != Dimension::Vertical {
         top_to_bottom_hinting = false;
     }
     // First align horizontal edges to blue zones if needed
@@ -41,7 +41,7 @@ pub(crate) fn hint_edges(
     );
     let edges = axis.edges.as_mut_slice();
     // Special case for lowercase m
-    if axis.dim == Axis::HORIZONTAL && (edges.len() == 6 || edges.len() == 12) {
+    if axis.dim == Dimension::Horizontal && (edges.len() == 6 || edges.len() == 12) {
         hint_lowercase_m(edges, group);
     }
     // Handle serifs and single segment edges
@@ -69,7 +69,7 @@ fn align_edges_to_blues(
 ) -> Option<usize> {
     let mut anchor_ix = None;
     // For default script group, only do vertical blues
-    if group == ScriptGroup::Default && axis.dim != Axis::VERTICAL {
+    if group == ScriptGroup::Default && axis.dim != Dimension::Vertical {
         return anchor_ix;
     }
     for edge_ix in 0..axis.edges.len() {
@@ -122,9 +122,9 @@ fn align_edges_to_blues(
             edge1.flags |= Edge::DONE;
             if let Some(recorder) = recorder.as_mut() {
                 let action = if anchor_ix.is_none() {
-                    Action::BlueAnchor
+                    EdgeAction::BlueAnchor
                 } else {
-                    Action::Blue
+                    EdgeAction::Blue
                 };
                 recorder.record_edge(
                     axis.dim,
@@ -250,7 +250,7 @@ fn align_stem_edges(
                     if let Some(recorder) = recorder.as_mut() {
                         recorder.record_edge(
                             axis.dim,
-                            Action::Adjust,
+                            EdgeAction::Adjust,
                             edge_ix,
                             Some(edge2_ix),
                             None,
@@ -274,7 +274,7 @@ fn align_stem_edges(
                     if let Some(recorder) = recorder.as_mut() {
                         recorder.record_edge(
                             axis.dim,
-                            Action::Stem,
+                            EdgeAction::Stem,
                             edge_ix,
                             Some(edge2_ix),
                             None,
@@ -295,7 +295,7 @@ fn align_stem_edges(
                     if let Some(recorder) = recorder.as_mut() {
                         recorder.record_edge(
                             axis.dim,
-                            Action::Stem,
+                            EdgeAction::Stem,
                             edge_ix,
                             Some(edge2_ix),
                             None,
@@ -359,7 +359,7 @@ fn align_stem_edges(
                 if let Some(recorder) = recorder.as_mut() {
                     recorder.record_edge(
                         axis.dim,
-                        Action::Anchor,
+                        EdgeAction::Anchor,
                         edge_ix,
                         Some(edge2_ix),
                         None,
@@ -396,7 +396,7 @@ fn align_stem_edges(
                 );
                 continue;
             }
-            if axis.dim != Axis::VERTICAL && anchor_ix.is_none() {
+            if axis.dim != Dimension::Vertical && anchor_ix.is_none() {
                 delta = hint_normal_stem_cjk(axis, metrics, group, scale, edge_ix, edge2_ix, delta);
             } else {
                 hint_normal_stem_cjk(axis, metrics, group, scale, edge_ix, edge2_ix, delta);
@@ -487,7 +487,7 @@ fn align_remaining_edges(
                     let [lower_bound_ix, upper_bound_ix] = latin_remaining_bounds(edges, edge_ix);
                     recorder.record_edge(
                         axis.dim,
-                        Action::Serif,
+                        EdgeAction::Serif,
                         edge_ix,
                         Some(serif_ix),
                         None,
@@ -518,7 +518,7 @@ fn align_remaining_edges(
                             latin_remaining_bounds(edges, edge_ix);
                         recorder.record_edge(
                             axis.dim,
-                            Action::SerifLink1,
+                            EdgeAction::SerifLink1,
                             edge_ix,
                             Some(before_ix),
                             Some(after_ix),
@@ -536,7 +536,7 @@ fn align_remaining_edges(
                             latin_remaining_bounds(edges, edge_ix);
                         recorder.record_edge(
                             axis.dim,
-                            Action::SerifLink2,
+                            EdgeAction::SerifLink2,
                             edge_ix,
                             None,
                             None,
@@ -555,7 +555,7 @@ fn align_remaining_edges(
                     let [lower_bound_ix, upper_bound_ix] = latin_remaining_bounds(edges, edge_ix);
                     recorder.record_edge(
                         axis.dim,
-                        Action::SerifAnchor,
+                        EdgeAction::SerifAnchor,
                         edge_ix,
                         None,
                         None,
@@ -677,7 +677,16 @@ fn adjust_link(
         let new_pos = edge2.pos;
         edges[edge_ix].pos = new_pos;
         if let Some(recorder) = recorder.as_mut() {
-            recorder.record_edge(dim, Action::Bound, edge_ix, None, None, None, None, None);
+            recorder.record_edge(
+                dim,
+                EdgeAction::Bound,
+                edge_ix,
+                None,
+                None,
+                None,
+                None,
+                None,
+            );
         }
     }
     Some(())
@@ -756,7 +765,7 @@ fn stem_width(
     {
         return width;
     }
-    let is_vertical = metrics.dim == Axis::VERTICAL;
+    let is_vertical = metrics.dim == Dimension::Vertical;
     let sign = if width < 0 { -1 } else { 1 };
     let mut dist = width.abs();
     if (is_vertical && scale.flags & Scale::VERTICAL_SNAP == 0)
@@ -909,7 +918,7 @@ fn align_linked_edge(
     if let Some(recorder) = recorder.as_mut() {
         recorder.record_edge(
             axis.dim,
-            Action::Link,
+            EdgeAction::Link,
             base_edge_ix,
             Some(stem_edge_ix),
             None,
@@ -951,7 +960,7 @@ fn hint_normal_stem_cjk(
     let threshold_delta = if do_stem_adjust {
         0
     } else {
-        let delta = if axis.dim == Axis::VERTICAL {
+        let delta = if axis.dim == Dimension::Vertical {
             MAX_HORIZONTAL_GAP
         } else {
             MAX_VERTICAL_GAP
@@ -1133,11 +1142,12 @@ mod tests {
         let mut outline = Outline::default();
         outline.fill(&glyph, Default::default()).unwrap();
         let mut axes = [
-            Axis::new(Axis::HORIZONTAL, outline.orientation),
-            Axis::new(Axis::VERTICAL, outline.orientation),
+            Axis::new(Dimension::Horizontal, outline.orientation),
+            Axis::new(Dimension::Vertical, outline.orientation),
         ];
-        for (dim, axis) in axes.iter_mut().enumerate() {
+        for axis in axes.iter_mut() {
             topo::compute_segments(&mut outline, axis, class.script.group);
+            let dim = axis.dim;
             topo::link_segments(
                 &outline,
                 axis,
@@ -1152,7 +1162,7 @@ mod tests {
                 scaled_metrics.axes[1].scale,
                 class.script.group,
             );
-            if dim == Axis::VERTICAL {
+            if dim == Dimension::Vertical {
                 topo::compute_blue_edges(
                     axis,
                     &scale,
@@ -1171,12 +1181,12 @@ mod tests {
             );
         }
         // Only pos and flags fields are modified by edge hinting
-        let h_edges = axes[Axis::HORIZONTAL]
+        let h_edges = axes[Dimension::Horizontal]
             .edges
             .iter()
             .map(|edge| (edge.pos, edge.flags))
             .collect::<Vec<_>>();
-        let v_edges = axes[Axis::VERTICAL]
+        let v_edges = axes[Dimension::Vertical]
             .edges
             .iter()
             .map(|edge| (edge.pos, edge.flags))

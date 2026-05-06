@@ -12,7 +12,7 @@ use super::{
         outline::Direction,
         style::ScriptGroup,
     },
-    Axis, BlueProvenance, Edge, Segment,
+    Axis, BlueProvenance, Dimension, Edge, Segment,
 };
 
 /// Links segments to edges, using feature analysis for selection.
@@ -30,13 +30,14 @@ pub(crate) fn compute_edges(
     // This is always passed as 0 in functions that take hinting direction
     // in CJK
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1114>
-    let top_to_bottom_hinting = if axis.dim == Axis::HORIZONTAL || group != ScriptGroup::Default {
-        false
-    } else {
-        top_to_bottom_hinting
-    };
+    let top_to_bottom_hinting =
+        if axis.dim == Dimension::Horizontal || group != ScriptGroup::Default {
+            false
+        } else {
+            top_to_bottom_hinting
+        };
     // Ignore horizontal segments less than 1 pixel in length
-    let segment_length_threshold = if axis.dim == Axis::HORIZONTAL {
+    let segment_length_threshold = if axis.dim == Dimension::Horizontal {
         fixed_div(64, y_scale)
     } else {
         0
@@ -296,10 +297,10 @@ pub(crate) fn compute_blue_edges(
     // For the default script group, don't compute blues in the horizontal
     // direction
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3572>
-    if axis.dim != Axis::VERTICAL && group == ScriptGroup::Default {
+    if axis.dim != Dimension::Vertical && group == ScriptGroup::Default {
         return;
     }
-    let axis_scale = if axis.dim == Axis::HORIZONTAL {
+    let axis_scale = if axis.dim == Dimension::Horizontal {
         scale.x_scale
     } else {
         scale.y_scale
@@ -835,8 +836,8 @@ mod tests {
         let mut outline = Outline::default();
         outline.fill(&glyph, Default::default()).unwrap();
         let mut axes = [
-            Axis::new(Axis::HORIZONTAL, outline.orientation),
-            Axis::new(Axis::VERTICAL, outline.orientation),
+            Axis::new(Dimension::Horizontal, outline.orientation),
+            Axis::new(Dimension::Vertical, outline.orientation),
         ];
         for (dim, axis) in axes.iter_mut().enumerate() {
             segments::compute_segments(&mut outline, axis, class.script.group);
@@ -862,7 +863,10 @@ mod tests {
                 class.script.group,
             );
         }
-        assert_eq!(axes[Axis::HORIZONTAL].edges.as_slice(), expected_h_edges);
-        assert_eq!(axes[Axis::VERTICAL].edges.as_slice(), expected_v_edges);
+        assert_eq!(
+            axes[Dimension::Horizontal].edges.as_slice(),
+            expected_h_edges
+        );
+        assert_eq!(axes[Dimension::Vertical].edges.as_slice(), expected_v_edges);
     }
 }

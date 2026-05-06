@@ -8,7 +8,7 @@ use raw::types::{GlyphId, Tag};
 /// Defines the script and style associated with a single glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(transparent)]
-pub(crate) struct GlyphStyle(pub(super) u16);
+pub struct GlyphStyle(pub(super) u16);
 
 impl GlyphStyle {
     // The following flags roughly correspond to those defined in FreeType
@@ -24,41 +24,32 @@ impl GlyphStyle {
     // for a given script
     const FROM_GSUB_OUTPUT: u16 = 0x8000;
 
-    pub const fn is_unassigned(self) -> bool {
+    pub(super) const fn is_unassigned(self) -> bool {
         self.0 & Self::STYLE_INDEX_MASK == Self::UNASSIGNED
     }
 
+    /// Returns true if this glyph is a non-base (usually a mark).
     pub const fn is_non_base(self) -> bool {
         self.0 & Self::NON_BASE != 0
     }
 
+    /// Returns true if this glyph is a digit.
     pub const fn is_digit(self) -> bool {
         self.0 & Self::DIGIT != 0
     }
 
+    /// Returns the associated style class for this glyph.
     pub fn style_class(self) -> Option<&'static StyleClass> {
         StyleClass::from_index(self.style_index()?)
     }
 
-    pub fn style_index(self) -> Option<u16> {
+    pub(super) fn style_index(self) -> Option<u16> {
         let ix = self.0 & Self::STYLE_INDEX_MASK;
         if ix != Self::UNASSIGNED {
             Some(ix)
         } else {
             None
         }
-    }
-
-    #[cfg(feature = "autohinter")]
-    pub(crate) fn from_parts(style_index: u16, non_base: bool, digit: bool) -> Self {
-        let mut bits = style_index & Self::STYLE_INDEX_MASK;
-        if non_base {
-            bits |= Self::NON_BASE;
-        }
-        if digit {
-            bits |= Self::DIGIT;
-        }
-        Self(bits)
     }
 
     fn maybe_assign(&mut self, other: Self) {
@@ -333,12 +324,11 @@ pub enum ScriptGroup {
 /// autohinter.
 #[derive(Clone, Debug)]
 pub struct ScriptClass {
-    #[allow(unused)]
+    /// The name of the script class.
     pub name: &'static str,
     /// Group that defines how glyphs belonging to this script are hinted.
     pub group: ScriptGroup,
     /// Unicode tag for the script.
-    #[allow(unused)]
     pub tag: Tag,
     /// True if outline edges are processed top to bottom.
     pub hint_top_to_bottom: bool,
@@ -356,7 +346,7 @@ pub struct ScriptClass {
 /// coverage.
 #[derive(Clone, Debug)]
 pub struct StyleClass {
-    #[allow(unused)]
+    /// The name of the style class.
     pub name: &'static str,
     /// Index of self in the STYLE_CLASSES array.
     pub index: usize,

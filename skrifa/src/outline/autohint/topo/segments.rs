@@ -281,7 +281,7 @@ fn link_segments_cjk(outline: &Outline, axis: &mut Axis, scale: i32) {
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L1562>
 fn assign_point_uvs(outline: &mut Outline, dim: Dimension) {
-    if dim == Axis::HORIZONTAL {
+    if dim == Dimension::Horizontal {
         for point in &mut outline.points {
             point.u = point.fx;
             point.v = point.fy;
@@ -596,7 +596,7 @@ mod tests {
         let glyph = glyphs.get(GlyphId::new(8)).unwrap();
         let mut outline = Outline::default();
         outline.fill(&glyph, Default::default()).unwrap();
-        let mut axis = Axis::new(Axis::HORIZONTAL, outline.orientation);
+        let mut axis = Axis::new(Dimension::Horizontal, outline.orientation);
         compute_segments(&mut outline, &mut axis, ScriptGroup::Default);
         link_segments(&outline, &mut axis, 0, ScriptGroup::Default, None);
         let segments = retain_segment_test_fields(&axis.segments);
@@ -708,7 +708,7 @@ mod tests {
         let glyph = glyphs.get(GlyphId::new(8)).unwrap();
         let mut outline = Outline::default();
         outline.fill(&glyph, Default::default()).unwrap();
-        let mut axis = Axis::new(Axis::VERTICAL, outline.orientation);
+        let mut axis = Axis::new(Dimension::Vertical, outline.orientation);
         compute_segments(&mut outline, &mut axis, ScriptGroup::Default);
         link_segments(&outline, &mut axis, 0, ScriptGroup::Default, None);
         let segments = retain_segment_test_fields(&axis.segments);
@@ -796,7 +796,7 @@ mod tests {
         let glyph = glyphs.get(GlyphId::new(9)).unwrap();
         let mut outline = Outline::default();
         outline.fill(&glyph, Default::default()).unwrap();
-        let mut axis = Axis::new(Axis::HORIZONTAL, outline.orientation);
+        let mut axis = Axis::new(Dimension::Horizontal, outline.orientation);
         compute_segments(&mut outline, &mut axis, ScriptGroup::Cjk);
         link_segments(&outline, &mut axis, 67109, ScriptGroup::Cjk, None);
         let segments = retain_segment_test_fields(&axis.segments);
@@ -920,7 +920,7 @@ mod tests {
         let glyph = glyphs.get(GlyphId::new(9)).unwrap();
         let mut outline = Outline::default();
         outline.fill(&glyph, Default::default()).unwrap();
-        let mut axis = Axis::new(Axis::VERTICAL, outline.orientation);
+        let mut axis = Axis::new(Dimension::Vertical, outline.orientation);
         compute_segments(&mut outline, &mut axis, ScriptGroup::Cjk);
         link_segments(&outline, &mut axis, 67109, ScriptGroup::Cjk, None);
         let segments = retain_segment_test_fields(&axis.segments);

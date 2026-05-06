@@ -12,8 +12,9 @@ use crate::collections::SmallVec;
 pub(crate) use edges::{compute_blue_edges, compute_edges};
 pub(crate) use segments::{compute_segments, link_segments};
 
+/// Source for an alignment zone.
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub(crate) struct BlueProvenance {
+pub struct BlueProvenance {
     pub blue_ix: u16,
     pub is_shoot: bool,
 }
@@ -24,10 +25,23 @@ pub(crate) struct BlueProvenance {
 const MAX_INLINE_SEGMENTS: usize = 18;
 const MAX_INLINE_EDGES: usize = 12;
 
-/// Either horizontal or vertical.
-///
-/// A type alias because it's used as an index.
-pub type Dimension = usize;
+/// The dimension of an axis.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub enum Dimension {
+    /// Metrics and geometry in the horizontal direction.
+    #[default]
+    Horizontal = 0,
+    /// Metrics and geometry in the vertical direction.
+    Vertical = 1,
+}
+
+impl<T> core::ops::Index<Dimension> for [T] {
+    type Output = T;
+
+    fn index(&self, index: Dimension) -> &Self::Output {
+        &self[index as usize]
+    }
+}
 
 /// Segments and edges for one dimension of an outline.
 ///
@@ -45,13 +59,6 @@ pub(crate) struct Axis {
 }
 
 impl Axis {
-    /// X coordinates, i.e. vertical segments and edges.
-    pub const HORIZONTAL: Dimension = 0;
-    /// Y coordinates, i.e. horizontal segments and edges.
-    pub const VERTICAL: Dimension = 1;
-}
-
-impl Axis {
     #[cfg(test)]
     pub fn new(dim: Dimension, orientation: Option<Orientation>) -> Self {
         let mut axis = Self::default();
@@ -62,11 +69,10 @@ impl Axis {
     pub fn reset(&mut self, dim: Dimension, orientation: Option<Orientation>) {
         self.dim = dim;
         self.major_dir = match (dim, orientation) {
-            (Self::HORIZONTAL, Some(Orientation::Clockwise)) => Direction::Down,
-            (Self::VERTICAL, Some(Orientation::Clockwise)) => Direction::Right,
-            (Self::HORIZONTAL, _) => Direction::Up,
-            (Self::VERTICAL, _) => Direction::Left,
-            _ => Direction::None,
+            (Dimension::Horizontal, Some(Orientation::Clockwise)) => Direction::Down,
+            (Dimension::Vertical, Some(Orientation::Clockwise)) => Direction::Right,
+            (Dimension::Horizontal, _) => Direction::Up,
+            (Dimension::Vertical, _) => Direction::Left,
         };
         self.segments.clear();
         self.edges.clear();
