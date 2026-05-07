@@ -45,31 +45,17 @@ pub(crate) fn hint_outline(
 
 pub(crate) struct HintedPlan {
     pub hinted_metrics: HintedMetrics,
-    #[allow(dead_code)]
-    pub vertical_axis: Option<Axis>,
+    pub axes: [Option<Axis>; 2],
 }
 
-#[allow(dead_code)] // used in tests
-#[cfg(feature = "autohinter")]
 pub(crate) fn hint_outline_with_recorder(
     outline: &mut Outline,
     metrics: &UnscaledStyleMetrics,
     scale: &Scale,
     glyph_style: Option<GlyphStyle>,
-    recorder: Option<&mut HintsRecorder>,
-) -> HintedMetrics {
-    hint_outline_impl(outline, metrics, scale, glyph_style, recorder).hinted_metrics
-}
-
-#[cfg(feature = "autohinter")]
-pub(crate) fn hint_outline_with_plan(
-    outline: &mut Outline,
-    metrics: &UnscaledStyleMetrics,
-    scale: &Scale,
-    glyph_style: Option<GlyphStyle>,
-    recorder: Option<&mut HintsRecorder>,
+    recorder: &mut HintsRecorder,
 ) -> HintedPlan {
-    hint_outline_impl(outline, metrics, scale, glyph_style, recorder)
+    hint_outline_impl(outline, metrics, scale, glyph_style, Some(recorder))
 }
 
 fn hint_outline_impl(
@@ -89,14 +75,14 @@ fn hint_outline_impl(
         ..Default::default()
     };
     let group = metrics.style_class().script.group;
-    let mut vertical_axis = None;
+    let mut axes = [const { None }; 2];
     // For default script group, we don't proceed with hinting if we're
     // missing alignment zones. FreeType swaps in a "dummy" hinter here
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.c#L475>
     if group == ScriptGroup::Default && scaled_metrics.axes[1].blues.is_empty() {
         return HintedPlan {
             hinted_metrics,
-            vertical_axis,
+            axes,
         };
     }
     for dim in [Dimension::Horizontal, Dimension::Vertical] {
@@ -159,12 +145,12 @@ fn hint_outline_impl(
                 right_opos: right.opos,
             });
         }
-        if dim == Dimension::Vertical {
-            vertical_axis = Some(axis.clone());
+        if recorder.is_some() {
+            axes[dim as usize] = Some(axis.clone());
         }
     }
     HintedPlan {
         hinted_metrics,
-        vertical_axis,
+        axes,
     }
 }

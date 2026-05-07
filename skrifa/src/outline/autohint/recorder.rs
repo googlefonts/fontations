@@ -1,6 +1,5 @@
-use alloc::vec::Vec;
-
 use crate::outline::autohint::topo::{BlueProvenance, Dimension};
+use alloc::vec::Vec;
 
 /// Hinting action for a point.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -31,65 +30,65 @@ pub enum EdgeAction {
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct PointHint {
     pub action: PointAction,
-    pub dim: Dimension,
-    pub point_ix: u16,
-    pub edge_ix: Option<u16>,
-    pub edge2_ix: Option<u16>,
+    pub dimension: Dimension,
+    pub point_index: u16,
+    pub edge_index: Option<u16>,
+    pub edge2_index: Option<u16>,
 }
 
 /// Hinting information for an edge.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct EdgeHint {
     pub action: EdgeAction,
-    pub dim: Dimension,
-    pub edge_ix: u16,
-    pub edge2_ix: Option<u16>,
-    pub edge3_ix: Option<u16>,
-    pub lower_bound_ix: Option<u16>,
-    pub upper_bound_ix: Option<u16>,
+    pub dimension: Dimension,
+    pub edge_index: u16,
+    pub edge2_index: Option<u16>,
+    pub edge3_index: Option<u16>,
+    pub lower_bound_index: Option<u16>,
+    pub upper_bound_index: Option<u16>,
     pub blue: Option<BlueProvenance>,
 }
 
-/// Hinting information for a point or an edge.
+/// Hinting action for a point or an edge.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum Hint {
+pub enum HintAction {
     Point(PointHint),
     Edge(EdgeHint),
 }
 
 #[derive(Clone, Default, PartialEq, Eq, Debug)]
 pub struct HintsRecorder {
-    pub records: Vec<Hint>,
+    pub actions: Vec<HintAction>,
 }
 
 impl HintsRecorder {
     pub fn record_ip_before(&mut self, dim: Dimension, point_ix: usize) {
-        self.records.push(Hint::Point(PointHint {
+        self.actions.push(HintAction::Point(PointHint {
             action: PointAction::IpBefore,
-            dim,
-            point_ix: narrow(point_ix),
-            edge_ix: None,
-            edge2_ix: None,
+            dimension: dim,
+            point_index: narrow(point_ix),
+            edge_index: None,
+            edge2_index: None,
         }));
     }
 
     pub fn record_ip_after(&mut self, dim: Dimension, point_ix: usize) {
-        self.records.push(Hint::Point(PointHint {
+        self.actions.push(HintAction::Point(PointHint {
             action: PointAction::IpAfter,
-            dim,
-            point_ix: narrow(point_ix),
-            edge_ix: None,
-            edge2_ix: None,
+            dimension: dim,
+            point_index: narrow(point_ix),
+            edge_index: None,
+            edge2_index: None,
         }));
     }
 
     pub fn record_ip_on(&mut self, dim: Dimension, point_ix: usize, edge_ix: usize) {
-        self.records.push(Hint::Point(PointHint {
+        self.actions.push(HintAction::Point(PointHint {
             action: PointAction::IpOn,
-            dim,
-            point_ix: narrow(point_ix),
-            edge_ix: Some(narrow(edge_ix)),
-            edge2_ix: None,
+            dimension: dim,
+            point_index: narrow(point_ix),
+            edge_index: Some(narrow(edge_ix)),
+            edge2_index: None,
         }));
     }
 
@@ -100,12 +99,12 @@ impl HintsRecorder {
         before_edge_ix: usize,
         after_edge_ix: usize,
     ) {
-        self.records.push(Hint::Point(PointHint {
+        self.actions.push(HintAction::Point(PointHint {
             action: PointAction::IpBetween,
-            dim,
-            point_ix: narrow(point_ix),
-            edge_ix: Some(narrow(before_edge_ix)),
-            edge2_ix: Some(narrow(after_edge_ix)),
+            dimension: dim,
+            point_index: narrow(point_ix),
+            edge_index: Some(narrow(before_edge_ix)),
+            edge2_index: Some(narrow(after_edge_ix)),
         }));
     }
 
@@ -121,14 +120,14 @@ impl HintsRecorder {
         upper_bound_ix: Option<usize>,
         blue: Option<BlueProvenance>,
     ) {
-        self.records.push(Hint::Edge(EdgeHint {
+        self.actions.push(HintAction::Edge(EdgeHint {
             action,
-            dim,
-            edge_ix: narrow(edge_ix),
-            edge2_ix: edge2_ix.map(narrow),
-            edge3_ix: edge3_ix.map(narrow),
-            lower_bound_ix: lower_bound_ix.map(narrow),
-            upper_bound_ix: upper_bound_ix.map(narrow),
+            dimension: dim,
+            edge_index: narrow(edge_ix),
+            edge2_index: edge2_ix.map(narrow),
+            edge3_index: edge3_ix.map(narrow),
+            lower_bound_index: lower_bound_ix.map(narrow),
+            upper_bound_index: upper_bound_ix.map(narrow),
             blue,
         }));
     }

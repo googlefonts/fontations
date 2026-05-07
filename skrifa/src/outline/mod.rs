@@ -507,7 +507,6 @@ impl<'a> OutlineGlyph<'a> {
         }
     }
 
-    #[cfg(feature = "autohinter")]
     /// Pass a raw scaled outline to a callback with direct point access.
     pub fn with_scaled_glyf_outline<R>(
         &self,

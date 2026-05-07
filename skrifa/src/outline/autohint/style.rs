@@ -24,7 +24,8 @@ impl GlyphStyle {
     // for a given script
     const FROM_GSUB_OUTPUT: u16 = 0x8000;
 
-    pub(super) const fn is_unassigned(self) -> bool {
+    /// Returns true if this glyph doesn't have an assigned style.
+    pub const fn is_unassigned(self) -> bool {
         self.0 & Self::STYLE_INDEX_MASK == Self::UNASSIGNED
     }
 
@@ -43,7 +44,8 @@ impl GlyphStyle {
         StyleClass::from_index(self.style_index()?)
     }
 
-    pub(super) fn style_index(self) -> Option<u16> {
+    /// Returns the index of teh style class for this class.
+    pub const fn style_index(self) -> Option<u16> {
         let ix = self.0 & Self::STYLE_INDEX_MASK;
         if ix != Self::UNASSIGNED {
             Some(ix)

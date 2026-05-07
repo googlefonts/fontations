@@ -380,7 +380,7 @@ mod tests {
     use super::{
         super::super::{
             metrics::{compute_unscaled_style_metrics, Scale},
-            recorder::{EdgeAction, Hint, HintsRecorder, PointAction},
+            recorder::{EdgeAction, HintAction, HintsRecorder, PointAction},
             shape::{Shaper, ShaperMode},
             style,
         },
@@ -484,24 +484,24 @@ mod tests {
             &metrics,
             &scale,
             None,
-            Some(&mut recorder),
+            &mut recorder,
         );
 
         assert!(recorder
-            .records
+            .actions
             .iter()
-            .any(|record| matches!(record, Hint::Edge(edge) if edge.blue.is_some())));
-        assert!(recorder.records.iter().any(|record| {
+            .any(|record| matches!(record, HintAction::Edge(edge) if edge.blue.is_some())));
+        assert!(recorder.actions.iter().any(|record| {
             matches!(
                 record,
-                Hint::Edge(edge)
+                HintAction::Edge(edge)
                     if matches!(edge.action, EdgeAction::Blue | EdgeAction::BlueAnchor | EdgeAction::Anchor | EdgeAction::Stem | EdgeAction::Adjust)
             )
         }));
-        assert!(recorder.records.iter().any(|record| {
+        assert!(recorder.actions.iter().any(|record| {
             matches!(
                 record,
-                Hint::Point(point)
+                HintAction::Point(point)
                     if matches!(point.action, PointAction::IpBefore | PointAction::IpAfter | PointAction::IpOn | PointAction::IpBetween)
             )
         }));

@@ -16,72 +16,23 @@ pub use metrics::{
     UnscaledAxisMetrics, UnscaledBlue, UnscaledStyleMetrics, WidthMetrics,
 };
 pub use outline::Direction;
-pub use recorder::{EdgeAction, EdgeHint, Hint, PointAction, PointHint};
+pub use recorder::{EdgeAction, EdgeHint, HintAction, PointAction, PointHint};
 pub use style::{GlyphStyle, ScriptClass, ScriptGroup, StyleClass};
-pub use topo::{BlueProvenance, Dimension};
-
-#[cfg(feature = "autohinter")]
 pub use style::{SCRIPT_CLASSES, STYLE_CLASSES};
+pub use topo::{Axis, BlueProvenance, Dimension, Edge, Segment, TopoFlags};
 
-#[cfg(feature = "autohinter")]
 use crate::outline::{SmoothMode, Target};
-#[cfg(feature = "autohinter")]
 use crate::{FontRef, MetadataProvider};
-#[cfg(feature = "autohinter")]
 use alloc::vec::Vec;
-#[cfg(feature = "autohinter")]
 use raw::types::{F2Dot14, GlyphId};
 
-#[cfg(feature = "autohinter")]
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub struct ExportedHintSegment {
-    pub flags: u8,
-    pub dir: i8,
-    pub pos: i16,
-    pub delta: i16,
-    pub min_coord: i16,
-    pub max_coord: i16,
-    pub height: i16,
-    pub score: i32,
-    pub len: i32,
-    pub link_ix: u16,
-    pub serif_ix: u16,
-    pub first_ix: u16,
-    pub last_ix: u16,
-    pub edge_ix: u16,
-    pub edge_next_ix: u16,
-}
-
-#[cfg(feature = "autohinter")]
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub struct ExportedHintEdge {
-    pub fpos: i16,
-    pub opos: i32,
-    pub pos: i32,
-    pub flags: u8,
-    pub dir: i8,
-    pub link_ix: u16,
-    pub serif_ix: u16,
-    pub scale: i32,
-    pub first_ix: u16,
-    pub last_ix: u16,
-    pub has_blue: u8,
-    pub blue_scaled: i32,
-    pub blue_fitted: i32,
-    pub blue_ix: u16,
-    pub blue_is_shoot: u8,
-}
-
 /// Plan for hinting an outline.
-#[cfg(feature = "autohinter")]
-#[derive(Clone, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct HintPlan {
-    pub hints: Vec<Hint>,
-    pub segments: Vec<ExportedHintSegment>,
-    pub edges: Vec<ExportedHintEdge>,
+    hints: Vec<HintAction>,
+    axes: [Option<Axis>; 2],
 }
 
-#[cfg(feature = "autohinter")]
 impl HintPlan {
     /// Creates a new hint plan.
     pub fn new(
@@ -118,83 +69,88 @@ impl HintPlan {
         );
 
         let mut recorder = recorder::HintsRecorder::default();
-        let hinted_plan = hint::hint_outline_with_plan(
+        let hinted_plan = hint::hint_outline_with_recorder(
             &mut outline,
             &metrics,
             &scale,
             Some(glyph_style),
-            Some(&mut recorder),
+            &mut recorder,
         );
 
-        let vertical_axis = hinted_plan.vertical_axis;
-        let (segments, edges) = if let Some(axis) = vertical_axis {
-            let segments = axis.segments.iter().copied().map(export_segment).collect();
-            let edges = axis.edges.iter().copied().map(export_edge).collect();
-            (segments, edges)
-        } else {
-            (Vec::new(), Vec::new())
-        };
-
         Some(Self {
-            hints: recorder.records,
-            segments,
-            edges,
+            hints: recorder.actions,
+            axes: hinted_plan.axes,
         })
     }
-}
 
-#[cfg(feature = "autohinter")]
-fn export_segment(segment: topo::Segment) -> ExportedHintSegment {
-    ExportedHintSegment {
-        flags: segment.flags,
-        dir: segment.dir as i8,
-        pos: segment.pos,
-        delta: segment.delta,
-        min_coord: segment.min_coord,
-        max_coord: segment.max_coord,
-        height: segment.height,
-        score: segment.score,
-        len: segment.len,
-        link_ix: segment.link_ix.unwrap_or(u16::MAX),
-        serif_ix: segment.serif_ix.unwrap_or(u16::MAX),
-        first_ix: segment.first_ix,
-        last_ix: segment.last_ix,
-        edge_ix: segment.edge_ix.unwrap_or(u16::MAX),
-        edge_next_ix: segment.edge_next_ix.unwrap_or(u16::MAX),
+    /// Returns the collection of hinting actions.
+    pub fn actions(&self) -> &[HintAction] {
+        &self.hints
+    }
+
+    /// Returns the topological analysis of the horizontal axis.
+    pub fn horizontal_axis(&self) -> Option<&Axis> {
+        self.axes[Dimension::Horizontal].as_ref()
+    }
+
+    // Returns the topological analysis of the vertical axis.
+    pub fn vertical_axis(&self) -> Option<&Axis> {
+        self.axes[Dimension::Vertical].as_ref()
     }
 }
 
-#[cfg(feature = "autohinter")]
-fn export_edge(edge: topo::Edge) -> ExportedHintEdge {
-    let (has_blue, blue_scaled, blue_fitted) = if let Some(blue) = edge.blue_edge {
-        (1, blue.scaled, blue.fitted)
-    } else {
-        (0, 0, 0)
-    };
-    let (blue_ix, blue_is_shoot) = if let Some(blue) = edge.blue_provenance {
-        (blue.blue_ix, u8::from(blue.is_shoot))
-    } else {
-        (u16::MAX, 0)
-    };
+// #[cfg(feature = "autohinter")]
+// fn export_segment(segment: topo::Segment) -> ExportedHintSegment {
+//     ExportedHintSegment {
+//         flags: segment.flags.to_bits(),
+//         dir: segment.dir as i8,
+//         pos: segment.pos,
+//         delta: segment.delta,
+//         min_coord: segment.min_coord,
+//         max_coord: segment.max_coord,
+//         height: segment.height,
+//         score: segment.score,
+//         len: segment.len,
+//         link_ix: segment.link_ix.unwrap_or(u16::MAX),
+//         serif_ix: segment.serif_ix.unwrap_or(u16::MAX),
+//         first_ix: segment.first_ix,
+//         last_ix: segment.last_ix,
+//         edge_ix: segment.edge_ix.unwrap_or(u16::MAX),
+//         edge_next_ix: segment.edge_next_ix.unwrap_or(u16::MAX),
+//     }
+// }
 
-    ExportedHintEdge {
-        fpos: edge.fpos,
-        opos: edge.opos,
-        pos: edge.pos,
-        flags: edge.flags,
-        dir: edge.dir as i8,
-        link_ix: edge.link_ix.unwrap_or(u16::MAX),
-        serif_ix: edge.serif_ix.unwrap_or(u16::MAX),
-        scale: edge.scale,
-        first_ix: edge.first_ix,
-        last_ix: edge.last_ix,
-        has_blue,
-        blue_scaled,
-        blue_fitted,
-        blue_ix,
-        blue_is_shoot,
-    }
-}
+// #[cfg(feature = "autohinter")]
+// fn export_edge(edge: topo::Edge) -> ExportedHintEdge {
+//     let (has_blue, blue_scaled, blue_fitted) = if let Some(blue) = edge.blue_edge {
+//         (1, blue.scaled, blue.fitted)
+//     } else {
+//         (0, 0, 0)
+//     };
+//     let (blue_ix, blue_is_shoot) = if let Some(blue) = edge.blue_provenance {
+//         (blue.index, u8::from(blue.is_shoot))
+//     } else {
+//         (u16::MAX, 0)
+//     };
+
+//     ExportedHintEdge {
+//         fpos: edge.fpos,
+//         opos: edge.opos,
+//         pos: edge.pos,
+//         flags: edge.flags.to_bits(),
+//         dir: edge.dir as i8,
+//         link_ix: edge.link_ix.unwrap_or(u16::MAX),
+//         serif_ix: edge.serif_ix.unwrap_or(u16::MAX),
+//         scale: edge.scale,
+//         first_ix: edge.first_ix,
+//         last_ix: edge.last_ix,
+//         has_blue,
+//         blue_scaled,
+//         blue_fitted,
+//         blue_ix,
+//         blue_is_shoot,
+//     }
+// }
 
 // #[cfg(feature = "autohinter")]
 // fn point_action_code(action: recorder::PointAction) -> u8 {
