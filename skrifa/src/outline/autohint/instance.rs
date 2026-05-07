@@ -123,7 +123,7 @@ impl Instance {
             metrics.style_class().script.group,
         );
         let mut outline = Outline::default();
-        outline.fill(glyph, coords)?;
+        outline.fill(glyph, coords, super::QuirksMode::default())?;
         let hinted_metrics = super::hint::hint_outline(&mut outline, &metrics, &scale, Some(style));
         let h_advance = outline.advance;
         let mut pp1x = 0;

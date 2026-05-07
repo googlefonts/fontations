@@ -15,6 +15,7 @@ use super::super::{
     shape::{Shaper, ShaperMode},
     style::{ScriptGroup, StyleClass},
     topo::Dimension,
+    QuirksMode,
 };
 use crate::{instance::NormalizedCoord, prelude::Size, FontRef, MetadataProvider};
 use raw::types::F2Dot14;
@@ -29,12 +30,12 @@ impl UnscaledStyleMetrics {
             ShaperMode::Nominal
         };
         let shaper = Shaper::new(font, shaper_mode);
-        compute_unscaled_style_metrics(&shaper, coords, style)
+        compute_unscaled_style_metrics(&shaper, coords, style, QuirksMode::Aot)
     }
 
     /// Applies the given scale to this set of style metrics.
     pub fn scale(&self, scale: Scale) -> ScaledStyleMetrics {
-        scale_style_metrics(self, scale)
+        scale_style_metrics(self, scale, QuirksMode::Aot)
     }
 }
 
@@ -45,6 +46,7 @@ pub(crate) fn compute_unscaled_style_metrics(
     shaper: &Shaper,
     coords: &[F2Dot14],
     style: &StyleClass,
+    quirks: QuirksMode,
 ) -> UnscaledStyleMetrics {
     let charmap = shaper.charmap();
     // We don't attempt to produce any metrics if we don't have a Unicode
@@ -66,7 +68,7 @@ pub(crate) fn compute_unscaled_style_metrics(
             ..Default::default()
         };
     }
-    let [hwidths, vwidths] = super::widths::compute_widths(shaper, coords, style);
+    let [hwidths, vwidths] = super::widths::compute_widths(shaper, coords, style, quirks);
     let [hblues, vblues] = super::blues::compute_unscaled_blues(shaper, coords, style);
     let glyph_metrics = shaper.font().glyph_metrics(Size::unscaled(), coords);
     let mut digit_advance = None;
@@ -109,6 +111,7 @@ pub(crate) fn compute_unscaled_style_metrics(
 pub(crate) fn scale_style_metrics(
     unscaled_metrics: &UnscaledStyleMetrics,
     mut scale: Scale,
+    quirks: QuirksMode,
 ) -> ScaledStyleMetrics {
     let scale_axis_fn = if unscaled_metrics.style_class().script.group == ScriptGroup::Default {
         scale_default_axis_metrics
@@ -122,6 +125,7 @@ pub(crate) fn scale_style_metrics(
             axis.width_metrics,
             &axis.blues,
             &mut scale,
+            quirks,
         )
     };
     let axes = [
@@ -140,6 +144,7 @@ fn scale_default_axis_metrics(
     width_metrics: WidthMetrics,
     blues: &[UnscaledBlue],
     scale: &mut Scale,
+    quirks: QuirksMode,
 ) -> ScaledAxisMetrics {
     let mut axis = ScaledAxisMetrics {
         dim,
@@ -178,7 +183,7 @@ fn scale_default_axis_metrics(
     // Now scale the widths. FreeType ensures there is always at least one
     // width entry (the standard width), even if width extraction found none.
     axis.width_metrics = width_metrics;
-    if widths.is_empty() {
+    if widths.is_empty() && quirks == QuirksMode::Aot {
         let scaled = fixed_mul(axis.scale, axis.width_metrics.standard_width);
         axis.widths.push(ScaledWidth {
             scaled,
@@ -266,6 +271,7 @@ fn scale_cjk_axis_metrics(
     width_metrics: WidthMetrics,
     blues: &[UnscaledBlue],
     scale: &mut Scale,
+    _quirks: QuirksMode,
 ) -> ScaledAxisMetrics {
     let mut axis = ScaledAxisMetrics {
         dim,
@@ -410,7 +416,12 @@ mod tests {
         let font = FontRef::new(font_data).unwrap();
         let class = &style::STYLE_CLASSES[style_class];
         let shaper = Shaper::new(&font, ShaperMode::Nominal);
-        let unscaled_metrics = compute_unscaled_style_metrics(&shaper, Default::default(), class);
+        let unscaled_metrics = compute_unscaled_style_metrics(
+            &shaper,
+            Default::default(),
+            class,
+            QuirksMode::default(),
+        );
         let scale = Scale::new(
             16.0,
             font.head().unwrap().units_per_em() as i32,
@@ -418,7 +429,7 @@ mod tests {
             Default::default(),
             class.script.group,
         );
-        scale_style_metrics(&unscaled_metrics, scale)
+        scale_style_metrics(&unscaled_metrics, scale, QuirksMode::default())
     }
 
     fn check_axis(

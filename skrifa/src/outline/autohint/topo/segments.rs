@@ -595,7 +595,7 @@ mod tests {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::new(8)).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
+        outline.fill(&glyph, &[], Default::default()).unwrap();
         let mut axis = Axis::new(Dimension::Horizontal, outline.orientation);
         compute_segments(&mut outline, &mut axis, ScriptGroup::Default);
         link_segments(&outline, &mut axis, 0, ScriptGroup::Default, None);
@@ -707,7 +707,7 @@ mod tests {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::new(8)).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
+        outline.fill(&glyph, &[], Default::default()).unwrap();
         let mut axis = Axis::new(Dimension::Vertical, outline.orientation);
         compute_segments(&mut outline, &mut axis, ScriptGroup::Default);
         link_segments(&outline, &mut axis, 0, ScriptGroup::Default, None);
@@ -795,7 +795,7 @@ mod tests {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::new(9)).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
+        outline.fill(&glyph, &[], Default::default()).unwrap();
         let mut axis = Axis::new(Dimension::Horizontal, outline.orientation);
         compute_segments(&mut outline, &mut axis, ScriptGroup::Cjk);
         link_segments(&outline, &mut axis, 67109, ScriptGroup::Cjk, None);
@@ -919,7 +919,7 @@ mod tests {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::new(9)).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
+        outline.fill(&glyph, &[], Default::default()).unwrap();
         let mut axis = Axis::new(Dimension::Vertical, outline.orientation);
         compute_segments(&mut outline, &mut axis, ScriptGroup::Cjk);
         link_segments(&outline, &mut axis, 67109, ScriptGroup::Cjk, None);

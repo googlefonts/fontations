@@ -9,6 +9,7 @@ use super::{
     shape::{Shaper, ShaperMode},
     style::{GlyphStyleMap, ScriptGroup, StyleClass},
     topo::Dimension,
+    QuirksMode,
 };
 use crate::{attribute::Style, collections::SmallVec, FontRef};
 use alloc::vec::Vec;
@@ -145,11 +146,9 @@ impl UnscaledStyleMetricsSet {
         // over allocating memory.
         let shaper = Shaper::new(font, shaper_mode);
         let mut vec = Vec::with_capacity(style_map.metrics_count());
-        vec.extend(
-            style_map
-                .metrics_styles()
-                .map(|style| compute_unscaled_style_metrics(&shaper, coords, style)),
-        );
+        vec.extend(style_map.metrics_styles().map(|style| {
+            compute_unscaled_style_metrics(&shaper, coords, style, QuirksMode::default())
+        }));
         Self::Precomputed(vec)
     }
 
@@ -188,7 +187,12 @@ impl UnscaledStyleMetricsSet {
                 // metrics.
                 let shaper = Shaper::new(font, shaper_mode);
                 let style_class = style.style_class()?;
-                let metrics = compute_unscaled_style_metrics(&shaper, coords, style_class);
+                let metrics = compute_unscaled_style_metrics(
+                    &shaper,
+                    coords,
+                    style_class,
+                    QuirksMode::default(),
+                );
                 let mut entry = lazy.write().unwrap();
                 *entry.get_mut(index)? = Some(metrics.clone());
                 Some(metrics)

@@ -9,6 +9,7 @@ use super::{
     recorder::HintsRecorder,
     style::{GlyphStyle, ScriptGroup},
     topo::{self, Axis, Dimension},
+    QuirksMode,
 };
 
 /// Captures adjusted horizontal scale and outer edge positions to be used
@@ -65,7 +66,12 @@ fn hint_outline_impl(
     glyph_style: Option<GlyphStyle>,
     mut recorder: Option<&mut HintsRecorder>,
 ) -> HintedPlan {
-    let scaled_metrics = scale_style_metrics(metrics, *scale);
+    let quirks = if recorder.is_some() {
+        QuirksMode::Aot
+    } else {
+        QuirksMode::Jit
+    };
+    let scaled_metrics = scale_style_metrics(metrics, *scale, quirks);
     let scale = &scaled_metrics.scale;
     let mut axis = Axis::default();
     let hint_top_to_bottom = metrics.style_class().script.hint_top_to_bottom;

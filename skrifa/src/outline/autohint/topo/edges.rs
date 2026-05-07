@@ -821,8 +821,12 @@ mod tests {
         let font = FontRef::new(font_data).unwrap();
         let shaper = Shaper::new(&font, ShaperMode::Nominal);
         let class = &style::STYLE_CLASSES[style_class];
-        let unscaled_metrics =
-            metrics::compute_unscaled_style_metrics(&shaper, Default::default(), class);
+        let unscaled_metrics = metrics::compute_unscaled_style_metrics(
+            &shaper,
+            Default::default(),
+            class,
+            Default::default(),
+        );
         let scale = metrics::Scale::new(
             16.0,
             font.head().unwrap().units_per_em() as i32,
@@ -830,11 +834,12 @@ mod tests {
             Default::default(),
             class.script.group,
         );
-        let scaled_metrics = metrics::scale_style_metrics(&unscaled_metrics, scale);
+        let scaled_metrics =
+            metrics::scale_style_metrics(&unscaled_metrics, scale, Default::default());
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(glyph_id).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
+        outline.fill(&glyph, &[], Default::default()).unwrap();
         let mut axes = [
             Axis::new(Dimension::Horizontal, outline.orientation),
             Axis::new(Dimension::Vertical, outline.orientation),

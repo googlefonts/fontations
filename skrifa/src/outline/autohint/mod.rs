@@ -26,6 +26,16 @@ use crate::{FontRef, MetadataProvider};
 use alloc::vec::Vec;
 use raw::types::{F2Dot14, GlyphId};
 
+/// Controls quirks for the different autohinters.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+enum QuirksMode {
+    /// Just in time hinter; matches FreeType.
+    #[default]
+    Jit,
+    /// Ahead of time hinter; matches ttfautohint.
+    Aot,
+}
+
 /// Plan for hinting an outline.
 #[derive(Clone, Debug, Default)]
 pub struct HintPlan {
@@ -51,10 +61,11 @@ impl HintPlan {
             shape::ShaperMode::Nominal
         };
         let shaper = shape::Shaper::new(font, shaper_mode);
-        let metrics = metrics::compute_unscaled_style_metrics(&shaper, coords, style_class);
+        let metrics =
+            metrics::compute_unscaled_style_metrics(&shaper, coords, style_class, QuirksMode::Aot);
 
         let mut outline = outline::Outline::default();
-        outline.fill(&outline_glyph, coords).ok()?;
+        outline.fill(&outline_glyph, coords, QuirksMode::Aot).ok()?;
 
         let scale = metrics::Scale::new(
             ppem,

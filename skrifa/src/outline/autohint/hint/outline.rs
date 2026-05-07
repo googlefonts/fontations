@@ -464,11 +464,12 @@ mod tests {
         let shaper = Shaper::new(&font, ShaperMode::Nominal);
         let glyph = font.outline_glyphs().get(GlyphId::new(9)).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
+        outline.fill(&glyph, &[], Default::default()).unwrap();
         let metrics = compute_unscaled_style_metrics(
             &shaper,
-            Default::default(),
+            &[],
             &style::STYLE_CLASSES[style::StyleClass::HEBR],
+            Default::default(),
         );
         let scale = Scale::new(
             16.0,
@@ -716,8 +717,8 @@ mod tests {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(gid).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, coords).unwrap();
-        let metrics = compute_unscaled_style_metrics(&shaper, coords, style);
+        outline.fill(&glyph, coords, Default::default()).unwrap();
+        let metrics = compute_unscaled_style_metrics(&shaper, coords, style, Default::default());
         let scale = Scale::new(
             size,
             font.head().unwrap().units_per_em() as i32,
