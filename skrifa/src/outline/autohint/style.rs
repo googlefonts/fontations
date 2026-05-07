@@ -24,6 +24,13 @@ impl GlyphStyle {
     // for a given script
     const FROM_GSUB_OUTPUT: u16 = 0x8000;
 
+    /// Constructs a new glyph style from the given style index and properties.
+    pub const fn from_raw_parts(style_index: u16, is_non_base: bool, is_digit: bool) -> Self {
+        let base = is_non_base as u16 * Self::NON_BASE;
+        let digit = is_digit as u16 * Self::DIGIT;
+        Self((style_index & Self::STYLE_INDEX_MASK) | base | digit)
+    }
+
     /// Returns true if this glyph doesn't have an assigned style.
     pub const fn is_unassigned(self) -> bool {
         self.0 & Self::STYLE_INDEX_MASK == Self::UNASSIGNED
