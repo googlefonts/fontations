@@ -307,7 +307,7 @@ impl Segment {
     }
 
     /// Returns the computed length of the segment; used during stem matching.
-    pub fn len(&self) -> i32 {
+    pub fn length(&self) -> i32 {
         self.len
     }
 

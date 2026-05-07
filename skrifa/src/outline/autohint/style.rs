@@ -44,7 +44,7 @@ impl GlyphStyle {
         StyleClass::from_index(self.style_index()?)
     }
 
-    /// Returns the index of teh style class for this class.
+    /// Returns the index of the style class for this class.
     pub const fn style_index(self) -> Option<u16> {
         let ix = self.0 & Self::STYLE_INDEX_MASK;
         if ix != Self::UNASSIGNED {
