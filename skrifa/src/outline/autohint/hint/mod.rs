@@ -9,7 +9,7 @@ use super::{
     recorder::HintsRecorder,
     style::{GlyphStyle, ScriptGroup},
     topo::{self, Axis, Dimension},
-    QuirksMode,
+    QuirksMode, ScaleFlags,
 };
 
 /// Captures adjusted horizontal scale and outer edge positions to be used
@@ -92,8 +92,8 @@ fn hint_outline_impl(
         };
     }
     for dim in [Dimension::Horizontal, Dimension::Vertical] {
-        if (dim == Dimension::Horizontal && scale.flags & Scale::NO_HORIZONTAL != 0)
-            || (dim == Dimension::Vertical && scale.flags & Scale::NO_VERTICAL != 0)
+        if (dim == Dimension::Horizontal && scale.flags.contains(ScaleFlags::NO_HORIZONTAL))
+            || (dim == Dimension::Vertical && scale.flags.contains(ScaleFlags::NO_VERTICAL))
         {
             continue;
         }

@@ -156,16 +156,12 @@ pub struct TopoFlags(pub(crate) u8);
 impl TopoFlags {
     /// Regular segment or edge.
     pub const NORMAL: Self = Self(0);
-
     /// Segment or edge has rounded geometry.
     pub const ROUND: Self = Self(1);
-
     /// Segment or edge represents a serif.
     pub const SERIF: Self = Self(2);
-
     /// Segment or edge has been successfully processed.
     pub const DONE: Self = Self(4);
-
     /// Segment or edge aligns to a neutral blue zone.
     pub const NEUTRAL: Self = Self(8);
 }

@@ -1,7 +1,5 @@
 //! Autohinting state for a font instance.
 
-use crate::{attribute::Style, prelude::Size, MetadataProvider};
-
 use super::{
     super::{
         pen::PathStyle, AdjustedMetrics, DrawError, OutlineGlyph, OutlineGlyphCollection,
@@ -11,7 +9,9 @@ use super::{
     outline::Outline,
     shape::{Shaper, ShaperMode},
     style::{GlyphStyle, GlyphStyleMap},
+    ScaleFlags,
 };
+use crate::{attribute::Style, prelude::Size, MetadataProvider};
 use alloc::sync::Arc;
 use raw::{
     types::{F26Dot6, F2Dot14, GlyphId},
@@ -132,7 +132,7 @@ impl Instance {
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afloader.c#L422>
         if !is_light {
             if let (true, Some(edge_metrics)) = (
-                scale.flags & Scale::NO_ADVANCE == 0,
+                !scale.flags.contains(ScaleFlags::NO_ADVANCE),
                 hinted_metrics.edge_metrics,
             ) {
                 let old_rsb = pp2x - edge_metrics.right_opos;

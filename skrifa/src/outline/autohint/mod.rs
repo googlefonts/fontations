@@ -12,7 +12,7 @@ mod topo;
 pub use instance::GlyphStyles;
 pub(crate) use instance::Instance;
 pub use metrics::{
-    BlueZones, Scale, ScaledAxisMetrics, ScaledBlue, ScaledStyleMetrics, ScaledWidth,
+    BlueZones, Scale, ScaleFlags, ScaledAxisMetrics, ScaledBlue, ScaledStyleMetrics, ScaledWidth,
     UnscaledAxisMetrics, UnscaledBlue, UnscaledStyleMetrics, WidthMetrics,
 };
 pub use outline::Direction;

@@ -9,6 +9,7 @@ use super::super::{
     recorder::{EdgeAction, HintsRecorder},
     style::ScriptGroup,
     topo::{Axis, Dimension, Edge, TopoFlags},
+    ScaleFlags,
 };
 
 /// Main Latin grid-fitting routine.
@@ -761,7 +762,7 @@ fn stem_width(
     base_flags: TopoFlags,
     stem_flags: TopoFlags,
 ) -> i32 {
-    if scale.flags & Scale::STEM_ADJUST == 0
+    if !scale.flags.contains(ScaleFlags::STEM_ADJUST)
         || (group == ScriptGroup::Default && metrics.width_metrics.is_extra_light)
     {
         return width;
@@ -769,8 +770,8 @@ fn stem_width(
     let is_vertical = metrics.dim == Dimension::Vertical;
     let sign = if width < 0 { -1 } else { 1 };
     let mut dist = width.abs();
-    if (is_vertical && scale.flags & Scale::VERTICAL_SNAP == 0)
-        || (!is_vertical && scale.flags & Scale::HORIZONTAL_SNAP == 0)
+    if (is_vertical && !scale.flags.contains(ScaleFlags::VERTICAL_SNAP))
+        || (!is_vertical && !scale.flags.contains(ScaleFlags::HORIZONTAL_SNAP))
     {
         // Do smooth hinting
         if group == ScriptGroup::Default {
@@ -853,7 +854,7 @@ fn stem_width(
             } else {
                 dist = 64;
             }
-        } else if scale.flags & Scale::MONO != 0 {
+        } else if scale.flags.contains(ScaleFlags::MONO) {
             // Mono horizontal hinting: snap to integer with different
             // threshold
             if dist < 64 {
@@ -957,7 +958,7 @@ fn hint_normal_stem_cjk(
     const MAX_DELTA_ABS: i32 = 14;
     let edge = axis.edges[edge_ix];
     let edge2 = axis.edges[edge2_ix];
-    let do_stem_adjust = scale.flags & Scale::STEM_ADJUST != 0;
+    let do_stem_adjust = scale.flags.contains(ScaleFlags::STEM_ADJUST);
     let threshold_delta = if do_stem_adjust {
         0
     } else {

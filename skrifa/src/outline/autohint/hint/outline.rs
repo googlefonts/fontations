@@ -20,6 +20,7 @@ use super::super::{
     recorder::HintsRecorder,
     style::ScriptGroup,
     topo::{Axis, Dimension},
+    ScaleFlags,
 };
 use core::cmp::Ordering;
 use raw::tables::glyf::PointMarker;
@@ -39,8 +40,8 @@ pub(crate) fn align_edge_points(
     // Snapping is configurable for CJK
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L2195>
     let snap = group == ScriptGroup::Default
-        || ((axis.dim == Dimension::Horizontal && scale.flags & Scale::HORIZONTAL_SNAP != 0)
-            || (axis.dim == Dimension::Vertical && scale.flags & Scale::VERTICAL_SNAP != 0));
+        || (axis.dim == Dimension::Horizontal && scale.flags.contains(ScaleFlags::HORIZONTAL_SNAP))
+        || (axis.dim == Dimension::Vertical && scale.flags.contains(ScaleFlags::VERTICAL_SNAP));
     for segment in segments {
         let Some(edge) = segment.edge(edges) else {
             continue;
