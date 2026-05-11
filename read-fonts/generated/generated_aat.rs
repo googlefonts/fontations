@@ -17,6 +17,19 @@ pub enum Lookup<'a> {
     Format10(Lookup10<'a>),
 }
 
+impl Default for Lookup<'_> {
+    fn default() -> Self {
+        Self::Format0(Default::default())
+    }
+}
+
+impl Lookup<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format0 (t) if t . is_default ())
+    }
+}
+
 impl<'a> Lookup<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -168,6 +181,23 @@ impl<'a> Lookup0<'a> {
     pub fn values_data_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(Lookup0::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Lookup0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Lookup0<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1033,6 +1063,23 @@ impl<'a> StateHeader<'a> {
     }
 }
 
+const _: () = assert!(StateHeader::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for StateHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl StateHeader<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for StateHeader<'a> {
     fn type_name(&self) -> &str {
@@ -1133,6 +1180,23 @@ impl<'a> ClassSubtable<'a> {
     }
 }
 
+const _: () = assert!(ClassSubtable::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for ClassSubtable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl ClassSubtable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClassSubtable<'a> {
     fn type_name(&self) -> &str {
@@ -1195,6 +1259,24 @@ impl<'a> RawBytes<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(RawBytes::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for RawBytes<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl RawBytes<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -1316,6 +1398,23 @@ impl<'a> StxHeader<'a> {
     }
 }
 
+const _: () = assert!(StxHeader::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for StxHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl StxHeader<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for StxHeader<'a> {
     fn type_name(&self) -> &str {
@@ -1388,6 +1487,24 @@ impl<'a> RawWords<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(RawWords::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for RawWords<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl RawWords<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

@@ -64,6 +64,23 @@ impl<'a> Ebdt<'a> {
     }
 }
 
+const _: () = assert!(Ebdt::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Ebdt<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Ebdt<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Ebdt<'a> {
     fn type_name(&self) -> &str {

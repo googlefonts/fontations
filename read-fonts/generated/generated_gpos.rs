@@ -129,6 +129,23 @@ impl<'a> Gpos<'a> {
     }
 }
 
+const _: () = assert!(Gpos::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Gpos<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Gpos<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gpos<'a> {
     fn type_name(&self) -> &str {
@@ -606,6 +623,19 @@ pub enum AnchorTable<'a> {
     Format3(AnchorFormat3<'a>),
 }
 
+impl Default for AnchorTable<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl AnchorTable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
+}
+
 impl<'a> AnchorTable<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -767,6 +797,23 @@ impl<'a> AnchorFormat1<'a> {
     pub fn y_coordinate_byte_range(&self) -> Range<usize> {
         let start = self.x_coordinate_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(AnchorFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for AnchorFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl AnchorFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -1096,6 +1143,23 @@ impl<'a> MarkArray<'a> {
     }
 }
 
+const _: () = assert!(MarkArray::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MarkArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl MarkArray<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MarkArray<'a> {
     fn type_name(&self) -> &str {
@@ -1183,6 +1247,19 @@ impl<'a> SomeRecord<'a> for MarkRecord {
 pub enum SinglePos<'a> {
     Format1(SinglePosFormat1<'a>),
     Format2(SinglePosFormat2<'a>),
+}
+
+impl Default for SinglePos<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl SinglePos<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
 }
 
 impl<'a> SinglePos<'a> {
@@ -1359,6 +1436,23 @@ impl<'a> SinglePosFormat1<'a> {
     pub fn value_record_byte_range(&self) -> Range<usize> {
         let start = self.value_format_byte_range().end;
         start..start + <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap_or(0)
+    }
+}
+
+const _: () = assert!(SinglePosFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for SinglePosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl SinglePosFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -1540,6 +1634,19 @@ impl<'a> std::fmt::Debug for SinglePosFormat2<'a> {
 pub enum PairPos<'a> {
     Format1(PairPosFormat1<'a>),
     Format2(PairPosFormat2<'a>),
+}
+
+impl Default for PairPos<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl PairPos<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
 }
 
 impl<'a> PairPos<'a> {
@@ -1760,6 +1867,23 @@ impl<'a> PairPosFormat1<'a> {
         let pair_set_count = self.pair_set_count();
         let start = self.pair_set_count_byte_range().end;
         start..start + (pair_set_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(PairPosFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for PairPosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl PairPosFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -2531,6 +2655,23 @@ impl<'a> CursivePosFormat1<'a> {
     }
 }
 
+const _: () = assert!(CursivePosFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for CursivePosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl CursivePosFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -2774,6 +2915,23 @@ impl<'a> MarkBasePosFormat1<'a> {
     pub fn base_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_array_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(MarkBasePosFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MarkBasePosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl MarkBasePosFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -3156,6 +3314,23 @@ impl<'a> MarkLigPosFormat1<'a> {
     pub fn ligature_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_array_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(MarkLigPosFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MarkLigPosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl MarkLigPosFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 
@@ -3667,6 +3842,23 @@ impl<'a> MarkMarkPosFormat1<'a> {
     }
 }
 
+const _: () = assert!(MarkMarkPosFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MarkMarkPosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl MarkMarkPosFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MarkMarkPosFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -4016,6 +4208,24 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     pub fn extension_offset_byte_range(&self) -> Range<usize> {
         let start = self.extension_lookup_type_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(ExtensionPosFormat1::<()>::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for ExtensionPosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
+impl ExtensionPosFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
     }
 }
 

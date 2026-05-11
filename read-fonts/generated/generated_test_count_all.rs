@@ -56,6 +56,23 @@ impl<'a> CountAll16<'a> {
     }
 }
 
+const _: () = assert!(CountAll16::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for CountAll16<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl CountAll16<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CountAll16<'a> {
     fn type_name(&self) -> &str {
@@ -126,6 +143,23 @@ impl<'a> CountAll32<'a> {
     pub fn remainder_byte_range(&self) -> Range<usize> {
         let start = self.some_field_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(CountAll32::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for CountAll32<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl CountAll32<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

@@ -140,6 +140,23 @@ impl<'a> Varc<'a> {
     }
 }
 
+const _: () = assert!(Varc::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Varc<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Varc<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Varc<'a> {
     fn type_name(&self) -> &str {
@@ -275,6 +292,23 @@ impl<'a> MultiItemVariationStore<'a> {
     }
 }
 
+const _: () = assert!(MultiItemVariationStore::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MultiItemVariationStore<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
+impl MultiItemVariationStore<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u16_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
     fn type_name(&self) -> &str {
@@ -377,6 +411,23 @@ impl<'a> SparseVariationRegionList<'a> {
     }
 }
 
+const _: () = assert!(SparseVariationRegionList::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for SparseVariationRegionList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl SparseVariationRegionList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
     fn type_name(&self) -> &str {
@@ -464,6 +515,23 @@ impl<'a> SparseVariationRegion<'a> {
             ..start
                 + (region_axis_count as usize)
                     .saturating_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(SparseVariationRegion::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for SparseVariationRegion<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl SparseVariationRegion<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -622,6 +690,23 @@ impl<'a> MultiItemVariationData<'a> {
     }
 }
 
+const _: () = assert!(MultiItemVariationData::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MultiItemVariationData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
+    }
+}
+
+impl MultiItemVariationData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u8_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultiItemVariationData<'a> {
     fn type_name(&self) -> &str {
@@ -702,6 +787,23 @@ impl<'a> ConditionList<'a> {
         let condition_count = self.condition_count();
         let start = self.condition_count_byte_range().end;
         start..start + (condition_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(ConditionList::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for ConditionList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl ConditionList<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

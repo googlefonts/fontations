@@ -126,6 +126,23 @@ impl<'a> Hvar<'a> {
     }
 }
 
+const _: () = assert!(Hvar::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for Hvar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl Hvar<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Hvar<'a> {
     fn type_name(&self) -> &str {

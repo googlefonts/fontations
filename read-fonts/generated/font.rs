@@ -105,6 +105,23 @@ impl<'a> TableDirectory<'a> {
     }
 }
 
+const _: () = assert!(TableDirectory::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for TableDirectory<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl TableDirectory<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for TableDirectory<'a> {
     fn type_name(&self) -> &str {
@@ -319,6 +336,23 @@ impl<'a> TTCHeader<'a> {
             ..(self.version().compatible((2u16, 0u16)))
                 .then(|| start + u32::RAW_BYTE_LEN)
                 .unwrap_or(start)
+    }
+}
+
+const _: () = assert!(TTCHeader::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for TTCHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl TTCHeader<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

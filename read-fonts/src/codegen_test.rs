@@ -14,6 +14,39 @@ pub mod records {
 
 pub mod formats {
     include!("../generated/generated_test_formats.rs");
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use font_test_data::bebuffer::BeBuffer;
+
+        #[test]
+        fn default_and_is_default_format_table() {
+            // Table1 has format = 1 (u16), so its default data starts with 0x00 0x01
+            let table = Table1::default();
+            assert!(table.is_default());
+            assert_eq!(table.format(), 1);
+        }
+
+        #[test]
+        fn is_default_false_for_real_data() {
+            // Table1::MIN_SIZE = u16 + u32 + u16 = 8 bytes
+            let buf = BeBuffer::new()
+                .push(1u16) // format
+                .push(42u32) // some_val
+                .push(0u16); // other_val
+            let table = Table1::read(buf.data().into()).unwrap();
+            assert!(!table.is_default());
+        }
+
+        #[test]
+        fn format_enum_default_is_first_variant() {
+            // MyTable's Default delegates to Table1 (first variant)
+            let table = MyTable::default();
+            assert!(matches!(table, MyTable::Format1(_)));
+            assert!(table.is_default());
+        }
+    }
 }
 
 pub mod read_args {

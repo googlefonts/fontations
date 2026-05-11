@@ -95,6 +95,23 @@ impl<'a> BasicTable<'a> {
     }
 }
 
+const _: () = assert!(BasicTable::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for BasicTable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl BasicTable<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BasicTable<'a> {
     fn type_name(&self) -> &str {
@@ -371,6 +388,23 @@ impl<'a> VarLenItem<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(VarLenItem::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for VarLenItem<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl VarLenItem<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

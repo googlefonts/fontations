@@ -11,6 +11,19 @@ pub enum Ift<'a> {
     Format2(PatchMapFormat2<'a>),
 }
 
+impl Default for Ift<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
+impl Ift<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        matches ! (self , Self :: Format1 (t) if t . is_default ())
+    }
+}
+
 impl<'a> Ift<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -670,6 +683,23 @@ impl<'a> PatchMapFormat1<'a> {
                 .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
             .then(|| start + u32::RAW_BYTE_LEN)
             .unwrap_or(start)
+    }
+}
+
+const _: () = assert!(PatchMapFormat1::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for PatchMapFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
+    }
+}
+
+impl PatchMapFormat1<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_format_1_u8_table_data()
     }
 }
 
@@ -1450,6 +1480,24 @@ impl<'a> MappingEntries<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(MappingEntries::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for MappingEntries<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl MappingEntries<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MappingEntries<'a> {
     fn type_name(&self) -> &str {
@@ -1626,6 +1674,23 @@ impl<'a> EntryData<'a> {
     pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self.child_indices_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(EntryData::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for EntryData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl EntryData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -2119,6 +2184,24 @@ impl<'a> IdStringData<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(IdStringData::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for IdStringData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl IdStringData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IdStringData<'a> {
     fn type_name(&self) -> &str {
@@ -2226,6 +2309,23 @@ impl<'a> TableKeyedPatch<'a> {
         start
             ..start
                 + (transforms::add(patches_count, 1_usize)).saturating_mul(Offset32::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(TableKeyedPatch::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for TableKeyedPatch<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl TableKeyedPatch<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -2339,6 +2439,23 @@ impl<'a> TablePatch<'a> {
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(TablePatch::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for TablePatch<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl TablePatch<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -2762,6 +2879,23 @@ impl<'a> GlyphKeyedPatch<'a> {
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(GlyphKeyedPatch::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for GlyphKeyedPatch<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl GlyphKeyedPatch<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 
@@ -3301,6 +3435,24 @@ impl<'a> GlyphData<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(GlyphData::MIN_SIZE <= NULL_POOL_SIZE);
+
+impl Default for GlyphData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+impl GlyphData<'_> {
+    /// Returns `true` if this table was created from default (null) data.
+    pub fn is_default(&self) -> bool {
+        self.data == FontData::default_table_data()
     }
 }
 

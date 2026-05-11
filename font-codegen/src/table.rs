@@ -81,6 +81,56 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         }
     });
 
+    let const_generic = generic.is_some().then(|| quote!(::<()>));
+    // Generate Default for all tables that don't require external args, skipping
+    // tables that have a 'format' field that is not expected to be 0 or 1.
+    let table_format = item.format_value_and_width();
+
+    // Choose the data constructor based on the table's format value: format=1 needs the
+    // first byte set to 1 so that reading back the format field yields the correct value.
+    let data_method = item
+        .attrs
+        .read_args
+        .is_none()
+        .then(|| match table_format {
+            Some((1, 1)) => Some(quote!(default_format_1_u8_table_data)),
+            Some((1, 2)) => Some(quote!(default_format_1_u16_table_data)),
+            None | Some((0, _)) => Some(quote!(default_table_data)),
+            _ => None,
+        })
+        .flatten();
+
+    let impl_default = data_method.map(|data_method| {
+        let phantom_init = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
+
+        let min_size_is_zero = min_valid_size.to_string() == "0";
+        // selectively allow this lint so we can assert 0 <= NULL_POOL_SIZE,
+        // which I prefer to elliding the assert
+        let size_check_allow =
+            min_size_is_zero.then(|| quote!(#[allow(clippy::absurd_extreme_comparisons)]));
+
+        quote! {
+            #size_check_allow
+            const _: () = assert!(#raw_name #const_generic ::MIN_SIZE <= NULL_POOL_SIZE);
+
+            impl Default for #raw_name<'_> {
+                fn default() -> Self {
+                    Self {
+                        data: FontData::#data_method(),
+                        #phantom_init
+                    }
+                }
+            }
+
+            impl #raw_name<'_> {
+                /// Returns `true` if this table was created from default (null) data.
+                pub fn is_default(&self) -> bool {
+                    self.data == FontData::#data_method()
+                }
+            }
+        }
+    });
+
     Ok(quote! {
         #optional_format_trait_impl
 
@@ -103,13 +153,14 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         #[allow(clippy::needless_lifetimes)]
         impl<'a, #generic> #raw_name<'a, #generic> {
             pub const MIN_SIZE: usize = #min_valid_size;
-
             basic_table_impls!(impl_the_methods);
 
             #( #table_ref_getters )*
             #( #field_byte_range_fns )*
 
         }
+
+        #impl_default
 
         #debug
     })
@@ -815,11 +866,26 @@ pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::R
         min_table_byte_arms.push(quote!(Self::#var_name(item) => item.min_table_bytes(), ));
     }
 
+    let first_variant = item.variants.iter().find(|v| v.attrs.write_only.is_none());
+    let first_var_name = first_variant.map(|v| &v.name);
     Ok(quote! {
         #( #docs )*
         #[derive(Clone)]
         pub enum #name<'a> {
             #( #variants ),*
+        }
+
+        impl Default for #name<'_> {
+            fn default() -> Self {
+                Self::#first_var_name(Default::default())
+            }
+        }
+
+        impl #name<'_> {
+            /// Returns `true` if this table was created from default (null) data.
+            pub fn is_default(&self) -> bool {
+                matches!(self, Self::#first_var_name(t) if t.is_default())
+            }
         }
 
         #getters

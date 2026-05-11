@@ -309,6 +309,12 @@ impl<'a> From<&'a [u8]> for FontData<'a> {
     }
 }
 
+impl PartialEq for FontData<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.bytes == other.bytes
+    }
+}
+
 //kind of ugly, but makes FontData work with FontBuilder. If FontBuilder stops using
 //Cow in its API, we can probably get rid of this?
 #[cfg(feature = "std")]

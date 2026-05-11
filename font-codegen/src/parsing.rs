@@ -55,6 +55,21 @@ impl Table {
     pub(crate) fn raw_name(&self) -> &syn::Ident {
         &self.name
     }
+
+    /// Returns the table's format value if it has a `#[format(N)]` field.
+    pub(crate) fn format_value_and_width(&self) -> Option<(u32, u8)> {
+        let fld = self.fields.iter().find(|fld| fld.attrs.format.is_some())?;
+        let format = fld.attrs.format.as_ref().unwrap().base10_parse().ok()?;
+        let fld_tokens = fld.typ.cooked_type_tokens();
+        let width = if fld_tokens == "u8" {
+            1
+        } else if fld_tokens == "u16" {
+            2
+        } else {
+            panic!("only expect format fields to be u8 or u16");
+        };
+        Some((format, width))
+    }
 }
 
 #[derive(Debug, Default, Clone)]
