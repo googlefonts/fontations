@@ -8,7 +8,8 @@ use super::{
     outline::Outline,
     recorder::HintsRecorder,
     style::{GlyphStyle, ScriptGroup},
-    topo::{self, Axis},
+    topo::{self, Axis, Dimension},
+    QuirksMode, ScaleFlags,
 };
 
 /// Captures adjusted horizontal scale and outer edge positions to be used
@@ -45,31 +46,17 @@ pub(crate) fn hint_outline(
 
 pub(crate) struct HintedPlan {
     pub hinted_metrics: HintedMetrics,
-    #[allow(dead_code)]
-    pub vertical_axis: Option<Axis>,
+    pub axes: [Option<Axis>; 2],
 }
 
-#[allow(dead_code)] // used in tests
-#[cfg(feature = "autohinter")]
 pub(crate) fn hint_outline_with_recorder(
     outline: &mut Outline,
     metrics: &UnscaledStyleMetrics,
     scale: &Scale,
     glyph_style: Option<GlyphStyle>,
-    recorder: Option<&mut HintsRecorder>,
-) -> HintedMetrics {
-    hint_outline_impl(outline, metrics, scale, glyph_style, recorder).hinted_metrics
-}
-
-#[cfg(feature = "autohinter")]
-pub(crate) fn hint_outline_with_plan(
-    outline: &mut Outline,
-    metrics: &UnscaledStyleMetrics,
-    scale: &Scale,
-    glyph_style: Option<GlyphStyle>,
-    recorder: Option<&mut HintsRecorder>,
+    recorder: &mut HintsRecorder,
 ) -> HintedPlan {
-    hint_outline_impl(outline, metrics, scale, glyph_style, recorder)
+    hint_outline_impl(outline, metrics, scale, glyph_style, Some(recorder))
 }
 
 fn hint_outline_impl(
@@ -79,7 +66,12 @@ fn hint_outline_impl(
     glyph_style: Option<GlyphStyle>,
     mut recorder: Option<&mut HintsRecorder>,
 ) -> HintedPlan {
-    let scaled_metrics = scale_style_metrics(metrics, *scale);
+    let quirks = if recorder.is_some() {
+        QuirksMode::Aot
+    } else {
+        QuirksMode::Jit
+    };
+    let scaled_metrics = scale_style_metrics(metrics, *scale, quirks);
     let scale = &scaled_metrics.scale;
     let mut axis = Axis::default();
     let hint_top_to_bottom = metrics.style_class().script.hint_top_to_bottom;
@@ -89,19 +81,19 @@ fn hint_outline_impl(
         ..Default::default()
     };
     let group = metrics.style_class().script.group;
-    let mut vertical_axis = None;
+    let mut axes = [const { None }; 2];
     // For default script group, we don't proceed with hinting if we're
     // missing alignment zones. FreeType swaps in a "dummy" hinter here
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afglobal.c#L475>
     if group == ScriptGroup::Default && scaled_metrics.axes[1].blues.is_empty() {
         return HintedPlan {
             hinted_metrics,
-            vertical_axis,
+            axes,
         };
     }
-    for dim in 0..2 {
-        if (dim == Axis::HORIZONTAL && scale.flags & Scale::NO_HORIZONTAL != 0)
-            || (dim == Axis::VERTICAL && scale.flags & Scale::NO_VERTICAL != 0)
+    for dim in [Dimension::Horizontal, Dimension::Vertical] {
+        if (dim == Dimension::Horizontal && scale.flags.contains(ScaleFlags::NO_HORIZONTAL))
+            || (dim == Dimension::Vertical && scale.flags.contains(ScaleFlags::NO_VERTICAL))
         {
             continue;
         }
@@ -121,7 +113,7 @@ fn hint_outline_impl(
             scaled_metrics.scale.y_scale,
             group,
         );
-        if dim == Axis::VERTICAL {
+        if dim == Dimension::Vertical {
             if group != ScriptGroup::Default
                 || glyph_style
                     .map(|style| !style.is_non_base())
@@ -149,7 +141,7 @@ fn hint_outline_impl(
         outline::align_edge_points(outline, &axis, group, scale);
         outline::align_strong_points(outline, &mut axis, recorder.as_deref_mut());
         outline::align_weak_points(outline, dim);
-        if dim == 0 && axis.edges.len() > 1 {
+        if dim == Dimension::Horizontal && axis.edges.len() > 1 {
             let left = axis.edges.first().unwrap();
             let right = axis.edges.last().unwrap();
             hinted_metrics.edge_metrics = Some(EdgeMetrics {
@@ -159,12 +151,12 @@ fn hint_outline_impl(
                 right_opos: right.opos,
             });
         }
-        if dim == Axis::VERTICAL {
-            vertical_axis = Some(axis.clone());
+        if recorder.is_some() {
+            axes[dim as usize] = Some(axis.clone());
         }
     }
     HintedPlan {
         hinted_metrics,
-        vertical_axis,
+        axes,
     }
 }

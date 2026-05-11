@@ -9,6 +9,7 @@ use super::{
     shape::{Shaper, ShaperMode},
     style::{GlyphStyleMap, ScriptGroup, StyleClass},
     topo::Dimension,
+    QuirksMode,
 };
 use crate::{attribute::Style, collections::SmallVec, FontRef};
 use alloc::vec::Vec;
@@ -16,171 +17,9 @@ use raw::types::{F2Dot14, Fixed, GlyphId};
 #[cfg(feature = "std")]
 use std::sync::{Arc, RwLock};
 
-pub(crate) use blues::{BlueZones, ScaledBlue, ScaledBlues, UnscaledBlue, UnscaledBlues};
+pub use blues::{BlueZones, ScaledBlue, UnscaledBlue};
+pub(crate) use blues::{ScaledBlues, UnscaledBlues};
 pub(crate) use scale::{compute_unscaled_style_metrics, scale_style_metrics};
-
-#[cfg(feature = "autohinter")]
-/// Public snapshot of a single unscaled blue zone.
-#[derive(Clone, Debug, Default)]
-pub struct ExportedUnscaledBlue {
-    pub reference: i32,
-    pub shoot: i32,
-    pub is_adjustment: bool,
-}
-
-#[cfg(feature = "autohinter")]
-/// Public snapshot of unscaled style metrics needed by ttfautohint.
-#[derive(Clone, Debug, Default)]
-pub struct ExportedUnscaledStyleMetrics {
-    pub digits_have_same_width: bool,
-    pub horizontal_widths: Vec<i32>,
-    pub vertical_widths: Vec<i32>,
-    pub blues: Vec<ExportedUnscaledBlue>,
-}
-
-#[cfg(feature = "autohinter")]
-/// Public snapshot of a single scaled width entry.
-#[derive(Clone, Debug, Default)]
-pub struct ExportedScaledWidth {
-    pub scaled: i32,
-    pub fitted: i32,
-}
-
-#[cfg(feature = "autohinter")]
-/// Public snapshot of a single scaled blue zone.
-#[derive(Clone, Debug, Default)]
-pub struct ExportedScaledBlue {
-    pub reference_scaled: i32,
-    pub reference_fitted: i32,
-    pub shoot_scaled: i32,
-    pub shoot_fitted: i32,
-    pub is_active: bool,
-    pub is_top: bool,
-    pub is_sub_top: bool,
-    pub is_neutral: bool,
-    pub is_adjustment: bool,
-}
-
-#[cfg(feature = "autohinter")]
-/// Public snapshot of scaled style metrics needed by ttfautohint.
-#[derive(Clone, Debug, Default)]
-pub struct ExportedScaledStyleMetrics {
-    pub digits_have_same_width: bool,
-    pub x_scale: i32,
-    pub y_scale: i32,
-    pub x_delta: i32,
-    pub y_delta: i32,
-    pub horizontal_widths: Vec<ExportedScaledWidth>,
-    pub vertical_widths: Vec<ExportedScaledWidth>,
-    pub blues: Vec<ExportedScaledBlue>,
-}
-
-#[cfg(feature = "autohinter")]
-/// Compute unscaled style metrics for a style class and expose a stable,
-/// allocation-owned representation suitable for FFI consumers.
-pub fn compute_unscaled_style_metrics_exported(
-    font: &FontRef,
-    coords: &[F2Dot14],
-    style: &StyleClass,
-) -> ExportedUnscaledStyleMetrics {
-    let shaper_mode = if cfg!(feature = "autohint_shaping") {
-        ShaperMode::BestEffort
-    } else {
-        ShaperMode::Nominal
-    };
-    let shaper = Shaper::new(font, shaper_mode);
-    let metrics = compute_unscaled_style_metrics(&shaper, coords, style);
-
-    ExportedUnscaledStyleMetrics {
-        digits_have_same_width: metrics.digits_have_same_width,
-        horizontal_widths: metrics.axes[0].widths.iter().copied().collect(),
-        vertical_widths: metrics.axes[1].widths.iter().copied().collect(),
-        blues: metrics.axes[1]
-            .blues
-            .iter()
-            .map(|blue| ExportedUnscaledBlue {
-                reference: blue.position,
-                shoot: blue.overshoot,
-                is_adjustment: blue.zones.contains(BlueZones::ADJUSTMENT),
-            })
-            .collect(),
-    }
-}
-
-#[cfg(feature = "autohinter")]
-#[allow(clippy::too_many_arguments)]
-/// Compute scaled style metrics for a style class and expose a stable,
-/// allocation-owned representation.
-pub fn compute_scaled_style_metrics_exported(
-    font: &FontRef,
-    coords: &[F2Dot14],
-    style: &StyleClass,
-    x_scale: i32,
-    y_scale: i32,
-    x_delta: i32,
-    y_delta: i32,
-    flags: u32,
-    units_per_em: i32,
-) -> ExportedScaledStyleMetrics {
-    let shaper_mode = if cfg!(feature = "autohint_shaping") {
-        ShaperMode::BestEffort
-    } else {
-        ShaperMode::Nominal
-    };
-    let shaper = Shaper::new(font, shaper_mode);
-    let unscaled = compute_unscaled_style_metrics(&shaper, coords, style);
-    let scaled = scale_style_metrics(
-        &unscaled,
-        Scale {
-            x_scale,
-            y_scale,
-            x_delta,
-            y_delta,
-            size: 0.0,
-            units_per_em,
-            flags,
-        },
-    );
-
-    ExportedScaledStyleMetrics {
-        digits_have_same_width: unscaled.digits_have_same_width,
-        x_scale: scaled.scale.x_scale,
-        y_scale: scaled.scale.y_scale,
-        x_delta: scaled.scale.x_delta,
-        y_delta: scaled.scale.y_delta,
-        horizontal_widths: scaled.axes[0]
-            .widths
-            .iter()
-            .map(|width| ExportedScaledWidth {
-                scaled: width.scaled,
-                fitted: width.fitted,
-            })
-            .collect(),
-        vertical_widths: scaled.axes[1]
-            .widths
-            .iter()
-            .map(|width| ExportedScaledWidth {
-                scaled: width.scaled,
-                fitted: width.fitted,
-            })
-            .collect(),
-        blues: scaled.axes[1]
-            .blues
-            .iter()
-            .map(|blue| ExportedScaledBlue {
-                reference_scaled: blue.position.scaled,
-                reference_fitted: blue.position.fitted,
-                shoot_scaled: blue.overshoot.scaled,
-                shoot_fitted: blue.overshoot.fitted,
-                is_active: blue.is_active,
-                is_top: blue.zones.contains(BlueZones::TOP),
-                is_sub_top: blue.zones.contains(BlueZones::SUB_TOP),
-                is_neutral: blue.zones.contains(BlueZones::NEUTRAL),
-                is_adjustment: blue.zones.contains(BlueZones::ADJUSTMENT),
-            })
-            .collect(),
-    }
-}
 
 /// Maximum number of widths, same for Latin and CJK.
 ///
@@ -195,14 +34,27 @@ pub(crate) const MAX_WIDTHS: usize = 16;
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L88>
 /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.h#L73>
 #[derive(Clone, Default, Debug)]
-pub(crate) struct UnscaledAxisMetrics {
+pub struct UnscaledAxisMetrics {
+    /// The dimension of this axis.
     pub dim: Dimension,
-    pub widths: UnscaledWidths,
+    pub(crate) widths: UnscaledWidths,
+    /// The unscaled width metrics for the axis.
     pub width_metrics: WidthMetrics,
-    pub blues: UnscaledBlues,
+    pub(crate) blues: UnscaledBlues,
 }
 
 impl UnscaledAxisMetrics {
+    /// Returns the set of unscaled widths.
+    pub fn widths(&self) -> &[i32] {
+        self.widths.as_slice()
+    }
+
+    /// Returns the set of unscaled blues.
+    pub fn blues(&self) -> &[UnscaledBlue] {
+        self.blues.as_slice()
+    }
+
+    /// Returns the largest width, if any.
     pub fn max_width(&self) -> Option<i32> {
         self.widths.last().copied()
     }
@@ -210,38 +62,63 @@ impl UnscaledAxisMetrics {
 
 /// Scaled metrics for a single axis.
 #[derive(Clone, Default, Debug)]
-pub(crate) struct ScaledAxisMetrics {
+pub struct ScaledAxisMetrics {
+    /// The dimension of this axis.
     pub dim: Dimension,
     /// Font unit to 26.6 scale in the axis direction.
     pub scale: i32,
     /// 1/64 pixel delta in the axis direction.
     pub delta: i32,
-    pub widths: ScaledWidths,
+    pub(crate) widths: ScaledWidths,
+    /// The scaled width metrics.
     pub width_metrics: WidthMetrics,
-    pub blues: ScaledBlues,
+    pub(crate) blues: ScaledBlues,
+}
+
+impl ScaledAxisMetrics {
+    /// Returns the set of scaled widths.
+    pub fn widths(&self) -> &[ScaledWidth] {
+        self.widths.as_slice()
+    }
+
+    /// Returns the set of scaled blues.
+    pub fn blues(&self) -> &[ScaledBlue] {
+        self.blues.as_slice()
+    }
 }
 
 /// Unscaled metrics for a single style and script.
-///
-/// This is the union of the root, Latin and CJK style metrics but
-/// the latter two are actually identical.
-///
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aftypes.h#L413>
-/// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L109>
-/// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.h#L95>
+//
+// This is the union of the root, Latin and CJK style metrics but
+// the latter two are actually identical.
+//
+// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aftypes.h#L413>
+// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L109>
+// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.h#L95>
 #[derive(Clone, Default, Debug)]
-pub(crate) struct UnscaledStyleMetrics {
+pub struct UnscaledStyleMetrics {
     /// Index of style class.
-    pub class_ix: u16,
+    pub(crate) class_ix: u16,
     /// Monospaced digits?
     pub digits_have_same_width: bool,
     /// Per-dimension unscaled metrics.
-    pub axes: [UnscaledAxisMetrics; 2],
+    pub(crate) axes: [UnscaledAxisMetrics; 2],
 }
 
 impl UnscaledStyleMetrics {
+    /// Returns the associated style class.
     pub fn style_class(&self) -> &'static StyleClass {
         &super::style::STYLE_CLASSES[self.class_ix as usize]
+    }
+
+    /// Returns unscaled metrics for the horizontal axis.
+    pub fn horizontal_metrics(&self) -> &UnscaledAxisMetrics {
+        &self.axes[0]
+    }
+
+    /// Returns unscaled metrics for the vertical axis.
+    pub fn vertical_metrics(&self) -> &UnscaledAxisMetrics {
+        &self.axes[1]
     }
 }
 
@@ -269,11 +146,9 @@ impl UnscaledStyleMetricsSet {
         // over allocating memory.
         let shaper = Shaper::new(font, shaper_mode);
         let mut vec = Vec::with_capacity(style_map.metrics_count());
-        vec.extend(
-            style_map
-                .metrics_styles()
-                .map(|style| compute_unscaled_style_metrics(&shaper, coords, style)),
-        );
+        vec.extend(style_map.metrics_styles().map(|style| {
+            compute_unscaled_style_metrics(&shaper, coords, style, QuirksMode::default())
+        }));
         Self::Precomputed(vec)
     }
 
@@ -312,7 +187,12 @@ impl UnscaledStyleMetricsSet {
                 // metrics.
                 let shaper = Shaper::new(font, shaper_mode);
                 let style_class = style.style_class()?;
-                let metrics = compute_unscaled_style_metrics(&shaper, coords, style_class);
+                let metrics = compute_unscaled_style_metrics(
+                    &shaper,
+                    coords,
+                    style_class,
+                    QuirksMode::default(),
+                );
                 let mut entry = lazy.write().unwrap();
                 *entry.get_mut(index)? = Some(metrics.clone());
                 Some(metrics)
@@ -323,15 +203,28 @@ impl UnscaledStyleMetricsSet {
 
 /// Scaled metrics for a single style and script.
 #[derive(Clone, Default, Debug)]
-pub(crate) struct ScaledStyleMetrics {
+pub struct ScaledStyleMetrics {
     /// Multidimensional scaling factors and deltas.
     pub scale: Scale,
     /// Per-dimension scaled metrics.
-    pub axes: [ScaledAxisMetrics; 2],
+    pub(crate) axes: [ScaledAxisMetrics; 2],
 }
 
+impl ScaledStyleMetrics {
+    /// Returns unscaled metrics for the horizontal axis.
+    pub fn horizontal_metrics(&self) -> &ScaledAxisMetrics {
+        &self.axes[0]
+    }
+
+    /// Returns unscaled metrics for the vertical axis.
+    pub fn vertical_metrics(&self) -> &ScaledAxisMetrics {
+        &self.axes[1]
+    }
+}
+
+/// Metrics for the set of stems along a single axis.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub(crate) struct WidthMetrics {
+pub struct WidthMetrics {
     /// Used for creating edges.
     pub edge_distance_threshold: i32,
     /// Default stem thickness.
@@ -342,8 +235,9 @@ pub(crate) struct WidthMetrics {
 
 pub(crate) type UnscaledWidths = SmallVec<i32, MAX_WIDTHS>;
 
+/// A scaled stem width.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub(crate) struct ScaledWidth {
+pub struct ScaledWidth {
     /// Width after applying scale.
     pub scaled: i32,
     /// Grid-fitted width.
@@ -352,10 +246,93 @@ pub(crate) struct ScaledWidth {
 
 pub(crate) type ScaledWidths = SmallVec<ScaledWidth, MAX_WIDTHS>;
 
+/// Flags that define how scaling and hinting is applied.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub struct ScaleFlags(pub(crate) u32);
+
+// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aftypes.h#L115>
+// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L143>
+impl ScaleFlags {
+    /// Stem width snapping.
+    pub const HORIZONTAL_SNAP: Self = Self(1 << 0);
+    /// Stem height snapping.
+    pub const VERTICAL_SNAP: Self = Self(1 << 1);
+    /// Stem width/height adjustment.
+    pub const STEM_ADJUST: Self = Self(1 << 2);
+    /// Monochrome rendering.
+    pub const MONO: Self = Self(1 << 3);
+    /// Disable horizontal hinting.
+    pub const NO_HORIZONTAL: Self = Self(1 << 4);
+    /// Disable vertical hinting.
+    pub const NO_VERTICAL: Self = Self(1 << 5);
+    /// Disable advance hinting.
+    pub const NO_ADVANCE: Self = Self(1 << 6);
+}
+
+impl ScaleFlags {
+    /// Creates new flags, truncating the given bits to valid values.
+    pub const fn from_bits_truncate(bits: u32) -> Self {
+        Self(bits & 0b1111111)
+    }
+
+    /// Returns the underlying flag bits.
+    pub const fn to_bits(self) -> u32 {
+        self.0
+    }
+
+    /// Returns true if `self` contains all flags in `other`.
+    pub const fn contains(self, other: Self) -> bool {
+        (self.0 & other.0) == other.0
+    }
+
+    /// Returns true if `self` contains any flags in `other`.
+    pub const fn intersects(self, other: Self) -> bool {
+        (self.0 & other.0) != 0
+    }
+}
+
+impl core::ops::Not for ScaleFlags {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Self(!self.0)
+    }
+}
+
+impl core::ops::BitOr for ScaleFlags {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Self(self.0 | rhs.0)
+    }
+}
+
+impl core::ops::BitOrAssign for ScaleFlags {
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
+}
+
+impl core::ops::BitAnd for ScaleFlags {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
+impl core::ops::BitAndAssign for ScaleFlags {
+    fn bitand_assign(&mut self, rhs: Self) {
+        self.0 &= rhs.0;
+    }
+}
+
 /// Captures scaling parameters which may be modified during metrics
 /// computation.
 #[derive(Copy, Clone, Default, Debug)]
-pub(crate) struct Scale {
+pub struct Scale {
+    /// Flags that determine hinting functionality.
+    pub flags: ScaleFlags,
     /// Font unit to 26.6 scale in the X direction.
     pub x_scale: i32,
     /// Font unit to 26.6 scale in the Y direction.
@@ -368,8 +345,6 @@ pub(crate) struct Scale {
     pub size: f32,
     /// From the source font.
     pub units_per_em: i32,
-    /// Flags that determine hinting functionality.
-    pub flags: u32,
 }
 
 impl Scale {
@@ -383,41 +358,41 @@ impl Scale {
     ) -> Self {
         let scale =
             (Fixed::from_bits((size * 64.0) as i32) / Fixed::from_bits(units_per_em)).to_bits();
-        let mut flags = 0;
+        let mut flags = ScaleFlags::default();
         let is_italic = font_style != Style::Normal;
         let is_mono = target == Target::Mono;
         let is_light = target.is_light() || target.preserve_linear_metrics();
         // Snap vertical stems for monochrome and horizontal LCD rendering.
         if is_mono || target.is_lcd() {
-            flags |= Self::HORIZONTAL_SNAP;
+            flags |= ScaleFlags::HORIZONTAL_SNAP;
         }
         // Snap horizontal stems for monochrome and vertical LCD rendering.
         if is_mono || target.is_vertical_lcd() {
-            flags |= Self::VERTICAL_SNAP;
+            flags |= ScaleFlags::VERTICAL_SNAP;
         }
         // Adjust stems to full pixels unless in LCD or light modes.
         if !(target.is_lcd() || is_light) {
-            flags |= Self::STEM_ADJUST;
+            flags |= ScaleFlags::STEM_ADJUST;
         }
         if is_mono {
-            flags |= Self::MONO;
+            flags |= ScaleFlags::MONO;
         }
         if group == ScriptGroup::Default {
             // Disable horizontal hinting completely for LCD, light hinting
             // and italic fonts
             // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L2674>
             if target.is_lcd() || is_light || is_italic {
-                flags |= Self::NO_HORIZONTAL;
+                flags |= ScaleFlags::NO_HORIZONTAL;
             }
         } else {
             // CJK doesn't hint advances
             // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1432>
-            flags |= Self::NO_ADVANCE;
+            flags |= ScaleFlags::NO_ADVANCE;
         }
         // CJK doesn't hint advances
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1432>
         if group != ScriptGroup::Default {
-            flags |= Self::NO_ADVANCE;
+            flags |= ScaleFlags::NO_ADVANCE;
         }
         Self {
             x_scale: scale,
@@ -429,27 +404,6 @@ impl Scale {
             flags,
         }
     }
-}
-
-/// Scaler flags that determine hinting settings.
-///
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aftypes.h#L115>
-/// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.h#L143>
-impl Scale {
-    /// Stem width snapping.
-    pub const HORIZONTAL_SNAP: u32 = 1 << 0;
-    /// Stem height snapping.
-    pub const VERTICAL_SNAP: u32 = 1 << 1;
-    /// Stem width/height adjustment.
-    pub const STEM_ADJUST: u32 = 1 << 2;
-    /// Monochrome rendering.
-    pub const MONO: u32 = 1 << 3;
-    /// Disable horizontal hinting.
-    pub const NO_HORIZONTAL: u32 = 1 << 4;
-    /// Disable vertical hinting.
-    pub const NO_VERTICAL: u32 = 1 << 5;
-    /// Disable advance hinting.
-    pub const NO_ADVANCE: u32 = 1 << 6;
 }
 
 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L59>

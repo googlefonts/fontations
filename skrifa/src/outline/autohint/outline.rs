@@ -8,6 +8,7 @@ use super::{
         DrawError, LocationRef, OutlineGlyph, OutlinePen,
     },
     metrics::Scale,
+    QuirksMode,
 };
 use crate::collections::SmallVec;
 use core::ops::Range;
@@ -21,15 +22,20 @@ use raw::{
 /// The values are such that `dir1 + dir2 == 0` when the directions are
 /// opposite.
 ///
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L45>
+// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.h#L45>
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 #[repr(i8)]
-pub(crate) enum Direction {
+pub enum Direction {
+    /// Undetermined direction.
     #[default]
     None = 4,
+    /// Toward the right.
     Right = 1,
+    /// Toward the left.
     Left = -1,
+    /// Toward the top.
     Up = 2,
+    /// Toward the bottom.
     Down = -2,
 }
 
@@ -66,7 +72,7 @@ impl Direction {
         (self as i8).abs() == (other as i8).abs()
     }
 
-    pub fn normalize(self) -> Self {
+    pub(crate) fn normalize(self) -> Self {
         // FreeType uses absolute value for this.
         match self {
             Self::Left => Self::Right,
@@ -158,7 +164,12 @@ pub(crate) struct Outline {
 
 impl Outline {
     /// Fills the outline from the given glyph.
-    pub fn fill(&mut self, glyph: &OutlineGlyph, coords: &[F2Dot14]) -> Result<(), DrawError> {
+    pub fn fill(
+        &mut self,
+        glyph: &OutlineGlyph,
+        coords: &[F2Dot14],
+        quirks: QuirksMode,
+    ) -> Result<(), DrawError> {
         self.clear();
         let advance = glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
         self.advance = advance;
@@ -169,7 +180,11 @@ impl Outline {
         self.mark_near_points(near_limit);
         self.compute_directions(near_limit);
         self.simplify_topology();
-        self.check_remaining_weak_points();
+        if quirks == QuirksMode::Aot {
+            self.check_remaining_weak_points(is_corner_flat_aot);
+        } else {
+            self.check_remaining_weak_points(is_corner_flat_jit);
+        }
         self.compute_orientation();
         Ok(())
     }
@@ -373,7 +388,7 @@ impl Outline {
     /// Check for remaining weak points.
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afhints.c#L1226>
-    fn check_remaining_weak_points(&mut self) {
+    fn check_remaining_weak_points(&mut self, is_corner_flat: impl Fn(i32, i32, i32, i32) -> bool) {
         let points = self.points.as_mut_slice();
         for i in 0..points.len() {
             let point = points[i];
@@ -449,12 +464,32 @@ impl Outline {
     }
 }
 
-/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftcalc.c#L1026>
-fn is_corner_flat(in_x: i32, in_y: i32, out_x: i32, out_y: i32) -> bool {
+/// Offline or "ahead of time" version from ttfautohint.
+fn is_corner_flat_aot(in_x: i32, in_y: i32, out_x: i32, out_y: i32) -> bool {
     let d_in = in_x.abs() + in_y.abs();
     let d_out = out_x.abs() + out_y.abs();
     let d_corner = (in_x + out_x).abs() + (in_y + out_y).abs();
     (d_in + d_out - d_corner) < (d_corner >> 4)
+}
+
+/// Runtime or "just in time" hinted version from FT.
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftcalc.c#L1026>
+fn is_corner_flat_jit(in_x: i32, in_y: i32, out_x: i32, out_y: i32) -> bool {
+    let ax = in_x + out_x;
+    let ay = in_y + out_y;
+    fn hypot(x: i32, y: i32) -> i32 {
+        let x = x.abs();
+        let y = y.abs();
+        if x > y {
+            x + ((3 * y) >> 3)
+        } else {
+            y + ((3 * x) >> 3)
+        }
+    }
+    let d_in = hypot(in_x, in_y);
+    let d_out = hypot(out_x, out_y);
+    let d_hypot = hypot(ax, ay);
+    (d_in + d_out - d_hypot) < (d_hypot >> 4)
 }
 
 #[derive(Copy, Clone, Default, Debug)]
@@ -669,7 +704,7 @@ mod tests {
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(GlyphId::from(glyph_id)).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
+        outline.fill(&glyph, &[], Default::default()).unwrap();
         outline
     }
 
@@ -732,7 +767,7 @@ mod tests {
             let base_svg = base_svg.to_string();
             // Autohinter outline code path
             let mut outline = Outline::default();
-            outline.fill(&glyph, Default::default()).unwrap();
+            outline.fill(&glyph, &[], Default::default()).unwrap();
             // The to_path method uses the (x, y) coords which aren't filled
             // until we scale (and we aren't doing that here) so update
             // them with 26.6 values manually

@@ -6,9 +6,10 @@
 
 use super::super::{
     metrics::{fixed_mul_div, pix_floor, pix_round, Scale, ScaledAxisMetrics, ScaledWidth},
-    recorder::{Action, HintsRecorder},
+    recorder::{EdgeAction, HintsRecorder},
     style::ScriptGroup,
-    topo::{Axis, Dimension, Edge},
+    topo::{Axis, Dimension, Edge, TopoFlags},
+    ScaleFlags,
 };
 
 /// Main Latin grid-fitting routine.
@@ -24,7 +25,7 @@ pub(crate) fn hint_edges(
     mut top_to_bottom_hinting: bool,
     mut recorder: Option<&mut HintsRecorder>,
 ) {
-    if axis.dim != Axis::VERTICAL {
+    if axis.dim != Dimension::Vertical {
         top_to_bottom_hinting = false;
     }
     // First align horizontal edges to blue zones if needed
@@ -41,7 +42,7 @@ pub(crate) fn hint_edges(
     );
     let edges = axis.edges.as_mut_slice();
     // Special case for lowercase m
-    if axis.dim == Axis::HORIZONTAL && (edges.len() == 6 || edges.len() == 12) {
+    if axis.dim == Dimension::Horizontal && (edges.len() == 6 || edges.len() == 12) {
         hint_lowercase_m(edges, group);
     }
     // Handle serifs and single segment edges
@@ -69,7 +70,7 @@ fn align_edges_to_blues(
 ) -> Option<usize> {
     let mut anchor_ix = None;
     // For default script group, only do vertical blues
-    if group == ScriptGroup::Default && axis.dim != Axis::VERTICAL {
+    if group == ScriptGroup::Default && axis.dim != Dimension::Vertical {
         return anchor_ix;
     }
     for edge_ix in 0..axis.edges.len() {
@@ -77,7 +78,7 @@ fn align_edges_to_blues(
         {
             let edges = axis.edges.as_mut_slice();
             let edge = &edges[edge_ix];
-            if edge.flags & Edge::DONE != 0 {
+            if edge.flags.contains(TopoFlags::DONE) {
                 continue;
             }
             let edge2_ix = edge.link_ix.map(|x| x as usize);
@@ -85,9 +86,9 @@ fn align_edges_to_blues(
             // If we have two neutral zones, skip one of them.
             if let (true, Some(edge2)) = (edge.blue_edge.is_some(), edge2) {
                 if edge2.blue_edge.is_some() {
-                    let skip_ix = if edge2.flags & Edge::NEUTRAL != 0 {
+                    let skip_ix = if edge2.flags.contains(TopoFlags::NEUTRAL) {
                         edge2_ix
-                    } else if edge.flags & Edge::NEUTRAL != 0 {
+                    } else if edge.flags.contains(TopoFlags::NEUTRAL) {
                         Some(edge_ix)
                     } else {
                         None
@@ -95,7 +96,7 @@ fn align_edges_to_blues(
                     if let Some(skip_ix) = skip_ix {
                         let skip_edge = &mut edges[skip_ix];
                         skip_edge.blue_edge = None;
-                        skip_edge.flags &= !Edge::NEUTRAL;
+                        skip_edge.flags &= !TopoFlags::NEUTRAL;
                     }
                 }
             }
@@ -114,17 +115,17 @@ fn align_edges_to_blues(
             // Skip if edge1 was already positioned by a previous iteration
             // (e.g. edge[i] has no blue but its linked-edge does, and that
             // linked-edge was already processed when the loop visited it directly).
-            if edges[edge1_ix].flags & Edge::DONE != 0 {
+            if edges[edge1_ix].flags.contains(TopoFlags::DONE) {
                 continue;
             }
             let edge1 = &mut edges[edge1_ix];
             edge1.pos = blue.fitted;
-            edge1.flags |= Edge::DONE;
+            edge1.flags |= TopoFlags::DONE;
             if let Some(recorder) = recorder.as_mut() {
                 let action = if anchor_ix.is_none() {
-                    Action::BlueAnchor
+                    EdgeAction::BlueAnchor
                 } else {
-                    Action::Blue
+                    EdgeAction::Blue
                 };
                 recorder.record_edge(
                     axis.dim,
@@ -139,7 +140,7 @@ fn align_edges_to_blues(
             }
             if let Some(edge2_ix) = edge2_ix {
                 if edges[edge2_ix].blue_edge.is_none() {
-                    edges[edge2_ix].flags |= Edge::DONE;
+                    edges[edge2_ix].flags |= TopoFlags::DONE;
                     linked_edge_to_align = Some((edge1_ix, edge2_ix));
                 }
             }
@@ -191,7 +192,7 @@ fn align_stem_edges(
                 .unwrap_or((0, false));
             (edge.flags, link_ix, edge.pos, edge2_pos, edge2_has_blue)
         };
-        if edge_flags & Edge::DONE != 0 {
+        if edge_flags.contains(TopoFlags::DONE) {
             continue;
         }
         // Skip all non-stem edges
@@ -220,7 +221,7 @@ fn align_stem_edges(
                 edge_ix,
                 recorder.as_deref_mut(),
             );
-            axis.edges[edge_ix].flags |= Edge::DONE;
+            axis.edges[edge_ix].flags |= TopoFlags::DONE;
             continue;
         }
         let edges = axis.edges.as_mut_slice();
@@ -244,13 +245,13 @@ fn align_stem_edges(
                     edge.flags,
                     edge2.flags,
                 );
-                if edge2.flags & Edge::DONE != 0 {
+                if edge2.flags.contains(TopoFlags::DONE) {
                     let new_pos = edge2.pos - cur_len;
                     edges[edge_ix].pos = new_pos;
                     if let Some(recorder) = recorder.as_mut() {
                         recorder.record_edge(
                             axis.dim,
-                            Action::Adjust,
+                            EdgeAction::Adjust,
                             edge_ix,
                             Some(edge2_ix),
                             None,
@@ -274,7 +275,7 @@ fn align_stem_edges(
                     if let Some(recorder) = recorder.as_mut() {
                         recorder.record_edge(
                             axis.dim,
-                            Action::Stem,
+                            EdgeAction::Stem,
                             edge_ix,
                             Some(edge2_ix),
                             None,
@@ -295,7 +296,7 @@ fn align_stem_edges(
                     if let Some(recorder) = recorder.as_mut() {
                         recorder.record_edge(
                             axis.dim,
-                            Action::Stem,
+                            EdgeAction::Stem,
                             edge_ix,
                             Some(edge2_ix),
                             None,
@@ -305,8 +306,8 @@ fn align_stem_edges(
                         );
                     }
                 }
-                edges[edge_ix].flags |= Edge::DONE;
-                edges[edge2_ix].flags |= Edge::DONE;
+                edges[edge_ix].flags |= TopoFlags::DONE;
+                edges[edge2_ix].flags |= TopoFlags::DONE;
                 if edge_ix > 0 {
                     adjust_link(
                         edges,
@@ -355,11 +356,11 @@ fn align_stem_edges(
                 } else {
                     edges[edge_ix].pos = pix_round(edge.opos);
                 }
-                edges[edge_ix].flags |= Edge::DONE;
+                edges[edge_ix].flags |= TopoFlags::DONE;
                 if let Some(recorder) = recorder.as_mut() {
                     recorder.record_edge(
                         axis.dim,
-                        Action::Anchor,
+                        EdgeAction::Anchor,
                         edge_ix,
                         Some(edge2_ix),
                         None,
@@ -384,7 +385,7 @@ fn align_stem_edges(
             // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1937>
             if edge2_ix < edge_ix {
                 last_stem_pos = Some(edge_pos);
-                edges[edge_ix].flags |= Edge::DONE;
+                edges[edge_ix].flags |= TopoFlags::DONE;
                 align_linked_edge(
                     axis,
                     metrics,
@@ -396,15 +397,15 @@ fn align_stem_edges(
                 );
                 continue;
             }
-            if axis.dim != Axis::VERTICAL && anchor_ix.is_none() {
+            if axis.dim != Dimension::Vertical && anchor_ix.is_none() {
                 delta = hint_normal_stem_cjk(axis, metrics, group, scale, edge_ix, edge2_ix, delta);
             } else {
                 hint_normal_stem_cjk(axis, metrics, group, scale, edge_ix, edge2_ix, delta);
             }
             anchor_ix = Some(edge_ix);
-            axis.edges[edge_ix].flags |= Edge::DONE;
+            axis.edges[edge_ix].flags |= TopoFlags::DONE;
             let edge2 = &mut axis.edges[edge2_ix];
-            edge2.flags |= Edge::DONE;
+            edge2.flags |= TopoFlags::DONE;
             last_stem_pos = Some(edge2.pos);
         }
     }
@@ -440,11 +441,11 @@ fn hint_lowercase_m(edges: &mut [Edge], group: ScriptGroup) {
         let link_ix = edge3.link_ix.map(|ix| ix as usize);
         let edge3 = &mut edges[edge3_ix];
         edge3.pos -= delta;
-        edge3.flags |= Edge::DONE;
+        edge3.flags |= TopoFlags::DONE;
         if let Some(link_ix) = link_ix {
             let link = &mut edges[link_ix];
             link.pos -= delta;
-            link.flags |= Edge::DONE;
+            link.flags |= TopoFlags::DONE;
         }
         // Move serifs along with the stem
         if edges.len() == 12 {
@@ -475,7 +476,7 @@ fn align_remaining_edges(
                     .unwrap_or(1000);
                 (edge.flags, edge.opos, edge.serif_ix, delta)
             };
-            if edge_flags & Edge::DONE != 0 {
+            if edge_flags.contains(TopoFlags::DONE) {
                 continue;
             }
             if delta < 64 + 16 {
@@ -487,7 +488,7 @@ fn align_remaining_edges(
                     let [lower_bound_ix, upper_bound_ix] = latin_remaining_bounds(edges, edge_ix);
                     recorder.record_edge(
                         axis.dim,
-                        Action::Serif,
+                        EdgeAction::Serif,
                         edge_ix,
                         Some(serif_ix),
                         None,
@@ -518,7 +519,7 @@ fn align_remaining_edges(
                             latin_remaining_bounds(edges, edge_ix);
                         recorder.record_edge(
                             axis.dim,
-                            Action::SerifLink1,
+                            EdgeAction::SerifLink1,
                             edge_ix,
                             Some(before_ix),
                             Some(after_ix),
@@ -536,7 +537,7 @@ fn align_remaining_edges(
                             latin_remaining_bounds(edges, edge_ix);
                         recorder.record_edge(
                             axis.dim,
-                            Action::SerifLink2,
+                            EdgeAction::SerifLink2,
                             edge_ix,
                             None,
                             None,
@@ -555,7 +556,7 @@ fn align_remaining_edges(
                     let [lower_bound_ix, upper_bound_ix] = latin_remaining_bounds(edges, edge_ix);
                     recorder.record_edge(
                         axis.dim,
-                        Action::SerifAnchor,
+                        EdgeAction::SerifAnchor,
                         edge_ix,
                         None,
                         None,
@@ -566,7 +567,7 @@ fn align_remaining_edges(
                 }
             }
             let edges = &mut axis.edges;
-            edges[edge_ix].flags |= Edge::DONE;
+            edges[edge_ix].flags |= TopoFlags::DONE;
             adjust_link(
                 edges,
                 axis.dim,
@@ -588,11 +589,11 @@ fn align_remaining_edges(
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L2119>
         for edge_ix in 0..axis.edges.len() {
             let edge = &mut axis.edges[edge_ix];
-            if edge.flags & Edge::DONE != 0 {
+            if edge.flags.contains(TopoFlags::DONE) {
                 continue;
             }
             if let Some(serif_ix) = edge.serif_ix.map(|ix| ix as usize) {
-                edge.flags |= Edge::DONE;
+                edge.flags |= TopoFlags::DONE;
                 align_serif_edge(axis, serif_ix, edge_ix);
                 serif_count = serif_count.saturating_sub(1);
             }
@@ -603,7 +604,7 @@ fn align_remaining_edges(
         for edge_ix in 0..axis.edges.len() {
             let edges = axis.edges.as_mut_slice();
             let edge = &edges[edge_ix];
-            if edge.flags & Edge::DONE != 0 {
+            if edge.flags.contains(TopoFlags::DONE) {
                 continue;
             }
             let [before_ix, after_ix] = find_bounding_completed_edges(edges, edge_ix);
@@ -655,7 +656,7 @@ fn adjust_link(
     let (edge2, prev_edge) = if link_dir == LinkDir::Next {
         let edge2 = edges.get(edge_ix + 1)?;
         // Don't adjust next edge if it's not done yet
-        if edge2.flags & Edge::DONE == 0 {
+        if !edge2.flags.contains(TopoFlags::DONE) {
             return None;
         }
         (edge2, edges.get(edge_ix.checked_sub(1)?)?)
@@ -677,7 +678,16 @@ fn adjust_link(
         let new_pos = edge2.pos;
         edges[edge_ix].pos = new_pos;
         if let Some(recorder) = recorder.as_mut() {
-            recorder.record_edge(dim, Action::Bound, edge_ix, None, None, None, None, None);
+            recorder.record_edge(
+                dim,
+                EdgeAction::Bound,
+                edge_ix,
+                None,
+                None,
+                None,
+                None,
+                None,
+            );
         }
     }
     Some(())
@@ -685,8 +695,9 @@ fn adjust_link(
 
 fn latin_remaining_bounds(edges: &[Edge], edge_ix: usize) -> [Option<usize>; 2] {
     let lower_bound_ix = edge_ix.checked_sub(1);
-    let upper_bound_ix = (edge_ix + 1 < edges.len() && edges[edge_ix + 1].flags & Edge::DONE != 0)
-        .then_some(edge_ix + 1);
+    let upper_bound_ix = (edge_ix + 1 < edges.len()
+        && edges[edge_ix + 1].flags.contains(TopoFlags::DONE))
+    .then_some(edge_ix + 1);
     [lower_bound_ix, upper_bound_ix]
 }
 
@@ -699,13 +710,13 @@ fn find_bounding_completed_edges(edges: &[Edge], ix: usize) -> [Option<usize>; 2
         .iter()
         .enumerate()
         .rev()
-        .filter_map(|(ix, edge)| (edge.flags & Edge::DONE != 0).then_some(ix))
+        .filter_map(|(ix, edge)| edge.flags.contains(TopoFlags::DONE).then_some(ix))
         .next();
     let after_ix = edges
         .iter()
         .enumerate()
         .skip(ix + 1)
-        .filter_map(|(ix, edge)| (edge.flags & Edge::DONE != 0).then_some(ix))
+        .filter_map(|(ix, edge)| edge.flags.contains(TopoFlags::DONE).then_some(ix))
         .next();
     [before_ix, after_ix]
 }
@@ -748,26 +759,26 @@ fn stem_width(
     scale: &Scale,
     width: i32,
     base_delta: i32,
-    base_flags: u8,
-    stem_flags: u8,
+    base_flags: TopoFlags,
+    stem_flags: TopoFlags,
 ) -> i32 {
-    if scale.flags & Scale::STEM_ADJUST == 0
+    if !scale.flags.contains(ScaleFlags::STEM_ADJUST)
         || (group == ScriptGroup::Default && metrics.width_metrics.is_extra_light)
     {
         return width;
     }
-    let is_vertical = metrics.dim == Axis::VERTICAL;
+    let is_vertical = metrics.dim == Dimension::Vertical;
     let sign = if width < 0 { -1 } else { 1 };
     let mut dist = width.abs();
-    if (is_vertical && scale.flags & Scale::VERTICAL_SNAP == 0)
-        || (!is_vertical && scale.flags & Scale::HORIZONTAL_SNAP == 0)
+    if (is_vertical && !scale.flags.contains(ScaleFlags::VERTICAL_SNAP))
+        || (!is_vertical && !scale.flags.contains(ScaleFlags::HORIZONTAL_SNAP))
     {
         // Do smooth hinting
         if group == ScriptGroup::Default {
-            if (stem_flags & Edge::SERIF != 0) && is_vertical && (dist < 3 * 64) {
+            if stem_flags.contains(TopoFlags::SERIF) && is_vertical && (dist < 3 * 64) {
                 // Don't touch widths of serifs
                 return dist * sign;
-            } else if base_flags & Edge::ROUND != 0 {
+            } else if base_flags.contains(TopoFlags::ROUND) {
                 if dist < 80 {
                     dist = 64;
                 }
@@ -843,7 +854,7 @@ fn stem_width(
             } else {
                 dist = 64;
             }
-        } else if scale.flags & Scale::MONO != 0 {
+        } else if scale.flags.contains(ScaleFlags::MONO) {
             // Mono horizontal hinting: snap to integer with different
             // threshold
             if dist < 64 {
@@ -909,7 +920,7 @@ fn align_linked_edge(
     if let Some(recorder) = recorder.as_mut() {
         recorder.record_edge(
             axis.dim,
-            Action::Link,
+            EdgeAction::Link,
             base_edge_ix,
             Some(stem_edge_ix),
             None,
@@ -947,16 +958,16 @@ fn hint_normal_stem_cjk(
     const MAX_DELTA_ABS: i32 = 14;
     let edge = axis.edges[edge_ix];
     let edge2 = axis.edges[edge2_ix];
-    let do_stem_adjust = scale.flags & Scale::STEM_ADJUST != 0;
+    let do_stem_adjust = scale.flags.contains(ScaleFlags::STEM_ADJUST);
     let threshold_delta = if do_stem_adjust {
         0
     } else {
-        let delta = if axis.dim == Axis::VERTICAL {
+        let delta = if axis.dim == Dimension::Vertical {
             MAX_HORIZONTAL_GAP
         } else {
             MAX_VERTICAL_GAP
         };
-        if edge.flags & Edge::ROUND != 0 && edge2.flags & Edge::ROUND != 0 {
+        if edge.flags.contains(TopoFlags::ROUND) && edge2.flags.contains(TopoFlags::ROUND) {
             delta
         } else {
             delta / 3
@@ -1055,16 +1066,16 @@ mod tests {
     #[test]
     fn edge_hinting_default() {
         let expected_h_edges = [
-            (0, Edge::DONE | Edge::ROUND),
-            (133, Edge::DONE),
-            (187, Edge::DONE),
-            (192, Edge::DONE | Edge::ROUND),
+            (0, TopoFlags::DONE | TopoFlags::ROUND),
+            (133, TopoFlags::DONE),
+            (187, TopoFlags::DONE),
+            (192, TopoFlags::DONE | TopoFlags::ROUND),
         ];
         let expected_v_edges = [
-            (-256, Edge::DONE),
-            (463, Edge::DONE),
-            (576, Edge::DONE | Edge::ROUND | Edge::SERIF),
-            (633, Edge::DONE),
+            (-256, TopoFlags::DONE),
+            (463, TopoFlags::DONE),
+            (576, TopoFlags::DONE | TopoFlags::ROUND | TopoFlags::SERIF),
+            (633, TopoFlags::DONE),
         ];
         check_edges(
             font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS,
@@ -1078,26 +1089,26 @@ mod tests {
     #[test]
     fn edge_hinting_cjk() {
         let expected_h_edges = [
-            (128, Edge::DONE),
-            (193, Edge::DONE),
-            (473, 0),
-            (594, 0),
-            (704, Edge::DONE),
-            (673, Edge::DONE),
-            (767, Edge::DONE),
-            (832, Edge::DONE),
-            (896, Edge::DONE),
+            (128, TopoFlags::DONE),
+            (193, TopoFlags::DONE),
+            (473, TopoFlags::NORMAL),
+            (594, TopoFlags::NORMAL),
+            (704, TopoFlags::DONE),
+            (673, TopoFlags::DONE),
+            (767, TopoFlags::DONE),
+            (832, TopoFlags::DONE),
+            (896, TopoFlags::DONE),
         ];
         let expected_v_edges = [
-            (-64, Edge::DONE | Edge::ROUND),
-            (15, Edge::ROUND),
-            (142, Edge::ROUND),
-            (546, Edge::DONE),
-            (624, Edge::DONE),
-            (576, Edge::DONE),
-            (720, Edge::DONE),
-            (768, Edge::DONE),
-            (799, Edge::ROUND),
+            (-64, TopoFlags::DONE | TopoFlags::ROUND),
+            (15, TopoFlags::ROUND),
+            (142, TopoFlags::ROUND),
+            (546, TopoFlags::DONE),
+            (624, TopoFlags::DONE),
+            (576, TopoFlags::DONE),
+            (720, TopoFlags::DONE),
+            (768, TopoFlags::DONE),
+            (799, TopoFlags::ROUND),
         ];
         check_edges(
             font_test_data::NOTOSERIFTC_AUTOHINT_METRICS,
@@ -1112,14 +1123,14 @@ mod tests {
         font_data: &[u8],
         glyph_id: GlyphId,
         class: usize,
-        expected_h_edges: &[(i32, u8)],
-        expected_v_edges: &[(i32, u8)],
+        expected_h_edges: &[(i32, TopoFlags)],
+        expected_v_edges: &[(i32, TopoFlags)],
     ) {
         let font = FontRef::new(font_data).unwrap();
         let shaper = Shaper::new(&font, ShaperMode::Nominal);
         let class = &style::STYLE_CLASSES[class];
         let unscaled_metrics =
-            metrics::compute_unscaled_style_metrics(&shaper, Default::default(), class);
+            metrics::compute_unscaled_style_metrics(&shaper, &[], class, Default::default());
         let scale = metrics::Scale::new(
             16.0,
             font.head().unwrap().units_per_em() as i32,
@@ -1127,17 +1138,19 @@ mod tests {
             Default::default(),
             class.script.group,
         );
-        let scaled_metrics = metrics::scale_style_metrics(&unscaled_metrics, scale);
+        let scaled_metrics =
+            metrics::scale_style_metrics(&unscaled_metrics, scale, Default::default());
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(glyph_id).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
+        outline.fill(&glyph, &[], Default::default()).unwrap();
         let mut axes = [
-            Axis::new(Axis::HORIZONTAL, outline.orientation),
-            Axis::new(Axis::VERTICAL, outline.orientation),
+            Axis::new(Dimension::Horizontal, outline.orientation),
+            Axis::new(Dimension::Vertical, outline.orientation),
         ];
-        for (dim, axis) in axes.iter_mut().enumerate() {
+        for axis in axes.iter_mut() {
             topo::compute_segments(&mut outline, axis, class.script.group);
+            let dim = axis.dim;
             topo::link_segments(
                 &outline,
                 axis,
@@ -1152,7 +1165,7 @@ mod tests {
                 scaled_metrics.axes[1].scale,
                 class.script.group,
             );
-            if dim == Axis::VERTICAL {
+            if dim == Dimension::Vertical {
                 topo::compute_blue_edges(
                     axis,
                     &scale,
@@ -1171,12 +1184,12 @@ mod tests {
             );
         }
         // Only pos and flags fields are modified by edge hinting
-        let h_edges = axes[Axis::HORIZONTAL]
+        let h_edges = axes[Dimension::Horizontal]
             .edges
             .iter()
             .map(|edge| (edge.pos, edge.flags))
             .collect::<Vec<_>>();
-        let v_edges = axes[Axis::VERTICAL]
+        let v_edges = axes[Dimension::Vertical]
             .edges
             .iter()
             .map(|edge| (edge.pos, edge.flags))

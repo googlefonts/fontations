@@ -78,7 +78,7 @@
 //! # }
 //! ```
 
-mod autohint;
+pub mod autohint;
 mod cff;
 mod glyf;
 mod hint;
@@ -96,16 +96,6 @@ pub mod error;
 pub mod pen;
 
 pub use autohint::GlyphStyles;
-#[cfg(feature = "autohinter")]
-pub use autohint::{
-    compute_hint_plan_exported, compute_hint_records_exported,
-    compute_scaled_style_metrics_exported, compute_unscaled_style_metrics_exported,
-    ExportedHintEdge, ExportedHintPlan, ExportedHintRecord, ExportedHintSegment,
-    ExportedScaledBlue, ExportedScaledStyleMetrics, ExportedScaledWidth, ExportedUnscaledBlue,
-    ExportedUnscaledStyleMetrics,
-};
-#[cfg(feature = "autohinter")]
-pub use autohint::{SCRIPT_CLASSES, STYLE_CLASSES};
 pub use hint::{
     Engine, HintingInstance, HintingMode, HintingOptions, LcdLayout, SmoothMode, Target,
 };
@@ -517,7 +507,6 @@ impl<'a> OutlineGlyph<'a> {
         }
     }
 
-    #[cfg(feature = "autohinter")]
     /// Pass a raw scaled outline to a callback with direct point access.
     pub fn with_scaled_glyf_outline<R>(
         &self,

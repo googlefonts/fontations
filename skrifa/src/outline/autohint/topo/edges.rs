@@ -12,7 +12,7 @@ use super::{
         outline::Direction,
         style::ScriptGroup,
     },
-    Axis, BlueProvenance, Edge, Segment,
+    Axis, BlueProvenance, Dimension, Edge, TopoFlags,
 };
 
 /// Links segments to edges, using feature analysis for selection.
@@ -30,13 +30,14 @@ pub(crate) fn compute_edges(
     // This is always passed as 0 in functions that take hinting direction
     // in CJK
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1114>
-    let top_to_bottom_hinting = if axis.dim == Axis::HORIZONTAL || group != ScriptGroup::Default {
-        false
-    } else {
-        top_to_bottom_hinting
-    };
+    let top_to_bottom_hinting =
+        if axis.dim == Dimension::Horizontal || group != ScriptGroup::Default {
+            false
+        } else {
+            top_to_bottom_hinting
+        };
     // Ignore horizontal segments less than 1 pixel in length
-    let segment_length_threshold = if axis.dim == Axis::HORIZONTAL {
+    let segment_length_threshold = if axis.dim == Dimension::Horizontal {
         fixed_div(64, y_scale)
     } else {
         0
@@ -215,7 +216,7 @@ fn compute_edge_properties(axis: &mut Axis) {
             let segment = &segments[segment_ix];
             let next_segment_ix = segment.edge_next_ix;
             // Check roundness
-            if segment.flags & Segment::ROUND != 0 {
+            if segment.flags.contains(TopoFlags::ROUND) {
                 roundness += 1;
             } else {
                 straightness += 1;
@@ -257,7 +258,7 @@ fn compute_edge_properties(axis: &mut Axis) {
                 };
                 if is_serif {
                     edges[edge_ix].serif_ix = edge2_ix;
-                    edges[edge2_ix.unwrap() as usize].flags |= Edge::SERIF;
+                    edges[edge2_ix.unwrap() as usize].flags |= TopoFlags::SERIF;
                 } else {
                     edges[edge_ix].link_ix = edge2_ix;
                 }
@@ -270,9 +271,9 @@ fn compute_edge_properties(axis: &mut Axis) {
                 .unwrap_or(last_segment_ix);
         }
         let edge = &mut edges[edge_ix];
-        edge.flags = Edge::NORMAL;
+        edge.flags = TopoFlags::NORMAL;
         if roundness > 0 && roundness >= straightness {
-            edge.flags |= Edge::ROUND;
+            edge.flags |= TopoFlags::ROUND;
         }
         // Drop serifs for linked edges
         if edge.serif_ix.is_some() && edge.link_ix.is_some() {
@@ -296,10 +297,10 @@ pub(crate) fn compute_blue_edges(
     // For the default script group, don't compute blues in the horizontal
     // direction
     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L3572>
-    if axis.dim != Axis::VERTICAL && group == ScriptGroup::Default {
+    if axis.dim != Dimension::Vertical && group == ScriptGroup::Default {
         return;
     }
-    let axis_scale = if axis.dim == Axis::HORIZONTAL {
+    let axis_scale = if axis.dim == Dimension::Horizontal {
         scale.x_scale
     } else {
         scale.y_scale
@@ -351,7 +352,7 @@ pub(crate) fn compute_blue_edges(
                     // Now compare to overshoot position for the default script
                     // group
                     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L2579>
-                    if edge.flags & Edge::ROUND != 0 && dist != 0 && !is_neutral {
+                    if edge.flags.contains(TopoFlags::ROUND) && dist != 0 && !is_neutral {
                         let is_under_ref = (edge.fpos as i32) < unscaled_blue.position;
                         if is_top ^ is_under_ref {
                             let dist = fixed_mul(
@@ -373,11 +374,11 @@ pub(crate) fn compute_blue_edges(
         if let Some(best_blue) = best_blue {
             edge.blue_edge = Some(best_blue);
             edge.blue_provenance = Some(BlueProvenance {
-                blue_ix: best_blue_idx.unwrap_or_default(),
+                index: best_blue_idx.unwrap_or_default(),
                 is_shoot: best_blue_is_shoot,
             });
             if best_is_neutral {
-                edge.flags |= Edge::NEUTRAL;
+                edge.flags |= TopoFlags::NEUTRAL;
             }
         }
     }
@@ -405,7 +406,7 @@ mod tests {
                 fpos: 15,
                 opos: 15,
                 pos: 15,
-                flags: Edge::ROUND,
+                flags: TopoFlags::ROUND,
                 dir: Direction::Up,
                 blue_edge: None,
                 blue_provenance: None,
@@ -419,7 +420,7 @@ mod tests {
                 fpos: 123,
                 opos: 126,
                 pos: 126,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Up,
                 blue_edge: None,
                 blue_provenance: None,
@@ -433,7 +434,7 @@ mod tests {
                 fpos: 186,
                 opos: 190,
                 pos: 190,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Down,
                 blue_edge: None,
                 blue_provenance: None,
@@ -447,7 +448,7 @@ mod tests {
                 fpos: 205,
                 opos: 210,
                 pos: 210,
-                flags: Edge::ROUND,
+                flags: TopoFlags::ROUND,
                 dir: Direction::Down,
                 blue_edge: None,
                 blue_provenance: None,
@@ -463,14 +464,14 @@ mod tests {
                 fpos: -240,
                 opos: -246,
                 pos: -246,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Left,
                 blue_edge: Some(ScaledWidth {
                     scaled: -246,
                     fitted: -256,
                 }),
                 blue_provenance: Some(BlueProvenance {
-                    blue_ix: 2,
+                    index: 2,
                     is_shoot: false,
                 }),
                 link_ix: None,
@@ -483,7 +484,7 @@ mod tests {
                 fpos: 481,
                 opos: 493,
                 pos: 493,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Left,
                 blue_edge: None,
                 blue_provenance: None,
@@ -497,14 +498,14 @@ mod tests {
                 fpos: 592,
                 opos: 606,
                 pos: 606,
-                flags: Edge::ROUND | Edge::SERIF,
+                flags: TopoFlags::ROUND | TopoFlags::SERIF,
                 dir: Direction::Right,
                 blue_edge: Some(ScaledWidth {
                     scaled: 606,
                     fitted: 576,
                 }),
                 blue_provenance: Some(BlueProvenance {
-                    blue_ix: 0,
+                    index: 0,
                     is_shoot: false,
                 }),
                 link_ix: Some(1),
@@ -517,7 +518,7 @@ mod tests {
                 fpos: 647,
                 opos: 663,
                 pos: 663,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Right,
                 blue_edge: None,
                 blue_provenance: None,
@@ -544,7 +545,7 @@ mod tests {
                 fpos: 138,
                 opos: 141,
                 pos: 141,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Up,
                 blue_edge: None,
                 blue_provenance: None,
@@ -558,7 +559,7 @@ mod tests {
                 fpos: 201,
                 opos: 206,
                 pos: 206,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Down,
                 blue_edge: None,
                 blue_provenance: None,
@@ -572,7 +573,7 @@ mod tests {
                 fpos: 458,
                 opos: 469,
                 pos: 469,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Down,
                 blue_edge: None,
                 blue_provenance: None,
@@ -586,7 +587,7 @@ mod tests {
                 fpos: 569,
                 opos: 583,
                 pos: 583,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Down,
                 blue_edge: None,
                 blue_provenance: None,
@@ -600,7 +601,7 @@ mod tests {
                 fpos: 670,
                 opos: 686,
                 pos: 686,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Up,
                 blue_edge: None,
                 blue_provenance: None,
@@ -614,7 +615,7 @@ mod tests {
                 fpos: 693,
                 opos: 710,
                 pos: 710,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Up,
                 blue_edge: None,
                 blue_provenance: None,
@@ -628,7 +629,7 @@ mod tests {
                 fpos: 731,
                 opos: 749,
                 pos: 749,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Down,
                 blue_edge: None,
                 blue_provenance: None,
@@ -642,7 +643,7 @@ mod tests {
                 fpos: 849,
                 opos: 869,
                 pos: 869,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Up,
                 blue_edge: None,
                 blue_provenance: None,
@@ -656,7 +657,7 @@ mod tests {
                 fpos: 911,
                 opos: 933,
                 pos: 933,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Down,
                 blue_edge: None,
                 blue_provenance: None,
@@ -672,14 +673,14 @@ mod tests {
                 fpos: -78,
                 opos: -80,
                 pos: -80,
-                flags: Edge::ROUND,
+                flags: TopoFlags::ROUND,
                 dir: Direction::Left,
                 blue_edge: Some(ScaledWidth {
                     scaled: -80,
                     fitted: -64,
                 }),
                 blue_provenance: Some(BlueProvenance {
-                    blue_ix: 1,
+                    index: 1,
                     is_shoot: false,
                 }),
                 link_ix: None,
@@ -692,7 +693,7 @@ mod tests {
                 fpos: 3,
                 opos: 3,
                 pos: 3,
-                flags: Edge::ROUND,
+                flags: TopoFlags::ROUND,
                 dir: Direction::Right,
                 blue_edge: None,
                 blue_provenance: None,
@@ -706,7 +707,7 @@ mod tests {
                 fpos: 133,
                 opos: 136,
                 pos: 136,
-                flags: Edge::ROUND,
+                flags: TopoFlags::ROUND,
                 dir: Direction::Left,
                 blue_edge: None,
                 blue_provenance: None,
@@ -720,7 +721,7 @@ mod tests {
                 fpos: 547,
                 opos: 560,
                 pos: 560,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Left,
                 blue_edge: None,
                 blue_provenance: None,
@@ -734,7 +735,7 @@ mod tests {
                 fpos: 576,
                 opos: 590,
                 pos: 590,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Right,
                 blue_edge: None,
                 blue_provenance: None,
@@ -748,7 +749,7 @@ mod tests {
                 fpos: 576,
                 opos: 590,
                 pos: 590,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Left,
                 blue_edge: None,
                 blue_provenance: None,
@@ -762,7 +763,7 @@ mod tests {
                 fpos: 729,
                 opos: 746,
                 pos: 746,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Left,
                 blue_edge: None,
                 blue_provenance: None,
@@ -776,7 +777,7 @@ mod tests {
                 fpos: 758,
                 opos: 776,
                 pos: 776,
-                flags: 0,
+                flags: TopoFlags::NORMAL,
                 dir: Direction::Right,
                 blue_edge: None,
                 blue_provenance: None,
@@ -790,7 +791,7 @@ mod tests {
                 fpos: 788,
                 opos: 807,
                 pos: 807,
-                flags: Edge::ROUND,
+                flags: TopoFlags::ROUND,
                 dir: Direction::Left,
                 blue_edge: None,
                 blue_provenance: None,
@@ -820,8 +821,12 @@ mod tests {
         let font = FontRef::new(font_data).unwrap();
         let shaper = Shaper::new(&font, ShaperMode::Nominal);
         let class = &style::STYLE_CLASSES[style_class];
-        let unscaled_metrics =
-            metrics::compute_unscaled_style_metrics(&shaper, Default::default(), class);
+        let unscaled_metrics = metrics::compute_unscaled_style_metrics(
+            &shaper,
+            Default::default(),
+            class,
+            Default::default(),
+        );
         let scale = metrics::Scale::new(
             16.0,
             font.head().unwrap().units_per_em() as i32,
@@ -829,14 +834,15 @@ mod tests {
             Default::default(),
             class.script.group,
         );
-        let scaled_metrics = metrics::scale_style_metrics(&unscaled_metrics, scale);
+        let scaled_metrics =
+            metrics::scale_style_metrics(&unscaled_metrics, scale, Default::default());
         let glyphs = font.outline_glyphs();
         let glyph = glyphs.get(glyph_id).unwrap();
         let mut outline = Outline::default();
-        outline.fill(&glyph, Default::default()).unwrap();
+        outline.fill(&glyph, &[], Default::default()).unwrap();
         let mut axes = [
-            Axis::new(Axis::HORIZONTAL, outline.orientation),
-            Axis::new(Axis::VERTICAL, outline.orientation),
+            Axis::new(Dimension::Horizontal, outline.orientation),
+            Axis::new(Dimension::Vertical, outline.orientation),
         ];
         for (dim, axis) in axes.iter_mut().enumerate() {
             segments::compute_segments(&mut outline, axis, class.script.group);
@@ -862,7 +868,10 @@ mod tests {
                 class.script.group,
             );
         }
-        assert_eq!(axes[Axis::HORIZONTAL].edges.as_slice(), expected_h_edges);
-        assert_eq!(axes[Axis::VERTICAL].edges.as_slice(), expected_v_edges);
+        assert_eq!(
+            axes[Dimension::Horizontal].edges.as_slice(),
+            expected_h_edges
+        );
+        assert_eq!(axes[Dimension::Vertical].edges.as_slice(), expected_v_edges);
     }
 }
