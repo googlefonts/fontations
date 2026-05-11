@@ -3,7 +3,7 @@
 // Use ../scripts/gen_autohint_scripts.py to regenerate.
 
 #[rustfmt::skip]
-pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
+pub const SCRIPT_CLASSES: &[ScriptClass] = &[
     ScriptClass {
         name: "Adlam",
         group: ScriptGroup::Default,
@@ -828,7 +828,7 @@ pub(super) const SCRIPT_CLASSES: &[ScriptClass] = &[
 }
 
 #[rustfmt::skip]
-pub(super) const STYLE_CLASSES: &[StyleClass] = &[
+pub const STYLE_CLASSES: &[StyleClass] = &[
     StyleClass { name: "Adlam", index: 0, script: &SCRIPT_CLASSES[0], feature: None },
     StyleClass { name: "Arabic", index: 1, script: &SCRIPT_CLASSES[1], feature: None },
     StyleClass { name: "Armenian", index: 2, script: &SCRIPT_CLASSES[2], feature: None },
