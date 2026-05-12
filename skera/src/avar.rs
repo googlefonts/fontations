@@ -1,8 +1,96 @@
-use font_types::Fixed;
-use skrifa::raw::{tables::avar::SegmentMaps, ReadError};
+use font_types::{F2Dot14, Fixed};
+use skrifa::raw::{tables::avar::SegmentMaps, ReadError, TopLevelTable};
 use write_fonts::read::tables::avar::Avar;
 
-use crate::variations::solver::Triple;
+use crate::{
+    serialize::SerializeErrorFlags,
+    variations::solver::{renormalize_value, Triple, TripleDistances},
+    Subset, SubsetError,
+};
+
+impl Subset for Avar<'_> {
+    fn subset(
+        &self,
+        plan: &crate::Plan,
+        _font: &write_fonts::read::FontRef,
+        s: &mut crate::serialize::Serializer,
+        _builder: &mut write_fonts::FontBuilder,
+    ) -> Result<(), crate::SubsetError> {
+        if plan.axes_index_map.is_empty() {
+            return Err(SubsetError::SubsetTableError(Avar::TAG)); // empty
+        }
+        subset_avar(self, plan, s).map_err(|_| SubsetError::SubsetTableError(Avar::TAG))
+    }
+}
+
+fn subset_avar(
+    avar: &Avar<'_>,
+    plan: &crate::Plan,
+    s: &mut crate::serialize::Serializer,
+) -> Result<(), SerializeErrorFlags> {
+    let new_axis_count = plan.axes_index_map.len() as u16;
+
+    // Version
+    s.embed(1_u16)?;
+    s.embed(0_u16)?;
+    s.embed(0_u16)?; // reserved
+    s.embed(new_axis_count)?;
+
+    for (i, segment_map) in avar.axis_segment_maps().iter().enumerate() {
+        let Ok(segment_map) = segment_map else {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR);
+        };
+        if plan.axes_index_map.contains_key(&i) {
+            let Some(axis_tag) = plan.axes_old_index_tag_map.get(&i) else {
+                return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            };
+            // Subset the mapping
+            if let Some(axis_range) = plan.axes_location.get(axis_tag) {
+                let Some(&triple_distances) = plan.axes_triple_distances.get(axis_tag) else {
+                    continue;
+                };
+                let unmapped_range: Triple = unmap_axis_range(axis_range, &segment_map);
+                let axis_range =
+                    Triple::new(axis_range.minimum, axis_range.middle, axis_range.maximum);
+                let triple_distances =
+                    TripleDistances::new(triple_distances.negative, triple_distances.positive);
+                let mut value_mappings = vec![];
+                for mapping in segment_map.axis_value_maps() {
+                    let mapping_from = mapping.from_coordinate().to_f32() as f64;
+                    if !unmapped_range.contains(mapping_from) {
+                        continue;
+                    }
+                    let mapping_to = mapping.to_coordinate().to_f32() as f64;
+                    let new_mapping = (
+                        renormalize_value(mapping_from, unmapped_range, triple_distances, false),
+                        renormalize_value(mapping_to, axis_range, triple_distances, false),
+                    );
+                    if must_include(new_mapping) {
+                        continue;
+                    }
+                    value_mappings.push(new_mapping);
+                }
+                value_mappings.push((-1.0, -1.0));
+                value_mappings.push((0.0, 0.0));
+                value_mappings.push((1.0, 1.0));
+                value_mappings.sort_by_key(|(from, _)| F2Dot14::from_f32(*from as f32).to_bits());
+                s.embed(value_mappings.len() as u16)?;
+                for (from, to) in value_mappings {
+                    s.embed(F2Dot14::from_f32(from as f32))?;
+                    s.embed(F2Dot14::from_f32(to as f32))?;
+                }
+            } else {
+                // Just embed it as-is
+                s.embed(segment_map.position_map_count())?;
+                for mapping in segment_map.axis_value_maps() {
+                    s.embed(mapping.from_coordinate())?;
+                    s.embed(mapping.to_coordinate())?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
 pub(crate) fn map_coords_2_14(avar: &Avar, coords: Vec<f32>) -> Result<Vec<f32>, ReadError> {
     let maps = avar.axis_segment_maps();
