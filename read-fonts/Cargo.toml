@@ -51,7 +51,7 @@ once_cell = { version = "1.21.4", default-features = false, features = [
 read-fonts = { path = ".", features = ["experimental_font_api"] }
 font-test-data = { workspace = true }
 criterion = { workspace = true }
-rand = "0.8.5"
+rand = { version = "0.10.1", features = ["thread_rng"] }
 serde_json = { workspace = true }
 
 [[bench]]
