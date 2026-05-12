@@ -1,5 +1,6 @@
 //! try to define Subset trait so I can add methods for Hmtx
 //! TODO: make it generic for all tables
+mod avar;
 mod base;
 mod cblc;
 mod cmap;
