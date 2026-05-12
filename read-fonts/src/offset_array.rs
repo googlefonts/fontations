@@ -85,6 +85,18 @@ where
                 .map(|off| off.get().resolve_with_args(data, &args))
         })
     }
+
+    /// Iterate over all of the offset targets.
+    ///
+    /// Offset is treated as nullable and each offset will be resolved as it is encountered.
+    pub(crate) fn iter_as_nullable(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a {
+        self.iter().map(|off| match off {
+            Err(ReadError::NullOffset) => None,
+            other => Some(other),
+        })
+    }
 }
 
 impl<'a, T, O> ArrayOfNullableOffsets<'a, T, O>

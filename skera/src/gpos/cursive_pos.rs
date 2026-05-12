@@ -28,6 +28,9 @@ impl<'a> SubsetTable<'a> for CursivePosFormat1<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         s.embed(self.pos_format())?;
 
         //cov offset

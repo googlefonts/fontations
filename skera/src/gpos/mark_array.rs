@@ -119,6 +119,9 @@ impl<'a> SubsetTable<'a> for MarkRecord {
         s.embed(*new_mark_class)?;
 
         let anchor_offset_pos = s.embed(0_u16)?;
+        if self.mark_anchor_offset().is_null() {
+            return Ok(());
+        }
         let mark_anchor = self
             .mark_anchor(font_data)
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;

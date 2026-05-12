@@ -194,6 +194,9 @@ impl Gsub<'_> {
         lookups: &IntSet<u16>,
         glyphs: &mut IntSet<GlyphId>,
     ) -> Result<(), ReadError> {
+        if self.lookup_list_offset().is_null() {
+            return Ok(());
+        }
         let lookup_list = self.lookup_list()?;
         let num_lookups = lookup_list.lookup_count();
         let lookup_offsets = lookup_list.lookups();
@@ -210,13 +213,19 @@ impl Gsub<'_> {
                     if !lookups.contains(i) {
                         continue;
                     }
-                    let lookup = lookup_offsets.get(i as usize)?;
+                    let lookup = match lookup_offsets.get(i as usize) {
+                        Err(ReadError::NullOffset) => continue,
+                        other => other,
+                    }?;
                     lookup.closure_glyphs(&mut ctx, &lookup_list, i)?;
                     ctx.flush();
                 }
             } else {
                 for i in lookups.iter() {
-                    let lookup = lookup_offsets.get(i as usize)?;
+                    let lookup = match lookup_offsets.get(i as usize) {
+                        Err(ReadError::NullOffset) => continue,
+                        other => other,
+                    }?;
                     lookup.closure_glyphs(&mut ctx, &lookup_list, i)?;
                     ctx.flush();
                 }
@@ -233,6 +242,9 @@ impl Gsub<'_> {
     ///
     /// Pass `&IntSet::all()` to get the lookups referenced by all features.
     pub fn collect_lookups(&self, feature_indices: &IntSet<u16>) -> Result<IntSet<u16>, ReadError> {
+        if self.feature_list_offset().is_null() {
+            return Ok(IntSet::empty());
+        }
         let feature_list = self.feature_list()?;
         let mut lookup_indices = feature_list.collect_lookups(feature_indices)?;
 
@@ -250,6 +262,9 @@ impl Gsub<'_> {
         languages: &IntSet<Tag>,
         features: &IntSet<Tag>,
     ) -> Result<IntSet<u16>, ReadError> {
+        if self.script_list_offset().is_null() || self.feature_list_offset().is_null() {
+            return Ok(IntSet::empty());
+        }
         let feature_list = self.feature_list()?;
         let script_list = self.script_list()?;
         let head_ptr = self.offset_data().as_bytes().as_ptr() as usize;
@@ -262,6 +277,9 @@ impl Gsub<'_> {
         glyphs: &IntSet<GlyphId>,
         lookup_indices: &mut IntSet<u16>,
     ) -> Result<(), ReadError> {
+        if self.lookup_list_offset().is_null() {
+            return Ok(());
+        }
         let lookup_list = self.lookup_list()?;
         lookup_list.closure_lookups(glyphs, lookup_indices)
     }
@@ -343,8 +361,13 @@ impl<'a, T: FontRead<'a> + GlyphClosure + 'a, Ext: ExtensionLookup<'a, T> + 'a> 
         lookup_list: &SubstitutionLookupList,
         lookup_index: u16,
     ) -> Result<(), ReadError> {
-        self.iter()
-            .try_for_each(|t| t?.closure_glyphs(ctx, lookup_list, lookup_index))
+        for t in self.iter().filter_map(|table| match table {
+            Err(ReadError::NullOffset) => None,
+            other => Some(other),
+        }) {
+            t?.closure_glyphs(ctx, lookup_list, lookup_index)?;
+        }
+        Ok(())
     }
 }
 
@@ -370,6 +393,9 @@ impl GlyphClosure for SingleSubstFormat1<'_> {
         _lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
+        if self.coverage_offset().is_null() {
+            return Ok(());
+        }
         let coverage = self.coverage()?;
         let num_glyphs = coverage.population();
         let mask = u16::MAX;
@@ -414,6 +440,9 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
         _lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
+        if self.coverage_offset().is_null() || self.glyph_count() == 0 {
+            return Ok(());
+        }
         let coverage = self.coverage()?;
         let glyph_set = ctx.parent_active_glyphs();
         let subs_glyphs = self.substitute_glyph_ids();
@@ -448,6 +477,9 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
         _lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
+        if self.coverage_offset().is_null() || self.sequence_count() == 0 {
+            return Ok(());
+        }
         let coverage = self.coverage()?;
         let glyph_set = ctx.parent_active_glyphs();
         let sequences = self.sequences();
@@ -466,11 +498,11 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
         } else {
             coverage
                 .iter()
-                .zip(sequences.iter())
+                .zip(sequences.iter_as_nullable())
                 .filter_map(|(g, seq)| {
                     glyph_set
                         .contains(GlyphId::from(g))
-                        .then(|| seq.ok())
+                        .then(|| seq.transpose().ok().flatten())
                         .flatten()
                 })
                 .flat_map(|seq| {
@@ -493,6 +525,9 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
         _lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
+        if self.coverage_offset().is_null() || self.alternate_set_count() == 0 {
+            return Ok(());
+        }
         let coverage = self.coverage()?;
         let glyph_set = ctx.parent_active_glyphs();
         let alts = self.alternate_sets();
@@ -512,11 +547,11 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
         } else {
             coverage
                 .iter()
-                .zip(alts.iter())
+                .zip(alts.iter_as_nullable())
                 .filter_map(|(g, alt_set)| {
                     glyph_set
                         .contains(GlyphId::from(g))
-                        .then(|| alt_set.ok())
+                        .then(|| alt_set.transpose().ok().flatten())
                         .flatten()
                 })
                 .flat_map(|alt_set| {
@@ -540,6 +575,9 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
         _lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
+        if self.coverage_offset().is_null() || self.ligature_set_count() == 0 {
+            return Ok(());
+        }
         let coverage = self.coverage()?;
         let ligs = self.ligature_sets();
         let lig_set_idxes: Vec<usize> =
@@ -559,9 +597,14 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
             };
 
         for idx in lig_set_idxes {
-            let lig_set = ligs.get(idx)?;
-            for lig in lig_set.ligatures().iter() {
-                let lig = lig?;
+            let lig_set = match ligs.get(idx) {
+                Err(ReadError::NullOffset) => continue,
+                other => other,
+            }?;
+            for lig in lig_set.ligatures().iter_as_nullable() {
+                let Some(lig) = lig.transpose()? else {
+                    continue;
+                };
                 if lig.intersects(ctx.glyphs())? {
                     ctx.add(GlyphId::from(lig.ligature_glyph()));
                 }
@@ -661,12 +704,15 @@ impl GlyphClosure for ContextFormat1<'_> {
         lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
-        let coverage = self.coverage()?;
+        let Some(coverage) = self.coverage().transpose()? else {
+            return Ok(());
+        };
         let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
         if cov_active_glyphs.is_empty() {
             return Ok(());
         }
 
+        let lookups = lookup_list.lookups();
         for (gid, rule_set) in coverage
             .iter()
             .zip(self.rule_sets())
@@ -684,7 +730,9 @@ impl GlyphClosure for ContextFormat1<'_> {
                 if ctx.lookup_limit_exceed() {
                     return Ok(());
                 }
-                let rule = rule?;
+                let Some(rule) = rule.transpose()? else {
+                    continue;
+                };
                 if !rule.intersects(ctx.glyphs())? {
                     continue;
                 }
@@ -699,6 +747,12 @@ impl GlyphClosure for ContextFormat1<'_> {
                 let mut seen_sequence_indices = IntSet::new();
 
                 for lookup_record in rule.lookup_records() {
+                    let lookup_index = lookup_record.lookup_list_index();
+                    let lookup = match lookups.get(lookup_index as usize) {
+                        Err(ReadError::NullOffset) => continue,
+                        other => other,
+                    }?;
+
                     let sequence_idx = lookup_record.sequence_index();
                     if sequence_idx as usize >= input_count {
                         continue;
@@ -716,8 +770,6 @@ impl GlyphClosure for ContextFormat1<'_> {
                         active_glyphs.insert(GlyphId::from(g));
                     };
 
-                    let lookup_index = lookup_record.lookup_list_index();
-                    let lookup = lookup_list.lookups().get(lookup_index as usize)?;
                     if lookup.may_have_non_1to1()? {
                         seen_sequence_indices.insert_range(sequence_idx..=input_count as u16);
                     }
@@ -737,25 +789,45 @@ impl GlyphClosure for ContextFormat2<'_> {
         lookup_list: &SubstitutionLookupList,
         _lookup_index: u16,
     ) -> Result<(), ReadError> {
-        let coverage = self.coverage()?;
+        let Some(coverage) = self.coverage().transpose()? else {
+            return Ok(());
+        };
         let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
         if cov_active_glyphs.is_empty() {
             return Ok(());
         }
 
-        let input_class_def = self.input_class_def()?;
+        let Some(input_class_def) = self.input_class_def().transpose()? else {
+            return Ok(());
+        };
         let coverage_glyph_classes = input_class_def.intersect_classes(&cov_active_glyphs);
+        if coverage_glyph_classes.is_empty() {
+            return Ok(());
+        }
 
         let input_glyph_classes = input_class_def.intersect_classes(ctx.glyphs());
         let backtrack_classes = match self {
             Self::Plain(_) => IntSet::empty(),
-            Self::Chain(table) => table.backtrack_class_def()?.intersect_classes(ctx.glyphs()),
+            Self::Chain(table) => {
+                if table.backtrack_class_def_offset().is_null() {
+                    IntSet::empty()
+                } else {
+                    table.backtrack_class_def()?.intersect_classes(ctx.glyphs())
+                }
+            }
         };
         let lookahead_classes = match self {
             Self::Plain(_) => IntSet::empty(),
-            Self::Chain(table) => table.lookahead_class_def()?.intersect_classes(ctx.glyphs()),
+            Self::Chain(table) => {
+                if table.lookahead_class_def_offset().is_null() {
+                    IntSet::empty()
+                } else {
+                    table.lookahead_class_def()?.intersect_classes(ctx.glyphs())
+                }
+            }
         };
 
+        let lookups = lookup_list.lookups();
         for (i, rule_set) in self
             .rule_sets()
             .enumerate()
@@ -770,7 +842,9 @@ impl GlyphClosure for ContextFormat2<'_> {
                 if ctx.lookup_limit_exceed() {
                     return Ok(());
                 }
-                let rule = rule?;
+                let Some(rule) = rule.transpose()? else {
+                    continue;
+                };
                 if !rule.intersects(&input_glyph_classes, &backtrack_classes, &lookahead_classes) {
                     continue;
                 }
@@ -781,6 +855,11 @@ impl GlyphClosure for ContextFormat2<'_> {
                 let mut seen_sequence_indices = IntSet::new();
 
                 for lookup_record in rule.lookup_records() {
+                    let lookup_index = lookup_record.lookup_list_index();
+                    let lookup = match lookups.get(lookup_index as usize) {
+                        Err(ReadError::NullOffset) => continue,
+                        other => other,
+                    }?;
                     let sequence_idx = lookup_record.sequence_index();
                     if sequence_idx as usize >= input_count {
                         continue;
@@ -795,8 +874,6 @@ impl GlyphClosure for ContextFormat2<'_> {
                         input_class_def.intersected_class_glyphs(ctx.parent_active_glyphs(), c)
                     };
 
-                    let lookup_index = lookup_record.lookup_list_index();
-                    let lookup = lookup_list.lookups().get(lookup_index as usize)?;
                     if lookup.may_have_non_1to1()? {
                         seen_sequence_indices.insert_range(sequence_idx..=input_count as u16);
                     }
@@ -822,7 +899,14 @@ impl GlyphClosure for ContextFormat3<'_> {
         let mut seen_sequence_indices = IntSet::new();
         let input_coverages = self.coverages();
         let input_count = input_coverages.len();
+        let lookups = lookup_list.lookups();
         for record in self.lookup_records() {
+            let lookup_index = record.lookup_list_index();
+            let lookup = match lookups.get(lookup_index as usize) {
+                Err(ReadError::NullOffset) => continue,
+                other => other,
+            }?;
+
             let seq_idx = record.sequence_index();
             if seq_idx as usize >= input_count {
                 continue;
@@ -838,8 +922,6 @@ impl GlyphClosure for ContextFormat3<'_> {
                 cov.intersect_set(ctx.glyphs())
             };
 
-            let lookup_index = record.lookup_list_index();
-            let lookup = lookup_list.lookups().get(lookup_index as usize)?;
             if lookup.may_have_non_1to1()? {
                 seen_sequence_indices.insert_range(seq_idx..=input_count as u16);
             }
@@ -860,7 +942,13 @@ impl SubstitutionLookupList<'_> {
 
         let lookups = self.lookups();
         for idx in lookup_indices.iter() {
-            let lookup = lookups.get(idx as usize)?;
+            let lookup = match lookups.get(idx as usize) {
+                Err(ReadError::NullOffset) => {
+                    c.set_lookup_inactive(idx);
+                    continue;
+                }
+                other => other,
+            }?;
             lookup.closure_lookups(&mut c, idx)?;
         }
 
@@ -931,38 +1019,56 @@ impl Intersect for SingleSubst<'_> {
 
 impl Intersect for SingleSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if self.coverage_offset().is_null() {
+            return Ok(false);
+        }
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
 impl Intersect for SingleSubstFormat2<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if self.coverage_offset().is_null() {
+            return Ok(false);
+        }
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
 impl Intersect for MultipleSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if self.coverage_offset().is_null() {
+            return Ok(false);
+        }
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
 impl Intersect for AlternateSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if self.coverage_offset().is_null() {
+            return Ok(false);
+        }
         Ok(self.coverage()?.intersects(glyph_set))
     }
 }
 
 impl Intersect for LigatureSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if self.coverage_offset().is_null() {
+            return Ok(false);
+        }
         let coverage = self.coverage()?;
         let lig_sets = self.ligature_sets();
         for lig_set in coverage
             .iter()
-            .zip(lig_sets.iter())
+            .zip(lig_sets.iter_as_nullable())
             .filter_map(|(g, lig_set)| glyph_set.contains(GlyphId::from(g)).then_some(lig_set))
         {
-            if lig_set?.intersects(glyph_set)? {
+            let Some(lig_set) = lig_set.transpose()? else {
+                continue;
+            };
+            if lig_set.intersects(glyph_set)? {
                 return Ok(true);
             }
         }
@@ -973,7 +1079,7 @@ impl Intersect for LigatureSubstFormat1<'_> {
 impl Intersect for LigatureSet<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         let ligs = self.ligatures();
-        for lig in ligs.iter() {
+        for lig in ligs.iter_as_nullable().flatten() {
             if lig?.intersects(glyph_set)? {
                 return Ok(true);
             }
@@ -994,18 +1100,27 @@ impl Intersect for Ligature<'_> {
 
 impl Intersect for ReverseChainSingleSubstFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if self.coverage_offset().is_null() {
+            return Ok(false);
+        }
         if !self.coverage()?.intersects(glyph_set) {
             return Ok(false);
         }
 
-        for coverage in self.backtrack_coverages().iter() {
-            if !coverage?.intersects(glyph_set) {
+        for coverage in self.backtrack_coverages().iter_as_nullable() {
+            let Some(coverage) = coverage.transpose()? else {
+                return Ok(false);
+            };
+            if !coverage.intersects(glyph_set) {
                 return Ok(false);
             }
         }
 
-        for coverage in self.lookahead_coverages().iter() {
-            if !coverage?.intersects(glyph_set) {
+        for coverage in self.lookahead_coverages().iter_as_nullable() {
+            let Some(coverage) = coverage.transpose()? else {
+                return Ok(false);
+            };
+            if !coverage.intersects(glyph_set) {
                 return Ok(false);
             }
         }

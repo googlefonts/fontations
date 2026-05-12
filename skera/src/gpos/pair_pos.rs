@@ -58,7 +58,10 @@ fn compute_effective_pair_formats_1(
     let pair_sets = pair_pos.pair_sets();
     let partset_idxes = intersected_coverage_indices(&coverage, glyph_set);
     for i in partset_idxes.iter() {
-        let pair_set = pair_sets.get(i as usize)?;
+        let pair_set = match pair_sets.get(i as usize) {
+            Err(ReadError::NullOffset) => continue,
+            other => other,
+        }?;
         for pair_value_rec in pair_set.pair_value_records().iter() {
             let pair_value_rec = pair_value_rec?;
             let second_glyph = pair_value_rec.second_glyph();
@@ -144,6 +147,9 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let (subset_state, font) = args;
         let glyph_map = &plan.glyph_map_gsub;
         let glyph_set = &plan.glyphset_gsub;
@@ -188,10 +194,12 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        for i in pairset_idxes.iter() {
+        let mut retained_glyphs = Vec::with_capacity(glyphs.len());
+        for (i, g) in pairset_idxes.iter().zip(glyphs) {
             match pair_sets.subset_offset(i as usize, s, plan, (new_format1, new_format2)) {
                 Ok(()) => {
                     pairset_count += 1;
+                    retained_glyphs.push(g);
                 }
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
                 Err(e) => {
@@ -201,7 +209,7 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
         }
 
         s.copy_assign(pairset_count_pos, pairset_count);
-        Offset16::serialize_serialize::<CoverageTable>(s, &glyphs, cov_offset_pos)
+        Offset16::serialize_serialize::<CoverageTable>(s, &retained_glyphs, cov_offset_pos)
     }
 }
 
@@ -247,6 +255,12 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        if self.coverage_offset().is_null()
+            || self.class_def1_offset().is_null()
+            || self.class_def2_offset().is_null()
+        {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let Ok(coverage) = self.coverage() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
@@ -443,10 +457,9 @@ impl CollectVariationIndices for PairPosFormat1<'_> {
         let pair_sets = self.pair_sets();
         let pairset_idxes = intersected_coverage_indices(&coverage, glyph_set);
         for i in pairset_idxes.iter() {
-            let Ok(pair_set) = pair_sets.get(i as usize) else {
-                return;
-            };
-            pair_set.collect_variation_indices(plan, varidx_set);
+            if let Ok(pair_set) = pair_sets.get(i as usize) {
+                pair_set.collect_variation_indices(plan, varidx_set);
+            }
         }
     }
 }

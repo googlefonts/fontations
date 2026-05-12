@@ -2,7 +2,7 @@
 use crate::{
     layout::{intersected_glyphs_and_indices, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
-    offset_array::SubsetOffsetArray,
+    offset_array::{IterNullableHelper, SubsetOffsetArray},
     serialize::{SerializeErrorFlags, Serializer},
     Plan, SubsetState, SubsetTable,
 };
@@ -49,6 +49,9 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat1<'_> {
         s: &mut Serializer,
         lookup_map: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -105,11 +108,18 @@ impl<'a> SubsetTable<'a> for SequenceRuleSet<'_> {
         let mut seq_rule_count = 0_u16;
 
         let seq_rules = self.seq_rules();
-        let org_rule_count = self.seq_rule_count();
-        for i in 0..org_rule_count {
-            match seq_rules.subset_offset(i as usize, s, plan, lookup_map) {
+        for seq_rule in seq_rules.iter_as_nullable() {
+            let Some(seq_rule) = seq_rule
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            else {
+                continue;
+            };
+            let snap = s.snapshot();
+            let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
+            match Offset16::serialize_subset(&seq_rule, s, plan, lookup_map, offset_pos) {
                 Ok(()) => seq_rule_count += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
                 Err(e) => return Err(e),
             }
         }
@@ -229,6 +239,9 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
         s: &mut Serializer,
         lookup_map: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() || self.class_def_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -335,11 +348,18 @@ impl<'a> SubsetTable<'a> for ClassSequenceRuleSet<'_> {
         let mut seq_rule_count = 0_u16;
 
         let seq_rules = self.class_seq_rules();
-        let org_rule_count = self.class_seq_rule_count();
-        for i in 0..org_rule_count {
-            match seq_rules.subset_offset(i as usize, s, plan, args) {
+        for seq_rule in seq_rules.iter_as_nullable() {
+            let Some(seq_rule) = seq_rule
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            else {
+                continue;
+            };
+            let snap = s.snapshot();
+            let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
+            match Offset16::serialize_subset(&seq_rule, s, plan, args, offset_pos) {
                 Ok(()) => seq_rule_count += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
                 Err(e) => return Err(e),
             }
         }
@@ -396,9 +416,15 @@ impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
-        for cov in self.iter() {
-            let cov =
-                cov.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        let snap = s.snapshot();
+        for cov in self.iter_as_nullable() {
+            let Some(cov) = cov
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            else {
+                s.revert_snapshot(snap);
+                return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+            };
             let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
             Offset16::serialize_subset(&cov, s, plan, (), offset_pos)?;
         }
@@ -464,6 +490,9 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat1<'_> {
         s: &mut Serializer,
         lookup_map: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -520,11 +549,19 @@ impl<'a> SubsetTable<'a> for ChainedSequenceRuleSet<'_> {
         let mut seq_rule_count = 0_u16;
 
         let seq_rules = self.chained_seq_rules();
-        let org_rule_count = self.chained_seq_rule_count();
-        for i in 0..org_rule_count {
-            match seq_rules.subset_offset(i as usize, s, plan, lookup_map) {
+        for seq_rule in seq_rules.iter_as_nullable() {
+            let Some(seq_rule) = seq_rule
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            else {
+                continue;
+            };
+
+            let snap = s.snapshot();
+            let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
+            match Offset16::serialize_subset(&seq_rule, s, plan, lookup_map, offset_pos) {
                 Ok(()) => seq_rule_count += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
                 Err(e) => return Err(e),
             }
         }
@@ -584,6 +621,9 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
         s: &mut Serializer,
         lookup_map: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() || self.input_class_def_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -593,16 +633,8 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
 
-        let backtrack_classdef = self
-            .backtrack_class_def()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-
         let input_classdef = self
             .input_class_def()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-
-        let lookahead_classdef = self
-            .lookahead_class_def()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
         // format
@@ -614,20 +646,28 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
 
         // backtrack classdef offset
         let backtrack_classdef_offset_pos = s.embed(0_u16)?;
-        let Some(backtrack_class_map) = Offset16::serialize_subset(
-            &backtrack_classdef,
-            s,
-            plan,
-            &ClassDefSubsetStruct {
-                remap_class: true,
-                keep_empty_table: true,
-                use_class_zero: true,
-                glyph_filter: None,
-            },
-            backtrack_classdef_offset_pos,
-        )?
-        else {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+        let backtrack_class_map = if !self.backtrack_class_def_offset().is_null() {
+            let backtrack_classdef = self
+                .backtrack_class_def()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            let Some(backtrack_class_map) = Offset16::serialize_subset(
+                &backtrack_classdef,
+                s,
+                plan,
+                &ClassDefSubsetStruct {
+                    remap_class: true,
+                    keep_empty_table: true,
+                    use_class_zero: true,
+                    glyph_filter: None,
+                },
+                backtrack_classdef_offset_pos,
+            )?
+            else {
+                return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            };
+            backtrack_class_map
+        } else {
+            FnvHashMap::default()
         };
 
         // input classdef offset
@@ -655,20 +695,29 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
 
         // lookahead classdef offset
         let lookahead_classdef_offset_pos = s.embed(0_u16)?;
-        let Some(lookahead_class_map) = Offset16::serialize_subset(
-            &lookahead_classdef,
-            s,
-            plan,
-            &ClassDefSubsetStruct {
-                remap_class: true,
-                keep_empty_table: true,
-                use_class_zero: true,
-                glyph_filter: None,
-            },
-            lookahead_classdef_offset_pos,
-        )?
-        else {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+        let lookahead_class_map = if !self.lookahead_class_def_offset().is_null() {
+            let lookahead_classdef = self
+                .lookahead_class_def()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+            let Some(lookahead_class_map) = Offset16::serialize_subset(
+                &lookahead_classdef,
+                s,
+                plan,
+                &ClassDefSubsetStruct {
+                    remap_class: true,
+                    keep_empty_table: true,
+                    use_class_zero: true,
+                    glyph_filter: None,
+                },
+                lookahead_classdef_offset_pos,
+            )?
+            else {
+                return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            };
+            lookahead_class_map
+        } else {
+            FnvHashMap::default()
         };
 
         // seq ruleset count
@@ -744,11 +793,18 @@ impl<'a> SubsetTable<'a> for ChainedClassSequenceRuleSet<'_> {
         let mut seq_rule_count = 0_u16;
 
         let seq_rules = self.chained_class_seq_rules();
-        let org_rule_count = self.chained_class_seq_rule_count();
-        for i in 0..org_rule_count {
-            match seq_rules.subset_offset(i as usize, s, plan, args) {
+        for seq_rule in seq_rules.iter_as_nullable() {
+            let Some(seq_rule) = seq_rule
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            else {
+                continue;
+            };
+            let snap = s.snapshot();
+            let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
+            match Offset16::serialize_subset(&seq_rule, s, plan, args, offset_pos) {
                 Ok(()) => seq_rule_count += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
                 Err(e) => return Err(e),
             }
         }
