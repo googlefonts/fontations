@@ -839,6 +839,21 @@ impl Plan {
 }
 
 // TODO: when instancing, calculate delta value and set new varidx to NO_VARIATIONS_IDX if all axes are pinned
+
+fn normalize_axis_value(axis: &skrifa::Axis, v: f32) -> f32 {
+    let min_value = axis.min_value();
+    let default_value = axis.default_value();
+    let max_value = axis.max_value();
+    let v = v.clamp(min_value, max_value);
+
+    if v == default_value {
+        0.0
+    } else if v < default_value {
+        (v - default_value) / (default_value - min_value)
+    } else {
+        (v - default_value) / (max_value - default_value)
+    }
+}
 fn remap_variation_indices(
     vardata_count: u32,
     varidx_set: &IntSet<u32>,
