@@ -1422,7 +1422,6 @@ fn should_drop_table(tag: Tag, plan: &Plan) -> bool {
     match tag {
         // hint tables
         Cvar::TAG | CVT | FPGM | PREP | Hdmx::TAG | VDMX => no_hinting,
-        //TODO: drop var tables during instancing when all axes are pinned
         _ => false,
     }
 }
@@ -1501,6 +1500,16 @@ fn subset_table<'a>(
     }
 
     match tag {
+        Avar::TAG => {
+            if plan.axes_index_map.is_empty() && !plan.all_axes_pinned {
+                passthrough_table(tag, font, s)
+            } else {
+                font.avar()
+                    .map_err(|_| SubsetError::SubsetTableError(Avar::TAG))?
+                    .subset(plan, font, s, builder)
+            }
+        }
+
         Base::TAG => font
             .base()
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?
