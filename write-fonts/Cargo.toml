@@ -40,7 +40,7 @@ read-fonts = { workspace = true, features = [
 ] }
 rstest = "0.18.0"
 bincode = "1.0"
-rand = "0.8.5"
+rand = { version = "0.10.1", features = ["thread_rng"] }
 
 pretty_assertions.workspace = true
 env_logger.workspace = true

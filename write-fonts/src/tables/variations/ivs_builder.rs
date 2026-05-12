@@ -1492,7 +1492,7 @@ mod tests {
 
     #[test]
     fn we_match_fonttools_stable_order() {
-        use rand::{seq::SliceRandom, thread_rng};
+        use rand::seq::SliceRandom;
 
         let mut builder = VariationStoreBuilder::new(1);
         let r1 = VariationRegion::new(vec![reg_coords(-1.0, -1.0, 0.0)]);
@@ -1524,7 +1524,7 @@ mod tests {
         ];
 
         // Add delta sets in random order and test that the algorithm is stable
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
         delta_sets.shuffle(&mut rng);
         for deltas in delta_sets {
             builder.add_deltas(deltas);
