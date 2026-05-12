@@ -39,7 +39,7 @@ font-test-data = { workspace = true }
 read-fonts = { workspace = true, features = [
   "codegen_test", "experimental_traverse"
 ] }
-rstest = "0.18.0"
+rstest = "0.26.1"
 bincode = { version = "2", features = ["serde"] }
 rand = { version = "0.10.1", features = ["thread_rng"] }
 
