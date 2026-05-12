@@ -978,17 +978,15 @@ impl LookupClosure for ContextFormat2<'_> {
             }
 
             for rule in rule_set?.rules() {
+                if c.lookup_limit_exceed() {
+                    return Ok(());
+                }
                 let Some(rule) = rule.transpose()? else {
                     continue;
                 };
-                if c.lookup_limit_exceed()
-                    || !rule.intersects(
-                        &input_glyph_classes,
-                        &backtrack_classes,
-                        &lookahead_classes,
-                    )
-                {
-                    return Ok(());
+
+                if !rule.intersects(&input_glyph_classes, &backtrack_classes, &lookahead_classes) {
+                    continue;
                 }
 
                 for lookup_record in rule.lookup_records() {
