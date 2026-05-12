@@ -203,9 +203,6 @@ impl<'a> SubsetTable<'a> for SequenceRule<'_> {
         // seq lookup records
         let seq_lookup_count =
             serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
-        if seq_lookup_count == 0 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
         s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
         Ok(())
     }
@@ -399,9 +396,6 @@ impl<'a> SubsetTable<'a> for ClassSequenceRule<'_> {
         // seq lookup records
         let seq_lookup_count =
             serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
-        if seq_lookup_count == 0 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
         s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
         Ok(())
     }
@@ -455,9 +449,6 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat3<'_> {
         // seq lookup records
         let seq_lookup_count =
             serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
-        if seq_lookup_count == 0 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
         s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
         Ok(())
     }
@@ -604,9 +595,6 @@ impl<'a> SubsetTable<'a> for ChainedSequenceRule<'_> {
         // seq lookup records
         let seq_lookup_count =
             serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
-        if seq_lookup_count == 0 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
         s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
         Ok(())
     }
@@ -840,9 +828,6 @@ impl<'a> SubsetTable<'a> for ChainedClassSequenceRule<'_> {
         // seq lookup records
         let seq_lookup_count =
             serialize_lookup_records(self.seq_lookup_records(), plan, args.lookup_map, s)?;
-        if seq_lookup_count == 0 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
         s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
         Ok(())
     }
@@ -881,9 +866,6 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat3<'_> {
         // seq lookup records
         let seq_lookup_count =
             serialize_lookup_records(self.seq_lookup_records(), plan, lookup_map, s)?;
-        if seq_lookup_count == 0 {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
         s.copy_assign(seq_lookup_count_pos, seq_lookup_count);
         Ok(())
     }
