@@ -36,7 +36,7 @@ mod c_brotli {
             }
 
             let status = Command::new("git")
-                .args(["checkout", "af041f55e7bfa3e1bc502f234538e1d6dd6282bd"])
+                .args(["checkout", "1736fe1d50b205f718281a94035fd66f14d72ef5"])
                 .current_dir(&brotli_dir)
                 .status()
                 .expect("Failed to execute git checkout");
