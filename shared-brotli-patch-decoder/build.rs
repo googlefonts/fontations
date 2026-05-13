@@ -25,8 +25,6 @@ mod c_brotli {
             let status = Command::new("git")
                 .args([
                     "clone",
-                    "--depth",
-                    "1",
                     "https://github.com/google/brotli.git",
                     brotli_dir.to_str().unwrap(),
                 ])
@@ -35,6 +33,16 @@ mod c_brotli {
 
             if !status.success() {
                 panic!("Failed to clone brotli repository");
+            }
+
+            let status = Command::new("git")
+                .args(["checkout", "af041f55e7bfa3e1bc502f234538e1d6dd6282bd"])
+                .current_dir(&brotli_dir)
+                .status()
+                .expect("Failed to execute git checkout");
+
+            if !status.success() {
+                panic!("Failed to checkout specific commit");
             }
         }
 
