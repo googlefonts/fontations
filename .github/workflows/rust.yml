@@ -61,6 +61,9 @@ jobs:
       - name: cargo clippy fauntlet (1.85)
         run: cargo clippy -p fauntlet --all-features --all-targets -- -D warnings
 
+      - name: cargo clippy incremental-font-transfer (1.85)
+        run: cargo clippy -p incremental-font-transfer --all-features --all-targets -- -D warnings
+
   test-stable:
     name: cargo test stable
     runs-on: ubuntu-latest

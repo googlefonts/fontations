@@ -950,7 +950,7 @@ impl GlyphDataOffsetArray for Gvar<'_> {
 
             // The spec says that shared tuple data should come before glyph variation data so use a virtual link to
             // ensure the correct ordering.
-            serializer.add_virtual_link(glyph_data_obj);
+            serializer.add_virtual_link(glyph_data_obj)?;
 
             serializer
                 .pop_pack(false)
