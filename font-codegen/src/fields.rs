@@ -8,8 +8,9 @@ use syn::spanned::Spanned;
 
 use super::parsing::{
     logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
-    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record,
+    FieldType, FieldValidation, Fields, OffsetTarget, Record,
 };
+use crate::Phase;
 
 impl Fields {
     pub(crate) fn new(fields: Vec<Field>) -> syn::Result<Self> {
@@ -293,6 +294,13 @@ impl Condition {
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum NeededWhen {
+    Parse,
+    Runtime,
+    Both,
 }
 
 /// All the state required to generate a constructor for a table/record

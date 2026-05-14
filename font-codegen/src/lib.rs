@@ -16,7 +16,7 @@ mod parsing;
 mod record;
 mod table;
 
-use parsing::{Item, Items, Phase};
+use parsing::{Item, Items};
 
 pub use error::ErrorReport;
 
@@ -28,6 +28,13 @@ pub enum Mode {
     Parse,
     /// Generate compilation code
     Compile,
+}
+
+/// we check invariants twice
+#[derive(Debug, Copy, Clone)]
+pub(crate) enum Phase {
+    Parse,
+    Analysis,
 }
 
 pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
