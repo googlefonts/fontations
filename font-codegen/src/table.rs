@@ -2,17 +2,18 @@
 
 use std::collections::HashMap;
 
-use crate::{
-    fields::FieldConstructorInfo,
-    parsing::{logged_syn_error, NeededWhen},
-};
 use indexmap::IndexMap;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::parsing::{Attr, GenericGroup, Item, Items, Phase};
-
-use super::parsing::{Field, Table, TableFormat, TableReadArg, TableReadArgs};
+use crate::{
+    fields::{FieldConstructorInfo, NeededWhen},
+    parsing::{
+        logged_syn_error, Attr, Field, GenericGroup, Item, Items, Table, TableFormat, TableReadArg,
+        TableReadArgs,
+    },
+    Phase,
+};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
