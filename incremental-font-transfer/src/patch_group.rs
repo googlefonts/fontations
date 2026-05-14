@@ -40,7 +40,7 @@ pub struct PatchGroup<'a> {
 
 // We implement Debug manually because FontRef does not implement Debug unconditionally.
 // Additionally, FontRef may be too verbose to be helpful.
-impl<'a> std::fmt::Debug for PatchGroup<'a> {
+impl std::fmt::Debug for PatchGroup<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PatchGroup")
             .field("patches", &self.patches)
