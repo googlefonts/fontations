@@ -1,12 +1,13 @@
 //! codegen for table objects
 
-use crate::parsing::NeededWhen;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::parsing::Attr;
-
-use super::parsing::{Field, Phase, Table, TableReadArg, TableReadArgs};
+use crate::{
+    fields::NeededWhen,
+    parsing::{Attr, Field, Table, TableReadArg, TableReadArgs},
+    Phase,
+};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
