@@ -4,6 +4,7 @@
 
 use std::{
     collections::{BTreeSet, HashMap},
+    io::Cursor,
     str::FromStr,
 };
 
@@ -14,7 +15,10 @@ use incremental_font_transfer::{
     patchmap::{DesignSpace, FeatureSet, PatchUrl, SubsetDefinition},
 };
 use read_fonts::collections::{IntSet, RangeSet};
+use read_fonts::tables::ift::{GlyphKeyedPatch, GlyphPatches};
+use read_fonts::{FontData, FontRead};
 use regex::Regex;
+use shared_brotli_patch_decoder::{BuiltInBrotliDecoder, SharedBrotliDecoder};
 use skrifa::FontRef;
 
 #[derive(Parser, Debug)]
@@ -91,6 +95,14 @@ fn main() {
             e
         )
     });
+    let initial_font_bytes = font_bytes.len() as u64;
+
+    if font_bytes.starts_with(b"wOF2") {
+        println!("    Decompressing WOFF2 font to TTF");
+        let mut cursor = Cursor::new(&font_bytes);
+        font_bytes = woff2_patched::decode::convert_woff2_to_ttf(&mut cursor)
+            .expect("Failed to decode WOFF2 font");
+    }
 
     let mut patch_data: HashMap<PatchUrl, UrlStatus> = Default::default();
     let mut it_count = 0;
@@ -99,6 +111,9 @@ fn main() {
     // one new patch URL is needed.
     let mut round_trip_count = 0;
     let mut fetch_count = 0;
+    let mut glyph_keyed_bytes = 0u64;
+    let mut table_keyed_bytes = 0u64;
+    let mut loaded_glyphs = IntSet::<u32>::empty();
     loop {
         it_count += 1;
         println!(">> Iteration {}", it_count);
@@ -135,6 +150,29 @@ fn main() {
                     ),
                 };
 
+                let tag = &patch_bytes[0..4];
+                if tag == b"ifgk" {
+                    glyph_keyed_bytes += patch_bytes.len() as u64;
+                    let patch = GlyphKeyedPatch::read(FontData::new(&patch_bytes))
+                        .expect("Failed to parse GlyphKeyedPatch");
+                    let decoder = BuiltInBrotliDecoder;
+                    let decompressed = decoder
+                        .decode(
+                            patch.brotli_stream(),
+                            None,
+                            patch.max_uncompressed_length() as usize,
+                        )
+                        .expect("Failed to decompress patch");
+                    let glyph_patches =
+                        GlyphPatches::read(FontData::new(&decompressed), patch.flags())
+                            .expect("Failed to parse GlyphPatches");
+                    for id in glyph_patches.glyph_ids().iter() {
+                        loaded_glyphs.insert(id.expect("Failed to read glyph ID").get());
+                    }
+                } else if tag == b"iftk" {
+                    table_keyed_bytes += patch_bytes.len() as u64;
+                }
+
                 UrlStatus::Pending(patch_bytes)
             });
         }
@@ -167,6 +205,18 @@ fn main() {
     println!("    Wrote patched font to {}", &args.output.display());
     println!("    Total network round trips = {round_trip_count}");
     println!("    Total fetches = {fetch_count}");
+    let network_overhead = fetch_count as u64 * 75;
+    let total_bytes = initial_font_bytes + glyph_keyed_bytes + table_keyed_bytes + network_overhead;
+    println!("    Input font bytes = {initial_font_bytes}");
+    println!("    Glyph keyed patch bytes = {glyph_keyed_bytes}");
+    println!("    Table keyed patch bytes = {table_keyed_bytes}");
+    println!("    Estimated network overhead bytes = {network_overhead}");
+    println!("    Total bytes = {total_bytes}");
+    println!(
+        "    Glyphs added (count = {}): {:?}",
+        loaded_glyphs.len(),
+        loaded_glyphs
+    );
 }
 
 fn parse_unicodes(args: Vec<String>, codepoints: &mut IntSet<u32>) -> Result<(), ParsingError> {
