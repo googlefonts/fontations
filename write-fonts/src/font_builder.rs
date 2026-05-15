@@ -286,7 +286,6 @@ mod tests {
 
     use crate::{font_builder::checksum_and_padding, FontBuilder};
     use rand::seq::SliceRandom;
-    use rand::Rng;
     use rstest::rstest;
 
     #[test]
@@ -322,15 +321,17 @@ mod tests {
 
     #[test]
     fn validate_font_checksum() {
+        use rand::RngExt;
+
         // Add a dummy 'head' plus a couple of made-up tables containing random bytes
         // and verify that the total font checksum is always equal to the special
         // constant 0xB1B0AFBA, which should be the case if the FontBuilder computed
         // the head.checksum_adjustment correctly.
         let head_size = 54;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut builder = FontBuilder::default();
         for tag in [Tag::new(b"head"), Tag::new(b"FOO "), Tag::new(b"BAR ")] {
-            let data: Vec<u8> = (0..=head_size).map(|_| rng.r#gen()).collect();
+            let data: Vec<u8> = (0..=head_size).map(|_| rng.r#random()).collect();
             builder.add_raw(tag, data);
         }
         let font_data = builder.build();
@@ -375,7 +376,7 @@ mod tests {
         let mut builder = FontBuilder::default();
         builder.add_raw(dsig, vec![0]);
         let mut tags = recommended_order.to_vec();
-        tags.shuffle(&mut rand::thread_rng());
+        tags.shuffle(&mut rand::rng());
         for tag in tags {
             builder.add_raw(tag, vec![0]);
         }
