@@ -3,7 +3,8 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use super::parsing::{BitFlags, RawEnum};
+use crate::parsing::{logged_syn_error, BitFlags, RawEnum};
+use crate::Phase;
 
 pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
     let name = &raw.name;
@@ -313,6 +314,23 @@ pub(crate) fn generate_flags_compile(raw: &BitFlags) -> TokenStream {
                 writer.write_slice(&self.bits().to_be_bytes())
             }
         }
+    }
+}
+
+impl RawEnum {
+    pub(crate) fn sanity_check(&self, _: Phase) -> syn::Result<()> {
+        let defaults: Vec<_> = self
+            .variants
+            .iter()
+            .filter_map(|v| v.attrs.default.as_ref().map(|_| &v.name))
+            .collect();
+        if defaults.len() > 1 {
+            return Err(logged_syn_error(
+                self.name.span(),
+                format!("multiple defaults {defaults:?}"),
+            ));
+        }
+        Ok(())
     }
 }
 
