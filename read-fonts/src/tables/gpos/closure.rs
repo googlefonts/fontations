@@ -62,6 +62,10 @@ impl PositionLookupList<'_> {
         glyph_set: &IntSet<GlyphId>,
         lookup_indices: &mut IntSet<u16>,
     ) -> Result<(), ReadError> {
+        lookup_indices.remove_range(self.lookup_count()..=u16::MAX);
+        if lookup_indices.is_empty() {
+            return Ok(());
+        }
         let lookup_list = LayoutLookupList::Gpos(self);
         let mut c = LookupClosureCtx::new(glyph_set, &lookup_list);
 
