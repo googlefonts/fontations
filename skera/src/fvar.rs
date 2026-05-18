@@ -176,7 +176,10 @@ fn axis_coord_pinned_or_within_axis_range(coord: Option<Fixed>, axis_limit: &Tri
 
 #[cfg(test)]
 mod test {
+    use crate::{parse_instancing_spec, subset_font, SubsetFlags};
+
     use super::*;
+    use skrifa::{raw::collections::IntSet, MetadataProvider};
     use write_fonts::read::{types::NameId, FontRef, TableProvider};
     #[test]
     fn test_nameid_closure() {
@@ -197,5 +200,38 @@ mod test {
         assert!(plan.name_ids.contains(NameId::new(264)));
         assert!(plan.name_ids.contains(NameId::new(265)));
         assert!(plan.name_ids.contains(NameId::new(266)));
+    }
+
+    #[test]
+    fn test_variation_subspace() {
+        let font = FontRef::new(include_bytes!("../test-data/fonts/NotoSans-VF.abc.ttf")).unwrap();
+        let spec = parse_instancing_spec("wght=400:700,wdth=drop,CTGR=drop").unwrap();
+
+        let plan = Plan::new(
+            &IntSet::all(),
+            &IntSet::all(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &Some(spec),
+        );
+        let newfont = subset_font(&font, &plan).unwrap();
+        let newfontref = FontRef::new(&newfont).unwrap();
+        let axis = newfontref.axes();
+        assert_eq!(axis.len(), 1);
+        let wght_axis = axis.get(0).unwrap();
+        assert_eq!(wght_axis.tag(), *b"wght");
+        assert_eq!(wght_axis.min_value(), 400.0);
+        assert_eq!(wght_axis.default_value(), 400.0);
+        assert_eq!(wght_axis.max_value(), 700.0);
+        for instance in newfontref.named_instances().iter() {
+            let mut loc = instance.user_coords();
+            let wght_coord = loc.next().unwrap();
+            assert!((400.0..=700.0).contains(&wght_coord));
+        }
     }
 }

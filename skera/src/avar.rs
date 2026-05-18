@@ -237,3 +237,56 @@ fn must_include(mapping: (f64, f64)) -> bool {
         || (float_approx_eq(map_from, zero) && float_approx_eq(map_to, zero))
         || (float_approx_eq(map_from, one) && float_approx_eq(map_to, one))
 }
+
+#[cfg(test)]
+mod tests {
+    use skrifa::{
+        raw::{collections::IntSet, TableProvider},
+        FontRef,
+    };
+
+    use crate::{parse_instancing_spec, subset_font, Plan, SubsetFlags};
+
+    #[test]
+    fn test_variation_subspace() {
+        let font = FontRef::new(include_bytes!("../test-data/fonts/NotoSans-VF.abc.ttf")).unwrap();
+        let spec = parse_instancing_spec("wght=400:700,wdth=drop,CTGR=drop").unwrap();
+
+        let plan = Plan::new(
+            &IntSet::all(),
+            &IntSet::all(),
+            &font,
+            SubsetFlags::default(),
+            &IntSet::empty(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &IntSet::all(),
+            &Some(spec),
+        );
+        let newfont = subset_font(&font, &plan).unwrap();
+        std::fs::write("newfont.ttf", &newfont).unwrap();
+        let newfontref = FontRef::new(&newfont).unwrap();
+        let avar = newfontref.avar().unwrap();
+        let mappings = avar.axis_segment_maps();
+        assert_eq!(mappings.iter().count(), 1);
+        let mapping = mappings.iter().next().unwrap().unwrap();
+        assert_eq!(mapping.position_map_count(), 5);
+        let mut axis_value_maps = mapping.axis_value_maps().iter();
+        let m1 = axis_value_maps.next().unwrap();
+        assert_eq!(m1.from_coordinate().to_f32(), -1.0);
+        assert_eq!(m1.to_coordinate().to_f32(), -1.0);
+        let m2 = axis_value_maps.next().unwrap();
+        assert_eq!(m2.from_coordinate().to_f32(), 0.0);
+        assert_eq!(m2.to_coordinate().to_f32(), 0.0);
+        let m3 = axis_value_maps.next().unwrap();
+        assert_eq!(m3.from_coordinate().to_f32(), 0.33337402);
+        assert_eq!(m3.to_coordinate().to_f32(), 0.29510498);
+        let m4 = axis_value_maps.next().unwrap();
+        assert_eq!(m4.from_coordinate().to_f32(), 0.66674805);
+        assert_eq!(m4.to_coordinate().to_f32(), 0.62298584);
+        let m5 = axis_value_maps.next().unwrap();
+        assert_eq!(m5.from_coordinate().to_f32(), 1.0);
+        assert_eq!(m5.to_coordinate().to_f32(), 1.0);
+    }
+}
