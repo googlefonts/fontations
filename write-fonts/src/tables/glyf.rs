@@ -3,10 +3,13 @@
 use crate::{
     from_obj::{FromObjRef, FromTableRef},
     validate::{Validate, ValidationCtx},
-    FontWrite, OtRound, TableWriter,
+    FontWrite, TableWriter,
 };
+#[cfg(feature = "kurbo")]
+use crate::OtRound;
 
 use font_types::Tag;
+#[cfg(feature = "kurbo")]
 use kurbo::Rect;
 use read_fonts::{FontRead, TopLevelTable};
 
@@ -78,6 +81,7 @@ impl Bbox {
     }
 }
 
+#[cfg(feature = "kurbo")]
 impl From<Rect> for Bbox {
     fn from(value: Rect) -> Self {
         Bbox {

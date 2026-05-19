@@ -2,10 +2,15 @@
 
 use crate::{
     from_obj::{FromObjRef, FromTableRef, ToOwnedTable},
-    util::{self, MultiZip, WrappingGet},
-    FontWrite, OtRound,
+    FontWrite,
 };
 
+#[cfg(feature = "kurbo")]
+use crate::OtRound;
+#[cfg(feature = "kurbo")]
+use crate::util::{self, MultiZip, WrappingGet};
+
+#[cfg(feature = "kurbo")]
 use kurbo::BezPath;
 use read_fonts::{tables::glyf::SimpleGlyphFlags, FontRead};
 
@@ -56,6 +61,7 @@ impl SimpleGlyph {
     /// * In FontTools endPath says I'm done with this subpath, [BezPath] has no endPath.
     ///
     /// Context courtesy of @anthrotype.
+    #[cfg(feature = "kurbo")]
     pub fn from_bezpath(path: &BezPath) -> Result<Self, MalformedPath> {
         Self::interpolatable_glyphs_from_bezpaths(std::slice::from_ref(path))
             .map(|mut x| x.pop().unwrap())
@@ -73,6 +79,7 @@ impl SimpleGlyph {
     /// The inputs are expected to be different instances of the same named
     /// glyph, each corresponding to a different location in the variation
     /// space.
+    #[cfg(feature = "kurbo")]
     pub fn interpolatable_glyphs_from_bezpaths(
         paths: &[BezPath],
     ) -> Result<Vec<Self>, MalformedPath> {
@@ -189,6 +196,7 @@ impl From<Contour> for Vec<CurvePoint> {
     }
 }
 
+#[cfg(feature = "kurbo")]
 impl MalformedPath {
     fn inconsistent_path_els(idx: usize, elements: &[kurbo::PathEl]) -> Self {
         fn el_types(elements: &[kurbo::PathEl]) -> Vec<&'static str> {
@@ -380,12 +388,14 @@ impl crate::validate::Validate for SimpleGlyph {
 ///
 /// Similar to read_fonts::tables::glyf::CurvePoint, but uses kurbo::Point directly
 /// thus it does not require (x, y) coordinates to be rounded to integers.
+#[cfg(feature = "kurbo")]
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct ContourPoint {
     point: kurbo::Point,
     on_curve: bool,
 }
 
+#[cfg(feature = "kurbo")]
 impl ContourPoint {
     fn new(point: kurbo::Point, on_curve: bool) -> Self {
         Self { point, on_curve }
@@ -400,6 +410,7 @@ impl ContourPoint {
     }
 }
 
+#[cfg(feature = "kurbo")]
 impl From<ContourPoint> for CurvePoint {
     fn from(pt: ContourPoint) -> Self {
         let (x, y) = pt.point.ot_round();
@@ -409,9 +420,11 @@ impl From<ContourPoint> for CurvePoint {
 /// A helper struct for building interpolatable contours
 ///
 /// Holds a vec of contour, one contour per glyph.
+#[cfg(feature = "kurbo")]
 #[derive(Clone, Debug, PartialEq)]
 struct InterpolatableContourBuilder(Vec<Vec<ContourPoint>>);
 
+#[cfg(feature = "kurbo")]
 impl InterpolatableContourBuilder {
     /// Create new set of interpolatable contours beginning at the provided points
     fn new(move_pts: &[kurbo::Point]) -> Self {
@@ -497,6 +510,7 @@ impl InterpolatableContourBuilder {
 ///
 /// We check both before and after rounding float coordinates to integer to avoid
 /// false negatives due to rounding.
+#[cfg(feature = "kurbo")]
 #[inline]
 fn is_mid_point(p0: kurbo::Point, p1: kurbo::Point, p2: kurbo::Point) -> bool {
     let mid = p0.midpoint(p2);
@@ -504,6 +518,7 @@ fn is_mid_point(p0: kurbo::Point, p1: kurbo::Point, p2: kurbo::Point) -> bool {
         || p0.to_vec2().ot_round() + p2.to_vec2().ot_round() == p1.to_vec2().ot_round() * 2.0
 }
 
+#[cfg(feature = "kurbo")]
 fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
     let p1 = &points[idx]; // user error if this is out of bounds
     if !p1.on_curve {
@@ -519,6 +534,7 @@ fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
 }
 
 // impl for SimpleGlyph::interpolatable_glyphs_from_paths
+#[cfg(feature = "kurbo")]
 fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, MalformedPath> {
     // check that all paths have the same number of elements so we can zip them together
     let num_elements: Vec<usize> = paths.iter().map(|path| path.elements().len()).collect();
@@ -618,7 +634,7 @@ fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, Malfo
     Ok(glyphs)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "kurbo"))]
 mod tests {
     use font_types::GlyphId;
     use kurbo::Affine;
