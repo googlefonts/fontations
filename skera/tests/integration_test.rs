@@ -40,9 +40,8 @@ struct SubsetTestCase {
     /// subset codepoints to retain
     subsets: Vec<String>,
 
-    //command line args for instancer
-    //TODO: add support for instancing
-    //instances: Vec<String>,
+    /// command line args for instancer
+    instances: Vec<String>,
     ///compare against fonttools or not
     fonttool_options: bool,
 
@@ -163,9 +162,10 @@ impl TestCaseParser {
     }
 
     fn parse_instances(&mut self, lines: &mut LinesIter) {
-        //TODO: add support for instancing
         while !lines.is_end() {
-            lines.next();
+            if let Some(next) = lines.next() {
+                self.case.instances.push(next.trim().to_owned());
+            }
         }
     }
 
@@ -315,8 +315,19 @@ impl SubsetTestCase {
         for font in &self.fonts {
             for profile in &self.profiles {
                 for subset in &self.subsets {
-                    //TODO: add support for instances/iup_options
-                    self.run_one_test(font, subset, profile, output_dir);
+                    if self.instances.is_empty() {
+                        self.run_one_test(font, subset, profile, None, output_dir);
+                    } else {
+                        for instance in &self.instances {
+                            self.run_one_test(
+                                font,
+                                subset,
+                                profile,
+                                Some(instance.as_str()),
+                                output_dir,
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -328,8 +339,21 @@ impl SubsetTestCase {
         for font in &self.fonts {
             for profile in &self.profiles {
                 for subset in &self.subsets {
-                    //TODO: add support for instances/iup_options
-                    self.gen_expected_output_for_one_test(font, subset, profile, output_dir);
+                    if self.instances.is_empty() {
+                        self.gen_expected_output_for_one_test(
+                            font, subset, profile, None, output_dir,
+                        );
+                    } else {
+                        for instance in &self.instances {
+                            self.gen_expected_output_for_one_test(
+                                font,
+                                subset,
+                                profile,
+                                Some(instance.as_str()),
+                                output_dir,
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -339,10 +363,17 @@ impl SubsetTestCase {
         fs::rename(output_dir, expected_dir).unwrap();
     }
 
-    fn run_one_test(&self, font: &str, subset: &str, profile: &str, output_dir: &Path) {
-        let subset_font_name = gen_subset_font_name(font, subset, profile);
+    fn run_one_test(
+        &self,
+        font: &str,
+        subset: &str,
+        profile: &str,
+        instance: Option<&str>,
+        output_dir: &Path,
+    ) {
+        let subset_font_name = gen_subset_font_name(font, subset, profile, instance);
         let output_file = output_dir.join(&subset_font_name);
-        gen_subset_font_file(font, subset, profile, &output_file);
+        gen_subset_font_file(font, subset, profile, instance, &output_file);
 
         let expected_file = Path::new(TEST_DATA_DIR)
             .join("expected")
@@ -356,14 +387,15 @@ impl SubsetTestCase {
         font: &str,
         subset: &str,
         profile: &str,
+        instance: Option<&str>,
         output_dir: &Path,
     ) {
-        let subset_font_name = gen_subset_font_name(font, subset, profile);
+        let subset_font_name = gen_subset_font_name(font, subset, profile, instance);
         let output_file = output_dir.join(&subset_font_name);
-        gen_subset_font_file(font, subset, profile, &output_file);
+        gen_subset_font_file(font, subset, profile, instance, &output_file);
 
         assert_has_ttx_exec();
-        let mut expected_file_name = String::from(&subset_font_name);
+        let mut expected_file_name = subset_font_name.to_str().unwrap().to_owned();
         expected_file_name.push_str(".expected");
         let expected_file = output_dir.join(expected_file_name);
 
@@ -443,7 +475,15 @@ impl SubsetTestCase {
     }
 }
 
-fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_file: &PathBuf) {
+fn gen_subset_font_file(
+    font_file: &str,
+    subset: &str,
+    profile: &str,
+    instance: Option<&str>,
+    output_file: &PathBuf,
+) {
+    use skera::parse_instancing_spec;
+
     let org_font_file = PathBuf::from(TEST_DATA_DIR).join("fonts").join(font_file);
     let org_font_bytes = std::fs::read(org_font_file).unwrap();
     let font = FontRef::new(&org_font_bytes).unwrap();
@@ -483,6 +523,8 @@ fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_fil
         &mut drop_tables,
         &mut name_languages,
     );
+    let instancing_spec = instance.and_then(|inst| parse_instancing_spec(inst).ok());
+
     let plan = Plan::new(
         &gids,
         &unicodes,
@@ -493,6 +535,7 @@ fn gen_subset_font_file(font_file: &str, subset: &str, profile: &str, output_fil
         &layout_features,
         &name_ids,
         &name_languages,
+        &instancing_spec,
     );
 
     let subset_output = subset_font(&font, &plan).unwrap();
@@ -519,7 +562,12 @@ fn strip_unicode_prefix(text: &str) -> String {
     text.replace("U+", "")
 }
 
-fn gen_subset_font_name(font: &str, subset: &str, profile: &str) -> String {
+fn gen_subset_font_name(
+    font: &str,
+    subset: &str,
+    profile: &str,
+    instance: Option<&str>,
+) -> PathBuf {
     let subset_name = match subset {
         "*" => "all",
         "" => "no-unicodes",
@@ -527,11 +575,18 @@ fn gen_subset_font_name(font: &str, subset: &str, profile: &str) -> String {
     };
 
     let (font_base_name, font_extension) = font.rsplit_once('.').unwrap();
-    //TODO: add instances later
     let (profile_name, _profile_extension) = profile.rsplit_once('.').unwrap();
-    let subset_font_name =
-        format!("{font_base_name}.{profile_name}.{subset_name}.{font_extension}");
-    subset_font_name
+
+    if let Some(inst) = instance {
+        let instance_name = inst.replace(':', "-");
+        PathBuf::from(format!(
+            "{font_base_name}.{profile_name}.{subset_name}.{instance_name}.{font_extension}"
+        ))
+    } else {
+        PathBuf::from(format!(
+            "{font_base_name}.{profile_name}.{subset_name}.{font_extension}"
+        ))
+    }
 }
 /// Assert that we can find the `ttx` executable
 #[allow(dead_code)]
