@@ -7,6 +7,7 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Subset, SubsetError, SubsetState, SubsetTable,
 };
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -21,8 +22,7 @@ use write_fonts::{
         FontRef, MinByteRange, ReadError, TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32},
-    FontBuilder,
-};
+    };
 
 // reference: subset() for GDEF in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/59001aa9527c056ad08626cfec9a079b65d8aec8/src/OT/Layout/GDEF/GDEF.hh#L660>
@@ -33,8 +33,7 @@ impl Subset for Gdef<'_> {
         _font: &FontRef,
         state: &mut SubsetState,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         subset_gdef(self, plan, s, state).map_err(|_| SubsetError::SubsetTableError(Gdef::TAG))
     }
 }
@@ -624,7 +623,8 @@ impl CollectUsedMarkSets for MarkGlyphSets<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{
+    use font_builder::FontBuilder;
+use write_fonts::{
         read::{FontRef, TableProvider},
         types::GlyphId,
     };

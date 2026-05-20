@@ -15,7 +15,7 @@ use read_fonts::{
 };
 use shared_brotli_patch_decoder::NoopBrotliDecoder;
 use skrifa::FontRef;
-use write_fonts::FontBuilder;
+use font_builder::FontBuilder;
 
 #[derive(Debug, arbitrary::Arbitrary)]
 struct FuzzInput {

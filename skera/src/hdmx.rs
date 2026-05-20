@@ -2,13 +2,13 @@
 
 use crate::serialize::{SerializeErrorFlags, Serializer};
 use crate::{Plan, Subset, SubsetError};
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         tables::hdmx::{DeviceRecord, Hdmx},
         FontRef, TopLevelTable,
     },
-    FontBuilder,
-};
+    };
 
 fn ceil_to_4(v: u32) -> u32 {
     ((v - 1) | 3) + 1
@@ -22,8 +22,7 @@ impl Subset for Hdmx<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         s.embed(self.version())
             .map_err(|_| SubsetError::SubsetTableError(Hdmx::TAG))?;
         s.embed(self.num_records())

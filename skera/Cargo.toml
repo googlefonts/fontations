@@ -27,6 +27,7 @@ hashbrown = { version = "0.17.0", default-features = false, features = ["inline-
 skrifa = { workspace = true }
 thiserror = "2.0"
 write-fonts = { workspace = true, features = ["read"] }
+font-builder = { workspace = true }
 
 
 [dev-dependencies]

@@ -19,6 +19,7 @@ use crate::{
     SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -30,8 +31,7 @@ use write_fonts::{
         FontRead, FontRef, ReadError, TopLevelTable,
     },
     types::{MajorMinor, Offset16, Offset32},
-    FontBuilder,
-};
+    };
 
 impl NameIdClosure for Gpos<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
@@ -136,8 +136,7 @@ impl Subset for Gpos<'_> {
         font: &FontRef,
         state: &mut SubsetState,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         subset_gpos(self, plan, font, state, s)
             .map_err(|_| SubsetError::SubsetTableError(Gpos::TAG))
     }

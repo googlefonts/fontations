@@ -6,14 +6,14 @@ use crate::{
     SubsetFlags,
 };
 
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         tables::name::{Name, NameRecord},
         FontRef, TopLevelTable,
     },
     types::FixedSize,
-    FontBuilder,
-};
+    };
 
 // reference: subset() for name table in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/name/name.hh#L387
@@ -23,8 +23,7 @@ impl Subset for Name<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         let name_records = self.name_record();
         //TODO: support name_table_override
         //TODO: support name table version 1

@@ -704,7 +704,7 @@ mod tests {
         FontRef,
     };
 
-    use write_fonts::FontBuilder;
+    use font_builder::FontBuilder;
 
     const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();
     const TABLE_2_FINAL_STATE: &[u8] = "foobarbaz foobarbaz foobarbaz\n".as_bytes();

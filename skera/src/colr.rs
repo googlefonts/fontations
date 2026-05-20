@@ -8,6 +8,7 @@ use crate::{
 };
 use fnv::FnvHashMap;
 use skrifa::raw::{tables::colr::Affine2x3, ResolveOffset};
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -30,8 +31,7 @@ use write_fonts::{
         FontRef, MinByteRange, TopLevelTable,
     },
     types::{GlyphId, Offset24, Offset32},
-    FontBuilder,
-};
+    };
 
 // reference: subset() for COLR in Harfbuzz:
 // <https://github.com/harfbuzz/harfbuzz/blob/043980a60eb2fe93dd65b8c2f5eaa021fd8653f2/src/OT/Color/COLR/COLR.hh#L2414>
@@ -41,8 +41,7 @@ impl Subset for Colr<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         let base_glyph_list = self
             .base_glyph_list()
             .transpose()
@@ -1675,7 +1674,8 @@ fn downgrade_to_v0(base_glyph_list: Option<&BaseGlyphList>, plan: &Plan) -> bool
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{read::TableProvider, types::GlyphId};
+    use font_builder::FontBuilder;
+use write_fonts::{read::TableProvider, types::GlyphId};
     #[test]
     fn test_subset_colr_retain_all() {
         let ttf: &[u8] = include_bytes!("../test-data/fonts/TwemojiMozilla.subset.ttf");

@@ -7,6 +7,7 @@ use crate::{
     IncBiMap, Plan, Serialize, Subset, SubsetError, SubsetFlags,
 };
 use fnv::FnvHashMap;
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -17,8 +18,7 @@ use write_fonts::{
         FontRef, ReadError, TopLevelTable,
     },
     types::{FixedSize, Offset32},
-    FontBuilder,
-};
+    };
 
 // reference: subset() for HVAR in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/bcd5aa368d3fd3ef741ea29df15d3d56011811c0/src/hb-ot-var-hvar-table.hh#L330>
@@ -28,8 +28,7 @@ impl Subset for Hvar<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         Self::serialize(s, (self, plan)).map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))
     }
 }
@@ -360,7 +359,8 @@ impl HvarVvarSubsetPlan {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{
+    use font_builder::FontBuilder;
+use write_fonts::{
         read::{FontData, FontRead},
         types::GlyphId,
     };

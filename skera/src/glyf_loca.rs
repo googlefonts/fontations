@@ -6,6 +6,7 @@ use crate::{
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
 };
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         tables::{
@@ -20,8 +21,7 @@ use write_fonts::{
         types::GlyphId,
         FontRef, TableProvider, TopLevelTable,
     },
-    FontBuilder,
-};
+    };
 
 // reference: subset() for glyf/loca/head in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/OT/glyf/glyf.hh#L77
@@ -31,8 +31,7 @@ impl Subset for Glyf<'_> {
         plan: &Plan,
         font: &FontRef,
         s: &mut Serializer,
-        builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        builder: &mut ) -> Result<(), SubsetError> {
         let loca = font.loca(None).or(Err(SubsetTableError(Loca::TAG)))?;
         let head = font.head().or(Err(SubsetTableError(Head::TAG)))?;
 

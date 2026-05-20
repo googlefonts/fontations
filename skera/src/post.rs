@@ -3,14 +3,14 @@
 use std::collections::HashMap;
 
 use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         tables::post::{Post, DEFAULT_GLYPH_NAMES},
         FontRef, MinByteRange, TopLevelTable,
     },
     types::{GlyphId, Version16Dot16},
-    FontBuilder,
-};
+    };
 
 // reference: subset() for post in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-post-table.hh#L96
@@ -20,8 +20,7 @@ impl Subset for Post<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         // copy header
         s.embed_bytes(self.min_table_bytes())
             .map_err(|_| SubsetError::SubsetTableError(Post::TAG))?;

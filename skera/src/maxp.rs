@@ -1,10 +1,10 @@
 //! impl subset() for maxp
 use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{tables::maxp::Maxp, FontRef, TopLevelTable},
     types::Version16Dot16,
-    FontBuilder,
-};
+    };
 
 // reference: subset() for maxp in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-maxp-table.hh#L97
@@ -14,8 +14,7 @@ impl Subset for Maxp<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         let num_glyphs = plan.num_output_glyphs.min(0xFFFF) as u16;
         s.embed_bytes(self.offset_data().as_bytes())
             .map_err(|_| SubsetError::SubsetTableError(Maxp::TAG))?;

@@ -6,6 +6,7 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Subset, SubsetError, SubsetTable,
 };
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -17,8 +18,7 @@ use write_fonts::{
         FontData, FontRef, MinByteRange, TopLevelTable,
     },
     types::{FixedSize, GlyphId, MajorMinor, Offset16, Offset32},
-    FontBuilder,
-};
+    };
 
 // reference: subset() for BASE in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/fc42cdd68df0ce710b507981184ade7bf1b164e6/src/hb-ot-layout-base-table.hh#L763>
@@ -28,8 +28,7 @@ impl Subset for Base<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         s.embed(self.version())
             .map_err(|_| SubsetError::SubsetTableError(Base::TAG))?;
 

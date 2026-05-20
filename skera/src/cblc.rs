@@ -3,6 +3,7 @@ use crate::{
     serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
     Plan, Subset, SubsetError, SubsetTable,
 };
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -17,8 +18,7 @@ use write_fonts::{
         FontRef, MinByteRange, TableProvider, TopLevelTable,
     },
     types::{FixedSize, GlyphId, Offset32},
-    FontBuilder,
-};
+    };
 
 // reference: subset() for CBLC in fonttools, Harfbuzz implementation is suboptimal
 // <https://github.com/fonttools/fonttools/blob/7854669acd63be43e1ad41d0486297d8d6da325d/Lib/fontTools/subset/__init__.py#L1799>
@@ -28,8 +28,7 @@ impl Subset for Cblc<'_> {
         plan: &Plan,
         font: &FontRef,
         s: &mut Serializer,
-        builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        builder: &mut ) -> Result<(), SubsetError> {
         let cbdt = font
             .cbdt()
             .or(Err(SubsetError::SubsetTableError(Cbdt::TAG)))?;

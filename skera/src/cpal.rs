@@ -6,6 +6,7 @@ use crate::{
     NameIdClosure, Plan, Subset, SubsetError, SubsetTable,
 };
 use fnv::FnvHashMap;
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -14,8 +15,7 @@ use write_fonts::{
         FontRef, Offset, TopLevelTable,
     },
     types::{FixedSize, Offset32},
-    FontBuilder,
-};
+    };
 
 // reference: subset() for CPAL in Harfbuzz:
 // <https://github.com/harfbuzz/harfbuzz/blob/3c02fcd0e8ebd9330634058839941a672f777ac3/src/OT/Color/CPAL/CPAL.hh#L277>
@@ -25,8 +25,7 @@ impl Subset for Cpal<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         subset_v0(self, plan, s).map_err(|_| SubsetError::SubsetTableError(Cpal::TAG))?;
         if self.version() == 1 {
             subset_v1(self, plan, s).map_err(|_| SubsetError::SubsetTableError(Cpal::TAG))?;

@@ -15,7 +15,7 @@ use read_fonts::{
     FontRef, ReadError,
 };
 use shared_brotli_patch_decoder::SharedBrotliDecoder;
-use write_fonts::FontBuilder;
+use font_builder::FontBuilder;
 
 pub(crate) fn apply_table_keyed_patch<D: SharedBrotliDecoder>(
     patch: &TableKeyedPatch<'_>,
@@ -148,7 +148,7 @@ mod tests {
     use read_fonts::FontRef;
     use read_fonts::ReadError;
     use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
-    use write_fonts::FontBuilder;
+    use font_builder::FontBuilder;
 
     const IFT_TABLE: &[u8] = b"IFT PATCH MAP";
     const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();

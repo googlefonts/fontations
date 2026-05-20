@@ -14,6 +14,7 @@ use crate::{
     SubsetLayoutContext, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -24,8 +25,7 @@ use write_fonts::{
         types::{MajorMinor, Offset16, Offset32, Tag},
         FontRef, TopLevelTable,
     },
-    FontBuilder,
-};
+    };
 
 impl NameIdClosure for Gsub<'_> {
     //TODO: support instancing: collect from feature substitutes if exist
@@ -137,8 +137,7 @@ impl Subset for Gsub<'_> {
         font: &FontRef,
         state: &mut SubsetState,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         subset_gsub(self, plan, font, state, s)
             .map_err(|_| SubsetError::SubsetTableError(Gsub::TAG))
     }

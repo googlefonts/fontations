@@ -50,6 +50,7 @@ use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
 use skrifa::MetadataProvider;
 use thiserror::Error;
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::{int_set::Domain, IntSet},
@@ -92,8 +93,7 @@ use write_fonts::{
         types::{GlyphId, NameId, Tag},
         FontRef, TableProvider, TopLevelTable,
     },
-    FontBuilder,
-};
+    };
 
 const MAX_COMPOSITE_OPERATIONS_PER_GLYPH: u8 = 64;
 const MAX_NESTING_LEVEL: u8 = 64;
@@ -1085,8 +1085,7 @@ pub trait Subset {
         _plan: &Plan,
         _font: &FontRef,
         _s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         Ok(())
     }
 
@@ -1098,8 +1097,7 @@ pub trait Subset {
         _font: &FontRef,
         _state: &mut SubsetState,
         _s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         Ok(())
     }
 }

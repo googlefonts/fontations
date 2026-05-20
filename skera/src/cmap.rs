@@ -9,6 +9,7 @@ use crate::{
 
 use fnv::FnvHashMap;
 use skrifa::raw::tables::cmap::UnicodeRange;
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -20,8 +21,7 @@ use write_fonts::{
         FontRef, TopLevelTable,
     },
     types::{Offset32, Uint24},
-    FontBuilder,
-};
+    };
 
 const INVALID_UNICODE_CHAR: u32 = u32::MAX;
 const UNICODE_MAX: u32 = 0x10FFFF_u32;
@@ -34,8 +34,7 @@ impl Subset for Cmap<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         let retained_encoding_records: Vec<(usize, &EncodingRecord)> = self
             .encoding_records()
             .iter()

@@ -3,11 +3,11 @@ use std::mem::size_of;
 
 use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
 
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{tables::gvar::Gvar, types::GlyphId, FontRef, TopLevelTable},
     types::Scalar,
-    FontBuilder,
-};
+    };
 
 const FIXED_HEADER_SIZE: u32 = 20;
 // reference: subset() for gvar table in harfbuzz
@@ -18,8 +18,7 @@ impl Subset for Gvar<'_> {
         plan: &Plan,
         _font: &FontRef,
         s: &mut Serializer,
-        _builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        _builder: &mut ) -> Result<(), SubsetError> {
         //table header: from version to sharedTuplesOffset
         s.embed_bytes(self.offset_data().as_bytes().get(0..12).unwrap())
             .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;

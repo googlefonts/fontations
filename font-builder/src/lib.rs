@@ -1,62 +1,17 @@
-//!  A builder for top-level font objects
+//! A builder for top-level font objects
 
 use std::collections::BTreeMap;
 use std::{borrow::Cow, fmt::Display};
 
-use read_fonts::{FontRef, TableProvider};
-use types::{Tag, TT_SFNT_VERSION};
-
-use crate::util::SearchRange;
-
-include!("../generated/generated_font.rs");
+use font_types::Tag;
+use read_fonts::{FontRef, TableProvider, TopLevelTable};
+use write_fonts::{
+    table_directory::{TableDirectory, TableRecord},
+    validate::Validate,
+    FontWrite, TableWriter,
+};
 
 const TABLE_RECORD_LEN: usize = 16;
-const CFF: Tag = Tag::new(b"CFF ");
-const CFF2: Tag = Tag::new(b"CFF2");
-
-/// Build a font from some set of tables.
-#[derive(Debug, Clone, Default)]
-pub struct FontBuilder<'a> {
-    tables: BTreeMap<Tag, Cow<'a, [u8]>>,
-}
-
-/// An error returned when attempting to add a table to the builder.
-///
-/// This wraps a compilation error, adding the tag of the table where it was
-/// encountered.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct BuilderError {
-    /// The tag of the root table where the error occurred
-    pub tag: Tag,
-    /// The underlying error
-    pub inner: crate::error::Error,
-}
-
-impl TableDirectory {
-    pub fn from_table_records(table_records: Vec<TableRecord>) -> TableDirectory {
-        assert!(table_records.len() <= u16::MAX as usize);
-        // See https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
-        let computed = SearchRange::compute(table_records.len(), TABLE_RECORD_LEN);
-
-        let is_cff = table_records
-            .iter()
-            .any(|rec| [CFF, CFF2].contains(&rec.tag));
-        let sfnt = if is_cff {
-            CFF_SFNT_VERSION
-        } else {
-            TT_SFNT_VERSION
-        };
-
-        TableDirectory::new(
-            sfnt,
-            computed.search_range,
-            computed.entry_selector,
-            computed.range_shift,
-            table_records,
-        )
-    }
-}
 
 // https://learn.microsoft.com/en-us/typography/opentype/spec/recom#optimized-table-ordering
 const RECOMMENDED_TABLE_ORDER_TTF: [Tag; 19] = [
@@ -92,6 +47,25 @@ const RECOMMENDED_TABLE_ORDER_CFF: [Tag; 8] = [
     Tag::new(b"CFF "),
 ];
 
+/// Build a font from some set of tables.
+#[derive(Debug, Clone, Default)]
+pub struct FontBuilder<'a> {
+    tables: BTreeMap<Tag, Cow<'a, [u8]>>,
+}
+
+/// An error returned when attempting to add a table to the builder.
+///
+/// This wraps a compilation error, adding the tag of the table where it was
+/// encountered.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct BuilderError {
+    /// The tag of the root table where the error occurred
+    pub tag: Tag,
+    /// The underlying error
+    pub inner: write_fonts::error::Error,
+}
+
 impl<'a> FontBuilder<'a> {
     /// Create a new builder to compile a binary font
     pub fn new() -> Self {
@@ -108,7 +82,7 @@ impl<'a> FontBuilder<'a> {
         T: FontWrite + Validate + TopLevelTable,
     {
         let tag = T::TAG;
-        let bytes = crate::dump_table(table).map_err(|inner| BuilderError { inner, tag })?;
+        let bytes = write_fonts::dump_table(table).map_err(|inner| BuilderError { inner, tag })?;
         Ok(self.add_raw(tag, bytes))
     }
 
@@ -219,9 +193,7 @@ impl<'a> FontBuilder<'a> {
 
         let directory = TableDirectory::from_table_records(table_records);
 
-        let mut writer = TableWriter::default();
-        directory.write_into(&mut writer);
-        let mut data = writer.into_data().bytes;
+        let mut data = write_fonts::dump_table(&directory).unwrap();
         checksums.push(read_fonts::tables::compute_checksum(&data));
 
         // Summing all the individual table checksums, including the table directory's,
@@ -254,16 +226,10 @@ fn round4(sz: usize) -> usize {
     (sz + 3) & !3
 }
 
-fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
+pub fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
     let checksum = read_fonts::tables::compute_checksum(table);
     let padding = round4(table.len()) - table.len();
     (checksum, padding as u32)
-}
-
-impl TTCHeader {
-    fn compute_version(&self) -> MajorMinor {
-        panic!("TTCHeader writing not supported (yet)")
-    }
 }
 
 impl Display for BuilderError {
@@ -284,7 +250,7 @@ mod tests {
     use font_types::Tag;
     use read_fonts::FontRef;
 
-    use crate::{font_builder::checksum_and_padding, FontBuilder};
+    use crate::{checksum_and_padding, FontBuilder};
     use rand::seq::SliceRandom;
     use rand::Rng;
     use rstest::rstest;

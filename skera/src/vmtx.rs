@@ -3,13 +3,13 @@
 use crate::serialize::Serializer;
 use crate::{Plan, Subset, SubsetError, SubsetError::SubsetTableError};
 use write_fonts::types::{FWord, GlyphId, UfWord};
+use font_builder::FontBuilder;
 use write_fonts::{
     read::{
         tables::{vhea::Vhea, vmtx::Vmtx},
         FontRef, TableProvider, TopLevelTable,
     },
-    FontBuilder,
-};
+    };
 
 // reference: subset() for vmtx/vhea in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-hmtx-table.hh#L214
@@ -19,8 +19,7 @@ impl Subset for Vmtx<'_> {
         plan: &Plan,
         font: &FontRef,
         s: &mut Serializer,
-        builder: &mut FontBuilder,
-    ) -> Result<(), SubsetError> {
+        builder: &mut ) -> Result<(), SubsetError> {
         let v_metrics = self.v_metrics();
         let side_bearings = self.top_side_bearings();
 

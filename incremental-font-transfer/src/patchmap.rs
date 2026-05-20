@@ -1409,7 +1409,7 @@ mod tests {
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::types::Int24;
     use read_fonts::FontRef;
-    use write_fonts::FontBuilder;
+    use font_builder::FontBuilder;
 
     impl FeatureSet {
         fn from<const N: usize>(tags: [Tag; N]) -> FeatureSet {
