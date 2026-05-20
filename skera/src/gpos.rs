@@ -19,18 +19,16 @@ use crate::{
     SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{Gpos, PositionLookup, PositionSubtables},
-            layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
-        },
-        types::Tag,
-        FontRead, FontRef, ReadError, TopLevelTable,
+use font_builder::FontBuilder;
+use font_types::{MajorMinor, Offset16, Offset32};
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{Gpos, PositionLookup, PositionSubtables},
+        layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
     },
-    types::{MajorMinor, Offset16, Offset32},
-    FontBuilder,
+    types::Tag,
+    FontRead, FontRef, ReadError, TopLevelTable,
 };
 
 impl NameIdClosure for Gpos<'_> {
@@ -364,7 +362,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{FontRef, TableProvider};
+    use read_fonts::{FontRef, TableProvider};
 
     #[test]
     fn test_prune_langsys() {

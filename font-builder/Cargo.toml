@@ -1,0 +1,16 @@
+[package]
+name = "font-builder"
+version = "0.1.0"
+description = "A builder for OpenType fonts."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+font-types = { workspace = true }
+read-fonts = { workspace = true }
+log = "0.4"
+
+[dev-dependencies]
+write-fonts = { workspace = true }

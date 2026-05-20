@@ -112,6 +112,7 @@
 //!     tables::head::Head,
 //!     types::LongDateTime,
 //!     FontBuilder,
+//!     FontBuilderExt,
 //! };
 //! let font_bytes = std::fs::read(path_to_my_font_file).unwrap();
 //! let font = FontRef::new(&font_bytes).expect("failed to read font data");
@@ -138,12 +139,13 @@
 
 mod collections;
 pub mod error;
-mod font_builder;
+pub mod font_builder;
 pub mod from_obj;
 mod graph;
 mod offsets;
 pub mod ps;
 mod round;
+pub mod table_directory;
 mod table_type;
 pub mod tables;
 mod util;
@@ -155,7 +157,8 @@ mod codegen_test;
 #[cfg(test)]
 mod hex_diff;
 
-pub use font_builder::{BuilderError, FontBuilder};
+pub use font_builder::{BuilderError, FontBuilderExt};
+pub use ::font_builder::FontBuilder;
 pub use offsets::{NullableOffsetMarker, OffsetMarker};
 pub use round::OtRound;
 pub use write::{dump_table, FontWrite, TableWriter};

@@ -2,15 +2,13 @@
 use crate::serialize::Serializer;
 use crate::SubsetFlags;
 use crate::{Plan, Subset, SubsetError};
-use std::cmp::Ordering;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::os2::{Os2, OS2_UNICODE_RANGES},
-        FontRef, TopLevelTable,
-    },
-    FontBuilder,
+use font_builder::FontBuilder;
+use read_fonts::{
+    collections::IntSet,
+    tables::os2::{Os2, OS2_UNICODE_RANGES},
+    FontRef, TopLevelTable,
 };
+use std::cmp::Ordering;
 
 // reference: subset() for OS/2 in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-os2-table.hh#L229

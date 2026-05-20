@@ -5,13 +5,11 @@ use crate::{
     Plan, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        tables::{gsub::ReverseChainSingleSubstFormat1, layout::CoverageTable},
-        types::GlyphId,
-        FontRef,
-    },
-    types::Offset16,
+use font_types::Offset16;
+use read_fonts::{
+    tables::{gsub::ReverseChainSingleSubstFormat1, layout::CoverageTable},
+    types::GlyphId,
+    FontRef,
 };
 
 impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
@@ -70,11 +68,11 @@ impl<'a> SubsetTable<'a> for ReverseChainSingleSubstFormat1<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_reverse_chain_single_subst() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/gsub8_manually_created.otf"

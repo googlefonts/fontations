@@ -7,31 +7,28 @@ use crate::{
     Plan, Subset, SubsetError, SubsetTable,
 };
 use fnv::FnvHashMap;
-use skrifa::raw::{tables::colr::Affine2x3, ResolveOffset};
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            colr::{
-                BaseGlyph, BaseGlyphList, BaseGlyphPaint, ClipBox, ClipBoxFormat1, ClipBoxFormat2,
-                ClipList, ColorLine, ColorStop, Colr, Layer, LayerList, Paint, PaintColrGlyph,
-                PaintColrLayers, PaintComposite, PaintGlyph, PaintLinearGradient,
-                PaintRadialGradient, PaintRotate, PaintRotateAroundCenter, PaintScale,
-                PaintScaleAroundCenter, PaintScaleUniform, PaintScaleUniformAroundCenter,
-                PaintSkew, PaintSkewAroundCenter, PaintSolid, PaintSweepGradient, PaintTransform,
-                PaintTranslate, PaintVarLinearGradient, PaintVarRadialGradient, PaintVarRotate,
-                PaintVarRotateAroundCenter, PaintVarScale, PaintVarScaleAroundCenter,
-                PaintVarScaleUniform, PaintVarScaleUniformAroundCenter, PaintVarSkew,
-                PaintVarSkewAroundCenter, PaintVarSolid, PaintVarSweepGradient, PaintVarTransform,
-                PaintVarTranslate, VarAffine2x3, VarColorLine, VarColorStop,
-            },
-            variations::NO_VARIATION_INDEX,
+use font_builder::FontBuilder;
+use font_types::{GlyphId, Offset24, Offset32};
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        colr::{
+            BaseGlyph, BaseGlyphList, BaseGlyphPaint, ClipBox, ClipBoxFormat1, ClipBoxFormat2,
+            ClipList, ColorLine, ColorStop, Colr, Layer, LayerList, Paint, PaintColrGlyph,
+            PaintColrLayers, PaintComposite, PaintGlyph, PaintLinearGradient, PaintRadialGradient,
+            PaintRotate, PaintRotateAroundCenter, PaintScale, PaintScaleAroundCenter,
+            PaintScaleUniform, PaintScaleUniformAroundCenter, PaintSkew, PaintSkewAroundCenter,
+            PaintSolid, PaintSweepGradient, PaintTransform, PaintTranslate, PaintVarLinearGradient,
+            PaintVarRadialGradient, PaintVarRotate, PaintVarRotateAroundCenter, PaintVarScale,
+            PaintVarScaleAroundCenter, PaintVarScaleUniform, PaintVarScaleUniformAroundCenter,
+            PaintVarSkew, PaintVarSkewAroundCenter, PaintVarSolid, PaintVarSweepGradient,
+            PaintVarTransform, PaintVarTranslate, VarAffine2x3, VarColorLine, VarColorStop,
         },
-        FontRef, MinByteRange, TopLevelTable,
+        variations::NO_VARIATION_INDEX,
     },
-    types::{GlyphId, Offset24, Offset32},
-    FontBuilder,
+    FontRef, MinByteRange, TopLevelTable,
 };
+use skrifa::raw::{tables::colr::Affine2x3, ResolveOffset};
 
 // reference: subset() for COLR in Harfbuzz:
 // <https://github.com/harfbuzz/harfbuzz/blob/043980a60eb2fe93dd65b8c2f5eaa021fd8653f2/src/OT/Color/COLR/COLR.hh#L2414>
@@ -1675,7 +1672,9 @@ fn downgrade_to_v0(base_glyph_list: Option<&BaseGlyphList>, plan: &Plan) -> bool
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{read::TableProvider, types::GlyphId};
+    use font_builder::FontBuilder;
+    use font_types::GlyphId;
+    use read_fonts::TableProvider;
     #[test]
     fn test_subset_colr_retain_all() {
         let ttf: &[u8] = include_bytes!("../test-data/fonts/TwemojiMozilla.subset.ttf");

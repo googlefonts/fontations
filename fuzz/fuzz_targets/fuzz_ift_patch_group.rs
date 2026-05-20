@@ -3,6 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use font_builder::FontBuilder;
 use font_types::Fixed;
 use incremental_font_transfer::{
     patch_group::{PatchGroup, UrlStatus},
@@ -15,7 +16,6 @@ use read_fonts::{
 };
 use shared_brotli_patch_decoder::NoopBrotliDecoder;
 use skrifa::FontRef;
-use write_fonts::FontBuilder;
 
 #[derive(Debug, arbitrary::Arbitrary)]
 struct FuzzInput {

@@ -7,19 +7,17 @@ use crate::{
     Plan, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
-use skrifa::raw::tables::layout::Intersect;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gsub::{Ligature, LigatureSet, LigatureSubstFormat1},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontRef, ReadError,
+use font_types::{FixedSize, Offset16};
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gsub::{Ligature, LigatureSet, LigatureSubstFormat1},
+        layout::CoverageTable,
     },
-    types::{FixedSize, Offset16},
+    types::GlyphId,
+    FontRef, ReadError,
 };
+use skrifa::raw::tables::layout::Intersect;
 
 impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
@@ -186,11 +184,11 @@ fn intersects_lig_glyph(
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_ligature_subst() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font =
             FontRef::new(include_bytes!("../../test-data/fonts/Roboto-Regular.ttf")).unwrap();

@@ -6,16 +6,14 @@ use crate::{
     Plan, Serialize, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        tables::{
-            gsub::{SingleSubst, SingleSubstFormat1, SingleSubstFormat2},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontRef,
+use font_types::Offset16;
+use read_fonts::{
+    tables::{
+        gsub::{SingleSubst, SingleSubstFormat1, SingleSubstFormat2},
+        layout::CoverageTable,
     },
-    types::Offset16,
+    types::GlyphId,
+    FontRef,
 };
 
 impl<'a> SubsetTable<'a> for SingleSubst<'_> {
@@ -198,11 +196,11 @@ impl<'a> Serialize<'a> for SingleSubstFormat2<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_single_subst_format1() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font =
             FontRef::new(include_bytes!("../../test-data/fonts/Roboto-Regular.ttf")).unwrap();
@@ -243,7 +241,7 @@ mod test {
 
     #[test]
     fn test_subset_single_subst_format2() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font =
             FontRef::new(include_bytes!("../../test-data/fonts/Roboto-Regular.ttf")).unwrap();

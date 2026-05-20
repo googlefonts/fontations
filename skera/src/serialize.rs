@@ -7,9 +7,9 @@ use std::{
 };
 
 use fnv::FnvHasher;
+use font_types::{FixedSize, Scalar, Uint24};
 use hashbrown::HashTable;
 use std::collections::BTreeMap;
-use write_fonts::types::{FixedSize, Scalar, Uint24};
 
 /// An error which occurred during the serialization of a table using Serializer.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1080,7 +1080,7 @@ impl PoolIdxHashTable {
 
 #[cfg(test)]
 mod test {
-    use write_fonts::types::{Offset16, Offset32, UfWord, Uint24};
+    use font_types::{Offset16, Offset32, UfWord, Uint24};
 
     use super::*;
 

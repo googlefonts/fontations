@@ -5,13 +5,11 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetFlags, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::gpos::{AnchorFormat1, AnchorFormat2, AnchorFormat3, AnchorTable},
-        MinByteRange,
-    },
-    types::Offset16,
+use font_types::Offset16;
+use read_fonts::{
+    collections::IntSet,
+    tables::gpos::{AnchorFormat1, AnchorFormat2, AnchorFormat3, AnchorTable},
+    MinByteRange,
 };
 
 impl SubsetTable<'_> for AnchorTable<'_> {

@@ -1,8 +1,8 @@
 //! Subset arrays of offsets
 use crate::{offset::SerializeSubset, Plan, SerializeErrorFlags, Serializer, SubsetTable};
-use write_fonts::{
-    read::{ArrayOfNullableOffsets, ArrayOfOffsets, FontReadWithArgs, Offset, ReadArgs, ReadError},
-    types::{FixedSize, Scalar},
+use font_types::{FixedSize, Scalar};
+use read_fonts::{
+    ArrayOfNullableOffsets, ArrayOfOffsets, FontReadWithArgs, Offset, ReadArgs, ReadError,
 };
 
 pub(crate) trait SubsetOffsetArray<'a, T: SubsetTable<'a>> {

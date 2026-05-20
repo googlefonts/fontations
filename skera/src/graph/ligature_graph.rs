@@ -8,10 +8,8 @@ use crate::{
     },
     serialize::{LinkWidth, ObjIdx},
 };
-use write_fonts::{
-    read::collections::IntSet,
-    types::{FixedSize, GlyphId, Offset16},
-};
+use font_types::{FixedSize, GlyphId, Offset16};
+use read_fonts::collections::IntSet;
 
 // output only contains new subtable indices
 // ref:<https://github.com/harfbuzz/harfbuzz/blob/e1f2565db09823794e3d8ed404c47dae0f0cd3c9/src/graph/ligature-graph.hh#L69>

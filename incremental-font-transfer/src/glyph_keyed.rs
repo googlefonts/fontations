@@ -33,7 +33,7 @@ use skrifa::GlyphId;
 use std::collections::{BTreeSet, HashMap};
 use std::ops::{Range, RangeInclusive};
 
-use write_fonts::FontBuilder;
+use font_builder::FontBuilder;
 
 pub(crate) fn apply_glyph_keyed_patches<D: SharedBrotliDecoder>(
     patches: &[(&PatchInfo, GlyphKeyedPatch<'_>)],
@@ -1110,6 +1110,7 @@ pub(crate) mod tests {
     };
     use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
 
+    use font_builder::FontBuilder;
     use font_test_data::{
         bebuffer::BeBuffer,
         ift::{
@@ -1122,7 +1123,6 @@ pub(crate) mod tests {
         },
     };
     use skrifa::{FontRef, GlyphId, Tag};
-    use write_fonts::FontBuilder;
 
     use crate::{
         font_patch::PatchingError,

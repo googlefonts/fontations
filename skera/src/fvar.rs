@@ -1,7 +1,7 @@
 //! impl subset() for fvar table
 
 use crate::{NameIdClosure, Plan};
-use write_fonts::read::tables::fvar::Fvar;
+use read_fonts::tables::fvar::Fvar;
 
 impl NameIdClosure for Fvar<'_> {
     //TODO: support partial-instancing
@@ -28,7 +28,7 @@ impl NameIdClosure for Fvar<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::NameId, FontRef, TableProvider};
+    use read_fonts::{types::NameId, FontRef, TableProvider};
     #[test]
     fn test_nameid_closure() {
         let mut plan = Plan::default();

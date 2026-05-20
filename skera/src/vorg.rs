@@ -1,11 +1,9 @@
 //! impl subset() for VORG
 use crate::serialize::{SerializeErrorFlags, Serializer};
 use crate::{Plan, Subset, SubsetError};
-use write_fonts::{
-    read::{tables::vorg::Vorg, FontRef, TopLevelTable},
-    types::GlyphId,
-    FontBuilder,
-};
+use font_builder::FontBuilder;
+use font_types::GlyphId;
+use read_fonts::{tables::vorg::Vorg, FontRef, TopLevelTable};
 
 use fnv::FnvHashMap;
 

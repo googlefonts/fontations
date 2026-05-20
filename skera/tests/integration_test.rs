@@ -6,6 +6,11 @@
 //! To generate the expected output files, pass GEN_EXPECTED_OUTPUTS=1 as an
 //! environment variable.
 
+use font_types::{GlyphId, NameId, Tag};
+use read_fonts::{
+    collections::{int_set::Domain, IntSet},
+    FontRef,
+};
 use skera::{
     parse_unicodes, subset_font, Plan, SubsetFlags, DEFAULT_DROP_TABLES, DEFAULT_LAYOUT_FEATURES,
 };
@@ -15,13 +20,6 @@ use std::iter::Peekable;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tempdir::TempDir;
-use write_fonts::{
-    read::{
-        collections::{int_set::Domain, IntSet},
-        FontRef,
-    },
-    types::{GlyphId, NameId, Tag},
-};
 
 static TEST_DATA_DIR: &str = "./test-data";
 static GEN_EXPECTED_OUTPUTS_VAR: &str = "GEN_EXPECTED_OUTPUTS";

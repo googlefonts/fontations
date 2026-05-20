@@ -6,15 +6,13 @@ use crate::{
     NameIdClosure, Plan, Subset, SubsetError, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::cpal::{ColorRecord, Cpal},
-        types::{BigEndian, NameId},
-        FontRef, Offset, TopLevelTable,
-    },
-    types::{FixedSize, Offset32},
-    FontBuilder,
+use font_builder::FontBuilder;
+use font_types::{FixedSize, Offset32};
+use read_fonts::{
+    collections::IntSet,
+    tables::cpal::{ColorRecord, Cpal},
+    types::{BigEndian, NameId},
+    FontRef, Offset, TopLevelTable,
 };
 
 // reference: subset() for CPAL in Harfbuzz:
@@ -226,7 +224,7 @@ impl NameIdClosure for Cpal<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::TableProvider;
+    use read_fonts::TableProvider;
     #[test]
     fn test_subset_cpal_retain_all_glyphs() {
         let ttf: &[u8] = include_bytes!("../test-data/fonts/TwemojiMozilla.subset.ttf");

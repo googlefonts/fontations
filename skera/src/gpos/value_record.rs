@@ -5,13 +5,11 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::gpos::{ValueFormat, ValueRecord},
-        FontData,
-    },
-    types::Offset16,
+use font_types::Offset16;
+use read_fonts::{
+    collections::IntSet,
+    tables::gpos::{ValueFormat, ValueRecord},
+    FontData,
 };
 
 pub(crate) fn compute_effective_format(

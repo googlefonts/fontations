@@ -3,13 +3,11 @@
 use std::collections::HashMap;
 
 use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
-use write_fonts::{
-    read::{
-        tables::post::{Post, DEFAULT_GLYPH_NAMES},
-        FontRef, MinByteRange, TopLevelTable,
-    },
-    types::{GlyphId, Version16Dot16},
-    FontBuilder,
+use font_builder::FontBuilder;
+use font_types::{GlyphId, Version16Dot16};
+use read_fonts::{
+    tables::post::{Post, DEFAULT_GLYPH_NAMES},
+    FontRef, MinByteRange, TopLevelTable,
 };
 
 // reference: subset() for post in harfbuzz

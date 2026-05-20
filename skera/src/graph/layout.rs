@@ -4,7 +4,7 @@ use crate::{
     serialize::{Link, LinkWidth, ObjIdx},
 };
 use fnv::FnvHashMap;
-use write_fonts::types::{FixedSize, Offset16, Scalar};
+use font_types::{FixedSize, Offset16, Scalar};
 
 pub(super) struct DataBytes<'a> {
     bytes: &'a mut [u8],

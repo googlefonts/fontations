@@ -1,7 +1,7 @@
 //! impl subset() for STAT table
 
 use crate::{NameIdClosure, Plan};
-use write_fonts::read::tables::stat::Stat;
+use read_fonts::tables::stat::Stat;
 
 impl NameIdClosure for Stat<'_> {
     //TODO: support instancing
@@ -27,7 +27,7 @@ impl NameIdClosure for Stat<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::NameId, FontRef, TableProvider};
+    use read_fonts::{types::NameId, FontRef, TableProvider};
     #[test]
     fn test_nameid_closure() {
         let mut plan = Plan::default();

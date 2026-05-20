@@ -6,14 +6,12 @@ use crate::{
     Plan, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::variations::{
-            DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
-        },
+use font_types::{BigEndian, F2Dot14, FixedSize, Offset32};
+use read_fonts::{
+    collections::IntSet,
+    tables::variations::{
+        DeltaSetIndexMap, ItemVariationData, ItemVariationStore, VariationRegionList,
     },
-    types::{BigEndian, F2Dot14, FixedSize, Offset32},
 };
 
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {

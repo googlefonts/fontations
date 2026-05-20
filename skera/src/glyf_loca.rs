@@ -6,21 +6,19 @@ use crate::{
     SubsetError::{self, SubsetTableError},
     SubsetFlags,
 };
-use write_fonts::{
-    read::{
-        tables::{
-            glyf::{
-                CompositeGlyph, CompositeGlyphFlags, Glyf,
-                Glyph::{self, Composite, Simple},
-                SimpleGlyph, SimpleGlyphFlags,
-            },
-            head::Head,
-            loca::Loca,
+use font_builder::FontBuilder;
+use read_fonts::{
+    tables::{
+        glyf::{
+            CompositeGlyph, CompositeGlyphFlags, Glyf,
+            Glyph::{self, Composite, Simple},
+            SimpleGlyph, SimpleGlyphFlags,
         },
-        types::GlyphId,
-        FontRef, TableProvider, TopLevelTable,
+        head::Head,
+        loca::Loca,
     },
-    FontBuilder,
+    types::GlyphId,
+    FontRef, TableProvider, TopLevelTable,
 };
 
 // reference: subset() for glyf/loca/head in harfbuzz

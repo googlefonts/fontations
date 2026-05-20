@@ -14,13 +14,11 @@ use crate::{
     serialize::{ObjIdx, Serializer},
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{gpos::Gpos, gsub::Gsub},
-        TopLevelTable,
-    },
-    types::{FixedSize, Offset16, Tag},
+use font_types::{FixedSize, Offset16, Tag};
+use read_fonts::{
+    collections::IntSet,
+    tables::{gpos::Gpos, gsub::Gsub},
+    TopLevelTable,
 };
 
 //TODO: add more functionality, serialize output etc.
@@ -330,7 +328,9 @@ fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, Vec<ObjIdx>), RepackErr
 
 #[cfg(test)]
 pub(crate) mod test {
-    use write_fonts::{read::tables::layout::CoverageTable, types::GlyphId};
+
+    use font_types::GlyphId;
+    use read_fonts::tables::layout::CoverageTable;
 
     use super::*;
     use crate::{

@@ -9,26 +9,23 @@ use crate::{
     CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gsub::Gsub,
-            layout::{
-                CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
-                ClassRangeRecord, Condition, ConditionFormat1, ConditionSet, CoverageFormat1,
-                CoverageFormat2, CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex,
-                ExtensionLookup, Feature, FeatureList, FeatureParams, FeatureRecord,
-                FeatureTableSubstitution, FeatureTableSubstitutionRecord, FeatureVariationRecord,
-                FeatureVariations, Intersect, LangSys, LangSysRecord, LookupList, RangeRecord,
-                Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams, Subtables,
-                VariationIndex,
-            },
+use font_types::{FixedSize, Offset16, Offset32, Tag};
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gsub::Gsub,
+        layout::{
+            CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2, ClassRangeRecord,
+            Condition, ConditionFormat1, ConditionSet, CoverageFormat1, CoverageFormat2,
+            CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex, ExtensionLookup, Feature,
+            FeatureList, FeatureParams, FeatureRecord, FeatureTableSubstitution,
+            FeatureTableSubstitutionRecord, FeatureVariationRecord, FeatureVariations, Intersect,
+            LangSys, LangSysRecord, LookupList, RangeRecord, Script, ScriptList, ScriptRecord,
+            SizeParams, StylisticSetParams, Subtables, VariationIndex,
         },
-        types::{GlyphId, GlyphId16, NameId},
-        FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
     },
-    types::{FixedSize, Offset16, Offset32, Tag},
+    types::{GlyphId, GlyphId16, NameId},
+    FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
 };
 
 const MAX_SCRIPTS: u16 = 500;
@@ -1818,12 +1815,11 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{
-        read::{
-            tables::gpos::{PairPos, PositionSubtables},
-            FontRef, TableProvider,
-        },
-        types::GlyphId,
+
+    use font_types::GlyphId;
+    use read_fonts::{
+        tables::gpos::{PairPos, PositionSubtables},
+        FontRef, TableProvider,
     };
 
     #[test]
@@ -2185,7 +2181,7 @@ mod test {
 
     #[test]
     fn test_subset_script_list() {
-        use write_fonts::read::tables::gpos::Gpos;
+        use read_fonts::tables::gpos::Gpos;
         let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_script_list = font.gpos().unwrap().script_list().unwrap();
 
@@ -2217,7 +2213,7 @@ mod test {
 
     #[test]
     fn test_subset_feature_list() {
-        use write_fonts::read::tables::gpos::Gpos;
+        use read_fonts::tables::gpos::Gpos;
         let font = FontRef::new(include_bytes!("../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_feature_list = font.gpos().unwrap().feature_list().unwrap();
 

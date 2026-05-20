@@ -2,12 +2,10 @@
 
 use crate::serialize::{SerializeErrorFlags, Serializer};
 use crate::{Plan, Subset, SubsetError};
-use write_fonts::{
-    read::{
-        tables::hdmx::{DeviceRecord, Hdmx},
-        FontRef, TopLevelTable,
-    },
-    FontBuilder,
+use font_builder::FontBuilder;
+use read_fonts::{
+    tables::hdmx::{DeviceRecord, Hdmx},
+    FontRef, TopLevelTable,
 };
 
 fn ceil_to_4(v: u32) -> u32 {

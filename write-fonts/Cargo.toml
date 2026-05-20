@@ -30,6 +30,7 @@ kurbo.workspace = true
 dot2 = { version = "1.0", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 indexmap = "2.0"
+font-builder = { workspace = true }
 
 [dev-dependencies]
 diff = "0.1.12"

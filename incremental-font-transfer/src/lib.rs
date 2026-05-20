@@ -26,7 +26,7 @@ mod testdata {
     use skrifa::Tag;
     use write_fonts::{
         tables::{head::Head, loca::Loca, maxp::Maxp},
-        FontBuilder,
+        FontBuilder, FontBuilderExt,
     };
 
     pub fn test_font_for_patching_with_loca_mod<F>(

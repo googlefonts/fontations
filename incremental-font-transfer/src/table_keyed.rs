@@ -9,13 +9,13 @@
 use std::collections::BTreeSet;
 
 use crate::font_patch::PatchingError;
+use font_builder::FontBuilder;
 use read_fonts::{
     tables::ift::{TableKeyedPatch, TablePatch, TablePatchFlags},
     types::Tag,
     FontRef, ReadError,
 };
 use shared_brotli_patch_decoder::SharedBrotliDecoder;
-use write_fonts::FontBuilder;
 
 pub(crate) fn apply_table_keyed_patch<D: SharedBrotliDecoder>(
     patch: &TableKeyedPatch<'_>,
@@ -141,6 +141,7 @@ pub(crate) fn copy_unprocessed_tables<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use font_builder::FontBuilder;
     use font_test_data::ift::{noop_table_keyed_patch, table_keyed_patch};
     use read_fonts::tables::ift::IFT_TAG;
     use read_fonts::FontData;
@@ -148,7 +149,6 @@ mod tests {
     use read_fonts::FontRef;
     use read_fonts::ReadError;
     use shared_brotli_patch_decoder::BuiltInBrotliDecoder;
-    use write_fonts::FontBuilder;
 
     const IFT_TABLE: &[u8] = b"IFT PATCH MAP";
     const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();

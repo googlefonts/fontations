@@ -8,18 +8,16 @@ use crate::{
     serialize::{Link, LinkWidth, ObjIdx, Serializer},
     Serialize,
 };
-use std::collections::BTreeMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::ValueFormat,
-            layout::{ClassDef, CoverageTable},
-        },
-        FontData, FontRead,
+use font_types::{FixedSize, GlyphId, Offset16, Scalar};
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::ValueFormat,
+        layout::{ClassDef, CoverageTable},
     },
-    types::{FixedSize, GlyphId, Offset16, Scalar},
+    FontData, FontRead,
 };
+use std::collections::BTreeMap;
 
 // output only contains new subtable indices
 // ref:<https://github.com/harfbuzz/harfbuzz/blob/708bf4a0c80b9f323c9a1c8ec00ff9c2cb429b1f/src/graph/pairpos-graph.hh#L607>
@@ -714,7 +712,7 @@ fn get_glyph_classes(
     let class_def_data = graph
         .vertex_data(class_def_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-    let class_def = ClassDef::read(write_fonts::read::FontData::new(class_def_data))
+    let class_def = ClassDef::read(read_fonts::FontData::new(class_def_data))
         .map_err(|_| RepackError::ErrorReadTable)?;
 
     Ok(coverage_table

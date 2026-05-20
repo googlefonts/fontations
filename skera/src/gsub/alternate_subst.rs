@@ -7,16 +7,14 @@ use crate::{
     Plan, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        tables::{
-            gsub::{AlternateSet, AlternateSubstFormat1},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontRef,
+use font_types::Offset16;
+use read_fonts::{
+    tables::{
+        gsub::{AlternateSet, AlternateSubstFormat1},
+        layout::CoverageTable,
     },
-    types::Offset16,
+    types::GlyphId,
+    FontRef,
 };
 
 impl<'a> SubsetTable<'a> for AlternateSubstFormat1<'_> {
@@ -106,11 +104,11 @@ impl SubsetTable<'_> for AlternateSet<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{types::GlyphId, FontRef, TableProvider};
+    use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn test_subset_alternate_subst_format1() {
-        use write_fonts::read::tables::gsub::SubstitutionSubtables;
+        use read_fonts::tables::gsub::SubstitutionSubtables;
 
         let font = FontRef::new(include_bytes!(
             "../../test-data/fonts/gsub_alternate_substitution.otf"

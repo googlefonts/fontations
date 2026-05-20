@@ -14,17 +14,15 @@ use crate::{
     SubsetLayoutContext, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gsub::{Gsub, SubstitutionLookup, SubstitutionSubtables},
-            layout::LookupFlag,
-        },
-        types::{MajorMinor, Offset16, Offset32, Tag},
-        FontRef, TopLevelTable,
+use font_builder::FontBuilder;
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gsub::{Gsub, SubstitutionLookup, SubstitutionSubtables},
+        layout::LookupFlag,
     },
-    FontBuilder,
+    types::{MajorMinor, Offset16, Offset32, Tag},
+    FontRef, TopLevelTable,
 };
 
 impl NameIdClosure for Gsub<'_> {
@@ -288,7 +286,7 @@ impl<'a> SubsetTable<'a> for SubstitutionSubtables<'a> {
 mod test {
     use super::*;
     use font_test_data::closure as test_data;
-    use write_fonts::read::{types::NameId, FontRef, TableProvider};
+    use read_fonts::{types::NameId, FontRef, TableProvider};
 
     #[test]
     fn test_nameid_closure() {

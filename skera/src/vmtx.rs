@@ -2,13 +2,11 @@
 
 use crate::serialize::Serializer;
 use crate::{Plan, Subset, SubsetError, SubsetError::SubsetTableError};
-use write_fonts::types::{FWord, GlyphId, UfWord};
-use write_fonts::{
-    read::{
-        tables::{vhea::Vhea, vmtx::Vmtx},
-        FontRef, TableProvider, TopLevelTable,
-    },
-    FontBuilder,
+use font_builder::FontBuilder;
+use font_types::{FWord, GlyphId, UfWord};
+use read_fonts::{
+    tables::{vhea::Vhea, vmtx::Vmtx},
+    FontRef, TableProvider, TopLevelTable,
 };
 
 // reference: subset() for vmtx/vhea in harfbuzz

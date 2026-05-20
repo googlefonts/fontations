@@ -2,10 +2,8 @@
 
 use crate::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
 use crate::{Plan, Serialize, SubsetTable};
-use write_fonts::{
-    read::MinByteRange,
-    types::{FixedSize, Scalar},
-};
+use font_types::{FixedSize, Scalar};
+use read_fonts::MinByteRange;
 
 pub(crate) trait SerializeSubset {
     fn serialize_subset<'a, T: SubsetTable<'a>>(

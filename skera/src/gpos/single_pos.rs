@@ -8,17 +8,15 @@ use crate::{
     CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{SinglePos, SinglePosFormat1, SinglePosFormat2, ValueFormat, ValueRecord},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontData, FontRef, TableProvider,
+use font_types::Offset16;
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{SinglePos, SinglePosFormat1, SinglePosFormat2, ValueFormat, ValueRecord},
+        layout::CoverageTable,
     },
-    types::Offset16,
+    types::GlyphId,
+    FontData, FontRef, TableProvider,
 };
 
 impl<'a> SubsetTable<'a> for SinglePos<'_> {
@@ -307,11 +305,11 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::read::{FontRef, TableProvider};
+    use read_fonts::{FontRef, TableProvider};
 
     #[test]
     fn test_subset_gpos_format1() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!("../../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();
@@ -349,7 +347,7 @@ mod test {
 
     #[test]
     fn test_subset_gpos_format2() {
-        use write_fonts::read::tables::gpos::PositionSubtables;
+        use read_fonts::tables::gpos::PositionSubtables;
 
         let font = FontRef::new(include_bytes!("../../test-data/fonts/Amiri-Regular.ttf")).unwrap();
         let gpos_lookups = font.gpos().unwrap().lookup_list().unwrap();

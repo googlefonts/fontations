@@ -3,11 +3,9 @@ use std::mem::size_of;
 
 use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
 
-use write_fonts::{
-    read::{tables::gvar::Gvar, types::GlyphId, FontRef, TopLevelTable},
-    types::Scalar,
-    FontBuilder,
-};
+use font_builder::FontBuilder;
+use font_types::Scalar;
+use read_fonts::{tables::gvar::Gvar, types::GlyphId, FontRef, TopLevelTable};
 
 const FIXED_HEADER_SIZE: u32 = 20;
 // reference: subset() for gvar table in harfbuzz

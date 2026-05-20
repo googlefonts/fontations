@@ -5,17 +5,15 @@ use crate::{
     CollectVariationIndices, Plan, SubsetTable,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            gpos::{MarkArray, MarkRecord},
-            layout::CoverageTable,
-        },
-        types::GlyphId,
-        FontData,
+use font_types::Offset16;
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        gpos::{MarkArray, MarkRecord},
+        layout::CoverageTable,
     },
-    types::Offset16,
+    types::GlyphId,
+    FontData,
 };
 
 pub(crate) fn collect_mark_record_varidx(

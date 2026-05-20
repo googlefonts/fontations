@@ -6,13 +6,11 @@ use crate::{
     SubsetFlags,
 };
 
-use write_fonts::{
-    read::{
-        tables::name::{Name, NameRecord},
-        FontRef, TopLevelTable,
-    },
-    types::FixedSize,
-    FontBuilder,
+use font_builder::FontBuilder;
+use font_types::FixedSize;
+use read_fonts::{
+    tables::name::{Name, NameRecord},
+    FontRef, TopLevelTable,
 };
 
 // reference: subset() for name table in harfbuzz

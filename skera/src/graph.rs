@@ -6,8 +6,9 @@ use crate::{
     serialize::{Link, LinkWidth, ObjIdx, Object, OffsetWhence, SerializeErrorFlags, Serializer},
 };
 use fnv::FnvHashMap;
+use font_types::Uint24;
+use read_fonts::collections::IntSet;
 use std::collections::BTreeMap;
-use write_fonts::{read::collections::IntSet, types::Uint24};
 
 mod coverage_graph;
 pub(crate) mod layout;
@@ -1512,7 +1513,7 @@ fn serialize_link(
 pub(crate) mod test {
     use super::*;
     use crate::serialize::OffsetWhence;
-    use write_fonts::types::{FixedSize, Offset16, Offset24, Offset32, Scalar};
+    use font_types::{FixedSize, Offset16, Offset24, Offset32, Scalar};
 
     impl Vertex {
         // zeros all offsets

@@ -23,6 +23,7 @@ c-brotli = ["shared-brotli-patch-decoder/c-brotli"]
 [dependencies]
 read-fonts = { workspace = true, features = ["ift"] }
 write-fonts = { workspace = true, features = ["ift"] }
+font-builder = { workspace = true }
 font-types = { workspace = true }
 skrifa = { workspace = true }
 skera = { workspace = true }
@@ -37,6 +38,7 @@ brotlic = {version = "0.8.2"}
 criterion = { workspace = true }
 font-test-data = { workspace = true }
 read-fonts = { workspace = true }
+write-fonts = { workspace = true, features = ["ift"] }
 woff2-patched = "0.4.0"
 
 

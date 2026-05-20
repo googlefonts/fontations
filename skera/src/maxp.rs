@@ -1,10 +1,8 @@
 //! impl subset() for maxp
 use crate::{serialize::Serializer, Plan, Subset, SubsetError, SubsetFlags};
-use write_fonts::{
-    read::{tables::maxp::Maxp, FontRef, TopLevelTable},
-    types::Version16Dot16,
-    FontBuilder,
-};
+use font_builder::FontBuilder;
+use font_types::Version16Dot16;
+use read_fonts::{tables::maxp::Maxp, FontRef, TopLevelTable};
 
 // reference: subset() for maxp in harfbuzz
 // https://github.com/harfbuzz/harfbuzz/blob/a070f9ebbe88dc71b248af9731dd49ec93f4e6e6/src/hb-ot-maxp-table.hh#L97

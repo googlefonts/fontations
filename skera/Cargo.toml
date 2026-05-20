@@ -26,7 +26,9 @@ fnv = "1.0.7"
 hashbrown = { version = "0.17.0", default-features = false, features = ["inline-more"] }
 skrifa = { workspace = true }
 thiserror = "2.0"
-write-fonts = { workspace = true, features = ["read"] }
+read-fonts = { workspace = true }
+font-types = { workspace = true }
+font-builder = { workspace = true }
 
 
 [dev-dependencies]

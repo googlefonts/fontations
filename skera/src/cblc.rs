@@ -3,21 +3,19 @@ use crate::{
     serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
     Plan, Subset, SubsetError, SubsetTable,
 };
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            bitmap::{
-                BitmapSize, IndexSubtable, IndexSubtable1, IndexSubtable3, IndexSubtableList,
-                IndexSubtableRecord,
-            },
-            cbdt::Cbdt,
-            cblc::Cblc,
+use font_builder::FontBuilder;
+use font_types::{FixedSize, GlyphId, Offset32};
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        bitmap::{
+            BitmapSize, IndexSubtable, IndexSubtable1, IndexSubtable3, IndexSubtableList,
+            IndexSubtableRecord,
         },
-        FontRef, MinByteRange, TableProvider, TopLevelTable,
+        cbdt::Cbdt,
+        cblc::Cblc,
     },
-    types::{FixedSize, GlyphId, Offset32},
-    FontBuilder,
+    FontRef, MinByteRange, TableProvider, TopLevelTable,
 };
 
 // reference: subset() for CBLC in fonttools, Harfbuzz implementation is suboptimal

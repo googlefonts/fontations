@@ -7,17 +7,15 @@ use crate::{
     IncBiMap, Plan, Serialize, Subset, SubsetError, SubsetFlags,
 };
 use fnv::FnvHashMap;
-use write_fonts::{
-    read::{
-        collections::IntSet,
-        tables::{
-            hvar::Hvar,
-            variations::{DeltaSetIndex, DeltaSetIndexMap, EntryFormat, ItemVariationStore},
-        },
-        FontRef, ReadError, TopLevelTable,
+use font_builder::FontBuilder;
+use font_types::{FixedSize, Offset32};
+use read_fonts::{
+    collections::IntSet,
+    tables::{
+        hvar::Hvar,
+        variations::{DeltaSetIndex, DeltaSetIndexMap, EntryFormat, ItemVariationStore},
     },
-    types::{FixedSize, Offset32},
-    FontBuilder,
+    FontRef, ReadError, TopLevelTable,
 };
 
 // reference: subset() for HVAR in harfbuzz
@@ -360,10 +358,9 @@ impl HvarVvarSubsetPlan {
 #[cfg(test)]
 mod test {
     use super::*;
-    use write_fonts::{
-        read::{FontData, FontRead},
-        types::GlyphId,
-    };
+    use font_builder::FontBuilder;
+    use font_types::GlyphId;
+    use read_fonts::{FontData, FontRead};
     #[test]
     fn test_subset_hvar_noop() {
         let raw_bytes: [u8; 98] = [

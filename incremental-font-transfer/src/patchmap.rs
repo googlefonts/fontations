@@ -1398,6 +1398,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+    use font_builder::FontBuilder;
     use font_test_data as test_data;
     use font_test_data::ift::{
         child_indices_format2, codepoints_only_format2, custom_ids_format2, feature_map_format1,
@@ -1409,7 +1410,6 @@ mod tests {
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
     use read_fonts::types::Int24;
     use read_fonts::FontRef;
-    use write_fonts::FontBuilder;
 
     impl FeatureSet {
         fn from<const N: usize>(tags: [Tag; N]) -> FeatureSet {

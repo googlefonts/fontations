@@ -1,6 +1,6 @@
 //! subsetter input parsing util functions
-use write_fonts::read::collections::{int_set::Domain, IntSet};
-use write_fonts::types::{GlyphId, NameId, Tag};
+use font_types::{GlyphId, NameId, Tag};
+use read_fonts::collections::{int_set::Domain, IntSet};
 
 use crate::SubsetError;
 

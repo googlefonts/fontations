@@ -7,10 +7,8 @@ use crate::{
     },
     serialize::{LinkWidth, ObjIdx},
 };
-use write_fonts::{
-    read::collections::IntSet,
-    types::{FixedSize, GlyphId, Offset16},
-};
+use font_types::{FixedSize, GlyphId, Offset16};
+use read_fonts::collections::IntSet;
 
 // output only contains new subtable indices
 // ref:<https://github.com/harfbuzz/harfbuzz/blob/fa2908bf16d2ccd6623f4d575455fea72a1a722b/src/graph/markbasepos-graph.hh#L214>

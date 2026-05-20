@@ -1,16 +1,14 @@
 //! impl subset() for sbix
 use crate::serialize::{OffsetWhence, SerializeErrorFlags, Serializer};
 use crate::{Plan, Subset, SubsetError, SubsetTable};
-use skrifa::GlyphId;
-use write_fonts::types::FixedSize;
-use write_fonts::{
-    read::{
-        tables::sbix::{Sbix, Strike},
-        types::Offset32,
-        ArrayOfOffsets, FontRef, MinByteRange, ReadError, TopLevelTable,
-    },
-    FontBuilder,
+use font_builder::FontBuilder;
+use font_types::FixedSize;
+use read_fonts::{
+    tables::sbix::{Sbix, Strike},
+    types::Offset32,
+    ArrayOfOffsets, FontRef, MinByteRange, ReadError, TopLevelTable,
 };
+use skrifa::GlyphId;
 
 // reference: subset() for sbix in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/4df11621cecf6cf855e9e13f6f5c9432748f9b3a/src/OT/Color/sbix/sbix.hh#L420>
