@@ -135,7 +135,6 @@ impl TestCaseParser {
                 let line = next.trim();
                 match line {
                     "downgrade-cff2.txt"
-                    | "no_bidi_closure.txt"
                     | "desubroutinize.txt"
                     | "iftb_requirements.txt"
                     | "glyph_map_roboto.txt" => continue,
@@ -205,7 +204,7 @@ impl TestCaseParser {
 
 #[allow(clippy::too_many_arguments)]
 // TODO: support more options:
-// --downgrade-cff2,--no-bidi-closure, --desubroutinize, --iftb-requirements, --retian-num-glyphs, --gid-map
+// --downgrade-cff2,--desubroutinize, --iftb-requirements, --retian-num-glyphs, --gid-map
 fn parse_profile_options(
     profile: &str,
     subset_flags: &mut SubsetFlags,
@@ -237,6 +236,7 @@ fn parse_profile_options(
                     *subset_flags |= SubsetFlags::SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES
                 }
                 "--notdef-outline" => *subset_flags |= SubsetFlags::SUBSET_FLAGS_NOTDEF_OUTLINE,
+                "--no-bidi-closure" => *subset_flags |= SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE,
                 _ => continue,
             },
             Some((option_str, list)) => {
@@ -388,11 +388,10 @@ impl SubsetTestCase {
 
         let profile_path = Path::new(TEST_DATA_DIR).join("profiles").join(profile);
         let profile_input = std::fs::read_to_string(profile_path).unwrap();
-        //TODO: add --bidi-closure and --desubroutinize back when they're supported
+        //TODO: add --desubroutinize back when it's supported
         for line in profile_input.lines() {
             let line = line.trim();
             if line.starts_with("--downgrade-cff2")
-                || line.starts_with("--no-bidi-closure")
                 || line.starts_with("--iftb-requirements")
                 || line.starts_with("--retian-num-glyphs")
                 || line.starts_with("--gid-map")
