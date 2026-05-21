@@ -28,7 +28,7 @@ pub struct FontData<'a> {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Cursor<'a> {
     pos: usize,
-    data: FontData<'a>,
+    pub(crate) data: FontData<'a>,
 }
 
 // we reuse a single buffer for all tables, but it gets padded with a u16
