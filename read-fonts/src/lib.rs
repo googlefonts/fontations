@@ -87,6 +87,8 @@ pub mod tables;
 #[cfg(feature = "experimental_traverse")]
 pub mod traversal;
 
+mod sanitize;
+
 #[cfg(any(test, feature = "codegen_test"))]
 pub mod codegen_test;
 
@@ -107,6 +109,9 @@ pub(crate) mod codegen_prelude {
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
+    pub(crate) use crate::sanitize::{
+        Sanitize, SanitizeContext, SanitizeOffset, SanitizeState, SanitizeStruct,
+    };
     //pub(crate) use crate::read::sealed;
     pub use crate::read::{
         ComputeSize, Discriminant, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
