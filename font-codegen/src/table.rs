@@ -5,11 +5,11 @@ use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use crate::{
-    parsing::{logged_syn_error, Attr, Field, Table, TableReadArg, TableReadArgs},
+    parsing::{logged_syn_error, Attr, Field, Items, Table, TableReadArg, TableReadArgs},
     Phase,
 };
 
-pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
+pub(crate) fn generate(item: &Table, items: &Items) -> syn::Result<TokenStream> {
     if item.attrs.write_only.is_some() {
         return Ok(Default::default());
     }
@@ -50,6 +50,10 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let optional_format_trait_impl = item.impl_format_trait();
     let optional_discriminant_trait_impl = item.impl_discriminant_trait();
     let font_read = generate_font_read(item)?;
+    let sanitize = items
+        .sanitize
+        .then(|| generate_sanitize(item))
+        .transpose()?;
     let debug = generate_debug(item)?;
     let top_level = item.attrs.tag.as_ref().map(|tag| {
         let tag_str = tag.value();
@@ -128,6 +132,9 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         #font_read
 
         #impl_of_unit_type
+
+        #sanitize
+
 
         #( #docs )*
         #[derive(Clone)]
@@ -217,6 +224,32 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             }
         }
         #maybe_custom_read_fn
+    })
+}
+
+fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
+    let name = item.raw_name();
+    let (args_arg, destructure_args) = match item.attrs.read_args.as_ref() {
+        Some(args) => {
+            let typ = args.args_type();
+            let destructure_pattern = args.destructure_pattern();
+            let args_args = quote!(args: #typ);
+            let destructure = quote!( let #destructure_pattern = args; );
+            (args_args, Some(destructure))
+        }
+        None => (quote!(_args: ()), None),
+    };
+
+    //let stmts = item.iter_sanitze_statements()?;
+
+    Ok(quote! {
+        impl Sanitize for #name<'_> {
+            fn sanitize(ctx: &mut SanitizeContext, #args_arg) -> Result<(), ReadError> {
+                #destructure_args
+                //#( #stmts )*
+                ctx.finish()
+            }
+        }
     })
 }
 
