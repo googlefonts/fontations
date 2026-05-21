@@ -7,7 +7,7 @@ use crate::{
     SubsetError::{self, SubsetTableError},
 };
 
-use fnv::FnvHashMap;
+use crate::fnv::FnvHashMap;
 use skrifa::raw::tables::cmap::UnicodeRange;
 use write_fonts::{
     read::{

@@ -1,11 +1,11 @@
 //! impl subset() for SingleSubst subtable
+use crate::fnv::FnvHashMap;
 use crate::{
     layout::intersected_glyphs_and_indices,
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Serialize, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         tables::{

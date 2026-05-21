@@ -5,6 +5,7 @@ mod cblc;
 mod cmap;
 mod colr;
 mod cpal;
+mod fnv;
 mod fvar;
 mod gdef;
 mod glyf_loca;

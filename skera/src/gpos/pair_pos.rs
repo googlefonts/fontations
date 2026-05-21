@@ -9,7 +9,7 @@ use crate::{
     CollectVariationIndices, Plan, SubsetFlags, SubsetState, SubsetTable,
 };
 
-use fnv::FnvHashMap;
+use crate::fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,

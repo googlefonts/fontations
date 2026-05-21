@@ -1,11 +1,11 @@
 //! impl subset() for CPAL table
 
+use crate::fnv::FnvHashMap;
 use crate::{
     offset::{SerializeCopy, SerializeSubset},
     serialize::{SerializeErrorFlags, Serializer},
     NameIdClosure, Plan, Subset, SubsetError, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,

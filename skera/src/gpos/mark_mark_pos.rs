@@ -1,4 +1,5 @@
 //! impl subset() for MarkMarkPos subtable
+use crate::fnv::FnvHashMap;
 use crate::{
     gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
@@ -6,7 +7,6 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::read::{
     collections::IntSet,
     tables::{

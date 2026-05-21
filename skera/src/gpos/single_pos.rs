@@ -1,5 +1,6 @@
 //! impl subset() for SinglePos subtable
 
+use crate::fnv::FnvHashMap;
 use crate::{
     gpos::value_record::{collect_variation_indices, compute_effective_format},
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
@@ -7,7 +8,6 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,

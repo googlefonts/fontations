@@ -5,6 +5,7 @@ mod multiple_subst;
 mod reverse_chain_single_subst;
 mod single_subst;
 
+use crate::fnv::FnvHashMap;
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
@@ -13,7 +14,6 @@ use crate::{
     LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError, SubsetFlags,
     SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,

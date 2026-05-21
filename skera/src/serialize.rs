@@ -6,7 +6,7 @@ use std::{
     mem,
 };
 
-use fnv::FnvHasher;
+use crate::fnv::FnvHasher;
 use hashbrown::HashTable;
 use std::collections::BTreeMap;
 use write_fonts::types::{FixedSize, Scalar, Uint24};

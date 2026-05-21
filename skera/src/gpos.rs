@@ -10,6 +10,7 @@ mod pair_pos;
 mod single_pos;
 mod value_record;
 
+use crate::fnv::FnvHashMap;
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
@@ -18,7 +19,6 @@ use crate::{
     CollectVariationIndices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset,
     SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
