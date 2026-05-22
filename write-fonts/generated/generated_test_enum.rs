@@ -45,6 +45,7 @@ impl FontWrite for MyRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MyRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

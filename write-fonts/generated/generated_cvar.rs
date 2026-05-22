@@ -24,6 +24,7 @@ impl FontWrite for Cvar {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cvar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cvar", |ctx| {

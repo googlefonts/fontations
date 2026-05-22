@@ -50,6 +50,7 @@ impl FontWrite for Hvar {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Hvar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Hvar", |ctx| {

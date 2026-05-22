@@ -134,6 +134,7 @@ impl FontWrite for Post {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Post {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Post", |ctx| {

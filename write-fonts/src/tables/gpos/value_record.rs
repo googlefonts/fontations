@@ -202,6 +202,7 @@ impl std::fmt::Debug for ValueRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ValueRecord {
     fn validate_impl(&self, _ctx: &mut crate::validate::ValidationCtx) {}
 }

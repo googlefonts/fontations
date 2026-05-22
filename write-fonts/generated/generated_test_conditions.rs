@@ -50,6 +50,7 @@ impl FontWrite for MajorMinorVersion {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MajorMinorVersion {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MajorMinorVersion", |ctx| {
@@ -145,6 +146,7 @@ impl FontWrite for FlagDay {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FlagDay {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FlagDay", |ctx| {

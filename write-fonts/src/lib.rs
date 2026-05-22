@@ -154,6 +154,7 @@ mod table_type;
 #[cfg(feature = "tables")]
 pub mod tables;
 mod util;
+#[cfg(feature = "tables")]
 pub mod validate;
 mod write;
 
@@ -186,6 +187,7 @@ pub(crate) mod codegen_prelude {
     pub use super::from_obj::{FromObjRef, FromTableRef, ToOwnedObj, ToOwnedTable};
     pub use super::offsets::{NullableOffsetMarker, OffsetMarker, WIDTH_16, WIDTH_24, WIDTH_32};
     pub use super::table_type::TableType;
+    #[cfg(feature = "tables")]
     pub use super::validate::{Validate, ValidationCtx};
     pub use super::write::{FontWrite, TableWriter};
     pub use std::collections::BTreeSet;

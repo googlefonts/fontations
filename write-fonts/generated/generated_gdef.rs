@@ -70,6 +70,7 @@ impl FontWrite for Gdef {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Gdef {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gdef", |ctx| {
@@ -161,6 +162,7 @@ impl FontWrite for AttachList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AttachList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AttachList", |ctx| {
@@ -221,6 +223,7 @@ impl FontWrite for AttachPoint {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AttachPoint {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AttachPoint", |ctx| {
@@ -284,6 +287,7 @@ impl FontWrite for LigCaretList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LigCaretList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigCaretList", |ctx| {
@@ -347,6 +351,7 @@ impl FontWrite for LigGlyph {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LigGlyph {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigGlyph", |ctx| {
@@ -426,6 +431,7 @@ impl FontWrite for CaretValue {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CaretValue {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -499,6 +505,7 @@ impl FontWrite for CaretValueFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CaretValueFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -549,6 +556,7 @@ impl FontWrite for CaretValueFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CaretValueFormat2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -605,6 +613,7 @@ impl FontWrite for CaretValueFormat3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CaretValueFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CaretValueFormat3", |ctx| {
@@ -664,6 +673,7 @@ impl FontWrite for MarkGlyphSets {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MarkGlyphSets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkGlyphSets", |ctx| {

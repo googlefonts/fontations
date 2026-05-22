@@ -92,6 +92,7 @@ impl FontWrite for Metadata {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Metadata {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

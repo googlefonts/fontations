@@ -73,6 +73,7 @@ macro_rules! table_newtype {
             }
         }
 
+        #[cfg(feature = "tables")]
         impl Validate for $name {
             fn validate_impl(&self, ctx: &mut ValidationCtx) {
                 self.0.validate_impl(ctx)
@@ -224,6 +225,7 @@ impl FontWrite for FeatureParams {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatureParams {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {

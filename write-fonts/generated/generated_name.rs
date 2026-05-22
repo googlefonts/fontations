@@ -52,6 +52,7 @@ impl FontWrite for Name {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Name {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Name", |ctx| {
@@ -129,6 +130,7 @@ impl FontWrite for LangTagRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LangTagRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -191,6 +193,7 @@ impl FontWrite for NameRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for NameRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("NameRecord", |ctx| {

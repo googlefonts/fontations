@@ -38,6 +38,7 @@ impl FontWrite for Gvar {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Gvar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gvar", |ctx| {
@@ -84,6 +85,7 @@ impl FontWrite for SharedTuples {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SharedTuples {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SharedTuples", |ctx| {
@@ -126,6 +128,7 @@ pub struct GlyphVariationDataHeader {
     pub tuple_variation_headers: Vec<TupleVariationHeader>,
 }
 
+#[cfg(feature = "tables")]
 impl Validate for GlyphVariationDataHeader {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("GlyphVariationDataHeader", |ctx| {

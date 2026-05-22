@@ -33,6 +33,7 @@ impl FontWrite for Cmap {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap", |ctx| {
@@ -103,6 +104,7 @@ impl FontWrite for EncodingRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for EncodingRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("EncodingRecord", |ctx| {
@@ -278,6 +280,7 @@ impl FontWrite for CmapSubtable {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CmapSubtable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -407,6 +410,7 @@ impl FontWrite for Cmap0 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap0 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -468,6 +472,7 @@ impl FontWrite for Cmap2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -530,6 +535,7 @@ impl FontWrite for SubHeader {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SubHeader {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -607,6 +613,7 @@ impl FontWrite for Cmap4 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap4 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -685,6 +692,7 @@ impl FontWrite for Cmap6 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap6 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap6", |ctx| {
@@ -773,6 +781,7 @@ impl FontWrite for Cmap8 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap8 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap8", |ctx| {
@@ -846,6 +855,7 @@ impl FontWrite for SequentialMapGroup {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SequentialMapGroup {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -903,6 +913,7 @@ impl FontWrite for Cmap10 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap10 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap10", |ctx| {
@@ -969,6 +980,7 @@ impl FontWrite for Cmap12 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap12 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap12", |ctx| {
@@ -1043,6 +1055,7 @@ impl FontWrite for Cmap13 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap13 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap13", |ctx| {
@@ -1112,6 +1125,7 @@ impl FontWrite for ConstantMapGroup {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ConstantMapGroup {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -1166,6 +1180,7 @@ impl FontWrite for Cmap14 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cmap14 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap14", |ctx| {
@@ -1239,6 +1254,7 @@ impl FontWrite for VariationSelector {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VariationSelector {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VariationSelector", |ctx| {
@@ -1295,6 +1311,7 @@ impl FontWrite for DefaultUvs {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for DefaultUvs {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("DefaultUvs", |ctx| {
@@ -1355,6 +1372,7 @@ impl FontWrite for NonDefaultUvs {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for NonDefaultUvs {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("NonDefaultUvs", |ctx| {
@@ -1418,6 +1436,7 @@ impl FontWrite for UvsMapping {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for UvsMapping {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -1461,6 +1480,7 @@ impl FontWrite for UnicodeRange {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for UnicodeRange {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

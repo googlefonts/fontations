@@ -94,6 +94,7 @@ impl FontWrite for Cpal {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cpal {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cpal", |ctx| {
@@ -184,6 +185,7 @@ impl FontWrite for ColorRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ColorRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

@@ -33,6 +33,7 @@ impl FontWrite for ScriptList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ScriptList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ScriptList", |ctx| {
@@ -94,6 +95,7 @@ impl FontWrite for ScriptRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ScriptRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ScriptRecord", |ctx| {
@@ -146,6 +148,7 @@ impl FontWrite for Script {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Script {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Script", |ctx| {
@@ -210,6 +213,7 @@ impl FontWrite for LangSysRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LangSysRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LangSysRecord", |ctx| {
@@ -275,6 +279,7 @@ impl FontWrite for LangSys {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LangSys {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LangSys", |ctx| {
@@ -333,6 +338,7 @@ impl FontWrite for FeatureList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatureList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureList", |ctx| {
@@ -395,6 +401,7 @@ impl FontWrite for FeatureRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatureRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureRecord", |ctx| {
@@ -450,6 +457,7 @@ impl FontWrite for Feature {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Feature {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Feature", |ctx| {
@@ -507,6 +515,7 @@ impl<T: FontWrite> FontWrite for LookupList<T> {
     }
 }
 
+#[cfg(feature = "tables")]
 impl<T: Validate> Validate for LookupList<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LookupList", |ctx| {
@@ -566,6 +575,7 @@ impl<T: Default> Lookup<T> {
     }
 }
 
+#[cfg(feature = "tables")]
 impl<T: Validate> Validate for Lookup<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Lookup", |ctx| {
@@ -644,6 +654,7 @@ impl FontWrite for CoverageFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CoverageFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CoverageFormat1", |ctx| {
@@ -702,6 +713,7 @@ impl FontWrite for CoverageFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CoverageFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CoverageFormat2", |ctx| {
@@ -772,6 +784,7 @@ impl FontWrite for RangeRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for RangeRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -827,6 +840,7 @@ impl FontWrite for CoverageTable {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CoverageTable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -900,6 +914,7 @@ impl FontWrite for ClassDefFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClassDefFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassDefFormat1", |ctx| {
@@ -961,6 +976,7 @@ impl FontWrite for ClassDefFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClassDefFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassDefFormat2", |ctx| {
@@ -1027,6 +1043,7 @@ impl FontWrite for ClassRangeRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClassRangeRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassRangeRecord", |ctx| {
@@ -1088,6 +1105,7 @@ impl FontWrite for ClassDef {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClassDef {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -1157,6 +1175,7 @@ impl FontWrite for SequenceLookupRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SequenceLookupRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -1205,6 +1224,7 @@ impl FontWrite for SequenceContextFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SequenceContextFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceContextFormat1", |ctx| {
@@ -1277,6 +1297,7 @@ impl FontWrite for SequenceRuleSet {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceRuleSet", |ctx| {
@@ -1344,6 +1365,7 @@ impl FontWrite for SequenceRule {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SequenceRule {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceRule", |ctx| {
@@ -1421,6 +1443,7 @@ impl FontWrite for SequenceContextFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SequenceContextFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceContextFormat2", |ctx| {
@@ -1497,6 +1520,7 @@ impl FontWrite for ClassSequenceRuleSet {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClassSequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassSequenceRuleSet", |ctx| {
@@ -1568,6 +1592,7 @@ impl FontWrite for ClassSequenceRule {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClassSequenceRule {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassSequenceRule", |ctx| {
@@ -1639,6 +1664,7 @@ impl FontWrite for SequenceContextFormat3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SequenceContextFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceContextFormat3", |ctx| {
@@ -1745,6 +1771,7 @@ impl FontWrite for SequenceContext {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SequenceContext {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -1831,6 +1858,7 @@ impl FontWrite for ChainedSequenceContextFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ChainedSequenceContextFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceContextFormat1", |ctx| {
@@ -1903,6 +1931,7 @@ impl FontWrite for ChainedSequenceRuleSet {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ChainedSequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceRuleSet", |ctx| {
@@ -1990,6 +2019,7 @@ impl FontWrite for ChainedSequenceRule {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ChainedSequenceRule {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceRule", |ctx| {
@@ -2097,6 +2127,7 @@ impl FontWrite for ChainedSequenceContextFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ChainedSequenceContextFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceContextFormat2", |ctx| {
@@ -2184,6 +2215,7 @@ impl FontWrite for ChainedClassSequenceRuleSet {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ChainedClassSequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedClassSequenceRuleSet", |ctx| {
@@ -2272,6 +2304,7 @@ impl FontWrite for ChainedClassSequenceRule {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ChainedClassSequenceRule {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedClassSequenceRule", |ctx| {
@@ -2374,6 +2407,7 @@ impl FontWrite for ChainedSequenceContextFormat3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ChainedSequenceContextFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceContextFormat3", |ctx| {
@@ -2511,6 +2545,7 @@ impl FontWrite for ChainedSequenceContext {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ChainedSequenceContext {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -2595,6 +2630,7 @@ impl FontWrite for Device {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Device {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -2654,6 +2690,7 @@ impl FontWrite for VariationIndex {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VariationIndex {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -2701,6 +2738,7 @@ impl PendingVariationIndex {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PendingVariationIndex {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -2752,6 +2790,7 @@ impl FontWrite for DeviceOrVariationIndex {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for DeviceOrVariationIndex {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -2833,6 +2872,7 @@ impl FontWrite for FeatureVariations {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatureVariations {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureVariations", |ctx| {
@@ -2900,6 +2940,7 @@ impl FontWrite for FeatureVariationRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatureVariationRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureVariationRecord", |ctx| {
@@ -2956,6 +2997,7 @@ impl FontWrite for ConditionSet {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ConditionSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionSet", |ctx| {
@@ -3063,6 +3105,7 @@ impl FontWrite for Condition {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Condition {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -3173,6 +3216,7 @@ impl FontWrite for ConditionFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ConditionFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -3229,6 +3273,7 @@ impl FontWrite for ConditionFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ConditionFormat2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -3284,6 +3329,7 @@ impl FontWrite for ConditionFormat3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ConditionFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionFormat3", |ctx| {
@@ -3348,6 +3394,7 @@ impl FontWrite for ConditionFormat4 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ConditionFormat4 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionFormat4", |ctx| {
@@ -3408,6 +3455,7 @@ impl FontWrite for ConditionFormat5 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ConditionFormat5 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionFormat5", |ctx| {
@@ -3463,6 +3511,7 @@ impl FontWrite for FeatureTableSubstitution {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatureTableSubstitution {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureTableSubstitution", |ctx| {
@@ -3534,6 +3583,7 @@ impl FontWrite for FeatureTableSubstitutionRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatureTableSubstitutionRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureTableSubstitutionRecord", |ctx| {
@@ -3625,6 +3675,7 @@ impl FontWrite for SizeParams {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SizeParams {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -3683,6 +3734,7 @@ impl FontWrite for StylisticSetParams {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for StylisticSetParams {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -3769,6 +3821,7 @@ impl FontWrite for CharacterVariantParams {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CharacterVariantParams {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CharacterVariantParams", |ctx| {

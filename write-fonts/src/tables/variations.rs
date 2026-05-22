@@ -230,6 +230,7 @@ pub struct PackedDeltas {
     deltas: Vec<i32>,
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PackedDeltas {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -396,6 +397,7 @@ impl FontWrite for PackedDeltaRun<'_> {
     }
 }
 
+#[cfg(feature = "tables")]
 impl crate::validate::Validate for PackedPointNumbers {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         if let PackedPointNumbers::Some(pts) = self {

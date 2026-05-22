@@ -143,6 +143,7 @@ impl FontWrite for Maxp {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Maxp {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Maxp", |ctx| {

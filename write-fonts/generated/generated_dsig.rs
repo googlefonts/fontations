@@ -40,6 +40,7 @@ impl FontWrite for Dsig {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Dsig {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Dsig", |ctx| {
@@ -111,6 +112,7 @@ impl FontWrite for SignatureRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SignatureRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SignatureRecord", |ctx| {
@@ -160,6 +162,7 @@ impl FontWrite for SignatureBlockFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SignatureBlockFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SignatureBlockFormat1", |ctx| {

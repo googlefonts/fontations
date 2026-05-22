@@ -224,6 +224,7 @@ pub(crate) fn generate_compile(item: &TableFormat, items: &Items) -> syn::Result
             }
         }
 
+        #[cfg(feature = "tables")]
         impl Validate for #name {
             fn validate_impl(&self, ctx: &mut ValidationCtx) {
                 match self {

@@ -28,6 +28,7 @@ impl FontWrite for InstanceRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for InstanceRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

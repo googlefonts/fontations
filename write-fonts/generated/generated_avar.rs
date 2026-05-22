@@ -47,6 +47,7 @@ impl FontWrite for Avar {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Avar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Avar", |ctx| {
@@ -120,6 +121,7 @@ impl FontWrite for SegmentMaps {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SegmentMaps {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SegmentMaps", |ctx| {
@@ -171,6 +173,7 @@ impl FontWrite for AxisValueMap {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisValueMap {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

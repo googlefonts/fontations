@@ -521,6 +521,7 @@ impl Extend<F2Dot14> for Tuple {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for GlyphVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         const MAX_TUPLE_VARIATIONS: usize = 4095;

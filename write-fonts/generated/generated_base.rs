@@ -44,6 +44,7 @@ impl FontWrite for Base {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Base {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Base", |ctx| {
@@ -114,6 +115,7 @@ impl FontWrite for Axis {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Axis {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Axis", |ctx| {
@@ -172,6 +174,7 @@ impl FontWrite for BaseTagList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseTagList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseTagList", |ctx| {
@@ -231,6 +234,7 @@ impl FontWrite for BaseScriptList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseScriptList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseScriptList", |ctx| {
@@ -293,6 +297,7 @@ impl FontWrite for BaseScriptRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseScriptRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseScriptRecord", |ctx| {
@@ -356,6 +361,7 @@ impl FontWrite for BaseScript {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseScript {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseScript", |ctx| {
@@ -425,6 +431,7 @@ impl FontWrite for BaseLangSysRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseLangSysRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseLangSysRecord", |ctx| {
@@ -483,6 +490,7 @@ impl FontWrite for BaseValues {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseValues {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseValues", |ctx| {
@@ -557,6 +565,7 @@ impl FontWrite for MinMax {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MinMax {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MinMax", |ctx| {
@@ -637,6 +646,7 @@ impl FontWrite for FeatMinMaxRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatMinMaxRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatMinMaxRecord", |ctx| {
@@ -715,6 +725,7 @@ impl FontWrite for BaseCoord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseCoord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -788,6 +799,7 @@ impl FontWrite for BaseCoordFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseCoordFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -846,6 +858,7 @@ impl FontWrite for BaseCoordFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseCoordFormat2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -904,6 +917,7 @@ impl FontWrite for BaseCoordFormat3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseCoordFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseCoordFormat3", |ctx| {

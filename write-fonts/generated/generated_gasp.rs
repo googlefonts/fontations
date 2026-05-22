@@ -41,6 +41,7 @@ impl FontWrite for Gasp {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Gasp {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gasp", |ctx| {
@@ -107,6 +108,7 @@ impl FontWrite for GaspRange {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for GaspRange {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

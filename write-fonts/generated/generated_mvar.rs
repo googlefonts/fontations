@@ -37,6 +37,7 @@ impl FontWrite for Mvar {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Mvar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Mvar", |ctx| {
@@ -113,6 +114,7 @@ impl FontWrite for ValueRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ValueRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

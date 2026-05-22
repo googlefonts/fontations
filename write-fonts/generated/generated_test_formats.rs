@@ -31,6 +31,7 @@ impl FontWrite for Table1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Table1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -79,6 +80,7 @@ impl FontWrite for Table2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Table2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Table2", |ctx| {
@@ -127,6 +129,7 @@ impl FontWrite for Table3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Table3 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -192,6 +195,7 @@ impl FontWrite for MyTable {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MyTable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {

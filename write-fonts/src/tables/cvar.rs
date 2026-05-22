@@ -209,6 +209,7 @@ impl CvarVariationData {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CvarVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         const MAX_TUPLE_VARIATIONS: usize = 4095;

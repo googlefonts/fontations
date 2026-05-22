@@ -36,6 +36,7 @@ impl FontWrite for BasicTable {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BasicTable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BasicTable", |ctx| {
@@ -104,6 +105,7 @@ impl FontWrite for SimpleRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SimpleRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -141,6 +143,7 @@ impl FontWrite for ContainsArrays {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ContainsArrays {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ContainsArrays", |ctx| {
@@ -200,6 +203,7 @@ impl FontWrite for ContainsOffsets {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ContainsOffsets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ContainsOffsets", |ctx| {
@@ -242,6 +246,7 @@ impl FontWrite for VarLenItem {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VarLenItem {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

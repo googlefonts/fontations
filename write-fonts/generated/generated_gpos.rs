@@ -54,6 +54,7 @@ impl FontWrite for Gpos {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Gpos {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gpos", |ctx| {
@@ -147,6 +148,7 @@ impl FontWrite for PositionLookup {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PositionLookup {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -319,6 +321,7 @@ impl FontWrite for AnchorTable {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AnchorTable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -398,6 +401,7 @@ impl FontWrite for AnchorFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AnchorFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -457,6 +461,7 @@ impl FontWrite for AnchorFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AnchorFormat2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -530,6 +535,7 @@ impl FontWrite for AnchorFormat3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AnchorFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AnchorFormat3", |ctx| {
@@ -591,6 +597,7 @@ impl FontWrite for MarkArray {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MarkArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkArray", |ctx| {
@@ -652,6 +659,7 @@ impl FontWrite for MarkRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MarkRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkRecord", |ctx| {
@@ -712,6 +720,7 @@ impl FontWrite for SinglePos {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SinglePos {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -785,6 +794,7 @@ impl FontWrite for SinglePosFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SinglePosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SinglePosFormat1", |ctx| {
@@ -849,6 +859,7 @@ impl FontWrite for SinglePosFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SinglePosFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SinglePosFormat2", |ctx| {
@@ -940,6 +951,7 @@ impl FontWrite for PairPos {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PairPos {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -1015,6 +1027,7 @@ impl FontWrite for PairPosFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PairPosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PairPosFormat1", |ctx| {
@@ -1077,6 +1090,7 @@ impl FontWrite for PairSet {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PairSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PairSet", |ctx| {
@@ -1145,6 +1159,7 @@ impl FontWrite for PairValueRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PairValueRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -1213,6 +1228,7 @@ impl FontWrite for PairPosFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PairPosFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PairPosFormat2", |ctx| {
@@ -1286,6 +1302,7 @@ impl FontWrite for Class1Record {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Class1Record {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Class1Record", |ctx| {
@@ -1341,6 +1358,7 @@ impl FontWrite for Class2Record {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Class2Record {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -1387,6 +1405,7 @@ impl FontWrite for CursivePosFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CursivePosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CursivePosFormat1", |ctx| {
@@ -1455,6 +1474,7 @@ impl FontWrite for EntryExitRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for EntryExitRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("EntryExitRecord", |ctx| {
@@ -1530,6 +1550,7 @@ impl FontWrite for MarkBasePosFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MarkBasePosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkBasePosFormat1", |ctx| {
@@ -1596,6 +1617,7 @@ impl FontWrite for BaseArray {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseArray", |ctx| {
@@ -1653,6 +1675,7 @@ impl FontWrite for BaseRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseRecord", |ctx| {
@@ -1724,6 +1747,7 @@ impl FontWrite for MarkLigPosFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MarkLigPosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkLigPosFormat1", |ctx| {
@@ -1794,6 +1818,7 @@ impl FontWrite for LigatureArray {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LigatureArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureArray", |ctx| {
@@ -1844,6 +1869,7 @@ impl FontWrite for LigatureAttach {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LigatureAttach {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureAttach", |ctx| {
@@ -1901,6 +1927,7 @@ impl FontWrite for ComponentRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ComponentRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ComponentRecord", |ctx| {
@@ -1975,6 +2002,7 @@ impl FontWrite for MarkMarkPosFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MarkMarkPosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkMarkPosFormat1", |ctx| {
@@ -2041,6 +2069,7 @@ impl FontWrite for Mark2Array {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Mark2Array {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Mark2Array", |ctx| {
@@ -2098,6 +2127,7 @@ impl FontWrite for Mark2Record {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Mark2Record {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Mark2Record", |ctx| {
@@ -2142,6 +2172,7 @@ impl<T: Default> ExtensionPosFormat1<T> {
     }
 }
 
+#[cfg(feature = "tables")]
 impl<T: Validate> Validate for ExtensionPosFormat1<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ExtensionPosFormat1", |ctx| {
@@ -2225,6 +2256,7 @@ impl FontWrite for ExtensionSubtable {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ExtensionSubtable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {

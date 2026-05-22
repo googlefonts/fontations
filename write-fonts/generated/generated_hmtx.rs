@@ -37,6 +37,7 @@ impl FontWrite for Hmtx {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Hmtx {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Hmtx", |ctx| {
@@ -96,6 +97,7 @@ impl FontWrite for LongMetric {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LongMetric {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

@@ -48,6 +48,7 @@ impl FontWrite for Sbix {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Sbix {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Sbix", |ctx| {
@@ -111,6 +112,7 @@ impl FontWrite for Strike {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Strike {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -172,6 +174,7 @@ impl FontWrite for GlyphData {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for GlyphData {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

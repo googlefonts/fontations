@@ -46,6 +46,7 @@ impl FontWrite for CffHeader {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CffHeader {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -109,6 +110,7 @@ impl FontWrite for Index {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Index {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -183,6 +185,7 @@ impl FontWrite for FdSelect {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FdSelect {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -256,6 +259,7 @@ impl FontWrite for FdSelectFormat0 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FdSelectFormat0 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -309,6 +313,7 @@ impl FontWrite for FdSelectFormat3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FdSelectFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FdSelectFormat3", |ctx| {
@@ -369,6 +374,7 @@ impl FontWrite for FdSelectRange3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FdSelectRange3 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -412,6 +418,7 @@ impl FontWrite for FdSelectFormat4 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FdSelectFormat4 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FdSelectFormat4", |ctx| {
@@ -472,6 +479,7 @@ impl FontWrite for FdSelectRange4 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FdSelectRange4 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -534,6 +542,7 @@ impl FontWrite for CustomCharset {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CustomCharset {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -607,6 +616,7 @@ impl FontWrite for CharsetFormat0 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CharsetFormat0 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -656,6 +666,7 @@ impl FontWrite for CharsetFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CharsetFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CharsetFormat1", |ctx| {
@@ -712,6 +723,7 @@ impl FontWrite for CharsetRange1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CharsetRange1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -751,6 +763,7 @@ impl FontWrite for CharsetFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CharsetFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CharsetFormat2", |ctx| {
@@ -807,6 +820,7 @@ impl FontWrite for CharsetRange2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for CharsetRange2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -847,6 +861,7 @@ impl FontWrite for EncodingRange1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for EncodingRange1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -887,6 +902,7 @@ impl FontWrite for EncodingSupplement {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for EncodingSupplement {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

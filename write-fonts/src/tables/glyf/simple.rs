@@ -368,6 +368,7 @@ impl RepeatableFlag {
     }
 }
 
+#[cfg(feature = "tables")]
 impl crate::validate::Validate for SimpleGlyph {
     fn validate_impl(&self, ctx: &mut crate::codegen_prelude::ValidationCtx) {
         if self.instructions.len() > u16::MAX as usize {

@@ -93,6 +93,7 @@ impl FontWrite for Ift {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Ift {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -236,6 +237,7 @@ impl FontWrite for PatchMapFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PatchMapFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PatchMapFormat1", |ctx| {
@@ -346,6 +348,7 @@ impl FontWrite for GlyphMap {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for GlyphMap {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -390,6 +393,7 @@ impl FontWrite for FeatureMap {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatureMap {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -430,6 +434,7 @@ impl FontWrite for FeatureRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for FeatureRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -461,6 +466,7 @@ impl FontWrite for EntryMapRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for EntryMapRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -553,6 +559,7 @@ impl FontWrite for PatchMapFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PatchMapFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PatchMapFormat2", |ctx| {
@@ -659,6 +666,7 @@ impl FontWrite for MappingEntries {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MappingEntries {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -756,6 +764,7 @@ impl FontWrite for EntryData {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for EntryData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("EntryData", |ctx| {
@@ -916,6 +925,7 @@ impl FontWrite for DesignSpaceSegment {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for DesignSpaceSegment {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -952,6 +962,7 @@ impl FontWrite for IdStringData {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for IdStringData {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -1016,6 +1027,7 @@ impl FontWrite for TableKeyedPatch {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for TableKeyedPatch {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("TableKeyedPatch", |ctx| {
@@ -1086,6 +1098,7 @@ impl FontWrite for TablePatch {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for TablePatch {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -1162,6 +1175,7 @@ impl FontWrite for GlyphKeyedPatch {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for GlyphKeyedPatch {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -1235,6 +1249,7 @@ impl FontWrite for GlyphPatches {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for GlyphPatches {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("GlyphPatches", |ctx| {
@@ -1287,6 +1302,7 @@ impl FontWrite for GlyphData {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for GlyphData {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

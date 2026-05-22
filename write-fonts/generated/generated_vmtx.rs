@@ -36,6 +36,7 @@ impl FontWrite for Vmtx {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Vmtx {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Vmtx", |ctx| {

@@ -150,6 +150,7 @@ impl FontWrite for Head {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Head {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

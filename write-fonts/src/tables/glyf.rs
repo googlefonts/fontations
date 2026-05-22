@@ -141,6 +141,7 @@ impl From<CompositeGlyph> for Glyph {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Glyph {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -161,6 +162,7 @@ impl FontWrite for Glyph {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Glyf {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

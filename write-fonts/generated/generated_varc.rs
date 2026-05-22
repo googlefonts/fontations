@@ -54,6 +54,7 @@ impl FontWrite for Varc {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Varc {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Varc", |ctx| {
@@ -139,6 +140,7 @@ impl FontWrite for MultiItemVariationStore {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MultiItemVariationStore {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MultiItemVariationStore", |ctx| {
@@ -210,6 +212,7 @@ impl FontWrite for SparseVariationRegionList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SparseVariationRegionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SparseVariationRegionList", |ctx| {
@@ -277,6 +280,7 @@ impl FontWrite for SparseVariationRegion {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SparseVariationRegion {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SparseVariationRegion", |ctx| {
@@ -349,6 +353,7 @@ impl FontWrite for SparseRegionAxisCoordinates {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SparseRegionAxisCoordinates {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -401,6 +406,7 @@ impl FontWrite for MultiItemVariationData {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MultiItemVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MultiItemVariationData", |ctx| {
@@ -469,6 +475,7 @@ impl FontWrite for ConditionList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ConditionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionList", |ctx| {

@@ -96,6 +96,7 @@ impl FontWrite for Vhea {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Vhea {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

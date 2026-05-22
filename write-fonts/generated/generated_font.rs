@@ -52,6 +52,7 @@ impl FontWrite for TableDirectory {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for TableDirectory {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("TableDirectory", |ctx| {
@@ -103,6 +104,7 @@ impl FontWrite for TableRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for TableRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -125,6 +127,7 @@ pub struct TTCHeader {
     pub dsig_offset: Option<u32>,
 }
 
+#[cfg(feature = "tables")]
 impl Validate for TTCHeader {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("TTCHeader", |ctx| {

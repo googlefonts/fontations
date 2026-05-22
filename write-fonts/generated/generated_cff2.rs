@@ -56,6 +56,7 @@ impl FontWrite for Cff2Header {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Cff2Header {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cff2Header", |ctx| {
@@ -128,6 +129,7 @@ impl FontWrite for Index {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Index {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

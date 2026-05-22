@@ -152,6 +152,7 @@ pub(crate) fn generate_compile(
             }
         }
 
+        #[cfg(feature = "tables")]
         impl Validate for #name {
             fn validate_impl(&self, ctx: &mut ValidationCtx) {
                 match self {

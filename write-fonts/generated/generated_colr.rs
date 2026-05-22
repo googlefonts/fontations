@@ -79,6 +79,7 @@ impl FontWrite for Colr {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Colr {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Colr", |ctx| {
@@ -171,6 +172,7 @@ impl FontWrite for BaseGlyph {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseGlyph {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -215,6 +217,7 @@ impl FontWrite for Layer {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Layer {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -259,6 +262,7 @@ impl FontWrite for BaseGlyphList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseGlyphList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseGlyphList", |ctx| {
@@ -322,6 +326,7 @@ impl FontWrite for BaseGlyphPaint {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for BaseGlyphPaint {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseGlyphPaint", |ctx| {
@@ -370,6 +375,7 @@ impl FontWrite for LayerList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LayerList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LayerList", |ctx| {
@@ -435,6 +441,7 @@ impl FontWrite for ClipList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClipList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClipList", |ctx| {
@@ -502,6 +509,7 @@ impl FontWrite for Clip {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Clip {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Clip", |ctx| {
@@ -575,6 +583,7 @@ impl FontWrite for ClipBox {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClipBox {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -654,6 +663,7 @@ impl FontWrite for ClipBoxFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClipBoxFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -729,6 +739,7 @@ impl FontWrite for ClipBoxFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ClipBoxFormat2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -785,6 +796,7 @@ impl FontWrite for ColorIndex {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ColorIndex {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -832,6 +844,7 @@ impl FontWrite for VarColorIndex {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VarColorIndex {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -880,6 +893,7 @@ impl FontWrite for ColorStop {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ColorStop {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -937,6 +951,7 @@ impl FontWrite for VarColorStop {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VarColorStop {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -985,6 +1000,7 @@ impl FontWrite for ColorLine {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ColorLine {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ColorLine", |ctx| {
@@ -1052,6 +1068,7 @@ impl FontWrite for VarColorLine {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VarColorLine {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VarColorLine", |ctx| {
@@ -1564,6 +1581,7 @@ impl FontWrite for Paint {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Paint {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -1887,6 +1905,7 @@ impl FontWrite for PaintColrLayers {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintColrLayers {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -1942,6 +1961,7 @@ impl FontWrite for PaintSolid {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintSolid {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -2000,6 +2020,7 @@ impl FontWrite for PaintVarSolid {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarSolid {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -2084,6 +2105,7 @@ impl FontWrite for PaintLinearGradient {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintLinearGradient {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintLinearGradient", |ctx| {
@@ -2190,6 +2212,7 @@ impl FontWrite for PaintVarLinearGradient {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarLinearGradient {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarLinearGradient", |ctx| {
@@ -2293,6 +2316,7 @@ impl FontWrite for PaintRadialGradient {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintRadialGradient {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintRadialGradient", |ctx| {
@@ -2397,6 +2421,7 @@ impl FontWrite for PaintVarRadialGradient {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarRadialGradient {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarRadialGradient", |ctx| {
@@ -2492,6 +2517,7 @@ impl FontWrite for PaintSweepGradient {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintSweepGradient {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintSweepGradient", |ctx| {
@@ -2583,6 +2609,7 @@ impl FontWrite for PaintVarSweepGradient {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarSweepGradient {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarSweepGradient", |ctx| {
@@ -2654,6 +2681,7 @@ impl FontWrite for PaintGlyph {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintGlyph {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintGlyph", |ctx| {
@@ -2708,6 +2736,7 @@ impl FontWrite for PaintColrGlyph {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintColrGlyph {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -2762,6 +2791,7 @@ impl FontWrite for PaintTransform {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintTransform {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintTransform", |ctx| {
@@ -2826,6 +2856,7 @@ impl FontWrite for PaintVarTransform {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarTransform {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarTransform", |ctx| {
@@ -2904,6 +2935,7 @@ impl FontWrite for Affine2x3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Affine2x3 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -2992,6 +3024,7 @@ impl FontWrite for VarAffine2x3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VarAffine2x3 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -3055,6 +3088,7 @@ impl FontWrite for PaintTranslate {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintTranslate {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintTranslate", |ctx| {
@@ -3125,6 +3159,7 @@ impl FontWrite for PaintVarTranslate {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarTranslate {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarTranslate", |ctx| {
@@ -3192,6 +3227,7 @@ impl FontWrite for PaintScale {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintScale {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintScale", |ctx| {
@@ -3263,6 +3299,7 @@ impl FontWrite for PaintVarScale {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarScale {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarScale", |ctx| {
@@ -3344,6 +3381,7 @@ impl FontWrite for PaintScaleAroundCenter {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintScaleAroundCenter {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintScaleAroundCenter", |ctx| {
@@ -3443,6 +3481,7 @@ impl FontWrite for PaintVarScaleAroundCenter {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarScaleAroundCenter {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarScaleAroundCenter", |ctx| {
@@ -3516,6 +3555,7 @@ impl FontWrite for PaintScaleUniform {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintScaleUniform {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintScaleUniform", |ctx| {
@@ -3582,6 +3622,7 @@ impl FontWrite for PaintVarScaleUniform {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarScaleUniform {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarScaleUniform", |ctx| {
@@ -3652,6 +3693,7 @@ impl FontWrite for PaintScaleUniformAroundCenter {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintScaleUniformAroundCenter {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintScaleUniformAroundCenter", |ctx| {
@@ -3744,6 +3786,7 @@ impl FontWrite for PaintVarScaleUniformAroundCenter {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarScaleUniformAroundCenter {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarScaleUniformAroundCenter", |ctx| {
@@ -3817,6 +3860,7 @@ impl FontWrite for PaintRotate {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintRotate {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintRotate", |ctx| {
@@ -3882,6 +3926,7 @@ impl FontWrite for PaintVarRotate {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarRotate {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarRotate", |ctx| {
@@ -3953,6 +3998,7 @@ impl FontWrite for PaintRotateAroundCenter {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintRotateAroundCenter {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintRotateAroundCenter", |ctx| {
@@ -4045,6 +4091,7 @@ impl FontWrite for PaintVarRotateAroundCenter {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarRotateAroundCenter {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarRotateAroundCenter", |ctx| {
@@ -4123,6 +4170,7 @@ impl FontWrite for PaintSkew {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintSkew {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintSkew", |ctx| {
@@ -4201,6 +4249,7 @@ impl FontWrite for PaintVarSkew {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarSkew {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarSkew", |ctx| {
@@ -4283,6 +4332,7 @@ impl FontWrite for PaintSkewAroundCenter {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintSkewAroundCenter {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintSkewAroundCenter", |ctx| {
@@ -4382,6 +4432,7 @@ impl FontWrite for PaintVarSkewAroundCenter {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintVarSkewAroundCenter {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintVarSkewAroundCenter", |ctx| {
@@ -4459,6 +4510,7 @@ impl FontWrite for PaintComposite {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for PaintComposite {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PaintComposite", |ctx| {

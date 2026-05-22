@@ -34,6 +34,7 @@ impl FontWrite for Meta {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Meta {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Meta", |ctx| {
@@ -101,6 +102,7 @@ impl FontWrite for DataMapRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for DataMapRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("DataMapRecord", |ctx| {

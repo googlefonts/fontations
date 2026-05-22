@@ -55,6 +55,7 @@ impl FontWrite for Vvar {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Vvar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Vvar", |ctx| {

@@ -275,6 +275,7 @@ impl FontWrite for Os2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Os2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Os2", |ctx| {

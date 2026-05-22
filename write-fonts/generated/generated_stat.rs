@@ -49,6 +49,7 @@ impl FontWrite for Stat {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Stat {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Stat", |ctx| {
@@ -129,6 +130,7 @@ impl FontWrite for AxisRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -170,6 +172,7 @@ impl FontWrite for AxisValueArray {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisValueArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AxisValueArray", |ctx| {
@@ -291,6 +294,7 @@ impl FontWrite for AxisValue {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisValue {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -394,6 +398,7 @@ impl FontWrite for AxisValueFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisValueFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -479,6 +484,7 @@ impl FontWrite for AxisValueFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisValueFormat2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -559,6 +565,7 @@ impl FontWrite for AxisValueFormat3 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisValueFormat3 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -628,6 +635,7 @@ impl FontWrite for AxisValueFormat4 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisValueFormat4 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AxisValueFormat4", |ctx| {
@@ -690,6 +698,7 @@ impl FontWrite for AxisValueRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisValueRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

@@ -39,6 +39,7 @@ impl FontWrite for Fvar {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Fvar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Fvar", |ctx| {
@@ -98,6 +99,7 @@ impl FontWrite for AxisInstanceArrays {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AxisInstanceArrays {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AxisInstanceArrays", |ctx| {
@@ -187,6 +189,7 @@ impl FontWrite for VariationAxisRecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VariationAxisRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

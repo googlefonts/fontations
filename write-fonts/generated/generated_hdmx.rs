@@ -48,6 +48,7 @@ impl FontWrite for Hdmx {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Hdmx {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Hdmx", |ctx| {

@@ -53,6 +53,7 @@ impl FontWrite for Gsub {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Gsub {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gsub", |ctx| {
@@ -143,6 +144,7 @@ impl FontWrite for SubstitutionLookup {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SubstitutionLookup {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -283,6 +285,7 @@ impl FontWrite for SingleSubst {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SingleSubst {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -355,6 +358,7 @@ impl FontWrite for SingleSubstFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SingleSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SingleSubstFormat1", |ctx| {
@@ -418,6 +422,7 @@ impl FontWrite for SingleSubstFormat2 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for SingleSubstFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SingleSubstFormat2", |ctx| {
@@ -488,6 +493,7 @@ impl FontWrite for MultipleSubstFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for MultipleSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MultipleSubstFormat1", |ctx| {
@@ -551,6 +557,7 @@ impl FontWrite for Sequence {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Sequence {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Sequence", |ctx| {
@@ -616,6 +623,7 @@ impl FontWrite for AlternateSubstFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AlternateSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AlternateSubstFormat1", |ctx| {
@@ -685,6 +693,7 @@ impl FontWrite for AlternateSet {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for AlternateSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AlternateSet", |ctx| {
@@ -750,6 +759,7 @@ impl FontWrite for LigatureSubstFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LigatureSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureSubstFormat1", |ctx| {
@@ -814,6 +824,7 @@ impl FontWrite for LigatureSet {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for LigatureSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureSet", |ctx| {
@@ -877,6 +888,7 @@ impl FontWrite for Ligature {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Ligature {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -923,6 +935,7 @@ impl<T: Default> ExtensionSubstFormat1<T> {
     }
 }
 
+#[cfg(feature = "tables")]
 impl<T: Validate> Validate for ExtensionSubstFormat1<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ExtensionSubstFormat1", |ctx| {
@@ -1003,6 +1016,7 @@ impl FontWrite for ExtensionSubtable {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ExtensionSubtable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -1143,6 +1157,7 @@ impl FontWrite for ReverseChainSingleSubstFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ReverseChainSingleSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ReverseChainSingleSubstFormat1", |ctx| {

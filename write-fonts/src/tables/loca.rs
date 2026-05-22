@@ -89,6 +89,7 @@ impl FontWrite for Loca {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Loca {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

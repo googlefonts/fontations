@@ -69,6 +69,7 @@ impl FontWrite for KindsOfOffsets {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for KindsOfOffsets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("KindsOfOffsets", |ctx| {
@@ -173,6 +174,7 @@ impl FontWrite for KindsOfArraysOfOffsets {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for KindsOfArraysOfOffsets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("KindsOfArraysOfOffsets", |ctx| {
@@ -296,6 +298,7 @@ impl FontWrite for KindsOfArrays {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for KindsOfArrays {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("KindsOfArrays", |ctx| {
@@ -384,6 +387,7 @@ impl FontWrite for VarLenHaver {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VarLenHaver {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VarLenHaver", |ctx| {
@@ -442,6 +446,7 @@ impl FontWrite for Dummy {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Dummy {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -482,6 +487,7 @@ impl FontWrite for Shmecord {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Shmecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

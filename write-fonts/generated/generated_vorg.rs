@@ -40,6 +40,7 @@ impl FontWrite for Vorg {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Vorg {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Vorg", |ctx| {
@@ -106,6 +107,7 @@ impl FontWrite for VertOriginYMetrics {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VertOriginYMetrics {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }

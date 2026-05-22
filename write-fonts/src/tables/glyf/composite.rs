@@ -219,6 +219,7 @@ impl FontWrite for CompositeGlyph {
     }
 }
 
+#[cfg(feature = "tables")]
 impl crate::validate::Validate for CompositeGlyph {
     fn validate_impl(&self, ctx: &mut crate::codegen_prelude::ValidationCtx) {
         if self.components.is_empty() {

@@ -42,6 +42,7 @@ impl FontWrite for TupleVariationHeader {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for TupleVariationHeader {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -101,6 +102,7 @@ impl FontWrite for Tuple {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for Tuple {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Tuple", |ctx| {
@@ -158,6 +160,7 @@ impl FontWrite for DeltaSetIndexMapFormat0 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for DeltaSetIndexMapFormat0 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -228,6 +231,7 @@ impl FontWrite for DeltaSetIndexMapFormat1 {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for DeltaSetIndexMapFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -310,6 +314,7 @@ impl FontWrite for DeltaSetIndexMap {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for DeltaSetIndexMap {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
@@ -389,6 +394,7 @@ impl FontWrite for VariationRegionList {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VariationRegionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VariationRegionList", |ctx| {
@@ -459,6 +465,7 @@ impl FontWrite for VariationRegion {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for VariationRegion {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VariationRegion", |ctx| {
@@ -517,6 +524,7 @@ impl FontWrite for RegionAxisCoordinates {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for RegionAxisCoordinates {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -572,6 +580,7 @@ impl FontWrite for ItemVariationStore {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ItemVariationStore {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ItemVariationStore", |ctx| {
@@ -659,6 +668,7 @@ impl FontWrite for ItemVariationData {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Validate for ItemVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ItemVariationData", |ctx| {

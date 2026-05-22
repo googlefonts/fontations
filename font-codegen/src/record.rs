@@ -240,6 +240,7 @@ pub(crate) fn generate_compile_impl(
     };
 
     let validation_impl = quote! {
+        #[cfg(feature = "tables")]
         impl #validate_impl_params Validate for #name <#generic_param> {
             #validation_fn
         }
