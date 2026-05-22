@@ -185,7 +185,7 @@ impl Fixed {
 
 impl Mul for Fixed {
     type Output = Self;
-    
+
     #[inline(always)]
     fn mul(self, other: Self) -> Self::Output {
         let ab = self.0 as i64 * other.0 as i64;
@@ -216,7 +216,7 @@ impl Div for Fixed {
 impl Mul for F26Dot6 {
     type Output = Self;
 
-    #[inline(always)]    
+    #[inline(always)]
     fn mul(self, other: Self) -> Self::Output {
         let ab = (self.0 as i64).wrapping_mul(other.0 as i64);
         Self((ab >> 6) as i32)
