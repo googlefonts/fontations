@@ -93,8 +93,8 @@ impl Fields {
         self.fields.iter()
     }
 
-    pub(crate) fn find(&self, ident: &syn::Ident) -> Option<&Field> {
-        self.iter().find(|fld| &fld.name == ident)
+    pub(crate) fn find(&self, mut f: impl FnMut(&Field) -> bool) -> Option<&Field> {
+        self.iter().find(|fld| f(fld))
     }
 
     pub(crate) fn iter_compile_decls(&self) -> impl Iterator<Item = TokenStream> + '_ {
@@ -296,6 +296,13 @@ impl Condition {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
+        }
+    }
+
+    pub(crate) fn condition_tokens_for_sanitize(&self) -> TokenStream {
+        match self {
+            Condition::SinceVersion(version) => quote!(version.compatible(#version)),
+            Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
         }
     }
 }
@@ -554,6 +561,13 @@ impl Field {
 
     pub(crate) fn is_conditional(&self) -> bool {
         self.attrs.conditional.is_some()
+    }
+
+    pub(crate) fn is_versioned(&self) -> bool {
+        matches!(
+            self.attrs.conditional.as_deref(),
+            Some(Condition::SinceVersion(_))
+        )
     }
 
     /// Sanity check we are in a sane state for the end of phase
@@ -928,7 +942,7 @@ impl Field {
         self.attrs.count.is_some()
     }
 
-    fn is_offset_or_array_of_offsets(&self) -> bool {
+    pub(crate) fn is_offset_or_array_of_offsets(&self) -> bool {
         match &self.typ {
             FieldType::Offset { .. } => true,
             FieldType::Array { inner_typ }
@@ -1333,6 +1347,139 @@ impl Field {
             _ => quote!(compile_error!("requires custom to_owned impl")),
         };
         Some(quote!( #name: #init_stmt ))
+    }
+
+    /// Generate the sanitize statement for this field.
+    ///
+    /// `needed` is the set of field names that must be bound to local variables
+    /// (because they're referenced by later fields). `generic` is the generic
+    /// offset type parameter, if any.
+    pub(crate) fn sanitize_stmt(
+        &self,
+        needed: &std::collections::HashSet<syn::Ident>,
+        generic: Option<&syn::Ident>,
+    ) -> syn::Result<TokenStream> {
+        let is_needed = needed.contains(&self.name);
+        let inner = self.sanitize_stmt_inner(is_needed, generic);
+
+        if let Some(condition) = &self.attrs.conditional {
+            let cond_tokens = condition.attr.condition_tokens_for_sanitize();
+            Ok(quote! {
+                if #cond_tokens {
+                    #inner
+                }
+            })
+        } else {
+            Ok(inner)
+        }
+    }
+
+    fn sanitize_stmt_inner(&self, is_needed: bool, _generic: Option<&syn::Ident>) -> TokenStream {
+        match &self.typ {
+            FieldType::Scalar { typ } if is_needed => {
+                let name = &self.name;
+                quote!(let #name = ctx.read::<#typ>()?;)
+            }
+            FieldType::Scalar { typ } => quote!(ctx.advance::<#typ>();),
+            FieldType::Offset { typ, target } => match target {
+                OffsetTarget::Table(target_table) => {
+                    let args = self.sanitize_offset_args();
+                    quote!(ctx.sanitize_offset::<#typ, #target_table>(#args)?;)
+                }
+                OffsetTarget::Array(_) => quote!(todo!("sanitize offset to array");),
+            },
+            FieldType::Struct { .. } => quote!(todo!("sanitize structfield");),
+            FieldType::Array { inner_typ } => {
+                let count = self.attrs.count.as_ref().expect("array has count");
+                if matches!(&count.attr, Count::All(_)) {
+                    return quote!(todo!("sanitize #[count(..)]"););
+                }
+                let count_expr = count.count_expr();
+                match inner_typ.as_ref() {
+                    FieldType::Scalar { typ } => {
+                        quote!(ctx.sanitize_array::<#typ>(#count_expr)?;)
+                    }
+                    FieldType::Offset {
+                        typ: offset_typ,
+                        target: OffsetTarget::Table(target_table),
+                    } => {
+                        let args = self.sanitize_offset_args();
+                        quote!(ctx.sanitize_array_of_offsets::<#offset_typ, #target_table>(#count_expr, #args)?;)
+                    }
+                    FieldType::Offset { .. } => {
+                        quote!(todo!("sanitize array of offsets to arrays: {name}");)
+                    }
+                    FieldType::Struct { typ } => {
+                        let args = self.sanitize_read_with_args_or_unit();
+                        quote!(ctx.sanitize_array_of_structs::<#typ>(#count_expr, #args)?;)
+                    }
+                    _ => quote!(compile_error!("unexpected inner type for sanitize")),
+                }
+            }
+
+            FieldType::ComputedArray(_) => quote!(todo!("sanitize computed array");),
+
+            FieldType::VarLenArray(_) => quote!(todo!("sanitize varlenarray");),
+
+            FieldType::PendingResolution { .. } => {
+                panic!("should have been resolved before sanitize codegen")
+            }
+        }
+    }
+
+    fn sanitize_offset_args(&self) -> TokenStream {
+        match &self.attrs.read_offset_args {
+            Some(args) => args.attr.to_tokens_for_validation(),
+            None => quote!(()),
+        }
+    }
+
+    fn sanitize_read_with_args_or_unit(&self) -> TokenStream {
+        match &self.attrs.read_with_args {
+            Some(args) => args.to_tokens_for_validation(),
+            None => quote!(()),
+        }
+    }
+
+    /// Generate a sanitize statement for this field in a record context.
+    ///
+    /// Returns `None` for non-offset fields (nothing to recurse into).
+    pub(crate) fn sanitize_record_stmt(&self) -> Option<TokenStream> {
+        let name = &self.name;
+        let args = self.sanitize_offset_args();
+        match &self.typ {
+            FieldType::Offset {
+                target: OffsetTarget::Table(target),
+                ..
+            } => Some(quote!(self.#name().sanitize_offset::<#target>(ctx, #args)?;)),
+
+            FieldType::Offset {
+                target: OffsetTarget::Array(_),
+                ..
+            } => {
+                let msg = format!("sanitize record offset to array: {name}");
+                Some(quote!(todo!(#msg);))
+            }
+
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset {
+                    target: OffsetTarget::Table(target),
+                    ..
+                } => Some(quote!(self.#name().sanitize_offset::<#target>(ctx, #args)?;)),
+
+                FieldType::Offset {
+                    target: OffsetTarget::Array(_),
+                    ..
+                } => {
+                    let msg = format!("sanitize record array of offsets to arrays: {name}");
+                    Some(quote!(todo!(#msg);))
+                }
+
+                _ => None,
+            },
+
+            _ => None,
+        }
     }
 }
 
