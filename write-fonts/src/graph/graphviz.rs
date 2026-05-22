@@ -2,7 +2,8 @@
 
 use std::collections::{BTreeSet, HashSet};
 
-use super::{Graph, ObjectId, OffsetLen};
+use super::Graph;
+use crate::object::{ObjectId, OffsetLen};
 
 pub struct GraphVizGraph<'a> {
     graph: &'a Graph,

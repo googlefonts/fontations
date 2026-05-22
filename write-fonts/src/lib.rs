@@ -141,6 +141,7 @@ pub mod error;
 mod font_builder;
 pub mod from_obj;
 mod graph;
+mod object;
 mod offsets;
 pub mod ps;
 mod round;
@@ -155,7 +156,8 @@ mod codegen_test;
 #[cfg(test)]
 mod hex_diff;
 
-pub use font_builder::{BuilderError, FontBuilder};
+pub use error::BuilderError;
+pub use font_builder::FontBuilder;
 pub use offsets::{NullableOffsetMarker, OffsetMarker};
 pub use round::OtRound;
 pub use write::{dump_table, FontWrite, TableWriter};

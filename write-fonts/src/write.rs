@@ -1,7 +1,8 @@
 use std::collections::BTreeSet;
 
 use crate::error::{Error, PackingError};
-use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
+use crate::graph::Graph;
+use crate::object::{ObjectId, ObjectStore, OffsetLen};
 use crate::table_type::TableType;
 use crate::validate::Validate;
 use font_types::{FixedSize, Scalar};

@@ -1,6 +1,8 @@
 //! Errors that occur during writing
 
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
+
+use types::Tag;
 
 use crate::{graph::Graph, validate::ValidationReport};
 
@@ -78,6 +80,31 @@ impl std::error::Error for Error {}
 impl From<ValidationReport> for Error {
     fn from(value: ValidationReport) -> Self {
         Error::ValidationFailed(value)
+    }
+}
+
+/// An error returned when attempting to add a table to the builder.
+///
+/// This wraps a compilation error, adding the tag of the table where it was
+/// encountered.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct BuilderError {
+    /// The tag of the root table where the error occurred
+    pub tag: Tag,
+    /// The underlying error
+    pub inner: crate::error::Error,
+}
+
+impl Display for BuilderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "failed to build '{}' table: '{}'", self.tag, self.inner)
+    }
+}
+
+impl std::error::Error for BuilderError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.inner)
     }
 }
 
