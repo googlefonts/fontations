@@ -1171,7 +1171,7 @@ impl Scaler for HarfBuzzScaler<'_> {
         // Apply scaling
         if self.scale != 1.0 {
             for point in points.iter_mut() {
-                *point = *point * self.scale;
+                *point *= self.scale;
             }
         }
 
