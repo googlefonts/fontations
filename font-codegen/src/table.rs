@@ -1,11 +1,15 @@
 //! codegen for table objects
 
+use std::collections::HashSet;
+
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use crate::{
-    parsing::{logged_syn_error, Attr, Field, Items, Table, TableReadArg, TableReadArgs},
+    parsing::{
+        logged_syn_error, Attr, Condition, Field, Items, Table, TableReadArg, TableReadArgs,
+    },
     Phase,
 };
 
@@ -240,13 +244,13 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
         None => (quote!(_args: ()), None),
     };
 
-    //let stmts = item.iter_sanitze_statements()?;
+    let stmts = item.iter_sanitze_statements()?;
 
     Ok(quote! {
         impl Sanitize for #name<'_> {
             fn sanitize(ctx: &mut SanitizeContext, #args_arg) -> Result<(), ReadError> {
                 #destructure_args
-                //#( #stmts )*
+                #( #stmts )*
                 ctx.finish()
             }
         }
@@ -393,6 +397,45 @@ impl Table {
         self.fields.sanity_check(phase)
     }
 
+    pub(crate) fn iter_sanitze_statements(&self) -> syn::Result<Vec<TokenStream>> {
+        let needed = self.fields_to_read_during_sanitize();
+        let generic = self.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
+
+        self.fields
+            .iter()
+            .map(|field| field.sanitize_stmt(&needed, generic))
+            .collect()
+    }
+
+    /// A set of idents for fields that are referenced by other fields
+    fn fields_to_read_during_sanitize(&self) -> HashSet<syn::Ident> {
+        let mut needed: HashSet<_> = self
+            .fields
+            .iter()
+            .flat_map(Field::count_arg_names)
+            .cloned()
+            .collect();
+
+        // Version field is needed if any field has #[since_version]
+        let has_versioned = self.fields.iter().any(Field::is_versioned);
+        if has_versioned {
+            if let Some(vf) = self.fields.version_field() {
+                needed.insert(vf.name.clone());
+            }
+        }
+
+        // Flags fields referenced by #[if_flag]
+        for field in self.fields.iter() {
+            if let Some(Condition::IfFlag {
+                field: flag_field, ..
+            }) = field.attrs.conditional.as_deref()
+            {
+                needed.insert(flag_field.clone());
+            }
+        }
+        needed
+    }
+
     fn iter_field_byte_range_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
         let mut prev_field_end_expr = quote!(0);
         let mut iter = self.fields.iter();
@@ -401,14 +444,14 @@ impl Table {
             let field = iter.next()?;
             let fn_name = field.shape_byte_range_fn_name();
             let len_expr = field.field_len_expr();
-            let required_field_decls = field.count_arg_names().map(|fld| {
+            let required_field_decls = field.count_arg_names().map(|name| {
                 let is_opt = self
                     .fields
-                    .find(fld)
+                    .find(|fld| fld.name == *name)
                     .map(|x| x.is_conditional())
                     .unwrap_or(false);
                 let maybe_unwrap_or_default = (is_opt).then(|| quote!(.unwrap_or_default()));
-                quote!(let #fld = self.#fld() #maybe_unwrap_or_default ;)
+                quote!(let #name = self.#name() #maybe_unwrap_or_default ;)
             });
 
             // okay so for conditions, how do we evaluate them?
@@ -454,7 +497,7 @@ impl Table {
     }
 
     pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {
-        let field = self.fields.iter().find(|fld| fld.attrs.format.is_some())?;
+        let field = self.fields.find(|fld| fld.attrs.format.is_some())?;
         let name = self.raw_name();
         let value = &field.attrs.format.as_ref().unwrap();
         let typ = field.typ.cooked_type_tokens();

@@ -45,6 +45,17 @@ impl<'a> BaseArray<'a> {
     }
 }
 
+impl Sanitize for BaseArray<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        let base_count = ctx.read::<u16>()?;
+        todo!("sanitize computed array");
+        ctx.advance::<u16>();
+        todo!("sanitize computed array");
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct BaseArray<'a> {
     data: FontData<'a>,
@@ -220,6 +231,15 @@ impl<'a> BaseRecord<'a> {
     }
 }
 
+impl SanitizeStruct for BaseRecord<'_> {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: u16) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for BaseRecord<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -291,6 +311,14 @@ impl<'a> FaceRecord<'a> {
     }
 }
 
+impl SanitizeStruct for FaceRecord<'_> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        self.face_offsets().sanitize_offset::<Face>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FaceRecord<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -325,6 +353,13 @@ impl<'a> FontRead<'a> for Face<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for Face<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.finish()
     }
 }
 
