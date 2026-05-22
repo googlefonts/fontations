@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use read_fonts::{FontRef, TableProvider};
 use types::{Tag, TT_SFNT_VERSION};
 
-use crate::util::SearchRange;
+use crate::search_range::SearchRange;
 
 include!("../generated/generated_font.rs");
 
@@ -248,6 +248,7 @@ fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
     (checksum, padding as u32)
 }
 
+#[cfg(feature = "tables")]
 impl TTCHeader {
     fn compute_version(&self) -> MajorMinor {
         panic!("TTCHeader writing not supported (yet)")

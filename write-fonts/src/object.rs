@@ -18,6 +18,7 @@ pub enum OffsetLen {
 
 impl OffsetLen {
     /// The maximum value for an offset of this length.
+    #[cfg(feature = "tables")]
     pub const fn max_value(self) -> u32 {
         match self {
             Self::Offset16 => u16::MAX as u32,

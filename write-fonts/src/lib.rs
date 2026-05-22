@@ -150,9 +150,11 @@ mod offsets;
 pub mod ps;
 #[cfg(feature = "tables")]
 mod round;
+mod search_range;
 mod table_type;
 #[cfg(feature = "tables")]
 pub mod tables;
+#[cfg(feature = "tables")]
 mod util;
 #[cfg(feature = "tables")]
 pub mod validate;
@@ -185,7 +187,9 @@ pub(crate) mod codegen_prelude {
     use std::num::TryFromIntError;
 
     pub use super::from_obj::{FromObjRef, FromTableRef, ToOwnedObj, ToOwnedTable};
-    pub use super::offsets::{NullableOffsetMarker, OffsetMarker, WIDTH_16, WIDTH_24, WIDTH_32};
+    #[cfg(feature = "tables")]
+    pub use super::offsets::WIDTH_32;
+    pub use super::offsets::{NullableOffsetMarker, OffsetMarker, WIDTH_16, WIDTH_24};
     pub use super::table_type::TableType;
     #[cfg(feature = "tables")]
     pub use super::validate::{Validate, ValidationCtx};
@@ -202,6 +206,7 @@ pub(crate) mod codegen_prelude {
         s.len()
     }
 
+    #[cfg(feature = "tables")]
     pub fn plus_one(val: &usize) -> usize {
         val.saturating_add(1)
     }

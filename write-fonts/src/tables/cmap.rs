@@ -6,7 +6,7 @@ include!("../../generated/generated_cmap.rs");
 
 use std::collections::HashMap;
 
-use crate::util::SearchRange;
+use crate::search_range::SearchRange;
 
 // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
 const WINDOWS_BMP_ENCODING: u16 = 1;

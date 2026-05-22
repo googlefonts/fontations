@@ -10,6 +10,7 @@ pub const WIDTH_16: usize = 2;
 #[allow(dead_code)] // will be used one day :')
 pub const WIDTH_24: usize = 3;
 /// The width in bytes of an Offset32
+#[cfg(feature = "tables")]
 pub const WIDTH_32: usize = 4;
 
 /// An offset subtable.
