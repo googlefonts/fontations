@@ -1,4 +1,5 @@
-//! A fork of the `fnv` crate from <https://github.com/servo/rust-fnv>.
+//! A fork of the `fnv` crate from <https://github.com/servo/rust-fnv>. The code is forked since it
+//! is small and to reduce the maintenance overhead of importing into other monorepos.
 //!
 //! FNV is an implementation of the Fowler–Noll–Vo hash function.
 //!

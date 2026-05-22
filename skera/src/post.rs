@@ -1,9 +1,9 @@
 //! impl subset() for post
+use crate::fnv::FnvHashMap;
 use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, Subset, SubsetError, SubsetFlags,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         tables::post::{Post, DEFAULT_GLYPH_NAMES},
