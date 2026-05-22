@@ -31,6 +31,7 @@ mod repack;
 mod sbix;
 pub mod serialize;
 mod stat;
+mod unicode_closure;
 mod variations;
 mod vmtx;
 mod vorg;
@@ -45,6 +46,7 @@ use layout::{
 pub use parsing_util::{
     parse_name_ids, parse_name_languages, parse_tag_list, parse_unicodes, populate_gids,
 };
+use unicode_closure::unicode_closure;
 
 use fnv::FnvHashMap;
 use serialize::{SerializeErrorFlags, Serializer};
@@ -245,18 +247,15 @@ impl SubsetFlags {
     pub const SUBSET_FLAGS_SET_OVERLAPS_FLAG: Self = Self(0x0010);
 
     /// If set the subsetter will not drop unrecognized tables and instead pass them through untouched.
-    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_PASSTHROUGH_UNRECOGNIZED: Self = Self(0x0020);
 
     /// If set the notdef glyph outline will be retained in the final subset.
     pub const SUBSET_FLAGS_NOTDEF_OUTLINE: Self = Self(0x0040);
 
     /// If set the PS glyph names will be retained in the final subset.
-    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_GLYPH_NAMES: Self = Self(0x0080);
 
     /// If set then the unicode ranges in OS/2 will not be recalculated.
-    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_NO_PRUNE_UNICODE_RANGES: Self = Self(0x0100);
 
     /// If set don't perform glyph closure on layout substitution rules (GSUB)
@@ -267,7 +266,6 @@ impl SubsetFlags {
     pub const SUBSET_FLAGS_OPTIMIZE_IUP_DELTAS: Self = Self(0x0400);
 
     /// If set do not pull mirrored versions of input codepoints into the subset.
-    /// This flag is UNIMPLEMENTED yet
     pub const SUBSET_FLAGS_NO_BIDI_CLOSURE: Self = Self(0x0800);
 
     /// Returns `true` if all of the flags in `other` are contained within `self`.
@@ -444,14 +442,20 @@ impl Plan {
         input_unicodes: &IntSet<u32>,
         font: &FontRef,
     ) {
+        let unicodes = unicode_closure(
+            input_unicodes,
+            !self
+                .subset_flags
+                .contains(SubsetFlags::SUBSET_FLAGS_NO_BIDI_CLOSURE),
+        );
         let charmap = font.charmap();
-        if input_gids.is_empty() && input_unicodes.len() < (self.font_num_glyphs as u64) {
-            let cap: usize = input_unicodes.len().try_into().unwrap_or(usize::MAX);
+        if input_gids.is_empty() && unicodes.len() < (self.font_num_glyphs as u64) {
+            let cap: usize = unicodes.len().try_into().unwrap_or(usize::MAX);
             self.unicode_to_new_gid_list.reserve(cap);
             self.codepoint_to_glyph.reserve(cap);
             //TODO: add support for subset accelerator?
 
-            for cp in input_unicodes.iter() {
+            for cp in unicodes.iter() {
                 match charmap.map(cp) {
                     Some(gid) => {
                         self.codepoint_to_glyph.insert(cp, gid);
@@ -467,7 +471,7 @@ impl Plan {
             let cmap_unicodes = charmap.mappings().map(|t| t.0).collect::<IntSet<u32>>();
             let unicode_gid_map = charmap.mappings().collect::<FnvHashMap<u32, GlyphId>>();
 
-            let vec_cap: u64 = input_gids.len() + input_unicodes.len();
+            let vec_cap: u64 = input_gids.len() + unicodes.len();
             let vec_cap: usize = vec_cap
                 .min(cmap_unicodes.len())
                 .try_into()
@@ -478,7 +482,7 @@ impl Plan {
                 for cp in range {
                     match unicode_gid_map.get(&cp) {
                         Some(gid) => {
-                            if !input_gids.contains(*gid) && !input_unicodes.contains(cp) {
+                            if !input_gids.contains(*gid) && !unicodes.contains(cp) {
                                 continue;
                             }
                             self.codepoint_to_glyph.insert(cp, *gid);
@@ -514,7 +518,7 @@ impl Plan {
         self.os2_info.min_cmap_codepoint = self.unicodes.first().unwrap_or(0xFFFF_u32);
         self.os2_info.max_cmap_codepoint = self.unicodes.last().unwrap_or(0xFFFF_u32);
 
-        self.collect_variation_selectors(font, input_unicodes);
+        self.collect_variation_selectors(font, &unicodes);
     }
 
     fn collect_variation_selectors(&mut self, font: &FontRef, input_unicodes: &IntSet<u32>) {
