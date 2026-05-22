@@ -16,20 +16,21 @@ repository.workspace = true
 all-features = true
 
 [features]
-default = []
+default = ["tables"]
 read = []
 dot2 = ["dep:dot2"]
 serde = ["dep:serde", "font-types/serde", "read-fonts/serde"]
 ift = ["read-fonts/ift"]
+tables = ["dep:kurbo", "dep:indexmap"]
 
 [dependencies]
 font-types = { workspace = true }
 read-fonts = { workspace = true, default-features = true }
 log = "0.4"
-kurbo.workspace = true
+kurbo = { workspace = true, optional = true }
 dot2 = { version = "1.0", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
-indexmap = "2.0"
+indexmap = { version = "2.0", optional = true }
 
 [dev-dependencies]
 diff = "0.1.12"

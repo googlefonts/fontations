@@ -90,6 +90,7 @@ impl<'a> FontBuilder<'a> {
     /// The table can be any top-level table defined in this crate. This function
     /// will attempt to compile the table and then add it to the builder if
     /// successful, returning an error otherwise.
+    #[cfg(feature = "tables")]
     pub fn add_table<T>(&mut self, table: &T) -> Result<&mut Self, crate::BuilderError>
     where
         T: FontWrite + Validate + TopLevelTable,

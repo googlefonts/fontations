@@ -38,7 +38,7 @@ criterion = { workspace = true }
 font-test-data = { workspace = true }
 read-fonts = { workspace = true }
 woff2-patched = "0.4.0"
-
+write-fonts = { workspace = true, features = ["tables"] }
 
 [lib]
 name = "incremental_font_transfer"

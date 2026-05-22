@@ -7,6 +7,7 @@ use std::fmt::Display;
 
 use font_types::Tag;
 
+#[cfg(feature = "tables")]
 use crate::tables::layout::LookupType;
 
 /// A marker for identifying the original source of various compiled tables.
@@ -35,7 +36,10 @@ impl TableType {
     pub(crate) fn is_mock(&self) -> bool {
         *self == TableType::MockTable
     }
+}
 
+#[cfg(feature = "tables")]
+impl TableType {
     pub(crate) fn is_promotable(self) -> bool {
         match self {
             TableType::GposLookup(type_) => type_ != LookupType::GPOS_EXT_TYPE,
@@ -61,6 +65,7 @@ impl TableType {
     }
 }
 
+#[cfg(feature = "tables")]
 impl From<LookupType> for TableType {
     fn from(src: LookupType) -> TableType {
         match src {
