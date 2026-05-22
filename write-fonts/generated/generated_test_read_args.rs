@@ -10,6 +10,7 @@ use crate::codegen_prelude::*;
 pub struct BaseArray {
     /// Array of BaseRecords, in order of baseCoverage Index.
     pub base_records: Vec<BaseRecord>,
+    pub face_records: Vec<FaceRecord>,
 }
 
 impl FontWrite for BaseArray {
@@ -17,6 +18,8 @@ impl FontWrite for BaseArray {
     fn write_into(&self, writer: &mut TableWriter) {
         (u16::try_from(array_len(&self.base_records)).unwrap()).write_into(writer);
         self.base_records.write_into(writer);
+        (u16::try_from(array_len(&self.face_records)).unwrap()).write_into(writer);
+        self.face_records.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseArray")
@@ -32,6 +35,12 @@ impl Validate for BaseArray {
                 }
                 self.base_records.validate_impl(ctx);
             });
+            ctx.in_field("face_records", |ctx| {
+                if self.face_records.len() > (u16::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+                self.face_records.validate_impl(ctx);
+            });
         })
     }
 }
@@ -45,6 +54,11 @@ impl<'a> FromObjRef<read_fonts::codegen_test::read_args::BaseArray<'a>> for Base
                 .iter()
                 .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
                 .collect(),
+            face_records: obj
+                .face_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
         }
     }
 }
@@ -52,7 +66,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::read_args::BaseArray<'a>> for Base
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::read_args::BaseArray<'a>> for BaseArray {}
 
-/// Part of [BaseArray]
+/// Contains a scalar array
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BaseRecord {
@@ -91,5 +105,80 @@ impl FromObjRef<read_fonts::codegen_test::read_args::BaseRecord<'_>> for BaseRec
         BaseRecord {
             base_anchor_offsets: obj.base_anchor_offsets().to_owned_obj(offset_data),
         }
+    }
+}
+
+/// Contains offsets
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct FaceRecord {
+    pub faces: Vec<NullableOffsetMarker<Face>>,
+}
+
+impl FontWrite for FaceRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.faces.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FaceRecord")
+    }
+}
+
+impl Validate for FaceRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("FaceRecord", |ctx| {
+            ctx.in_field("faces", |ctx| {
+                if self.faces.len() > (u16::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+                self.faces.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::codegen_test::read_args::FaceRecord<'_>> for FaceRecord {
+    fn from_obj_ref(
+        obj: &read_fonts::codegen_test::read_args::FaceRecord,
+        offset_data: FontData,
+    ) -> Self {
+        FaceRecord {
+            faces: obj.faces(offset_data).to_owned_table(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct Face {
+    pub field: u16,
+}
+
+impl FontWrite for Face {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.field.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Face")
+    }
+}
+
+impl Validate for Face {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::read_args::Face<'a>> for Face {
+    fn from_obj_ref(obj: &read_fonts::codegen_test::read_args::Face<'a>, _: FontData) -> Self {
+        Face { field: obj.field() }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::codegen_test::read_args::Face<'a>> for Face {}
+
+impl<'a> FontRead<'a> for Face {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::codegen_test::read_args::Face as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
