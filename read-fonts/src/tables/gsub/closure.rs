@@ -223,7 +223,9 @@ impl Gsub<'_> {
             } else {
                 for i in lookups.iter() {
                     let lookup = match lookup_offsets.get(i as usize) {
-                        Err(ReadError::NullOffset) => continue,
+                        Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => {
+                            continue
+                        }
                         other => other,
                     }?;
                     lookup.closure_glyphs(&mut ctx, &lookup_list, i)?;
@@ -749,7 +751,9 @@ impl GlyphClosure for ContextFormat1<'_> {
                 for lookup_record in rule.lookup_records() {
                     let lookup_index = lookup_record.lookup_list_index();
                     let lookup = match lookups.get(lookup_index as usize) {
-                        Err(ReadError::NullOffset) => continue,
+                        Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => {
+                            continue
+                        }
                         other => other,
                     }?;
 
@@ -857,7 +861,9 @@ impl GlyphClosure for ContextFormat2<'_> {
                 for lookup_record in rule.lookup_records() {
                     let lookup_index = lookup_record.lookup_list_index();
                     let lookup = match lookups.get(lookup_index as usize) {
-                        Err(ReadError::NullOffset) => continue,
+                        Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => {
+                            continue
+                        }
                         other => other,
                     }?;
                     let sequence_idx = lookup_record.sequence_index();
@@ -903,7 +909,7 @@ impl GlyphClosure for ContextFormat3<'_> {
         for record in self.lookup_records() {
             let lookup_index = record.lookup_list_index();
             let lookup = match lookups.get(lookup_index as usize) {
-                Err(ReadError::NullOffset) => continue,
+                Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => continue,
                 other => other,
             }?;
 
