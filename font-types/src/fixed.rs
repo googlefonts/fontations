@@ -216,6 +216,7 @@ impl Div for Fixed {
 impl Mul for F26Dot6 {
     type Output = Self;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     #[inline(always)]
     fn mul(self, other: Self) -> Self::Output {
         let ab = (self.0 as i64).wrapping_mul(other.0 as i64);
@@ -226,6 +227,7 @@ impl Mul for F26Dot6 {
 impl Div for F26Dot6 {
     type Output = Self;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, other: Self) -> Self {
         let a = (self.0 as i64) << 6;
         let b = other.0 as i64;
