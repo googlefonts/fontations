@@ -559,10 +559,10 @@ impl Plan {
         if let Ok(cmap) = font.cmap() {
             cmap.closure_glyphs(&self.unicodes, &mut self.glyphset_gsub);
         }
-        remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
 
         // layout closure
         self.layout_populate_gids_to_retain(font);
+        remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
 
         //skip glyph closure for MATH table, it's not supported yet
 
