@@ -1,4 +1,5 @@
 //! impl subset() for COLR
+use crate::fnv::FnvHashMap;
 use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
@@ -6,7 +7,6 @@ use crate::{
     variations::DeltaSetIndexMapSerializePlan,
     Plan, Subset, SubsetError, SubsetTable,
 };
-use fnv::FnvHashMap;
 use skrifa::raw::{tables::colr::Affine2x3, ResolveOffset};
 use write_fonts::{
     read::{

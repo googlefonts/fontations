@@ -1,10 +1,10 @@
 //! impl subset() for MarkRecord subtable
+use crate::fnv::FnvHashMap;
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,

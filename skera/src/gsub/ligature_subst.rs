@@ -1,4 +1,5 @@
 //! impl subset() for LigatureSubst subtable
+use crate::fnv::FnvHashMap;
 use crate::{
     layout::intersected_glyphs_and_indices,
     offset::{SerializeSerialize, SerializeSubset},
@@ -6,7 +7,6 @@ use crate::{
     serialize::{ObjIdx, SerializeErrorFlags, Serializer},
     Plan, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use skrifa::raw::tables::layout::Intersect;
 use write_fonts::{
     read::{

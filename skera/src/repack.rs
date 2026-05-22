@@ -3,6 +3,7 @@
 
 use std::cmp::Ordering;
 
+use crate::fnv::FnvHashMap;
 use crate::{
     graph::{
         layout::{ExtensionSubtable, Lookup, EXTENSION_TABLE_SIZE},
@@ -13,7 +14,6 @@ use crate::{
     },
     serialize::{ObjIdx, Serializer},
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,

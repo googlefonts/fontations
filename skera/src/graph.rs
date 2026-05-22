@@ -1,11 +1,11 @@
 //! Define a graph struct that represents a serialized table
 //! Implement methods to modify and reorder the graph
 
+use crate::fnv::FnvHashMap;
 use crate::{
     priority_queue::PriorityQueue,
     serialize::{Link, LinkWidth, ObjIdx, Object, OffsetWhence, SerializeErrorFlags, Serializer},
 };
-use fnv::FnvHashMap;
 use std::collections::BTreeMap;
 use write_fonts::{read::collections::IntSet, types::Uint24};
 

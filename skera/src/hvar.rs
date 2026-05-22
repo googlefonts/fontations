@@ -1,12 +1,12 @@
 //! impl subset() for HVAR
 
+use crate::fnv::FnvHashMap;
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
     variations::DeltaSetIndexMapSerializePlan,
     IncBiMap, Plan, Serialize, Subset, SubsetError, SubsetFlags,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,

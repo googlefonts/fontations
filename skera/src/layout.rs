@@ -2,13 +2,13 @@
 
 use std::{cmp::Ordering, mem};
 
+use crate::fnv::FnvHashMap;
 use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
     serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
     CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,

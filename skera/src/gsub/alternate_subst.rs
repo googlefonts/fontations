@@ -1,4 +1,5 @@
 //! impl subset() for AlternateSubst subtable
+use crate::fnv::FnvHashMap;
 use crate::{
     layout::intersected_glyphs_and_indices,
     offset::SerializeSerialize,
@@ -6,7 +7,6 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     Plan, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         tables::{

@@ -1,11 +1,11 @@
 //! impl Subset for OpenType font variations common tables.
+use crate::fnv::FnvHashMap;
 use crate::{
     inc_bimap::IncBiMap,
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
     Plan, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
