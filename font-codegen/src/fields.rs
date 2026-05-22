@@ -93,6 +93,10 @@ impl Fields {
         self.fields.iter()
     }
 
+    pub(crate) fn find(&self, ident: &syn::Ident) -> Option<&Field> {
+        self.iter().find(|fld| &fld.name == ident)
+    }
+
     pub(crate) fn iter_compile_decls(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.fields.iter().filter_map(Field::compile_field_decl)
     }
@@ -294,13 +298,6 @@ impl Condition {
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum NeededWhen {
-    Parse,
-    Runtime,
-    Both,
 }
 
 /// All the state required to generate a constructor for a table/record
@@ -657,35 +654,17 @@ impl Field {
         self.attrs.skip_getter.is_none()
     }
 
-    /// iterate the names of fields that are required for parsing or instantiating
-    /// this field.
-    pub(crate) fn input_fields(&self) -> Vec<(syn::Ident, NeededWhen)> {
-        let mut result = Vec::new();
-        if let Some(count) = self.attrs.count.as_ref() {
-            result.extend(
-                count
-                    .iter_referenced_fields()
-                    .map(|fld| (fld.clone(), NeededWhen::Parse)),
-            );
-        }
-
-        if let Some(read_with) = self.attrs.read_with_args.as_ref() {
-            result.extend(
-                read_with
-                    .inputs
-                    .iter()
-                    .map(|fld| (fld.clone(), NeededWhen::Both)),
-            );
-        }
-        if let Some(read_offset) = self.attrs.read_offset_args.as_ref() {
-            result.extend(
-                read_offset
-                    .inputs
-                    .iter()
-                    .map(|fld| (fld.clone(), NeededWhen::Runtime)),
-            );
-        }
-        result
+    /// iterate the names of fields that are required for parsing this field
+    ///
+    /// This does not include the version field, since we don't have a reference
+    /// to that.
+    pub(crate) fn count_arg_names(&self) -> impl Iterator<Item = &syn::Ident> + '_ {
+        self.attrs
+            .count
+            .as_ref()
+            .map(|count| count.iter_referenced_fields())
+            .into_iter()
+            .flatten()
     }
 
     /// 'raw' as in this does not include handling offset resolution
