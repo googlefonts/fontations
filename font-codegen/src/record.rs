@@ -48,6 +48,10 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
         }
     });
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
+    let sanitize = all_items
+        .sanitize
+        .then(|| generate_sanitize(item, maybe_impl_read_with_args.is_none()))
+        .transpose()?;
     let maybe_extra_traits = item
         .gets_extra_traits(all_items)
         .then(|| quote!(PartialEq, Eq, PartialOrd, Ord, Hash,));
@@ -65,6 +69,7 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
 
     #maybe_impl_fixed_size
     #maybe_impl_read_with_args
+    #sanitize
     #traversal_impl
         })
 }
@@ -132,6 +137,58 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
             }
         }
     }
+}
+
+fn generate_sanitize(item: &Record, needs_read_args: bool) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let lifetime = item.lifetime.is_some().then(|| quote!(<'_>));
+    let has_offsets = item.fields.iter().any(Field::is_offset_or_array_of_offsets);
+
+    let (args_arg, destructure_args) = match item.attrs.read_args.as_ref() {
+        Some(args) => {
+            let typ = args.args_type();
+            if has_offsets {
+                let destructure_pattern = args.destructure_pattern();
+                let args_args = quote!(args: #typ);
+                let destructure = quote!(let #destructure_pattern = args;);
+                (args_args, Some(destructure))
+            } else {
+                // if we don't contain offsets we don't have a body, so args
+                // don't matter
+                (quote!( _args: #typ), None)
+            }
+        }
+        None => (quote!(_args: ()), None),
+    };
+
+    let can_skip = (!has_offsets).then(|| {
+        quote! {
+                fn can_skip() -> bool { true }
+        }
+    });
+    let read_args = needs_read_args.then(|| {
+        quote! {
+            impl ReadArgs for #name {
+                type Args = ();
+            }
+        }
+    });
+
+    let stmts = item.fields.iter().filter_map(Field::sanitize_record_stmt);
+
+    Ok(quote! {
+        #read_args
+
+        impl SanitizeStruct for #name #lifetime {
+            #can_skip
+
+            fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, #args_arg) -> Result<(), ReadError> {
+                #destructure_args
+                #( #stmts )*
+                ctx.finish()
+            }
+        }
+    })
 }
 
 fn generate_traversal(item: &Record) -> syn::Result<TokenStream> {

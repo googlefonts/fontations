@@ -1,4 +1,5 @@
 #![parse_module(read_fonts::codegen_test::read_args)]
+#![sanitize]
 
 #[read_args(mark_class_count: u16)]
 #[skip_constructor]
