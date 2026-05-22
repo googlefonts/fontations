@@ -449,24 +449,25 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
         let glyph_set = ctx.parent_active_glyphs();
         let subs_glyphs = self.substitute_glyph_ids();
 
-        let new_glyphs: Vec<GlyphId> = if self.glyph_count() as u64 > glyph_set.len() {
-            glyph_set
-                .iter()
-                .filter_map(|g| coverage.get(g))
-                .filter_map(|idx| {
-                    subs_glyphs
-                        .get(idx as usize)
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        } else {
-            coverage
-                .iter()
-                .zip(subs_glyphs)
-                .filter(|&(g, _)| glyph_set.contains(GlyphId::from(g)))
-                .map(|(_, &new_g)| GlyphId::from(new_g.get()))
-                .collect()
-        };
+        let new_glyphs: Vec<GlyphId> =
+            if self.glyph_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+                glyph_set
+                    .iter()
+                    .filter_map(|g| coverage.get(g))
+                    .filter_map(|idx| {
+                        subs_glyphs
+                            .get(idx as usize)
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            } else {
+                coverage
+                    .iter()
+                    .zip(subs_glyphs)
+                    .filter(|&(g, _)| glyph_set.contains(GlyphId::from(g)))
+                    .map(|(_, &new_g)| GlyphId::from(new_g.get()))
+                    .collect()
+            };
         ctx.add_glyphs(new_glyphs);
         Ok(())
     }
@@ -486,34 +487,35 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
         let glyph_set = ctx.parent_active_glyphs();
         let sequences = self.sequences();
 
-        let new_glyphs: Vec<GlyphId> = if self.sequence_count() as u64 > glyph_set.len() {
-            glyph_set
-                .iter()
-                .filter_map(|g| coverage.get(g))
-                .filter_map(|idx| sequences.get(idx as usize).ok())
-                .flat_map(|seq| {
-                    seq.substitute_glyph_ids()
-                        .iter()
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        } else {
-            coverage
-                .iter()
-                .zip(sequences.iter_as_nullable())
-                .filter_map(|(g, seq)| {
-                    glyph_set
-                        .contains(GlyphId::from(g))
-                        .then(|| seq.transpose().ok().flatten())
-                        .flatten()
-                })
-                .flat_map(|seq| {
-                    seq.substitute_glyph_ids()
-                        .iter()
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        };
+        let new_glyphs: Vec<GlyphId> =
+            if self.sequence_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+                glyph_set
+                    .iter()
+                    .filter_map(|g| coverage.get(g))
+                    .filter_map(|idx| sequences.get(idx as usize).ok())
+                    .flat_map(|seq| {
+                        seq.substitute_glyph_ids()
+                            .iter()
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            } else {
+                coverage
+                    .iter()
+                    .zip(sequences.iter_as_nullable())
+                    .filter_map(|(g, seq)| {
+                        glyph_set
+                            .contains(GlyphId::from(g))
+                            .then(|| seq.transpose().ok().flatten())
+                            .flatten()
+                    })
+                    .flat_map(|seq| {
+                        seq.substitute_glyph_ids()
+                            .iter()
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            };
 
         ctx.add_glyphs(new_glyphs);
         Ok(())
@@ -534,36 +536,37 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
         let glyph_set = ctx.parent_active_glyphs();
         let alts = self.alternate_sets();
 
-        let new_glyphs: Vec<GlyphId> = if self.alternate_set_count() as u64 > glyph_set.len() {
-            glyph_set
-                .iter()
-                .filter_map(|g| coverage.get(g))
-                .filter_map(|idx| alts.get(idx as usize).ok())
-                .flat_map(|alt_set| {
-                    alt_set
-                        .alternate_glyph_ids()
-                        .iter()
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        } else {
-            coverage
-                .iter()
-                .zip(alts.iter_as_nullable())
-                .filter_map(|(g, alt_set)| {
-                    glyph_set
-                        .contains(GlyphId::from(g))
-                        .then(|| alt_set.transpose().ok().flatten())
-                        .flatten()
-                })
-                .flat_map(|alt_set| {
-                    alt_set
-                        .alternate_glyph_ids()
-                        .iter()
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        };
+        let new_glyphs: Vec<GlyphId> =
+            if self.alternate_set_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+                glyph_set
+                    .iter()
+                    .filter_map(|g| coverage.get(g))
+                    .filter_map(|idx| alts.get(idx as usize).ok())
+                    .flat_map(|alt_set| {
+                        alt_set
+                            .alternate_glyph_ids()
+                            .iter()
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            } else {
+                coverage
+                    .iter()
+                    .zip(alts.iter_as_nullable())
+                    .filter_map(|(g, alt_set)| {
+                        glyph_set
+                            .contains(GlyphId::from(g))
+                            .then(|| alt_set.transpose().ok().flatten())
+                            .flatten()
+                    })
+                    .flat_map(|alt_set| {
+                        alt_set
+                            .alternate_glyph_ids()
+                            .iter()
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            };
 
         ctx.add_glyphs(new_glyphs);
         Ok(())
