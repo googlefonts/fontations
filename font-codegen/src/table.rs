@@ -4,7 +4,6 @@ use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
 use crate::{
-    fields::NeededWhen,
     parsing::{Attr, Field, Table, TableReadArg, TableReadArgs},
     Phase,
 };
@@ -317,16 +316,10 @@ impl Table {
             let field = iter.next()?;
             let fn_name = field.shape_byte_range_fn_name();
             let len_expr = field.field_len_expr();
-            let required_fields = field
-                .input_fields()
-                .into_iter()
-                .filter_map(|(ident, when)| matches!(when, NeededWhen::Parse).then_some(ident));
-            let required_field_decls = required_fields.map(|fld| {
+            let required_field_decls = field.count_arg_names().map(|fld| {
                 let is_opt = self
                     .fields
-                    .fields
-                    .iter()
-                    .find(|x| x.name == fld)
+                    .find(fld)
                     .map(|x| x.is_conditional())
                     .unwrap_or(false);
                 let maybe_unwrap_or_default = (is_opt).then(|| quote!(.unwrap_or_default()));
