@@ -880,7 +880,7 @@ impl GlyphClosure for ContextFormat2<'_> {
                         input_class_def.intersected_class_glyphs(ctx.parent_active_glyphs(), i)
                     } else {
                         let c = input_seq[sequence_idx as usize - 1].get();
-                        input_class_def.intersected_class_glyphs(ctx.parent_active_glyphs(), c)
+                        input_class_def.intersected_class_glyphs(ctx.glyphs(), c)
                     };
 
                     if lookup.may_have_non_1to1()? {
