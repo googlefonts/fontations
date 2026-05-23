@@ -216,26 +216,37 @@ impl Div for Fixed {
 impl Mul for F26Dot6 {
     type Output = Self;
 
-    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[expect(clippy::suspicious_arithmetic_impl)]
     #[inline(always)]
     fn mul(self, other: Self) -> Self::Output {
-        let ab = (self.0 as i64).wrapping_mul(other.0 as i64);
-        Self((ab >> 6) as i32)
+        let ab = self.0 as i64 * other.0 as i64;
+        Self(((ab + 32 - i64::from(ab < 0)) >> 6) as i32)
     }
 }
 
 impl Div for F26Dot6 {
     type Output = Self;
 
-    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[expect(clippy::suspicious_arithmetic_impl)]
     fn div(self, other: Self) -> Self {
-        let a = (self.0 as i64) << 6;
-        let b = other.0 as i64;
-        Self(a.wrapping_div(b) as i32)
+        let sign = (self.0 < 0) ^ (other.0 < 0);
+        let au = self.0.unsigned_abs() as u64;
+        let bu = other.0.unsigned_abs() as u64;
+        let q = if bu == 0 {
+            0x7FFFFFFF_u32
+        } else {
+            (((au << 6) + (bu >> 1)) / bu) as u32
+        };
+        Self(if sign {
+            (q as i32).wrapping_neg()
+        } else {
+            q as i32
+        })
     }
 }
 
-/// Implements multiplication and division operators for fixed types.
+/// Implements multiplication and division assignment operators for fixed
+/// types.
 macro_rules! fixed_mul_div_assign {
     ($ty:ty) => {
         impl MulAssign for $ty {
@@ -560,6 +571,7 @@ mod tests {
             F26Dot6::from_f64(0.5) * F26Dot6::from_f64(-2.4),
             F26Dot6::from_f64(-1.2)
         );
+        assert_eq!(F26Dot6::ONE * F26Dot6::ONE, F26Dot6::ONE);
         assert_eq!(
             F26Dot6::from_f64(0.5) / F26Dot6::from_f64(2.0),
             F26Dot6::from_f64(0.25)
@@ -568,5 +580,12 @@ mod tests {
             F26Dot6::from_f64(0.5) / F26Dot6::from_f64(-2.4),
             F26Dot6::from_f64(-0.20833333333333334)
         );
+        assert_eq!(
+            F26Dot6::from_f64(2.0) / F26Dot6::from_f64(3.0),
+            F26Dot6::from_f64(0.6666666666666666)
+        );
+        assert_eq!(F26Dot6::ONE / F26Dot6::ONE, F26Dot6::ONE);
+        assert_eq!(F26Dot6::ONE / F26Dot6::ZERO, F26Dot6(0x7FFFFFFF));
+        assert_eq!(-F26Dot6::ONE / F26Dot6::ZERO, F26Dot6(-0x7FFFFFFF));
     }
 }
