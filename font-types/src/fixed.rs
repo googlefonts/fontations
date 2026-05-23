@@ -216,7 +216,6 @@ impl Div for Fixed {
 impl Mul for F26Dot6 {
     type Output = Self;
 
-    #[expect(clippy::suspicious_arithmetic_impl)]
     #[inline(always)]
     fn mul(self, other: Self) -> Self::Output {
         let ab = self.0 as i64 * other.0 as i64;
@@ -227,7 +226,6 @@ impl Mul for F26Dot6 {
 impl Div for F26Dot6 {
     type Output = Self;
 
-    #[expect(clippy::suspicious_arithmetic_impl)]
     fn div(self, other: Self) -> Self {
         let sign = (self.0 < 0) ^ (other.0 < 0);
         let au = self.0.unsigned_abs() as u64;
