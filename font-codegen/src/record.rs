@@ -148,9 +148,8 @@ fn generate_sanitize(item: &Record, needs_read_args: bool) -> syn::Result<TokenS
         Some(args) => {
             let typ = args.args_type();
             if has_offsets {
-                let destructure_pattern = args.destructure_pattern();
+                let destructure = args.destructure_pattern();
                 let args_args = quote!(args: #typ);
-                let destructure = quote!(let #destructure_pattern = args;);
                 (args_args, Some(destructure))
             } else {
                 // if we don't contain offsets we don't have a body, so args

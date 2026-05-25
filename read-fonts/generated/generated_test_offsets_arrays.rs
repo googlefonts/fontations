@@ -342,13 +342,13 @@ impl Sanitize for KindsOfArraysOfOffsets<'_> {
     fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         let version = ctx.read::<MajorMinor>()?;
         let count = ctx.read::<u16>()?;
-        ctx.sanitize_array_of_offsets::<Offset16, Dummy>(count as usize, ())?;
-        ctx.sanitize_array_of_offsets::<Offset16, Dummy>(count as usize, ())?;
+        ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
+        ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
         if version.compatible((1u16, 1u16)) {
-            ctx.sanitize_array_of_offsets::<Offset16, Dummy>(count as usize, ())?;
+            ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
         }
         if version.compatible((1u16, 1u16)) {
-            ctx.sanitize_array_of_offsets::<Offset16, Dummy>(count as usize, ())?;
+            ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
         }
         ctx.finish()
     }
@@ -559,13 +559,13 @@ impl Sanitize for KindsOfArrays<'_> {
     fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         let version = ctx.read::<u16>()?;
         let count = ctx.read::<u16>()?;
-        ctx.sanitize_array::<u16>(count as usize)?;
-        ctx.sanitize_array_of_structs::<Shmecord>(count as usize, ())?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(count))?;
+        ctx.sanitize_array_of_structs::<Shmecord>(transforms::to_usize(count), ())?;
         if version.compatible(1u16) {
-            ctx.sanitize_array::<u16>(count as usize)?;
+            ctx.sanitize_array::<u16>(transforms::to_usize(count))?;
         }
         if version.compatible(1u16) {
-            ctx.sanitize_array_of_structs::<Shmecord>(count as usize, ())?;
+            ctx.sanitize_array_of_structs::<Shmecord>(transforms::to_usize(count), ())?;
         }
         ctx.finish()
     }
@@ -749,7 +749,7 @@ impl<'a> FontRead<'a> for VarLenHaver<'a> {
 impl Sanitize for VarLenHaver<'_> {
     fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         let count = ctx.read::<u16>()?;
-        todo!("sanitize varlenarray");
+        ctx.sanitize_var_len_array::<VarSizeDummy>(count as _, false)?;
         ctx.advance::<u32>();
         ctx.finish()
     }

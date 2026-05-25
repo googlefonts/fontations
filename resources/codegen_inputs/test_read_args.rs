@@ -10,10 +10,11 @@ table BaseArray {
     /// Array of BaseRecords, in order of baseCoverage Index.
     #[count($base_count)]
     #[read_with($mark_class_count)]
+    #[sanitize_len_only]
     base_records: ComputedArray<BaseRecord<'a>>,
     #[compile(array_len($face_records))]
     face_count: u16,
-    #[count($base_count)]
+    #[count($face_count)]
     #[read_with($mark_class_count)]
     face_records: ComputedArray<FaceRecord<'a>>,
 
