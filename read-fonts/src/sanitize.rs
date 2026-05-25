@@ -3,7 +3,10 @@
 use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Nullable, Scalar};
 
-use crate::{font_data::Cursor, FontData, Offset, ReadArgs, ReadError};
+use crate::{
+    array::VarLenArray, font_data::Cursor, read::VarSize, ComputeSize, FontData, FontRead, Offset,
+    ReadArgs, ReadError,
+};
 
 /// The bytes of the current table being sanitized, along with shared sanitize state.
 ///
@@ -94,6 +97,48 @@ impl<'a> SanitizeContext<'a> {
             let array = self.cursor.read_array::<T>(count)?;
             array.iter().try_for_each(|t| t.sanitize_struct(self, args))
         }
+    }
+
+    pub(crate) fn sanitize_computed_array<T>(
+        &mut self,
+        count: usize,
+        args: T::Args,
+        recurse: bool,
+    ) -> Result<(), ReadError>
+    where
+        T: ComputeSize + SanitizeStruct + FontRead<'a>,
+    {
+        if recurse {
+            let array = self.cursor.read_computed_array::<T>(count, args)?;
+            array
+                .iter()
+                .try_for_each(|t| t.and_then(|t| t.sanitize_struct(self, args)))
+        } else {
+            T::compute_size(args)
+                .and_then(|len| len.checked_mul(count).ok_or(ReadError::OutOfBounds))
+                .map(|n_bytes| self.advance_by(n_bytes))
+        }
+    }
+
+    pub(crate) fn sanitize_var_len_array<T>(
+        &mut self,
+        count: usize,
+        recurse: bool,
+    ) -> Result<(), ReadError>
+    where
+        T: VarSize + SanitizeStruct<Args = ()> + FontRead<'a>,
+    {
+        let remaining = self.cursor.remaining().ok_or(ReadError::OutOfBounds)?;
+        let total_len = T::total_len_for_count(remaining, count)?;
+        // FIXME: do we actually ever recurse here?
+        if recurse {
+            let array = VarLenArray::<T>::read(remaining)?;
+            for item in array.iter().take(count) {
+                item?.sanitize_struct(self, ())?;
+            }
+        }
+        self.advance_by(total_len);
+        Ok(())
     }
 
     /// Validate the state for this table, returning an error if sanitize failed

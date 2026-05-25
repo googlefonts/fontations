@@ -95,6 +95,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) validate: Option<Attr<FieldValidation>>,
     /// Marks this field as the discriminant for a generic offset type.
     pub(crate) discriminant: Option<syn::Path>,
+    /// During sanitize, only check the length of this field (don't recurse).
+    pub(crate) sanitize_len_only: Option<syn::Path>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -279,6 +281,7 @@ static TRAVERSE_WITH: &str = "traverse_with";
 static TO_OWNED: &str = "to_owned";
 static VALIDATE: &str = "validate";
 static DISCRIMINANT: &str = "discriminant";
+static SANITIZE_LEN_ONLY: &str = "sanitize_len_only";
 
 static MATCH_IF: &str = "match_if";
 static WRITE_FONTS_ONLY: &str = "write_fonts_only";
@@ -349,6 +352,8 @@ impl Parse for FieldAttrs {
                 this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(&attr)?))
             } else if ident == DISCRIMINANT {
                 this.discriminant = Some(attr.path().clone());
+            } else if ident == SANITIZE_LEN_ONLY {
+                this.sanitize_len_only = Some(attr.path().clone());
             } else {
                 return Err(logged_syn_error(
                     ident.span(),
