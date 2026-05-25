@@ -236,9 +236,8 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     let (args_arg, destructure_args) = match item.attrs.read_args.as_ref() {
         Some(args) => {
             let typ = args.args_type();
-            let destructure_pattern = args.destructure_pattern();
+            let destructure = args.destructure_pattern();
             let args_args = quote!(args: #typ);
-            let destructure = quote!( let #destructure_pattern = args; );
             (args_args, Some(destructure))
         }
         None => (quote!(_args: ()), None),

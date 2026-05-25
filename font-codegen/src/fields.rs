@@ -614,6 +614,18 @@ impl Field {
             }
         }
 
+        if self.attrs.sanitize_len_only.is_some()
+            && !matches!(
+                self.typ,
+                FieldType::Array { .. } | FieldType::ComputedArray(_) | FieldType::VarLenArray(_)
+            )
+        {
+            return Err(logged_syn_error(
+                self.name.span(),
+                "#[sanitize_len_only] is only valid on array fields",
+            ));
+        }
+
         if let Some(comp_attr) = &self.attrs.compile_with {
             if self.attrs.compile.is_some() {
                 return Err(logged_syn_error(
@@ -1407,6 +1419,9 @@ impl Field {
                     FieldType::Offset { .. } => {
                         quote!(todo!("sanitize array of offsets to arrays: {name}");)
                     }
+                    FieldType::Struct { typ } if self.attrs.sanitize_len_only.is_some() => {
+                        quote!(ctx.sanitize_array::<#typ>(#count_expr)?;)
+                    }
                     FieldType::Struct { typ } => {
                         let args = self.sanitize_read_with_args_or_unit();
                         quote!(ctx.sanitize_array_of_structs::<#typ>(#count_expr, #args)?;)
@@ -1415,9 +1430,33 @@ impl Field {
                 }
             }
 
-            FieldType::ComputedArray(_) => quote!(todo!("sanitize computed array");),
-
-            FieldType::VarLenArray(_) => quote!(todo!("sanitize varlenarray");),
+            FieldType::ComputedArray(array) => {
+                let inner = array.raw_inner_type();
+                let Some(count) = self.attrs.count.as_ref().unwrap().single_field() else {
+                    return quote!(compile_error!(
+                        "computed array should always have simple count attr"
+                    ));
+                };
+                let args = self.attrs.read_with_args.as_ref().unwrap();
+                let args = args.to_tokens_for_validation();
+                let recurse = self.attrs.sanitize_len_only.is_none();
+                quote! {
+                    ctx.sanitize_computed_array::<#inner>(#count as _, #args, #recurse)?;
+                }
+            }
+            FieldType::VarLenArray(array) => {
+                let inner = array.raw_inner_type();
+                let count = self.attrs.count.as_ref().and_then(|c| c.single_field());
+                let Some(count) = count else {
+                    return quote!(compile_error!(
+                        "var len array needs a simple count field for sanitize"
+                    ));
+                };
+                let recurse = self.attrs.sanitize_len_only.is_none();
+                quote! {
+                    ctx.sanitize_var_len_array::<#inner>(#count as _, #recurse)?;
+                }
+            }
 
             FieldType::PendingResolution { .. } => {
                 panic!("should have been resolved before sanitize codegen")
