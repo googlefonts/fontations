@@ -705,7 +705,7 @@ impl<'a> FontRead<'a> for VarLenHaver<'a> {
 impl Sanitize for VarLenHaver<'_> {
     fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         let count = ctx.read::<u16>()?;
-        todo!("sanitize varlenarray");
+        ctx.sanitize_var_len_array::<VarSizeDummy>(count as _, false)?;
         ctx.advance::<u32>();
         ctx.finish()
     }

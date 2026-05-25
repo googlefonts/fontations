@@ -29,7 +29,7 @@ pub trait FontRead<'a>: Sized {
 
 /// A trait for a type that needs additional arguments to be read.
 pub trait ReadArgs {
-    type Args: Copy;
+    type Args: Copy + 'static;
 }
 
 /// A trait for types that require external data in order to be constructed.

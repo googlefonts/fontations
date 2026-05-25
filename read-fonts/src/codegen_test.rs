@@ -37,6 +37,20 @@ pub mod offsets_arrays {
         type Size = u16;
     }
 
+    impl SanitizeStruct for VarSizeDummy<'_> {
+        fn can_skip() -> bool {
+            true
+        }
+
+        fn sanitize_struct(
+            &self,
+            _ctx: &mut SanitizeContext<'_>,
+            _args: (),
+        ) -> Result<(), ReadError> {
+            Ok(())
+        }
+    }
+
     impl<'a> FontRead<'a> for VarSizeDummy<'a> {
         fn read(data: FontData<'a>) -> Result<Self, ReadError> {
             let count: u16 = data.read_at(0)?;
