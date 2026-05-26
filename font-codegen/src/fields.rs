@@ -1396,7 +1396,23 @@ impl Field {
                     let args = self.sanitize_offset_args();
                     quote!(ctx.sanitize_offset::<#typ, #target_table>(#args)?;)
                 }
-                OffsetTarget::Array(_) => quote!(todo!("sanitize offset to array");),
+                OffsetTarget::Array(inner) => {
+                    let inner_t = match inner.deref() {
+                        FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
+                        FieldType::Struct { typ } => quote!(#typ),
+                        _ => panic!("should have errored before now"),
+                    };
+                    let args = self.attrs.read_offset_args.as_ref().unwrap();
+                    let args = args.to_tokens_for_validation();
+                    let len_only = self.attrs.sanitize_len_only.is_some();
+                    let recurse_fn =
+                        if matches!(inner.deref(), FieldType::Scalar { .. }) || len_only {
+                            quote!(|_, _| Ok(()))
+                        } else {
+                            quote!(|t, ctx| t.sanitize_struct(ctx, ()))
+                        };
+                    quote!(ctx.sanitize_offset_to_array::<#typ, #inner_t, _>(#args, #len_only, #recurse_fn)?;)
+                }
             },
             FieldType::Struct { .. } => quote!(todo!("sanitize structfield");),
             FieldType::Array { inner_typ } => {
@@ -1491,11 +1507,26 @@ impl Field {
             } => Some(quote!(self.#name().sanitize_offset::<#target>(ctx, #args)?;)),
 
             FieldType::Offset {
-                target: OffsetTarget::Array(_),
+                target: OffsetTarget::Array(inner),
                 ..
             } => {
-                let msg = format!("sanitize record offset to array: {name}");
-                Some(quote!(todo!(#msg);))
+                let inner_t = match inner.deref() {
+                    FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
+                    FieldType::Struct { typ } => quote!(#typ),
+                    _ => panic!("should have errored before now"),
+                };
+                let args = self.attrs.read_offset_args.as_ref().unwrap();
+                let args = args.to_tokens_for_table_getter();
+                let len_only = self.attrs.sanitize_len_only.is_some();
+                let recurse_fn = match inner.deref() {
+                    _ if len_only => quote!(|_, _| Ok(())),
+                    FieldType::Scalar { .. } => quote!(|_, _| Ok(())),
+                    FieldType::Struct { .. } => quote!(|t, ctx| t.sanitize_struct(ctx, ())),
+                    _ => unreachable!("would panic above"),
+                };
+                Some(
+                    quote!(ctx.sanitize_resolved_offset_to_array::<_, #inner_t, _>(self.#name(), #args, #len_only, #recurse_fn)?;),
+                )
             }
 
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {

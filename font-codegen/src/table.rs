@@ -433,6 +433,17 @@ impl Table {
                 needed.insert(flag_field.clone());
             }
         }
+
+        // Fields referenced by #[read_with] or #[read_offset_with]
+        for field in self.fields.iter() {
+            if let Some(args) = &field.attrs.read_with_args {
+                needed.extend(args.inputs.iter().cloned());
+            }
+            if let Some(args) = &field.attrs.read_offset_args {
+                needed.extend(args.inputs.iter().cloned());
+            }
+        }
+
         needed
     }
 
