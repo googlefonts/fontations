@@ -42,6 +42,15 @@ impl<'a> SanitizeContext<'a> {
         self.cursor.read()
     }
 
+    /// Read a scalar at a specific offset without advancing the cursor.
+    ///
+    /// the position is absolute in the underlying data; this is only expected
+    /// to be called when parsing a format group.
+    pub(crate) fn peek_at<T: Scalar>(&self, offset: usize) -> Result<T, ReadError> {
+        assert_eq!(self.cursor.position(), Ok(0));
+        self.cursor.data.read_at(offset)
+    }
+
     /// Recursively sanitize an offset, and advance the cursor
     #[must_use]
     pub(crate) fn sanitize_offset<O, T>(&mut self, args: T::Args) -> Result<(), ReadError>

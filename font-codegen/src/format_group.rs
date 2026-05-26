@@ -59,11 +59,7 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
             quote!(Self::#name(table) => table)
         });
 
-    let format_offset = item
-        .format_offset
-        .as_ref()
-        .map(|lit| lit.base10_parse::<usize>().unwrap())
-        .unwrap_or(0);
+    let format_offset = item.format_offset();
 
     let getters = generate_shared_getters(item, items)?;
     let getters = (!getters.is_empty()).then(|| {
@@ -90,6 +86,8 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
     // be the last variant, but let's be defensive
     assert!(first_variant.attrs.write_only.is_none(), "sanity check");
     let first_var_name = &first_variant.name;
+
+    let sanitize = items.sanitize.then(|| generate_sanitize(item));
 
     Ok(quote! {
         #( #docs )*
@@ -131,6 +129,8 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
             }
         }
 
+        #sanitize
+
         #[cfg(feature = "experimental_traverse")]
         impl<'a> #name<'a> {
             fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -158,6 +158,45 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
             }
         }
     })
+}
+
+fn generate_sanitize(item: &TableFormat) -> TokenStream {
+    let name = &item.name;
+    let format = &item.format;
+    let format_offset = item.format_offset();
+
+    let mut has_any_match_stmt = false;
+    let match_arms: Vec<_> = item
+        .variants
+        .iter()
+        .filter(|v| v.attrs.write_only.is_none())
+        .map(|variant| {
+            let typ = variant.type_name();
+            let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
+                has_any_match_stmt = true;
+                let expr = &expr.expr;
+                quote!(format if #expr)
+            } else {
+                quote!(#typ::FORMAT)
+            };
+            quote!(#lhs => #typ::sanitize(ctx, ()),)
+        })
+        .collect();
+
+    let maybe_allow_lint = has_any_match_stmt.then(|| quote!(#[allow(clippy::redundant_guards)]));
+
+    quote! {
+        impl Sanitize for #name<'_> {
+            fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+                let format: #format = ctx.peek_at(#format_offset)?;
+                #maybe_allow_lint
+                match format {
+                    #( #match_arms )*
+                    other => Err(ReadError::InvalidFormat(other.into())),
+                }
+            }
+        }
+    }
 }
 
 pub(crate) fn generate_compile(item: &TableFormat, items: &Items) -> syn::Result<TokenStream> {
@@ -413,6 +452,17 @@ fn generate_from_obj(item: &TableFormat, parse_module: &syn::Path) -> syn::Resul
     })
 }
 
+impl TableFormat {
+    fn format_offset(&self) -> usize {
+        self.format_offset
+            .as_ref()
+            .map(|lit| {
+                lit.base10_parse::<usize>()
+                    .expect("format offset must be unsigned")
+            })
+            .unwrap_or(0)
+    }
+}
 // An overwrought and likely incorrect way of converting 'Format1' to 'format_1' -_-
 fn make_snake_case_ident(ident: &syn::Ident) -> syn::Ident {
     let input = ident.to_string();
