@@ -29,6 +29,21 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
     }
 }
 
+impl Sanitize for BasicTable<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let simple_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<SimpleRecord>(simple_count as usize, ())?;
+        let arrays_inner_count = ctx.read::<u16>()?;
+        let array_records_count = ctx.read::<u32>()?;
+        ctx.sanitize_computed_array::<ContainsArrays>(
+            array_records_count as _,
+            arrays_inner_count,
+            true,
+        )?;
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct BasicTable<'a> {
     data: FontData<'a>,
@@ -178,6 +193,19 @@ impl FixedSize for SimpleRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for SimpleRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for SimpleRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SimpleRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -253,6 +281,15 @@ impl<'a> ContainsArrays<'a> {
     }
 }
 
+impl SanitizeStruct for ContainsArrays<'_> {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: u16) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ContainsArrays<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -317,6 +354,23 @@ impl FixedSize for ContainsOffsets {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for ContainsOffsets {
+    type Args = ();
+}
+
+impl SanitizeStruct for ContainsOffsets {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.sanitize_resolved_offset_to_array::<_, SimpleRecord, _>(
+            self.array_offset(),
+            self.off_array_count(),
+            false,
+            |t, ctx| t.sanitize_struct(ctx, ()),
+        )?;
+        self.other_offset().sanitize_offset::<BasicTable>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ContainsOffsets {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -365,6 +419,14 @@ impl<'a> FontRead<'a> for VarLenItem<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for VarLenItem<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u32>();
+        sanitize_data(ctx)?;
+        ctx.finish()
     }
 }
 

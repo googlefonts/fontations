@@ -1387,6 +1387,15 @@ impl Field {
     }
 
     fn sanitize_stmt_inner(&self, is_needed: bool, _generic: Option<&syn::Ident>) -> TokenStream {
+        if let Some(sanitize_fn) = &self.attrs.sanitize_with {
+            let fn_name = &sanitize_fn.attr.fn_name;
+            let args = &sanitize_fn.attr.inputs;
+            if args.is_empty() {
+                return quote!(#fn_name(ctx)?;);
+            } else {
+                return quote!(#fn_name(ctx, #( #args ),*)?;);
+            }
+        }
         match &self.typ {
             FieldType::Scalar { typ } if is_needed => {
                 let name = &self.name;
@@ -1420,7 +1429,7 @@ impl Field {
             FieldType::Array { inner_typ } => {
                 let count = self.attrs.count.as_ref().expect("array has count");
                 if matches!(&count.attr, Count::All(_)) {
-                    return quote!(todo!("sanitize #[count(..)]"););
+                    return quote!(compile_error!("#[count(..)] fields require #[sanitize(fn)] attribute"););
                 }
                 let count_expr = count.count_expr();
                 match inner_typ.as_ref() {
@@ -1500,8 +1509,20 @@ impl Field {
     ///
     /// Returns `None` for non-offset fields (nothing to recurse into).
     pub(crate) fn sanitize_record_stmt(&self) -> Option<TokenStream> {
+        if let Some(sanitize_fn) = &self.attrs.sanitize_with {
+            let fn_name = &sanitize_fn.attr.fn_name;
+            let args = &sanitize_fn.attr.inputs;
+            if args.is_empty() {
+                return Some(quote!(self.#fn_name(ctx)?;));
+            } else {
+                return Some(quote!(self.#fn_name(ctx, #( self.#args() ),*)?;));
+            }
+        }
         let name = &self.name;
-        let args = self.sanitize_offset_args();
+        let args = match &self.attrs.read_offset_args {
+            Some(args) => args.attr.to_tokens_for_table_getter(),
+            None => quote!(()),
+        };
         match &self.typ {
             FieldType::Offset {
                 target: OffsetTarget::Table(target),
