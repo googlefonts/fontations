@@ -380,6 +380,18 @@ impl<'a> MinByteRange<'a> for MyTable<'a> {
     }
 }
 
+impl Sanitize for MyTable<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            Table1::FORMAT => Table1::sanitize(ctx, ()),
+            Table2::FORMAT => Table2::sanitize(ctx, ()),
+            Table3::FORMAT => Table3::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> MyTable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
