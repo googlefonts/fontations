@@ -34,11 +34,23 @@ impl Sanitize for KindsOfOffsets<'_> {
         let version = ctx.read::<MajorMinor>()?;
         ctx.sanitize_offset::<Offset16, Dummy>(())?;
         ctx.sanitize_offset::<Offset16, Dummy>(())?;
-        ctx.advance::<u16>();
-        todo!("sanitize offset to array");
-        todo!("sanitize offset to array");
+        let array_offset_count = ctx.read::<u16>()?;
+        ctx.sanitize_offset_to_array::<Offset16, BigEndian<u16>, _>(
+            array_offset_count,
+            false,
+            |_, _| Ok(()),
+        )?;
+        ctx.sanitize_offset_to_array::<Offset16, Shmecord, _>(
+            array_offset_count,
+            false,
+            |t, ctx| t.sanitize_struct(ctx, ()),
+        )?;
         if version.compatible((1u16, 1u16)) {
-            todo!("sanitize offset to array");
+            ctx.sanitize_offset_to_array::<Offset16, Shmecord, _>(
+                array_offset_count,
+                false,
+                |t, ctx| t.sanitize_struct(ctx, ()),
+            )?;
         }
         if version.compatible((1u16, 1u16)) {
             ctx.sanitize_offset::<Offset16, Dummy>(())?;
