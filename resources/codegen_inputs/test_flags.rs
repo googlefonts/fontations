@@ -1,6 +1,7 @@
 // This file tests the generation of bitflags.
 
 #![parse_module(read_fonts::codegen_test::flags)]
+#![sanitize]
 
 /// Some flags!
 flags u16 ValueFormat {
