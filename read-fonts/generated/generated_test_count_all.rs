@@ -29,6 +29,14 @@ impl<'a> FontRead<'a> for CountAll16<'a> {
     }
 }
 
+impl Sanitize for CountAll16<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        sanitize_remainder(ctx)?;
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct CountAll16<'a> {
     data: FontData<'a>,
@@ -113,6 +121,14 @@ impl<'a> FontRead<'a> for CountAll32<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for CountAll32<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        sanitize_remainder(ctx)?;
+        ctx.finish()
     }
 }
 

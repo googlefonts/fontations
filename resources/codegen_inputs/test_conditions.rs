@@ -1,4 +1,5 @@
 #![parse_module(read_fonts::codegen_test::conditions)]
+#![sanitize]
 
 #[skip_constructor] // because we don't use it, this avoids an unused warning
 table MajorMinorVersion {
