@@ -5,7 +5,7 @@ use types::{BigEndian, FixedSize, Nullable, Scalar};
 
 use crate::{
     array::VarLenArray, font_data::Cursor, read::VarSize, ComputeSize, FontData, FontRead, Offset,
-    ReadArgs, ReadError,
+    ReadArgs, ReadError, ResolveOffset,
 };
 
 /// The bytes of the current table being sanitized, along with shared sanitize state.
@@ -48,7 +48,37 @@ impl<'a> SanitizeContext<'a> {
         T: Sanitize,
     {
         let offset = self.read::<O>()?;
-        offset.sanitize_offset::<T>(self, args)
+        self.descend_into_offset(offset, |ctx| T::sanitize(ctx, args))
+    }
+
+    /// Track state while descending into a child offset.
+    ///
+    /// Most importantly, this updates the context's data so it points to the
+    /// the new offset's position, so that any subsequent offsets are resolved
+    /// relative to that.
+    fn descend_into_offset(
+        &mut self,
+        offset: impl Offset,
+        f: impl FnOnce(&mut SanitizeContext) -> Result<(), ReadError>,
+    ) -> Result<(), ReadError> {
+        let offset = match offset.to_usize() {
+            0 => return Ok(()),
+            other => other,
+        };
+
+        let offset_data = self
+            .cursor
+            .data
+            .split_off(offset)
+            .ok_or(ReadError::OutOfBounds)?;
+
+        //TODO: track descent here?
+        let mut child_ctx = SanitizeContext {
+            cursor: offset_data.cursor(),
+            state: self.state,
+        };
+
+        f(&mut child_ctx)
     }
 
     /// Advance the cursor past a scalar
@@ -83,6 +113,60 @@ impl<'a> SanitizeContext<'a> {
     {
         let array = self.cursor.read_array::<BigEndian<O>>(count)?;
         array.sanitize_offset::<T>(self, args)
+    }
+
+    /// Sanitize an offset that points to an array.
+    ///
+    /// this has a slightly funny signature because it needs to handle both
+    /// scalar and struct members, and the structs might need to be recursed
+    pub(crate) fn sanitize_offset_to_array<O, T, F>(
+        &mut self,
+        count: u16,
+        len_only: bool,
+        f: F,
+    ) -> Result<(), ReadError>
+    where
+        O: Offset + Scalar,
+        T: AnyBitPattern + FixedSize,
+        F: Fn(&T, &mut SanitizeContext) -> Result<(), ReadError>,
+    {
+        let offset = self.read::<O>()?;
+        if offset.to_usize() == 0 {
+            return Ok(());
+        }
+        let array: &[T] = offset.resolve_with_args(self.cursor.data, count)?;
+        if !len_only {
+            self.descend_into_offset(offset, |ctx| array.iter().try_for_each(|t| f(t, ctx)))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Sanitize an offset-to-array where we already have the offset value.
+    ///
+    /// Used in records, where the offset is accessed via a getter rather than
+    /// read from the cursor.
+    pub(crate) fn sanitize_resolved_offset_to_array<O, T, F>(
+        &mut self,
+        offset: O,
+        count: u16,
+        len_only: bool,
+        f: F,
+    ) -> Result<(), ReadError>
+    where
+        O: Offset + Scalar,
+        T: AnyBitPattern + FixedSize,
+        F: Fn(&T, &mut SanitizeContext) -> Result<(), ReadError>,
+    {
+        if offset.to_usize() == 0 {
+            return Ok(());
+        }
+        let array: &[T] = offset.resolve_with_args(self.cursor.data, count)?;
+        if !len_only {
+            self.descend_into_offset(offset, |ctx| array.iter().try_for_each(|t| f(t, ctx)))
+        } else {
+            Ok(())
+        }
     }
 
     /// Advance the cursor by the length of the array, recursing if necessesary
@@ -195,23 +279,7 @@ impl<O: Offset> SanitizeOffset for O {
         ctx: &mut SanitizeContext<'_>,
         args: T::Args,
     ) -> Result<(), ReadError> {
-        let offset = match self.to_usize() {
-            0 => return Ok(()),
-            other => other,
-        };
-
-        let offset_data = ctx
-            .cursor
-            .data
-            .split_off(offset)
-            .ok_or(ReadError::OutOfBounds)?;
-
-        //TODO: track descent here?
-        let mut child_ctx = SanitizeContext {
-            cursor: offset_data.cursor(),
-            state: ctx.state,
-        };
-        T::sanitize(&mut child_ctx, args)
+        ctx.descend_into_offset(*self, |ctx| T::sanitize(ctx, args))
     }
 }
 
