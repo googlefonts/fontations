@@ -10,6 +10,9 @@
 
 pub mod records {
     include!("../generated/generated_test_records.rs");
+    fn sanitize_data(_ctx: &mut SanitizeContext) -> Result<(), ReadError> {
+        Ok(())
+    }
 }
 
 pub mod formats {
@@ -218,6 +221,10 @@ pub mod count_all {
         assert!(remainder_len % 4 != 0);
         let count32 = CountAll32::read(data).unwrap();
         assert_eq!(count32.remainder().len(), remainder_len / 4);
+    }
+
+    fn sanitize_remainder(_ctx: &mut SanitizeContext) -> Result<(), ReadError> {
+        Ok(())
     }
 }
 

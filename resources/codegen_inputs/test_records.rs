@@ -5,6 +5,7 @@
 // to only rebuild the test outputs.
 
 #![parse_module(read_fonts::codegen_test::records)]
+#![sanitize]
 
 #[validate(my_custom_validate)]
 table BasicTable {
@@ -47,5 +48,6 @@ record ContainsOffsets {
 table VarLenItem {
     length: u32,
     #[count(..)]
+    #[sanitize_with(sanitize_data)]
     data: [u8],
 }
