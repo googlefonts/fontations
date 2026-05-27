@@ -5,6 +5,12 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+impl Discriminant for MyLookup<'_, ()> {
+    fn read_discriminant(data: FontData<'_>) -> Result<u16, ReadError> {
+        data.read_at(0)
+    }
+}
+
 impl<'a, T> MinByteRange<'a> for MyLookup<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtable_offsets_byte_range().end
@@ -393,10 +399,10 @@ pub enum MyLookupGroup<'a> {
 
 impl<'a> FontRead<'a> for MyLookupGroup<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-        let untyped = MyLookup::read(bytes)?;
-        match untyped.lookup_type() {
-            1 => Ok(MyLookupGroup::TypeOne(untyped.into_concrete())),
-            2 => Ok(MyLookupGroup::TypeTwo(untyped.into_concrete())),
+        let discriminant = MyLookup::read_discriminant(bytes)?;
+        match discriminant {
+            1 => Ok(MyLookupGroup::TypeOne(FontRead::read(bytes)?)),
+            2 => Ok(MyLookupGroup::TypeTwo(FontRead::read(bytes)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

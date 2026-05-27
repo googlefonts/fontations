@@ -793,6 +793,12 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a
     }
 }
 
+impl Discriminant for Lookup<'_, ()> {
+    fn read_discriminant(data: FontData<'_>) -> Result<u16, ReadError> {
+        data.read_at(0)
+    }
+}
+
 impl<'a, T> MinByteRange<'a> for Lookup<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtable_offsets_byte_range().end

@@ -184,17 +184,17 @@ pub enum PositionLookup<'a> {
 
 impl<'a> FontRead<'a> for PositionLookup<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-        let untyped = Lookup::read(bytes)?;
-        match untyped.lookup_type() {
-            1 => Ok(PositionLookup::Single(untyped.into_concrete())),
-            2 => Ok(PositionLookup::Pair(untyped.into_concrete())),
-            3 => Ok(PositionLookup::Cursive(untyped.into_concrete())),
-            4 => Ok(PositionLookup::MarkToBase(untyped.into_concrete())),
-            5 => Ok(PositionLookup::MarkToLig(untyped.into_concrete())),
-            6 => Ok(PositionLookup::MarkToMark(untyped.into_concrete())),
-            7 => Ok(PositionLookup::Contextual(untyped.into_concrete())),
-            8 => Ok(PositionLookup::ChainContextual(untyped.into_concrete())),
-            9 => Ok(PositionLookup::Extension(untyped.into_concrete())),
+        let discriminant = Lookup::read_discriminant(bytes)?;
+        match discriminant {
+            1 => Ok(PositionLookup::Single(FontRead::read(bytes)?)),
+            2 => Ok(PositionLookup::Pair(FontRead::read(bytes)?)),
+            3 => Ok(PositionLookup::Cursive(FontRead::read(bytes)?)),
+            4 => Ok(PositionLookup::MarkToBase(FontRead::read(bytes)?)),
+            5 => Ok(PositionLookup::MarkToLig(FontRead::read(bytes)?)),
+            6 => Ok(PositionLookup::MarkToMark(FontRead::read(bytes)?)),
+            7 => Ok(PositionLookup::Contextual(FontRead::read(bytes)?)),
+            8 => Ok(PositionLookup::ChainContextual(FontRead::read(bytes)?)),
+            9 => Ok(PositionLookup::Extension(FontRead::read(bytes)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -3917,6 +3917,12 @@ impl Format<u16> for ExtensionPosFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
+impl Discriminant for ExtensionPosFormat1<'_, ()> {
+    fn read_discriminant(data: FontData<'_>) -> Result<u16, ReadError> {
+        data.read_at(u16::RAW_BYTE_LEN)
+    }
+}
+
 impl<'a, T> MinByteRange<'a> for ExtensionPosFormat1<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.extension_offset_byte_range().end
@@ -4062,16 +4068,16 @@ pub enum ExtensionSubtable<'a> {
 
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-        let untyped = ExtensionPosFormat1::read(bytes)?;
-        match untyped.extension_lookup_type() {
-            1 => Ok(ExtensionSubtable::Single(untyped.into_concrete())),
-            2 => Ok(ExtensionSubtable::Pair(untyped.into_concrete())),
-            3 => Ok(ExtensionSubtable::Cursive(untyped.into_concrete())),
-            4 => Ok(ExtensionSubtable::MarkToBase(untyped.into_concrete())),
-            5 => Ok(ExtensionSubtable::MarkToLig(untyped.into_concrete())),
-            6 => Ok(ExtensionSubtable::MarkToMark(untyped.into_concrete())),
-            7 => Ok(ExtensionSubtable::Contextual(untyped.into_concrete())),
-            8 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
+        let discriminant = ExtensionPosFormat1::read_discriminant(bytes)?;
+        match discriminant {
+            1 => Ok(ExtensionSubtable::Single(FontRead::read(bytes)?)),
+            2 => Ok(ExtensionSubtable::Pair(FontRead::read(bytes)?)),
+            3 => Ok(ExtensionSubtable::Cursive(FontRead::read(bytes)?)),
+            4 => Ok(ExtensionSubtable::MarkToBase(FontRead::read(bytes)?)),
+            5 => Ok(ExtensionSubtable::MarkToLig(FontRead::read(bytes)?)),
+            6 => Ok(ExtensionSubtable::MarkToMark(FontRead::read(bytes)?)),
+            7 => Ok(ExtensionSubtable::Contextual(FontRead::read(bytes)?)),
+            8 => Ok(ExtensionSubtable::ChainContextual(FontRead::read(bytes)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

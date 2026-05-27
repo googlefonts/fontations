@@ -89,8 +89,6 @@ pub(crate) struct GenericGroup {
     pub(crate) name: syn::Ident,
     /// the inner type, which must accept a generic parameter
     pub(crate) inner_type: syn::Ident,
-    /// The field on the inner type that determines the type of the generic param
-    pub(crate) inner_field: syn::Ident,
     pub(crate) variants: Vec<GroupVariant>,
 }
 
@@ -375,9 +373,6 @@ impl Parse for GenericGroup {
         let content;
         let _ = parenthesized!(content in input);
         let inner_type = content.parse()?;
-        content.parse::<Token![,]>()?;
-        content.parse::<Token![$]>()?;
-        let inner_field = content.parse()?;
         let content;
         let _ = braced!(content in input);
         let variants = Punctuated::<GroupVariant, Token![,]>::parse_terminated(&content)?
@@ -387,7 +382,6 @@ impl Parse for GenericGroup {
             attrs,
             name,
             inner_type,
-            inner_field,
             variants,
         })
     }
