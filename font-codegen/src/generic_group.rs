@@ -9,7 +9,6 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
     let docs = &item.attrs.docs;
     let name = &item.name;
     let inner = &item.inner_type;
-    let type_field = &item.inner_field;
 
     let mut variant_decls = Vec::new();
     let mut read_match_arms = Vec::new();
@@ -21,7 +20,7 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
         let typ = &var.typ;
         variant_decls.push(quote! { #var_name ( #inner <'a, #typ<'a>> ) });
         read_match_arms
-            .push(quote! { #type_id => Ok(#name :: #var_name (untyped.into_concrete())) });
+            .push(quote! { #type_id => Ok(#name :: #var_name (FontRead::read(bytes)?)) });
         dyn_inner_arms.push(quote! { #name :: #var_name(table) => table });
         of_unit_arms.push(quote! { #name :: #var_name(inner) => inner.of_unit_type()  });
     }
@@ -40,8 +39,8 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
 
         impl<'a> FontRead<'a> for #name <'a> {
             fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-                let untyped = #inner::read(bytes)?;
-                match untyped.#type_field() {
+                let discriminant = #inner::read_discriminant(bytes)?;
+                match discriminant {
                     #( #read_match_arms, )*
                     other => Err(ReadError::InvalidFormat(other.into())),
                 }

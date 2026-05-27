@@ -2,9 +2,10 @@
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
+use syn::spanned::Spanned;
 
 use crate::{
-    parsing::{Attr, Field, Table, TableReadArg, TableReadArgs},
+    parsing::{logged_syn_error, Attr, Field, Table, TableReadArg, TableReadArgs},
     Phase,
 };
 
@@ -61,6 +62,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
     let table_ref_getters = item.iter_table_ref_getters();
     let optional_format_trait_impl = item.impl_format_trait();
+    let optional_discriminant_trait_impl = item.impl_discriminant_trait();
     let font_read = generate_font_read(item)?;
     let debug = generate_debug(item)?;
     let top_level = item.attrs.tag.as_ref().map(|tag| {
@@ -77,6 +79,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
     Ok(quote! {
         #optional_format_trait_impl
+
+        #optional_discriminant_trait_impl
 
         #optional_min_byte_range_trait_impl
 
@@ -305,6 +309,14 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
 
 impl Table {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
+        for fld in self.fields.iter() {
+            if fld.attrs.discriminant.is_some() && self.attrs.generic_offset.is_none() {
+                return Err(logged_syn_error(
+                    fld.attrs.discriminant.as_ref().unwrap().span(),
+                    "#[discriminant] is only valid in tables with #[generic_offset]",
+                ));
+            }
+        }
         self.fields.sanity_check(phase)
     }
 
@@ -399,6 +411,40 @@ impl Table {
                 fn min_table_bytes(&self) -> &'a [u8] {
                     let range = self.min_byte_range();
                     self.data.as_bytes().get(range).unwrap_or_default()
+                }
+            }
+        })
+    }
+
+    pub(crate) fn impl_discriminant_trait(&self) -> Option<TokenStream> {
+        let field = self
+            .fields
+            .iter()
+            .find(|fld| fld.attrs.discriminant.is_some())?;
+        let name = self.raw_name();
+
+        // Compute the static byte offset of the discriminant field by summing
+        // the known sizes of all preceding fields.
+        let offset_parts: Vec<_> = self
+            .fields
+            .iter()
+            .take_while(|fld| fld.name != field.name)
+            .map(|fld| {
+                fld.known_min_size_stmt()
+                    .expect("all fields before #[discriminant] must have a known size")
+            })
+            .filter(|tokens| !tokens.is_empty())
+            .collect();
+        let offset_expr = match offset_parts.as_slice() {
+            [] => quote!(0),
+            [one] => one.to_owned(),
+            more => quote!( (#(#more)+*) ),
+        };
+
+        Some(quote! {
+            impl Discriminant for #name<'_, ()> {
+                fn read_discriminant(data: FontData<'_>) -> Result<u16, ReadError> {
+                    data.read_at(#offset_expr)
                 }
             }
         })

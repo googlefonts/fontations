@@ -109,7 +109,7 @@ pub(crate) mod codegen_prelude {
     pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
     //pub(crate) use crate::read::sealed;
     pub use crate::read::{
-        ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
+        ComputeSize, Discriminant, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;

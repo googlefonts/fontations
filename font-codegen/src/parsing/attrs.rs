@@ -93,6 +93,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) to_owned: Option<Attr<InlineExpr>>,
     /// Custom validation behaviour
     pub(crate) validate: Option<Attr<FieldValidation>>,
+    /// Marks this field as the discriminant for a generic offset type.
+    pub(crate) discriminant: Option<syn::Path>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -276,6 +278,7 @@ static READ_OFFSET_WITH: &str = "read_offset_with";
 static TRAVERSE_WITH: &str = "traverse_with";
 static TO_OWNED: &str = "to_owned";
 static VALIDATE: &str = "validate";
+static DISCRIMINANT: &str = "discriminant";
 
 static MATCH_IF: &str = "match_if";
 static WRITE_FONTS_ONLY: &str = "write_fonts_only";
@@ -344,6 +347,8 @@ impl Parse for FieldAttrs {
                 this.traverse_with = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == FORMAT {
                 this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(&attr)?))
+            } else if ident == DISCRIMINANT {
+                this.discriminant = Some(attr.path().clone());
             } else {
                 return Err(logged_syn_error(
                     ident.span(),

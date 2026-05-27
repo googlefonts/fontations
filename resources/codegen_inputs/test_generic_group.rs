@@ -10,6 +10,7 @@
 #[skip_constructor]
 table MyLookup {
     /// Determines the concrete type of T
+    #[discriminant]
     lookup_type: u16,
     /// Number of subtables
     #[compile(array_len($subtable_offsets))]
@@ -43,7 +44,7 @@ table MySubtableFormat2 {
 }
 
 /// The group enum dispatching on lookup_type.
-group MyLookupGroup(MyLookup, $lookup_type) {
+group MyLookupGroup(MyLookup) {
     1 => TypeOne(MySubtable),
     2 => TypeTwo(MySubtableFormat1),
 }
