@@ -51,3 +51,22 @@ table VarLenItem {
     #[sanitize_with(sanitize_data)]
     data: [u8],
 }
+
+record HasOffsetsWithArgs {
+    merp_len: u16,
+    /// Read an offset that takes an argument, in a record
+    #[read_offset_with($merp_len)]
+    feature_offset: Offset16<HasReadArgs>,
+    /// custom offset getter in a record
+    #[offset_getter(fake)]
+    #[sanitize_with(sanitize_fake_offset)]
+    fake_offset: Offset16<HasReadArgs>,
+}
+
+#[read_args(merp_len: u16)]
+table HasReadArgs {
+    derp: u16,
+    #[count($merp_len)]
+    merps: [i16],
+}
+

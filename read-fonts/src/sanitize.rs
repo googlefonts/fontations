@@ -29,7 +29,7 @@ pub(crate) struct SanitizeState {
 }
 
 impl<'a> SanitizeContext<'a> {
-    fn new(data: FontData<'a>, state: &'a mut SanitizeState) -> Self {
+    pub(crate) fn new(data: FontData<'a>, state: &'a mut SanitizeState) -> Self {
         Self {
             cursor: data.cursor(),
             state,

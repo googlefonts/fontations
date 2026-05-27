@@ -265,3 +265,110 @@ impl<'a> FontRead<'a> for VarLenItem {
             .map(|x| x.to_owned_table())
     }
 }
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HasOffsetsWithArgs {
+    pub merp_len: u16,
+    /// Read an offset that takes an argument, in a record
+    pub feature: OffsetMarker<HasReadArgs>,
+    /// custom offset getter in a record
+    pub fake: OffsetMarker<HasReadArgs>,
+}
+
+impl HasOffsetsWithArgs {
+    /// Construct a new `HasOffsetsWithArgs`
+    pub fn new(merp_len: u16, feature: HasReadArgs, fake: HasReadArgs) -> Self {
+        Self {
+            merp_len,
+            feature: feature.into(),
+            fake: fake.into(),
+        }
+    }
+}
+
+impl FontWrite for HasOffsetsWithArgs {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.merp_len.write_into(writer);
+        self.feature.write_into(writer);
+        self.fake.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("HasOffsetsWithArgs")
+    }
+}
+
+impl Validate for HasOffsetsWithArgs {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("HasOffsetsWithArgs", |ctx| {
+            ctx.in_field("feature", |ctx| {
+                self.feature.validate_impl(ctx);
+            });
+            ctx.in_field("fake", |ctx| {
+                self.fake.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::codegen_test::records::HasOffsetsWithArgs> for HasOffsetsWithArgs {
+    fn from_obj_ref(
+        obj: &read_fonts::codegen_test::records::HasOffsetsWithArgs,
+        offset_data: FontData,
+    ) -> Self {
+        HasOffsetsWithArgs {
+            merp_len: obj.merp_len(),
+            feature: obj.feature(offset_data).to_owned_table(),
+            fake: obj.fake(offset_data).to_owned_table(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct HasReadArgs {
+    pub derp: u16,
+    pub merps: Vec<i16>,
+}
+
+impl HasReadArgs {
+    /// Construct a new `HasReadArgs`
+    pub fn new(derp: u16, merps: Vec<i16>) -> Self {
+        Self { derp, merps }
+    }
+}
+
+impl FontWrite for HasReadArgs {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.derp.write_into(writer);
+        self.merps.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("HasReadArgs")
+    }
+}
+
+impl Validate for HasReadArgs {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("HasReadArgs", |ctx| {
+            ctx.in_field("merps", |ctx| {
+                if self.merps.len() > (u16::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::records::HasReadArgs<'a>> for HasReadArgs {
+    fn from_obj_ref(obj: &read_fonts::codegen_test::records::HasReadArgs<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        HasReadArgs {
+            derp: obj.derp(),
+            merps: obj.merps().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::codegen_test::records::HasReadArgs<'a>> for HasReadArgs {}
