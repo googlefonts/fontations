@@ -32,7 +32,7 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
 impl Sanitize for BasicTable<'_> {
     fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         let simple_count = ctx.read::<u16>()?;
-        ctx.sanitize_array_of_structs::<SimpleRecord>(simple_count as usize, ())?;
+        ctx.sanitize_array_of_structs::<SimpleRecord>(transforms::to_usize(simple_count), ())?;
         let arrays_inner_count = ctx.read::<u16>()?;
         let array_records_count = ctx.read::<u32>()?;
         ctx.sanitize_computed_array::<ContainsArrays>(
