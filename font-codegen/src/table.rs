@@ -233,20 +233,23 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
 
 fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     let name = item.raw_name();
-    let (args_arg, destructure_args) = match item.attrs.read_args.as_ref() {
+    let (args_typ, args_arg, destructure_args) = match item.attrs.read_args.as_ref() {
         Some(args) => {
             let typ = args.args_type();
             let destructure = args.destructure_pattern();
             let args_args = quote!(args: #typ);
-            (args_args, Some(destructure))
+            (typ, args_args, Some(destructure))
         }
-        None => (quote!(_args: ()), None),
+        None => (quote!(()), quote!(_args: ()), None),
     };
+
+    let generic = item.attrs.generic_offset.as_ref();
+    let generic_bounds = generic.map(|t| quote!(#t: Sanitize<Args = #args_typ>));
 
     let stmts = item.iter_sanitze_statements()?;
 
     Ok(quote! {
-        impl Sanitize for #name<'_> {
+        impl<#generic_bounds> Sanitize for #name<'_, #generic> {
             fn sanitize(ctx: &mut SanitizeContext, #args_arg) -> Result<(), ReadError> {
                 #destructure_args
                 #( #stmts )*

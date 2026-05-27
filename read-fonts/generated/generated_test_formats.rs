@@ -148,7 +148,7 @@ impl Sanitize for Table2<'_> {
     fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         let value_count = ctx.read::<u16>()?;
-        ctx.sanitize_array::<u16>(value_count as usize)?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(value_count))?;
         ctx.finish()
     }
 }
