@@ -1357,16 +1357,6 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
     }
 }
 
-impl<'a> ExtensionSubstFormat1<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> ExtensionSubstFormat1<'a, T> {
-        ExtensionSubstFormat1 {
-            data: self.data,
-            offset_type: std::marker::PhantomData,
-        }
-    }
-}
-
 impl<'a, T> ExtensionSubstFormat1<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`

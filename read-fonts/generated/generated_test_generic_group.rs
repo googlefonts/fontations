@@ -34,16 +34,6 @@ impl<'a, T> FontRead<'a> for MyLookup<'a, T> {
     }
 }
 
-impl<'a> MyLookup<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> MyLookup<'a, T> {
-        MyLookup {
-            data: self.data,
-            offset_type: std::marker::PhantomData,
-        }
-    }
-}
-
 impl<'a, T> MyLookup<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
