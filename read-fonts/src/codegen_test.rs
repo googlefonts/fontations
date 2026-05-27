@@ -13,6 +13,18 @@ pub mod records {
     fn sanitize_data(_ctx: &mut SanitizeContext) -> Result<(), ReadError> {
         Ok(())
     }
+
+    impl HasOffsetsWithArgs {
+        fn sanitize_fake_offset(&self, ctx: &mut SanitizeContext) -> Result<(), ReadError> {
+            self.fake_offset().sanitize_offset::<HasReadArgs>(ctx, 0)
+        }
+    }
+
+    impl HasOffsetsWithArgs {
+        pub fn fake<'a>(&self, data: FontData<'a>) -> Result<HasReadArgs<'a>, ReadError> {
+            self.fake_offset().resolve_with_args(data, &0)
+        }
+    }
 }
 
 pub mod formats {
