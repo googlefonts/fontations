@@ -3,9 +3,9 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::parsing::GenericGroup;
+use crate::parsing::{GenericGroup, Items};
 
-pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
+pub(crate) fn generate(item: &GenericGroup, items: &Items) -> syn::Result<TokenStream> {
     let docs = &item.attrs.docs;
     let name = &item.name;
     let inner = &item.inner_type;
@@ -32,6 +32,8 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
         "",
         " This lets us return a single concrete type we can call methods on.",
     ];
+
+    let sanitize = generate_sanitize(item, items);
 
     Ok(quote! {
         #( #docs)*
@@ -65,6 +67,8 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
             }
         }
 
+        #sanitize
+
         #[cfg(feature = "experimental_traverse")]
         impl<'a> #name <'a> {
             fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
@@ -90,6 +94,36 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
         impl std::fmt::Debug for #name<'_> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 self.dyn_inner().fmt(f)
+            }
+        }
+    })
+}
+
+fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> {
+    if !items.sanitize {
+        return None;
+    }
+    let name = &item.name;
+    let inner = &item.inner_type;
+
+    let match_arms: Vec<_> = item
+        .variants
+        .iter()
+        .map(|var| {
+            let type_id = &var.type_id;
+            let typ = &var.typ;
+            quote!(#type_id => #inner::<#typ>::sanitize(ctx, _args),)
+        })
+        .collect();
+
+    Some(quote! {
+        impl Sanitize for #name<'_> {
+            fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+                let discriminant = #inner::read_discriminant(ctx.data())?;
+                match discriminant {
+                    #( #match_arms )*
+                    other => Err(ReadError::InvalidFormat(other as _)),
+                }
             }
         }
     })

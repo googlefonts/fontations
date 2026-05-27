@@ -45,6 +45,15 @@ impl<'a, T> MyLookup<'a, T> {
     }
 }
 
+impl<T: Sanitize<Args = ()>> Sanitize for MyLookup<'_, T> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let sub_table_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, T>(sub_table_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// A generic table parameterized by the type of its subtable offsets.
 #[derive(Clone)]
 pub struct MyLookup<'a, T = ()> {
@@ -195,6 +204,17 @@ impl<'a> MinByteRange<'a> for MySubtable<'a> {
     }
 }
 
+impl Sanitize for MySubtable<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            MySubtableFormat1::FORMAT => MySubtableFormat1::sanitize(ctx, ()),
+            MySubtableFormat2::FORMAT => MySubtableFormat2::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> MySubtable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -243,6 +263,14 @@ impl<'a> FontRead<'a> for MySubtableFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for MySubtableFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.finish()
     }
 }
 
@@ -332,6 +360,15 @@ impl<'a> FontRead<'a> for MySubtableFormat2<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for MySubtableFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(count as usize)?;
+        ctx.finish()
     }
 }
 
@@ -436,6 +473,17 @@ impl<'a> MyLookupGroup<'a> {
     }
 }
 
+impl Sanitize for MyLookupGroup<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let discriminant = MyLookup::read_discriminant(ctx.data())?;
+        match discriminant {
+            1 => MyLookup::<MySubtable>::sanitize(ctx, _args),
+            2 => MyLookup::<MySubtableFormat1>::sanitize(ctx, _args),
+            other => Err(ReadError::InvalidFormat(other as _)),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> MyLookupGroup<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
@@ -480,6 +528,14 @@ impl<'a> FontRead<'a> for ContainsLookupGroup<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ContainsLookupGroup<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, MyLookupGroup>(())?;
+        ctx.finish()
     }
 }
 

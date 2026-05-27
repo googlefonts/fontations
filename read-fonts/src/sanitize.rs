@@ -36,6 +36,10 @@ impl<'a> SanitizeContext<'a> {
         }
     }
 
+    pub(crate) fn data(&self) -> FontData<'a> {
+        self.cursor.data
+    }
+
     /// Read a scalar and advance the cursor
     #[must_use]
     pub(crate) fn read<T: Scalar>(&mut self) -> Result<T, ReadError> {
