@@ -31,22 +31,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
     let of_unit_docs = " Replace the specific generic type on this implementation with `()`";
 
-    // In the presence of a generic param we only impl FontRead for Name<()>,
-    // and then use into() to convert it to the concrete generic type.
-    let impl_into_generic = generic.as_ref().map(|t| {
+    let impl_of_unit_type = generic.as_ref().map(|t| {
         quote! {
-               impl<'a> #raw_name<'a, ()> {
-                   #[allow(dead_code)]
-                   pub(crate) fn into_concrete<T>(self) -> #raw_name<'a, #t> {
-                       #raw_name {
-                           data: self.data,
-                           offset_type: std::marker::PhantomData,
-                       }
-                   }
-               }
-
-               // we also generate a conversion from typed to untyped, which
-               // we use to write convenience methods on the wrapper
                impl<'a, #t> #raw_name<'a, #t> {
                    #[allow(dead_code)]
                    #[doc = #of_unit_docs]
@@ -88,7 +74,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
         #font_read
 
-        #impl_into_generic
+        #impl_of_unit_type
 
         #( #docs )*
         #[derive(Clone)]

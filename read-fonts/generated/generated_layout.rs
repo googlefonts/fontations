@@ -690,16 +690,6 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
     }
 }
 
-impl<'a> LookupList<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> LookupList<'a, T> {
-        LookupList {
-            data: self.data,
-            offset_type: std::marker::PhantomData,
-        }
-    }
-}
-
 impl<'a, T> LookupList<'a, T> {
     #[allow(dead_code)]
     /// Replace the specific generic type on this implementation with `()`
@@ -819,16 +809,6 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
             data,
             offset_type: std::marker::PhantomData,
         })
-    }
-}
-
-impl<'a> Lookup<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> Lookup<'a, T> {
-        Lookup {
-            data: self.data,
-            offset_type: std::marker::PhantomData,
-        }
     }
 }
 
