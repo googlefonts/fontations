@@ -1423,7 +1423,7 @@ impl Field {
                     quote!(ctx.sanitize_offset_to_array::<#typ, #inner_t, _>(#args, #len_only, #recurse_fn)?;)
                 }
             },
-            FieldType::Struct { .. } => quote!(todo!("sanitize structfield");),
+            FieldType::Struct { .. } => quote!(compile_error!("struct field needs sanitize_with");),
             FieldType::Array { inner_typ } => {
                 let count = self.attrs.count.as_ref().expect("array has count");
                 if matches!(&count.attr, Count::All(_)) {
@@ -1442,7 +1442,7 @@ impl Field {
                         quote!(ctx.sanitize_array_of_offsets::<#offset_typ, #target_table>(#count_expr, #args)?;)
                     }
                     FieldType::Offset { .. } => {
-                        quote!(todo!("sanitize array of offsets to arrays: {name}");)
+                        quote!(compile_error!("sanitize not impl'd for array of offsets to arrays");)
                     }
                     FieldType::Struct { typ } if self.attrs.sanitize_len_only.is_some() => {
                         quote!(ctx.sanitize_array::<#typ>(#count_expr)?;)
@@ -1559,10 +1559,9 @@ impl Field {
                 FieldType::Offset {
                     target: OffsetTarget::Array(_),
                     ..
-                } => {
-                    let msg = format!("sanitize record array of offsets to arrays: {name}");
-                    Some(quote!(todo!(#msg);))
-                }
+                } => Some(quote!(compile_error!(
+                    "sanitize impl missing for array of offsets to arrays"
+                ))),
 
                 _ => None,
             },
