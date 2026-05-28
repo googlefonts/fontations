@@ -30,6 +30,19 @@ impl<'a> FontRead<'a> for Gsub<'a> {
     }
 }
 
+impl Sanitize for Gsub<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let version = ctx.read::<MajorMinor>()?;
+        ctx.sanitize_offset::<Offset16, ScriptList>(())?;
+        ctx.sanitize_offset::<Offset16, FeatureList>(())?;
+        ctx.sanitize_offset::<Offset16, SubstitutionLookupList>(())?;
+        if version.compatible((1u16, 1u16)) {
+            ctx.sanitize_offset::<Offset32, FeatureVariations>(())?;
+        }
+        ctx.finish()
+    }
+}
+
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
 #[derive(Clone)]
 pub struct Gsub<'a> {
@@ -234,6 +247,23 @@ impl<'a> SubstitutionLookup<'a> {
     }
 }
 
+impl Sanitize for SubstitutionLookup<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let discriminant = Lookup::read_discriminant(ctx.data())?;
+        match discriminant {
+            1 => Lookup::<SingleSubst>::sanitize(ctx, _args),
+            2 => Lookup::<MultipleSubstFormat1>::sanitize(ctx, _args),
+            3 => Lookup::<AlternateSubstFormat1>::sanitize(ctx, _args),
+            4 => Lookup::<LigatureSubstFormat1>::sanitize(ctx, _args),
+            5 => Lookup::<SubstitutionSequenceContext>::sanitize(ctx, _args),
+            6 => Lookup::<SubstitutionChainContext>::sanitize(ctx, _args),
+            7 => Lookup::<ExtensionSubtable>::sanitize(ctx, _args),
+            8 => Lookup::<ReverseChainSingleSubstFormat1>::sanitize(ctx, _args),
+            other => Err(ReadError::InvalidFormat(other as _)),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SubstitutionLookup<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
@@ -333,6 +363,17 @@ impl<'a> MinByteRange<'a> for SingleSubst<'a> {
     }
 }
 
+impl Sanitize for SingleSubst<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            SingleSubstFormat1::FORMAT => SingleSubstFormat1::sanitize(ctx, ()),
+            SingleSubstFormat2::FORMAT => SingleSubstFormat2::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SingleSubst<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -381,6 +422,15 @@ impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for SingleSubstFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        ctx.advance::<i16>();
+        ctx.finish()
     }
 }
 
@@ -495,6 +545,16 @@ impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for SingleSubstFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(glyph_count as usize)?;
+        ctx.finish()
     }
 }
 
@@ -613,6 +673,16 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for MultipleSubstFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let sequence_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, Sequence>(sequence_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -750,6 +820,14 @@ impl<'a> FontRead<'a> for Sequence<'a> {
     }
 }
 
+impl Sanitize for Sequence<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(glyph_count as usize)?;
+        ctx.finish()
+    }
+}
+
 /// Part of [MultipleSubstFormat1]
 #[derive(Clone)]
 pub struct Sequence<'a> {
@@ -842,6 +920,16 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for AlternateSubstFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let alternate_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, AlternateSet>(alternate_set_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -982,6 +1070,14 @@ impl<'a> FontRead<'a> for AlternateSet<'a> {
     }
 }
 
+impl Sanitize for AlternateSet<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(glyph_count as usize)?;
+        ctx.finish()
+    }
+}
+
 /// Part of [AlternateSubstFormat1]
 #[derive(Clone)]
 pub struct AlternateSet<'a> {
@@ -1073,6 +1169,16 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for LigatureSubstFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let ligature_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, LigatureSet>(ligature_set_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -1210,6 +1316,14 @@ impl<'a> FontRead<'a> for LigatureSet<'a> {
     }
 }
 
+impl Sanitize for LigatureSet<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let ligature_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, Ligature>(ligature_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// Part of [LigatureSubstFormat1]
 #[derive(Clone)]
 pub struct LigatureSet<'a> {
@@ -1305,6 +1419,15 @@ impl<'a> FontRead<'a> for Ligature<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for Ligature<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<GlyphId16>();
+        let component_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(transforms::subtract(component_count, 1_usize))?;
+        ctx.finish()
     }
 }
 
@@ -1435,6 +1558,15 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
             data: self.data,
             offset_type: std::marker::PhantomData,
         }
+    }
+}
+
+impl<T: Sanitize<Args = ()>> Sanitize for ExtensionSubstFormat1<'_, T> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset32, T>(())?;
+        ctx.finish()
     }
 }
 
@@ -1589,6 +1721,22 @@ impl<'a> ExtensionSubtable<'a> {
     }
 }
 
+impl Sanitize for ExtensionSubtable<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let discriminant = ExtensionSubstFormat1::read_discriminant(ctx.data())?;
+        match discriminant {
+            1 => ExtensionSubstFormat1::<SingleSubst>::sanitize(ctx, _args),
+            2 => ExtensionSubstFormat1::<MultipleSubstFormat1>::sanitize(ctx, _args),
+            3 => ExtensionSubstFormat1::<AlternateSubstFormat1>::sanitize(ctx, _args),
+            4 => ExtensionSubstFormat1::<LigatureSubstFormat1>::sanitize(ctx, _args),
+            5 => ExtensionSubstFormat1::<SubstitutionSequenceContext>::sanitize(ctx, _args),
+            6 => ExtensionSubstFormat1::<SubstitutionChainContext>::sanitize(ctx, _args),
+            8 => ExtensionSubstFormat1::<ReverseChainSingleSubstFormat1>::sanitize(ctx, _args),
+            other => Err(ReadError::InvalidFormat(other as _)),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> ExtensionSubtable<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
@@ -1642,6 +1790,26 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ReverseChainSingleSubstFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let backtrack_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(
+            backtrack_glyph_count as usize,
+            (),
+        )?;
+        let lookahead_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(
+            lookahead_glyph_count as usize,
+            (),
+        )?;
+        let glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(glyph_count as usize)?;
+        ctx.finish()
     }
 }
 

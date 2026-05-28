@@ -134,6 +134,19 @@ impl<'a> FontReadWithArgs<'a> for FeatureParams<'a> {
     }
 }
 
+impl Sanitize for FeatureParams<'_> {
+    fn sanitize(ctx: &mut SanitizeContext<'_>, args: Self::Args) -> Result<(), ReadError> {
+        match args {
+            t if t == Tag::new(b"size") => SizeParams::sanitize(ctx, ()),
+            t if &t.to_raw()[..2] == b"ss" => StylisticSetParams::sanitize(ctx, ()),
+            t if &t.to_raw()[..2] == b"cv" => CharacterVariantParams::sanitize(ctx, ()),
+            // NOTE: what even is our error condition here? an offset exists but
+            // we don't know the tag?
+            _ => Err(ReadError::InvalidFormat(0xdead)),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for FeatureParams<'a> {
     fn type_name(&self) -> &str {
@@ -157,6 +170,14 @@ impl FeatureTableSubstitutionRecord {
     pub fn alternate_feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         self.alternate_feature_offset()
             .resolve_with_args(data, &Tag::new(b"NULL"))
+    }
+
+    fn sanitize_alternate_feature_offset(
+        &self,
+        ctx: &mut SanitizeContext,
+    ) -> Result<(), ReadError> {
+        self.alternate_feature_offset()
+            .sanitize_offset::<Feature>(ctx, Tag::new(b"NULL"))
     }
 }
 

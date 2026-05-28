@@ -42,6 +42,18 @@ impl<'a> TupleVariationHeader<'a> {
     }
 }
 
+impl Sanitize for TupleVariationHeader<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+        let axis_count = args;
+        ctx.advance::<u16>();
+        let tuple_index = ctx.read::<TupleIndex>()?;
+        ctx.sanitize_array::<F2Dot14>(TupleIndex::tuple_len(tuple_index, axis_count, 0_usize))?;
+        ctx.sanitize_array::<F2Dot14>(TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))?;
+        ctx.sanitize_array::<F2Dot14>(TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))?;
+        ctx.finish()
+    }
+}
+
 /// [TupleVariationHeader](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuplevariationheader)
 #[derive(Clone)]
 pub struct TupleVariationHeader<'a> {
@@ -209,6 +221,15 @@ impl<'a> Tuple<'a> {
     }
 }
 
+impl SanitizeStruct for Tuple<'_> {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: u16) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for Tuple<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -244,6 +265,16 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for DeltaSetIndexMapFormat0<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u8>();
+        let entry_format = ctx.read::<EntryFormat>()?;
+        let map_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u8>(EntryFormat::map_size(entry_format, map_count))?;
+        ctx.finish()
     }
 }
 
@@ -365,6 +396,16 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for DeltaSetIndexMapFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u8>();
+        let entry_format = ctx.read::<EntryFormat>()?;
+        let map_count = ctx.read::<u32>()?;
+        ctx.sanitize_array::<u8>(EntryFormat::map_size(entry_format, map_count))?;
+        ctx.finish()
     }
 }
 
@@ -535,6 +576,17 @@ impl<'a> MinByteRange<'a> for DeltaSetIndexMap<'a> {
         match self {
             Self::Format0(item) => item.min_table_bytes(),
             Self::Format1(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+impl Sanitize for DeltaSetIndexMap<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u8 = ctx.peek_at(0usize)?;
+        match format {
+            DeltaSetIndexMapFormat0::FORMAT => DeltaSetIndexMapFormat0::sanitize(ctx, ()),
+            DeltaSetIndexMapFormat1::FORMAT => DeltaSetIndexMapFormat1::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
@@ -897,6 +949,15 @@ impl<'a> FontRead<'a> for VariationRegionList<'a> {
     }
 }
 
+impl Sanitize for VariationRegionList<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let axis_count = ctx.read::<u16>()?;
+        let region_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<VariationRegion>(region_count as _, axis_count, true)?;
+        ctx.finish()
+    }
+}
+
 /// The [VariationRegionList](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) table
 #[derive(Clone)]
 pub struct VariationRegionList<'a> {
@@ -1043,6 +1104,15 @@ impl<'a> VariationRegion<'a> {
     }
 }
 
+impl SanitizeStruct for VariationRegion<'_> {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: u16) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for VariationRegion<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1099,6 +1169,19 @@ impl FixedSize for RegionAxisCoordinates {
         F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for RegionAxisCoordinates {
+    type Args = ();
+}
+
+impl SanitizeStruct for RegionAxisCoordinates {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for RegionAxisCoordinates {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1132,6 +1215,19 @@ impl<'a> FontRead<'a> for ItemVariationStore<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ItemVariationStore<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset32, VariationRegionList>(())?;
+        let item_variation_data_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset32, ItemVariationData>(
+            item_variation_data_count as usize,
+            (),
+        )?;
+        ctx.finish()
     }
 }
 
@@ -1274,6 +1370,21 @@ impl<'a> FontRead<'a> for ItemVariationData<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ItemVariationData<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let item_count = ctx.read::<u16>()?;
+        let word_delta_count = ctx.read::<u16>()?;
+        let region_index_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(region_index_count as usize)?;
+        ctx.sanitize_array::<u8>(ItemVariationData::delta_sets_len(
+            item_count,
+            word_delta_count,
+            region_index_count,
+        ))?;
+        ctx.finish()
     }
 }
 

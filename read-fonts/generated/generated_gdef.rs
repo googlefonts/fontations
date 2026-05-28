@@ -30,6 +30,23 @@ impl<'a> FontRead<'a> for Gdef<'a> {
     }
 }
 
+impl Sanitize for Gdef<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let version = ctx.read::<MajorMinor>()?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        ctx.sanitize_offset::<Offset16, AttachList>(())?;
+        ctx.sanitize_offset::<Offset16, LigCaretList>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        if version.compatible((1u16, 2u16)) {
+            ctx.sanitize_offset::<Offset16, MarkGlyphSets>(())?;
+        }
+        if version.compatible((1u16, 3u16)) {
+            ctx.sanitize_offset::<Offset32, ItemVariationStore>(())?;
+        }
+        ctx.finish()
+    }
+}
+
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 #[derive(Clone)]
 pub struct Gdef<'a> {
@@ -305,6 +322,15 @@ impl<'a> FontRead<'a> for AttachList<'a> {
     }
 }
 
+impl Sanitize for AttachList<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, AttachPoint>(glyph_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
 #[derive(Clone)]
 pub struct AttachList<'a> {
@@ -424,6 +450,14 @@ impl<'a> FontRead<'a> for AttachPoint<'a> {
     }
 }
 
+impl Sanitize for AttachPoint<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let point_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(point_count as usize)?;
+        ctx.finish()
+    }
+}
+
 /// Part of [AttachList]
 #[derive(Clone)]
 pub struct AttachPoint<'a> {
@@ -508,6 +542,15 @@ impl<'a> FontRead<'a> for LigCaretList<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for LigCaretList<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let lig_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, LigGlyph>(lig_glyph_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -627,6 +670,14 @@ impl<'a> FontRead<'a> for LigGlyph<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for LigGlyph<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let caret_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CaretValue>(caret_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -771,6 +822,18 @@ impl<'a> MinByteRange<'a> for CaretValue<'a> {
     }
 }
 
+impl Sanitize for CaretValue<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            CaretValueFormat1::FORMAT => CaretValueFormat1::sanitize(ctx, ()),
+            CaretValueFormat2::FORMAT => CaretValueFormat2::sanitize(ctx, ()),
+            CaretValueFormat3::FORMAT => CaretValueFormat3::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> CaretValue<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -820,6 +883,14 @@ impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for CaretValueFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<i16>();
+        ctx.finish()
     }
 }
 
@@ -915,6 +986,14 @@ impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
     }
 }
 
+impl Sanitize for CaretValueFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.finish()
+    }
+}
+
 /// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
 #[derive(Clone)]
 pub struct CaretValueFormat2<'a> {
@@ -995,6 +1074,15 @@ impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for CaretValueFormat3<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<i16>();
+        ctx.sanitize_offset::<Offset16, DeviceOrVariationIndex>(())?;
+        ctx.finish()
     }
 }
 
@@ -1098,6 +1186,18 @@ impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for MarkGlyphSets<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let mark_glyph_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset32, CoverageTable>(
+            mark_glyph_set_count as usize,
+            (),
+        )?;
+        ctx.finish()
     }
 }
 

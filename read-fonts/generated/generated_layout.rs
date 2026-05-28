@@ -25,6 +25,14 @@ impl<'a> FontRead<'a> for ScriptList<'a> {
     }
 }
 
+impl Sanitize for ScriptList<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let script_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<ScriptRecord>(script_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone)]
 pub struct ScriptList<'a> {
@@ -134,6 +142,17 @@ impl FixedSize for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for ScriptRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for ScriptRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        self.script_offset().sanitize_offset::<Script>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ScriptRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -169,6 +188,15 @@ impl<'a> FontRead<'a> for Script<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for Script<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.sanitize_offset::<Offset16, LangSys>(())?;
+        let lang_sys_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<LangSysRecord>(lang_sys_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -303,6 +331,17 @@ impl FixedSize for LangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for LangSysRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for LangSysRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        self.lang_sys_offset().sanitize_offset::<LangSys>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for LangSysRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -338,6 +377,16 @@ impl<'a> FontRead<'a> for LangSys<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for LangSys<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        let feature_index_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(feature_index_count as usize)?;
+        ctx.finish()
     }
 }
 
@@ -453,6 +502,14 @@ impl<'a> FontRead<'a> for FeatureList<'a> {
     }
 }
 
+impl Sanitize for FeatureList<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let feature_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<FeatureRecord>(feature_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 #[derive(Clone)]
 pub struct FeatureList<'a> {
@@ -564,6 +621,18 @@ impl FixedSize for FeatureRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for FeatureRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for FeatureRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        self.feature_offset()
+            .sanitize_offset::<Feature>(ctx, self.feature_tag())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FeatureRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -616,6 +685,16 @@ impl<'a> Feature<'a> {
     pub fn read(data: FontData<'a>, feature_tag: Tag) -> Result<Self, ReadError> {
         let args = feature_tag;
         Self::read_with_args(data, &args)
+    }
+}
+
+impl Sanitize for Feature<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, args: Tag) -> Result<(), ReadError> {
+        let feature_tag = args;
+        ctx.sanitize_offset::<Offset16, FeatureParams>(feature_tag)?;
+        let lookup_index_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(lookup_index_count as usize)?;
+        ctx.finish()
     }
 }
 
@@ -752,6 +831,14 @@ impl<'a, T> LookupList<'a, T> {
     }
 }
 
+impl<T: Sanitize<Args = ()>> Sanitize for LookupList<'_, T> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, T>(lookup_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 #[derive(Clone)]
 pub struct LookupList<'a, T = ()> {
@@ -874,6 +961,19 @@ impl<'a, T> Lookup<'a, T> {
             data: self.data,
             offset_type: std::marker::PhantomData,
         }
+    }
+}
+
+impl<T: Sanitize<Args = ()>> Sanitize for Lookup<'_, T> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let lookup_flag = ctx.read::<LookupFlag>()?;
+        let sub_table_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, T>(sub_table_count as usize, ())?;
+        if lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET) {
+            ctx.advance::<u16>();
+        }
+        ctx.finish()
     }
 }
 
@@ -1038,6 +1138,15 @@ impl<'a> FontRead<'a> for CoverageFormat1<'a> {
     }
 }
 
+impl Sanitize for CoverageFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(glyph_count as usize)?;
+        ctx.finish()
+    }
+}
+
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
 #[derive(Clone)]
 pub struct CoverageFormat1<'a> {
@@ -1140,6 +1249,15 @@ impl<'a> FontRead<'a> for CoverageFormat2<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for CoverageFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let range_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<RangeRecord>(range_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -1254,6 +1372,19 @@ impl FixedSize for RangeRecord {
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for RangeRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for RangeRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for RangeRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1330,6 +1461,17 @@ impl<'a> MinByteRange<'a> for CoverageTable<'a> {
     }
 }
 
+impl Sanitize for CoverageTable<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            CoverageFormat1::FORMAT => CoverageFormat1::sanitize(ctx, ()),
+            CoverageFormat2::FORMAT => CoverageFormat2::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> CoverageTable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1378,6 +1520,16 @@ impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ClassDefFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<GlyphId16>();
+        let glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(glyph_count as usize)?;
+        ctx.finish()
     }
 }
 
@@ -1498,6 +1650,15 @@ impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
     }
 }
 
+impl Sanitize for ClassDefFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let class_range_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<ClassRangeRecord>(class_range_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
 #[derive(Clone)]
 pub struct ClassDefFormat2<'a> {
@@ -1609,6 +1770,19 @@ impl FixedSize for ClassRangeRecord {
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for ClassRangeRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for ClassRangeRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ClassRangeRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1682,6 +1856,17 @@ impl<'a> MinByteRange<'a> for ClassDef<'a> {
     }
 }
 
+impl Sanitize for ClassDef<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            ClassDefFormat1::FORMAT => ClassDefFormat1::sanitize(ctx, ()),
+            ClassDefFormat2::FORMAT => ClassDefFormat2::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> ClassDef<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1736,6 +1921,19 @@ impl FixedSize for SequenceLookupRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for SequenceLookupRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for SequenceLookupRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SequenceLookupRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1772,6 +1970,19 @@ impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for SequenceContextFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let seq_rule_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, SequenceRuleSet>(
+            seq_rule_set_count as usize,
+            (),
+        )?;
+        ctx.finish()
     }
 }
 
@@ -1909,6 +2120,14 @@ impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
     }
 }
 
+impl Sanitize for SequenceRuleSet<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let seq_rule_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, SequenceRule>(seq_rule_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// Part of [SequenceContextFormat1]
 #[derive(Clone)]
 pub struct SequenceRuleSet<'a> {
@@ -2006,6 +2225,16 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for SequenceRule<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let glyph_count = ctx.read::<u16>()?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(transforms::subtract(glyph_count, 1_usize))?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(seq_lookup_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -2133,6 +2362,20 @@ impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for SequenceContextFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        let class_seq_rule_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ClassSequenceRuleSet>(
+            class_seq_rule_set_count as usize,
+            (),
+        )?;
+        ctx.finish()
     }
 }
 
@@ -2286,6 +2529,17 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
     }
 }
 
+impl Sanitize for ClassSequenceRuleSet<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let class_seq_rule_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ClassSequenceRule>(
+            class_seq_rule_count as usize,
+            (),
+        )?;
+        ctx.finish()
+    }
+}
+
 /// Part of [SequenceContextFormat2]
 #[derive(Clone)]
 pub struct ClassSequenceRuleSet<'a> {
@@ -2386,6 +2640,16 @@ impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ClassSequenceRule<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let glyph_count = ctx.read::<u16>()?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::subtract(glyph_count, 1_usize))?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(seq_lookup_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -2514,6 +2778,17 @@ impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for SequenceContextFormat3<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let glyph_count = ctx.read::<u16>()?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(glyph_count as usize, ())?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(seq_lookup_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -2692,6 +2967,18 @@ impl<'a> MinByteRange<'a> for SequenceContext<'a> {
     }
 }
 
+impl Sanitize for SequenceContext<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            SequenceContextFormat1::FORMAT => SequenceContextFormat1::sanitize(ctx, ()),
+            SequenceContextFormat2::FORMAT => SequenceContextFormat2::sanitize(ctx, ()),
+            SequenceContextFormat3::FORMAT => SequenceContextFormat3::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SequenceContext<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -2741,6 +3028,19 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ChainedSequenceContextFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let chained_seq_rule_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ChainedSequenceRuleSet>(
+            chained_seq_rule_set_count as usize,
+            (),
+        )?;
+        ctx.finish()
     }
 }
 
@@ -2883,6 +3183,17 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
     }
 }
 
+impl Sanitize for ChainedSequenceRuleSet<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let chained_seq_rule_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ChainedSequenceRule>(
+            chained_seq_rule_count as usize,
+            (),
+        )?;
+        ctx.finish()
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat1]
 #[derive(Clone)]
 pub struct ChainedSequenceRuleSet<'a> {
@@ -2983,6 +3294,20 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ChainedSequenceRule<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let backtrack_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(backtrack_glyph_count as usize)?;
+        let input_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(transforms::subtract(input_glyph_count, 1_usize))?;
+        let lookahead_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(lookahead_glyph_count as usize)?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(seq_lookup_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -3169,6 +3494,22 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ChainedSequenceContextFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        let chained_class_seq_rule_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ChainedClassSequenceRuleSet>(
+            chained_class_seq_rule_set_count as usize,
+            (),
+        )?;
+        ctx.finish()
     }
 }
 
@@ -3378,6 +3719,17 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
     }
 }
 
+impl Sanitize for ChainedClassSequenceRuleSet<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let chained_class_seq_rule_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ChainedClassSequenceRule>(
+            chained_class_seq_rule_count as usize,
+            (),
+        )?;
+        ctx.finish()
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat2]
 #[derive(Clone)]
 pub struct ChainedClassSequenceRuleSet<'a> {
@@ -3481,6 +3833,20 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ChainedClassSequenceRule<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let backtrack_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(backtrack_glyph_count as usize)?;
+        let input_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::subtract(input_glyph_count, 1_usize))?;
+        let lookahead_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(lookahead_glyph_count as usize)?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(seq_lookup_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -3668,6 +4034,27 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ChainedSequenceContextFormat3<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let backtrack_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(
+            backtrack_glyph_count as usize,
+            (),
+        )?;
+        let input_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(input_glyph_count as usize, ())?;
+        let lookahead_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(
+            lookahead_glyph_count as usize,
+            (),
+        )?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(seq_lookup_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -3925,6 +4312,24 @@ impl<'a> MinByteRange<'a> for ChainedSequenceContext<'a> {
     }
 }
 
+impl Sanitize for ChainedSequenceContext<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            ChainedSequenceContextFormat1::FORMAT => {
+                ChainedSequenceContextFormat1::sanitize(ctx, ())
+            }
+            ChainedSequenceContextFormat2::FORMAT => {
+                ChainedSequenceContextFormat2::sanitize(ctx, ())
+            }
+            ChainedSequenceContextFormat3::FORMAT => {
+                ChainedSequenceContextFormat3::sanitize(ctx, ())
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> ChainedSequenceContext<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -4024,6 +4429,16 @@ impl<'a> FontRead<'a> for Device<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for Device<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let start_size = ctx.read::<u16>()?;
+        let end_size = ctx.read::<u16>()?;
+        let delta_format = ctx.read::<DeltaFormat>()?;
+        ctx.sanitize_array::<u16>(DeltaFormat::value_count(delta_format, start_size, end_size))?;
+        ctx.finish()
     }
 }
 
@@ -4140,6 +4555,15 @@ impl<'a> FontRead<'a> for VariationIndex<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for VariationIndex<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<DeltaFormat>();
+        ctx.finish()
     }
 }
 
@@ -4284,6 +4708,19 @@ impl<'a> MinByteRange<'a> for DeviceOrVariationIndex<'a> {
     }
 }
 
+impl Sanitize for DeviceOrVariationIndex<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: DeltaFormat = ctx.peek_at(4usize)?;
+
+        #[allow(clippy::redundant_guards)]
+        match format {
+            format if format != DeltaFormat::VariationIndex => Device::sanitize(ctx, ()),
+            format if format == DeltaFormat::VariationIndex => VariationIndex::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> DeviceOrVariationIndex<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -4328,6 +4765,18 @@ impl<'a> FontRead<'a> for FeatureVariations<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for FeatureVariations<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<MajorMinor>();
+        let feature_variation_record_count = ctx.read::<u32>()?;
+        ctx.sanitize_array_of_structs::<FeatureVariationRecord>(
+            feature_variation_record_count as usize,
+            (),
+        )?;
+        ctx.finish()
     }
 }
 
@@ -4479,6 +4928,20 @@ impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for FeatureVariationRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for FeatureVariationRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        self.condition_set_offset()
+            .sanitize_offset::<ConditionSet>(ctx, ())?;
+        self.feature_table_substitution_offset()
+            .sanitize_offset::<FeatureTableSubstitution>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FeatureVariationRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -4520,6 +4983,14 @@ impl<'a> FontRead<'a> for ConditionSet<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ConditionSet<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let condition_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset32, Condition>(condition_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -4679,6 +5150,20 @@ impl<'a> MinByteRange<'a> for Condition<'a> {
     }
 }
 
+impl Sanitize for Condition<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            ConditionFormat1::FORMAT => ConditionFormat1::sanitize(ctx, ()),
+            ConditionFormat2::FORMAT => ConditionFormat2::sanitize(ctx, ()),
+            ConditionFormat3::FORMAT => ConditionFormat3::sanitize(ctx, ()),
+            ConditionFormat4::FORMAT => ConditionFormat4::sanitize(ctx, ()),
+            ConditionFormat5::FORMAT => ConditionFormat5::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> Condition<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -4730,6 +5215,16 @@ impl<'a> FontRead<'a> for ConditionFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ConditionFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<F2Dot14>();
+        ctx.advance::<F2Dot14>();
+        ctx.finish()
     }
 }
 
@@ -4859,6 +5354,15 @@ impl<'a> FontRead<'a> for ConditionFormat2<'a> {
     }
 }
 
+impl Sanitize for ConditionFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<i16>();
+        ctx.advance::<u32>();
+        ctx.finish()
+    }
+}
+
 /// [Condition Table Format 2](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3237-L3255): Variation index
 #[derive(Clone)]
 pub struct ConditionFormat2<'a> {
@@ -4948,6 +5452,15 @@ impl<'a> FontRead<'a> for ConditionFormat3<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for ConditionFormat3<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let condition_count = ctx.read::<u8>()?;
+        ctx.sanitize_array_of_offsets::<Offset24, Condition>(condition_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -5054,6 +5567,15 @@ impl<'a> FontRead<'a> for ConditionFormat4<'a> {
     }
 }
 
+impl Sanitize for ConditionFormat4<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let condition_count = ctx.read::<u8>()?;
+        ctx.sanitize_array_of_offsets::<Offset24, Condition>(condition_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// [Condition Table Format 4](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3276-L3295): OR
 #[derive(Clone)]
 pub struct ConditionFormat4<'a> {
@@ -5157,6 +5679,14 @@ impl<'a> FontRead<'a> for ConditionFormat5<'a> {
     }
 }
 
+impl Sanitize for ConditionFormat5<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset24, Condition>(())?;
+        ctx.finish()
+    }
+}
+
 /// [Condition Table Format 5](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3296-L3308): NOT
 #[derive(Clone)]
 pub struct ConditionFormat5<'a> {
@@ -5239,6 +5769,18 @@ impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for FeatureTableSubstitution<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<MajorMinor>();
+        let substitution_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<FeatureTableSubstitutionRecord>(
+            substitution_count as usize,
+            (),
+        )?;
+        ctx.finish()
     }
 }
 
@@ -5362,6 +5904,17 @@ impl FixedSize for FeatureTableSubstitutionRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for FeatureTableSubstitutionRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for FeatureTableSubstitutionRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        self.sanitize_alternate_feature_offset(ctx)?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FeatureTableSubstitutionRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -5400,6 +5953,17 @@ impl<'a> FontRead<'a> for SizeParams<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for SizeParams<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.finish()
     }
 }
 
@@ -5548,6 +6112,14 @@ impl<'a> FontRead<'a> for StylisticSetParams<'a> {
     }
 }
 
+impl Sanitize for StylisticSetParams<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<NameId>();
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct StylisticSetParams<'a> {
     data: FontData<'a>,
@@ -5643,6 +6215,20 @@ impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for CharacterVariantParams<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<NameId>();
+        ctx.advance::<NameId>();
+        ctx.advance::<NameId>();
+        ctx.advance::<u16>();
+        ctx.advance::<NameId>();
+        let char_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<Uint24>(char_count as usize)?;
+        ctx.finish()
     }
 }
 

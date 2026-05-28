@@ -13,7 +13,7 @@ use crate::{
 /// This is bundled together because we need to update the shared state as we
 /// navigate the bytes.
 pub struct SanitizeContext<'a> {
-    cursor: Cursor<'a>,
+    pub(crate) cursor: Cursor<'a>,
     state: &'a mut SanitizeState,
 }
 

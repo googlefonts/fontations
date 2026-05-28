@@ -5,6 +5,7 @@ use types::{BigEndian, F2Dot14, FixedSize, Offset16};
 
 use super::ValueFormat;
 use crate::{
+    sanitize::{SanitizeOffset, SanitizeStruct},
     tables::{
         layout::DeviceOrVariationIndex,
         variations::{DeltaSetIndex, ItemVariationStore},
@@ -334,6 +335,29 @@ impl ComputeSize for ValueRecord {
     #[inline]
     fn compute_size(args: &ValueFormat) -> Result<usize, ReadError> {
         Ok(args.record_byte_len())
+    }
+}
+
+impl SanitizeStruct for ValueRecord {
+    fn sanitize_struct(
+        &self,
+        ctx: &mut crate::sanitize::SanitizeContext<'_>,
+        _args: Self::Args,
+    ) -> Result<(), ReadError> {
+        //NOTE: I don't think harfbuzz sanitizes these greedily? but we can
+        //do this for now and change it later
+        self.x_placement_device
+            .get()
+            .sanitize_offset::<DeviceOrVariationIndex>(ctx, ())?;
+        self.y_placement_device
+            .get()
+            .sanitize_offset::<DeviceOrVariationIndex>(ctx, ())?;
+        self.x_advance_device
+            .get()
+            .sanitize_offset::<DeviceOrVariationIndex>(ctx, ())?;
+        self.y_advance_device
+            .get()
+            .sanitize_offset::<DeviceOrVariationIndex>(ctx, ())
     }
 }
 

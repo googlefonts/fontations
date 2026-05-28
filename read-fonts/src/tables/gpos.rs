@@ -184,6 +184,12 @@ impl PairPosFormat2<'_> {
     }
 }
 
+// called from codegen
+fn sanitize_value_record(ctx: &mut SanitizeContext, args: ValueFormat) -> Result<(), ReadError> {
+    let record: ValueRecord = ctx.cursor.read_with_args(&args)?;
+    record.sanitize_struct(ctx, args)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

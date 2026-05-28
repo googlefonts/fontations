@@ -30,6 +30,19 @@ impl<'a> FontRead<'a> for Gpos<'a> {
     }
 }
 
+impl Sanitize for Gpos<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let version = ctx.read::<MajorMinor>()?;
+        ctx.sanitize_offset::<Offset16, ScriptList>(())?;
+        ctx.sanitize_offset::<Offset16, FeatureList>(())?;
+        ctx.sanitize_offset::<Offset16, PositionLookupList>(())?;
+        if version.compatible((1u16, 1u16)) {
+            ctx.sanitize_offset::<Offset32, FeatureVariations>(())?;
+        }
+        ctx.finish()
+    }
+}
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[derive(Clone)]
@@ -232,6 +245,24 @@ impl<'a> PositionLookup<'a> {
             PositionLookup::Contextual(inner) => inner.of_unit_type(),
             PositionLookup::ChainContextual(inner) => inner.of_unit_type(),
             PositionLookup::Extension(inner) => inner.of_unit_type(),
+        }
+    }
+}
+
+impl Sanitize for PositionLookup<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let discriminant = Lookup::read_discriminant(ctx.data())?;
+        match discriminant {
+            1 => Lookup::<SinglePos>::sanitize(ctx, _args),
+            2 => Lookup::<PairPos>::sanitize(ctx, _args),
+            3 => Lookup::<CursivePosFormat1>::sanitize(ctx, _args),
+            4 => Lookup::<MarkBasePosFormat1>::sanitize(ctx, _args),
+            5 => Lookup::<MarkLigPosFormat1>::sanitize(ctx, _args),
+            6 => Lookup::<MarkMarkPosFormat1>::sanitize(ctx, _args),
+            7 => Lookup::<PositionSequenceContext>::sanitize(ctx, _args),
+            8 => Lookup::<PositionChainContext>::sanitize(ctx, _args),
+            9 => Lookup::<ExtensionSubtable>::sanitize(ctx, _args),
+            other => Err(ReadError::InvalidFormat(other as _)),
         }
     }
 }
@@ -695,6 +726,18 @@ impl<'a> MinByteRange<'a> for AnchorTable<'a> {
     }
 }
 
+impl Sanitize for AnchorTable<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            AnchorFormat1::FORMAT => AnchorFormat1::sanitize(ctx, ()),
+            AnchorFormat2::FORMAT => AnchorFormat2::sanitize(ctx, ()),
+            AnchorFormat3::FORMAT => AnchorFormat3::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> AnchorTable<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -744,6 +787,15 @@ impl<'a> FontRead<'a> for AnchorFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for AnchorFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<i16>();
+        ctx.advance::<i16>();
+        ctx.finish()
     }
 }
 
@@ -849,6 +901,16 @@ impl<'a> FontRead<'a> for AnchorFormat2<'a> {
     }
 }
 
+impl Sanitize for AnchorFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<i16>();
+        ctx.advance::<i16>();
+        ctx.advance::<u16>();
+        ctx.finish()
+    }
+}
+
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
 #[derive(Clone)]
 pub struct AnchorFormat2<'a> {
@@ -951,6 +1013,17 @@ impl<'a> FontRead<'a> for AnchorFormat3<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for AnchorFormat3<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<i16>();
+        ctx.advance::<i16>();
+        ctx.sanitize_offset::<Offset16, DeviceOrVariationIndex>(())?;
+        ctx.sanitize_offset::<Offset16, DeviceOrVariationIndex>(())?;
+        ctx.finish()
     }
 }
 
@@ -1092,6 +1165,14 @@ impl<'a> FontRead<'a> for MarkArray<'a> {
     }
 }
 
+impl Sanitize for MarkArray<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let mark_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<MarkRecord>(mark_count as usize, ())?;
+        ctx.finish()
+    }
+}
+
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Clone)]
 pub struct MarkArray<'a> {
@@ -1202,6 +1283,18 @@ impl FixedSize for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for MarkRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for MarkRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        self.mark_anchor_offset()
+            .sanitize_offset::<AnchorTable>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for MarkRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1293,6 +1386,17 @@ impl<'a> MinByteRange<'a> for SinglePos<'a> {
     }
 }
 
+impl Sanitize for SinglePos<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            SinglePosFormat1::FORMAT => SinglePosFormat1::sanitize(ctx, ()),
+            SinglePosFormat2::FORMAT => SinglePosFormat2::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SinglePos<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1341,6 +1445,16 @@ impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for SinglePosFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let value_format = ctx.read::<ValueFormat>()?;
+        sanitize_value_record(ctx, value_format)?;
+        ctx.finish()
     }
 }
 
@@ -1473,6 +1587,17 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for SinglePosFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let value_format = ctx.read::<ValueFormat>()?;
+        let value_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<ValueRecord>(value_count as _, value_format, true)?;
+        ctx.finish()
     }
 }
 
@@ -1678,6 +1803,17 @@ impl<'a> MinByteRange<'a> for PairPos<'a> {
     }
 }
 
+impl Sanitize for PairPos<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            PairPosFormat1::FORMAT => PairPosFormat1::sanitize(ctx, ()),
+            PairPosFormat2::FORMAT => PairPosFormat2::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> PairPos<'a> {
     fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
@@ -1726,6 +1862,21 @@ impl<'a> FontRead<'a> for PairPosFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for PairPosFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let value_format1 = ctx.read::<ValueFormat>()?;
+        let value_format2 = ctx.read::<ValueFormat>()?;
+        let pair_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, PairSet>(
+            pair_set_count as usize,
+            (value_format1, value_format2),
+        )?;
+        ctx.finish()
     }
 }
 
@@ -1919,6 +2070,22 @@ impl<'a> PairSet<'a> {
     }
 }
 
+impl Sanitize for PairSet<'_> {
+    fn sanitize(
+        ctx: &mut SanitizeContext,
+        args: (ValueFormat, ValueFormat),
+    ) -> Result<(), ReadError> {
+        let (value_format1, value_format2) = args;
+        let pair_value_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<PairValueRecord>(
+            pair_value_count as _,
+            (value_format1, value_format2),
+            true,
+        )?;
+        ctx.finish()
+    }
+}
+
 /// Part of [PairPosFormat1]
 #[derive(Clone)]
 pub struct PairSet<'a> {
@@ -2099,6 +2266,19 @@ impl<'a> PairValueRecord {
     }
 }
 
+impl SanitizeStruct for PairValueRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(
+        &self,
+        ctx: &mut SanitizeContext<'_>,
+        _args: (ValueFormat, ValueFormat),
+    ) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for PairValueRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -2142,6 +2322,25 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for PairPosFormat2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let value_format1 = ctx.read::<ValueFormat>()?;
+        let value_format2 = ctx.read::<ValueFormat>()?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        let class1_count = ctx.read::<u16>()?;
+        let class2_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<Class1Record>(
+            class1_count as _,
+            (class2_count, value_format1, value_format2),
+            true,
+        )?;
+        ctx.finish()
     }
 }
 
@@ -2409,6 +2608,19 @@ impl<'a> Class1Record<'a> {
     }
 }
 
+impl SanitizeStruct for Class1Record<'_> {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(
+        &self,
+        ctx: &mut SanitizeContext<'_>,
+        _args: (u16, ValueFormat, ValueFormat),
+    ) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for Class1Record<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -2500,6 +2712,19 @@ impl<'a> Class2Record {
     }
 }
 
+impl SanitizeStruct for Class2Record {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(
+        &self,
+        ctx: &mut SanitizeContext<'_>,
+        _args: (ValueFormat, ValueFormat),
+    ) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for Class2Record {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -2542,6 +2767,16 @@ impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for CursivePosFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let entry_exit_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<EntryExitRecord>(entry_exit_count as usize, ())?;
+        ctx.finish()
     }
 }
 
@@ -2709,6 +2944,20 @@ impl FixedSize for EntryExitRecord {
     const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for EntryExitRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for EntryExitRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        self.entry_anchor_offset()
+            .sanitize_offset::<AnchorTable>(ctx, ())?;
+        self.exit_anchor_offset()
+            .sanitize_offset::<AnchorTable>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for EntryExitRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -2751,6 +3000,18 @@ impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for MarkBasePosFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let mark_class_count = ctx.read::<u16>()?;
+        ctx.sanitize_offset::<Offset16, MarkArray>(())?;
+        ctx.sanitize_offset::<Offset16, BaseArray>(mark_class_count)?;
+        ctx.finish()
     }
 }
 
@@ -2956,6 +3217,15 @@ impl<'a> BaseArray<'a> {
     }
 }
 
+impl Sanitize for BaseArray<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        let base_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<BaseRecord>(base_count as _, mark_class_count, true)?;
+        ctx.finish()
+    }
+}
+
 /// Part of [MarkBasePosFormat1]
 #[derive(Clone)]
 pub struct BaseArray<'a> {
@@ -3109,6 +3379,15 @@ impl<'a> BaseRecord<'a> {
     }
 }
 
+impl SanitizeStruct for BaseRecord<'_> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        self.base_anchor_offsets()
+            .sanitize_offset::<AnchorTable>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for BaseRecord<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -3147,6 +3426,18 @@ impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for MarkLigPosFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let mark_class_count = ctx.read::<u16>()?;
+        ctx.sanitize_offset::<Offset16, MarkArray>(())?;
+        ctx.sanitize_offset::<Offset16, LigatureArray>(mark_class_count)?;
+        ctx.finish()
     }
 }
 
@@ -3352,6 +3643,18 @@ impl<'a> LigatureArray<'a> {
     }
 }
 
+impl Sanitize for LigatureArray<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        let ligature_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, LigatureAttach>(
+            ligature_count as usize,
+            mark_class_count,
+        )?;
+        ctx.finish()
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone)]
 pub struct LigatureArray<'a> {
@@ -3475,6 +3778,19 @@ impl<'a> LigatureAttach<'a> {
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
         Self::read_with_args(data, &args)
+    }
+}
+
+impl Sanitize for LigatureAttach<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        let component_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<ComponentRecord>(
+            component_count as _,
+            mark_class_count,
+            true,
+        )?;
+        ctx.finish()
     }
 }
 
@@ -3631,6 +3947,15 @@ impl<'a> ComponentRecord<'a> {
     }
 }
 
+impl SanitizeStruct for ComponentRecord<'_> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        self.ligature_anchor_offsets()
+            .sanitize_offset::<AnchorTable>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -3669,6 +3994,18 @@ impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for MarkMarkPosFormat1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let mark_class_count = ctx.read::<u16>()?;
+        ctx.sanitize_offset::<Offset16, MarkArray>(())?;
+        ctx.sanitize_offset::<Offset16, Mark2Array>(mark_class_count)?;
+        ctx.finish()
     }
 }
 
@@ -3874,6 +4211,15 @@ impl<'a> Mark2Array<'a> {
     }
 }
 
+impl Sanitize for Mark2Array<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        let mark2_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<Mark2Record>(mark2_count as _, mark_class_count, true)?;
+        ctx.finish()
+    }
+}
+
 /// Part of [MarkMarkPosFormat1]Class2Record
 #[derive(Clone)]
 pub struct Mark2Array<'a> {
@@ -4027,6 +4373,15 @@ impl<'a> Mark2Record<'a> {
     }
 }
 
+impl SanitizeStruct for Mark2Record<'_> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        self.mark2_anchor_offsets()
+            .sanitize_offset::<AnchorTable>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for Mark2Record<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -4085,6 +4440,15 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
             data: self.data,
             offset_type: std::marker::PhantomData,
         }
+    }
+}
+
+impl<T: Sanitize<Args = ()>> Sanitize for ExtensionPosFormat1<'_, T> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset32, T>(())?;
+        ctx.finish()
     }
 }
 
@@ -4238,6 +4602,23 @@ impl<'a> ExtensionSubtable<'a> {
             ExtensionSubtable::MarkToMark(inner) => inner.of_unit_type(),
             ExtensionSubtable::Contextual(inner) => inner.of_unit_type(),
             ExtensionSubtable::ChainContextual(inner) => inner.of_unit_type(),
+        }
+    }
+}
+
+impl Sanitize for ExtensionSubtable<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let discriminant = ExtensionPosFormat1::read_discriminant(ctx.data())?;
+        match discriminant {
+            1 => ExtensionPosFormat1::<SinglePos>::sanitize(ctx, _args),
+            2 => ExtensionPosFormat1::<PairPos>::sanitize(ctx, _args),
+            3 => ExtensionPosFormat1::<CursivePosFormat1>::sanitize(ctx, _args),
+            4 => ExtensionPosFormat1::<MarkBasePosFormat1>::sanitize(ctx, _args),
+            5 => ExtensionPosFormat1::<MarkLigPosFormat1>::sanitize(ctx, _args),
+            6 => ExtensionPosFormat1::<MarkMarkPosFormat1>::sanitize(ctx, _args),
+            7 => ExtensionPosFormat1::<PositionSequenceContext>::sanitize(ctx, _args),
+            8 => ExtensionPosFormat1::<PositionChainContext>::sanitize(ctx, _args),
+            other => Err(ReadError::InvalidFormat(other as _)),
         }
     }
 }
