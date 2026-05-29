@@ -523,7 +523,7 @@ impl HasOffsetsWithArgs {
     /// By calling its `offset_data` method.
     pub fn feature<'a>(&self, data: FontData<'a>) -> Result<HasReadArgs<'a>, ReadError> {
         let args = self.merp_len();
-        self.feature_offset().resolve_with_args(data, &args)
+        self.feature_offset().resolve_with_args(data, args)
     }
 
     /// custom offset getter in a record
@@ -585,9 +585,9 @@ impl ReadArgs for HasReadArgs<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for HasReadArgs<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let merp_len = *args;
+impl<'a> FontRead<'a> for HasReadArgs<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let merp_len = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -604,7 +604,7 @@ impl<'a> HasReadArgs<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, merp_len: u16) -> Result<Self, ReadError> {
         let args = merp_len;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -612,7 +612,7 @@ impl Sanitize for HasReadArgs<'_> {
     fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
         let merp_len = args;
         ctx.advance::<u16>();
-        ctx.sanitize_array::<i16>(merp_len as usize)?;
+        ctx.sanitize_array::<i16>(transforms::to_usize(merp_len))?;
         ctx.finish()
     }
 }
@@ -644,13 +644,15 @@ impl<'a> HasReadArgs<'a> {
 
     pub fn derp_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn merps_byte_range(&self) -> Range<usize> {
         let merp_len = self.merp_len();
         let start = self.derp_byte_range().end;
-        start..start + (merp_len as usize).saturating_mul(i16::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(merp_len)).saturating_mul(i16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
