@@ -17,11 +17,10 @@ impl<'a> MinByteRange<'a> for MajorMinorVersion<'a> {
 
 impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -36,6 +35,12 @@ impl Sanitize for MajorMinorVersion<'_> {
             ctx.advance::<u32>();
         }
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for MajorMinorVersion<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -457,11 +462,10 @@ impl<'a> MinByteRange<'a> for FlagDay<'a> {
 
 impl<'a> FontRead<'a> for FlagDay<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -476,6 +480,12 @@ impl Sanitize for FlagDay<'_> {
             ctx.advance::<u16>();
         }
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for FlagDay<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 

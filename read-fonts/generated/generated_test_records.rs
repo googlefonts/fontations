@@ -17,11 +17,10 @@ impl<'a> MinByteRange<'a> for BasicTable<'a> {
 
 impl<'a> FontRead<'a> for BasicTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -37,6 +36,12 @@ impl Sanitize for BasicTable<'_> {
             true,
         )?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for BasicTable<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -399,11 +404,10 @@ impl<'a> MinByteRange<'a> for VarLenItem<'a> {
 
 impl<'a> FontRead<'a> for VarLenItem<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -412,6 +416,12 @@ impl Sanitize for VarLenItem<'_> {
         ctx.advance::<u32>();
         sanitize_data(ctx)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for VarLenItem<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -569,13 +579,10 @@ impl ReadArgs for HasReadArgs<'_> {
 
 impl<'a> FontReadWithArgs<'a> for HasReadArgs<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let merp_len = *args;
-
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data, merp_len })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, *args)?;
+        Ok(Self::fast_read(data, *args))
     }
 }
 
@@ -596,6 +603,13 @@ impl Sanitize for HasReadArgs<'_> {
         ctx.advance::<u16>();
         ctx.sanitize_array::<i16>(merp_len as usize)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for HasReadArgs<'a> {
+    fn fast_read(data: FontData<'a>, args: u16) -> Self {
+        let merp_len = args;
+        Self { data, merp_len }
     }
 }
 

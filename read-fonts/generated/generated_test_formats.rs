@@ -21,11 +21,10 @@ impl<'a> MinByteRange<'a> for Table1<'a> {
 
 impl<'a> FontRead<'a> for Table1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -35,6 +34,12 @@ impl Sanitize for Table1<'_> {
         ctx.advance::<u32>();
         ctx.advance::<u16>();
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for Table1<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -128,11 +133,10 @@ impl<'a> MinByteRange<'a> for Table2<'a> {
 
 impl<'a> FontRead<'a> for Table2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -142,6 +146,12 @@ impl Sanitize for Table2<'_> {
         let value_count = ctx.read::<u16>()?;
         ctx.sanitize_array::<u16>(value_count as usize)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for Table2<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -226,11 +236,10 @@ impl<'a> MinByteRange<'a> for Table3<'a> {
 
 impl<'a> FontRead<'a> for Table3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -239,6 +248,12 @@ impl Sanitize for Table3<'_> {
         ctx.advance::<u16>();
         ctx.advance::<u16>();
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for Table3<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 

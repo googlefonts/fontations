@@ -79,12 +79,15 @@ pub mod offsets_arrays {
 
     #[test]
     fn array_offsets() {
+        // header (v1.0): MajorMinor(4) + nonnullable(2) + nullable(2) +
+        //   count(2) + array_offset(2) + record_array_offset(2) = 14
         let builder = BeBuffer::new()
             .push(MajorMinor::VERSION_1_0)
-            .push(12_u16) // offset to 0xdead
-            .push(0u16) // nullable
+            .push(14_u16) // nonnullable → Dummy at offset 14
+            .push(0u16) // nullable (null)
             .push(2u16) // array len
-            .push(12u16) // array offset
+            .push(14u16) // array offset → data at 14
+            .push(0u16) // record_array_offset (null)
             .extend([0xdead_u16, 0xbeef]);
 
         let table = KindsOfOffsets::read(builder.data().into()).unwrap();
@@ -161,14 +164,14 @@ pub mod offsets_arrays {
 
     #[test]
     fn versioned_array_bad_data() {
+        // Data is too small for the versioned fields — sanitize rejects it
         let buf = BeBuffer::new()
             .push(1u16) // version
             .push(1u16) // count
             .push(2u16) // scalar array
             .push(3u16)
             .push(4u32); // shmecord array
-        let table = KindsOfArrays::read(buf.data().into()).unwrap();
-        assert!(table.versioned_scalars().is_none()); // should be there but isn't
+        assert!(KindsOfArrays::read(buf.data().into()).is_err());
     }
 }
 
@@ -252,11 +255,9 @@ pub mod conditions {
 
     #[test]
     fn majorminor_1_1() {
+        // Too small for v1.1 — sanitize rejects it
         let bytes = BeBuffer::new().push(MajorMinor::VERSION_1_1).push(0u16);
-        let too_small = MajorMinorVersion::read(bytes.data().into()).unwrap();
-        // this is expected to be present but the data is malformed; we will
-        // still parse the table but checked read of the field will fail
-        assert!(too_small.if_11().is_none());
+        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
 
         let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_1_1)
@@ -268,10 +269,11 @@ pub mod conditions {
 
     #[test]
     fn major_minor_2() {
+        // Too small for v2.0 — sanitize rejects it
+        // v2.0 needs: MajorMinor(4) + always_present(2) + if_20(4) = 10
+        // (if_11 is NOT present for v2.0 since compatible requires same major)
         let bytes = BeBuffer::new().push(MajorMinor::VERSION_2_0).push(0u16);
-        let too_small = MajorMinorVersion::read(bytes.data().into()).unwrap();
-        assert!(too_small.if_11().is_none());
-        assert!(too_small.if_20().is_none());
+        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
 
         let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_2_0)

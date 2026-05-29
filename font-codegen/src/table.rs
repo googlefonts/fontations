@@ -53,7 +53,7 @@ pub(crate) fn generate(item: &Table, items: &Items) -> syn::Result<TokenStream> 
     let table_ref_getters = item.iter_table_ref_getters();
     let optional_format_trait_impl = item.impl_format_trait();
     let optional_discriminant_trait_impl = item.impl_discriminant_trait();
-    let font_read = generate_font_read(item)?;
+    let font_read = generate_font_read(item, items.sanitize)?;
     let sanitize = items
         .sanitize
         .then(|| generate_sanitize(item))
@@ -164,7 +164,7 @@ pub(crate) fn generate(item: &Table, items: &Items) -> syn::Result<TokenStream> 
     })
 }
 
-fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
+fn generate_font_read(item: &Table, sanitize: bool) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let generic = item.attrs.generic_offset.as_ref();
     let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
@@ -180,6 +180,23 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         let constructor_args = read_args.constructor_args();
         let args_from_constructor_args = read_args.read_args_from_constructor_args();
         let arg_idents = read_args.idents();
+        let body = if sanitize {
+            quote! {
+                let mut state = SanitizeState::default();
+                let mut ctx = SanitizeContext::new(data, &mut state);
+                Self::sanitize(&mut ctx, *args)?;
+                Ok(Self::fast_read(data, *args))
+            }
+        } else {
+            quote! {
+                let #destructure_pattern = *args;
+                #[allow(clippy::absurd_extreme_comparisons)] // if MIN_SIZE is 0
+                if data.len() < Self::MIN_SIZE {
+                    return Err(ReadError::OutOfBounds);
+                }
+                Ok(Self { data, #( #arg_idents, )* })
+            }
+        };
         Ok(quote! {
             #error_if_phantom_and_read_args
             impl ReadArgs for #name<'_> {
@@ -188,17 +205,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
 
             impl<'a> FontReadWithArgs<'a> for #name<'a> {
                 fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
-                    let #destructure_pattern = *args;
-                    #[allow(clippy::absurd_extreme_comparisons)] // if MIN_SIZE is 0
-                    if data.len() < Self::MIN_SIZE {
-                        return Err(ReadError::OutOfBounds);
-                    }
-                     Ok(
-                         Self {
-                             data,
-                             #( #arg_idents, )*
-                         }
-                     )
+                    #body
                 }
             }
 
@@ -214,17 +221,30 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             }
         })
     } else {
+        // Only use sanitize-then-fast_read for non-generic tables;
+        // generic tables keep the old bounds-check approach since their
+        // FontRead bound on T doesn't imply Sanitize.
+        let use_sanitize = sanitize && generic.is_none();
+        let body = if use_sanitize {
+            quote! {
+                let mut state = SanitizeState::default();
+                let mut ctx = SanitizeContext::new(data, &mut state);
+                Self::sanitize(&mut ctx, ())?;
+                Ok(Self::fast_read(data, ()))
+            }
+        } else {
+            quote! {
+                #[allow(clippy::absurd_extreme_comparisons)]
+                if data.len() < Self::MIN_SIZE {
+                    return Err(ReadError::OutOfBounds);
+                }
+                Ok(Self { data, #phantom })
+            }
+        };
         Ok(quote! {
             impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
                 fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                    #[allow(clippy::absurd_extreme_comparisons)]
-                    if data.len() < Self::MIN_SIZE {
-                        return Err(ReadError::OutOfBounds);
-                    }
-                    Ok(Self {
-                        data,
-                        #phantom
-                    })
+                    #body
                 }
             }
         })
@@ -248,6 +268,7 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     let generic_bounds = generic.map(|t| quote!(#t: Sanitize<Args = #args_typ>));
 
     let stmts = item.iter_sanitze_statements()?;
+    let fast_read = generate_fast_read(item);
 
     Ok(quote! {
         impl<#generic_bounds> Sanitize for #name<'_, #generic> {
@@ -257,7 +278,38 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
                 ctx.finish()
             }
         }
+
+        #fast_read
     })
+}
+
+fn generate_fast_read(item: &Table) -> TokenStream {
+    let name = item.raw_name();
+    let generic = item.attrs.generic_offset.as_ref();
+    let generic_bounds = generic.map(|t| quote!(#t: Sanitize<Args = ()>));
+    let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
+
+    if let Some(read_args) = &item.attrs.read_args {
+        let args_type = read_args.args_type();
+        let destructure_pattern = read_args.destructure_pattern();
+        let arg_idents = read_args.idents();
+        quote! {
+            impl<'a> FastRead<'a> for #name<'a> {
+                fn fast_read(data: FontData<'a>, args: #args_type) -> Self {
+                    let #destructure_pattern = args;
+                    Self { data, #( #arg_idents, )* }
+                }
+            }
+        }
+    } else {
+        quote! {
+            impl<'a, #generic_bounds> FastRead<'a> for #name<'a, #generic> {
+                fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+                    Self { data, #phantom }
+                }
+            }
+        }
+    }
 }
 
 fn generate_debug(item: &Table) -> syn::Result<TokenStream> {

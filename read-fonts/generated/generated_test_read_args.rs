@@ -21,16 +21,10 @@ impl ReadArgs for BaseArray<'_> {
 
 impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
-
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self {
-            data,
-            mark_class_count,
-        })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, *args)?;
+        Ok(Self::fast_read(data, *args))
     }
 }
 
@@ -53,6 +47,16 @@ impl Sanitize for BaseArray<'_> {
         let face_count = ctx.read::<u16>()?;
         ctx.sanitize_computed_array::<FaceRecord>(face_count as _, mark_class_count, true)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for BaseArray<'a> {
+    fn fast_read(data: FontData<'a>, args: u16) -> Self {
+        let mark_class_count = args;
+        Self {
+            data,
+            mark_class_count,
+        }
     }
 }
 
@@ -348,11 +352,10 @@ impl<'a> MinByteRange<'a> for Face<'a> {
 
 impl<'a> FontRead<'a> for Face<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -360,6 +363,12 @@ impl Sanitize for Face<'_> {
     fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for Face<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 

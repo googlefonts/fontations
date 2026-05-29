@@ -17,11 +17,10 @@ impl<'a> MinByteRange<'a> for CountAll16<'a> {
 
 impl<'a> FontRead<'a> for CountAll16<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -30,6 +29,12 @@ impl Sanitize for CountAll16<'_> {
         ctx.advance::<u16>();
         sanitize_remainder(ctx)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for CountAll16<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -108,11 +113,10 @@ impl<'a> MinByteRange<'a> for CountAll32<'a> {
 
 impl<'a> FontRead<'a> for CountAll32<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -121,6 +125,12 @@ impl Sanitize for CountAll32<'_> {
         ctx.advance::<u16>();
         sanitize_remainder(ctx)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for CountAll32<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 

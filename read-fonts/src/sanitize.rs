@@ -28,6 +28,11 @@ pub(crate) struct SanitizeState {
     // some stuff goes in here?
 }
 
+/// Read without validating. Should only be used after a table has been sanitized.
+pub trait FastRead<'a>: Sized + ReadArgs {
+    fn fast_read(data: FontData<'a>, args: Self::Args) -> Self;
+}
+
 impl<'a> SanitizeContext<'a> {
     pub(crate) fn new(data: FontData<'a>, state: &'a mut SanitizeState) -> Self {
         Self {

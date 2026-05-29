@@ -17,11 +17,10 @@ impl<'a> MinByteRange<'a> for KindsOfOffsets<'a> {
 
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -55,6 +54,12 @@ impl Sanitize for KindsOfOffsets<'_> {
             ctx.sanitize_offset::<Offset32, Dummy>(())?;
         }
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for KindsOfOffsets<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -322,11 +327,10 @@ impl<'a> MinByteRange<'a> for KindsOfArraysOfOffsets<'a> {
 
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -343,6 +347,12 @@ impl Sanitize for KindsOfArraysOfOffsets<'_> {
             ctx.sanitize_array_of_offsets::<Offset16, Dummy>(count as usize, ())?;
         }
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for KindsOfArraysOfOffsets<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -527,11 +537,10 @@ impl<'a> MinByteRange<'a> for KindsOfArrays<'a> {
 
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -548,6 +557,12 @@ impl Sanitize for KindsOfArrays<'_> {
             ctx.sanitize_array_of_structs::<Shmecord>(count as usize, ())?;
         }
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for KindsOfArrays<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -706,11 +721,10 @@ impl<'a> MinByteRange<'a> for VarLenHaver<'a> {
 
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -720,6 +734,12 @@ impl Sanitize for VarLenHaver<'_> {
         ctx.sanitize_var_len_array::<VarSizeDummy>(count as _, false)?;
         ctx.advance::<u32>();
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for VarLenHaver<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -816,11 +836,10 @@ impl<'a> MinByteRange<'a> for Dummy<'a> {
 
 impl<'a> FontRead<'a> for Dummy<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -829,6 +848,12 @@ impl Sanitize for Dummy<'_> {
         ctx.advance::<u16>();
         ctx.advance::<u16>();
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for Dummy<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 

@@ -54,6 +54,15 @@ impl<T: Sanitize<Args = ()>> Sanitize for MyLookup<'_, T> {
     }
 }
 
+impl<'a, T: Sanitize<Args = ()>> FastRead<'a> for MyLookup<'a, T> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self {
+            data,
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
 /// A generic table parameterized by the type of its subtable offsets.
 #[derive(Clone)]
 pub struct MyLookup<'a, T = ()> {
@@ -258,11 +267,10 @@ impl<'a> MinByteRange<'a> for MySubtableFormat1<'a> {
 
 impl<'a> FontRead<'a> for MySubtableFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -271,6 +279,12 @@ impl Sanitize for MySubtableFormat1<'_> {
         ctx.advance::<u16>();
         ctx.advance::<u16>();
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for MySubtableFormat1<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -355,11 +369,10 @@ impl<'a> MinByteRange<'a> for MySubtableFormat2<'a> {
 
 impl<'a> FontRead<'a> for MySubtableFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -369,6 +382,12 @@ impl Sanitize for MySubtableFormat2<'_> {
         let count = ctx.read::<u16>()?;
         ctx.sanitize_array::<u16>(count as usize)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for MySubtableFormat2<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -523,11 +542,10 @@ impl<'a> MinByteRange<'a> for ContainsLookupGroup<'a> {
 
 impl<'a> FontRead<'a> for ContainsLookupGroup<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -536,6 +554,12 @@ impl Sanitize for ContainsLookupGroup<'_> {
         ctx.advance::<u16>();
         ctx.sanitize_offset::<Offset16, MyLookupGroup>(())?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for ContainsLookupGroup<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
