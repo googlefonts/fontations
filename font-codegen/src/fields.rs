@@ -871,7 +871,13 @@ impl Field {
         let getter_name = self.offset_getter_name().unwrap();
         let target_is_generic =
             matches!(target, OffsetTarget::Table(ident) if Some(ident) == generic);
-        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a, Args = ()>));
+        let where_read_clause = target_is_generic.then(|| {
+            if sanitize {
+                quote!(where T: Sanitize<'a, Args = ()> + Default)
+            } else {
+                quote!(where T: FontRead<'a, Args = ()>)
+            }
+        });
         // if a record, data is passed in
         let input_data_if_needed = record.is_some().then(|| quote!(, data: FontData<'a>));
         let decl_lifetime_if_needed =

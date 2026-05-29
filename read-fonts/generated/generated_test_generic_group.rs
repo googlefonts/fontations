@@ -49,12 +49,19 @@ impl<'a, T> MyLookup<'a, T> {
     }
 }
 
-impl<T: Sanitize<Args = ()>> Sanitize for MyLookup<'_, T> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a, T: Sanitize<'a, Args = ()>> Sanitize<'a> for MyLookup<'a, T> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset32, T>(())?;
         let sub_table_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, T>(transforms::to_usize(sub_table_count), ())?;
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self {
+            data,
+            offset_type: std::marker::PhantomData,
+        }
     }
 }
 
@@ -67,13 +74,28 @@ pub struct MyLookup<'a, T = ()> {
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> MyLookup<'a, T> {
-    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
     /// Determines the concrete type of T
     pub fn lookup_type(&self) -> u16 {
         let range = self.lookup_type_byte_range();
         self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// offset to a single generic table
+    pub fn single_subtable_offset(&self) -> Offset32 {
+        let range = self.single_subtable_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`single_subtable_offset`][Self::single_subtable_offset].
+    pub fn single_subtable(&self) -> Result<T, ReadError>
+    where
+        T: Sanitize<'a, Args = ()> + Default,
+    {
+        let data = self.data;
+        self.single_subtable_offset().fast_resolve(data, ())
     }
 
     /// Number of subtables
@@ -91,7 +113,7 @@ impl<'a, T> MyLookup<'a, T> {
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
     pub fn subtables(&self) -> ArrayOfOffsets<'a, T, Offset16>
     where
-        T: FontRead<'a, Args = ()>,
+        T: Sanitize<'a, Args = ()> + Default,
     {
         let data = self.data;
         let offsets = self.subtable_offsets();
@@ -104,8 +126,14 @@ impl<'a, T> MyLookup<'a, T> {
         start..end
     }
 
-    pub fn sub_table_count_byte_range(&self) -> Range<usize> {
+    pub fn single_subtable_offset_byte_range(&self) -> Range<usize> {
         let start = self.lookup_type_byte_range().end;
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn sub_table_count_byte_range(&self) -> Range<usize> {
+        let start = self.single_subtable_offset_byte_range().end;
         let end = start + u16::RAW_BYTE_LEN;
         start..end
     }
@@ -131,15 +159,21 @@ impl<T> Default for MyLookup<'_, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for MyLookup<'a, T> {
+impl<'a, T: Sanitize<'a, Args = ()> + Default + SomeTable<'a> + 'a> SomeTable<'a>
+    for MyLookup<'a, T>
+{
     fn type_name(&self) -> &str {
         "MyLookup"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
-            1usize => Some(Field::new("sub_table_count", self.sub_table_count())),
-            2usize => Some(Field::new(
+            1usize => Some(Field::new(
+                "single_subtable_offset",
+                FieldType::offset(self.single_subtable_offset(), self.single_subtable()),
+            )),
+            2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
+            3usize => Some(Field::new(
                 "subtable_offsets",
                 FieldType::from(self.subtables()),
             )),
@@ -150,7 +184,9 @@ impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for MyLo
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug for MyLookup<'a, T> {
+impl<'a, T: Sanitize<'a, Args = ()> + Default + SomeTable<'a> + 'a> std::fmt::Debug
+    for MyLookup<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -192,12 +228,7 @@ impl ReadArgs for MySubtable<'_> {
 
 impl<'a> FontRead<'a> for MySubtable<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            MySubtableFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            MySubtableFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        Self::read_checked(data, ())
     }
 }
 
@@ -216,13 +247,27 @@ impl<'a> MinByteRange<'a> for MySubtable<'a> {
     }
 }
 
-impl Sanitize for MySubtable<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for MySubtable<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         let format: u16 = ctx.peek_at(0usize)?;
         match format {
             MySubtableFormat1::FORMAT => MySubtableFormat1::sanitize(ctx, ()),
             MySubtableFormat2::FORMAT => MySubtableFormat2::sanitize(ctx, ()),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        let Ok(format) = data.read_at::<u16>(0usize) else {
+            return MySubtable::default();
+        };
+        match format {
+            MySubtableFormat1::FORMAT => {
+                MySubtable::Format1(MySubtableFormat1::read_fast(data, ()))
+            }
+            MySubtableFormat2::FORMAT => {
+                MySubtable::Format2(MySubtableFormat2::read_fast(data, ()))
+            }
+            _ => MySubtable::default(),
         }
     }
 }
@@ -274,19 +319,18 @@ impl ReadArgs for MySubtableFormat1<'_> {
 
 impl<'a> FontRead<'a> for MySubtableFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for MySubtableFormat1<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for MySubtableFormat1<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         ctx.advance::<u16>();
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -377,20 +421,19 @@ impl ReadArgs for MySubtableFormat2<'_> {
 
 impl<'a> FontRead<'a> for MySubtableFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for MySubtableFormat2<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for MySubtableFormat2<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         let count = ctx.read::<u16>()?;
         ctx.sanitize_array::<u16>(transforms::to_usize(count))?;
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -502,13 +545,20 @@ impl<'a> MyLookupGroup<'a> {
     }
 }
 
-impl Sanitize for MyLookupGroup<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for MyLookupGroup<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         let discriminant = MyLookup::read_discriminant(ctx.data())?;
         match discriminant {
             1 => MyLookup::<MySubtable>::sanitize(ctx, _args),
             2 => MyLookup::<MySubtableFormat1>::sanitize(ctx, _args),
             other => Err(ReadError::InvalidFormat(other as _)),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        match MyLookup::read_discriminant(data) {
+            Ok(1) => MyLookupGroup::TypeOne(MyLookup::<MySubtable>::read_fast(data, ())),
+            Ok(2) => MyLookupGroup::TypeTwo(MyLookup::<MySubtableFormat1>::read_fast(data, ())),
+            _ => MyLookupGroup::default(),
         }
     }
 }
@@ -556,19 +606,18 @@ impl ReadArgs for ContainsLookupGroup<'_> {
 
 impl<'a> FontRead<'a> for ContainsLookupGroup<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for ContainsLookupGroup<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for ContainsLookupGroup<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         ctx.sanitize_offset::<Offset16, MyLookupGroup>(())?;
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 

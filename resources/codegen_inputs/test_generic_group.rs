@@ -13,6 +13,8 @@ table MyLookup {
     /// Determines the concrete type of T
     #[discriminant]
     lookup_type: u16,
+    /// offset to a single generic table
+    single_subtable_offset: Offset32<T>,
     /// Number of subtables
     #[compile(array_len($subtable_offsets))]
     sub_table_count: u16,
