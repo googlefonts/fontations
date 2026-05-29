@@ -186,7 +186,7 @@ fn generate_sanitize(item: &Record, needs_read_args: bool) -> syn::Result<TokenS
         impl SanitizeStruct for #name #lifetime {
             #can_skip
 
-            fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, #args_arg) -> Result<(), ReadError> {
+            fn sanitize_struct(&self, ctx: &mut SanitizeContext, #args_arg) -> Result<(), ReadError> {
                 #destructure_args
                 #( #stmts )*
                 ctx.finish()

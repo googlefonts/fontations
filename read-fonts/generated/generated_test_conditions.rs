@@ -21,16 +21,12 @@ impl ReadArgs for MajorMinorVersion<'_> {
 
 impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for MajorMinorVersion<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for MajorMinorVersion<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         let version = ctx.read::<MajorMinor>()?;
         ctx.advance::<u16>();
         if version.compatible((1u16, 1u16)) {
@@ -40,6 +36,9 @@ impl Sanitize for MajorMinorVersion<'_> {
             ctx.advance::<u32>();
         }
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -465,16 +464,12 @@ impl ReadArgs for FlagDay<'_> {
 
 impl<'a> FontRead<'a> for FlagDay<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for FlagDay<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for FlagDay<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         let flags = ctx.read::<GotFlags>()?;
         if flags.contains(GotFlags::FOO) {
@@ -484,6 +479,9 @@ impl Sanitize for FlagDay<'_> {
             ctx.advance::<u16>();
         }
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 

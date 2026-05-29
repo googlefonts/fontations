@@ -29,6 +29,46 @@ pub mod records {
 
 pub mod formats {
     include!("../generated/generated_test_formats.rs");
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::sanitize::Sanitize;
+        use font_test_data::bebuffer::BeBuffer;
+
+        // `read_fast`'s fallback (for an unknown format) must construct the
+        // table's `Default`, NOT re-read the provided bytes as the first
+        // variant. `Table1::default()` is backed by valid data with `heft == 0`,
+        // so we can tell the two apart from the `0xdead_beef` heft below.
+        #[test]
+        fn read_fast_unknown_format_uses_default() {
+            let buf = BeBuffer::new()
+                .push(99u16) // unknown format
+                .push(0xdead_beefu32) // heft
+                .push(0xcafeu16); // flex
+            let table = MyTable::read_fast(buf.data().into(), ());
+            assert!(matches!(table, MyTable::Format1(_)));
+            if let MyTable::Format1(t) = &table {
+                assert_eq!(t.heft(), 0); // default data, not 0xdeadbeef
+            }
+        }
+
+        // Data too short to even read the format byte must route to `default()`.
+        // `Table1` (the `Format1` variant) has format 0, so the old
+        // `unwrap_or_default()` fabricated `0`, matched `Format1`, and built it
+        // from the empty data — panicking in a getter. The default is instead
+        // backed by valid, long-enough data.
+        #[test]
+        fn read_fast_empty_data_does_not_collide_with_format0() {
+            let table = MyTable::read_fast(FontData::new(&[]), ());
+            assert!(matches!(table, MyTable::Format1(_)));
+            // Must not panic: a default table has valid, long-enough backing data.
+            assert_eq!(table.format(), 0);
+            if let MyTable::Format1(t) = &table {
+                assert_eq!(t.heft(), 0);
+            }
+        }
+    }
 }
 
 pub mod read_args {
@@ -61,11 +101,7 @@ pub mod offsets_arrays {
             true
         }
 
-        fn sanitize_struct(
-            &self,
-            _ctx: &mut SanitizeContext<'_>,
-            _args: (),
-        ) -> Result<(), ReadError> {
+        fn sanitize_struct(&self, _ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
             Ok(())
         }
     }
@@ -83,12 +119,15 @@ pub mod offsets_arrays {
 
     #[test]
     fn array_offsets() {
+        // header (v1.0): MajorMinor(4) + nonnullable(2) + nullable(2) +
+        //   count(2) + array_offset(2) + record_array_offset(2) = 14
         let builder = BeBuffer::new()
             .push(MajorMinor::VERSION_1_0)
-            .push(12_u16) // offset to 0xdead
-            .push(0u16) // nullable
+            .push(14_u16) // nonnullable → Dummy at offset 14
+            .push(0u16) // nullable (null)
             .push(2u16) // array len
-            .push(12u16) // array offset
+            .push(14u16) // array offset → data at 14
+            .push(0u16) // record_array_offset (null)
             .extend([0xdead_u16, 0xbeef]);
 
         let table = KindsOfOffsets::read(builder.data().into()).unwrap();
@@ -165,14 +204,14 @@ pub mod offsets_arrays {
 
     #[test]
     fn versioned_array_bad_data() {
+        // Data is too small for the versioned fields — sanitize rejects it
         let buf = BeBuffer::new()
             .push(1u16) // version
             .push(1u16) // count
             .push(2u16) // scalar array
             .push(3u16)
             .push(4u32); // shmecord array
-        let table = KindsOfArrays::read(buf.data().into()).unwrap();
-        assert!(table.versioned_scalars().is_none()); // should be there but isn't
+        assert!(KindsOfArrays::read(buf.data().into()).is_err());
     }
 }
 
@@ -256,11 +295,9 @@ pub mod conditions {
 
     #[test]
     fn majorminor_1_1() {
+        // Too small for v1.1 — sanitize rejects it
         let bytes = BeBuffer::new().push(MajorMinor::VERSION_1_1).push(0u16);
-        let too_small = MajorMinorVersion::read(bytes.data().into()).unwrap();
-        // this is expected to be present but the data is malformed; we will
-        // still parse the table but checked read of the field will fail
-        assert!(too_small.if_11().is_none());
+        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
 
         let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_1_1)
@@ -272,10 +309,11 @@ pub mod conditions {
 
     #[test]
     fn major_minor_2() {
+        // Too small for v2.0 — sanitize rejects it
+        // v2.0 needs: MajorMinor(4) + always_present(2) + if_20(4) = 10
+        // (if_11 is NOT present for v2.0 since compatible requires same major)
         let bytes = BeBuffer::new().push(MajorMinor::VERSION_2_0).push(0u16);
-        let too_small = MajorMinorVersion::read(bytes.data().into()).unwrap();
-        assert!(too_small.if_11().is_none());
-        assert!(too_small.if_20().is_none());
+        assert!(MajorMinorVersion::read(bytes.data().into()).is_err());
 
         let bytes = BeBuffer::new()
             .push(MajorMinor::VERSION_2_0)
@@ -405,16 +443,14 @@ pub mod generic_group {
 mod sanitize_tests {
     use crate::{
         codegen_test::{offsets_arrays::*, records::*},
-        sanitize::{Sanitize, SanitizeContext, SanitizeState},
-        FontData, ReadError,
+        sanitize::Sanitize,
+        ReadError,
     };
     use font_test_data::bebuffer::BeBuffer;
     use font_types::MajorMinor;
 
-    fn sanitize<T: Sanitize<Args = ()>>(data: &[u8]) -> Result<(), ReadError> {
-        let mut state = SanitizeState::default();
-        let mut ctx = SanitizeContext::new(FontData::new(data), &mut state);
-        T::sanitize(&mut ctx, ())
+    fn sanitize<'a, T: Sanitize<'a, Args = ()>>(data: &'a [u8]) -> Result<T, ReadError> {
+        T::read_checked(data.into(), ())
     }
 
     // --- KindsOfOffsets (v1.0) layout: ---
@@ -438,7 +474,7 @@ mod sanitize_tests {
             // Dummy subtable
             .extend(DUMMY_BYTES);
         let result = sanitize::<KindsOfOffsets>(buf.data());
-        assert!(result.is_ok(), "expected Ok, got {result:?}");
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -452,7 +488,7 @@ mod sanitize_tests {
             .push(0u16) // array_offset (null)
             .push(0u16); // record_array_offset (null)
         let result = sanitize::<KindsOfOffsets>(buf.data());
-        assert!(result.is_ok(), "expected Ok, got {result:?}");
+        assert!(result.is_ok());
     }
 
     #[test]

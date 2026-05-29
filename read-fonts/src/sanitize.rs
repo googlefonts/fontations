@@ -12,14 +12,14 @@ use crate::{
 ///
 /// This is bundled together because we need to update the shared state as we
 /// navigate the bytes.
-pub struct SanitizeContext<'a> {
+pub struct SanitizeContext<'a, 's> {
     cursor: Cursor<'a>,
-    state: &'a mut SanitizeState,
+    state: &'s mut SanitizeState,
 }
 
 /// State tracked during during a sanitize pass
 #[derive(Clone, Debug, Default)]
-pub(crate) struct SanitizeState {
+struct SanitizeState {
     // only used in COLRv1
     _recursion_depth: u32,
     // gpos/gsub
@@ -28,15 +28,7 @@ pub(crate) struct SanitizeState {
     // some stuff goes in here?
 }
 
-impl<'a> SanitizeContext<'a> {
-    #[cfg(test)]
-    pub(crate) fn new(data: FontData<'a>, state: &'a mut SanitizeState) -> Self {
-        Self {
-            cursor: data.cursor(),
-            state,
-        }
-    }
-
+impl<'a> SanitizeContext<'a, '_> {
     pub(crate) fn data(&self) -> FontData<'a> {
         self.cursor.data
     }
@@ -59,7 +51,7 @@ impl<'a> SanitizeContext<'a> {
     pub(crate) fn sanitize_offset<O, T>(&mut self, args: T::Args) -> Result<(), ReadError>
     where
         O: Offset + Scalar,
-        T: Sanitize,
+        T: Sanitize<'a>,
     {
         let offset = self.read::<O>()?;
         self.descend_into_offset(offset, |ctx| T::sanitize(ctx, args))
@@ -73,7 +65,7 @@ impl<'a> SanitizeContext<'a> {
     fn descend_into_offset(
         &mut self,
         offset: impl Offset,
-        f: impl FnOnce(&mut SanitizeContext) -> Result<(), ReadError>,
+        f: impl FnOnce(&mut SanitizeContext<'a, '_>) -> Result<(), ReadError>,
     ) -> Result<(), ReadError> {
         let offset = match offset.to_usize() {
             0 => return Ok(()),
@@ -122,7 +114,7 @@ impl<'a> SanitizeContext<'a> {
     ) -> Result<(), ReadError>
     where
         O: Offset + Scalar,
-        T: Sanitize,
+        T: Sanitize<'a>,
         BigEndian<O>: AnyBitPattern + FixedSize,
     {
         let array = self.cursor.read_array::<BigEndian<O>>(count)?;
@@ -142,7 +134,7 @@ impl<'a> SanitizeContext<'a> {
     where
         O: Offset + Scalar,
         T: AnyBitPattern + FixedSize,
-        F: Fn(&T, &mut SanitizeContext) -> Result<(), ReadError>,
+        F: Fn(&T, &mut SanitizeContext<'a, '_>) -> Result<(), ReadError>,
     {
         let offset = self.read::<O>()?;
         if offset.to_usize() == 0 {
@@ -170,7 +162,7 @@ impl<'a> SanitizeContext<'a> {
     where
         O: Offset + Scalar,
         T: AnyBitPattern + FixedSize,
-        F: Fn(&T, &mut SanitizeContext) -> Result<(), ReadError>,
+        F: Fn(&T, &mut SanitizeContext<'a, '_>) -> Result<(), ReadError>,
     {
         if offset.to_usize() == 0 {
             return Ok(());
@@ -253,11 +245,32 @@ impl<'a> SanitizeContext<'a> {
 // the annoying bit here is going to be figuring out how we keep track of our
 // position as we... do stuff?
 
-pub trait Sanitize: ReadArgs {
+pub trait Sanitize<'a>: ReadArgs + Sized {
     /// recursively sanitizes this + all subgraphs.
     ///
     /// does not need to be called manually? we'll do this automatically?
-    fn sanitize(ctx: &mut SanitizeContext<'_>, args: Self::Args) -> Result<(), ReadError>;
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, args: Self::Args) -> Result<(), ReadError>;
+
+    /// Read without performing any validation.
+    ///
+    /// This is part of the sanitize machinery, and should generally not be
+    /// called directly.
+    ///
+    /// The exception would be in certain performance-sensitive cases, where
+    /// the caller ensures that this specific table (and these specific bytes)
+    /// have already been sanitized.
+    #[doc(hidden)]
+    fn read_fast(data: FontData<'a>, args: Self::Args) -> Self;
+
+    /// Validate the data, returning a table on success.
+    fn read_checked(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext {
+            cursor: data.cursor(),
+            state: &mut state,
+        };
+        Self::sanitize(&mut ctx, args).map(|_| Self::read_fast(data, args))
+    }
 }
 
 /// Sanitize functionality that is called on concrete types, instead of just
@@ -271,26 +284,23 @@ pub trait SanitizeStruct: ReadArgs {
     }
 
     /// Sanitize `self`, recursing into any offsets
-    fn sanitize_struct(
-        &self,
-        ctx: &mut SanitizeContext<'_>,
-        args: Self::Args,
-    ) -> Result<(), ReadError>;
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, args: Self::Args)
+        -> Result<(), ReadError>;
 }
 
 /// Recursively sanitize the table pointed at by an offset.
 pub trait SanitizeOffset {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError>;
 }
 
 impl<O: Offset> SanitizeOffset for O {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError> {
         ctx.descend_into_offset(*self, |ctx| T::sanitize(ctx, args))
@@ -298,9 +308,9 @@ impl<O: Offset> SanitizeOffset for O {
 }
 
 impl<O: Offset> SanitizeOffset for Nullable<O> {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError> {
         self.offset().sanitize_offset::<T>(ctx, args)
@@ -308,9 +318,9 @@ impl<O: Offset> SanitizeOffset for Nullable<O> {
 }
 
 impl<O: SanitizeOffset + Scalar> SanitizeOffset for BigEndian<O> {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError> {
         self.get().sanitize_offset::<T>(ctx, args)
@@ -318,9 +328,9 @@ impl<O: SanitizeOffset + Scalar> SanitizeOffset for BigEndian<O> {
 }
 
 impl<O: SanitizeOffset> SanitizeOffset for &[O] {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError> {
         self.iter()
