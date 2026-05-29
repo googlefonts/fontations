@@ -396,3 +396,234 @@ pub mod generic_group {
         }
     }
 }
+
+#[cfg(test)]
+mod sanitize_tests {
+    use crate::{
+        codegen_test::{offsets_arrays::*, records::*},
+        sanitize::{Sanitize, SanitizeContext, SanitizeState},
+        FontData, ReadError,
+    };
+    use font_test_data::bebuffer::BeBuffer;
+    use font_types::MajorMinor;
+
+    fn sanitize<T: Sanitize<Args = ()>>(data: &[u8]) -> Result<(), ReadError> {
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(FontData::new(data), &mut state);
+        T::sanitize(&mut ctx, ())
+    }
+
+    // --- KindsOfOffsets (v1.0) layout: ---
+    // MajorMinor(4) + nonnullable Offset16(2) + nullable Offset16(2) +
+    // array_offset_count u16(2) + array_offset Offset16(2) + record_array_offset Offset16(2)
+    // = 14 byte header
+
+    /// A valid Dummy subtable (value: u16 + _reserved: u16 = 4 bytes)
+    const DUMMY_BYTES: [u16; 2] = [0xdead, 0x0000];
+
+    #[test]
+    fn simple_offsets_valid() {
+        // nonnullable → Dummy at offset 14, everything else null/zero
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(14u16) // nonnullable → Dummy right after header
+            .push(0u16) // nullable (null)
+            .push(0u16) // array_offset_count = 0
+            .push(0u16) // array_offset (null, count is 0)
+            .push(0u16) // record_array_offset (null, count is 0)
+            // Dummy subtable
+            .extend(DUMMY_BYTES);
+        let result = sanitize::<KindsOfOffsets>(buf.data());
+        assert!(result.is_ok(), "expected Ok, got {result:?}");
+    }
+
+    #[test]
+    fn null_offset_is_not_an_error() {
+        // All simple offsets null — sanitize skips null offsets
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(0u16) // nonnullable (null — sanitize treats null as skip)
+            .push(0u16) // nullable (null)
+            .push(0u16) // array_offset_count = 0
+            .push(0u16) // array_offset (null)
+            .push(0u16); // record_array_offset (null)
+        let result = sanitize::<KindsOfOffsets>(buf.data());
+        assert!(result.is_ok(), "expected Ok, got {result:?}");
+    }
+
+    #[test]
+    fn offset_out_of_bounds() {
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(9999u16) // nonnullable → way past end
+            .push(0u16) // nullable (null)
+            .push(0u16) // count = 0
+            .push(0u16) // array_offset
+            .push(0u16); // record_array_offset
+        assert!(sanitize::<KindsOfOffsets>(buf.data()).is_err());
+    }
+
+    #[test]
+    fn subtable_too_small() {
+        // Offset points to valid position but only 2 bytes of data (Dummy needs 4)
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(14u16) // nonnullable → offset 14
+            .push(0u16)
+            .push(0u16)
+            .push(0u16)
+            .push(0u16)
+            // Only 2 bytes — Dummy needs 4
+            .push(0xdeadu16);
+        assert!(sanitize::<KindsOfOffsets>(buf.data()).is_err());
+    }
+
+    #[test]
+    fn offset_to_scalar_array_valid() {
+        // array_offset_count = 2, array_offset → [u16; 2], record_array_offset null
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(0u16) // nonnullable (null)
+            .push(0u16) // nullable (null)
+            .push(2u16) // array_offset_count = 2
+            .push(14u16) // array_offset → right after header
+            .push(0u16) // record_array_offset (null)
+            // 2 u16 values
+            .extend([0x1111u16, 0x2222]);
+        assert!(sanitize::<KindsOfOffsets>(buf.data()).is_ok());
+    }
+
+    #[test]
+    fn offset_to_record_array_valid() {
+        // Shmecord = u16(2) + u32(4) = 6 bytes each
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(0u16) // nonnullable (null)
+            .push(0u16) // nullable (null)
+            .push(1u16) // array_offset_count = 1
+            .push(0u16) // array_offset (null)
+            .push(14u16) // record_array_offset → right after header
+            // 1 Shmecord
+            .push(42u16)
+            .push(99u32);
+        assert!(sanitize::<KindsOfOffsets>(buf.data()).is_ok());
+    }
+
+    #[test]
+    fn offset_to_array_count_overflows() {
+        // count = 0xFFFF but only a few bytes of data
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(0u16)
+            .push(0u16)
+            .push(0xFFFFu16) // array_offset_count = huge
+            .push(14u16) // array_offset → valid position
+            .push(0u16)
+            // Only 4 bytes of data, not enough for 65535 u16s
+            .extend([1u16, 2]);
+        assert!(sanitize::<KindsOfOffsets>(buf.data()).is_err());
+    }
+
+    // --- KindsOfArraysOfOffsets (v1.0) layout: ---
+    // MajorMinor(4) + count u16(2) + nonnullable_offsets [Offset16]*count +
+    // nullable_offsets [Offset16]*count
+    // (versioned fields skipped for v1.0)
+
+    #[test]
+    fn array_of_offsets_valid() {
+        // 2 nonnullable offsets → valid Dummies, 2 nullable offsets (null)
+        let header_size = 4 + 2 + 2 * 2 + 2 * 2; // = 14
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(2u16) // count
+            // nonnullable offsets → Dummy at header_size and header_size+4
+            .push(header_size as u16)
+            .push((header_size + 4) as u16)
+            // nullable offsets (both null)
+            .push(0u16)
+            .push(0u16)
+            // Dummy 0
+            .extend(DUMMY_BYTES)
+            // Dummy 1
+            .extend(DUMMY_BYTES);
+        assert!(sanitize::<KindsOfArraysOfOffsets>(buf.data()).is_ok());
+    }
+
+    #[test]
+    fn array_of_offsets_one_bad() {
+        let header_size = 4 + 2 + 2 * 2 + 2 * 2; // = 14
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(2u16) // count
+            // first offset valid, second out of bounds
+            .push(header_size as u16)
+            .push(0xFFFFu16)
+            // nullable offsets (null)
+            .push(0u16)
+            .push(0u16)
+            // Only one Dummy
+            .extend(DUMMY_BYTES);
+        assert!(sanitize::<KindsOfArraysOfOffsets>(buf.data()).is_err());
+    }
+
+    #[test]
+    fn malformed_subtable_propagates() {
+        // Offset points to a Dummy that's only 2 bytes (needs 4)
+        let header_size = 4 + 2 + 1 * 2 + 1 * 2; // = 10
+        let buf = BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(1u16) // count = 1
+            .push(header_size as u16) // nonnullable → offset 10
+            .push(0u16) // nullable (null)
+            // Truncated Dummy — only 2 bytes
+            .push(0xdeadu16);
+        assert!(sanitize::<KindsOfArraysOfOffsets>(buf.data()).is_err());
+    }
+
+    // --- BasicTable layout: ---
+    // simple_count u16(2) + [SimpleRecord]*simple_count +
+    // arrays_inner_count u16(2) + array_records_count u32(4) +
+    // ComputedArray<ContainsArrays>
+    //
+    // SimpleRecord = u16(2) + u32(4) = 6 bytes
+    // ContainsArrays(array_len=N) = [u16]*N + [SimpleRecord]*N
+
+    #[test]
+    fn computed_array_valid() {
+        // simple_count=1, one SimpleRecord, arrays_inner_count=1,
+        // array_records_count=1, one ContainsArrays with 1 scalar + 1 SimpleRecord
+        let buf = BeBuffer::new()
+            .push(1u16) // simple_count
+            // SimpleRecord
+            .push(1u16)
+            .push(2u32)
+            // arrays_inner_count
+            .push(1u16)
+            // array_records_count
+            .push(1u32)
+            // ContainsArrays { scalars: [u16; 1], records: [SimpleRecord; 1] }
+            .push(42u16) // scalar
+            .push(10u16) // SimpleRecord.val1
+            .push(20u32); // SimpleRecord.va2
+        assert!(sanitize::<BasicTable>(buf.data()).is_ok());
+    }
+
+    #[test]
+    fn computed_array_truncated() {
+        // array_records_count=1 but not enough data for the ContainsArrays
+        let buf = BeBuffer::new()
+            .push(0u16) // simple_count = 0
+            .push(2u16) // arrays_inner_count = 2 (each ContainsArrays has 2 scalars + 2 records)
+            .push(1u32) // array_records_count = 1
+            // Only 2 bytes — not enough for ContainsArrays(2)
+            .push(0u16);
+        assert!(sanitize::<BasicTable>(buf.data()).is_err());
+    }
+
+    #[test]
+    fn data_too_short_for_header() {
+        // Not even enough bytes for the version field
+        let buf = BeBuffer::new().push(0u16);
+        assert!(sanitize::<KindsOfOffsets>(buf.data()).is_err());
+    }
+}
