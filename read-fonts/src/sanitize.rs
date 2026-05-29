@@ -29,6 +29,7 @@ pub(crate) struct SanitizeState {
 }
 
 impl<'a> SanitizeContext<'a> {
+    #[cfg(test)]
     pub(crate) fn new(data: FontData<'a>, state: &'a mut SanitizeState) -> Self {
         Self {
             cursor: data.cursor(),
@@ -182,7 +183,7 @@ impl<'a> SanitizeContext<'a> {
         }
     }
 
-    /// Advance the cursor by the length of the array, recursing if necessesary
+    /// Advance the cursor by the length of the array, recursing if necessary
     pub(crate) fn sanitize_array_of_structs<T: FixedSize + AnyBitPattern + SanitizeStruct>(
         &mut self,
         count: usize,
@@ -334,7 +335,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn verifty_that_various_things_compile() {
+    fn verify_that_various_things_compile() {
         fn sanitize<O: SanitizeOffset>() {}
 
         sanitize::<Offset16>();

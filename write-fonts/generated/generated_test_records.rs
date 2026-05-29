@@ -342,7 +342,7 @@ impl Validate for HasReadArgs {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("HasReadArgs", |ctx| {
             ctx.in_field("merps", |ctx| {
-                if self.merps.len() > (u16::MAX as usize) {
+                if self.merps.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
