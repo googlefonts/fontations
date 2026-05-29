@@ -126,7 +126,7 @@ impl SanitizeStruct for MyRecord {
     fn can_skip() -> bool {
         true
     }
-    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         ctx.finish()
     }
 }

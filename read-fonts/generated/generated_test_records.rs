@@ -21,16 +21,12 @@ impl ReadArgs for BasicTable<'_> {
 
 impl<'a> FontRead<'a> for BasicTable<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for BasicTable<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for BasicTable<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         let simple_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_structs::<SimpleRecord>(transforms::to_usize(simple_count), ())?;
         let arrays_inner_count = ctx.read::<u16>()?;
@@ -41,6 +37,9 @@ impl Sanitize for BasicTable<'_> {
             true,
         )?;
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -201,7 +200,7 @@ impl SanitizeStruct for SimpleRecord {
     fn can_skip() -> bool {
         true
     }
-    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         ctx.finish()
     }
 }
@@ -285,7 +284,7 @@ impl SanitizeStruct for ContainsArrays<'_> {
     fn can_skip() -> bool {
         true
     }
-    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: u16) -> Result<(), ReadError> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: u16) -> Result<(), ReadError> {
         ctx.finish()
     }
 }
@@ -359,7 +358,7 @@ impl ReadArgs for ContainsOffsets {
 }
 
 impl SanitizeStruct for ContainsOffsets {
-    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         ctx.sanitize_resolved_offset_to_array::<_, SimpleRecord, _>(
             self.array_offset(),
             self.off_array_count(),
@@ -414,19 +413,18 @@ impl ReadArgs for VarLenItem<'_> {
 
 impl<'a> FontRead<'a> for VarLenItem<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for VarLenItem<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for VarLenItem<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u32>();
         sanitize_data(ctx)?;
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -541,7 +539,7 @@ impl ReadArgs for HasOffsetsWithArgs {
 }
 
 impl SanitizeStruct for HasOffsetsWithArgs {
-    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         self.feature_offset()
             .sanitize_offset::<HasReadArgs>(ctx, self.merp_len())?;
         self.sanitize_fake_offset(ctx)?;
@@ -587,13 +585,7 @@ impl ReadArgs for HasReadArgs<'_> {
 
 impl<'a> FontRead<'a> for HasReadArgs<'a> {
     fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
-        let merp_len = args;
-
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data, merp_len })
+        Self::read_checked(data, args)
     }
 }
 
@@ -608,12 +600,16 @@ impl<'a> HasReadArgs<'a> {
     }
 }
 
-impl Sanitize for HasReadArgs<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for HasReadArgs<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, args: u16) -> Result<(), ReadError> {
         let merp_len = args;
         ctx.advance::<u16>();
         ctx.sanitize_array::<i16>(transforms::to_usize(merp_len))?;
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, args: u16) -> Self {
+        let merp_len = args;
+        Self { data, merp_len }
     }
 }
 
