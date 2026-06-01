@@ -25,6 +25,7 @@ pub struct FontBuilder<'a> {
 /// This wraps a compilation error, adding the tag of the table where it was
 /// encountered.
 #[derive(Clone, Debug)]
+#[cfg(feature = "tables")]
 #[non_exhaustive]
 pub struct BuilderError {
     /// The tag of the root table where the error occurred
@@ -103,6 +104,7 @@ impl<'a> FontBuilder<'a> {
     /// The table can be any top-level table defined in this crate. This function
     /// will attempt to compile the table and then add it to the builder if
     /// successful, returning an error otherwise.
+    #[cfg(feature = "tables")]
     pub fn add_table<T>(&mut self, table: &T) -> Result<&mut Self, BuilderError>
     where
         T: FontWrite + Validate + TopLevelTable,
@@ -266,12 +268,14 @@ impl TTCHeader {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Display for BuilderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "failed to build '{}' table: '{}'", self.tag, self.inner)
     }
 }
 
+#[cfg(feature = "tables")]
 impl std::error::Error for BuilderError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(&self.inner)

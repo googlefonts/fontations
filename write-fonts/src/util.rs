@@ -3,8 +3,10 @@
 /// Iterator that iterates over a vector of iterators simultaneously.
 ///
 /// Adapted from <https://stackoverflow.com/a/55292215>
+#[cfg(feature = "tables")]
 pub struct MultiZip<I: Iterator>(Vec<I>);
 
+#[cfg(feature = "tables")]
 impl<I: Iterator> MultiZip<I> {
     /// Create a new MultiZip from a vector of iterators
     pub fn new(vec_of_iters: Vec<I>) -> Self {
@@ -12,6 +14,7 @@ impl<I: Iterator> MultiZip<I> {
     }
 }
 
+#[cfg(feature = "tables")]
 impl<I: Iterator> Iterator for MultiZip<I> {
     type Item = Vec<I::Item>;
 
@@ -24,11 +27,13 @@ impl<I: Iterator> Iterator for MultiZip<I> {
 ///
 /// This is particularly useful when porting from Python where reading
 /// idx - 1, with -1 meaning last, is common.
+#[cfg(feature = "tables")]
 pub trait WrappingGet<T> {
     fn wrapping_next(&self, idx: usize) -> &T;
     fn wrapping_prev(&self, idx: usize) -> &T;
 }
 
+#[cfg(feature = "tables")]
 impl<T> WrappingGet<T> for &[T] {
     fn wrapping_next(&self, idx: usize) -> &T {
         &self[match idx {
@@ -53,20 +58,22 @@ impl<T> WrappingGet<T> for &[T] {
 /// - [PEP425](https://peps.python.org/pep-0485/)
 /// - [math.isclose](https://docs.python.org/3/library/math.html#math.isclose)
 #[derive(Clone, Copy, Debug)]
+#[cfg(feature = "tables")]
 pub struct FloatComparator {
     // TODO: Make it generic over T: Float? Need to add num-traits as a dependency
     rel_tol: f64,
     abs_tol: f64,
 }
 
+#[cfg(feature = "tables")]
 impl FloatComparator {
     /// Create a new FloatComparator with the specified relative and absolute tolerances.
     pub fn new(rel_tol: f64, abs_tol: f64) -> Self {
         Self { rel_tol, abs_tol }
     }
 
-    #[inline]
     /// Return true if a and b are close according to the specified tolerances.
+    #[inline]
     pub fn isclose(self, a: f64, b: f64) -> bool {
         if a == b {
             return true;
@@ -85,6 +92,7 @@ impl FloatComparator {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Default for FloatComparator {
     /// Create a new FloatComparator with `rel_to=1e-9` and `abs_tol=0.0`.
     fn default() -> Self {
@@ -97,6 +105,7 @@ impl Default for FloatComparator {
 ///
 /// To use different relative or absolute tolerances, create a FloatComparator
 /// and use its `isclose` method.
+#[cfg(feature = "tables")]
 pub fn isclose(a: f64, b: f64) -> bool {
     FloatComparator::default().isclose(a, b)
 }

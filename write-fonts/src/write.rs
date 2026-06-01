@@ -1,8 +1,12 @@
 use std::collections::BTreeSet;
 
+#[cfg(feature = "tables")]
 use crate::error::{Error, PackingError};
-use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
+#[cfg(feature = "tables")]
+use crate::graph::Graph;
+use crate::graph::{ObjectId, ObjectStore, OffsetLen};
 use crate::table_type::TableType;
+#[cfg(feature = "tables")]
 use crate::validate::Validate;
 use font_types::{FixedSize, Scalar};
 use read_fonts::{FontData, FontRead, FontReadWithArgs, ReadError};
@@ -49,6 +53,7 @@ pub struct TableWriter {
 ///
 /// Returns an error if the table is malformed or cannot otherwise be serialized,
 /// otherwise it will return the bytes encoding the table.
+#[cfg(feature = "tables")]
 pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> {
     log::trace!("writing table '{}'", table.table_type());
     table.validate()?;
@@ -62,8 +67,10 @@ pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> 
     Ok(graph.serialize())
 }
 
+#[cfg_attr(not(feature = "tables"), allow(dead_code))]
 impl TableWriter {
     /// A convenience method for generating a graph with the provided root object.
+    #[cfg(feature = "tables")]
     pub(crate) fn make_graph(root: &impl FontWrite) -> Graph {
         let mut writer = TableWriter::default();
         let root_id = writer.add_table(root);
@@ -186,6 +193,7 @@ pub(crate) struct OffsetRecord {
     pub(crate) adjustment: u32,
 }
 
+#[cfg_attr(not(feature = "tables"), allow(dead_code))]
 impl TableData {
     pub(crate) fn new(type_: TableType) -> Self {
         TableData {

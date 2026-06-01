@@ -1,16 +1,19 @@
 //! A graph for resolving table offsets
 
+#[cfg(feature = "tables")]
 use font_types::Uint24;
 
-use crate::{table_type::TableType, tables::layout::LookupType, write::TableData};
+use crate::write::TableData;
+#[cfg(feature = "tables")]
+use crate::{table_type::TableType, tables::layout::LookupType};
 
-use std::{
-    collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, VecDeque},
-    sync::atomic::AtomicU64,
-};
+#[cfg(feature = "tables")]
+use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashSet, VecDeque};
+use std::{collections::HashMap, sync::atomic::AtomicU64};
 
 #[cfg(feature = "dot2")]
 mod graphviz;
+#[cfg(feature = "tables")]
 mod splitting;
 
 static OBJECT_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -29,6 +32,7 @@ pub enum OffsetLen {
 
 impl OffsetLen {
     /// The maximum value for an offset of this length.
+    #[cfg(feature = "tables")]
     pub const fn max_value(self) -> u32 {
         match self {
             Self::Offset16 => u16::MAX as u32,
@@ -52,8 +56,10 @@ impl std::fmt::Display for OffsetLen {
 /// Nodes are assigned a space, and nodes in lower spaces are always
 /// packed before nodes in higher spaces.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, Hash, PartialEq, Eq)]
+#[cfg(feature = "tables")]
 pub struct Space(u32);
 
+#[cfg(feature = "tables")]
 impl Space {
     /// A generic space for nodes reachable via 16-bit offsets.
     const SHORT_REACHABLE: Space = Space(0);
@@ -89,6 +95,7 @@ impl ObjectStore {
 /// This type is used during compilation, to determine the final write order
 /// for the various subtables.
 //NOTE: we don't derive Debug because it's way too verbose to be useful
+#[cfg(feature = "tables")]
 pub struct Graph {
     /// the actual data for each table
     objects: BTreeMap<ObjectId, TableData>,
@@ -104,6 +111,7 @@ pub struct Graph {
 }
 
 #[derive(Debug)]
+#[cfg(feature = "tables")]
 struct Node {
     size: u32,
     distance: u64,
@@ -116,6 +124,7 @@ struct Node {
 
 /// Scored used when computing shortest distance
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg(feature = "tables")]
 struct Distance {
     // a space ranking; like rankings are packed together,
     // and larger rankings are packed after smaller ones.
@@ -127,10 +136,12 @@ struct Distance {
 
 //TODO: remove me? maybe? not really used right now...
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg(feature = "tables")]
 struct Priority(u8);
 
 /// A record of an overflowing offset
 #[derive(Clone, Debug)]
+#[cfg(feature = "tables")]
 pub(crate) struct Overflow {
     parent: ObjectId,
     child: ObjectId,
@@ -138,6 +149,7 @@ pub(crate) struct Overflow {
     offset_type: OffsetLen,
 }
 
+#[cfg(feature = "tables")]
 impl Priority {
     const ZERO: Priority = Priority(0);
     const ONE: Priority = Priority(1);
@@ -152,6 +164,7 @@ impl Priority {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Distance {
     const ROOT: Distance = Distance {
         space: Space::SHORT_REACHABLE,
@@ -164,6 +177,7 @@ impl Distance {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Node {
     pub fn new(size: u32) -> Self {
         Node {
@@ -201,6 +215,7 @@ impl Node {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Graph {
     pub(crate) fn from_obj_store(store: ObjectStore, root: ObjectId) -> Self {
         let objects = store.objects.into_iter().map(|(k, v)| (v, k)).collect();
@@ -300,6 +315,7 @@ impl Graph {
     /// returns `true` if a solution is found, `false` otherwise
     ///
     /// [repacker docs]: https://github.com/harfbuzz/harfbuzz/blob/main/docs/repacker.md
+    #[cfg(feature = "tables")]
     pub(crate) fn pack_objects(&mut self) -> bool {
         if self.basic_sort() {
             return true;
@@ -870,6 +886,7 @@ impl Graph {
         self.next_space
     }
 
+    #[cfg(feature = "tables")]
     fn try_promoting_subtables(&mut self) {
         let Some((can_promote, parent_id)) = self.get_promotable_subtables() else {
             return;
@@ -883,6 +900,7 @@ impl Graph {
         self.actually_promote_subtables(&to_promote);
     }
 
+    #[cfg(feature = "tables")]
     fn actually_promote_subtables(&mut self, to_promote: &[ObjectId]) {
         fn make_extension(type_: LookupType, subtable_id: ObjectId) -> TableData {
             const EXT_FORMAT: u16 = 1;
@@ -933,6 +951,7 @@ impl Graph {
     }
 
     // get the list of tables that can be promoted, as well as the id of their parent table
+    #[cfg(feature = "tables")]
     fn get_promotable_subtables(&self) -> Option<(Vec<ObjectId>, ObjectId)> {
         let can_promote = self
             .objects
@@ -1062,6 +1081,7 @@ impl Graph {
     /// Based on [`_presplit_subtables_if_needed`][presplit] in hb-repacker
     ///
     /// [presplit]: https://github.com/harfbuzz/harfbuzz/blob/5d543d64222c6ce45332d0c188790f90691ef112/src/hb-repacker.hh#LL72C22-L72C22
+    #[cfg(feature = "tables")]
     fn try_splitting_subtables(&mut self) {
         let splittable = self
             .objects
@@ -1076,6 +1096,7 @@ impl Graph {
         }
     }
 
+    #[cfg(feature = "tables")]
     fn split_subtables_if_needed(&mut self, lookup: ObjectId) {
         // So You Want to Split Subtables:
         // - support PairPos and MarkBase.
@@ -1202,6 +1223,7 @@ impl Graph {
     }
 }
 
+#[cfg(feature = "tables")]
 impl Default for Priority {
     fn default() -> Self {
         Priority::ZERO

@@ -7,6 +7,7 @@ pub const WIDTH_16: usize = 2;
 /// The width in bytes of an Offset24
 pub const WIDTH_24: usize = 3;
 /// The width in bytes of an Offset32
+#[allow(dead_code)]
 pub const WIDTH_32: usize = 4;
 
 /// An offset subtable.
@@ -67,7 +68,7 @@ impl<T, const N: usize> AsMut<T> for OffsetMarker<T, N> {
 
 // NOTE: we don't impl AsRef/AsMut for NullableOffsetMarker, since it is less
 // useful than the Option::as_ref and Option::as_mut methods available through deref
-
+#[cfg_attr(not(feature = "tables"), allow(dead_code))]
 impl<const N: usize, T> OffsetMarker<T, N> {
     /// Create a new marker.
     pub fn new(obj: T) -> Self {
@@ -85,6 +86,7 @@ impl<const N: usize, T> OffsetMarker<T, N> {
     }
 }
 
+#[cfg_attr(not(feature = "tables"), allow(dead_code))]
 impl<const N: usize, T> NullableOffsetMarker<T, N> {
     /// Create a new marker.
     pub fn new(obj: Option<T>) -> Self {

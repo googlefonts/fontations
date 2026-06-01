@@ -2,6 +2,7 @@
 
 use std::collections::BTreeSet;
 
+#[cfg(feature = "tables")]
 use crate::{NullableOffsetMarker, OffsetMarker};
 
 /// A helper trait for array-like fields, where we need to know
@@ -37,12 +38,14 @@ impl<T: HasLen> HasLen for Option<T> {
     }
 }
 
+#[cfg(feature = "tables")]
 impl<T: HasLen, const N: usize> HasLen for OffsetMarker<T, N> {
     fn len(&self) -> usize {
         T::len(self)
     }
 }
 
+#[cfg(feature = "tables")]
 impl<T: HasLen, const N: usize> HasLen for NullableOffsetMarker<T, N> {
     fn len(&self) -> usize {
         self.as_ref().map(HasLen::len).unwrap_or(0)

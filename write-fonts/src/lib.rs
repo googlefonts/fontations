@@ -137,17 +137,25 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod collections;
+#[cfg(feature = "tables")]
 pub mod error;
 mod font_builder;
+#[cfg(feature = "tables")]
 pub mod from_obj;
 mod graph;
 mod offsets;
+#[cfg(feature = "tables")]
 pub mod ps;
+#[cfg(feature = "tables")]
 mod round;
 mod table_type;
+#[cfg(feature = "tables")]
 pub mod tables;
 mod util;
+#[cfg(feature = "tables")]
 pub mod validate;
+#[cfg(not(feature = "tables"))]
+mod validate;
 mod write;
 
 #[cfg(test)]
@@ -155,10 +163,19 @@ mod codegen_test;
 #[cfg(test)]
 mod hex_diff;
 
-pub use font_builder::{BuilderError, FontBuilder};
+#[cfg(feature = "tables")]
+pub use font_builder::BuilderError;
+pub use font_builder::FontBuilder;
+#[cfg(feature = "tables")]
 pub use offsets::{NullableOffsetMarker, OffsetMarker};
+#[cfg(feature = "tables")]
 pub use round::OtRound;
-pub use write::{dump_table, FontWrite, TableWriter};
+#[cfg(feature = "tables")]
+pub use write::dump_table;
+#[cfg(feature = "tables")]
+pub use write::FontWrite;
+#[cfg(feature = "tables")]
+pub use write::TableWriter;
 
 /// Rexport of the common font types
 pub extern crate font_types as types;
@@ -171,6 +188,7 @@ pub extern crate read_fonts as read;
 pub(crate) mod codegen_prelude {
     use std::num::TryFromIntError;
 
+    #[cfg(feature = "tables")]
     pub use super::from_obj::{FromObjRef, FromTableRef, ToOwnedObj, ToOwnedTable};
     pub use super::offsets::{NullableOffsetMarker, OffsetMarker, WIDTH_16, WIDTH_24, WIDTH_32};
     pub use super::table_type::TableType;
@@ -188,6 +206,7 @@ pub(crate) mod codegen_prelude {
         s.len()
     }
 
+    #[cfg(feature = "tables")]
     pub fn plus_one(val: &usize) -> usize {
         val.saturating_add(1)
     }

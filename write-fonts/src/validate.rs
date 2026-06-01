@@ -14,6 +14,7 @@ use crate::offsets::{NullableOffsetMarker, OffsetMarker};
 /// tables that are awkward to encode in the type system, such as requiring
 /// certain arrays to have equal lengths. These requirements are enforced
 /// via a validation pass.
+#[cfg_attr(not(feature = "tables"), allow(dead_code))]
 pub trait Validate {
     /// Ensure that this table is well-formed, reporting any errors.
     ///
