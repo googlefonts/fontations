@@ -10,6 +10,36 @@ pub const WIDTH_24: usize = 3;
 #[allow(dead_code)]
 pub const WIDTH_32: usize = 4;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum OffsetLen {
+    Offset16 = 2,
+    Offset24 = 3,
+    Offset32 = 4,
+}
+
+impl OffsetLen {
+    /// The maximum value for an offset of this length.
+    #[cfg(feature = "tables")]
+    pub const fn max_value(self) -> u32 {
+        match self {
+            Self::Offset16 => u16::MAX as u32,
+            Self::Offset24 => (1 << 24) - 1,
+            Self::Offset32 => u32::MAX,
+        }
+    }
+}
+
+impl std::fmt::Display for OffsetLen {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Offset16 => write!(f, "Offset16"),
+            Self::Offset24 => write!(f, "Offset24"),
+            Self::Offset32 => write!(f, "Offset32"),
+        }
+    }
+}
+
 /// An offset subtable.
 ///
 /// The generic const `N` is the width of the offset, in bytes.

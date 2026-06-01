@@ -4,7 +4,8 @@ use std::collections::BTreeSet;
 use crate::error::{Error, PackingError};
 #[cfg(feature = "tables")]
 use crate::graph::Graph;
-use crate::graph::{ObjectId, ObjectStore, OffsetLen};
+use crate::object::{ObjectId, ObjectStore};
+use crate::offsets::OffsetLen;
 use crate::table_type::TableType;
 #[cfg(feature = "tables")]
 use crate::validate::Validate;

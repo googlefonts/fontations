@@ -17,8 +17,10 @@ use read_fonts::tables::{
     layout as rlayout,
 };
 
-use super::{Graph, ObjectId};
-use crate::{tables::layout as wlayout, write::TableData, FontWrite, TableWriter};
+use super::Graph;
+use crate::{
+    object::ObjectId, tables::layout as wlayout, write::TableData, FontWrite, TableWriter,
+};
 
 mod mark2base;
 mod pairpos;

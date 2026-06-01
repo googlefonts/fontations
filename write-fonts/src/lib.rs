@@ -142,15 +142,19 @@ pub mod error;
 mod font_builder;
 #[cfg(feature = "tables")]
 pub mod from_obj;
+#[cfg(feature = "tables")]
 mod graph;
+mod object;
 mod offsets;
 #[cfg(feature = "tables")]
 pub mod ps;
 #[cfg(feature = "tables")]
 mod round;
+mod search_range;
 mod table_type;
 #[cfg(feature = "tables")]
 pub mod tables;
+#[cfg(feature = "tables")]
 mod util;
 #[cfg(feature = "tables")]
 pub mod validate;
@@ -164,7 +168,7 @@ mod codegen_test;
 mod hex_diff;
 
 #[cfg(feature = "tables")]
-pub use font_builder::BuilderError;
+pub use error::BuilderError;
 pub use font_builder::FontBuilder;
 #[cfg(feature = "tables")]
 pub use offsets::{NullableOffsetMarker, OffsetMarker};
