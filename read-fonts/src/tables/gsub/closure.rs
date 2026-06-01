@@ -88,6 +88,9 @@ mod ctx {
             lookup: &SubstitutionLookup,
             lookup_index: u16,
             glyphs: IntSet<GlyphId>,
+            seen_seq_indices: &mut IntSet<u16>,
+            seq_idx: u16,
+            end_idx: u16,
         ) -> Result<(), ReadError> {
             if self.nesting_level_left == 0 {
                 return Ok(());
@@ -96,7 +99,19 @@ mod ctx {
             self.nesting_level_left -= 1;
             self.push_cur_active_glyphs(glyphs);
 
-            lookup.closure_glyphs(self, lookup_list, lookup_index)?;
+            if !self.should_visit_lookup(lookup_index) {
+                self.nesting_level_left += 1;
+                self.pop_cur_done_glyphs();
+                return Ok(());
+            }
+
+            if lookup.may_have_non_1to1()? {
+                seen_seq_indices.insert_range(seq_idx..=end_idx);
+            }
+            lookup
+                .subtables()?
+                .closure_glyphs(self, lookup_list, lookup_index)?;
+
             self.nesting_level_left += 1;
             self.pop_cur_done_glyphs();
 
@@ -777,10 +792,15 @@ impl GlyphClosure for ContextFormat1<'_> {
                         active_glyphs.insert(GlyphId::from(g));
                     };
 
-                    if lookup.may_have_non_1to1()? {
-                        seen_sequence_indices.insert_range(sequence_idx..=input_count as u16);
-                    }
-                    ctx.recurse(lookup_list, &lookup, lookup_index, active_glyphs)?;
+                    ctx.recurse(
+                        lookup_list,
+                        &lookup,
+                        lookup_index,
+                        active_glyphs,
+                        &mut seen_sequence_indices,
+                        sequence_idx,
+                        input_count as u16,
+                    )?;
                 }
             }
         }
@@ -883,10 +903,15 @@ impl GlyphClosure for ContextFormat2<'_> {
                         input_class_def.intersected_class_glyphs(ctx.glyphs(), c)
                     };
 
-                    if lookup.may_have_non_1to1()? {
-                        seen_sequence_indices.insert_range(sequence_idx..=input_count as u16);
-                    }
-                    ctx.recurse(lookup_list, &lookup, lookup_index, active_glyphs)?;
+                    ctx.recurse(
+                        lookup_list,
+                        &lookup,
+                        lookup_index,
+                        active_glyphs,
+                        &mut seen_sequence_indices,
+                        sequence_idx,
+                        input_count as u16,
+                    )?;
                 }
             }
         }
@@ -931,10 +956,15 @@ impl GlyphClosure for ContextFormat3<'_> {
                 cov.intersect_set(ctx.glyphs())
             };
 
-            if lookup.may_have_non_1to1()? {
-                seen_sequence_indices.insert_range(seq_idx..=input_count as u16);
-            }
-            ctx.recurse(lookup_list, &lookup, lookup_index, active_glyphs)?;
+            ctx.recurse(
+                lookup_list,
+                &lookup,
+                lookup_index,
+                active_glyphs,
+                &mut seen_sequence_indices,
+                seq_idx,
+                input_count as u16 + 1,
+            )?;
         }
         Ok(())
     }
