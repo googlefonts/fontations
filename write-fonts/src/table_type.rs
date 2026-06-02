@@ -112,7 +112,7 @@ impl Display for TableType {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "tables"))]
 mod tests {
     use crate::tables::{
         gpos, gsub,

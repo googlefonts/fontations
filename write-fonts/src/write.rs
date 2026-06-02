@@ -9,7 +9,9 @@ use crate::offsets::OffsetLen;
 use crate::table_type::TableType;
 #[cfg(feature = "tables")]
 use crate::validate::Validate;
+#[cfg(feature = "tables")]
 use font_types::{FixedSize, Scalar};
+#[cfg(feature = "tables")]
 use read_fonts::{FontData, FontRead, FontReadWithArgs, ReadError};
 
 /// A type that that can be written out as part of a font file.
@@ -68,7 +70,6 @@ pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> 
     Ok(graph.serialize())
 }
 
-#[cfg_attr(not(feature = "tables"), allow(dead_code))]
 impl TableWriter {
     /// A convenience method for generating a graph with the provided root object.
     #[cfg(feature = "tables")]
@@ -87,6 +88,7 @@ impl TableWriter {
     }
 
     /// Call the provided closure, adjusting any written offsets by `adjustment`.
+    #[cfg(feature = "tables")]
     pub(crate) fn adjust_offsets(&mut self, adjustment: u32, f: impl FnOnce(&mut TableWriter)) {
         self.offset_adjustment = adjustment;
         f(self);
@@ -121,6 +123,7 @@ impl TableWriter {
     ///
     /// This is necessary for things like the glyph table, which require offsets
     /// to be aligned on 2-byte boundaries.
+    #[cfg(feature = "tables")]
     pub fn pad_to_2byte_aligned(&mut self) {
         if self.stack.last().unwrap().bytes.len() % 2 != 0 {
             self.write_slice(&[0]);
@@ -139,6 +142,7 @@ impl TableWriter {
     ///
     /// This is currently only used to figure out the glyph positions when
     /// compiling the glyf table.
+    #[cfg(feature = "tables")]
     pub(crate) fn current_data(&self) -> &TableData {
         self.stack.last().unwrap() // there is always at least one
     }
@@ -194,8 +198,8 @@ pub(crate) struct OffsetRecord {
     pub(crate) adjustment: u32,
 }
 
-#[cfg_attr(not(feature = "tables"), allow(dead_code))]
 impl TableData {
+    #[cfg(feature = "tables")]
     pub(crate) fn new(type_: TableType) -> Self {
         TableData {
             type_,
@@ -224,6 +228,7 @@ impl TableData {
         self.write_bytes(placeholder);
     }
 
+    #[cfg(feature = "tables")]
     pub(crate) fn write<T: Scalar>(&mut self, value: T) {
         self.write_bytes(value.to_raw().as_ref())
     }
@@ -232,6 +237,7 @@ impl TableData {
     ///
     /// Only used in very special cases. The caller is responsible for knowing
     /// what they are doing.
+    #[cfg(feature = "tables")]
     pub(crate) fn write_over<T: Scalar>(&mut self, value: T, pos: usize) {
         let raw = value.to_raw();
         let len = raw.as_ref().len();
@@ -246,12 +252,14 @@ impl TableData {
     ///
     /// Used internally when modifying the graph after initial compilation,
     /// such as during table splitting.
+    #[cfg(feature = "tables")]
     pub(crate) fn reparse<'a, T: FontRead<'a>>(&'a self) -> Result<T, ReadError> {
         let data = FontData::new(&self.bytes);
         T::read(data)
     }
 
     // see above
+    #[cfg(feature = "tables")]
     pub(crate) fn reparse_with_args<'a, A, T: FontReadWithArgs<'a, Args = A>>(
         &'a self,
         args: &A,
@@ -261,12 +269,13 @@ impl TableData {
     }
 
     /// A helper function to read a value out of this data.
+    #[cfg(feature = "tables")]
     pub(crate) fn read_at<T: Scalar>(&self, pos: usize) -> Option<T> {
         let len = T::RAW_BYTE_LEN;
         self.bytes.get(pos..pos + len).and_then(T::read)
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "tables"))]
     pub fn make_mock(size: usize) -> Self {
         TableData {
             bytes: vec![0xca; size], // has no special meaning
@@ -275,7 +284,7 @@ impl TableData {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "tables"))]
     pub fn add_mock_offset(&mut self, object: ObjectId, len: OffsetLen) {
         let pos = self.offsets.iter().map(|off| off.len as u8 as u32).sum();
         self.offsets.push(OffsetRecord {

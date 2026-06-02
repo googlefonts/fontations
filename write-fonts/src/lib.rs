@@ -162,9 +162,9 @@ pub mod validate;
 mod validate;
 mod write;
 
-#[cfg(test)]
+#[cfg(all(feature = "tables", test))]
 mod codegen_test;
-#[cfg(test)]
+#[cfg(all(feature = "tables", test))]
 mod hex_diff;
 
 #[cfg(feature = "tables")]
@@ -194,6 +194,7 @@ pub(crate) mod codegen_prelude {
 
     #[cfg(feature = "tables")]
     pub use super::from_obj::{FromObjRef, FromTableRef, ToOwnedObj, ToOwnedTable};
+    #[allow(dead_code)]
     pub use super::offsets::{NullableOffsetMarker, OffsetMarker, WIDTH_16, WIDTH_24, WIDTH_32};
     pub use super::table_type::TableType;
     pub use super::validate::{Validate, ValidationCtx};
