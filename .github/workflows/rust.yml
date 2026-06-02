@@ -91,6 +91,11 @@ jobs:
       - name: cargo test write-fonts (default)
         run: cargo test -p write-fonts
 
+      - name: cargo test write-fonts (no-features)
+        # --tests makes it so we run only the unit tests and skip the doctests.
+        # The doctests assume that "tables" is enabled.
+        run: cargo test -p write-fonts --no-default-features --tests
+
       - name: cargo test write-fonts (all)
         run: cargo test -p write-fonts --all-targets --all-features
 
