@@ -3,11 +3,8 @@
 use super::write::{FontWrite, TableWriter};
 
 /// The width in bytes of an Offset16
-#[allow(dead_code)] // currently unused because of a serde bug?
-                    // https://github.com/serde-rs/serde/issues/2449
 pub const WIDTH_16: usize = 2;
 /// The width in bytes of an Offset24
-#[allow(dead_code)] // will be used one day :')
 pub const WIDTH_24: usize = 3;
 /// The width in bytes of an Offset32
 pub const WIDTH_32: usize = 4;
@@ -17,7 +14,7 @@ pub const WIDTH_32: usize = 4;
 /// The generic const `N` is the width of the offset, in bytes.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct OffsetMarker<T, const N: usize = 2> {
+pub struct OffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Box<T>,
 }
 
@@ -26,7 +23,7 @@ pub struct OffsetMarker<T, const N: usize = 2> {
 /// The generic const `N` is the width of the offset, in bytes.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct NullableOffsetMarker<T, const N: usize = 2> {
+pub struct NullableOffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Option<Box<T>>,
 }
 
