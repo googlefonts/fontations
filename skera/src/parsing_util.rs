@@ -326,3 +326,70 @@ fn test_parse_name_languages() {
     assert!(output.contains(2));
     assert!(output.contains(5));
 }
+
+#[test]
+fn test_parse_instancing_spec_tag_validation_and_wildcard() {
+    let spec = parse_instancing_spec("wght=100:400:700").unwrap();
+    assert_eq!(spec.axes.len(), 1);
+    assert!(spec.axes.contains_key(&Tag::new(b"wght")));
+
+    let err = parse_instancing_spec("重量=100").unwrap_err();
+    assert!(matches!(err, SubsetError::InvalidTag(tag) if tag == "重量"));
+
+    let err = parse_instancing_spec("abcde=100").unwrap_err();
+    assert!(matches!(err, SubsetError::InvalidTag(tag) if tag == "abcde"));
+
+    let err = parse_instancing_spec("*=100").unwrap_err();
+    assert!(matches!(err, SubsetError::InvalidId(value) if value == "100"));
+
+    let spec = parse_instancing_spec("*=drop,wght=100").unwrap();
+    assert!(spec.pin_all_axes_to_default);
+    assert!(matches!(
+        spec.axes.get(&Tag::new(b"wght")),
+        Some(AxisSpec::Range { min, def, max }) if *min == 100.0 && *def == 100.0 && *max == 100.0
+    ));
+}
+
+#[test]
+fn test_parse_instancing_spec_value_forms_and_validation() {
+    let spec = parse_instancing_spec("wght=100").unwrap();
+    assert!(matches!(
+        spec.axes.get(&Tag::new(b"wght")),
+        Some(AxisSpec::Range { min, def, max }) if *min == 100.0 && *def == 100.0 && *max == 100.0
+    ));
+
+    let spec = parse_instancing_spec("wght=100:700").unwrap();
+    assert!(matches!(
+        spec.axes.get(&Tag::new(b"wght")),
+        Some(AxisSpec::Range { min, def, max }) if *min == 100.0 && def.is_nan() && *max == 700.0
+    ));
+
+    let spec = parse_instancing_spec("wght=100:400:700").unwrap();
+    assert!(matches!(
+        spec.axes.get(&Tag::new(b"wght")),
+        Some(AxisSpec::Range { min, def, max }) if *min == 100.0 && *def == 400.0 && *max == 700.0
+    ));
+
+    let err = parse_instancing_spec("wght=drop:400").unwrap_err();
+    assert!(matches!(err, SubsetError::InvalidId(value) if value == "drop"));
+
+    let err = parse_instancing_spec("wght=100:drop:700").unwrap_err();
+    assert!(matches!(err, SubsetError::InvalidId(value) if value == "drop"));
+
+    let err = parse_instancing_spec("wght=100:400:drop").unwrap_err();
+    assert!(matches!(err, SubsetError::InvalidId(value) if value == "drop"));
+
+    let err = parse_instancing_spec("wght=not-a-number").unwrap_err();
+    assert!(matches!(err, SubsetError::InvalidId(value) if value == "not-a-number"));
+
+    let spec = parse_instancing_spec("wght=drop,wdth=100:700,*=drop").unwrap();
+    assert!(spec.pin_all_axes_to_default);
+    assert!(matches!(
+        spec.axes.get(&Tag::new(b"wght")),
+        Some(AxisSpec::PinToDefault)
+    ));
+    assert!(matches!(
+        spec.axes.get(&Tag::new(b"wdth")),
+        Some(AxisSpec::Range { min, def, max }) if *min == 100.0 && def.is_nan() && *max == 700.0
+    ));
+}
