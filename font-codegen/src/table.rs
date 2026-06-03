@@ -92,11 +92,19 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         let size_check_allow =
             min_size_is_zero.then(|| quote!(#[allow(clippy::absurd_extreme_comparisons)]));
 
+        // For generic tables (e.g. Lookup<'a, T>), implement Default for all T
+        // so that generic groups can construct a default value for any variant.
+        let (impl_generics, type_generics) = if let Some(t) = generic {
+            (quote!(<#t>), quote!(<'_, #t>))
+        } else {
+            (quote!(), quote!(<'_>))
+        };
+
         quote! {
             #size_check_allow
             const _: () = assert!(FontData::default_data_long_enough(#raw_name #const_generic ::MIN_SIZE));
 
-            impl Default for #raw_name<'_> {
+            impl #impl_generics Default for #raw_name #type_generics {
                 fn default() -> Self {
                     Self {
                         data: FontData::#data_method(),

@@ -104,7 +104,7 @@ impl<'a, T> MyLookup<'a, T> {
 
 const _: () = assert!(FontData::default_data_long_enough(MyLookup::<()>::MIN_SIZE));
 
-impl Default for MyLookup<'_> {
+impl<T> Default for MyLookup<'_, T> {
     fn default() -> Self {
         Self {
             data: FontData::default_table_data(),
@@ -414,6 +414,12 @@ impl<'a> std::fmt::Debug for MySubtableFormat2<'a> {
 pub enum MyLookupGroup<'a> {
     TypeOne(MyLookup<'a, MySubtable<'a>>),
     TypeTwo(MyLookup<'a, MySubtableFormat1<'a>>),
+}
+
+impl Default for MyLookupGroup<'_> {
+    fn default() -> Self {
+        Self::TypeOne(Default::default())
+    }
 }
 
 impl<'a> FontRead<'a> for MyLookupGroup<'a> {

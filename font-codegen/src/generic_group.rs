@@ -25,6 +25,8 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
         of_unit_arms.push(quote! { #name :: #var_name(inner) => inner.of_unit_type()  });
     }
 
+    let first_var_name = &item.variants.first().unwrap().name;
+
     let of_unit_docs = &[
         " Return the inner table, removing the specific generics.",
         "",
@@ -35,6 +37,12 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
         #( #docs)*
         pub enum #name <'a> {
             #( #variant_decls, )*
+        }
+
+        impl Default for #name<'_> {
+            fn default() -> Self {
+                Self::#first_var_name(Default::default())
+            }
         }
 
         impl<'a> FontRead<'a> for #name <'a> {
