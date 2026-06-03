@@ -354,13 +354,13 @@ impl<'a> LookupClosureCtx<'a> {
         match self.lookup_list {
             LayoutLookupList::Gpos(lookuplist) => {
                 match lookuplist.lookups().get(lookup_index as usize) {
-                    Err(ReadError::NullOffset) => (),
+                    Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => (),
                     lookup => lookup?.closure_lookups(self, lookup_index)?,
                 }
             }
             LayoutLookupList::Gsub(lookuplist) => {
                 match lookuplist.lookups().get(lookup_index as usize) {
-                    Err(ReadError::NullOffset) => (),
+                    Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => (),
                     lookup => lookup?.closure_lookups(self, lookup_index)?,
                 }
             }

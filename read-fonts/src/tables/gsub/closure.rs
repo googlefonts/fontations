@@ -82,12 +82,16 @@ mod ctx {
             self.active_glyphs_stack.pop();
         }
 
+        #[allow(clippy::too_many_arguments)]
         pub(super) fn recurse(
             &mut self,
             lookup_list: &SubstitutionLookupList,
             lookup: &SubstitutionLookup,
             lookup_index: u16,
             glyphs: IntSet<GlyphId>,
+            seen_seq_indices: &mut IntSet<u16>,
+            seq_idx: u16,
+            end_idx: u16,
         ) -> Result<(), ReadError> {
             if self.nesting_level_left == 0 {
                 return Ok(());
@@ -96,7 +100,19 @@ mod ctx {
             self.nesting_level_left -= 1;
             self.push_cur_active_glyphs(glyphs);
 
-            lookup.closure_glyphs(self, lookup_list, lookup_index)?;
+            if !self.should_visit_lookup(lookup_index) {
+                self.nesting_level_left += 1;
+                self.pop_cur_done_glyphs();
+                return Ok(());
+            }
+
+            if lookup.may_have_non_1to1()? {
+                seen_seq_indices.insert_range(seq_idx..=end_idx);
+            }
+            lookup
+                .subtables()?
+                .closure_glyphs(self, lookup_list, lookup_index)?;
+
             self.nesting_level_left += 1;
             self.pop_cur_done_glyphs();
 
@@ -117,34 +133,25 @@ mod ctx {
 
         // Return true if we have visited this lookup with current set of glyphs
         pub(super) fn is_lookup_done(&mut self, lookup_index: u16) -> bool {
-            {
-                let (count, covered) = self
-                    .done_lookups_glyphs
-                    .entry(lookup_index)
-                    .or_insert((0, IntSet::empty()));
+            let mut cur_active_glyphs = IntSet::empty();
+            cur_active_glyphs.union(self.parent_active_glyphs());
 
-                if *count != self.glyphs.len() {
-                    *count = self.glyphs.len();
-                    covered.clear();
-                }
+            let (count, covered) = self
+                .done_lookups_glyphs
+                .entry(lookup_index)
+                .or_insert((0, IntSet::empty()));
+
+            if *count != self.glyphs.len() {
+                *count = self.glyphs.len();
+                covered.clear();
             }
 
-            let mut cur_glyphs = IntSet::empty();
-            {
-                let covered = &self.done_lookups_glyphs.get(&lookup_index).unwrap().1;
-                //TODO: add IntSet::is_subset
-                if self
-                    .parent_active_glyphs()
-                    .iter()
-                    .all(|g| covered.contains(g))
-                {
-                    return true;
-                }
-                cur_glyphs.extend(self.parent_active_glyphs().iter());
+            //TODO: add IntSet::is_subset
+            if cur_active_glyphs.iter().all(|g| covered.contains(g)) {
+                return true;
             }
 
-            let (_, covered) = self.done_lookups_glyphs.get_mut(&lookup_index).unwrap();
-            covered.union(&cur_glyphs);
+            covered.union(&cur_active_glyphs);
             false
         }
 
@@ -223,7 +230,9 @@ impl Gsub<'_> {
             } else {
                 for i in lookups.iter() {
                     let lookup = match lookup_offsets.get(i as usize) {
-                        Err(ReadError::NullOffset) => continue,
+                        Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => {
+                            continue
+                        }
                         other => other,
                     }?;
                     lookup.closure_glyphs(&mut ctx, &lookup_list, i)?;
@@ -447,24 +456,25 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
         let glyph_set = ctx.parent_active_glyphs();
         let subs_glyphs = self.substitute_glyph_ids();
 
-        let new_glyphs: Vec<GlyphId> = if self.glyph_count() as u64 > glyph_set.len() {
-            glyph_set
-                .iter()
-                .filter_map(|g| coverage.get(g))
-                .filter_map(|idx| {
-                    subs_glyphs
-                        .get(idx as usize)
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        } else {
-            coverage
-                .iter()
-                .zip(subs_glyphs)
-                .filter(|&(g, _)| glyph_set.contains(GlyphId::from(g)))
-                .map(|(_, &new_g)| GlyphId::from(new_g.get()))
-                .collect()
-        };
+        let new_glyphs: Vec<GlyphId> =
+            if self.glyph_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+                glyph_set
+                    .iter()
+                    .filter_map(|g| coverage.get(g))
+                    .filter_map(|idx| {
+                        subs_glyphs
+                            .get(idx as usize)
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            } else {
+                coverage
+                    .iter()
+                    .zip(subs_glyphs)
+                    .filter(|&(g, _)| glyph_set.contains(GlyphId::from(g)))
+                    .map(|(_, &new_g)| GlyphId::from(new_g.get()))
+                    .collect()
+            };
         ctx.add_glyphs(new_glyphs);
         Ok(())
     }
@@ -484,34 +494,35 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
         let glyph_set = ctx.parent_active_glyphs();
         let sequences = self.sequences();
 
-        let new_glyphs: Vec<GlyphId> = if self.sequence_count() as u64 > glyph_set.len() {
-            glyph_set
-                .iter()
-                .filter_map(|g| coverage.get(g))
-                .filter_map(|idx| sequences.get(idx as usize).ok())
-                .flat_map(|seq| {
-                    seq.substitute_glyph_ids()
-                        .iter()
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        } else {
-            coverage
-                .iter()
-                .zip(sequences.iter_as_nullable())
-                .filter_map(|(g, seq)| {
-                    glyph_set
-                        .contains(GlyphId::from(g))
-                        .then(|| seq.transpose().ok().flatten())
-                        .flatten()
-                })
-                .flat_map(|seq| {
-                    seq.substitute_glyph_ids()
-                        .iter()
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        };
+        let new_glyphs: Vec<GlyphId> =
+            if self.sequence_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+                glyph_set
+                    .iter()
+                    .filter_map(|g| coverage.get(g))
+                    .filter_map(|idx| sequences.get(idx as usize).ok())
+                    .flat_map(|seq| {
+                        seq.substitute_glyph_ids()
+                            .iter()
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            } else {
+                coverage
+                    .iter()
+                    .zip(sequences.iter_as_nullable())
+                    .filter_map(|(g, seq)| {
+                        glyph_set
+                            .contains(GlyphId::from(g))
+                            .then(|| seq.transpose().ok().flatten())
+                            .flatten()
+                    })
+                    .flat_map(|seq| {
+                        seq.substitute_glyph_ids()
+                            .iter()
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            };
 
         ctx.add_glyphs(new_glyphs);
         Ok(())
@@ -532,36 +543,37 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
         let glyph_set = ctx.parent_active_glyphs();
         let alts = self.alternate_sets();
 
-        let new_glyphs: Vec<GlyphId> = if self.alternate_set_count() as u64 > glyph_set.len() {
-            glyph_set
-                .iter()
-                .filter_map(|g| coverage.get(g))
-                .filter_map(|idx| alts.get(idx as usize).ok())
-                .flat_map(|alt_set| {
-                    alt_set
-                        .alternate_glyph_ids()
-                        .iter()
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        } else {
-            coverage
-                .iter()
-                .zip(alts.iter_as_nullable())
-                .filter_map(|(g, alt_set)| {
-                    glyph_set
-                        .contains(GlyphId::from(g))
-                        .then(|| alt_set.transpose().ok().flatten())
-                        .flatten()
-                })
-                .flat_map(|alt_set| {
-                    alt_set
-                        .alternate_glyph_ids()
-                        .iter()
-                        .map(|new_g| GlyphId::from(new_g.get()))
-                })
-                .collect()
-        };
+        let new_glyphs: Vec<GlyphId> =
+            if self.alternate_set_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+                glyph_set
+                    .iter()
+                    .filter_map(|g| coverage.get(g))
+                    .filter_map(|idx| alts.get(idx as usize).ok())
+                    .flat_map(|alt_set| {
+                        alt_set
+                            .alternate_glyph_ids()
+                            .iter()
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            } else {
+                coverage
+                    .iter()
+                    .zip(alts.iter_as_nullable())
+                    .filter_map(|(g, alt_set)| {
+                        glyph_set
+                            .contains(GlyphId::from(g))
+                            .then(|| alt_set.transpose().ok().flatten())
+                            .flatten()
+                    })
+                    .flat_map(|alt_set| {
+                        alt_set
+                            .alternate_glyph_ids()
+                            .iter()
+                            .map(|new_g| GlyphId::from(new_g.get()))
+                    })
+                    .collect()
+            };
 
         ctx.add_glyphs(new_glyphs);
         Ok(())
@@ -749,7 +761,9 @@ impl GlyphClosure for ContextFormat1<'_> {
                 for lookup_record in rule.lookup_records() {
                     let lookup_index = lookup_record.lookup_list_index();
                     let lookup = match lookups.get(lookup_index as usize) {
-                        Err(ReadError::NullOffset) => continue,
+                        Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => {
+                            continue
+                        }
                         other => other,
                     }?;
 
@@ -770,10 +784,15 @@ impl GlyphClosure for ContextFormat1<'_> {
                         active_glyphs.insert(GlyphId::from(g));
                     };
 
-                    if lookup.may_have_non_1to1()? {
-                        seen_sequence_indices.insert_range(sequence_idx..=input_count as u16);
-                    }
-                    ctx.recurse(lookup_list, &lookup, lookup_index, active_glyphs)?;
+                    ctx.recurse(
+                        lookup_list,
+                        &lookup,
+                        lookup_index,
+                        active_glyphs,
+                        &mut seen_sequence_indices,
+                        sequence_idx,
+                        input_count as u16,
+                    )?;
                 }
             }
         }
@@ -857,7 +876,9 @@ impl GlyphClosure for ContextFormat2<'_> {
                 for lookup_record in rule.lookup_records() {
                     let lookup_index = lookup_record.lookup_list_index();
                     let lookup = match lookups.get(lookup_index as usize) {
-                        Err(ReadError::NullOffset) => continue,
+                        Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => {
+                            continue
+                        }
                         other => other,
                     }?;
                     let sequence_idx = lookup_record.sequence_index();
@@ -871,13 +892,18 @@ impl GlyphClosure for ContextFormat2<'_> {
                         input_class_def.intersected_class_glyphs(ctx.parent_active_glyphs(), i)
                     } else {
                         let c = input_seq[sequence_idx as usize - 1].get();
-                        input_class_def.intersected_class_glyphs(ctx.parent_active_glyphs(), c)
+                        input_class_def.intersected_class_glyphs(ctx.glyphs(), c)
                     };
 
-                    if lookup.may_have_non_1to1()? {
-                        seen_sequence_indices.insert_range(sequence_idx..=input_count as u16);
-                    }
-                    ctx.recurse(lookup_list, &lookup, lookup_index, active_glyphs)?;
+                    ctx.recurse(
+                        lookup_list,
+                        &lookup,
+                        lookup_index,
+                        active_glyphs,
+                        &mut seen_sequence_indices,
+                        sequence_idx,
+                        input_count as u16,
+                    )?;
                 }
             }
         }
@@ -903,7 +929,7 @@ impl GlyphClosure for ContextFormat3<'_> {
         for record in self.lookup_records() {
             let lookup_index = record.lookup_list_index();
             let lookup = match lookups.get(lookup_index as usize) {
-                Err(ReadError::NullOffset) => continue,
+                Err(ReadError::NullOffset) | Err(ReadError::InvalidCollectionIndex(_)) => continue,
                 other => other,
             }?;
 
@@ -922,10 +948,15 @@ impl GlyphClosure for ContextFormat3<'_> {
                 cov.intersect_set(ctx.glyphs())
             };
 
-            if lookup.may_have_non_1to1()? {
-                seen_sequence_indices.insert_range(seq_idx..=input_count as u16);
-            }
-            ctx.recurse(lookup_list, &lookup, lookup_index, active_glyphs)?;
+            ctx.recurse(
+                lookup_list,
+                &lookup,
+                lookup_index,
+                active_glyphs,
+                &mut seen_sequence_indices,
+                seq_idx,
+                input_count as u16 + 1,
+            )?;
         }
         Ok(())
     }
