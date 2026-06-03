@@ -92,6 +92,18 @@ impl<'a> Vmtx<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(Vmtx::MIN_SIZE));
+
+impl Default for Vmtx<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            number_of_long_ver_metrics: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Vmtx<'a> {
     fn type_name(&self) -> &str {

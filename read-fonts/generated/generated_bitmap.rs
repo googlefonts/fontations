@@ -811,6 +811,20 @@ impl<'a> IndexSubtableList<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(
+    IndexSubtableList::MIN_SIZE
+));
+
+impl Default for IndexSubtableList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            number_of_index_subtables: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IndexSubtableList<'a> {
     fn type_name(&self) -> &str {
@@ -1020,6 +1034,18 @@ impl<'a> IndexSubtable1<'a> {
             ..start
                 + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
                     .saturating_mul(u32::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(IndexSubtable1::MIN_SIZE));
+
+impl Default for IndexSubtable1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+            last_glyph_index: Default::default(),
+            first_glyph_index: Default::default(),
+        }
     }
 }
 

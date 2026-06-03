@@ -281,6 +281,20 @@ impl<'a> SettingNameArray<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(
+    SettingNameArray::MIN_SIZE
+));
+
+impl Default for SettingNameArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            n_settings: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SettingNameArray<'a> {
     fn type_name(&self) -> &str {

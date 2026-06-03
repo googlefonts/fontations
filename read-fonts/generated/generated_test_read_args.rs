@@ -119,6 +119,17 @@ impl<'a> BaseArray<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(BaseArray::MIN_SIZE));
+
+impl Default for BaseArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseArray<'a> {
     fn type_name(&self) -> &str {

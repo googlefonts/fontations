@@ -427,6 +427,17 @@ impl<'a> Sbix<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Sbix::MIN_SIZE));
+
+impl Default for Sbix<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            num_glyphs: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Sbix<'a> {
     fn type_name(&self) -> &str {
@@ -550,6 +561,17 @@ impl<'a> Strike<'a> {
         let num_glyphs = self.num_glyphs();
         let start = self.ppi_byte_range().end;
         start..start + (transforms::add(num_glyphs, 1_usize)).saturating_mul(u32::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Strike::MIN_SIZE));
+
+impl Default for Strike<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            num_glyphs: Default::default(),
+        }
     }
 }
 

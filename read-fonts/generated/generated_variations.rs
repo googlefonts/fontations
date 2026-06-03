@@ -113,6 +113,19 @@ impl<'a> TupleVariationHeader<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    TupleVariationHeader::MIN_SIZE
+));
+
+impl Default for TupleVariationHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            axis_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for TupleVariationHeader<'a> {
     fn type_name(&self) -> &str {

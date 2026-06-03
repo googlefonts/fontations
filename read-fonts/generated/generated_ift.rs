@@ -855,6 +855,18 @@ impl<'a> GlyphMap<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(GlyphMap::MIN_SIZE));
+
+impl Default for GlyphMap<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            glyph_count: Default::default(),
+            max_entry_index: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for GlyphMap<'a> {
     fn type_name(&self) -> &str {
@@ -968,6 +980,17 @@ impl<'a> FeatureMap<'a> {
     pub fn entry_map_data_byte_range(&self) -> Range<usize> {
         let start = self.feature_records_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(FeatureMap::MIN_SIZE));
+
+impl Default for FeatureMap<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            max_entry_index: Default::default(),
+        }
     }
 }
 
@@ -3306,6 +3329,17 @@ impl<'a> GlyphPatches<'a> {
             ..start
                 + (transforms::multiply_add(glyph_count, table_count, 1_usize))
                     .saturating_mul(Offset32::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(GlyphPatches::MIN_SIZE));
+
+impl Default for GlyphPatches<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            flags: Default::default(),
+        }
     }
 }
 
