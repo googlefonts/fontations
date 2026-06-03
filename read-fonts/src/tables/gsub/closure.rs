@@ -132,34 +132,25 @@ mod ctx {
 
         // Return true if we have visited this lookup with current set of glyphs
         pub(super) fn is_lookup_done(&mut self, lookup_index: u16) -> bool {
-            {
-                let (count, covered) = self
-                    .done_lookups_glyphs
-                    .entry(lookup_index)
-                    .or_insert((0, IntSet::empty()));
+            let mut cur_active_glyphs = IntSet::empty();
+            cur_active_glyphs.union(self.parent_active_glyphs());
 
-                if *count != self.glyphs.len() {
-                    *count = self.glyphs.len();
-                    covered.clear();
-                }
+            let (count, covered) = self
+                .done_lookups_glyphs
+                .entry(lookup_index)
+                .or_insert((0, IntSet::empty()));
+
+            if *count != self.glyphs.len() {
+                *count = self.glyphs.len();
+                covered.clear();
             }
 
-            let mut cur_glyphs = IntSet::empty();
-            {
-                let covered = &self.done_lookups_glyphs.get(&lookup_index).unwrap().1;
-                //TODO: add IntSet::is_subset
-                if self
-                    .parent_active_glyphs()
-                    .iter()
-                    .all(|g| covered.contains(g))
-                {
-                    return true;
-                }
-                cur_glyphs.extend(self.parent_active_glyphs().iter());
+            //TODO: add IntSet::is_subset
+            if cur_active_glyphs.iter().all(|g| covered.contains(g)) {
+                return true;
             }
 
-            let (_, covered) = self.done_lookups_glyphs.get_mut(&lookup_index).unwrap();
-            covered.union(&cur_glyphs);
+            covered.union(&cur_active_glyphs);
             false
         }
 
