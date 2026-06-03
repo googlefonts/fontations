@@ -82,6 +82,7 @@ mod ctx {
             self.active_glyphs_stack.pop();
         }
 
+        #[allow(clippy::too_many_arguments)]
         pub(super) fn recurse(
             &mut self,
             lookup_list: &SubstitutionLookupList,
