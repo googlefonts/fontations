@@ -192,6 +192,12 @@ pub enum PositionLookup<'a> {
     Extension(Lookup<'a, ExtensionSubtable<'a>>),
 }
 
+impl Default for PositionLookup<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
 impl<'a> FontRead<'a> for PositionLookup<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
         let discriminant = Lookup::read_discriminant(bytes)?;
@@ -4137,7 +4143,7 @@ const _: () = assert!(FontData::default_data_long_enough(
     ExtensionPosFormat1::<()>::MIN_SIZE
 ));
 
-impl Default for ExtensionPosFormat1<'_> {
+impl<T> Default for ExtensionPosFormat1<'_, T> {
     fn default() -> Self {
         Self {
             data: FontData::default_format_1_u16_table_data(),
@@ -4185,6 +4191,12 @@ pub enum ExtensionSubtable<'a> {
     MarkToMark(ExtensionPosFormat1<'a, MarkMarkPosFormat1<'a>>),
     Contextual(ExtensionPosFormat1<'a, PositionSequenceContext<'a>>),
     ChainContextual(ExtensionPosFormat1<'a, PositionChainContext<'a>>),
+}
+
+impl Default for ExtensionSubtable<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
 }
 
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {

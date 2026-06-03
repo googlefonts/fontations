@@ -208,4 +208,19 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn default_for_generics() {
+        let ExtensionSubtable::Single(inner) = ExtensionSubtable::default() else {
+            panic!("this is quite bad");
+        };
+
+        // this is invalid, but we the default impl for the extension offset
+        // will be the first variant of the enum anyway
+        assert_eq!(inner.extension_lookup_type(), 0);
+
+        let SinglePos::Format1(_hmm) = inner.extension().unwrap_or_default() else {
+            panic!("unexpected");
+        };
+    }
 }

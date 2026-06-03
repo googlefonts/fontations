@@ -192,6 +192,12 @@ pub enum SubstitutionLookup<'a> {
     Reverse(Lookup<'a, ReverseChainSingleSubstFormat1<'a>>),
 }
 
+impl Default for SubstitutionLookup<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
 impl<'a> FontRead<'a> for SubstitutionLookup<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
         let discriminant = Lookup::read_discriminant(bytes)?;
@@ -1534,7 +1540,7 @@ const _: () = assert!(FontData::default_data_long_enough(
     ExtensionSubstFormat1::<()>::MIN_SIZE
 ));
 
-impl Default for ExtensionSubstFormat1<'_> {
+impl<T> Default for ExtensionSubstFormat1<'_, T> {
     fn default() -> Self {
         Self {
             data: FontData::default_format_1_u16_table_data(),
@@ -1581,6 +1587,12 @@ pub enum ExtensionSubtable<'a> {
     Contextual(ExtensionSubstFormat1<'a, SubstitutionSequenceContext<'a>>),
     ChainContextual(ExtensionSubstFormat1<'a, SubstitutionChainContext<'a>>),
     Reverse(ExtensionSubstFormat1<'a, ReverseChainSingleSubstFormat1<'a>>),
+}
+
+impl Default for ExtensionSubtable<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
 }
 
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {

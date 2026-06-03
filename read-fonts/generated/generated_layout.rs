@@ -792,7 +792,7 @@ const _: () = assert!(FontData::default_data_long_enough(
     LookupList::<()>::MIN_SIZE
 ));
 
-impl Default for LookupList<'_> {
+impl<T> Default for LookupList<'_, T> {
     fn default() -> Self {
         Self {
             data: FontData::default_table_data(),
@@ -967,7 +967,7 @@ impl<'a, T> Lookup<'a, T> {
 
 const _: () = assert!(FontData::default_data_long_enough(Lookup::<()>::MIN_SIZE));
 
-impl Default for Lookup<'_> {
+impl<T> Default for Lookup<'_, T> {
     fn default() -> Self {
         Self {
             data: FontData::default_table_data(),
