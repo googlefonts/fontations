@@ -64,26 +64,27 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     });
 
     let const_generic = generic.is_some().then(|| quote!(::<()>));
-    // Generate Default for all tables that don't require external args, skipping
-    // tables that have a 'format' field that is not expected to be 0 or 1.
+    // Generate Default for all tables, skipping tables that have a 'format' field
+    // that is not expected to be 0 or 1.
     let table_format = item.format_value_and_width();
 
     // Choose the data constructor based on the table's format value: format=1 needs the
     // first byte set to 1 so that reading back the format field yields the correct value.
-    let data_method = item
-        .attrs
-        .read_args
-        .is_none()
-        .then(|| match table_format {
-            Some((1, 1)) => Some(quote!(default_format_1_u8_table_data)),
-            Some((1, 2)) => Some(quote!(default_format_1_u16_table_data)),
-            None | Some((0, _)) => Some(quote!(default_table_data)),
-            _ => None,
-        })
-        .flatten();
+    let data_method = match table_format {
+        Some((1, 1)) => Some(quote!(default_format_1_u8_table_data)),
+        Some((1, 2)) => Some(quote!(default_format_1_u16_table_data)),
+        None | Some((0, _)) => Some(quote!(default_table_data)),
+        _ => None,
+    };
 
     let impl_default = data_method.map(|data_method| {
         let phantom_init = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
+        let default_args = item
+            .attrs
+            .read_args
+            .as_ref()
+            .map(|args| args.idents().map(|id| quote!(#id: Default::default(),)).collect::<Vec<_>>())
+            .unwrap_or_default();
 
         let min_size_is_zero = min_valid_size.to_string() == "0";
         // selectively allow this lint so we can assert 0 <= NULL_POOL_SIZE,
@@ -99,6 +100,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                 fn default() -> Self {
                     Self {
                         data: FontData::#data_method(),
+                        #( #default_args )*
                         #phantom_init
                     }
                 }

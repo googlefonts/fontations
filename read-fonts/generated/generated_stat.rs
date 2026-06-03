@@ -342,6 +342,18 @@ impl<'a> AxisValueArray<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(AxisValueArray::MIN_SIZE));
+
+impl Default for AxisValueArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            axis_value_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AxisValueArray<'a> {
     fn type_name(&self) -> &str {

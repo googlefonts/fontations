@@ -1980,6 +1980,18 @@ impl<'a> PairSet<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(PairSet::MIN_SIZE));
+
+impl Default for PairSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            value_format1: Default::default(),
+            value_format2: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PairSet<'a> {
     fn type_name(&self) -> &str {
@@ -2996,6 +3008,17 @@ impl<'a> BaseArray<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(BaseArray::MIN_SIZE));
+
+impl Default for BaseArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseArray<'a> {
     fn type_name(&self) -> &str {
@@ -3393,6 +3416,17 @@ impl<'a> LigatureArray<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(LigatureArray::MIN_SIZE));
+
+impl Default for LigatureArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigatureArray<'a> {
     fn type_name(&self) -> &str {
@@ -3513,6 +3547,17 @@ impl<'a> LigatureAttach<'a> {
                     <ComponentRecord as ComputeSize>::compute_size(&self.mark_class_count())
                         .unwrap_or(0),
                 )
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(LigatureAttach::MIN_SIZE));
+
+impl Default for LigatureAttach<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            mark_class_count: Default::default(),
+        }
     }
 }
 
@@ -3907,6 +3952,17 @@ impl<'a> Mark2Array<'a> {
                     <Mark2Record as ComputeSize>::compute_size(&self.mark_class_count())
                         .unwrap_or(0),
                 )
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Mark2Array::MIN_SIZE));
+
+impl Default for Mark2Array<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            mark_class_count: Default::default(),
+        }
     }
 }
 

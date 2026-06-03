@@ -591,6 +591,19 @@ impl<'a> SharedTuples<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(SharedTuples::MIN_SIZE));
+
+impl Default for SharedTuples<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            shared_tuple_count: Default::default(),
+            axis_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SharedTuples<'a> {
     fn type_name(&self) -> &str {

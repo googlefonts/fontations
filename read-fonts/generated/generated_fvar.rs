@@ -283,6 +283,22 @@ impl<'a> AxisInstanceArrays<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(
+    AxisInstanceArrays::MIN_SIZE
+));
+
+impl Default for AxisInstanceArrays<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            axis_count: Default::default(),
+            instance_count: Default::default(),
+            instance_size: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AxisInstanceArrays<'a> {
     fn type_name(&self) -> &str {

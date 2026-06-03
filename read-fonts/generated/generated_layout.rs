@@ -678,6 +678,17 @@ impl<'a> Feature<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Feature::MIN_SIZE));
+
+impl Default for Feature<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            feature_tag: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Feature<'a> {
     fn type_name(&self) -> &str {
