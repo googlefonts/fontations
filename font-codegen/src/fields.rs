@@ -731,7 +731,11 @@ impl Field {
             Some(return_type)
         }
     }
-    pub(crate) fn table_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
+    pub(crate) fn table_getter(
+        &self,
+        generic: Option<&syn::Ident>,
+        sanitize: bool,
+    ) -> Option<TokenStream> {
         let return_type = self.table_getter_return_type()?;
         let name = &self.name;
         let is_array = self.is_array();
@@ -765,7 +769,7 @@ impl Field {
         }
 
         let docs = &self.attrs.docs;
-        let offset_getter = self.typed_offset_field_getter(generic, None);
+        let offset_getter = self.typed_offset_field_getter(generic, None, sanitize);
 
         Some(quote! {
             #( #docs )*
@@ -778,7 +782,7 @@ impl Field {
         })
     }
 
-    pub(crate) fn record_getter(&self, record: &Record) -> Option<TokenStream> {
+    pub(crate) fn record_getter(&self, record: &Record, sanitize: bool) -> Option<TokenStream> {
         if !self.has_getter() {
             return None;
         }
@@ -811,7 +815,7 @@ impl Field {
             }
         };
 
-        let offset_getter = self.typed_offset_field_getter(None, Some(record));
+        let offset_getter = self.typed_offset_field_getter(None, Some(record), sanitize);
         Some(quote! {
             #(#docs)*
             pub fn #name(&self) -> #add_borrow_just_for_record #return_type {
@@ -854,6 +858,7 @@ impl Field {
         &self,
         generic: Option<&syn::Ident>,
         record: Option<&Record>,
+        sanitize: bool,
     ) -> Option<TokenStream> {
         let (offset_type, target) = match &self.typ {
             _ if self.attrs.offset_getter.is_some() => return None,
@@ -927,11 +932,15 @@ impl Field {
                 }
             })
         } else {
+            let use_fast_resolve = sanitize && matches!(target, OffsetTarget::Table(_));
+
             let mut return_type = target.getter_return_type(target_is_generic);
             if self.is_nullable() || self.attrs.conditional.is_some() {
                 return_type = quote!(Option<#return_type>);
             }
             let resolve = match self.attrs.read_offset_args.as_deref() {
+                None if use_fast_resolve => quote!(fast_resolve(data, ())),
+                Some(_) if use_fast_resolve => quote!(fast_resolve(data, args)),
                 None => quote!(resolve(data)),
                 Some(_) => quote!(resolve_with_args(data, args)),
             };

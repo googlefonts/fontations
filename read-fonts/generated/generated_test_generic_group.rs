@@ -635,7 +635,7 @@ impl<'a> ContainsLookupGroup<'a> {
     /// Attempt to resolve [`lookup_offset`][Self::lookup_offset].
     pub fn lookup(&self) -> Result<MyLookupGroup<'a>, ReadError> {
         let data = self.data;
-        self.lookup_offset().resolve(data)
+        self.lookup_offset().fast_resolve(data, ())
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {

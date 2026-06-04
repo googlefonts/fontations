@@ -342,7 +342,7 @@ impl ContainsOffsets {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn other<'a>(&self, data: FontData<'a>) -> Result<BasicTable<'a>, ReadError> {
-        self.other_offset().resolve(data)
+        self.other_offset().fast_resolve(data, ())
     }
 }
 
@@ -515,7 +515,7 @@ impl HasOffsetsWithArgs {
     /// By calling its `offset_data` method.
     pub fn feature<'a>(&self, data: FontData<'a>) -> Result<HasReadArgs<'a>, ReadError> {
         let args = self.merp_len();
-        self.feature_offset().resolve_with_args(data, args)
+        self.feature_offset().fast_resolve(data, args)
     }
 
     /// custom offset getter in a record
