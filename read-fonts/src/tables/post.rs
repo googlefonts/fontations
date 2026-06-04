@@ -8,7 +8,7 @@ impl<'a> Post<'a> {
     pub fn num_names(&self) -> usize {
         match self.version() {
             Version16Dot16::VERSION_1_0 => DEFAULT_GLYPH_NAMES.len(),
-            Version16Dot16::VERSION_2_0 => self.num_glyphs().unwrap() as usize,
+            Version16Dot16::VERSION_2_0 => self.num_glyphs().unwrap_or_default() as usize,
             _ => 0,
         }
     }
@@ -23,10 +23,7 @@ impl<'a> Post<'a> {
                     return DEFAULT_GLYPH_NAMES.get(idx).copied();
                 }
                 let idx = idx - DEFAULT_GLYPH_NAMES.len();
-                match self.string_data().unwrap().get(idx) {
-                    Some(Ok(s)) => Some(s.0),
-                    _ => None,
-                }
+                self.string_data()?.get(idx)?.ok().map(|s| s.0)
             }
             _ => None,
         }
