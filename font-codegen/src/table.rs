@@ -50,7 +50,7 @@ pub(crate) fn generate(item: &Table, items: &Items) -> syn::Result<TokenStream> 
         }
     });
 
-    let table_ref_getters = item.iter_table_ref_getters();
+    let table_ref_getters = item.iter_table_ref_getters(items.sanitize);
     let optional_format_trait_impl = item.impl_format_trait();
     let optional_discriminant_trait_impl = item.impl_discriminant_trait();
     let font_read = generate_font_read(item, items.sanitize)?;
@@ -545,11 +545,11 @@ impl Table {
         })
     }
 
-    fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
+    fn iter_table_ref_getters(&self, sanitize: bool) -> impl Iterator<Item = TokenStream> + '_ {
         let generic = self.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
         self.fields
             .iter()
-            .filter_map(move |fld| fld.table_getter(generic))
+            .filter_map(move |fld| fld.table_getter(generic, sanitize))
             .chain(
                 self.attrs
                     .read_args
