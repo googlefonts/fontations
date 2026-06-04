@@ -110,7 +110,7 @@ fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> 
     let name = &item.name;
     let inner = &item.inner_type;
 
-    let match_arms: Vec<_> = item
+    let sanitize_arms: Vec<_> = item
         .variants
         .iter()
         .map(|var| {
@@ -141,7 +141,7 @@ fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> 
             fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
                 let discriminant = #inner::read_discriminant(ctx.data())?;
                 match discriminant {
-                    #( #match_arms )*
+                    #( #sanitize_arms )*
                     other => Err(ReadError::InvalidFormat(other as _)),
                 }
             }

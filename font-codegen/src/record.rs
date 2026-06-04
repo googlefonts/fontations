@@ -24,7 +24,10 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
         let docs = &fld.attrs.docs;
         quote!( #( #docs )* )
     });
-    let getters = item.fields.iter().map(|fld| fld.record_getter(item));
+    let getters = item
+        .fields
+        .iter()
+        .map(|fld| fld.record_getter(item, all_items.sanitize));
     let traversal_impl = generate_traversal(item)?;
 
     let lifetime = &item.lifetime;
