@@ -346,6 +346,57 @@ impl<O: SanitizeOffset> SanitizeOffset for &[O] {
     }
 }
 
+/// Resolve an offset using FastRead (post-sanitize).
+///
+/// For non-nullable offsets, a null offset returns a "default" table
+/// constructed from empty data. This should only occur if sanitize
+/// permitted a null non-nullable offset.
+pub trait FastResolveOffset {
+    fn fast_resolve<'a, T: FastRead<'a> + Default>(
+        &self,
+        data: FontData<'a>,
+        args: T::Args,
+        // NOTE: return type matches what we do for non-sanitize, just to keep
+        // this less invasive for now
+    ) -> Result<T, ReadError>;
+}
+
+/// Resolve a nullable offset using FastRead (post-sanitize).
+///
+/// Null offsets return `None`.
+pub trait FastResolveNullableOffset {
+    fn fast_resolve<'a, T: FastRead<'a> + Default>(
+        &self,
+        data: FontData<'a>,
+        args: T::Args,
+    ) -> Option<Result<T, ReadError>>;
+}
+
+impl<O: Offset> FastResolveOffset for O {
+    fn fast_resolve<'a, T: FastRead<'a> + Default>(
+        &self,
+        data: FontData<'a>,
+        args: T::Args,
+    ) -> Result<T, ReadError> {
+        match self.non_null() {
+            Some(off) => Ok(T::fast_read(data.split_off(off).unwrap(), args)),
+            None => Ok(T::default()),
+        }
+    }
+}
+
+impl<O: Offset> FastResolveNullableOffset for Nullable<O> {
+    fn fast_resolve<'a, T: FastRead<'a> + Default>(
+        &self,
+        data: FontData<'a>,
+        args: T::Args,
+    ) -> Option<Result<T, ReadError>> {
+        self.offset()
+            .non_null()
+            .map(|off| Ok(T::fast_read(data.split_off(off).unwrap(), args)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use types::Offset16;

@@ -93,7 +93,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`nonnullable_offset`][Self::nonnullable_offset].
     pub fn nonnullable(&self) -> Result<Dummy<'a>, ReadError> {
         let data = self.data;
-        self.nonnullable_offset().resolve(data)
+        self.nonnullable_offset().fast_resolve(data, ())
     }
 
     /// An offset that is nullable, but always present
@@ -105,7 +105,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`nullable_offset`][Self::nullable_offset].
     pub fn nullable(&self) -> Option<Result<Dummy<'a>, ReadError>> {
         let data = self.data;
-        self.nullable_offset().resolve(data)
+        self.nullable_offset().fast_resolve(data, ())
     }
 
     /// count of the array at array_offset
@@ -167,7 +167,8 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`versioned_nonnullable_offset`][Self::versioned_nonnullable_offset].
     pub fn versioned_nonnullable(&self) -> Option<Result<Dummy<'a>, ReadError>> {
         let data = self.data;
-        self.versioned_nonnullable_offset().map(|x| x.resolve(data))
+        self.versioned_nonnullable_offset()
+            .map(|x| x.fast_resolve(data, ()))
     }
 
     /// An offset that is nullable and versioned
@@ -181,7 +182,8 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`versioned_nullable_offset`][Self::versioned_nullable_offset].
     pub fn versioned_nullable(&self) -> Option<Result<Dummy<'a>, ReadError>> {
         let data = self.data;
-        self.versioned_nullable_offset().map(|x| x.resolve(data))?
+        self.versioned_nullable_offset()
+            .map(|x| x.fast_resolve(data, ()))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {

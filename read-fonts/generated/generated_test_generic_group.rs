@@ -503,6 +503,17 @@ impl Sanitize for MyLookupGroup<'_> {
     }
 }
 
+impl<'a> FastRead<'a> for MyLookupGroup<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        let discriminant = MyLookup::read_discriminant(data).unwrap_or_default();
+        match discriminant {
+            1 => MyLookupGroup::TypeOne(MyLookup::<MySubtable>::fast_read(data, ())),
+            2 => MyLookupGroup::TypeTwo(MyLookup::<MySubtableFormat1>::fast_read(data, ())),
+            _ => MyLookupGroup::TypeOne(MyLookup::<MySubtable>::fast_read(data, ())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> MyLookupGroup<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
@@ -586,7 +597,7 @@ impl<'a> ContainsLookupGroup<'a> {
     /// Attempt to resolve [`lookup_offset`][Self::lookup_offset].
     pub fn lookup(&self) -> Result<MyLookupGroup<'a>, ReadError> {
         let data = self.data;
-        self.lookup_offset().resolve(data)
+        self.lookup_offset().fast_resolve(data, ())
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {

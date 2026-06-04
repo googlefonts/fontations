@@ -106,7 +106,7 @@ fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> 
     let name = &item.name;
     let inner = &item.inner_type;
 
-    let match_arms: Vec<_> = item
+    let sanitize_arms: Vec<_> = item
         .variants
         .iter()
         .map(|var| {
@@ -116,13 +116,37 @@ fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> 
         })
         .collect();
 
+    let fast_read_arms: Vec<_> = item
+        .variants
+        .iter()
+        .map(|var| {
+            let var_name = &var.name;
+            let type_id = &var.type_id;
+            let typ = &var.typ;
+            quote!(#type_id => #name :: #var_name ( #inner::<#typ>::fast_read(data, ()) ))
+        })
+        .collect();
+    let first_var_name = &item.variants.first().unwrap().name;
+    let first_typ = &item.variants.first().unwrap().typ;
+
     Some(quote! {
         impl Sanitize for #name<'_> {
             fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
                 let discriminant = #inner::read_discriminant(ctx.data())?;
                 match discriminant {
-                    #( #match_arms )*
+                    #( #sanitize_arms )*
                     other => Err(ReadError::InvalidFormat(other as _)),
+                }
+            }
+        }
+
+        impl<'a> FastRead<'a> for #name<'a> {
+            fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+                let discriminant = #inner::read_discriminant(data)
+                    .unwrap_or_default();
+                match discriminant {
+                    #( #fast_read_arms, )*
+                    _ => #name :: #first_var_name ( #inner::<#first_typ>::fast_read(data, ()) ),
                 }
             }
         }
