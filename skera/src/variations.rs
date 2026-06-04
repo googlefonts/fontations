@@ -179,6 +179,7 @@ fn serialize_var_data_offset_array(
             }
         }
     }
+
     if vardata_count == 0 {
         if !keep_empty {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -226,7 +227,7 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
 
         let src_word_delta_count = self.word_delta_count();
         let src_word_count = (src_word_delta_count & 0x7FFF) as usize;
-        let src_long_words = src_word_count & 0x8000 != 0;
+        let src_long_words = (src_word_delta_count & 0x8000) != 0;
 
         let mut has_long = false;
         if src_long_words {
