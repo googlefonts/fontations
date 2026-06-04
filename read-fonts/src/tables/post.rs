@@ -182,4 +182,27 @@ mod tests {
         let postv3 = Post::read(buf.data().into()).unwrap();
         assert!(postv3.num_glyphs().is_none());
     }
+
+    #[test]
+    fn num_names_defaults_to_zero_without_num_glyphs() {
+        let buf = make_basic_post(Version16Dot16::VERSION_2_0, false);
+        let post = Post::read(buf.data().into()).unwrap();
+        // Just don't panic
+        assert_eq!(post.num_names(), 0);
+    }
+
+    #[test]
+    fn glyph_name_missing_string_data_returns_none() {
+        let buf = BeBuffer::new()
+            .push(Version16Dot16::VERSION_2_0)
+            .push(Fixed::from_i32(5))
+            .extend([FWord::new(6), FWord::new(7)])
+            .push(0u32)
+            .extend([7u32, 8, 9, 10])
+            .push(1u16)
+            .push(258u16);
+        let post = Post::read(buf.data().into()).unwrap();
+        // Just don't panic
+        assert_eq!(post.glyph_name(GlyphId16::new(0)), None);
+    }
 }
