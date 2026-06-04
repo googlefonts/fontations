@@ -1,0 +1,20 @@
+FONTS:
+SourceHanSans-Regular_subset.otf
+
+PROFILES:
+default.txt
+drop-hints.txt
+drop-hints-retain-gids.txt
+retain-gids.txt
+desubroutinize-retain-gids.txt
+drop-hints-desubroutinize.txt
+drop-hints-desubroutinize-retain-gids.txt
+
+SUBSETS:
+明
+acek
+
+# TODO temporary until diff with fonttools on FDSelect format is fixed.
+OPTIONS:
+# no_fonttools
+
