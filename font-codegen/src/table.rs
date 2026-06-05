@@ -58,7 +58,7 @@ pub(crate) fn generate(item: &Table, items: &Items) -> syn::Result<TokenStream> 
         .sanitize
         .then(|| generate_sanitize(item))
         .transpose()?;
-    let debug = generate_debug(item)?;
+    let debug = generate_debug(item, items.sanitize)?;
     let top_level = item.attrs.tag.as_ref().map(|tag| {
         let tag_str = tag.value();
         let doc = format!(" `{tag_str}`");
@@ -312,13 +312,17 @@ fn generate_fast_read(item: &Table) -> TokenStream {
     }
 }
 
-fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
+fn generate_debug(item: &Table, sanitize: bool) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let name_str = name.to_string();
     let generic = item.attrs.generic_offset.as_ref();
-    let generic_bounds = generic
-        .is_some()
-        .then(|| quote!(: FontRead<'a> + SomeTable<'a> + 'a));
+    let generic_bounds = generic.is_some().then(|| {
+        if sanitize {
+            quote!(: FastRead<'a, Args=()> + Default + SomeTable<'a> + 'a)
+        } else {
+            quote!(: FontRead<'a> + SomeTable<'a> + 'a)
+        }
+    });
     let field_arms = item.fields.iter_field_traversal_match_arms(false);
     let attrs = item.fields.fields.is_empty().then(|| {
         quote! {

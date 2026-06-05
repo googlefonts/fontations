@@ -48,6 +48,7 @@ impl<'a, T> MyLookup<'a, T> {
 impl<T: Sanitize<Args = ()>> Sanitize for MyLookup<'_, T> {
     fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset32, T>(())?;
         let sub_table_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, T>(sub_table_count as usize, ())?;
         ctx.finish()
@@ -72,13 +73,28 @@ pub struct MyLookup<'a, T = ()> {
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T> MyLookup<'a, T> {
-    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
     /// Determines the concrete type of T
     pub fn lookup_type(&self) -> u16 {
         let range = self.lookup_type_byte_range();
         self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// offset to a single generic table
+    pub fn single_subtable_offset(&self) -> Offset32 {
+        let range = self.single_subtable_offset_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Attempt to resolve [`single_subtable_offset`][Self::single_subtable_offset].
+    pub fn single_subtable(&self) -> Result<T, ReadError>
+    where
+        T: FastRead<'a, Args = ()> + Default,
+    {
+        let data = self.data;
+        self.single_subtable_offset().fast_resolve(data, ())
     }
 
     /// Number of subtables
@@ -96,7 +112,7 @@ impl<'a, T> MyLookup<'a, T> {
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
     pub fn subtables(&self) -> ArrayOfOffsets<'a, T, Offset16>
     where
-        T: FontRead<'a>,
+        T: FastRead<'a, Args = ()> + Default,
     {
         let data = self.data;
         let offsets = self.subtable_offsets();
@@ -108,8 +124,13 @@ impl<'a, T> MyLookup<'a, T> {
         start..start + u16::RAW_BYTE_LEN
     }
 
-    pub fn sub_table_count_byte_range(&self) -> Range<usize> {
+    pub fn single_subtable_offset_byte_range(&self) -> Range<usize> {
         let start = self.lookup_type_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+
+    pub fn sub_table_count_byte_range(&self) -> Range<usize> {
+        let start = self.single_subtable_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
 
@@ -132,15 +153,21 @@ impl<T> Default for MyLookup<'_, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for MyLookup<'a, T> {
+impl<'a, T: FastRead<'a, Args = ()> + Default + SomeTable<'a> + 'a> SomeTable<'a>
+    for MyLookup<'a, T>
+{
     fn type_name(&self) -> &str {
         "MyLookup"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
-            1usize => Some(Field::new("sub_table_count", self.sub_table_count())),
-            2usize => Some(Field::new(
+            1usize => Some(Field::new(
+                "single_subtable_offset",
+                FieldType::offset(self.single_subtable_offset(), self.single_subtable()),
+            )),
+            2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
+            3usize => Some(Field::new(
                 "subtable_offsets",
                 FieldType::from(self.subtables()),
             )),
@@ -151,7 +178,9 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for MyLookup<'a, T>
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for MyLookup<'a, T> {
+impl<'a, T: FastRead<'a, Args = ()> + Default + SomeTable<'a> + 'a> std::fmt::Debug
+    for MyLookup<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
