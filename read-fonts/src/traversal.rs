@@ -100,28 +100,6 @@ pub struct ArrayOffset<'a> {
     pub target: Result<Box<dyn SomeArray<'a> + 'a>, ReadError>,
 }
 
-pub(crate) struct ArrayOfOffsets<'a, O> {
-    type_name: &'static str,
-    offsets: &'a [O],
-    resolver: Box<dyn Fn(&O) -> FieldType<'a> + 'a>,
-}
-
-impl<'a, O> SomeArray<'a> for ArrayOfOffsets<'a, O> {
-    fn type_name(&self) -> &str {
-        self.type_name
-    }
-
-    fn len(&self) -> usize {
-        self.offsets.len()
-    }
-
-    fn get(&self, idx: usize) -> Option<FieldType<'a>> {
-        let off = self.offsets.get(idx)?;
-        let target = (self.resolver)(off);
-        Some(target)
-    }
-}
-
 impl<'a> FieldType<'a> {
     /// makes a field, handling the case where this array may not be present in
     /// all versions
@@ -174,23 +152,6 @@ impl<'a> FieldType<'a> {
             array,
         }
         .into()
-    }
-
-    /// Convenience method for creating a `FieldType` from an array of offsets.
-    ///
-    /// The `resolver` argument is a function that takes an offset and resolves
-    /// it.
-    pub fn array_of_offsets<O>(
-        type_name: &'static str,
-        offsets: &'a [O],
-        resolver: impl Fn(&O) -> FieldType<'a> + 'a,
-    ) -> Self
-where {
-        FieldType::Array(Box::new(ArrayOfOffsets {
-            type_name,
-            offsets,
-            resolver: Box::new(resolver),
-        }))
     }
 
     /// Convenience method for creating a `FieldType` from an offset to an array.

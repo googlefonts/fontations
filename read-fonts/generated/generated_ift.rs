@@ -2327,20 +2327,7 @@ impl<'a> SomeTable<'a> for TableKeyedPatch<'a> {
                 traversal::FieldType::Unknown,
             )),
             2usize => Some(Field::new("patches_count", self.patches_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "patch_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<TablePatch>(),
-                        self.patch_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<TablePatch>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new("patch_offsets", FieldType::from(self.patches()))),
             _ => None,
         }
     }
@@ -3354,20 +3341,10 @@ impl<'a> SomeTable<'a> for GlyphPatches<'a> {
             1usize => Some(Field::new("table_count", self.table_count())),
             2usize => Some(Field::new("glyph_ids", traversal::FieldType::Unknown)),
             3usize => Some(Field::new("tables", self.tables())),
-            4usize => Some({
-                let data = self.data;
-                Field::new(
-                    "glyph_data_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<GlyphData>(),
-                        self.glyph_data_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<GlyphData>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            4usize => Some(Field::new(
+                "glyph_data_offsets",
+                FieldType::from(self.glyph_data()),
+            )),
             _ => None,
         }
     }

@@ -313,20 +313,10 @@ impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
                 "variation_data_count",
                 self.variation_data_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "variation_data_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<MultiItemVariationData>(),
-                        self.variation_data_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<MultiItemVariationData>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "variation_data_offsets",
+                FieldType::from(self.variation_data()),
+            )),
             _ => None,
         }
     }
@@ -419,20 +409,10 @@ impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("region_count", self.region_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "region_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<SparseVariationRegion>(),
-                        self.region_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<SparseVariationRegion>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "region_offsets",
+                FieldType::from(self.regions()),
+            )),
             _ => None,
         }
     }
@@ -781,20 +761,10 @@ impl<'a> SomeTable<'a> for ConditionList<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("condition_count", self.condition_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "condition_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Condition>(),
-                        self.condition_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Condition>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "condition_offsets",
+                FieldType::from(self.conditions()),
+            )),
             _ => None,
         }
     }

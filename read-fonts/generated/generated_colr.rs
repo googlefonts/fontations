@@ -629,20 +629,7 @@ impl<'a> SomeTable<'a> for LayerList<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("num_layers", self.num_layers())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "paint_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Paint>(),
-                        self.paint_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Paint>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new("paint_offsets", FieldType::from(self.paints()))),
             _ => None,
         }
     }

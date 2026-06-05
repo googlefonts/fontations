@@ -713,20 +713,10 @@ impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             2usize => Some(Field::new("sequence_count", self.sequence_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "sequence_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Sequence>(),
-                        self.sequence_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Sequence>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "sequence_offsets",
+                FieldType::from(self.sequences()),
+            )),
             _ => None,
         }
     }
@@ -955,20 +945,10 @@ impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
                 "alternate_set_count",
                 self.alternate_set_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "alternate_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<AlternateSet>(),
-                        self.alternate_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<AlternateSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "alternate_set_offsets",
+                FieldType::from(self.alternate_sets()),
+            )),
             _ => None,
         }
     }
@@ -1193,20 +1173,10 @@ impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             2usize => Some(Field::new("ligature_set_count", self.ligature_set_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "ligature_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<LigatureSet>(),
-                        self.ligature_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<LigatureSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "ligature_set_offsets",
+                FieldType::from(self.ligature_sets()),
+            )),
             _ => None,
         }
     }
@@ -1301,20 +1271,10 @@ impl<'a> SomeTable<'a> for LigatureSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "ligature_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Ligature>(),
-                        self.ligature_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Ligature>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "ligature_offsets",
+                FieldType::from(self.ligatures()),
+            )),
             _ => None,
         }
     }
@@ -1843,38 +1803,18 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                 "backtrack_glyph_count",
                 self.backtrack_glyph_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "backtrack_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.backtrack_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "backtrack_coverage_offsets",
+                FieldType::from(self.backtrack_coverages()),
+            )),
             4usize => Some(Field::new(
                 "lookahead_glyph_count",
                 self.lookahead_glyph_count(),
             )),
-            5usize => Some({
-                let data = self.data;
-                Field::new(
-                    "lookahead_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.lookahead_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            5usize => Some(Field::new(
+                "lookahead_coverage_offsets",
+                FieldType::from(self.lookahead_coverages()),
+            )),
             6usize => Some(Field::new("glyph_count", self.glyph_count())),
             7usize => Some(Field::new(
                 "substitute_glyph_ids",

@@ -448,21 +448,10 @@ impl<'a> SomeTable<'a> for Sbix<'a> {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("flags", self.flags())),
             2usize => Some(Field::new("num_strikes", self.num_strikes())),
-            3usize => Some({
-                let data = self.data;
-                let args = self.num_glyphs();
-                Field::new(
-                    "strike_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Strike>(),
-                        self.strike_offsets(),
-                        move |off| {
-                            let target = off.get().resolve_with_args::<Strike>(data, &args);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "strike_offsets",
+                FieldType::from(self.strikes()),
+            )),
             _ => None,
         }
     }

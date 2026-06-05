@@ -1854,21 +1854,10 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
             2usize => Some(Field::new("value_format1", self.value_format1())),
             3usize => Some(Field::new("value_format2", self.value_format2())),
             4usize => Some(Field::new("pair_set_count", self.pair_set_count())),
-            5usize => Some({
-                let data = self.data;
-                let args = (self.value_format1(), self.value_format2());
-                Field::new(
-                    "pair_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<PairSet>(),
-                        self.pair_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve_with_args::<PairSet>(data, &args);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            5usize => Some(Field::new(
+                "pair_set_offsets",
+                FieldType::from(self.pair_sets()),
+            )),
             _ => None,
         }
     }
@@ -3126,19 +3115,10 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
         RecordResolver {
             name: "BaseRecord",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some({
-                    Field::new(
-                        "base_anchor_offsets",
-                        FieldType::array_of_offsets(
-                            better_type_name::<AnchorTable>(),
-                            self.base_anchor_offsets(),
-                            move |off| {
-                                let target = off.get().resolve::<AnchorTable>(data);
-                                FieldType::offset(off.get(), target)
-                            },
-                        ),
-                    )
-                }),
+                0usize => Some(Field::new(
+                    "base_anchor_offsets",
+                    FieldType::from(self.base_anchors(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -3441,21 +3421,10 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
-            1usize => Some({
-                let data = self.data;
-                let args = self.mark_class_count();
-                Field::new(
-                    "ligature_attach_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<LigatureAttach>(),
-                        self.ligature_attach_offsets(),
-                        move |off| {
-                            let target = off.get().resolve_with_args::<LigatureAttach>(data, &args);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "ligature_attach_offsets",
+                FieldType::from(self.ligature_attaches()),
+            )),
             _ => None,
         }
     }
@@ -3668,19 +3637,10 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
         RecordResolver {
             name: "ComponentRecord",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some({
-                    Field::new(
-                        "ligature_anchor_offsets",
-                        FieldType::array_of_offsets(
-                            better_type_name::<AnchorTable>(),
-                            self.ligature_anchor_offsets(),
-                            move |off| {
-                                let target = off.get().resolve::<AnchorTable>(data);
-                                FieldType::offset(off.get(), target)
-                            },
-                        ),
-                    )
-                }),
+                0usize => Some(Field::new(
+                    "ligature_anchor_offsets",
+                    FieldType::from(self.ligature_anchors(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -4073,19 +4033,10 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
         RecordResolver {
             name: "Mark2Record",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some({
-                    Field::new(
-                        "mark2_anchor_offsets",
-                        FieldType::array_of_offsets(
-                            better_type_name::<AnchorTable>(),
-                            self.mark2_anchor_offsets(),
-                            move |off| {
-                                let target = off.get().resolve::<AnchorTable>(data);
-                                FieldType::offset(off.get(), target)
-                            },
-                        ),
-                    )
-                }),
+                0usize => Some(Field::new(
+                    "mark2_anchor_offsets",
+                    FieldType::from(self.mark2_anchors(_data)),
+                )),
                 _ => None,
             }),
             data,

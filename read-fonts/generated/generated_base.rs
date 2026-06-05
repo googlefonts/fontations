@@ -790,20 +790,10 @@ impl<'a> SomeTable<'a> for BaseValues<'a> {
                 self.default_baseline_index(),
             )),
             1usize => Some(Field::new("base_coord_count", self.base_coord_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "base_coord_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<BaseCoord>(),
-                        self.base_coord_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<BaseCoord>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "base_coord_offsets",
+                FieldType::from(self.base_coords()),
+            )),
             _ => None,
         }
     }

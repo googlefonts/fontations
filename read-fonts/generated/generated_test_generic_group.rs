@@ -122,20 +122,10 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for MyLookup<'a, T>
         match idx {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
             1usize => Some(Field::new("sub_table_count", self.sub_table_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "subtable_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<T>(),
-                        self.subtable_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<T>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "subtable_offsets",
+                FieldType::from(self.subtables()),
+            )),
             _ => None,
         }
     }

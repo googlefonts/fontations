@@ -820,20 +820,10 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, 
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("lookup_count", self.lookup_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "lookup_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<T>(),
-                        self.lookup_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<T>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "lookup_offsets",
+                FieldType::from(self.lookups()),
+            )),
             _ => None,
         }
     }
@@ -997,20 +987,10 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
             1usize => Some(Field::new("lookup_flag", self.traverse_lookup_flag())),
             2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "subtable_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<T>(),
-                        self.subtable_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<T>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "subtable_offsets",
+                FieldType::from(self.subtables()),
+            )),
             4usize
                 if self
                     .lookup_flag()
@@ -1892,20 +1872,10 @@ impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             2usize => Some(Field::new("seq_rule_set_count", self.seq_rule_set_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "seq_rule_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<SequenceRuleSet>(),
-                        self.seq_rule_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<SequenceRuleSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "seq_rule_set_offsets",
+                FieldType::from(self.seq_rule_sets()),
+            )),
             _ => None,
         }
     }
@@ -2002,20 +1972,10 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("seq_rule_count", self.seq_rule_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "seq_rule_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<SequenceRule>(),
-                        self.seq_rule_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<SequenceRule>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "seq_rule_offsets",
+                FieldType::from(self.seq_rules()),
+            )),
             _ => None,
         }
     }
@@ -2289,20 +2249,10 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
                 "class_seq_rule_set_count",
                 self.class_seq_rule_set_count(),
             )),
-            4usize => Some({
-                let data = self.data;
-                Field::new(
-                    "class_seq_rule_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ClassSequenceRuleSet>(),
-                        self.class_seq_rule_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ClassSequenceRuleSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            4usize => Some(Field::new(
+                "class_seq_rule_set_offsets",
+                FieldType::from(self.class_seq_rule_sets()),
+            )),
             _ => None,
         }
     }
@@ -2402,20 +2352,10 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
                 "class_seq_rule_count",
                 self.class_seq_rule_count(),
             )),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "class_seq_rule_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ClassSequenceRule>(),
-                        self.class_seq_rule_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ClassSequenceRule>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "class_seq_rule_offsets",
+                FieldType::from(self.class_seq_rules()),
+            )),
             _ => None,
         }
     }
@@ -2665,20 +2605,10 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
             2usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "coverage_offsets",
+                FieldType::from(self.coverages()),
+            )),
             4usize => Some(Field::new(
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
@@ -2916,20 +2846,10 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
                 "chained_seq_rule_set_count",
                 self.chained_seq_rule_set_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "chained_seq_rule_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ChainedSequenceRuleSet>(),
-                        self.chained_seq_rule_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ChainedSequenceRuleSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "chained_seq_rule_set_offsets",
+                FieldType::from(self.chained_seq_rule_sets()),
+            )),
             _ => None,
         }
     }
@@ -3029,20 +2949,10 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
                 "chained_seq_rule_count",
                 self.chained_seq_rule_count(),
             )),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "chained_seq_rule_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ChainedSequenceRule>(),
-                        self.chained_seq_rule_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ChainedSequenceRule>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "chained_seq_rule_offsets",
+                FieldType::from(self.chained_seq_rules()),
+            )),
             _ => None,
         }
     }
@@ -3431,20 +3341,10 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
                 "chained_class_seq_rule_set_count",
                 self.chained_class_seq_rule_set_count(),
             )),
-            6usize => Some({
-                let data = self.data;
-                Field::new(
-                    "chained_class_seq_rule_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ChainedClassSequenceRuleSet>(),
-                        self.chained_class_seq_rule_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ChainedClassSequenceRuleSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            6usize => Some(Field::new(
+                "chained_class_seq_rule_set_offsets",
+                FieldType::from(self.chained_class_seq_rule_sets()),
+            )),
             _ => None,
         }
     }
@@ -3547,20 +3447,10 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
                 "chained_class_seq_rule_count",
                 self.chained_class_seq_rule_count(),
             )),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "chained_class_seq_rule_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ChainedClassSequenceRule>(),
-                        self.chained_class_seq_rule_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ChainedClassSequenceRule>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "chained_class_seq_rule_offsets",
+                FieldType::from(self.chained_class_seq_rules()),
+            )),
             _ => None,
         }
     }
@@ -3934,53 +3824,23 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 "backtrack_glyph_count",
                 self.backtrack_glyph_count(),
             )),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "backtrack_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.backtrack_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "backtrack_coverage_offsets",
+                FieldType::from(self.backtrack_coverages()),
+            )),
             3usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
-            4usize => Some({
-                let data = self.data;
-                Field::new(
-                    "input_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.input_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            4usize => Some(Field::new(
+                "input_coverage_offsets",
+                FieldType::from(self.input_coverages()),
+            )),
             5usize => Some(Field::new(
                 "lookahead_glyph_count",
                 self.lookahead_glyph_count(),
             )),
-            6usize => Some({
-                let data = self.data;
-                Field::new(
-                    "lookahead_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.lookahead_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            6usize => Some(Field::new(
+                "lookahead_coverage_offsets",
+                FieldType::from(self.lookahead_coverages()),
+            )),
             7usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
             8usize => Some(Field::new(
                 "seq_lookup_records",
@@ -4724,20 +4584,10 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("condition_count", self.condition_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "condition_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Condition>(),
-                        self.condition_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Condition>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "condition_offsets",
+                FieldType::from(self.conditions()),
+            )),
             _ => None,
         }
     }
@@ -5163,20 +5013,10 @@ impl<'a> SomeTable<'a> for ConditionFormat3<'a> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("condition_count", self.condition_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "condition_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Condition>(),
-                        self.condition_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Condition>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "condition_offsets",
+                FieldType::from(self.conditions()),
+            )),
             _ => None,
         }
     }
@@ -5276,20 +5116,10 @@ impl<'a> SomeTable<'a> for ConditionFormat4<'a> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("condition_count", self.condition_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "condition_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Condition>(),
-                        self.condition_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Condition>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "condition_offsets",
+                FieldType::from(self.conditions()),
+            )),
             _ => None,
         }
     }

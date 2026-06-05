@@ -297,19 +297,10 @@ impl<'a> SomeRecord<'a> for FaceRecord<'a> {
         RecordResolver {
             name: "FaceRecord",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some({
-                    Field::new(
-                        "face_offsets",
-                        FieldType::array_of_offsets(
-                            better_type_name::<Face>(),
-                            self.face_offsets(),
-                            move |off| {
-                                let target = off.get().resolve::<Face>(data);
-                                FieldType::offset(off.get(), target)
-                            },
-                        ),
-                    )
-                }),
+                0usize => Some(Field::new(
+                    "face_offsets",
+                    FieldType::from(self.faces(_data)),
+                )),
                 _ => None,
             }),
             data,
