@@ -189,12 +189,10 @@ impl<'a> MySubtable<'a> {
 
 impl<'a> FontRead<'a> for MySubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            MySubtableFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            MySubtableFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -220,6 +218,21 @@ impl Sanitize for MySubtable<'_> {
             MySubtableFormat1::FORMAT => MySubtableFormat1::sanitize(ctx, ()),
             MySubtableFormat2::FORMAT => MySubtableFormat2::sanitize(ctx, ()),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> FastRead<'a> for MySubtable<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        let format: u16 = data.read_at(0usize).unwrap_or_default();
+        match format {
+            MySubtableFormat1::FORMAT => {
+                MySubtable::Format1(MySubtableFormat1::fast_read(data, ()))
+            }
+            MySubtableFormat2::FORMAT => {
+                MySubtable::Format2(MySubtableFormat2::fast_read(data, ()))
+            }
+            _ => MySubtable::Format1(MySubtableFormat1::fast_read(data, ())),
         }
     }
 }

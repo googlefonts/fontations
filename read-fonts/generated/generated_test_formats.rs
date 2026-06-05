@@ -344,13 +344,10 @@ impl<'a> MyTable<'a> {
 
 impl<'a> FontRead<'a> for MyTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            Table1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            Table2::FORMAT => Ok(Self::MyFormat22(FontRead::read(data)?)),
-            Table3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -379,6 +376,18 @@ impl Sanitize for MyTable<'_> {
             Table2::FORMAT => Table2::sanitize(ctx, ()),
             Table3::FORMAT => Table3::sanitize(ctx, ()),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> FastRead<'a> for MyTable<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        let format: u16 = data.read_at(0usize).unwrap_or_default();
+        match format {
+            Table1::FORMAT => MyTable::Format1(Table1::fast_read(data, ())),
+            Table2::FORMAT => MyTable::MyFormat22(Table2::fast_read(data, ())),
+            Table3::FORMAT => MyTable::Format3(Table3::fast_read(data, ())),
+            _ => MyTable::Format1(Table1::fast_read(data, ())),
         }
     }
 }

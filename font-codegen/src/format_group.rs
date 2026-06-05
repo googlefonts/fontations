@@ -89,6 +89,24 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
 
     let sanitize = items.sanitize.then(|| generate_sanitize(item));
 
+    let font_read_body = if items.sanitize {
+        quote! {
+            let mut state = SanitizeState::default();
+            let mut ctx = SanitizeContext::new(data, &mut state);
+            Self::sanitize(&mut ctx, ())?;
+            Ok(Self::fast_read(data, ()))
+        }
+    } else {
+        quote! {
+            let format: #format = data.read_at(#format_offset)?;
+            #maybe_allow_lint
+            match format {
+                #( #match_arms ),*
+                other => Err(ReadError::InvalidFormat(other.into())),
+            }
+        }
+    };
+
     Ok(quote! {
         #( #docs )*
         #[derive(Clone)]
@@ -107,12 +125,7 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
 
         impl<'a> FontRead<'a> for #name<'a> {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                let format: #format = data.read_at(#format_offset)?;
-                #maybe_allow_lint
-                match format {
-                    #( #match_arms ),*
-                    other => Err(ReadError::InvalidFormat(other.into())),
-                }
+                #font_read_body
             }
         }
 
@@ -165,11 +178,15 @@ fn generate_sanitize(item: &TableFormat) -> TokenStream {
     let format = &item.format;
     let format_offset = item.format_offset();
 
-    let mut has_any_match_stmt = false;
-    let match_arms: Vec<_> = item
+    let non_write_only: Vec<_> = item
         .variants
         .iter()
         .filter(|v| v.attrs.write_only.is_none())
+        .collect();
+
+    let mut has_any_match_stmt = false;
+    let match_arms: Vec<_> = non_write_only
+        .iter()
         .map(|variant| {
             let typ = variant.type_name();
             let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
@@ -183,6 +200,25 @@ fn generate_sanitize(item: &TableFormat) -> TokenStream {
         })
         .collect();
 
+    let fast_read_arms: Vec<_> = non_write_only
+        .iter()
+        .map(|variant| {
+            let var_name = &variant.name;
+            let typ = variant.type_name();
+            let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
+                let expr = &expr.expr;
+                quote!(format if #expr)
+            } else {
+                quote!(#typ::FORMAT)
+            };
+            quote!(#lhs => #name::#var_name(#typ::fast_read(data, ())),)
+        })
+        .collect();
+
+    let first_variant = non_write_only.first().expect("format group needs variants");
+    let first_var_name = &first_variant.name;
+    let first_typ = first_variant.type_name();
+
     let maybe_allow_lint = has_any_match_stmt.then(|| quote!(#[allow(clippy::redundant_guards)]));
 
     quote! {
@@ -193,6 +229,17 @@ fn generate_sanitize(item: &TableFormat) -> TokenStream {
                 match format {
                     #( #match_arms )*
                     other => Err(ReadError::InvalidFormat(other.into())),
+                }
+            }
+        }
+
+        impl<'a> FastRead<'a> for #name<'a> {
+            fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+                let format: #format = data.read_at(#format_offset).unwrap_or_default();
+                #maybe_allow_lint
+                match format {
+                    #( #fast_read_arms )*
+                    _ => #name::#first_var_name(#first_typ::fast_read(data, ())),
                 }
             }
         }
