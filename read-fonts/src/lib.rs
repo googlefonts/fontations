@@ -120,14 +120,6 @@ pub(crate) mod codegen_prelude {
     #[cfg(feature = "experimental_traverse")]
     pub use crate::traversal::{self, Field, FieldType, RecordResolver, SomeRecord, SomeTable};
 
-    // used in generated traversal code to get type names of offset fields, which
-    // may include generics
-    #[cfg(feature = "experimental_traverse")]
-    pub(crate) fn better_type_name<T>() -> &'static str {
-        let raw_name = std::any::type_name::<T>();
-        raw_name.rsplit("::").next().unwrap_or(raw_name)
-    }
-
     /// named transforms used in 'count', e.g
     pub(crate) mod transforms {
         pub fn subtract<T: TryInto<usize>, U: TryInto<usize>>(lhs: T, rhs: U) -> usize {

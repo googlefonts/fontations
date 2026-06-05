@@ -361,20 +361,10 @@ impl<'a> SomeTable<'a> for AxisValueArray<'a> {
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
-            0usize => Some({
-                let data = self.data;
-                Field::new(
-                    "axis_value_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<AxisValue>(),
-                        self.axis_value_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<AxisValue>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            0usize => Some(Field::new(
+                "axis_value_offsets",
+                FieldType::from(self.axis_values()),
+            )),
             _ => None,
         }
     }

@@ -387,20 +387,10 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "attach_point_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<AttachPoint>(),
-                        self.attach_point_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<AttachPoint>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "attach_point_offsets",
+                FieldType::from(self.attach_points()),
+            )),
             _ => None,
         }
     }
@@ -603,20 +593,10 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             1usize => Some(Field::new("lig_glyph_count", self.lig_glyph_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "lig_glyph_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<LigGlyph>(),
-                        self.lig_glyph_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<LigGlyph>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "lig_glyph_offsets",
+                FieldType::from(self.lig_glyphs()),
+            )),
             _ => None,
         }
     }
@@ -711,20 +691,10 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("caret_count", self.caret_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "caret_value_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CaretValue>(),
-                        self.caret_value_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CaretValue>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "caret_value_offsets",
+                FieldType::from(self.caret_values()),
+            )),
             _ => None,
         }
     }
@@ -1207,20 +1177,10 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
                 "mark_glyph_set_count",
                 self.mark_glyph_set_count(),
             )),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "coverage_offsets",
+                FieldType::from(self.coverages()),
+            )),
             _ => None,
         }
     }

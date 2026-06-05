@@ -1240,20 +1240,10 @@ impl<'a> SomeTable<'a> for ItemVariationStore<'a> {
                 "item_variation_data_count",
                 self.item_variation_data_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "item_variation_data_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ItemVariationData>(),
-                        self.item_variation_data_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ItemVariationData>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "item_variation_data_offsets",
+                FieldType::from(self.item_variation_data()),
+            )),
             _ => None,
         }
     }

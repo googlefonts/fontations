@@ -386,32 +386,11 @@ fn traversal_arm_for_field(
             }
 
             FieldType::Offset {
-                target: OffsetTarget::Table(target),
+                target: OffsetTarget::Table(_),
                 ..
             } => {
-                let maybe_data = pass_data.is_none().then(|| quote!(let data = self.data;));
-                let args_if_needed = fld.attrs.read_offset_args.as_ref().map(|args| {
-                    let args = args.to_tokens_for_table_getter();
-                    quote!(let args = #args;)
-                });
-                let resolve = match fld.attrs.read_offset_args.as_deref() {
-                    None => quote!(resolve::<#target>(data)),
-                    Some(_) => quote!(resolve_with_args::<#target>(data, &args)),
-                };
-
-                quote! {{
-                    #maybe_data
-                    #args_if_needed
-                    Field::new(#name_str,
-                        FieldType::array_of_offsets(
-                            better_type_name::<#target>(),
-                            self.#name()#maybe_unwrap,
-                            move |off| {
-                                let target = off.get().#resolve;
-                                FieldType::offset(off.get(), target)
-                            }
-                        ))
-                }}
+                let getter = fld.offset_getter_name().unwrap();
+                quote!(Field::new(#name_str, FieldType::from(self.#getter(#pass_data)#maybe_unwrap)))
             }
             FieldType::Offset {
                 target: OffsetTarget::Array(_),
