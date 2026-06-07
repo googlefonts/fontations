@@ -20,7 +20,7 @@ pub(crate) fn coverage_glyphs(graph: &Graph, cov_idx: ObjIdx) -> Result<Vec<Glyp
     let coverage_table = CoverageTable::read(FontData::new(coverage_data))
         .map_err(|_| RepackError::ErrorReadTable)?;
 
-    Ok(coverage_table.iter().map(GlyphId::from).collect())
+    Ok(coverage_table.iter().collect())
 }
 
 // Make a coverage table at the specified coverage vertex

@@ -719,7 +719,7 @@ fn get_glyph_classes(
 
     Ok(coverage_table
         .iter()
-        .map(|g| (GlyphId::from(g), class_def.get(g)))
+        .map(|g| (g, class_def.get(g)))
         .collect())
 }
 

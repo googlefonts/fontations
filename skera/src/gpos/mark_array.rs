@@ -61,7 +61,7 @@ pub(crate) fn get_mark_class_map(
             coverage
                 .iter()
                 .enumerate()
-                .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
+                .filter(|&(_, g)| glyph_set.contains(g))
                 .filter_map(|(idx, _)| {
                     mark_records
                         .get(idx)
