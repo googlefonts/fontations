@@ -72,7 +72,7 @@ impl<'a> Gasp<'a> {
     pub fn gasp_ranges_byte_range(&self) -> Range<usize> {
         let num_ranges = self.num_ranges();
         let start = self.num_ranges_byte_range().end;
-        start..start + (num_ranges as usize).saturating_mul(GaspRange::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_ranges)).saturating_mul(GaspRange::RAW_BYTE_LEN)
     }
 }
 

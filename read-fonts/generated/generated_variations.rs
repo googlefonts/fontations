@@ -183,7 +183,7 @@ impl ComputeSize for Tuple<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let axis_count = *args;
-        Ok((axis_count as usize).saturating_mul(F2Dot14::RAW_BYTE_LEN))
+        Ok((transforms::to_usize(axis_count)).saturating_mul(F2Dot14::RAW_BYTE_LEN))
     }
 }
 
@@ -192,7 +192,7 @@ impl<'a> FontReadWithArgs<'a> for Tuple<'a> {
         let mut cursor = data.cursor();
         let axis_count = *args;
         Ok(Self {
-            values: cursor.read_array(axis_count as usize)?,
+            values: cursor.read_array(transforms::to_usize(axis_count))?,
         })
     }
 }
@@ -945,7 +945,7 @@ impl<'a> VariationRegionList<'a> {
         let start = self.region_count_byte_range().end;
         start
             ..start
-                + (region_count as usize).saturating_mul(
+                + (transforms::to_usize(region_count)).saturating_mul(
                     <VariationRegion as ComputeSize>::compute_size(&self.axis_count()).unwrap_or(0),
                 )
     }
@@ -1017,7 +1017,7 @@ impl ComputeSize for VariationRegion<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let axis_count = *args;
-        Ok((axis_count as usize).saturating_mul(RegionAxisCoordinates::RAW_BYTE_LEN))
+        Ok((transforms::to_usize(axis_count)).saturating_mul(RegionAxisCoordinates::RAW_BYTE_LEN))
     }
 }
 
@@ -1026,7 +1026,7 @@ impl<'a> FontReadWithArgs<'a> for VariationRegion<'a> {
         let mut cursor = data.cursor();
         let axis_count = *args;
         Ok(Self {
-            region_axes: cursor.read_array(axis_count as usize)?,
+            region_axes: cursor.read_array(transforms::to_usize(axis_count))?,
         })
     }
 }
@@ -1205,7 +1205,10 @@ impl<'a> ItemVariationStore<'a> {
     pub fn item_variation_data_offsets_byte_range(&self) -> Range<usize> {
         let item_variation_data_count = self.item_variation_data_count();
         let start = self.item_variation_data_count_byte_range().end;
-        start..start + (item_variation_data_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(item_variation_data_count))
+                    .saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 }
 
@@ -1337,7 +1340,7 @@ impl<'a> ItemVariationData<'a> {
     pub fn region_indexes_byte_range(&self) -> Range<usize> {
         let region_index_count = self.region_index_count();
         let start = self.region_index_count_byte_range().end;
-        start..start + (region_index_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(region_index_count)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 
     pub fn delta_sets_byte_range(&self) -> Range<usize> {

@@ -806,7 +806,7 @@ impl<'a> IndexSubtableList<'a> {
         let start = 0;
         start
             ..start
-                + (number_of_index_subtables as usize)
+                + (transforms::to_usize(number_of_index_subtables))
                     .saturating_mul(IndexSubtableRecord::RAW_BYTE_LEN)
     }
 }
@@ -1627,7 +1627,7 @@ impl<'a> IndexSubtable5<'a> {
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let num_glyphs = self.num_glyphs();
         let start = self.num_glyphs_byte_range().end;
-        start..start + (num_glyphs as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_glyphs)).saturating_mul(GlyphId16::RAW_BYTE_LEN)
     }
 }
 

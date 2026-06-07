@@ -884,7 +884,7 @@ impl Intersect for ContextFormat1<'_> {
         for rule_set in coverage
             .iter()
             .zip(self.rule_sets())
-            .filter_map(|(g, rule_set)| rule_set.filter(|_| glyph_set.contains(GlyphId::from(g))))
+            .filter_map(|(g, rule_set)| rule_set.filter(|_| glyph_set.contains(g)))
         {
             for rule in rule_set?.rules() {
                 let Some(rule) = rule.transpose()? else {
@@ -909,7 +909,7 @@ impl LookupClosure for ContextFormat1<'_> {
         let intersected_idxes: IntSet<u16> = coverage
             .iter()
             .enumerate()
-            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
+            .filter(|&(_, g)| glyph_set.contains(g))
             .map(|(idx, _)| idx as u16)
             .collect();
 

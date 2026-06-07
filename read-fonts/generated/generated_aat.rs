@@ -478,7 +478,7 @@ impl<'a> Lookup4<'a> {
     pub fn segments_byte_range(&self) -> Range<usize> {
         let n_units = self.n_units();
         let start = self.range_shift_byte_range().end;
-        start..start + (n_units as usize).saturating_mul(LookupSegment4::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(n_units)).saturating_mul(LookupSegment4::RAW_BYTE_LEN)
     }
 }
 
@@ -797,7 +797,7 @@ impl<'a> Lookup8<'a> {
     pub fn value_array_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(glyph_count)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -1155,7 +1155,7 @@ impl<'a> ClassSubtable<'a> {
     pub fn class_array_byte_range(&self) -> Range<usize> {
         let n_glyphs = self.n_glyphs();
         let start = self.n_glyphs_byte_range().end;
-        start..start + (n_glyphs as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(n_glyphs)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 }
 

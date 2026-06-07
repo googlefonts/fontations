@@ -111,7 +111,8 @@ impl<'a> Avar<'a> {
         let start = self.axis_count_byte_range().end;
         start..start + {
             let data = self.data.split_off(start).unwrap_or_default();
-            <SegmentMaps as VarSize>::total_len_for_count(data, axis_count as usize).unwrap_or(0)
+            <SegmentMaps as VarSize>::total_len_for_count(data, transforms::to_usize(axis_count))
+                .unwrap_or(0)
         }
     }
 

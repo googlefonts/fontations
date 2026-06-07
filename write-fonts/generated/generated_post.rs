@@ -148,7 +148,7 @@ impl Validate for Post {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.glyph_name_index.is_some()
-                    && self.glyph_name_index.as_ref().unwrap().len() > (u16::MAX as usize)
+                    && self.glyph_name_index.as_ref().unwrap().len() > to_usize(u16::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }

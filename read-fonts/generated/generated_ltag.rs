@@ -83,7 +83,7 @@ impl<'a> Ltag<'a> {
     pub fn tag_ranges_byte_range(&self) -> Range<usize> {
         let num_tags = self.num_tags();
         let start = self.num_tags_byte_range().end;
-        start..start + (num_tags as usize).saturating_mul(FTStringRange::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_tags)).saturating_mul(FTStringRange::RAW_BYTE_LEN)
     }
 }
 

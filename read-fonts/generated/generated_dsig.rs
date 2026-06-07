@@ -84,7 +84,10 @@ impl<'a> Dsig<'a> {
     pub fn signature_records_byte_range(&self) -> Range<usize> {
         let num_signatures = self.num_signatures();
         let start = self.flags_byte_range().end;
-        start..start + (num_signatures as usize).saturating_mul(SignatureRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(num_signatures))
+                    .saturating_mul(SignatureRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -547,7 +550,7 @@ impl<'a> SignatureBlockFormat1<'a> {
     pub fn signature_byte_range(&self) -> Range<usize> {
         let signature_length = self.signature_length();
         let start = self.signature_length_byte_range().end;
-        start..start + (signature_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(signature_length)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 }
 

@@ -122,6 +122,10 @@ pub(crate) mod codegen_prelude {
 
     /// named transforms used in 'count', e.g
     pub(crate) mod transforms {
+        pub fn to_usize<T: TryInto<usize>>(value: T) -> usize {
+            value.try_into().unwrap_or_default()
+        }
+
         pub fn subtract<T: TryInto<usize>, U: TryInto<usize>>(lhs: T, rhs: U) -> usize {
             lhs.try_into()
                 .unwrap_or_default()

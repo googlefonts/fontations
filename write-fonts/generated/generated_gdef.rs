@@ -168,7 +168,7 @@ impl Validate for AttachList {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("attach_points", |ctx| {
-                if self.attach_points.len() > (u16::MAX as usize) {
+                if self.attach_points.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.attach_points.validate_impl(ctx);
@@ -225,7 +225,7 @@ impl Validate for AttachPoint {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AttachPoint", |ctx| {
             ctx.in_field("point_indices", |ctx| {
-                if self.point_indices.len() > (u16::MAX as usize) {
+                if self.point_indices.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -291,7 +291,7 @@ impl Validate for LigCaretList {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("lig_glyphs", |ctx| {
-                if self.lig_glyphs.len() > (u16::MAX as usize) {
+                if self.lig_glyphs.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.lig_glyphs.validate_impl(ctx);
@@ -351,7 +351,7 @@ impl Validate for LigGlyph {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigGlyph", |ctx| {
             ctx.in_field("caret_values", |ctx| {
-                if self.caret_values.len() > (u16::MAX as usize) {
+                if self.caret_values.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.caret_values.validate_impl(ctx);
@@ -668,7 +668,7 @@ impl Validate for MarkGlyphSets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkGlyphSets", |ctx| {
             ctx.in_field("coverages", |ctx| {
-                if self.coverages.len() > (u16::MAX as usize) {
+                if self.coverages.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.coverages.validate_impl(ctx);

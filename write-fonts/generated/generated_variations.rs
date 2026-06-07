@@ -105,7 +105,7 @@ impl Validate for Tuple {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Tuple", |ctx| {
             ctx.in_field("values", |ctx| {
-                if self.values.len() > (u16::MAX as usize) {
+                if self.values.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -393,7 +393,7 @@ impl Validate for VariationRegionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VariationRegionList", |ctx| {
             ctx.in_field("variation_regions", |ctx| {
-                if self.variation_regions.len() > (u16::MAX as usize) {
+                if self.variation_regions.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.variation_regions.validate_impl(ctx);
@@ -463,7 +463,7 @@ impl Validate for VariationRegion {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VariationRegion", |ctx| {
             ctx.in_field("region_axes", |ctx| {
-                if self.region_axes.len() > (u16::MAX as usize) {
+                if self.region_axes.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.region_axes.validate_impl(ctx);
@@ -579,7 +579,7 @@ impl Validate for ItemVariationStore {
                 self.variation_region_list.validate_impl(ctx);
             });
             ctx.in_field("item_variation_data", |ctx| {
-                if self.item_variation_data.len() > (u16::MAX as usize) {
+                if self.item_variation_data.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.item_variation_data.validate_impl(ctx);
@@ -663,7 +663,7 @@ impl Validate for ItemVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ItemVariationData", |ctx| {
             ctx.in_field("region_indexes", |ctx| {
-                if self.region_indexes.len() > (u16::MAX as usize) {
+                if self.region_indexes.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });

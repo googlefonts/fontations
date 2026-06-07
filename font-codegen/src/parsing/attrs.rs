@@ -709,7 +709,7 @@ impl Count {
         match self {
             Count::All(_) => unreachable!("'all' count handled separately"),
             Count::SingleArg(CountArg::Field(arg)) => {
-                quote!(usize::try_from(#arg).unwrap_or_default())
+                quote!(transforms::to_usize(#arg))
             }
             Count::SingleArg(CountArg::Literal(arg)) => quote!(#arg),
             Count::Complicated { args, xform } => match (xform, args.as_slice()) {
@@ -750,7 +750,7 @@ impl Count {
                     quote!(transforms::subtract_add_two(#a, #b))
                 }
                 (CountTransform::TryInto, [a]) => {
-                    quote!(usize::try_from(#a).unwrap_or_default())
+                    quote!(transforms::to_usize(#a))
                 }
                 _ => unreachable!("validated before now"),
             },

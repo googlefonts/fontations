@@ -102,13 +102,13 @@ impl Validate for AxisInstanceArrays {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AxisInstanceArrays", |ctx| {
             ctx.in_field("axes", |ctx| {
-                if self.axes.len() > (u16::MAX as usize) {
+                if self.axes.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.axes.validate_impl(ctx);
             });
             ctx.in_field("instances", |ctx| {
-                if self.instances.len() > (u16::MAX as usize) {
+                if self.instances.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.instances.validate_impl(ctx);

@@ -51,7 +51,7 @@ impl Validate for Avar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Avar", |ctx| {
             ctx.in_field("axis_segment_maps", |ctx| {
-                if self.axis_segment_maps.len() > (u16::MAX as usize) {
+                if self.axis_segment_maps.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.axis_segment_maps.validate_impl(ctx);
@@ -124,7 +124,7 @@ impl Validate for SegmentMaps {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SegmentMaps", |ctx| {
             ctx.in_field("axis_value_maps", |ctx| {
-                if self.axis_value_maps.len() > (u16::MAX as usize) {
+                if self.axis_value_maps.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.axis_value_maps.validate_impl(ctx);

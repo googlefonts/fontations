@@ -89,7 +89,10 @@ impl<'a> Meta<'a> {
     pub fn data_maps_byte_range(&self) -> Range<usize> {
         let data_maps_count = self.data_maps_count();
         let start = self.data_maps_count_byte_range().end;
-        start..start + (data_maps_count as usize).saturating_mul(DataMapRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(data_maps_count))
+                    .saturating_mul(DataMapRecord::RAW_BYTE_LEN)
     }
 }
 

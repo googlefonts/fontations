@@ -1124,7 +1124,7 @@ impl<'a> MarkArray<'a> {
     pub fn mark_records_byte_range(&self) -> Range<usize> {
         let mark_count = self.mark_count();
         let start = self.mark_count_byte_range().end;
-        start..start + (mark_count as usize).saturating_mul(MarkRecord::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(mark_count)).saturating_mul(MarkRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -1554,7 +1554,7 @@ impl<'a> SinglePosFormat2<'a> {
         let start = self.value_count_byte_range().end;
         start
             ..start
-                + (value_count as usize).saturating_mul(
+                + (transforms::to_usize(value_count)).saturating_mul(
                     <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap_or(0),
                 )
     }
@@ -1825,7 +1825,7 @@ impl<'a> PairPosFormat1<'a> {
     pub fn pair_set_offsets_byte_range(&self) -> Range<usize> {
         let pair_set_count = self.pair_set_count();
         let start = self.pair_set_count_byte_range().end;
-        start..start + (pair_set_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(pair_set_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -1965,7 +1965,7 @@ impl<'a> PairSet<'a> {
         let start = self.pair_value_count_byte_range().end;
         start
             ..start
-                + (pair_value_count as usize).saturating_mul(
+                + (transforms::to_usize(pair_value_count)).saturating_mul(
                     <PairValueRecord as ComputeSize>::compute_size(&(
                         self.value_format1(),
                         self.value_format2(),
@@ -2293,7 +2293,7 @@ impl<'a> PairPosFormat2<'a> {
         let start = self.class2_count_byte_range().end;
         start
             ..start
-                + (class1_count as usize).saturating_mul(
+                + (transforms::to_usize(class1_count)).saturating_mul(
                     <Class1Record as ComputeSize>::compute_size(&(
                         self.class2_count(),
                         self.value_format1(),
@@ -2371,7 +2371,7 @@ impl ComputeSize for Class1Record<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &(u16, ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
         let (class2_count, value_format1, value_format2) = *args;
-        Ok((class2_count as usize).saturating_mul(
+        Ok((transforms::to_usize(class2_count)).saturating_mul(
             <Class2Record as ComputeSize>::compute_size(&(value_format1, value_format2))
                 .unwrap_or(0),
         ))
@@ -2386,8 +2386,10 @@ impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
         let mut cursor = data.cursor();
         let (class2_count, value_format1, value_format2) = *args;
         Ok(Self {
-            class2_records: cursor
-                .read_computed_array(class2_count as usize, &(value_format1, value_format2))?,
+            class2_records: cursor.read_computed_array(
+                transforms::to_usize(class2_count),
+                &(value_format1, value_format2),
+            )?,
         })
     }
 }
@@ -2604,7 +2606,10 @@ impl<'a> CursivePosFormat1<'a> {
     pub fn entry_exit_record_byte_range(&self) -> Range<usize> {
         let entry_exit_count = self.entry_exit_count();
         let start = self.entry_exit_count_byte_range().end;
-        start..start + (entry_exit_count as usize).saturating_mul(EntryExitRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(entry_exit_count))
+                    .saturating_mul(EntryExitRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -2996,7 +3001,7 @@ impl<'a> BaseArray<'a> {
         let start = self.base_count_byte_range().end;
         start
             ..start
-                + (base_count as usize).saturating_mul(
+                + (transforms::to_usize(base_count)).saturating_mul(
                     <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count())
                         .unwrap_or(0),
                 )
@@ -3083,7 +3088,7 @@ impl ComputeSize for BaseRecord<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let mark_class_count = *args;
-        Ok((mark_class_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN))
+        Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset16::RAW_BYTE_LEN))
     }
 }
 
@@ -3092,7 +3097,7 @@ impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            base_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
+            base_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
     }
 }
@@ -3398,7 +3403,7 @@ impl<'a> LigatureArray<'a> {
     pub fn ligature_attach_offsets_byte_range(&self) -> Range<usize> {
         let ligature_count = self.ligature_count();
         let start = self.ligature_count_byte_range().end;
-        start..start + (ligature_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(ligature_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -3518,7 +3523,7 @@ impl<'a> LigatureAttach<'a> {
         let start = self.component_count_byte_range().end;
         start
             ..start
-                + (component_count as usize).saturating_mul(
+                + (transforms::to_usize(component_count)).saturating_mul(
                     <ComponentRecord as ComputeSize>::compute_size(&self.mark_class_count())
                         .unwrap_or(0),
                 )
@@ -3605,7 +3610,7 @@ impl ComputeSize for ComponentRecord<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let mark_class_count = *args;
-        Ok((mark_class_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN))
+        Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset16::RAW_BYTE_LEN))
     }
 }
 
@@ -3614,7 +3619,7 @@ impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            ligature_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
+            ligature_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
     }
 }
@@ -3914,7 +3919,7 @@ impl<'a> Mark2Array<'a> {
         let start = self.mark2_count_byte_range().end;
         start
             ..start
-                + (mark2_count as usize).saturating_mul(
+                + (transforms::to_usize(mark2_count)).saturating_mul(
                     <Mark2Record as ComputeSize>::compute_size(&self.mark_class_count())
                         .unwrap_or(0),
                 )
@@ -4001,7 +4006,7 @@ impl ComputeSize for Mark2Record<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let mark_class_count = *args;
-        Ok((mark_class_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN))
+        Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset16::RAW_BYTE_LEN))
     }
 }
 
@@ -4010,7 +4015,7 @@ impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            mark2_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
+            mark2_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
     }
 }

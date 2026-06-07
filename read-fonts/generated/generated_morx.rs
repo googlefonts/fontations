@@ -81,7 +81,8 @@ impl<'a> Morx<'a> {
         let start = self.n_chains_byte_range().end;
         start..start + {
             let data = self.data.split_off(start).unwrap_or_default();
-            <Chain as VarSize>::total_len_for_count(data, n_chains as usize).unwrap_or(0)
+            <Chain as VarSize>::total_len_for_count(data, transforms::to_usize(n_chains))
+                .unwrap_or(0)
         }
     }
 }
@@ -216,7 +217,9 @@ impl<'a> Chain<'a> {
     pub fn features_byte_range(&self) -> Range<usize> {
         let n_feature_entries = self.n_feature_entries();
         let start = self.n_subtables_byte_range().end;
-        start..start + (n_feature_entries as usize).saturating_mul(Feature::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(n_feature_entries)).saturating_mul(Feature::RAW_BYTE_LEN)
     }
 
     pub fn subtables_byte_range(&self) -> Range<usize> {
@@ -224,7 +227,8 @@ impl<'a> Chain<'a> {
         let start = self.features_byte_range().end;
         start..start + {
             let data = self.data.split_off(start).unwrap_or_default();
-            <Subtable as VarSize>::total_len_for_count(data, n_subtables as usize).unwrap_or(0)
+            <Subtable as VarSize>::total_len_for_count(data, transforms::to_usize(n_subtables))
+                .unwrap_or(0)
         }
     }
 }

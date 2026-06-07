@@ -40,13 +40,13 @@ impl Validate for BasicTable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BasicTable", |ctx| {
             ctx.in_field("simple_records", |ctx| {
-                if self.simple_records.len() > (u16::MAX as usize) {
+                if self.simple_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.simple_records.validate_impl(ctx);
             });
             ctx.in_field("array_records", |ctx| {
-                if self.array_records.len() > (u32::MAX as usize) {
+                if self.array_records.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.array_records.validate_impl(ctx);
@@ -145,12 +145,12 @@ impl Validate for ContainsArrays {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ContainsArrays", |ctx| {
             ctx.in_field("scalars", |ctx| {
-                if self.scalars.len() > (u16::MAX as usize) {
+                if self.scalars.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("records", |ctx| {
-                if self.records.len() > (u16::MAX as usize) {
+                if self.records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.records.validate_impl(ctx);

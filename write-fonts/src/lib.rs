@@ -211,6 +211,10 @@ pub(crate) mod codegen_prelude {
         s.len()
     }
 
+    pub fn to_usize<T: TryInto<usize>>(value: T) -> usize {
+        value.try_into().unwrap_or_default()
+    }
+
     #[cfg(feature = "tables")]
     pub fn plus_one(val: &usize) -> usize {
         val.saturating_add(1)

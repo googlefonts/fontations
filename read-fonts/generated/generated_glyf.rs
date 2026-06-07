@@ -189,7 +189,7 @@ impl<'a> SimpleGlyph<'a> {
     pub fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
         let number_of_contours = self.number_of_contours();
         let start = self.y_max_byte_range().end;
-        start..start + (number_of_contours as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(number_of_contours)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 
     pub fn instruction_length_byte_range(&self) -> Range<usize> {
@@ -200,7 +200,7 @@ impl<'a> SimpleGlyph<'a> {
     pub fn instructions_byte_range(&self) -> Range<usize> {
         let instruction_length = self.instruction_length();
         let start = self.instruction_length_byte_range().end;
-        start..start + (instruction_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(instruction_length)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn glyph_data_byte_range(&self) -> Range<usize> {

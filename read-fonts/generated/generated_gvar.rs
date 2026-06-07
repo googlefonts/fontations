@@ -585,7 +585,7 @@ impl<'a> SharedTuples<'a> {
         let start = 0;
         start
             ..start
-                + (shared_tuple_count as usize).saturating_mul(
+                + (transforms::to_usize(shared_tuple_count)).saturating_mul(
                     <Tuple as ComputeSize>::compute_size(&self.axis_count()).unwrap_or(0),
                 )
     }

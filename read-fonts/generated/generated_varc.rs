@@ -281,7 +281,10 @@ impl<'a> MultiItemVariationStore<'a> {
     pub fn variation_data_offsets_byte_range(&self) -> Range<usize> {
         let variation_data_count = self.variation_data_count();
         let start = self.variation_data_count_byte_range().end;
-        start..start + (variation_data_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(variation_data_count))
+                    .saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 }
 
@@ -385,7 +388,7 @@ impl<'a> SparseVariationRegionList<'a> {
     pub fn region_offsets_byte_range(&self) -> Range<usize> {
         let region_count = self.region_count();
         let start = self.region_count_byte_range().end;
-        start..start + (region_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(region_count)).saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 }
 
@@ -476,7 +479,7 @@ impl<'a> SparseVariationRegion<'a> {
         let start = self.region_axis_count_byte_range().end;
         start
             ..start
-                + (region_axis_count as usize)
+                + (transforms::to_usize(region_axis_count))
                     .saturating_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN)
     }
 }
@@ -639,7 +642,7 @@ impl<'a> MultiItemVariationData<'a> {
     pub fn region_indices_byte_range(&self) -> Range<usize> {
         let region_index_count = self.region_index_count();
         let start = self.region_index_count_byte_range().end;
-        start..start + (region_index_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(region_index_count)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 
     pub fn raw_delta_sets_byte_range(&self) -> Range<usize> {
@@ -739,7 +742,8 @@ impl<'a> ConditionList<'a> {
     pub fn condition_offsets_byte_range(&self) -> Range<usize> {
         let condition_count = self.condition_count();
         let start = self.condition_count_byte_range().end;
-        start..start + (condition_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        start
+            ..start + (transforms::to_usize(condition_count)).saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 }
 

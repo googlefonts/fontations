@@ -101,7 +101,7 @@ impl<'a> TableDirectory<'a> {
     pub fn table_records_byte_range(&self) -> Range<usize> {
         let num_tables = self.num_tables();
         let start = self.range_shift_byte_range().end;
-        start..start + (num_tables as usize).saturating_mul(TableRecord::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_tables)).saturating_mul(TableRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -304,7 +304,7 @@ impl<'a> TTCHeader<'a> {
     pub fn table_directory_offsets_byte_range(&self) -> Range<usize> {
         let num_fonts = self.num_fonts();
         let start = self.num_fonts_byte_range().end;
-        start..start + (num_fonts as usize).saturating_mul(u32::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_fonts)).saturating_mul(u32::RAW_BYTE_LEN)
     }
 
     pub fn dsig_tag_byte_range(&self) -> Range<usize> {

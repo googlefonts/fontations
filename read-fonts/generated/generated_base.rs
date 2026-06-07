@@ -311,7 +311,7 @@ impl<'a> BaseTagList<'a> {
     pub fn baseline_tags_byte_range(&self) -> Range<usize> {
         let base_tag_count = self.base_tag_count();
         let start = self.base_tag_count_byte_range().end;
-        start..start + (base_tag_count as usize).saturating_mul(Tag::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(base_tag_count)).saturating_mul(Tag::RAW_BYTE_LEN)
     }
 }
 
@@ -399,7 +399,10 @@ impl<'a> BaseScriptList<'a> {
     pub fn base_script_records_byte_range(&self) -> Range<usize> {
         let base_script_count = self.base_script_count();
         let start = self.base_script_count_byte_range().end;
-        start..start + (base_script_count as usize).saturating_mul(BaseScriptRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(base_script_count))
+                    .saturating_mul(BaseScriptRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -583,7 +586,9 @@ impl<'a> BaseScript<'a> {
         let base_lang_sys_count = self.base_lang_sys_count();
         let start = self.base_lang_sys_count_byte_range().end;
         start
-            ..start + (base_lang_sys_count as usize).saturating_mul(BaseLangSysRecord::RAW_BYTE_LEN)
+            ..start
+                + (transforms::to_usize(base_lang_sys_count))
+                    .saturating_mul(BaseLangSysRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -764,7 +769,9 @@ impl<'a> BaseValues<'a> {
     pub fn base_coord_offsets_byte_range(&self) -> Range<usize> {
         let base_coord_count = self.base_coord_count();
         let start = self.base_coord_count_byte_range().end;
-        start..start + (base_coord_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(base_coord_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -896,7 +903,10 @@ impl<'a> MinMax<'a> {
     pub fn feat_min_max_records_byte_range(&self) -> Range<usize> {
         let feat_min_max_count = self.feat_min_max_count();
         let start = self.feat_min_max_count_byte_range().end;
-        start..start + (feat_min_max_count as usize).saturating_mul(FeatMinMaxRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(feat_min_max_count))
+                    .saturating_mul(FeatMinMaxRecord::RAW_BYTE_LEN)
     }
 }
 

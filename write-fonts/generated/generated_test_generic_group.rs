@@ -31,7 +31,7 @@ impl<T: Validate> Validate for MyLookup<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MyLookup", |ctx| {
             ctx.in_field("subtables", |ctx| {
-                if self.subtables.len() > (u16::MAX as usize) {
+                if self.subtables.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.subtables.validate_impl(ctx);
@@ -206,7 +206,7 @@ impl Validate for MySubtableFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MySubtableFormat2", |ctx| {
             ctx.in_field("values", |ctx| {
-                if self.values.len() > (u16::MAX as usize) {
+                if self.values.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });

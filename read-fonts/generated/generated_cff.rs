@@ -511,7 +511,7 @@ impl<'a> FdSelectFormat3<'a> {
     pub fn ranges_byte_range(&self) -> Range<usize> {
         let n_ranges = self.n_ranges();
         let start = self.n_ranges_byte_range().end;
-        start..start + (n_ranges as usize).saturating_mul(FdSelectRange3::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(n_ranges)).saturating_mul(FdSelectRange3::RAW_BYTE_LEN)
     }
 
     pub fn sentinel_byte_range(&self) -> Range<usize> {
@@ -665,7 +665,7 @@ impl<'a> FdSelectFormat4<'a> {
     pub fn ranges_byte_range(&self) -> Range<usize> {
         let n_ranges = self.n_ranges();
         let start = self.n_ranges_byte_range().end;
-        start..start + (n_ranges as usize).saturating_mul(FdSelectRange4::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(n_ranges)).saturating_mul(FdSelectRange4::RAW_BYTE_LEN)
     }
 
     pub fn sentinel_byte_range(&self) -> Range<usize> {
