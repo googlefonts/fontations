@@ -1165,8 +1165,7 @@ mod tests {
         }
 
         let mut tested = 0usize;
-        for gid16 in coverage.iter() {
-            let gid: GlyphId = gid16.into();
+        for gid in coverage.iter() {
             let coverage_index = coverage.get(gid).unwrap() as usize;
             let glyph = outlines.varc.glyph(coverage_index).unwrap();
             for component in glyph.components() {

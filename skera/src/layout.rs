@@ -1149,7 +1149,7 @@ pub(crate) fn intersected_glyphs_and_indices(
         for (i, g) in coverage
             .iter()
             .enumerate()
-            .filter_map(|(i, g)| glyph_map.get(&GlyphId::from(g)).map(|&new_g| (i, new_g)))
+            .filter_map(|(i, g)| glyph_map.get(&g).map(|&new_g| (i, new_g)))
         {
             glyphs.push(g);
             indices.insert(i as u32);
