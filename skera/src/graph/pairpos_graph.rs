@@ -848,7 +848,11 @@ fn make_class_def(
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
 
-    ClassDef::serialize(&mut s, glyph_classes).map_err(|_| RepackError::ErrorRepackSerialize)?;
+    let glyph_classes = glyph_classes
+        .iter()
+        .map(|(gid, class)| (GlyphId::from(*gid as u32), *class))
+        .collect::<Vec<_>>();
+    ClassDef::serialize(&mut s, &glyph_classes).map_err(|_| RepackError::ErrorRepackSerialize)?;
     s.end_serialize();
 
     let classdef_data = s.copy_bytes();
@@ -881,7 +885,11 @@ pub(crate) mod test {
     fn actual_class_def_size(glyph_and_classes: &[(u16, u16)]) -> usize {
         let mut s = Serializer::new(100);
         s.start_serialize().unwrap();
-        ClassDef::serialize(&mut s, glyph_and_classes).unwrap();
+        let glyph_and_classes = glyph_and_classes
+            .iter()
+            .map(|(gid, class)| (GlyphId::from(*gid as u32), *class))
+            .collect::<Vec<_>>();
+        ClassDef::serialize(&mut s, &glyph_and_classes).unwrap();
         s.end_serialize();
         assert!(!s.in_error());
         s.copy_bytes().len()

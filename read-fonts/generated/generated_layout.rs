@@ -1846,6 +1846,218 @@ impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
     }
 }
 
+impl Format<u16> for ClassDefFormat3<'_> {
+    const FORMAT: u16 = 3;
+}
+
+impl<'a> MinByteRange<'a> for ClassDefFormat3<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class_value_array_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<'a> FontRead<'a> for ClassDefFormat3<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// [Class Definition Table Format 3](https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-3)
+#[derive(Clone)]
+pub struct ClassDefFormat3<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ClassDefFormat3<'a> {
+    pub const MIN_SIZE: usize =
+        (u16::RAW_BYTE_LEN + GlyphId24::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier — format = 3
+    pub fn class_format(&self) -> u16 {
+        let range = self.class_format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// First glyph ID of the classValueArray
+    pub fn start_glyph_id(&self) -> GlyphId24 {
+        let range = self.start_glyph_id_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Size of the classValueArray
+    pub fn glyph_count(&self) -> Uint24 {
+        let range = self.glyph_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of Class Values — one per glyph ID
+    pub fn class_value_array(&self) -> &'a [BigEndian<u16>] {
+        let range = self.class_value_array_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn class_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn start_glyph_id_byte_range(&self) -> Range<usize> {
+        let start = self.class_format_byte_range().end;
+        start..start + GlyphId24::RAW_BYTE_LEN
+    }
+
+    pub fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.start_glyph_id_byte_range().end;
+        start..start + Uint24::RAW_BYTE_LEN
+    }
+
+    pub fn class_value_array_byte_range(&self) -> Range<usize> {
+        let glyph_count = self.glyph_count();
+        let start = self.glyph_count_byte_range().end;
+        start
+            ..start
+                + (usize::try_from(glyph_count).unwrap_or_default())
+                    .saturating_mul(u16::RAW_BYTE_LEN)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for ClassDefFormat3<'a> {
+    fn type_name(&self) -> &str {
+        "ClassDefFormat3"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("class_format", self.class_format())),
+            1usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
+            2usize => Some(Field::new("glyph_count", self.glyph_count())),
+            3usize => Some(Field::new("class_value_array", self.class_value_array())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for ClassDefFormat3<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl Format<u16> for ClassDefFormat4<'_> {
+    const FORMAT: u16 = 4;
+}
+
+impl<'a> MinByteRange<'a> for ClassDefFormat4<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.class_range_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl<'a> FontRead<'a> for ClassDefFormat4<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+/// [Class Definition Table Format 4](https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-4)
+#[derive(Clone)]
+pub struct ClassDefFormat4<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ClassDefFormat4<'a> {
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN + Uint24::RAW_BYTE_LEN);
+    basic_table_impls!(impl_the_methods);
+
+    /// Format identifier — format = 4
+    pub fn class_format(&self) -> u16 {
+        let range = self.class_format_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Number of ClassRangeRecord2s
+    pub fn class_range_count(&self) -> Uint24 {
+        let range = self.class_range_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    /// Array of ClassRangeRecord2s — ordered by startGlyphID
+    pub fn class_range_records(&self) -> &'a [ClassRangeRecord2] {
+        let range = self.class_range_records_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub fn class_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn class_range_count_byte_range(&self) -> Range<usize> {
+        let start = self.class_format_byte_range().end;
+        start..start + Uint24::RAW_BYTE_LEN
+    }
+
+    pub fn class_range_records_byte_range(&self) -> Range<usize> {
+        let class_range_count = self.class_range_count();
+        let start = self.class_range_count_byte_range().end;
+        start
+            ..start
+                + (usize::try_from(class_range_count).unwrap_or_default())
+                    .saturating_mul(ClassRangeRecord2::RAW_BYTE_LEN)
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for ClassDefFormat4<'a> {
+    fn type_name(&self) -> &str {
+        "ClassDefFormat4"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("class_format", self.class_format())),
+            1usize => Some(Field::new("class_range_count", self.class_range_count())),
+            2usize => Some(Field::new(
+                "class_range_records",
+                traversal::FieldType::array_of_records(
+                    stringify!(ClassRangeRecord2),
+                    self.class_range_records(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for ClassDefFormat4<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
 /// Used in [ClassDefFormat2]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1897,11 +2109,64 @@ impl<'a> SomeRecord<'a> for ClassRangeRecord {
     }
 }
 
+/// Used in [ClassDefFormat4]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct ClassRangeRecord2 {
+    /// First glyph ID in the range
+    pub start_glyph_id: BigEndian<GlyphId24>,
+    /// Last glyph ID in the range
+    pub end_glyph_id: BigEndian<GlyphId24>,
+    /// Applied to all glyphs in the range
+    pub class: BigEndian<u16>,
+}
+
+impl ClassRangeRecord2 {
+    /// First glyph ID in the range
+    pub fn start_glyph_id(&self) -> GlyphId24 {
+        self.start_glyph_id.get()
+    }
+
+    /// Last glyph ID in the range
+    pub fn end_glyph_id(&self) -> GlyphId24 {
+        self.end_glyph_id.get()
+    }
+
+    /// Applied to all glyphs in the range
+    pub fn class(&self) -> u16 {
+        self.class.get()
+    }
+}
+
+impl FixedSize for ClassRangeRecord2 {
+    const RAW_BYTE_LEN: usize =
+        GlyphId24::RAW_BYTE_LEN + GlyphId24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for ClassRangeRecord2 {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "ClassRangeRecord2",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
+                1usize => Some(Field::new("end_glyph_id", self.end_glyph_id())),
+                2usize => Some(Field::new("class", self.class())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
 /// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
 #[derive(Clone)]
 pub enum ClassDef<'a> {
     Format1(ClassDefFormat1<'a>),
     Format2(ClassDefFormat2<'a>),
+    Format3(ClassDefFormat3<'a>),
+    Format4(ClassDefFormat4<'a>),
 }
 
 impl Default for ClassDef<'_> {
@@ -1916,6 +2181,8 @@ impl<'a> ClassDef<'a> {
         match self {
             Self::Format1(item) => item.offset_data(),
             Self::Format2(item) => item.offset_data(),
+            Self::Format3(item) => item.offset_data(),
+            Self::Format4(item) => item.offset_data(),
         }
     }
 
@@ -1924,6 +2191,8 @@ impl<'a> ClassDef<'a> {
         match self {
             Self::Format1(item) => item.class_format(),
             Self::Format2(item) => item.class_format(),
+            Self::Format3(item) => item.class_format(),
+            Self::Format4(item) => item.class_format(),
         }
     }
 }
@@ -1934,6 +2203,8 @@ impl<'a> FontRead<'a> for ClassDef<'a> {
         match format {
             ClassDefFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             ClassDefFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            ClassDefFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            ClassDefFormat4::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1944,12 +2215,16 @@ impl<'a> MinByteRange<'a> for ClassDef<'a> {
         match self {
             Self::Format1(item) => item.min_byte_range(),
             Self::Format2(item) => item.min_byte_range(),
+            Self::Format3(item) => item.min_byte_range(),
+            Self::Format4(item) => item.min_byte_range(),
         }
     }
     fn min_table_bytes(&self) -> &'a [u8] {
         match self {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
+            Self::Format3(item) => item.min_table_bytes(),
+            Self::Format4(item) => item.min_table_bytes(),
         }
     }
 }
@@ -1960,6 +2235,8 @@ impl<'a> ClassDef<'a> {
         match self {
             Self::Format1(table) => table,
             Self::Format2(table) => table,
+            Self::Format3(table) => table,
+            Self::Format4(table) => table,
         }
     }
 }
