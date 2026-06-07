@@ -1924,10 +1924,7 @@ impl<'a> ClassDefFormat3<'a> {
     pub fn class_value_array_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start
-            ..start
-                + (usize::try_from(glyph_count).unwrap_or_default())
-                    .saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(glyph_count)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -2023,7 +2020,7 @@ impl<'a> ClassDefFormat4<'a> {
         let start = self.class_range_count_byte_range().end;
         start
             ..start
-                + (usize::try_from(class_range_count).unwrap_or_default())
+                + (transforms::to_usize(class_range_count))
                     .saturating_mul(ClassRangeRecord2::RAW_BYTE_LEN)
     }
 }

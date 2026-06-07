@@ -198,7 +198,7 @@ impl Intersect for PairPosFormat1<'_> {
             }
         } else {
             for (g, pair_set) in coverage.iter().zip(pair_sets.iter_as_nullable()) {
-                if !glyph_set.contains(GlyphId::from(g)) {
+                if !glyph_set.contains(g) {
                     continue;
                 }
                 let Some(pair_set) = pair_set.transpose()? else {

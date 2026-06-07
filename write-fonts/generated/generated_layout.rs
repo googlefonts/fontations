@@ -1231,8 +1231,7 @@ impl Validate for ClassDefFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassDefFormat3", |ctx| {
             ctx.in_field("class_value_array", |ctx| {
-                if self.class_value_array.len() > usize::try_from(Uint24::MAX).unwrap_or(usize::MAX)
-                {
+                if self.class_value_array.len() > to_usize(Uint24::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -1293,9 +1292,7 @@ impl Validate for ClassDefFormat4 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassDefFormat4", |ctx| {
             ctx.in_field("class_range_records", |ctx| {
-                if self.class_range_records.len()
-                    > usize::try_from(Uint24::MAX).unwrap_or(usize::MAX)
-                {
+                if self.class_range_records.len() > to_usize(Uint24::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.class_range_records.validate_impl(ctx);
