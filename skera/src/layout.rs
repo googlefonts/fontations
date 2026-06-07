@@ -16,10 +16,10 @@ use write_fonts::{
             gsub::Gsub,
             layout::{
                 CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
-                ClassRangeRecord, Condition, ConditionFormat1, ConditionSet, CoverageFormat1,
-                CoverageFormat2, CoverageFormat3, CoverageFormat4, CoverageTable, DeltaFormat,
-                Device, DeviceOrVariationIndex, ExtensionLookup, Feature, FeatureList,
-                FeatureParams, FeatureRecord, FeatureTableSubstitution,
+                ClassDefFormat3, ClassDefFormat4, ClassRangeRecord, Condition, ConditionFormat1,
+                ConditionSet, CoverageFormat1, CoverageFormat2, CoverageFormat3, CoverageFormat4,
+                CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex, ExtensionLookup,
+                Feature, FeatureList, FeatureParams, FeatureRecord, FeatureTableSubstitution,
                 FeatureTableSubstitutionRecord, FeatureVariationRecord, FeatureVariations,
                 Intersect, LangSys, LangSysRecord, LookupList, RangeRecord, Script, ScriptList,
                 ScriptRecord, SizeParams, StylisticSetParams, Subtables, VariationIndex,
@@ -173,6 +173,8 @@ impl<'a> SubsetTable<'a> for ClassDef<'a> {
         match self {
             Self::Format1(item) => item.subset(plan, s, args),
             Self::Format2(item) => item.subset(plan, s, args),
+            Self::Format3(item) => item.subset(plan, s, args),
+            Self::Format4(item) => item.subset(plan, s, args),
         }
     }
 }
@@ -221,7 +223,7 @@ impl<'a> SubsetTable<'a> for ClassDefFormat1<'a> {
             }
 
             retained_classes.insert(class);
-            new_gid_classes.push((new_gid.to_u32() as u16, class));
+            new_gid_classes.push((*new_gid, class));
         }
 
         let use_class_zero = if args.use_class_zero {
@@ -292,7 +294,7 @@ impl<'a> SubsetTable<'a> for ClassDefFormat2<'a> {
                 }
 
                 retained_classes.insert(class);
-                new_gid_classes.push((new_gid.to_u32() as u16, class));
+                new_gid_classes.push((*new_gid, class));
             }
         } else {
             for record in self.class_range_records() {
@@ -318,7 +320,172 @@ impl<'a> SubsetTable<'a> for ClassDefFormat2<'a> {
                     }
 
                     retained_classes.insert(class);
-                    new_gid_classes.push((new_gid.to_u32() as u16, class));
+                    new_gid_classes.push((*new_gid, class));
+                }
+            }
+        }
+
+        new_gid_classes.sort_by(|a, b| a.0.cmp(&b.0));
+        let use_class_zero = if args.use_class_zero {
+            let glyph_count = if let Some(glyph_filter) = args.glyph_filter {
+                glyph_map
+                    .keys()
+                    .filter(|&g| glyph_filter.get(*g).is_some())
+                    .count()
+            } else {
+                glyph_map.len()
+            };
+            glyph_count <= new_gid_classes.len()
+        } else {
+            false
+        };
+
+        if !args.keep_empty_table && new_gid_classes.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        classdef_remap_and_serialize(
+            args.remap_class,
+            &retained_classes,
+            use_class_zero,
+            &mut new_gid_classes,
+            s,
+        )
+    }
+}
+
+impl<'a> SubsetTable<'a> for ClassDefFormat3<'a> {
+    type ArgsForSubset = &'a ClassDefSubsetStruct<'a>;
+    // class_map: Option<FnvHashMap<u16, u16>>
+    type Output = Option<FnvHashMap<u16, u16>>;
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let glyph_map = &plan.glyph_map_gsub;
+        let glyph_set = &plan.glyphset_gsub;
+
+        let mut retained_classes = IntSet::empty();
+        let cap = glyph_map.len().min(self.population());
+        let mut new_gid_classes = Vec::with_capacity(cap);
+
+        let start = self.start_glyph_id().to_u32();
+        let glyph_count = self.glyph_count().to_u32();
+        if glyph_count != 0 {
+            let end = start + glyph_count - 1;
+            for gid in glyph_set.range(GlyphId::from(start)..=GlyphId::from(end)) {
+                let Some(new_gid) = glyph_map.get(&gid) else {
+                    continue;
+                };
+                if let Some(glyph_filter) = args.glyph_filter {
+                    if glyph_filter.get(gid).is_none() {
+                        continue;
+                    }
+                }
+
+                let class = self.get(gid);
+                if class == 0 {
+                    continue;
+                }
+
+                retained_classes.insert(class);
+                new_gid_classes.push((*new_gid, class));
+            }
+        }
+
+        let use_class_zero = if args.use_class_zero {
+            let glyph_count = if let Some(glyph_filter) = args.glyph_filter {
+                glyph_map
+                    .keys()
+                    .filter(|&g| glyph_filter.get(*g).is_some())
+                    .count()
+            } else {
+                glyph_map.len()
+            };
+            glyph_count <= new_gid_classes.len()
+        } else {
+            false
+        };
+
+        if !args.keep_empty_table && new_gid_classes.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+
+        classdef_remap_and_serialize(
+            args.remap_class,
+            &retained_classes,
+            use_class_zero,
+            &mut new_gid_classes,
+            s,
+        )
+    }
+}
+
+impl<'a> SubsetTable<'a> for ClassDefFormat4<'a> {
+    type ArgsForSubset = &'a ClassDefSubsetStruct<'a>;
+    // class_map: Option<FnvHashMap<u16, u16>>
+    type Output = Option<FnvHashMap<u16, u16>>;
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let glyph_map = &plan.glyph_map_gsub;
+        let glyph_set = &plan.glyphset_gsub;
+
+        let mut retained_classes = IntSet::empty();
+
+        let population = self.population();
+        let cap = glyph_map.len().min(population);
+        let mut new_gid_classes = Vec::with_capacity(cap);
+
+        let num_bits = 32 - self.class_range_count().to_u32().leading_zeros() as u64;
+        if population as u64 > glyph_set.len() * num_bits {
+            for g in glyph_set.iter() {
+                let Some(new_gid) = glyph_map.get(&g) else {
+                    continue;
+                };
+                if let Some(glyph_filter) = args.glyph_filter {
+                    if glyph_filter.get(g).is_none() {
+                        continue;
+                    }
+                }
+
+                let class = self.get(g);
+                if class == 0 {
+                    continue;
+                }
+
+                retained_classes.insert(class);
+                new_gid_classes.push((*new_gid, class));
+            }
+        } else {
+            for record in self.class_range_records() {
+                let class = record.class();
+                if class == 0 {
+                    continue;
+                }
+
+                let start = record.start_glyph_id().to_u32();
+                let end = record
+                    .end_glyph_id()
+                    .to_u32()
+                    .min(glyph_set.last().unwrap().to_u32());
+                for gid in glyph_set.range(GlyphId::from(start)..=GlyphId::from(end)) {
+                    let Some(new_gid) = glyph_map.get(&gid) else {
+                        continue;
+                    };
+                    if let Some(glyph_filter) = args.glyph_filter {
+                        if glyph_filter.get(gid).is_none() {
+                            continue;
+                        }
+                    }
+
+                    retained_classes.insert(class);
+                    new_gid_classes.push((*new_gid, class));
                 }
             }
         }
@@ -356,7 +523,7 @@ fn classdef_remap_and_serialize(
     remap_class: bool,
     retained_classes: &IntSet<u16>,
     use_class_zero: bool,
-    new_gid_classes: &mut [(u16, u16)],
+    new_gid_classes: &mut [(GlyphId, u16)],
     s: &mut Serializer,
 ) -> Result<Option<FnvHashMap<u16, u16>>, SerializeErrorFlags> {
     if !remap_class {
@@ -384,50 +551,61 @@ fn classdef_remap_and_serialize(
 }
 
 impl<'a> Serialize<'a> for ClassDef<'a> {
-    type Args = &'a [(u16, u16)];
+    type Args = &'a [(GlyphId, u16)];
     fn serialize(
         s: &mut Serializer,
-        new_gid_classes: &[(u16, u16)],
+        new_gid_classes: &[(GlyphId, u16)],
     ) -> Result<(), SerializeErrorFlags> {
-        let mut glyph_min = 0;
-        let mut glyph_max = 0;
-        let mut prev_g = 0;
+        let mut glyph_min = 0_u32;
+        let mut glyph_max = 0_u32;
+        let mut prev_g = 0_u32;
         let mut prev_class = 0;
 
-        let mut num_glyphs = 0_u16;
-        let mut num_ranges = 1_u16;
+        let mut num_glyphs = 0_u32;
+        let mut num_ranges = 0_u32;
+        let mut use_wide = false;
         for (g, class) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
+            let g = g.to_u32();
             num_glyphs += 1;
+            use_wide |= g > u16::MAX as u32;
             if num_glyphs == 1 {
-                glyph_min = *g;
-                glyph_max = *g;
-                prev_g = *g;
+                glyph_min = g;
+                glyph_max = g;
+                prev_g = g;
                 prev_class = *class;
+                num_ranges = 1;
                 continue;
             }
 
-            glyph_max = glyph_max.max(*g);
-            if *g != prev_g + 1 || *class != prev_class {
+            glyph_max = glyph_max.max(g);
+            if g != prev_g + 1 || *class != prev_class {
                 num_ranges += 1;
             }
 
-            prev_g = *g;
+            prev_g = g;
             prev_class = *class;
         }
 
-        if num_glyphs > 0 && (glyph_max - glyph_min + 1) < num_ranges * 3 {
+        if use_wide {
+            let span = glyph_max - glyph_min + 1;
+            if num_glyphs > 0 && 8 + span as usize * 2 < 5 + num_ranges as usize * 8 {
+                ClassDefFormat3::serialize(s, new_gid_classes)
+            } else {
+                ClassDefFormat4::serialize(s, (new_gid_classes, num_ranges))
+            }
+        } else if num_glyphs > 0 && (glyph_max - glyph_min + 1) < num_ranges * 3 {
             ClassDefFormat1::serialize(s, new_gid_classes)
         } else {
-            ClassDefFormat2::serialize(s, new_gid_classes)
+            ClassDefFormat2::serialize(s, (new_gid_classes, num_ranges as u16))
         }
     }
 }
 
 impl<'a> Serialize<'a> for ClassDefFormat1<'a> {
-    type Args = &'a [(u16, u16)];
+    type Args = &'a [(GlyphId, u16)];
     fn serialize(
         s: &mut Serializer,
-        new_gid_classes: &[(u16, u16)],
+        new_gid_classes: &[(GlyphId, u16)],
     ) -> Result<(), SerializeErrorFlags> {
         // format 1
         s.embed(1_u16)?;
@@ -437,14 +615,15 @@ impl<'a> Serialize<'a> for ClassDefFormat1<'a> {
         let glyph_count_pos = s.embed(0_u16)?;
 
         let mut num = 0;
-        let mut glyph_min = 0;
-        let mut glyph_max = 0;
+        let mut glyph_min = 0_u16;
+        let mut glyph_max = 0_u16;
         for (g, _) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
+            let g = g.to_u32() as u16;
             if num == 0 {
-                glyph_min = *g;
-                glyph_max = *g;
+                glyph_min = g;
+                glyph_max = g;
             } else {
-                glyph_max = *g.max(&glyph_max);
+                glyph_max = g.max(glyph_max);
             }
             num += 1;
         }
@@ -460,7 +639,7 @@ impl<'a> Serialize<'a> for ClassDefFormat1<'a> {
 
         let pos = s.allocate_size((glyph_count as usize) * 2, true)?;
         for (g, class) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
-            let idx = (*g - glyph_min) as usize;
+            let idx = (g.to_u32() as u16 - glyph_min) as usize;
             s.copy_assign(pos + idx * 2, *class);
         }
         Ok(())
@@ -468,26 +647,24 @@ impl<'a> Serialize<'a> for ClassDefFormat1<'a> {
 }
 
 impl<'a> Serialize<'a> for ClassDefFormat2<'a> {
-    type Args = &'a [(u16, u16)];
-    fn serialize(
-        s: &mut Serializer,
-        new_gid_classes: &[(u16, u16)],
-    ) -> Result<(), SerializeErrorFlags> {
+    type Args = (&'a [(GlyphId, u16)], u16);
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
+        let (new_gid_classes, range_count) = args;
         // format 2
         s.embed(2_u16)?;
         //classRange count
-        let range_count_pos = s.embed(0_u16)?;
+        s.embed(range_count)?;
 
         let mut num = 0_u16;
-        let mut prev_g = 0;
+        let mut prev_g = 0_u16;
         let mut prev_class = 0;
 
-        let mut num_ranges = 0_u16;
         let mut pos = 0;
         for (g, class) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
+            let g = g.to_u32() as u16;
             num += 1;
             if num == 1 {
-                prev_g = *g;
+                prev_g = g;
                 prev_class = *class;
 
                 pos = s.allocate_size(ClassRangeRecord::RAW_BYTE_LEN, true)?;
@@ -495,23 +672,21 @@ impl<'a> Serialize<'a> for ClassDefFormat2<'a> {
                 s.copy_assign(pos + 2, prev_g);
                 s.copy_assign(pos + 4, prev_class);
 
-                num_ranges += 1;
                 continue;
             }
 
-            if *g != prev_g + 1 || *class != prev_class {
-                num_ranges += 1;
+            if g != prev_g + 1 || *class != prev_class {
                 // update last_gid of previous record
                 s.copy_assign(pos + 2, prev_g);
 
                 pos = s.allocate_size(ClassRangeRecord::RAW_BYTE_LEN, true)?;
-                s.copy_assign(pos, *g);
-                s.copy_assign(pos + 2, *g);
+                s.copy_assign(pos, g);
+                s.copy_assign(pos + 2, g);
                 s.copy_assign(pos + 4, *class);
             }
 
             prev_class = *class;
-            prev_g = *g;
+            prev_g = g;
         }
 
         if num == 0 {
@@ -520,8 +695,104 @@ impl<'a> Serialize<'a> for ClassDefFormat2<'a> {
 
         // update end glyph of the last record
         s.copy_assign(pos + 2, prev_g);
-        // update range count
-        s.copy_assign(range_count_pos, num_ranges);
+        Ok(())
+    }
+}
+
+impl<'a> Serialize<'a> for ClassDefFormat3<'a> {
+    type Args = &'a [(GlyphId, u16)];
+    fn serialize(
+        s: &mut Serializer,
+        new_gid_classes: &[(GlyphId, u16)],
+    ) -> Result<(), SerializeErrorFlags> {
+        // format 3
+        s.embed(3_u16)?;
+        // start_glyph
+        let start_glyph_pos = s.embed(GlyphId24::NOTDEF)?;
+        // glyph count
+        let glyph_count_pos = s.embed(Uint24::new(0))?;
+
+        let mut num = 0;
+        let mut glyph_min = 0_u32;
+        let mut glyph_max = 0_u32;
+        for (g, _) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
+            let g = g.to_u32();
+            if num == 0 {
+                glyph_min = g;
+                glyph_max = g;
+            } else {
+                glyph_max = g.max(glyph_max);
+            }
+            num += 1;
+        }
+
+        if num == 0 {
+            return Ok(());
+        }
+
+        s.copy_assign(start_glyph_pos, GlyphId24::new(glyph_min));
+
+        let glyph_count = glyph_max - glyph_min + 1;
+        s.copy_assign(glyph_count_pos, Uint24::new(glyph_count));
+
+        let pos = s.allocate_size((glyph_count as usize) * 2, true)?;
+        for (g, class) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
+            let idx = (g.to_u32() - glyph_min) as usize;
+            s.copy_assign(pos + idx * 2, *class);
+        }
+        Ok(())
+    }
+}
+
+impl<'a> Serialize<'a> for ClassDefFormat4<'a> {
+    type Args = (&'a [(GlyphId, u16)], u32);
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
+        let (new_gid_classes, range_count) = args;
+        // format 4
+        s.embed(4_u16)?;
+        // classRange count
+        s.embed(Uint24::new(range_count))?;
+
+        let mut num = 0_u32;
+        let mut prev_g = 0_u32;
+        let mut prev_class = 0;
+
+        let mut pos = 0;
+        for (g, class) in new_gid_classes.iter().filter(|(_, class)| *class != 0) {
+            let g = g.to_u32();
+            num += 1;
+            if num == 1 {
+                prev_g = g;
+                prev_class = *class;
+
+                pos = s.allocate_size(8, true)?;
+                s.copy_assign(pos, GlyphId24::new(prev_g));
+                s.copy_assign(pos + 3, GlyphId24::new(prev_g));
+                s.copy_assign(pos + 6, prev_class);
+
+                continue;
+            }
+
+            if g != prev_g + 1 || *class != prev_class {
+                // update last_gid of previous record
+                s.copy_assign(pos + 3, GlyphId24::new(prev_g));
+
+                pos = s.allocate_size(8, true)?;
+                s.copy_assign(pos, GlyphId24::new(g));
+                s.copy_assign(pos + 3, GlyphId24::new(g));
+                s.copy_assign(pos + 6, *class);
+            }
+
+            prev_class = *class;
+            prev_g = g;
+        }
+
+        if num == 0 {
+            return Ok(());
+        }
+
+        // update end glyph of the last record
+        s.copy_assign(pos + 3, GlyphId24::new(prev_g));
         Ok(())
     }
 }

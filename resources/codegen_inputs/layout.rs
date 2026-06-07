@@ -243,6 +243,34 @@ table ClassDefFormat2 {
     class_range_records: [ClassRangeRecord],
 }
 
+/// [Class Definition Table Format 3](https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-3)
+table ClassDefFormat3 {
+    /// Format identifier — format = 3
+    #[format = 3]
+    class_format: u16,
+    /// First glyph ID of the classValueArray
+    start_glyph_id: GlyphId24,
+    /// Size of the classValueArray
+    #[compile(array_len($class_value_array))]
+    glyph_count: Uint24,
+    /// Array of Class Values — one per glyph ID
+    #[count($glyph_count)]
+    class_value_array: [u16],
+}
+
+/// [Class Definition Table Format 4](https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-4)
+table ClassDefFormat4 {
+    /// Format identifier — format = 4
+    #[format = 4]
+    class_format: u16,
+    /// Number of ClassRangeRecord2s
+    #[compile(array_len($class_range_records))]
+    class_range_count: Uint24,
+    /// Array of ClassRangeRecord2s — ordered by startGlyphID
+    #[count($class_range_count)]
+    class_range_records: [ClassRangeRecord2],
+}
+
 /// Used in [ClassDefFormat2]
 record ClassRangeRecord {
     /// First glyph ID in the range
@@ -254,10 +282,23 @@ record ClassRangeRecord {
     class: u16,
 }
 
+/// Used in [ClassDefFormat4]
+record ClassRangeRecord2 {
+    /// First glyph ID in the range
+    #[validate(validate_glyph_range)]
+    start_glyph_id: GlyphId24,
+    /// Last glyph ID in the range
+    end_glyph_id: GlyphId24,
+    /// Applied to all glyphs in the range
+    class: u16,
+}
+
 /// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
 format u16 ClassDef {
     Format1(ClassDefFormat1),
     Format2(ClassDefFormat2),
+    Format3(ClassDefFormat3),
+    Format4(ClassDefFormat4),
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)

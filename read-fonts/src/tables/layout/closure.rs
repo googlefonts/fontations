@@ -6,10 +6,10 @@ use super::{
     ArrayOfOffsets, ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
     ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
     ChainedSequenceRule, ChainedSequenceRuleSet, ClassDef, ClassDefFormat1, ClassDefFormat2,
-    ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, ExtensionLookup, Feature, FeatureList,
-    FeatureVariations, FontRead, GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext,
-    SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord,
-    SequenceRule, SequenceRuleSet, Subtables, Tag,
+    ClassDefFormat3, ClassDefFormat4, ClassSequenceRule, ClassSequenceRuleSet, CoverageTable,
+    ExtensionLookup, Feature, FeatureList, FeatureVariations, FontRead, GlyphId, LangSys,
+    ReadError, Script, ScriptList, SequenceContext, SequenceContextFormat1, SequenceContextFormat2,
+    SequenceContextFormat3, SequenceLookupRecord, SequenceRule, SequenceRuleSet, Subtables, Tag,
 };
 use crate::{
     collections::IntSet,
@@ -386,6 +386,8 @@ impl Intersect for ClassDef<'_> {
         match self {
             ClassDef::Format1(table) => table.intersects(glyph_set),
             ClassDef::Format2(table) => table.intersects(glyph_set),
+            ClassDef::Format3(table) => table.intersects(glyph_set),
+            ClassDef::Format4(table) => table.intersects(glyph_set),
         }
     }
 }
@@ -429,6 +431,62 @@ impl Intersect for ClassDefFormat2<'_> {
         let num_bits = 16 - num_ranges.leading_zeros();
         if num_ranges as u64 > glyph_set.len() * num_bits as u64 {
             for g in glyph_set.iter().map(|g| GlyphId16::from(g.to_u32() as u16)) {
+                if self.get(g) != 0 {
+                    return Ok(true);
+                }
+            }
+        } else {
+            for record in self.class_range_records() {
+                let first = GlyphId::from(record.start_glyph_id());
+                let last = GlyphId::from(record.end_glyph_id());
+                if glyph_set.intersects_range(first..=last) && record.class() != 0 {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+}
+
+impl Intersect for ClassDefFormat3<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let glyph_count = self.glyph_count().to_u32();
+        if glyph_count == 0 {
+            return Ok(false);
+        }
+
+        let start = self.start_glyph_id().to_u32();
+        let end = start + glyph_count;
+
+        let mut start_glyph = GlyphId::from(start);
+        let class_values = self.class_value_array();
+        if glyph_set.contains(start_glyph) && class_values[0] != 0 {
+            return Ok(true);
+        }
+
+        while let Some(g) = glyph_set.iter_after(start_glyph).next() {
+            let g = g.to_u32();
+            if g >= end {
+                break;
+            }
+            let Some(class) = class_values.get((g - start) as usize) else {
+                break;
+            };
+            if class.get() != 0 {
+                return Ok(true);
+            }
+            start_glyph = GlyphId::from(g);
+        }
+        Ok(false)
+    }
+}
+
+impl Intersect for ClassDefFormat4<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        let num_ranges = self.class_range_count().to_u32();
+        let num_bits = 32 - num_ranges.leading_zeros();
+        if num_ranges as u64 > glyph_set.len() * num_bits as u64 {
+            for g in glyph_set.iter() {
                 if self.get(g) != 0 {
                     return Ok(true);
                 }
