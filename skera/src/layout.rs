@@ -17,15 +17,15 @@ use write_fonts::{
             layout::{
                 CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
                 ClassRangeRecord, Condition, ConditionFormat1, ConditionSet, CoverageFormat1,
-                CoverageFormat2, CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex,
-                ExtensionLookup, Feature, FeatureList, FeatureParams, FeatureRecord,
-                FeatureTableSubstitution, FeatureTableSubstitutionRecord, FeatureVariationRecord,
-                FeatureVariations, Intersect, LangSys, LangSysRecord, LookupList, RangeRecord,
-                Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams, Subtables,
-                VariationIndex,
+                CoverageFormat2, CoverageFormat3, CoverageFormat4, CoverageTable, DeltaFormat,
+                Device, DeviceOrVariationIndex, ExtensionLookup, Feature, FeatureList,
+                FeatureParams, FeatureRecord, FeatureTableSubstitution,
+                FeatureTableSubstitutionRecord, FeatureVariationRecord, FeatureVariations,
+                Intersect, LangSys, LangSysRecord, LookupList, RangeRecord, Script, ScriptList,
+                ScriptRecord, SizeParams, StylisticSetParams, Subtables, VariationIndex,
             },
         },
-        types::{GlyphId, GlyphId16, NameId},
+        types::{GlyphId, GlyphId16, GlyphId24, NameId, Uint24},
         FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32, Tag},
@@ -538,6 +538,8 @@ impl<'a> SubsetTable<'a> for CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.subset(plan, s, args),
             CoverageTable::Format2(sub) => sub.subset(plan, s, args),
+            CoverageTable::Format3(sub) => sub.subset(plan, s, args),
+            CoverageTable::Format4(sub) => sub.subset(plan, s, args),
         }
     }
 }
@@ -642,6 +644,52 @@ impl<'a> SubsetTable<'a> for CoverageFormat2<'a> {
     }
 }
 
+impl<'a> SubsetTable<'a> for CoverageFormat3<'a> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let retained_glyphs = CoverageTable::Format3(self.clone())
+            .intersect_set(&plan.glyphset_gsub)
+            .iter()
+            .filter_map(|g| plan.glyph_map_gsub.get(&g))
+            .copied()
+            .collect::<Vec<_>>();
+
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        CoverageTable::serialize(s, &retained_glyphs)
+    }
+}
+
+impl<'a> SubsetTable<'a> for CoverageFormat4<'a> {
+    type ArgsForSubset = ();
+    type Output = ();
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        _args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        let retained_glyphs = CoverageTable::Format4(self.clone())
+            .intersect_set(&plan.glyphset_gsub)
+            .iter()
+            .filter_map(|g| plan.glyph_map_gsub.get(&g))
+            .copied()
+            .collect::<Vec<_>>();
+
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        CoverageTable::serialize(s, &retained_glyphs)
+    }
+}
+
 impl<'a> Serialize<'a> for CoverageTable<'a> {
     type Args = &'a [GlyphId];
     fn serialize(s: &mut Serializer, glyphs: &[GlyphId]) -> Result<(), SerializeErrorFlags> {
@@ -650,7 +698,8 @@ impl<'a> Serialize<'a> for CoverageTable<'a> {
         }
 
         let glyph_count = glyphs.len();
-        let mut num_ranges = 1_u16;
+        let use_wide = glyphs.iter().any(|g| GlyphId16::try_from(*g).is_err());
+        let mut num_ranges = 1_u32;
         let mut last = glyphs[0].to_u32();
 
         for g in glyphs.iter().skip(1) {
@@ -664,10 +713,16 @@ impl<'a> Serialize<'a> for CoverageTable<'a> {
 
         // TODO: add support for unsorted glyph list??
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/59001aa9527c056ad08626cfec9a079b65d8aec8/src/OT/Layout/Common/Coverage.hh#L143>
-        if glyph_count <= num_ranges as usize * 3 {
+        if use_wide {
+            if glyph_count <= num_ranges as usize * 3 {
+                CoverageFormat3::serialize(s, glyphs)
+            } else {
+                CoverageFormat4::serialize(s, (glyphs, num_ranges))
+            }
+        } else if glyph_count <= num_ranges as usize * 3 {
             CoverageFormat1::serialize(s, glyphs)
         } else {
-            CoverageFormat2::serialize(s, (glyphs, num_ranges))
+            CoverageFormat2::serialize(s, (glyphs, num_ranges as u16))
         }
     }
 }
@@ -733,17 +788,75 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
     }
 }
 
+impl<'a> Serialize<'a> for CoverageFormat3<'a> {
+    type Args = &'a [GlyphId];
+    fn serialize(s: &mut Serializer, glyphs: &[GlyphId]) -> Result<(), SerializeErrorFlags> {
+        //format
+        s.embed(3_u16)?;
+
+        // count
+        let count = glyphs.len();
+        s.embed(Uint24::new(count as u32))?;
+
+        let pos = s.allocate_size(count * 3, true)?;
+        for (idx, g) in glyphs.iter().enumerate() {
+            s.copy_assign(pos + idx * 3, GlyphId24::new(g.to_u32()));
+        }
+        Ok(())
+    }
+}
+
+impl<'a> Serialize<'a> for CoverageFormat4<'a> {
+    type Args = (&'a [GlyphId], u32);
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
+        let (glyphs, range_count) = args;
+        //format
+        s.embed(4_u16)?;
+
+        //range_count
+        s.embed(Uint24::new(range_count))?;
+
+        // range records
+        let pos = s.allocate_size((range_count as usize) * 9, true)?;
+        let mut last = glyphs[0].to_u32();
+        // copy start glyph of first record
+        s.copy_assign(pos, GlyphId24::new(last));
+        // copy coverage index of first record
+        s.copy_assign(pos + 6, Uint24::new(0));
+
+        let mut range = 0;
+        for (idx, g) in glyphs.iter().enumerate().skip(1) {
+            let g = g.to_u32();
+            let range_pos = pos + range * 9;
+            if last + 1 != g {
+                //end glyph
+                s.copy_assign(range_pos + 3, GlyphId24::new(last));
+                range += 1;
+
+                let new_range_pos = range_pos + 9;
+                // start glyph of next record
+                s.copy_assign(new_range_pos, GlyphId24::new(g));
+                // coverage index of next record
+                s.copy_assign(new_range_pos + 6, Uint24::new(idx as u32));
+            }
+            last = g;
+        }
+
+        let last_range_pos = pos + range * 9;
+        // end glyph
+        s.copy_assign(last_range_pos + 3, GlyphId24::new(last));
+        Ok(())
+    }
+}
+
 /// Return glyphs and their indices in the input Coverage table that intersect with the input glyph set
 /// returned glyphs are mapped into new glyph ids
 pub(crate) fn intersected_glyphs_and_indices(
     coverage: &CoverageTable,
     glyph_set: &IntSet<GlyphId>,
     glyph_map: &FnvHashMap<GlyphId, GlyphId>,
-) -> (Vec<GlyphId>, IntSet<u16>) {
-    let count = match coverage {
-        CoverageTable::Format1(t) => t.glyph_count(),
-        CoverageTable::Format2(t) => t.range_count(),
-    };
+) -> (Vec<GlyphId>, IntSet<u32>) {
+    let count = coverage_count_hint(coverage);
     let num_bits = 32 - count.leading_zeros();
 
     let coverage_population = coverage.population();
@@ -768,7 +881,7 @@ pub(crate) fn intersected_glyphs_and_indices(
             .filter_map(|(i, g)| glyph_map.get(&GlyphId::from(g)).map(|&new_g| (i, new_g)))
         {
             glyphs.push(g);
-            indices.insert(i as u16);
+            indices.insert(i as u32);
         }
     }
     (glyphs, indices)
@@ -778,11 +891,8 @@ pub(crate) fn intersected_glyphs_and_indices(
 pub(crate) fn intersected_coverage_indices(
     coverage: &CoverageTable,
     glyph_set: &IntSet<GlyphId>,
-) -> IntSet<u16> {
-    let count = match coverage {
-        CoverageTable::Format1(t) => t.glyph_count(),
-        CoverageTable::Format2(t) => t.range_count(),
-    };
+) -> IntSet<u32> {
+    let count = coverage_count_hint(coverage);
     let num_bits = 32 - count.leading_zeros();
 
     let coverage_population = coverage.population();
@@ -794,8 +904,17 @@ pub(crate) fn intersected_coverage_indices(
         coverage
             .iter()
             .enumerate()
-            .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i as u16))
+            .filter_map(|(i, g)| glyph_set.contains(g).then_some(i as u32))
             .collect()
+    }
+}
+
+fn coverage_count_hint(coverage: &CoverageTable) -> u32 {
+    match coverage {
+        CoverageTable::Format1(t) => t.glyph_count() as u32,
+        CoverageTable::Format2(t) => t.range_count() as u32,
+        CoverageTable::Format3(t) => t.glyph_count().to_u32(),
+        CoverageTable::Format4(t) => t.range_count().to_u32(),
     }
 }
 

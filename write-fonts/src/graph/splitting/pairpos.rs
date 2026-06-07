@@ -258,6 +258,7 @@ fn split_off_ppf2(
         .iter()
         .filter_map(|gid| {
             let glyph_class = class_def_1.get(gid);
+            let gid = GlyphId16::try_from(gid).ok()?;
             (start..end)
                 .contains(&(glyph_class as usize))
                 // classes are used as indexes, so adjust them
@@ -396,6 +397,9 @@ impl ClassDefSizeEstimator {
         let mut last_gid = None;
         let mut glyphs_per_class = HashMap::new();
         for (gid, class) in coverage.iter().map(|gid| (gid, classdef.get(gid))) {
+            let Ok(gid) = GlyphId16::try_from(gid) else {
+                continue;
+            };
             if let Some(last) = last_gid.take() {
                 if last + 1 != gid.to_u16() {
                     consecutive_gids = false;
@@ -596,7 +600,7 @@ mod tests {
             .unwrap()
             .iter()
             .chain(sub2.coverage().unwrap().iter())
-            .map(GlyphId16::to_u16)
+            .map(|gid| GlyphId16::try_from(gid).unwrap().to_u16())
             .collect::<Vec<_>>();
         assert_eq!(gids.len(), N_GLYPHS as _);
 

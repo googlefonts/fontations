@@ -37,7 +37,7 @@ impl Validate for ScriptList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ScriptList", |ctx| {
             ctx.in_field("script_records", |ctx| {
-                if self.script_records.len() > (u16::MAX as usize) {
+                if self.script_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.script_records.validate_impl(ctx);
@@ -153,7 +153,7 @@ impl Validate for Script {
                 self.default_lang_sys.validate_impl(ctx);
             });
             ctx.in_field("lang_sys_records", |ctx| {
-                if self.lang_sys_records.len() > (u16::MAX as usize) {
+                if self.lang_sys_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.lang_sys_records.validate_impl(ctx);
@@ -279,7 +279,7 @@ impl Validate for LangSys {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LangSys", |ctx| {
             ctx.in_field("feature_indices", |ctx| {
-                if self.feature_indices.len() > (u16::MAX as usize) {
+                if self.feature_indices.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -337,7 +337,7 @@ impl Validate for FeatureList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureList", |ctx| {
             ctx.in_field("feature_records", |ctx| {
-                if self.feature_records.len() > (u16::MAX as usize) {
+                if self.feature_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.feature_records.validate_impl(ctx);
@@ -457,7 +457,8 @@ impl Validate for Feature {
                 self.feature_params.validate_impl(ctx);
             });
             ctx.in_field("lookup_list_indices", |ctx| {
-                if self.lookup_list_indices.len() > (u16::MAX as usize) {
+                if self.lookup_list_indices.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX)
+                {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -511,7 +512,7 @@ impl<T: Validate> Validate for LookupList<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LookupList", |ctx| {
             ctx.in_field("lookups", |ctx| {
-                if self.lookups.len() > (u16::MAX as usize) {
+                if self.lookups.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.lookups.validate_impl(ctx);
@@ -570,7 +571,7 @@ impl<T: Validate> Validate for Lookup<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Lookup", |ctx| {
             ctx.in_field("subtables", |ctx| {
-                if self.subtables.len() > (u16::MAX as usize) {
+                if self.subtables.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.subtables.validate_impl(ctx);
@@ -648,7 +649,7 @@ impl Validate for CoverageFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CoverageFormat1", |ctx| {
             ctx.in_field("glyph_array", |ctx| {
-                if self.glyph_array.len() > (u16::MAX as usize) {
+                if self.glyph_array.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -706,7 +707,7 @@ impl Validate for CoverageFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CoverageFormat2", |ctx| {
             ctx.in_field("range_records", |ctx| {
-                if self.range_records.len() > (u16::MAX as usize) {
+                if self.range_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.range_records.validate_impl(ctx);
@@ -730,6 +731,123 @@ impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat2<'a>> for Cover
 impl<'a> FontRead<'a> for CoverageFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::CoverageFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// [Coverage Format 3](https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-3)
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CoverageFormat3 {
+    /// Array of glyph IDs — in numerical order
+    pub glyph_array: Vec<GlyphId24>,
+}
+
+impl CoverageFormat3 {
+    /// Construct a new `CoverageFormat3`
+    pub fn new(glyph_array: Vec<GlyphId24>) -> Self {
+        Self { glyph_array }
+    }
+}
+
+impl FontWrite for CoverageFormat3 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (3 as u16).write_into(writer);
+        (Uint24::try_from(array_len(&self.glyph_array)).unwrap()).write_into(writer);
+        self.glyph_array.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CoverageFormat3")
+    }
+}
+
+impl Validate for CoverageFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CoverageFormat3", |ctx| {
+            ctx.in_field("glyph_array", |ctx| {
+                if self.glyph_array.len() > usize::try_from(Uint24::MAX).unwrap_or(usize::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat3<'a>> for CoverageFormat3 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::CoverageFormat3<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CoverageFormat3 {
+            glyph_array: obj.glyph_array().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat3<'a>> for CoverageFormat3 {}
+
+impl<'a> FontRead<'a> for CoverageFormat3 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::CoverageFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// [Coverage Format 4](https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-4)
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CoverageFormat4 {
+    /// Array of glyph ranges — ordered by startGlyphID.
+    pub range_records: Vec<RangeRecord2>,
+}
+
+impl CoverageFormat4 {
+    /// Construct a new `CoverageFormat4`
+    pub fn new(range_records: Vec<RangeRecord2>) -> Self {
+        Self { range_records }
+    }
+}
+
+impl FontWrite for CoverageFormat4 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (4 as u16).write_into(writer);
+        (Uint24::try_from(array_len(&self.range_records)).unwrap()).write_into(writer);
+        self.range_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CoverageFormat4")
+    }
+}
+
+impl Validate for CoverageFormat4 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CoverageFormat4", |ctx| {
+            ctx.in_field("range_records", |ctx| {
+                if self.range_records.len() > usize::try_from(Uint24::MAX).unwrap_or(usize::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.range_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat4<'a>> for CoverageFormat4 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::CoverageFormat4<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CoverageFormat4 {
+            range_records: obj.range_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat4<'a>> for CoverageFormat4 {}
+
+impl<'a> FontRead<'a> for CoverageFormat4 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::CoverageFormat4 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -786,12 +904,66 @@ impl FromObjRef<read_fonts::tables::layout::RangeRecord> for RangeRecord {
     }
 }
 
+/// Used in [CoverageFormat4]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RangeRecord2 {
+    /// First glyph ID in the range
+    pub start_glyph_id: GlyphId24,
+    /// Last glyph ID in the range
+    pub end_glyph_id: GlyphId24,
+    /// Coverage Index of first glyph ID in range
+    pub start_coverage_index: Uint24,
+}
+
+impl RangeRecord2 {
+    /// Construct a new `RangeRecord2`
+    pub fn new(
+        start_glyph_id: GlyphId24,
+        end_glyph_id: GlyphId24,
+        start_coverage_index: Uint24,
+    ) -> Self {
+        Self {
+            start_glyph_id,
+            end_glyph_id,
+            start_coverage_index,
+        }
+    }
+}
+
+impl FontWrite for RangeRecord2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.start_glyph_id.write_into(writer);
+        self.end_glyph_id.write_into(writer);
+        self.start_coverage_index.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("RangeRecord2")
+    }
+}
+
+impl Validate for RangeRecord2 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::tables::layout::RangeRecord2> for RangeRecord2 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::RangeRecord2, _: FontData) -> Self {
+        RangeRecord2 {
+            start_glyph_id: obj.start_glyph_id(),
+            end_glyph_id: obj.end_glyph_id(),
+            start_coverage_index: obj.start_coverage_index(),
+        }
+    }
+}
+
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CoverageTable {
     Format1(CoverageFormat1),
     Format2(CoverageFormat2),
+    Format3(CoverageFormat3),
+    Format4(CoverageFormat4),
 }
 
 impl CoverageTable {
@@ -803,6 +975,16 @@ impl CoverageTable {
     /// Construct a new `CoverageFormat2` subtable
     pub fn format_2(range_records: Vec<RangeRecord>) -> Self {
         Self::Format2(CoverageFormat2::new(range_records))
+    }
+
+    /// Construct a new `CoverageFormat3` subtable
+    pub fn format_3(glyph_array: Vec<GlyphId24>) -> Self {
+        Self::Format3(CoverageFormat3::new(glyph_array))
+    }
+
+    /// Construct a new `CoverageFormat4` subtable
+    pub fn format_4(range_records: Vec<RangeRecord2>) -> Self {
+        Self::Format4(CoverageFormat4::new(range_records))
     }
 }
 
@@ -817,12 +999,16 @@ impl FontWrite for CoverageTable {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+            Self::Format3(item) => item.write_into(writer),
+            Self::Format4(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
         match self {
             Self::Format1(item) => item.table_type(),
             Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
         }
     }
 }
@@ -832,6 +1018,8 @@ impl Validate for CoverageTable {
         match self {
             Self::Format1(item) => item.validate_impl(ctx),
             Self::Format2(item) => item.validate_impl(ctx),
+            Self::Format3(item) => item.validate_impl(ctx),
+            Self::Format4(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -842,6 +1030,8 @@ impl FromObjRef<read_fonts::tables::layout::CoverageTable<'_>> for CoverageTable
         match obj {
             ObjRefType::Format1(item) => CoverageTable::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => CoverageTable::Format2(item.to_owned_table()),
+            ObjRefType::Format3(item) => CoverageTable::Format3(item.to_owned_table()),
+            ObjRefType::Format4(item) => CoverageTable::Format4(item.to_owned_table()),
         }
     }
 }
@@ -864,6 +1054,18 @@ impl From<CoverageFormat1> for CoverageTable {
 impl From<CoverageFormat2> for CoverageTable {
     fn from(src: CoverageFormat2) -> CoverageTable {
         CoverageTable::Format2(src)
+    }
+}
+
+impl From<CoverageFormat3> for CoverageTable {
+    fn from(src: CoverageFormat3) -> CoverageTable {
+        CoverageTable::Format3(src)
+    }
+}
+
+impl From<CoverageFormat4> for CoverageTable {
+    fn from(src: CoverageFormat4) -> CoverageTable {
+        CoverageTable::Format4(src)
     }
 }
 
@@ -904,7 +1106,7 @@ impl Validate for ClassDefFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassDefFormat1", |ctx| {
             ctx.in_field("class_value_array", |ctx| {
-                if self.class_value_array.len() > (u16::MAX as usize) {
+                if self.class_value_array.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -965,7 +1167,8 @@ impl Validate for ClassDefFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassDefFormat2", |ctx| {
             ctx.in_field("class_range_records", |ctx| {
-                if self.class_range_records.len() > (u16::MAX as usize) {
+                if self.class_range_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX)
+                {
                     ctx.report("array exceeds max length");
                 }
                 self.class_range_records.validate_impl(ctx);
@@ -1212,7 +1415,7 @@ impl Validate for SequenceContextFormat1 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("seq_rule_sets", |ctx| {
-                if self.seq_rule_sets.len() > (u16::MAX as usize) {
+                if self.seq_rule_sets.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.seq_rule_sets.validate_impl(ctx);
@@ -1281,7 +1484,7 @@ impl Validate for SequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceRuleSet", |ctx| {
             ctx.in_field("seq_rules", |ctx| {
-                if self.seq_rules.len() > (u16::MAX as usize) {
+                if self.seq_rules.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.seq_rules.validate_impl(ctx);
@@ -1348,7 +1551,7 @@ impl Validate for SequenceRule {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceRule", |ctx| {
             ctx.in_field("seq_lookup_records", |ctx| {
-                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                if self.seq_lookup_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
@@ -1431,7 +1634,8 @@ impl Validate for SequenceContextFormat2 {
                 self.class_def.validate_impl(ctx);
             });
             ctx.in_field("class_seq_rule_sets", |ctx| {
-                if self.class_seq_rule_sets.len() > (u16::MAX as usize) {
+                if self.class_seq_rule_sets.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX)
+                {
                     ctx.report("array exceeds max length");
                 }
                 self.class_seq_rule_sets.validate_impl(ctx);
@@ -1501,7 +1705,7 @@ impl Validate for ClassSequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassSequenceRuleSet", |ctx| {
             ctx.in_field("class_seq_rules", |ctx| {
-                if self.class_seq_rules.len() > (u16::MAX as usize) {
+                if self.class_seq_rules.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.class_seq_rules.validate_impl(ctx);
@@ -1572,7 +1776,7 @@ impl Validate for ClassSequenceRule {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassSequenceRule", |ctx| {
             ctx.in_field("seq_lookup_records", |ctx| {
-                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                if self.seq_lookup_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
@@ -1643,13 +1847,13 @@ impl Validate for SequenceContextFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceContextFormat3", |ctx| {
             ctx.in_field("coverages", |ctx| {
-                if self.coverages.len() > (u16::MAX as usize) {
+                if self.coverages.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.coverages.validate_impl(ctx);
             });
             ctx.in_field("seq_lookup_records", |ctx| {
-                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                if self.seq_lookup_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
@@ -1838,7 +2042,9 @@ impl Validate for ChainedSequenceContextFormat1 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("chained_seq_rule_sets", |ctx| {
-                if self.chained_seq_rule_sets.len() > (u16::MAX as usize) {
+                if self.chained_seq_rule_sets.len()
+                    > usize::try_from(u16::MAX).unwrap_or(usize::MAX)
+                {
                     ctx.report("array exceeds max length");
                 }
                 self.chained_seq_rule_sets.validate_impl(ctx);
@@ -1907,7 +2113,7 @@ impl Validate for ChainedSequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceRuleSet", |ctx| {
             ctx.in_field("chained_seq_rules", |ctx| {
-                if self.chained_seq_rules.len() > (u16::MAX as usize) {
+                if self.chained_seq_rules.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.chained_seq_rules.validate_impl(ctx);
@@ -1994,17 +2200,17 @@ impl Validate for ChainedSequenceRule {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceRule", |ctx| {
             ctx.in_field("backtrack_sequence", |ctx| {
-                if self.backtrack_sequence.len() > (u16::MAX as usize) {
+                if self.backtrack_sequence.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("lookahead_sequence", |ctx| {
-                if self.lookahead_sequence.len() > (u16::MAX as usize) {
+                if self.lookahead_sequence.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("seq_lookup_records", |ctx| {
-                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                if self.seq_lookup_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
@@ -2113,7 +2319,9 @@ impl Validate for ChainedSequenceContextFormat2 {
                 self.lookahead_class_def.validate_impl(ctx);
             });
             ctx.in_field("chained_class_seq_rule_sets", |ctx| {
-                if self.chained_class_seq_rule_sets.len() > (u16::MAX as usize) {
+                if self.chained_class_seq_rule_sets.len()
+                    > usize::try_from(u16::MAX).unwrap_or(usize::MAX)
+                {
                     ctx.report("array exceeds max length");
                 }
                 self.chained_class_seq_rule_sets.validate_impl(ctx);
@@ -2188,7 +2396,9 @@ impl Validate for ChainedClassSequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedClassSequenceRuleSet", |ctx| {
             ctx.in_field("chained_class_seq_rules", |ctx| {
-                if self.chained_class_seq_rules.len() > (u16::MAX as usize) {
+                if self.chained_class_seq_rules.len()
+                    > usize::try_from(u16::MAX).unwrap_or(usize::MAX)
+                {
                     ctx.report("array exceeds max length");
                 }
                 self.chained_class_seq_rules.validate_impl(ctx);
@@ -2276,17 +2486,17 @@ impl Validate for ChainedClassSequenceRule {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedClassSequenceRule", |ctx| {
             ctx.in_field("backtrack_sequence", |ctx| {
-                if self.backtrack_sequence.len() > (u16::MAX as usize) {
+                if self.backtrack_sequence.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("lookahead_sequence", |ctx| {
-                if self.lookahead_sequence.len() > (u16::MAX as usize) {
+                if self.lookahead_sequence.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("seq_lookup_records", |ctx| {
-                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                if self.seq_lookup_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
@@ -2378,25 +2588,27 @@ impl Validate for ChainedSequenceContextFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceContextFormat3", |ctx| {
             ctx.in_field("backtrack_coverages", |ctx| {
-                if self.backtrack_coverages.len() > (u16::MAX as usize) {
+                if self.backtrack_coverages.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX)
+                {
                     ctx.report("array exceeds max length");
                 }
                 self.backtrack_coverages.validate_impl(ctx);
             });
             ctx.in_field("input_coverages", |ctx| {
-                if self.input_coverages.len() > (u16::MAX as usize) {
+                if self.input_coverages.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.input_coverages.validate_impl(ctx);
             });
             ctx.in_field("lookahead_coverages", |ctx| {
-                if self.lookahead_coverages.len() > (u16::MAX as usize) {
+                if self.lookahead_coverages.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX)
+                {
                     ctx.report("array exceeds max length");
                 }
                 self.lookahead_coverages.validate_impl(ctx);
             });
             ctx.in_field("seq_lookup_records", |ctx| {
-                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                if self.seq_lookup_records.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
@@ -2837,7 +3049,9 @@ impl Validate for FeatureVariations {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureVariations", |ctx| {
             ctx.in_field("feature_variation_records", |ctx| {
-                if self.feature_variation_records.len() > (u32::MAX as usize) {
+                if self.feature_variation_records.len()
+                    > usize::try_from(u32::MAX).unwrap_or(usize::MAX)
+                {
                     ctx.report("array exceeds max length");
                 }
                 self.feature_variation_records.validate_impl(ctx);
@@ -2960,7 +3174,7 @@ impl Validate for ConditionSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionSet", |ctx| {
             ctx.in_field("conditions", |ctx| {
-                if self.conditions.len() > (u16::MAX as usize) {
+                if self.conditions.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.conditions.validate_impl(ctx);
@@ -3288,7 +3502,7 @@ impl Validate for ConditionFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionFormat3", |ctx| {
             ctx.in_field("conditions", |ctx| {
-                if self.conditions.len() > (u8::MAX as usize) {
+                if self.conditions.len() > usize::try_from(u8::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.conditions.validate_impl(ctx);
@@ -3352,7 +3566,7 @@ impl Validate for ConditionFormat4 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionFormat4", |ctx| {
             ctx.in_field("conditions", |ctx| {
-                if self.conditions.len() > (u8::MAX as usize) {
+                if self.conditions.len() > usize::try_from(u8::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.conditions.validate_impl(ctx);
@@ -3467,7 +3681,7 @@ impl Validate for FeatureTableSubstitution {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureTableSubstitution", |ctx| {
             ctx.in_field("substitutions", |ctx| {
-                if self.substitutions.len() > (u16::MAX as usize) {
+                if self.substitutions.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.substitutions.validate_impl(ctx);
@@ -3773,7 +3987,7 @@ impl Validate for CharacterVariantParams {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CharacterVariantParams", |ctx| {
             ctx.in_field("character", |ctx| {
-                if self.character.len() > (u16::MAX as usize) {
+                if self.character.len() > usize::try_from(u16::MAX).unwrap_or(usize::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });

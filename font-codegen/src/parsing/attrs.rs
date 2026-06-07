@@ -708,7 +708,9 @@ impl Count {
     pub(crate) fn count_expr(&self) -> TokenStream {
         match self {
             Count::All(_) => unreachable!("'all' count handled separately"),
-            Count::SingleArg(CountArg::Field(arg)) => quote!(#arg as usize),
+            Count::SingleArg(CountArg::Field(arg)) => {
+                quote!(usize::try_from(#arg).unwrap_or_default())
+            }
             Count::SingleArg(CountArg::Literal(arg)) => quote!(#arg),
             Count::Complicated { args, xform } => match (xform, args.as_slice()) {
                 (CountTransform::Sub, [a, b]) => {

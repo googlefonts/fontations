@@ -37,8 +37,10 @@ pub(crate) fn get_mark_class_map(
     let mark_records = mark_array.mark_records();
 
     let count = match coverage {
-        CoverageTable::Format1(t) => t.glyph_count(),
-        CoverageTable::Format2(t) => t.range_count(),
+        CoverageTable::Format1(t) => t.glyph_count() as u32,
+        CoverageTable::Format2(t) => t.range_count() as u32,
+        CoverageTable::Format3(t) => t.glyph_count().to_u32(),
+        CoverageTable::Format4(t) => t.range_count().to_u32(),
     };
     let num_bits = 32 - count.leading_zeros();
     let coverage_population = coverage.population();
@@ -75,7 +77,7 @@ pub(crate) fn get_mark_class_map(
 }
 
 impl<'a> SubsetTable<'a> for MarkArray<'_> {
-    type ArgsForSubset = (&'a IntSet<u16>, &'a FnvHashMap<u16, u16>);
+    type ArgsForSubset = (&'a IntSet<u32>, &'a FnvHashMap<u16, u16>);
     type Output = ();
     fn subset(
         &self,

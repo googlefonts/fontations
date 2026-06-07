@@ -349,10 +349,11 @@ impl CoverageFormat1 {
 }
 
 impl CoverageFormat2 {
-    fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
+    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
         self.range_records
             .iter()
             .flat_map(|rcd| iter_gids(rcd.start_glyph_id, rcd.end_glyph_id))
+            .map(GlyphId::from)
     }
 
     fn len(&self) -> usize {
@@ -369,19 +370,37 @@ impl CoverageFormat2 {
 }
 
 impl CoverageTable {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
-        let (one, two) = match self {
-            Self::Format1(table) => (Some(table.iter()), None),
-            Self::Format2(table) => (None, Some(table.iter())),
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        let one = match self {
+            Self::Format1(table) => Some(table.iter().map(GlyphId::from)),
+            _ => None,
+        };
+        let two = match self {
+            Self::Format2(table) => Some(table.iter()),
+            _ => None,
+        };
+        let three = match self {
+            Self::Format3(table) => Some(table.iter()),
+            _ => None,
+        };
+        let four = match self {
+            Self::Format4(table) => Some(table.iter()),
+            _ => None,
         };
 
-        one.into_iter().flatten().chain(two.into_iter().flatten())
+        one.into_iter()
+            .flatten()
+            .chain(two.into_iter().flatten())
+            .chain(three.into_iter().flatten())
+            .chain(four.into_iter().flatten())
     }
 
     pub fn len(&self) -> usize {
         match self {
             Self::Format1(table) => table.len(),
             Self::Format2(table) => table.len(),
+            Self::Format3(table) => table.len(),
+            Self::Format4(table) => table.len(),
         }
     }
 
@@ -390,10 +409,70 @@ impl CoverageTable {
     }
 }
 
+impl CoverageFormat3 {
+    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        self.glyph_array.iter().copied().map(GlyphId::from)
+    }
+
+    fn len(&self) -> usize {
+        self.glyph_array.len()
+    }
+}
+
+impl CoverageFormat4 {
+    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        self.range_records
+            .iter()
+            .flat_map(|rcd| iter_gids24(rcd.start_glyph_id, rcd.end_glyph_id).map(GlyphId::from))
+    }
+
+    fn len(&self) -> usize {
+        self.range_records
+            .iter()
+            .map(|rcd| {
+                rcd.end_glyph_id
+                    .to_u32()
+                    .saturating_sub(rcd.start_glyph_id.to_u32()) as usize
+                    + 1
+            })
+            .sum()
+    }
+}
+
 impl FromIterator<GlyphId16> for CoverageTable {
     fn from_iter<T: IntoIterator<Item = GlyphId16>>(iter: T) -> Self {
-        let glyphs = iter.into_iter().collect::<Vec<_>>();
-        builders::CoverageTableBuilder::from_glyphs(glyphs).build()
+        iter.into_iter().map(GlyphId::from).collect()
+    }
+}
+
+impl FromIterator<GlyphId> for CoverageTable {
+    fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
+        let mut glyphs = iter.into_iter().collect::<Vec<_>>();
+        glyphs.sort();
+        glyphs.dedup();
+
+        if let Some(glyphs16) = glyphs
+            .iter()
+            .copied()
+            .map(|gid| GlyphId16::try_from(gid).ok())
+            .collect::<Option<Vec<_>>>()
+        {
+            builders::CoverageTableBuilder::from_glyphs(glyphs16).build()
+        } else {
+            let glyphs = glyphs
+                .into_iter()
+                .map(|gid| GlyphId24::try_from(gid).expect("glyph id exceeds 24 bits"))
+                .collect::<Vec<_>>();
+            if should_choose_coverage_format_4(&glyphs) {
+                CoverageTable::Format4(CoverageFormat4 {
+                    range_records: RangeRecord2::iter_for_glyphs(&glyphs).collect(),
+                })
+            } else {
+                CoverageTable::Format3(CoverageFormat3 {
+                    glyph_array: glyphs,
+                })
+            }
+        }
     }
 }
 
@@ -449,12 +528,66 @@ impl RangeRecord {
     }
 }
 
+impl RangeRecord2 {
+    /// An iterator over records for this array of glyphs.
+    ///
+    /// # Note
+    ///
+    /// this function expects that glyphs are already sorted.
+    pub fn iter_for_glyphs(glyphs: &[GlyphId24]) -> impl Iterator<Item = RangeRecord2> + '_ {
+        let mut cur_range = glyphs.first().copied().map(|g| (g, g));
+        let mut len = 0u32;
+        let mut iter = glyphs.iter().skip(1).copied();
+
+        #[allow(clippy::while_let_on_iterator)]
+        std::iter::from_fn(move || {
+            while let Some(glyph) = iter.next() {
+                match cur_range {
+                    None => return None,
+                    Some((a, b)) if are_sequential24(b, glyph) => cur_range = Some((a, glyph)),
+                    Some((a, b)) => {
+                        let result = RangeRecord2 {
+                            start_glyph_id: a,
+                            end_glyph_id: b,
+                            start_coverage_index: Uint24::new(len),
+                        };
+                        cur_range = Some((glyph, glyph));
+                        len += 1 + b.to_u32().saturating_sub(a.to_u32());
+                        return Some(result);
+                    }
+                }
+            }
+            cur_range
+                .take()
+                .map(|(start_glyph_id, end_glyph_id)| RangeRecord2 {
+                    start_glyph_id,
+                    end_glyph_id,
+                    start_coverage_index: Uint24::new(len),
+                })
+        })
+    }
+}
+
 fn iter_gids(gid1: GlyphId16, gid2: GlyphId16) -> impl Iterator<Item = GlyphId16> {
     (gid1.to_u16()..=gid2.to_u16()).map(GlyphId16::new)
 }
 
+fn iter_gids24(gid1: GlyphId24, gid2: GlyphId24) -> impl Iterator<Item = GlyphId24> {
+    (gid1.to_u32()..=gid2.to_u32()).map(GlyphId24::new)
+}
+
 fn are_sequential(gid1: GlyphId16, gid2: GlyphId16) -> bool {
     gid2.to_u16().saturating_sub(gid1.to_u16()) == 1
+}
+
+fn are_sequential24(gid1: GlyphId24, gid2: GlyphId24) -> bool {
+    gid2.to_u32().saturating_sub(gid1.to_u32()) == 1
+}
+
+fn should_choose_coverage_format_4(glyphs: &[GlyphId24]) -> bool {
+    let format4_len = 5 + RangeRecord2::iter_for_glyphs(glyphs).count() * 9;
+    let format3_len = 5 + glyphs.len() * 3;
+    format4_len < format3_len
 }
 
 impl Device {
@@ -531,6 +664,68 @@ impl From<VariationIndex> for u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn gids(values: &[u32]) -> Vec<GlyphId> {
+        values.iter().copied().map(GlyphId::new).collect()
+    }
+
+    #[test]
+    fn coverage_collects_high_sparse_glyphs_as_format4() {
+        let coverage = gids(&[
+            0x1_0000, 0x1_0001, 0x1_0002, 0x1_0003, 0x2_0000, 0x2_0001, 0x2_0002, 0x2_0003,
+        ])
+        .into_iter()
+        .collect::<CoverageTable>();
+
+        let CoverageTable::Format4(coverage) = coverage else {
+            panic!("expected CoverageFormat4");
+        };
+        assert_eq!(coverage.range_records.len(), 2);
+        assert_eq!(
+            coverage.range_records[0].start_glyph_id,
+            GlyphId24::new(0x1_0000)
+        );
+        assert_eq!(
+            coverage.range_records[0].end_glyph_id,
+            GlyphId24::new(0x1_0003)
+        );
+        assert_eq!(
+            coverage.range_records[0].start_coverage_index,
+            Uint24::new(0)
+        );
+        assert_eq!(
+            coverage.range_records[1].start_glyph_id,
+            GlyphId24::new(0x2_0000)
+        );
+        assert_eq!(
+            coverage.range_records[1].end_glyph_id,
+            GlyphId24::new(0x2_0003)
+        );
+        assert_eq!(
+            coverage.range_records[1].start_coverage_index,
+            Uint24::new(4)
+        );
+    }
+
+    #[test]
+    fn coverage_collects_high_dense_glyphs_as_format3() {
+        let coverage = gids(&[0x1_0000, 0x1_0100, 0x1_0200, 0x1_0300])
+            .into_iter()
+            .collect::<CoverageTable>();
+
+        let CoverageTable::Format3(coverage) = coverage else {
+            panic!("expected CoverageFormat3");
+        };
+        assert_eq!(
+            coverage.glyph_array,
+            vec![
+                GlyphId24::new(0x1_0000),
+                GlyphId24::new(0x1_0100),
+                GlyphId24::new(0x1_0200),
+                GlyphId24::new(0x1_0300),
+            ]
+        );
+    }
 
     #[test]
     #[should_panic(expected = "array exceeds max length")]
