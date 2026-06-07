@@ -161,6 +161,32 @@ table CoverageFormat2 {
     range_records: [RangeRecord],
 }
 
+/// [Coverage Format 3](https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-3)
+table CoverageFormat3 {
+    /// Format identifier — format = 3
+    #[format = 3]
+    coverage_format: u16,
+    /// Number of glyphs in the glyph array
+    #[compile(array_len($glyph_array))]
+    glyph_count: Uint24,
+    /// Array of glyph IDs — in numerical order
+    #[count($glyph_count)]
+    glyph_array: [GlyphId24],
+}
+
+/// [Coverage Format 4](https://learn.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-4)
+table CoverageFormat4 {
+    /// Format identifier — format = 4
+    #[format = 4]
+    coverage_format: u16,
+    /// Number of RangeRecord2s
+    #[compile(array_len($range_records))]
+    range_count: Uint24,
+    /// Array of glyph ranges — ordered by startGlyphID.
+    #[count($range_count)]
+    range_records: [RangeRecord2],
+}
+
 /// Used in [CoverageFormat2]
 record RangeRecord {
     /// First glyph ID in the range
@@ -171,10 +197,22 @@ record RangeRecord {
     start_coverage_index: u16,
 }
 
+/// Used in [CoverageFormat4]
+record RangeRecord2 {
+    /// First glyph ID in the range
+    start_glyph_id: GlyphId24,
+    /// Last glyph ID in the range
+    end_glyph_id: GlyphId24,
+    /// Coverage Index of first glyph ID in range
+    start_coverage_index: Uint24,
+}
+
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
 format u16 CoverageTable {
     Format1(CoverageFormat1),
     Format2(CoverageFormat2),
+    Format3(CoverageFormat3),
+    Format4(CoverageFormat4),
 }
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
@@ -791,4 +829,3 @@ table CharacterVariantParams {
     #[count($char_count)]
     character: [Uint24],
 }
-

@@ -165,28 +165,55 @@ fn bit_storage(v: u32) -> u32 {
 }
 
 impl<'a> CoverageTable<'a> {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + 'a {
         // all one expression so that we have a single return type
-        let (iter1, iter2) = match self {
-            CoverageTable::Format1(t) => (Some(t.glyph_array().iter().map(|g| g.get())), None),
-            CoverageTable::Format2(t) => {
-                let iter = t.range_records().iter().flat_map(RangeRecord::iter);
-                (None, Some(iter))
+        let iter1 = match self {
+            CoverageTable::Format1(t) => {
+                Some(t.glyph_array().iter().map(|g| GlyphId::from(g.get())))
             }
+            _ => None,
+        };
+        let iter2 = match self {
+            CoverageTable::Format2(t) => Some(
+                t.range_records()
+                    .iter()
+                    .flat_map(RangeRecord::iter)
+                    .map(GlyphId::from),
+            ),
+            _ => None,
+        };
+        let iter3 = match self {
+            CoverageTable::Format3(t) => {
+                Some(t.glyph_array().iter().map(|g| GlyphId::from(g.get())))
+            }
+            _ => None,
+        };
+        let iter4 = match self {
+            CoverageTable::Format4(t) => Some(
+                t.range_records()
+                    .iter()
+                    .flat_map(RangeRecord2::iter)
+                    .map(GlyphId::from),
+            ),
+            _ => None,
         };
 
         iter1
             .into_iter()
             .flatten()
             .chain(iter2.into_iter().flatten())
+            .chain(iter3.into_iter().flatten())
+            .chain(iter4.into_iter().flatten())
     }
 
     /// If this glyph is in the coverage table, returns its index
     #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
         match self {
             CoverageTable::Format1(sub) => sub.get(gid),
             CoverageTable::Format2(sub) => sub.get(gid),
+            CoverageTable::Format3(sub) => sub.get(gid),
+            CoverageTable::Format4(sub) => sub.get(gid),
         }
     }
 
@@ -196,6 +223,8 @@ impl<'a> CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.intersects(glyphs),
             CoverageTable::Format2(sub) => sub.intersects(glyphs),
+            CoverageTable::Format3(sub) => sub.intersects(glyphs),
+            CoverageTable::Format4(sub) => sub.intersects(glyphs),
         }
     }
 
@@ -205,6 +234,8 @@ impl<'a> CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.intersect_set(glyphs),
             CoverageTable::Format2(sub) => sub.intersect_set(glyphs),
+            CoverageTable::Format3(sub) => sub.intersect_set(glyphs),
+            CoverageTable::Format4(sub) => sub.intersect_set(glyphs),
         }
     }
 
@@ -213,6 +244,8 @@ impl<'a> CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.population(),
             CoverageTable::Format2(sub) => sub.population(),
+            CoverageTable::Format3(sub) => sub.population(),
+            CoverageTable::Format4(sub) => sub.population(),
         }
     }
 
@@ -221,6 +254,8 @@ impl<'a> CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.cost(),
             CoverageTable::Format2(sub) => sub.cost(),
+            CoverageTable::Format3(sub) => sub.cost(),
+            CoverageTable::Format4(sub) => sub.cost(),
         }
     }
 }
@@ -228,13 +263,13 @@ impl<'a> CoverageTable<'a> {
 impl CoverageFormat1<'_> {
     /// If this glyph is in the coverage table, returns its index
     #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
         let gid16: GlyphId16 = gid.into().try_into().ok()?;
         let be_glyph: BigEndian<GlyphId16> = gid16.into();
         self.glyph_array()
             .binary_search(&be_glyph)
             .ok()
-            .map(|idx| idx as _)
+            .map(|idx| idx as u32)
     }
 
     /// Returns if this table contains at least one glyph in the 'glyphs' set.
@@ -282,7 +317,7 @@ impl CoverageFormat1<'_> {
 impl CoverageFormat2<'_> {
     /// If this glyph is in the coverage table, returns its index
     #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
         let gid: GlyphId16 = gid.into().try_into().ok()?;
         self.range_records()
             .binary_search_by(|rec| {
@@ -297,7 +332,7 @@ impl CoverageFormat2<'_> {
             .ok()
             .map(|idx| {
                 let rec = &self.range_records()[idx];
-                rec.start_coverage_index() + gid.to_u16() - rec.start_glyph_id().to_u16()
+                (rec.start_coverage_index() + gid.to_u16() - rec.start_glyph_id().to_u16()) as u32
             })
     }
 
@@ -364,9 +399,174 @@ impl CoverageFormat2<'_> {
     }
 }
 
+impl CoverageFormat3<'_> {
+    /// If this glyph is in the coverage table, returns its index
+    #[inline]
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
+        let gid24: GlyphId24 = gid.into().try_into().ok()?;
+        let be_glyph: BigEndian<GlyphId24> = gid24.into();
+        self.glyph_array()
+            .binary_search(&be_glyph)
+            .ok()
+            .map(|idx| idx as u32)
+    }
+
+    /// Returns if this table contains at least one glyph in the 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
+        let glyph_count = self.glyph_count().to_u32();
+        if glyph_count as u64 > glyphs.len() * self.cost() as u64 {
+            glyphs.iter().any(|g| self.get(g).is_some())
+        } else {
+            self.glyph_array()
+                .iter()
+                .any(|g| glyphs.contains(GlyphId::from(g.get())))
+        }
+    }
+
+    /// Returns the intersection of this table and input 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersect_set(&self, glyphs: &IntSet<GlyphId>) -> IntSet<GlyphId> {
+        let glyph_count = self.glyph_count().to_u32();
+        if glyph_count as u64 > glyphs.len() * self.cost() as u64 {
+            glyphs
+                .iter()
+                .filter_map(|g| self.get(g).map(|_| g))
+                .collect()
+        } else {
+            self.glyph_array()
+                .iter()
+                .filter(|g| glyphs.contains(GlyphId::from(g.get())))
+                .map(|g| GlyphId::from(g.get()))
+                .collect()
+        }
+    }
+
+    /// Return the number of glyphs in this table
+    pub fn population(&self) -> usize {
+        usize::from(self.glyph_count())
+    }
+
+    /// Return the cost of looking up a glyph in this table
+    pub fn cost(&self) -> u32 {
+        bit_storage(self.glyph_count().to_u32())
+    }
+}
+
+impl CoverageFormat4<'_> {
+    /// If this glyph is in the coverage table, returns its index
+    #[inline]
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
+        let gid = gid.into().to_u32();
+        self.range_records()
+            .binary_search_by(|rec| {
+                if rec.end_glyph_id().to_u32() < gid {
+                    Ordering::Less
+                } else if rec.start_glyph_id().to_u32() > gid {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            .ok()
+            .and_then(|idx| {
+                let rec = &self.range_records()[idx];
+                rec.start_coverage_index()
+                    .to_u32()
+                    .checked_add(gid - rec.start_glyph_id().to_u32())
+            })
+    }
+
+    /// Returns if this table contains at least one glyph in the 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
+        let range_count = self.range_count().to_u32();
+        if range_count as u64 > glyphs.len() * self.cost() as u64 {
+            glyphs.iter().any(|g| self.get(g).is_some())
+        } else {
+            self.range_records()
+                .iter()
+                .any(|record| record.intersects(glyphs))
+        }
+    }
+
+    /// Returns the intersection of this table and input 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersect_set(&self, glyphs: &IntSet<GlyphId>) -> IntSet<GlyphId> {
+        let range_count = self.range_count().to_u32();
+        if range_count as u64 > glyphs.len() * self.cost() as u64 {
+            glyphs
+                .iter()
+                .filter_map(|g| self.get(g).map(|_| g))
+                .collect()
+        } else {
+            let mut out = IntSet::empty();
+            let mut last = GlyphId::from(0u32);
+            for record in self.range_records() {
+                // break out of loop for overlapping/broken tables
+                let start_glyph = GlyphId::from(record.start_glyph_id());
+                if start_glyph < last {
+                    break;
+                }
+                let end = GlyphId::from(record.end_glyph_id());
+                last = end;
+
+                if glyphs.contains(start_glyph) {
+                    out.insert(start_glyph);
+                }
+
+                for g in glyphs.iter_after(start_glyph) {
+                    if g > end {
+                        break;
+                    }
+                    out.insert(g);
+                }
+            }
+            out
+        }
+    }
+
+    /// Return the number of glyphs in this table
+    pub fn population(&self) -> usize {
+        self.range_records()
+            .iter()
+            .fold(0, |acc, record| acc + record.population())
+    }
+
+    /// Return the cost of looking up a glyph in this table
+    pub fn cost(&self) -> u32 {
+        bit_storage(self.range_count().to_u32())
+    }
+}
+
 impl RangeRecord {
     pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
         (self.start_glyph_id().to_u16()..=self.end_glyph_id().to_u16()).map(GlyphId16::new)
+    }
+
+    /// Returns if this table contains at least one glyph in the 'glyphs' set.
+    #[cfg(feature = "std")]
+    pub fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
+        glyphs.intersects_range(
+            GlyphId::from(self.start_glyph_id())..=GlyphId::from(self.end_glyph_id()),
+        )
+    }
+
+    /// Return the number of glyphs in this record
+    pub fn population(&self) -> usize {
+        let start = self.start_glyph_id().to_u32() as usize;
+        let end = self.end_glyph_id().to_u32() as usize;
+        if start > end {
+            0
+        } else {
+            end - start + 1
+        }
+    }
+}
+
+impl RangeRecord2 {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId24> + '_ {
+        (self.start_glyph_id().to_u32()..=self.end_glyph_id().to_u32()).map(GlyphId24::new)
     }
 
     /// Returns if this table contains at least one glyph in the 'glyphs' set.
@@ -865,6 +1065,36 @@ mod tests {
         assert_eq!(coverage.get(GlyphId::new(32)), Some(7));
         assert_eq!(coverage.get(GlyphId::new(39)), Some(14));
         assert_eq!(coverage.get(GlyphId::new(40)), None);
+    }
+
+    #[test]
+    fn coverage_get_format3() {
+        // manually generated, corresponding to glyphs (1, 65536, 65538).
+        const COV3_DATA: FontData = FontData::new(&[0, 3, 0, 0, 3, 0, 0, 1, 1, 0, 0, 1, 0, 2]);
+
+        let coverage = CoverageFormat3::read(COV3_DATA).unwrap();
+        assert_eq!(coverage.get(GlyphId::new(1)), Some(0));
+        assert_eq!(coverage.get(GlyphId::new(65536)), Some(1));
+        assert_eq!(coverage.get(GlyphId::new(65537)), None);
+        assert_eq!(coverage.get(GlyphId::new(65538)), Some(2));
+    }
+
+    #[test]
+    fn coverage_get_format4() {
+        // manually generated, corresponding to glyphs (65536..65538) and
+        // (131072..131076).
+        const COV4_DATA: FontData = FontData::new(&[
+            0, 4, 0, 0, 2, 1, 0, 0, 1, 0, 2, 0, 0, 0, 2, 0, 0, 2, 0, 4, 0, 0, 3,
+        ]);
+
+        let coverage = CoverageFormat4::read(COV4_DATA).unwrap();
+        assert_eq!(coverage.get(GlyphId::new(65535)), None);
+        assert_eq!(coverage.get(GlyphId::new(65536)), Some(0));
+        assert_eq!(coverage.get(GlyphId::new(65538)), Some(2));
+        assert_eq!(coverage.get(GlyphId::new(65539)), None);
+        assert_eq!(coverage.get(GlyphId::new(131072)), Some(3));
+        assert_eq!(coverage.get(GlyphId::new(131076)), Some(7));
+        assert_eq!(coverage.get(GlyphId::new(131077)), None);
     }
 
     #[test]

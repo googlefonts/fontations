@@ -125,7 +125,7 @@ pub(crate) struct Outlines<'a> {
 #[derive(Clone, Copy)]
 pub(crate) struct Outline {
     pub(crate) glyph_id: GlyphId,
-    pub(crate) coverage_index: u16,
+    pub(crate) coverage_index: u32,
     max_component_memory: usize,
 }
 
@@ -207,14 +207,14 @@ impl<'a> Outlines<'a> {
     }
 
     /// Lightweight coverage lookup without computing max_component_memory.
-    fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u16>, ReadError> {
+    fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u32>, ReadError> {
         Ok(self.coverage.get(glyph_id))
     }
 
     fn compute_max_component_memory(
         &self,
         glyph_id: GlyphId,
-        coverage_index: u16,
+        coverage_index: u32,
     ) -> Result<usize, ReadError> {
         let mut stack = GlyphStack::new();
         self.max_component_memory_for_glyph(glyph_id, coverage_index, &mut stack)
@@ -223,7 +223,7 @@ impl<'a> Outlines<'a> {
     fn max_component_memory_for_glyph(
         &self,
         glyph_id: GlyphId,
-        coverage_index: u16,
+        coverage_index: u32,
         stack: &mut GlyphStack,
     ) -> Result<usize, ReadError> {
         if stack.contains(&glyph_id) {
@@ -306,7 +306,7 @@ impl<'a> Outlines<'a> {
     fn draw_glyph(
         &self,
         glyph_id: GlyphId,
-        coverage_index: u16,
+        coverage_index: u32,
         current_coords: &[F2Dot14],
         parent_matrix: Affine,
         ctx: &VarcSharedContext<'a, '_>,
