@@ -179,6 +179,9 @@ impl<'a> PrettyPrinter<'a> {
             FieldType::GlyphId16(val) => self.print_with_style(Color::Yellow.into(), |this| {
                 write!(this, "{}", val.to_u16())
             })?,
+            FieldType::GlyphId24(val) => self.print_with_style(Color::Yellow.into(), |this| {
+                write!(this, "{}", val.to_u32())
+            })?,
             FieldType::NameId(val) => write!(self, "{val:?}")?,
             FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => {
                 match target {
