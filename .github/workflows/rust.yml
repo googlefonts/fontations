@@ -119,6 +119,9 @@ jobs:
       - name: cargo test shared-brotli-patch-decoder
         run: cargo test -p shared-brotli-patch-decoder --all-targets --all-features
 
+      - name: cargo test -p otexplorer
+        run: cargo test -p otexplorer --all-targets --all-features
+
   verify-licenses:
     name: Verify licenses
     runs-on: ubuntu-latest
