@@ -96,6 +96,8 @@ pub mod codegen_test;
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
+#[cfg(any(test, feature = "codegen_test"))]
+pub use offset_array::{SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets};
 pub use read::{ComputeSize, FontRead, ReadArgs, ReadError, VarSize};
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::MinByteRange;
@@ -110,6 +112,8 @@ pub(crate) mod codegen_prelude {
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
+    #[cfg(any(test, feature = "codegen_test"))]
+    pub use crate::offset_array::{SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets};
     pub use crate::read::{
         ComputeSize, Discriminant, FontRead, Format, ReadArgs, ReadError, VarSize,
     };
