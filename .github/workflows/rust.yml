@@ -109,6 +109,10 @@ jobs:
         run: |
           pip install -r resources/scripts/skera_ci_requirements.txt
           cargo test -p skera --all-targets --all-features
+          # The slow tests are disabled by default. We may re-enable if the
+          # tests become faster.
+          # https://github.com/googlefonts/fontations/issues/1910
+          cargo test -p skera --all-targets --all-features -- --ignored
 
       - name: cargo test skera (no cli)
         run: cargo test -p skera --no-default-features

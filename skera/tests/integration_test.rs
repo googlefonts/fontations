@@ -676,16 +676,30 @@ fn compare_with_expected(output_dir: &Path, output_file: &Path, expected_file: &
     }
 }
 
+const LAYOUT_NOTONASTALIQURDU_TEST: &str = "tests/layout.notonastaliqurdu.tests";
+
 #[rstest]
 fn test_subset_case(#[files("test-data/tests/*.tests")] path: PathBuf) {
+    // Tested in test_subset_layout_notonastaliqurdu.
+    if path.ends_with(LAYOUT_NOTONASTALIQURDU_TEST) {
+        return;
+    }
     let test = SubsetTestCase::new(&path);
     match std::env::var(GEN_EXPECTED_OUTPUTS_VAR) {
-        Ok(_val) => {
-            test.gen_expected_output();
-        }
-        Err(_e) => {
-            test.run();
-        }
+        Ok(_val) => test.gen_expected_output(),
+        Err(_e) => test.run(),
+    }
+}
+
+#[test]
+#[ignore = r#"Slow integration test, see https://github.com/googlefonts/fontations/issues/1910.
+To run manually: cargo test -p skera -- --ignored"#]
+fn test_subset_layout_notonastaliqurdu() {
+    let path = Path::new(TEST_DATA_DIR).join(LAYOUT_NOTONASTALIQURDU_TEST);
+    let test = SubsetTestCase::new(&path);
+    match std::env::var(GEN_EXPECTED_OUTPUTS_VAR) {
+        Ok(_val) => test.gen_expected_output(),
+        Err(_e) => test.run(),
     }
 }
 
