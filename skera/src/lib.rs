@@ -1427,7 +1427,7 @@ pub fn estimate_subset_table_size(font: &FontRef, table_tag: Tag, plan: &Plan) -
         return bulk + table_len;
     }
 
-    bulk + table_len * ((dst_glyphs as f32 / src_glyphs as f32).sqrt() as usize)
+    bulk + (table_len as f32 * (dst_glyphs as f32 / src_glyphs as f32).sqrt()) as usize
 }
 
 #[cfg(test)]
