@@ -328,6 +328,7 @@ enum WellKnownScalar {
     Tag,
     Version16Dot16,
     GlyphId16,
+    GlyphId24,
     NameId,
     MajorMinor,
 }
@@ -356,6 +357,7 @@ impl std::str::FromStr for WellKnownScalar {
             "Tag" => Ok(WellKnownScalar::Tag),
             "Version16Dot16" => Ok(WellKnownScalar::Version16Dot16),
             "GlyphId16" => Ok(WellKnownScalar::GlyphId16),
+            "GlyphId24" => Ok(WellKnownScalar::GlyphId24),
             "NameId" => Ok(WellKnownScalar::NameId),
             "MajorMinor" => Ok(WellKnownScalar::MajorMinor),
             _ => Err(()),
