@@ -110,13 +110,13 @@ impl<'a, T> MyLookup<'a, T> {
     }
 
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
-    pub fn subtables(&self) -> ArrayOfOffsets<'a, T, Offset16>
+    pub fn subtables(&self) -> SanitizedArrayOfOffsets<'a, T, Offset16>
     where
         T: FastRead<'a, Args = ()> + Default,
     {
         let data = self.data;
         let offsets = self.subtable_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn lookup_type_byte_range(&self) -> Range<usize> {

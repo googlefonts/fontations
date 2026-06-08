@@ -387,10 +387,10 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// A dynamically resolving wrapper for [`nonnullable_offsets`][Self::nonnullable_offsets].
-    pub fn nonnullables(&self) -> ArrayOfOffsets<'a, Dummy<'a>, Offset16> {
+    pub fn nonnullables(&self) -> SanitizedArrayOfOffsets<'a, Dummy<'a>, Offset16> {
         let data = self.data;
         let offsets = self.nonnullable_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     /// An offset that is nullable, but always present
@@ -400,10 +400,10 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// A dynamically resolving wrapper for [`nullable_offsets`][Self::nullable_offsets].
-    pub fn nullables(&self) -> ArrayOfNullableOffsets<'a, Dummy<'a>, Offset16> {
+    pub fn nullables(&self) -> SanitizedArrayOfNullableOffsets<'a, Dummy<'a>, Offset16> {
         let data = self.data;
         let offsets = self.nullable_offsets();
-        ArrayOfNullableOffsets::new(offsets, data, ())
+        SanitizedArrayOfNullableOffsets::new(offsets, data, ())
     }
 
     /// A normal offset that is versioned
@@ -415,10 +415,12 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// A dynamically resolving wrapper for [`versioned_nonnullable_offsets`][Self::versioned_nonnullable_offsets].
-    pub fn versioned_nonnullables(&self) -> Option<ArrayOfOffsets<'a, Dummy<'a>, Offset16>> {
+    pub fn versioned_nonnullables(
+        &self,
+    ) -> Option<SanitizedArrayOfOffsets<'a, Dummy<'a>, Offset16>> {
         let data = self.data;
         let offsets = self.versioned_nonnullable_offsets();
-        offsets.map(|offsets| ArrayOfOffsets::new(offsets, data, ()))
+        offsets.map(|offsets| SanitizedArrayOfOffsets::new(offsets, data, ()))
     }
 
     /// An offset that is nullable and versioned
@@ -430,10 +432,12 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// A dynamically resolving wrapper for [`versioned_nullable_offsets`][Self::versioned_nullable_offsets].
-    pub fn versioned_nullables(&self) -> Option<ArrayOfNullableOffsets<'a, Dummy<'a>, Offset16>> {
+    pub fn versioned_nullables(
+        &self,
+    ) -> Option<SanitizedArrayOfNullableOffsets<'a, Dummy<'a>, Offset16>> {
         let data = self.data;
         let offsets = self.versioned_nullable_offsets();
-        offsets.map(|offsets| ArrayOfNullableOffsets::new(offsets, data, ()))
+        offsets.map(|offsets| SanitizedArrayOfNullableOffsets::new(offsets, data, ()))
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {

@@ -899,10 +899,11 @@ impl Field {
             let OffsetTarget::Table(target_ident) = target else {
                 panic!("I don't think arrays of offsets to arrays are in the spec?");
             };
-            let array_type = if self.is_nullable() {
-                quote!(ArrayOfNullableOffsets)
-            } else {
-                quote!(ArrayOfOffsets)
+            let array_type = match (self.is_nullable(), sanitize) {
+                (true, true) => quote!(SanitizedArrayOfNullableOffsets),
+                (true, false) => quote!(ArrayOfNullableOffsets),
+                (false, true) => quote!(SanitizedArrayOfOffsets),
+                (false, false) => quote!(ArrayOfOffsets),
             };
 
             let target_lifetime = (!target_is_generic).then(|| quote!(<'a>));

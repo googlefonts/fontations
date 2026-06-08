@@ -94,7 +94,10 @@ pub mod codegen_test;
 
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
-pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
+pub use offset_array::{
+    ArrayOfNullableOffsets, ArrayOfOffsets, SanitizedArrayOfNullableOffsets,
+    SanitizedArrayOfOffsets,
+};
 pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize};
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::MinByteRange;
@@ -108,7 +111,10 @@ pub(crate) mod codegen_prelude {
     pub use crate::array::{ComputedArray, VarLenArray};
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
-    pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
+    pub use crate::offset_array::{
+        ArrayOfNullableOffsets, ArrayOfOffsets, SanitizedArrayOfNullableOffsets,
+        SanitizedArrayOfOffsets,
+    };
     pub(crate) use crate::sanitize::{
         FastRead, FastResolveNullableOffset, FastResolveOffset, Sanitize, SanitizeContext,
         SanitizeOffset, SanitizeState, SanitizeStruct,
