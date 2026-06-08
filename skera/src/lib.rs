@@ -105,7 +105,7 @@ const MAX_NESTING_LEVEL: u8 = 64;
 // See <https://github.com/googlefonts/fontations/issues/997>
 const MAX_GID: GlyphId = GlyphId::new(0xFFFFFFFF);
 
-// ref: <https://github.com/harfbuzz/harfbuzz/blob/021b44388667903d7bc9c92c924ad079f13b90ce/src/hb-subset-input.cc#L82>
+// ref: <https://github.com/harfbuzz/harfbuzz/blob/689383d05b2609a67efa307a9860b85cf40bf8c3/src/hb-subset-input.cc#L82>
 pub static DEFAULT_LAYOUT_FEATURES: &[Tag] = &[
     // default shaper
     // common
@@ -147,6 +147,7 @@ pub static DEFAULT_LAYOUT_FEATURES: &[Tag] = &[
     Tag::new(b"vchw"),
     Tag::new(b"halt"),
     Tag::new(b"vhal"),
+    Tag::new(b"palt"),
     //private
     Tag::new(b"Harf"),
     Tag::new(b"HARF"),
