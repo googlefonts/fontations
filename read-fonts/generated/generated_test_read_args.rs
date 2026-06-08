@@ -267,9 +267,12 @@ impl<'a> FaceRecord<'a> {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn faces(&self, data: FontData<'a>) -> ArrayOfNullableOffsets<'a, Face<'a>, Offset16> {
+    pub fn faces(
+        &self,
+        data: FontData<'a>,
+    ) -> SanitizedArrayOfNullableOffsets<'a, Face<'a>, Offset16> {
         let offsets = self.face_offsets();
-        ArrayOfNullableOffsets::new(offsets, data, ())
+        SanitizedArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
