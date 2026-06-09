@@ -22,7 +22,7 @@ use write_fonts::{
             layout::LookupFlag,
         },
         types::{MajorMinor, Offset16, Offset32, Tag},
-        FontRead, FontRef, TopLevelTable,
+        FontRef, Sanitize, TopLevelTable,
     },
     FontBuilder,
 };
@@ -287,7 +287,8 @@ where
             'a,
             ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
             Output = (),
-        > + FontRead<'a, Args = ()>,
+        > + Sanitize<'a, Args = ()>
+        + Default,
 {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
