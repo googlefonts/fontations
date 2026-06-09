@@ -25,7 +25,8 @@ use write_fonts::{
             },
         },
         types::{GlyphId, GlyphId16, NameId},
-        ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
+        FontData, FontRef, MinByteRange, ReadError, Sanitize, SanitizedArrayOfOffsets,
+        TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32, Tag},
 };
@@ -1514,7 +1515,8 @@ impl SubsetTable<'_> for FeatureParams<'_> {
 
 impl<
         'a,
-        T: FontRead<'a, Args = ()>
+        T: Sanitize<'a, Args = ()>
+            + Default
             + SubsetTable<
                 'a,
                 ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
@@ -1768,13 +1770,14 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
     }
 }
 
-impl<'a, T> SubsetTable<'a> for ArrayOfOffsets<'a, T, Offset16>
+impl<'a, T> SubsetTable<'a> for SanitizedArrayOfOffsets<'a, T, Offset16>
 where
     T: SubsetTable<
             'a,
             ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
         > + Intersect
-        + FontRead<'a, Args = ()>
+        + Sanitize<'a, Args = ()>
+        + Default
         + 'a,
 {
     type ArgsForSubset = T::ArgsForSubset;

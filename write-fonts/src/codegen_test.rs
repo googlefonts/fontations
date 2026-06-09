@@ -162,7 +162,7 @@ mod generic_group {
     fn construct_lookup_group() {
         let lookup: MyLookup<MySubtableFormat1> = MyLookup {
             lookup_type: 2,
-            single_subtable: OffsetMarker::new(MySubtableFormat1 { value: 404 }),
+            single_subtable: OffsetMarker::new(MySubtableFormat1 { value: 42 }),
             subtables: vec![OffsetMarker::new(MySubtableFormat1 { value: 99 })],
         };
         let group = MyLookupGroup::from(lookup);

@@ -29,7 +29,7 @@ use write_fonts::{
             layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
         },
         types::Tag,
-        FontRead, FontRef, ReadError, TopLevelTable,
+        FontRef, ReadError, Sanitize, TopLevelTable,
     },
     types::{MajorMinor, Offset16, Offset32},
     FontBuilder,
@@ -289,7 +289,8 @@ where
             'a,
             ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
             Output = (),
-        > + FontRead<'a, Args = ()>,
+        > + Sanitize<'a, Args = ()>
+        + Default,
 {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
@@ -365,7 +366,7 @@ impl CollectVariationIndices for PositionSubtables<'_> {
 
 impl<'a, T, Ext> CollectVariationIndices for Subtables<'a, T, Ext>
 where
-    T: CollectVariationIndices + Intersect + FontRead<'a, Args = ()> + 'a,
+    T: CollectVariationIndices + Intersect + Sanitize<'a, Args = ()> + Default + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
