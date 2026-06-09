@@ -16,6 +16,8 @@ use write_fonts::{
     types::{BigEndian, F2Dot14, FixedSize, Offset32},
 };
 
+pub(crate) mod solver;
+
 impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
     type ArgsForSubset = (&'a [IncBiMap], bool);
     type Output = ();
