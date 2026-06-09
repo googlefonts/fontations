@@ -31,5 +31,7 @@ write-fonts = { workspace = true, features = ["read"] }
 
 [dev-dependencies]
 diff = "0.1.13"
-tempdir = "0.3.7"
 font-test-data = { workspace = true }
+rayon = { workspace = true }
+rstest = "0.26.1"
+tempdir = "0.3.7"
