@@ -233,6 +233,18 @@ where
         let data = self.data;
         std::iter::from_fn(move || iter.next().map(|off| off.get().fast_resolve(data, args)))
     }
+
+    /// Iterate over all of the offset targets.
+    ///
+    /// Offset is treated as nullable and each offset will be resolved as it is encountered.
+    pub(crate) fn iter_as_nullable(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a {
+        self.iter().map(|off| match off {
+            Err(ReadError::NullOffset) => None,
+            other => Some(other),
+        })
+    }
 }
 
 impl<'a, T, O> SanitizedArrayOfNullableOffsets<'a, T, O>

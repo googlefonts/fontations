@@ -55,7 +55,7 @@ impl<T: Sanitize<Args = ()>> Sanitize for MyLookup<'_, T> {
     }
 }
 
-impl<'a, T: Sanitize<Args = ()>> FastRead<'a> for MyLookup<'a, T> {
+impl<'a, T: FastRead<'a, Args = ()>> FastRead<'a> for MyLookup<'a, T> {
     fn fast_read(data: FontData<'a>, _args: ()) -> Self {
         Self {
             data,

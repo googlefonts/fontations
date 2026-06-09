@@ -203,6 +203,13 @@ pub(crate) mod codegen_prelude {
                 offset.resolve(self.data)
             }
 
+            pub fn fast_resolve<O: Offset, R: FastRead<'a, Args = ()> + Default>(
+                &self,
+                offset: O,
+            ) -> Result<R, ReadError> {
+                offset.fast_resolve(self.data, ())
+            }
+
             /// Return a reference to this table's raw data.
             ///
             /// We use this in the compile crate to resolve offsets.

@@ -31,9 +31,9 @@ mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
 
-impl<'a, T: FontRead<'a>> Lookup<'a, T> {
+impl<'a, T: FastRead<'a, Args = ()> + Default> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
-        self.resolve_offset(offset)
+        self.fast_resolve(offset)
     }
 
     #[cfg(feature = "experimental_traverse")]
@@ -46,7 +46,9 @@ impl<'a, T: FontRead<'a>> Lookup<'a, T> {
 ///
 /// This is necessary because GPOS and GSUB have different concrete types
 /// for their extension lookups.
-pub trait ExtensionLookup<'a, T: FontRead<'a>>: FontRead<'a> {
+pub trait ExtensionLookup<'a, T: FastRead<'a, Args = ()> + Default>:
+    FastRead<'a, Args = ()> + Default
+{
     fn extension(&self) -> Result<T, ReadError>;
 }
 
@@ -54,20 +56,22 @@ pub trait ExtensionLookup<'a, T: FontRead<'a>>: FontRead<'a> {
 ///
 /// This is used to implement more ergonomic access to lookup subtables for
 /// GPOS & GSUB lookup tables.
-pub enum Subtables<'a, T: FontRead<'a>, Ext: ExtensionLookup<'a, T>> {
-    Subtable(ArrayOfOffsets<'a, T>),
-    Extension(ArrayOfOffsets<'a, Ext>),
+pub enum Subtables<'a, T: FastRead<'a, Args = ()> + Default, Ext: ExtensionLookup<'a, T>> {
+    Subtable(SanitizedArrayOfOffsets<'a, T>),
+    Extension(SanitizedArrayOfOffsets<'a, Ext>),
 }
 
-impl<'a, T: FontRead<'a> + 'a, Ext: ExtensionLookup<'a, T> + 'a> Subtables<'a, T, Ext> {
+impl<'a, T: FastRead<'a, Args = ()> + Default + 'a, Ext: ExtensionLookup<'a, T> + 'a>
+    Subtables<'a, T, Ext>
+{
     /// create a new subtables array given offsets to non-extension subtables
     pub(crate) fn new(offsets: &'a [BigEndian<Offset16>], data: FontData<'a>) -> Self {
-        Subtables::Subtable(ArrayOfOffsets::new(offsets, data, ()))
+        Subtables::Subtable(SanitizedArrayOfOffsets::new(offsets, data, ()))
     }
 
     /// create a new subtables array given offsets to extension subtables
     pub(crate) fn new_ext(offsets: &'a [BigEndian<Offset16>], data: FontData<'a>) -> Self {
-        Subtables::Extension(ArrayOfOffsets::new(offsets, data, ()))
+        Subtables::Extension(SanitizedArrayOfOffsets::new(offsets, data, ()))
     }
 
     /// The number of subtables in this collection
@@ -116,6 +120,12 @@ impl ReadArgs for FeatureParams<'_> {
     type Args = Tag;
 }
 
+impl Default for FeatureParams<'_> {
+    fn default() -> Self {
+        Self::Size(Default::default())
+    }
+}
+
 impl<'a> FontReadWithArgs<'a> for FeatureParams<'a> {
     fn read_with_args(bytes: FontData<'a>, args: &Tag) -> Result<FeatureParams<'a>, ReadError> {
         match *args {
@@ -143,6 +153,23 @@ impl Sanitize for FeatureParams<'_> {
             // NOTE: what even is our error condition here? an offset exists but
             // we don't know the tag?
             _ => Err(ReadError::InvalidFormat(0xdead)),
+        }
+    }
+}
+
+impl<'a> FastRead<'a> for FeatureParams<'a> {
+    fn fast_read(data: FontData<'a>, args: Self::Args) -> Self {
+        match args {
+            t if t == Tag::new(b"size") => Self::Size(SizeParams::fast_read(data, ())),
+            t if &t.to_raw()[..2] == b"ss" => {
+                Self::StylisticSet(StylisticSetParams::fast_read(data, ()))
+            }
+            t if &t.to_raw()[..2] == b"cv" => {
+                Self::CharacterVariant(CharacterVariantParams::fast_read(data, ()))
+            }
+            // NOTE: what even is our error condition here? an offset exists but
+            // we don't know the tag?
+            _ => panic!("should have been validated"),
         }
     }
 }

@@ -22,11 +22,10 @@ impl TopLevelTable for Gdef<'_> {
 
 impl<'a> FontRead<'a> for Gdef<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -44,6 +43,12 @@ impl Sanitize for Gdef<'_> {
             ctx.sanitize_offset::<Offset32, ItemVariationStore>(())?;
         }
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for Gdef<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -78,7 +83,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`glyph_class_def_offset`][Self::glyph_class_def_offset].
     pub fn glyph_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
         let data = self.data;
-        self.glyph_class_def_offset().resolve(data)
+        self.glyph_class_def_offset().fast_resolve(data, ())
     }
 
     /// Offset to attachment point list table, from beginning of GDEF
@@ -91,7 +96,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`attach_list_offset`][Self::attach_list_offset].
     pub fn attach_list(&self) -> Option<Result<AttachList<'a>, ReadError>> {
         let data = self.data;
-        self.attach_list_offset().resolve(data)
+        self.attach_list_offset().fast_resolve(data, ())
     }
 
     /// Offset to ligature caret list table, from beginning of GDEF
@@ -104,7 +109,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`lig_caret_list_offset`][Self::lig_caret_list_offset].
     pub fn lig_caret_list(&self) -> Option<Result<LigCaretList<'a>, ReadError>> {
         let data = self.data;
-        self.lig_caret_list_offset().resolve(data)
+        self.lig_caret_list_offset().fast_resolve(data, ())
     }
 
     /// Offset to class definition table for mark attachment type, from
@@ -117,7 +122,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`mark_attach_class_def_offset`][Self::mark_attach_class_def_offset].
     pub fn mark_attach_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
         let data = self.data;
-        self.mark_attach_class_def_offset().resolve(data)
+        self.mark_attach_class_def_offset().fast_resolve(data, ())
     }
 
     /// Offset to the table of mark glyph set definitions, from
@@ -132,7 +137,8 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`mark_glyph_sets_def_offset`][Self::mark_glyph_sets_def_offset].
     pub fn mark_glyph_sets_def(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
         let data = self.data;
-        self.mark_glyph_sets_def_offset().map(|x| x.resolve(data))?
+        self.mark_glyph_sets_def_offset()
+            .map(|x| x.fast_resolve(data, ()))?
     }
 
     /// Offset to the Item Variation Store table, from beginning of
@@ -147,7 +153,8 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
     pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
-        self.item_var_store_offset().map(|x| x.resolve(data))?
+        self.item_var_store_offset()
+            .map(|x| x.fast_resolve(data, ()))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -314,11 +321,10 @@ impl<'a> MinByteRange<'a> for AttachList<'a> {
 
 impl<'a> FontRead<'a> for AttachList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -328,6 +334,12 @@ impl Sanitize for AttachList<'_> {
         let glyph_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, AttachPoint>(glyph_count as usize, ())?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for AttachList<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -351,7 +363,7 @@ impl<'a> AttachList<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Number of glyphs with attachment points
@@ -368,10 +380,10 @@ impl<'a> AttachList<'a> {
     }
 
     /// A dynamically resolving wrapper for [`attach_point_offsets`][Self::attach_point_offsets].
-    pub fn attach_points(&self) -> ArrayOfOffsets<'a, AttachPoint<'a>, Offset16> {
+    pub fn attach_points(&self) -> SanitizedArrayOfOffsets<'a, AttachPoint<'a>, Offset16> {
         let data = self.data;
         let offsets = self.attach_point_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
@@ -442,11 +454,10 @@ impl<'a> MinByteRange<'a> for AttachPoint<'a> {
 
 impl<'a> FontRead<'a> for AttachPoint<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -455,6 +466,12 @@ impl Sanitize for AttachPoint<'_> {
         let point_count = ctx.read::<u16>()?;
         ctx.sanitize_array::<u16>(point_count as usize)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for AttachPoint<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -537,11 +554,10 @@ impl<'a> MinByteRange<'a> for LigCaretList<'a> {
 
 impl<'a> FontRead<'a> for LigCaretList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -551,6 +567,12 @@ impl Sanitize for LigCaretList<'_> {
         let lig_glyph_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, LigGlyph>(lig_glyph_count as usize, ())?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for LigCaretList<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -574,7 +596,7 @@ impl<'a> LigCaretList<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Number of ligature glyphs
@@ -591,10 +613,10 @@ impl<'a> LigCaretList<'a> {
     }
 
     /// A dynamically resolving wrapper for [`lig_glyph_offsets`][Self::lig_glyph_offsets].
-    pub fn lig_glyphs(&self) -> ArrayOfOffsets<'a, LigGlyph<'a>, Offset16> {
+    pub fn lig_glyphs(&self) -> SanitizedArrayOfOffsets<'a, LigGlyph<'a>, Offset16> {
         let data = self.data;
         let offsets = self.lig_glyph_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
@@ -665,11 +687,10 @@ impl<'a> MinByteRange<'a> for LigGlyph<'a> {
 
 impl<'a> FontRead<'a> for LigGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -678,6 +699,12 @@ impl Sanitize for LigGlyph<'_> {
         let caret_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, CaretValue>(caret_count as usize, ())?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for LigGlyph<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -706,10 +733,10 @@ impl<'a> LigGlyph<'a> {
     }
 
     /// A dynamically resolving wrapper for [`caret_value_offsets`][Self::caret_value_offsets].
-    pub fn caret_values(&self) -> ArrayOfOffsets<'a, CaretValue<'a>, Offset16> {
+    pub fn caret_values(&self) -> SanitizedArrayOfOffsets<'a, CaretValue<'a>, Offset16> {
         let data = self.data;
         let offsets = self.caret_value_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn caret_count_byte_range(&self) -> Range<usize> {
@@ -795,13 +822,10 @@ impl<'a> CaretValue<'a> {
 
 impl<'a> FontRead<'a> for CaretValue<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            CaretValueFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            CaretValueFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            CaretValueFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -830,6 +854,24 @@ impl Sanitize for CaretValue<'_> {
             CaretValueFormat2::FORMAT => CaretValueFormat2::sanitize(ctx, ()),
             CaretValueFormat3::FORMAT => CaretValueFormat3::sanitize(ctx, ()),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> FastRead<'a> for CaretValue<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        let format: u16 = data.read_at(0usize).unwrap_or_default();
+        match format {
+            CaretValueFormat1::FORMAT => {
+                CaretValue::Format1(CaretValueFormat1::fast_read(data, ()))
+            }
+            CaretValueFormat2::FORMAT => {
+                CaretValue::Format2(CaretValueFormat2::fast_read(data, ()))
+            }
+            CaretValueFormat3::FORMAT => {
+                CaretValue::Format3(CaretValueFormat3::fast_read(data, ()))
+            }
+            _ => CaretValue::Format1(CaretValueFormat1::fast_read(data, ())),
         }
     }
 }
@@ -878,11 +920,10 @@ impl<'a> MinByteRange<'a> for CaretValueFormat1<'a> {
 
 impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -891,6 +932,12 @@ impl Sanitize for CaretValueFormat1<'_> {
         ctx.advance::<u16>();
         ctx.advance::<i16>();
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for CaretValueFormat1<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -978,11 +1025,10 @@ impl<'a> MinByteRange<'a> for CaretValueFormat2<'a> {
 
 impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -991,6 +1037,12 @@ impl Sanitize for CaretValueFormat2<'_> {
         ctx.advance::<u16>();
         ctx.advance::<u16>();
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for CaretValueFormat2<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1069,11 +1121,10 @@ impl<'a> MinByteRange<'a> for CaretValueFormat3<'a> {
 
 impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -1083,6 +1134,12 @@ impl Sanitize for CaretValueFormat3<'_> {
         ctx.advance::<i16>();
         ctx.sanitize_offset::<Offset16, DeviceOrVariationIndex>(())?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for CaretValueFormat3<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1120,7 +1177,7 @@ impl<'a> CaretValueFormat3<'a> {
     /// Attempt to resolve [`device_offset`][Self::device_offset].
     pub fn device(&self) -> Result<DeviceOrVariationIndex<'a>, ReadError> {
         let data = self.data;
-        self.device_offset().resolve(data)
+        self.device_offset().fast_resolve(data, ())
     }
 
     pub fn caret_value_format_byte_range(&self) -> Range<usize> {
@@ -1181,11 +1238,10 @@ impl<'a> MinByteRange<'a> for MarkGlyphSets<'a> {
 
 impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -1198,6 +1254,12 @@ impl Sanitize for MarkGlyphSets<'_> {
             (),
         )?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for MarkGlyphSets<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1232,10 +1294,10 @@ impl<'a> MarkGlyphSets<'a> {
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
-    pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset32> {
+    pub fn coverages(&self) -> SanitizedArrayOfOffsets<'a, CoverageTable<'a>, Offset32> {
         let data = self.data;
         let offsets = self.coverage_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {

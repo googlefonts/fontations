@@ -22,11 +22,10 @@ impl TopLevelTable for Gsub<'_> {
 
 impl<'a> FontRead<'a> for Gsub<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -40,6 +39,12 @@ impl Sanitize for Gsub<'_> {
             ctx.sanitize_offset::<Offset32, FeatureVariations>(())?;
         }
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for Gsub<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -72,7 +77,7 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
     pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
         let data = self.data;
-        self.script_list_offset().resolve(data)
+        self.script_list_offset().fast_resolve(data, ())
     }
 
     /// Offset to FeatureList table, from beginning of GSUB table
@@ -84,7 +89,7 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
     pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
         let data = self.data;
-        self.feature_list_offset().resolve(data)
+        self.feature_list_offset().fast_resolve(data, ())
     }
 
     /// Offset to LookupList table, from beginning of GSUB table
@@ -96,7 +101,7 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
     pub fn lookup_list(&self) -> Result<SubstitutionLookupList<'a>, ReadError> {
         let data = self.data;
-        self.lookup_list_offset().resolve(data)
+        self.lookup_list_offset().fast_resolve(data, ())
     }
 
     /// Offset to FeatureVariations table, from beginning of the GSUB
@@ -111,7 +116,8 @@ impl<'a> Gsub<'a> {
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
         let data = self.data;
-        self.feature_variations_offset().map(|x| x.resolve(data))?
+        self.feature_variations_offset()
+            .map(|x| x.fast_resolve(data, ()))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -264,6 +270,33 @@ impl Sanitize for SubstitutionLookup<'_> {
     }
 }
 
+impl<'a> FastRead<'a> for SubstitutionLookup<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        let discriminant = Lookup::read_discriminant(data).unwrap_or_default();
+        match discriminant {
+            1 => SubstitutionLookup::Single(Lookup::<SingleSubst>::fast_read(data, ())),
+            2 => SubstitutionLookup::Multiple(Lookup::<MultipleSubstFormat1>::fast_read(data, ())),
+            3 => {
+                SubstitutionLookup::Alternate(Lookup::<AlternateSubstFormat1>::fast_read(data, ()))
+            }
+            4 => SubstitutionLookup::Ligature(Lookup::<LigatureSubstFormat1>::fast_read(data, ())),
+            5 => SubstitutionLookup::Contextual(Lookup::<SubstitutionSequenceContext>::fast_read(
+                data,
+                (),
+            )),
+            6 => SubstitutionLookup::ChainContextual(
+                Lookup::<SubstitutionChainContext>::fast_read(data, ()),
+            ),
+            7 => SubstitutionLookup::Extension(Lookup::<ExtensionSubtable>::fast_read(data, ())),
+            8 => SubstitutionLookup::Reverse(Lookup::<ReverseChainSingleSubstFormat1>::fast_read(
+                data,
+                (),
+            )),
+            _ => SubstitutionLookup::Single(Lookup::<SingleSubst>::fast_read(data, ())),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SubstitutionLookup<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
@@ -339,12 +372,10 @@ impl<'a> SingleSubst<'a> {
 
 impl<'a> FontRead<'a> for SingleSubst<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            SingleSubstFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            SingleSubstFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -370,6 +401,21 @@ impl Sanitize for SingleSubst<'_> {
             SingleSubstFormat1::FORMAT => SingleSubstFormat1::sanitize(ctx, ()),
             SingleSubstFormat2::FORMAT => SingleSubstFormat2::sanitize(ctx, ()),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> FastRead<'a> for SingleSubst<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        let format: u16 = data.read_at(0usize).unwrap_or_default();
+        match format {
+            SingleSubstFormat1::FORMAT => {
+                SingleSubst::Format1(SingleSubstFormat1::fast_read(data, ()))
+            }
+            SingleSubstFormat2::FORMAT => {
+                SingleSubst::Format2(SingleSubstFormat2::fast_read(data, ()))
+            }
+            _ => SingleSubst::Format1(SingleSubstFormat1::fast_read(data, ())),
         }
     }
 }
@@ -417,11 +463,10 @@ impl<'a> MinByteRange<'a> for SingleSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -431,6 +476,12 @@ impl Sanitize for SingleSubstFormat1<'_> {
         ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
         ctx.advance::<i16>();
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for SingleSubstFormat1<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -461,7 +512,7 @@ impl<'a> SingleSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Add to original glyph ID to get substitute glyph ID
@@ -540,11 +591,10 @@ impl<'a> MinByteRange<'a> for SingleSubstFormat2<'a> {
 
 impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -555,6 +605,12 @@ impl Sanitize for SingleSubstFormat2<'_> {
         let glyph_count = ctx.read::<u16>()?;
         ctx.sanitize_array::<GlyphId16>(glyph_count as usize)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for SingleSubstFormat2<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -585,7 +641,7 @@ impl<'a> SingleSubstFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Number of glyph IDs in the substituteGlyphIDs array
@@ -668,11 +724,10 @@ impl<'a> MinByteRange<'a> for MultipleSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -683,6 +738,12 @@ impl Sanitize for MultipleSubstFormat1<'_> {
         let sequence_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, Sequence>(sequence_count as usize, ())?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for MultipleSubstFormat1<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -713,7 +774,7 @@ impl<'a> MultipleSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Number of Sequence table offsets in the sequenceOffsets array
@@ -730,10 +791,10 @@ impl<'a> MultipleSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`sequence_offsets`][Self::sequence_offsets].
-    pub fn sequences(&self) -> ArrayOfOffsets<'a, Sequence<'a>, Offset16> {
+    pub fn sequences(&self) -> SanitizedArrayOfOffsets<'a, Sequence<'a>, Offset16> {
         let data = self.data;
         let offsets = self.sequence_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
@@ -812,11 +873,10 @@ impl<'a> MinByteRange<'a> for Sequence<'a> {
 
 impl<'a> FontRead<'a> for Sequence<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -825,6 +885,12 @@ impl Sanitize for Sequence<'_> {
         let glyph_count = ctx.read::<u16>()?;
         ctx.sanitize_array::<GlyphId16>(glyph_count as usize)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for Sequence<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -915,11 +981,10 @@ impl<'a> MinByteRange<'a> for AlternateSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -930,6 +995,12 @@ impl Sanitize for AlternateSubstFormat1<'_> {
         let alternate_set_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, AlternateSet>(alternate_set_count as usize, ())?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for AlternateSubstFormat1<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -960,7 +1031,7 @@ impl<'a> AlternateSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Number of AlternateSet tables
@@ -977,10 +1048,10 @@ impl<'a> AlternateSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`alternate_set_offsets`][Self::alternate_set_offsets].
-    pub fn alternate_sets(&self) -> ArrayOfOffsets<'a, AlternateSet<'a>, Offset16> {
+    pub fn alternate_sets(&self) -> SanitizedArrayOfOffsets<'a, AlternateSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.alternate_set_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
@@ -1062,11 +1133,10 @@ impl<'a> MinByteRange<'a> for AlternateSet<'a> {
 
 impl<'a> FontRead<'a> for AlternateSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -1075,6 +1145,12 @@ impl Sanitize for AlternateSet<'_> {
         let glyph_count = ctx.read::<u16>()?;
         ctx.sanitize_array::<GlyphId16>(glyph_count as usize)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for AlternateSet<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1164,11 +1240,10 @@ impl<'a> MinByteRange<'a> for LigatureSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -1179,6 +1254,12 @@ impl Sanitize for LigatureSubstFormat1<'_> {
         let ligature_set_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, LigatureSet>(ligature_set_count as usize, ())?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for LigatureSubstFormat1<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1209,7 +1290,7 @@ impl<'a> LigatureSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Number of LigatureSet tables
@@ -1226,10 +1307,10 @@ impl<'a> LigatureSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`ligature_set_offsets`][Self::ligature_set_offsets].
-    pub fn ligature_sets(&self) -> ArrayOfOffsets<'a, LigatureSet<'a>, Offset16> {
+    pub fn ligature_sets(&self) -> SanitizedArrayOfOffsets<'a, LigatureSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.ligature_set_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
@@ -1308,11 +1389,10 @@ impl<'a> MinByteRange<'a> for LigatureSet<'a> {
 
 impl<'a> FontRead<'a> for LigatureSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -1321,6 +1401,12 @@ impl Sanitize for LigatureSet<'_> {
         let ligature_count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, Ligature>(ligature_count as usize, ())?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for LigatureSet<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1349,10 +1435,10 @@ impl<'a> LigatureSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`ligature_offsets`][Self::ligature_offsets].
-    pub fn ligatures(&self) -> ArrayOfOffsets<'a, Ligature<'a>, Offset16> {
+    pub fn ligatures(&self) -> SanitizedArrayOfOffsets<'a, Ligature<'a>, Offset16> {
         let data = self.data;
         let offsets = self.ligature_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn ligature_count_byte_range(&self) -> Range<usize> {
@@ -1414,11 +1500,10 @@ impl<'a> MinByteRange<'a> for Ligature<'a> {
 
 impl<'a> FontRead<'a> for Ligature<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -1428,6 +1513,12 @@ impl Sanitize for Ligature<'_> {
         let component_count = ctx.read::<u16>()?;
         ctx.sanitize_array::<GlyphId16>(transforms::subtract(component_count, 1_usize))?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for Ligature<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1570,6 +1661,15 @@ impl<T: Sanitize<Args = ()>> Sanitize for ExtensionSubstFormat1<'_, T> {
     }
 }
 
+impl<'a, T: FastRead<'a, Args = ()>> FastRead<'a> for ExtensionSubstFormat1<'a, T> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self {
+            data,
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
 /// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
 #[derive(Clone)]
 pub struct ExtensionSubstFormat1<'a, T = ()> {
@@ -1606,10 +1706,10 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     /// Attempt to resolve [`extension_offset`][Self::extension_offset].
     pub fn extension(&self) -> Result<T, ReadError>
     where
-        T: FontRead<'a>,
+        T: FastRead<'a, Args = ()> + Default,
     {
         let data = self.data;
-        self.extension_offset().resolve(data)
+        self.extension_offset().fast_resolve(data, ())
     }
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
@@ -1642,7 +1742,9 @@ impl<T> Default for ExtensionSubstFormat1<'_, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstFormat1<'a, T> {
+impl<'a, T: FastRead<'a, Args = ()> + Default + SomeTable<'a> + 'a> SomeTable<'a>
+    for ExtensionSubstFormat1<'a, T>
+{
     fn type_name(&self) -> &str {
         "ExtensionSubstFormat1"
     }
@@ -1664,7 +1766,9 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstF
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionSubstFormat1<'a, T> {
+impl<'a, T: FastRead<'a, Args = ()> + Default + SomeTable<'a> + 'a> std::fmt::Debug
+    for ExtensionSubstFormat1<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -1737,6 +1841,38 @@ impl Sanitize for ExtensionSubtable<'_> {
     }
 }
 
+impl<'a> FastRead<'a> for ExtensionSubtable<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        let discriminant = ExtensionSubstFormat1::read_discriminant(data).unwrap_or_default();
+        match discriminant {
+            1 => {
+                ExtensionSubtable::Single(ExtensionSubstFormat1::<SingleSubst>::fast_read(data, ()))
+            }
+            2 => ExtensionSubtable::Multiple(
+                ExtensionSubstFormat1::<MultipleSubstFormat1>::fast_read(data, ()),
+            ),
+            3 => ExtensionSubtable::Alternate(
+                ExtensionSubstFormat1::<AlternateSubstFormat1>::fast_read(data, ()),
+            ),
+            4 => ExtensionSubtable::Ligature(
+                ExtensionSubstFormat1::<LigatureSubstFormat1>::fast_read(data, ()),
+            ),
+            5 => ExtensionSubtable::Contextual(
+                ExtensionSubstFormat1::<SubstitutionSequenceContext>::fast_read(data, ()),
+            ),
+            6 => ExtensionSubtable::ChainContextual(ExtensionSubstFormat1::<
+                SubstitutionChainContext,
+            >::fast_read(data, ())),
+            8 => ExtensionSubtable::Reverse(
+                ExtensionSubstFormat1::<ReverseChainSingleSubstFormat1>::fast_read(data, ()),
+            ),
+            _ => {
+                ExtensionSubtable::Single(ExtensionSubstFormat1::<SingleSubst>::fast_read(data, ()))
+            }
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> ExtensionSubtable<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
@@ -1785,11 +1921,10 @@ impl<'a> MinByteRange<'a> for ReverseChainSingleSubstFormat1<'a> {
 
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -1810,6 +1945,12 @@ impl Sanitize for ReverseChainSingleSubstFormat1<'_> {
         let glyph_count = ctx.read::<u16>()?;
         ctx.sanitize_array::<GlyphId16>(glyph_count as usize)?;
         ctx.finish()
+    }
+}
+
+impl<'a> FastRead<'a> for ReverseChainSingleSubstFormat1<'a> {
+    fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1844,7 +1985,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Number of glyphs in the backtrack sequence.
@@ -1861,10 +2002,10 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+    pub fn backtrack_coverages(&self) -> SanitizedArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.backtrack_coverage_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of glyphs in lookahead sequence.
@@ -1881,10 +2022,10 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+    pub fn lookahead_coverages(&self) -> SanitizedArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.lookahead_coverage_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of glyph IDs in the substituteGlyphIDs array.
