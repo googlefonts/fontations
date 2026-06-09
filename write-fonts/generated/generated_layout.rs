@@ -522,7 +522,7 @@ impl<T: Validate> Validate for LookupList<T> {
 
 impl<'a, T, U> FromObjRef<read_fonts::tables::layout::LookupList<'a, U>> for LookupList<T>
 where
-    U: FontRead<'a>,
+    U: FastRead<'a, Args = ()> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(obj: &read_fonts::tables::layout::LookupList<'a, U>, _: FontData) -> Self {
@@ -535,7 +535,7 @@ where
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T, U> FromTableRef<read_fonts::tables::layout::LookupList<'a, U>> for LookupList<T>
 where
-    U: FontRead<'a>,
+    U: FastRead<'a, Args = ()> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
 }
@@ -597,7 +597,7 @@ impl<T: Validate> Validate for Lookup<T> {
 
 impl<'a, T, U> FromObjRef<read_fonts::tables::layout::Lookup<'a, U>> for Lookup<T>
 where
-    U: FontRead<'a>,
+    U: FastRead<'a, Args = ()> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(obj: &read_fonts::tables::layout::Lookup<'a, U>, _: FontData) -> Self {
@@ -612,7 +612,7 @@ where
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T, U> FromTableRef<read_fonts::tables::layout::Lookup<'a, U>> for Lookup<T>
 where
-    U: FontRead<'a>,
+    U: FastRead<'a, Args = ()> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
 }

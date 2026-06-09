@@ -357,7 +357,7 @@ fn generate_debug(item: &Table, sanitize: bool) -> syn::Result<TokenStream> {
     })
 }
 
-pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::Result<TokenStream> {
+pub(crate) fn generate_compile(item: &Table, items: &Items) -> syn::Result<TokenStream> {
     let decl = super::record::generate_compile_impl(item.raw_name(), &item.attrs, &item.fields)?;
     if decl.is_empty() {
         return Ok(decl);
@@ -367,7 +367,7 @@ pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::R
         .attrs
         .skip_from_obj
         .is_none()
-        .then(|| generate_to_owned_impl(item, parse_module))
+        .then(|| generate_to_owned_impl(item, items))
         .transpose()?;
     let top_level = item.attrs.tag.as_ref().map(|tag| {
         let name = item.raw_name();
@@ -385,7 +385,7 @@ pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::R
     })
 }
 
-fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result<TokenStream> {
+fn generate_to_owned_impl(item: &Table, items: &Items) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let field_to_owned_stmts = item.fields.iter_from_obj_ref_stmts(false);
     let comp_generic = item.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
@@ -394,14 +394,20 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
         .then(|| syn::Ident::new("U", Span::call_site()));
     let impl_generics = comp_generic.into_iter().chain(parse_generic.as_ref());
     let impl_generics2 = impl_generics.clone();
+    let u_bound = if items.sanitize {
+        quote!(FastRead<'a, Args = ()> + Default)
+    } else {
+        quote!(FontRead<'a>)
+    };
     let where_clause = comp_generic.map(|t| {
         quote! {
             where
-                U: FontRead<'a>,
+                U: #u_bound,
                 #t: FromTableRef<U> + Default + 'static,
         }
     });
 
+    let parse_module = &items.parse_module_path;
     let impl_font_read = item.attrs.read_args.is_none() && item.attrs.generic_offset.is_none();
     let maybe_font_read = impl_font_read.then(|| {
         quote! {

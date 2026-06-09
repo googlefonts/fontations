@@ -203,7 +203,8 @@ pub(crate) mod codegen_prelude {
     pub use types::*;
 
     pub use read_fonts::{
-        FontData, FontRead, FontReadWithArgs, ReadArgs, ReadError, ResolveOffset, TopLevelTable,
+        FastRead, FontData, FontRead, FontReadWithArgs, ReadArgs, ReadError, ResolveOffset,
+        TopLevelTable,
     };
 
     /// checked conversion to u16

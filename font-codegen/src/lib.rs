@@ -101,7 +101,7 @@ pub(crate) fn generate_compile_module(
         .iter()
         .map(|item| match item {
             Item::Record(item) => record::generate_compile(item, &items.parse_module_path),
-            Item::Table(item) => table::generate_compile(item, &items.parse_module_path),
+            Item::Table(item) => table::generate_compile(item, &items),
             Item::GenericGroup(item) => {
                 generic_group::generate_compile(item, &items.parse_module_path)
             }

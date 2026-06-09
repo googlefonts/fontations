@@ -99,6 +99,7 @@ pub use offset_array::{
     SanitizedArrayOfOffsets,
 };
 pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize};
+pub use sanitize::FastRead;
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::MinByteRange;
 

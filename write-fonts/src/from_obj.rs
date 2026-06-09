@@ -3,7 +3,8 @@
 use std::collections::BTreeSet;
 
 use read_fonts::{
-    ArrayOfNullableOffsets, ArrayOfOffsets, FontData, FontReadWithArgs, Offset, ReadArgs, ReadError,
+    ArrayOfNullableOffsets, ArrayOfOffsets, FastRead, FontData, FontReadWithArgs, Offset, ReadArgs,
+    ReadError, SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets,
 };
 use types::{BigEndian, Scalar};
 
@@ -212,6 +213,57 @@ where
     T: FromObjRef<U> + Default,
     U: ReadArgs + FontReadWithArgs<'a>,
     U::Args: 'static,
+    O: Scalar + Offset,
+{
+}
+
+// impls for converting sanitized arrays:
+impl<'a, T, U, O, const N: usize> FromObjRef<SanitizedArrayOfOffsets<'a, U, O>>
+    for Vec<OffsetMarker<T, N>>
+where
+    T: FromObjRef<U> + Default,
+    U: ReadArgs + FastRead<'a> + Default,
+    U::Args: Copy + 'static,
+    O: Scalar + Offset,
+{
+    fn from_obj_ref(from: &SanitizedArrayOfOffsets<'a, U, O>, data: FontData) -> Self {
+        from.iter()
+            .map(|x| OffsetMarker::from_obj_ref(&x, data))
+            .collect()
+    }
+}
+
+impl<'a, T, U, O, const N: usize> FromObjRef<SanitizedArrayOfNullableOffsets<'a, U, O>>
+    for Vec<NullableOffsetMarker<T, N>>
+where
+    T: FromObjRef<U> + Default,
+    U: ReadArgs + FastRead<'a> + Default,
+    U::Args: Copy + 'static,
+    O: Scalar + Offset,
+{
+    fn from_obj_ref(from: &SanitizedArrayOfNullableOffsets<'a, U, O>, data: FontData) -> Self {
+        from.iter()
+            .map(|x| NullableOffsetMarker::from_obj_ref(&x, data))
+            .collect()
+    }
+}
+
+impl<'a, T, U, O, const N: usize> FromTableRef<SanitizedArrayOfOffsets<'a, U, O>>
+    for Vec<OffsetMarker<T, N>>
+where
+    T: FromTableRef<U> + Default,
+    U: ReadArgs + FastRead<'a> + Default,
+    U::Args: Copy + 'static,
+    O: Scalar + Offset,
+{
+}
+
+impl<'a, T, U, O, const N: usize> FromTableRef<SanitizedArrayOfNullableOffsets<'a, U, O>>
+    for Vec<NullableOffsetMarker<T, N>>
+where
+    T: FromObjRef<U> + Default,
+    U: ReadArgs + FastRead<'a> + Default,
+    U::Args: Copy + 'static,
     O: Scalar + Offset,
 {
 }
