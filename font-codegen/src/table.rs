@@ -286,7 +286,7 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
 fn generate_fast_read(item: &Table) -> TokenStream {
     let name = item.raw_name();
     let generic = item.attrs.generic_offset.as_ref();
-    let generic_bounds = generic.map(|t| quote!(#t: Sanitize<Args = ()>));
+    let generic_bounds = generic.map(|t| quote!(#t: FastRead<'a, Args = ()>));
     let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
 
     if let Some(read_args) = &item.attrs.read_args {
