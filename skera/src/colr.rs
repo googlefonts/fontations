@@ -1,5 +1,6 @@
 //! impl subset() for COLR
 use crate::fnv::FnvHashMap;
+use crate::offset::SerializeSerialize;
 use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
@@ -25,7 +26,7 @@ use write_fonts::{
                 PaintVarSkewAroundCenter, PaintVarSolid, PaintVarSweepGradient, PaintVarTransform,
                 PaintVarTranslate, VarAffine2x3, VarColorLine, VarColorStop,
             },
-            variations::NO_VARIATION_INDEX,
+            variations::{DeltaSetIndexMap, NO_VARIATION_INDEX},
         },
         FontRef, MinByteRange, TopLevelTable,
     },
@@ -118,18 +119,17 @@ impl Subset for Colr<'_> {
         }
 
         //varIndexMap offset pos = 26
-        if let Some(var_index_map) = self
+        if self
             .var_index_map()
             .transpose()
             .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
+            .is_some()
         {
             if let Some(deltaset_index_map_subset_plan) =
                 create_deltaset_index_map_subset_plan(plan)
             {
-                Offset32::serialize_subset(
-                    &var_index_map,
+                Offset32::serialize_serialize::<DeltaSetIndexMap>(
                     s,
-                    plan,
                     &deltaset_index_map_subset_plan,
                     26,
                 )

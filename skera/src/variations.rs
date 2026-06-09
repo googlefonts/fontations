@@ -4,7 +4,7 @@ use crate::{
     inc_bimap::IncBiMap,
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetTable,
+    Plan, Serialize, SubsetTable,
 };
 use write_fonts::{
     read::{
@@ -493,15 +493,11 @@ impl<'a> DeltaSetIndexMapSerializePlan<'a> {
     }
 }
 
-impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
-    type ArgsForSubset = &'a DeltaSetIndexMapSerializePlan<'a>;
-    type Output = ();
-
-    fn subset(
-        &self,
-        _plan: &Plan,
+impl<'a> Serialize<'a> for DeltaSetIndexMap<'a> {
+    type Args = &'a DeltaSetIndexMapSerializePlan<'a>;
+    fn serialize(
         s: &mut Serializer,
-        index_map_subset_plan: &'a DeltaSetIndexMapSerializePlan<'a>,
+        index_map_subset_plan: Self::Args,
     ) -> Result<(), SerializeErrorFlags> {
         let output_map = index_map_subset_plan.output_map();
         let width = index_map_subset_plan.width();
