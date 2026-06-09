@@ -96,12 +96,17 @@ fn serialize_name_records(
 
         // 10 is the position of offset field within a NameRecord
         let offset_pos = len + 10;
+        let str_len = record.length();
+        // empty name str
+        if str_len == 0 {
+            s.copy_assign(offset_pos, 0_u16);
+            continue;
+        }
         s.push()
             .map_err(|_| SubsetError::SubsetTableError(Name::TAG))?;
 
         //copy string data
         let str_start = storage_start + offset;
-        let str_len = record.length();
         let str_bytes = data
             .get(str_start..str_start + str_len as usize)
             .ok_or(SubsetTableError(Name::TAG))?;
