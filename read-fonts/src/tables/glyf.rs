@@ -219,8 +219,10 @@ impl<'a> SimpleGlyph<'a> {
             return Err(ReadError::InvalidArrayLen);
         }
         let mut cursor = FontData::new(self.glyph_data()).cursor();
-        // We'll need at most n_points flags, but fewer if there are repeats
-        let flags_data = cursor.read_array::<u8>(n_points.min(cursor.remaining_bytes()))?;
+        // The flag run can use two bytes per point (a flag plus its repeat
+        // count), so the encoded flags may be longer than n_points; read over
+        // all the available data and stop once every point has a flag.
+        let flags_data = cursor.read_array::<u8>(cursor.remaining_bytes())?;
         let mut flags_iter = flags_data.iter().copied();
         // Keep track of the actual number of flag bytes read so that we can
         // create a new cursor for reading coordinates
@@ -1091,5 +1093,35 @@ mod tests {
 
         // return default value instead of panicking
         assert_eq!(glyph.instruction_length(), 0);
+    }
+
+    // The flags run can encode up to two bytes per point (a flag plus a repeat
+    // count). read_points_fast must agree with the points() iterator even when
+    // the flags section is longer than the point count.
+    #[test]
+    fn read_points_fast_long_flags() {
+        use font_test_data::bebuffer::BeBuffer;
+        // 1 contour, 3 points. Each point is its own REPEAT_FLAG entry with a
+        // repeat count of 0, so the flags section is 6 bytes for 3 points and
+        // there are no coordinate bytes. flag 0x39 = ON_CURVE | REPEAT_FLAG |
+        // X_IS_SAME_OR_POSITIVE | Y_IS_SAME_OR_POSITIVE.
+        let buf = BeBuffer::new()
+            .push(1_i16) // number_of_contours
+            .extend([0_i16; 4]) // bounding box
+            .push(2_u16) // end_pts_of_contours[0] => 3 points
+            .push(0_u16) // instruction_length
+            .extend([0x39u8, 0x00, 0x39, 0x00, 0x39, 0x00]);
+
+        let glyph = SimpleGlyph::read(buf.data().into()).unwrap();
+        assert_eq!(glyph.num_points(), 3);
+
+        let expected: Vec<_> = glyph.points().map(|p| (p.x as i32, p.y as i32)).collect();
+
+        let mut points = vec![Point::default(); 3];
+        let mut flags = vec![PointFlags::default(); 3];
+        glyph.read_points_fast::<i32>(&mut points, &mut flags).unwrap();
+        let actual: Vec<_> = points.iter().map(|p| (p.x, p.y)).collect();
+
+        assert_eq!(actual, expected);
     }
 }
