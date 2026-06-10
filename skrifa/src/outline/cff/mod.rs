@@ -325,7 +325,7 @@ impl<'a> Outlines<'a> {
             // large positive advances. Since this advance is optional,
             // we can just filter these out and let the client deal
             // with it, falling back to linear metrics.
-            .filter(|w| *w > 0.0))
+            .filter(|w| *w >= 0.0))
     }
 
     fn parse_font_dict(&self, subfont_index: u32) -> Result<FontDict, Error> {
