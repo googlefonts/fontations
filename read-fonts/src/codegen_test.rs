@@ -340,13 +340,15 @@ pub mod generic_group {
 
     /// Build bytes for a MyLookup with one subtable offset pointing at data
     /// immediately after the header.
-    /// Layout: [lookup_type: u16, sub_table_count: u16, offset0: Offset16, ...subtable data]
+    /// Layout: [lookup_type: u16, single_subtable_offset: Offset32,
+    /// sub_table_count: u16, offset0: Offset16, ...subtable data]
     #[cfg(test)]
     fn make_lookup_with_format1(lookup_type: u16) -> BeBuffer {
         BeBuffer::new()
             .push(lookup_type) // lookup_type
+            .push(0u32) // single_subtable_offset (null)
             .push(1u16) // sub_table_count
-            .push(6u16) // offset to subtable (6 bytes from start)
+            .push(10u16) // offset to subtable (10 bytes from start)
             // subtable data (MySubtableFormat1): format=1, value=42
             .push(1u16)
             .push(42u16)

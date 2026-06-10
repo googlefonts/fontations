@@ -81,13 +81,13 @@ impl<'a> KindsOfOffsets<'a> {
     /// The major/minor version of the GDEF table
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// A normal offset
     pub fn nonnullable_offset(&self) -> Offset16 {
         let range = self.nonnullable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`nonnullable_offset`][Self::nonnullable_offset].
@@ -99,7 +99,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// An offset that is nullable, but always present
     pub fn nullable_offset(&self) -> Nullable<Offset16> {
         let range = self.nullable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`nullable_offset`][Self::nullable_offset].
@@ -111,13 +111,13 @@ impl<'a> KindsOfOffsets<'a> {
     /// count of the array at array_offset
     pub fn array_offset_count(&self) -> u16 {
         let range = self.array_offset_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// An offset to an array:
     pub fn array_offset(&self) -> Offset16 {
         let range = self.array_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`array_offset`][Self::array_offset].
@@ -130,7 +130,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// An offset to an array of records
     pub fn record_array_offset(&self) -> Offset16 {
         let range = self.record_array_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`record_array_offset`][Self::record_array_offset].
@@ -143,9 +143,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// A nullable, versioned offset to an array of records
     pub fn versioned_nullable_record_array_offset(&self) -> Option<Nullable<Offset16>> {
         let range = self.versioned_nullable_record_array_offset_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
-            .flatten()
+        (!range.is_empty()).then(|| unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// Attempt to resolve [`versioned_nullable_record_array_offset`][Self::versioned_nullable_record_array_offset].
@@ -159,9 +157,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// A normal offset that is versioned
     pub fn versioned_nonnullable_offset(&self) -> Option<Offset16> {
         let range = self.versioned_nonnullable_offset_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
-            .flatten()
+        (!range.is_empty()).then(|| unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// Attempt to resolve [`versioned_nonnullable_offset`][Self::versioned_nonnullable_offset].
@@ -174,9 +170,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// An offset that is nullable and versioned
     pub fn versioned_nullable_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.versioned_nullable_offset_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_at(range.start).ok())
-            .flatten()
+        (!range.is_empty()).then(|| unsafe { self.data.read_at_unchecked(range.start) })
     }
 
     /// Attempt to resolve [`versioned_nullable_offset`][Self::versioned_nullable_offset].
@@ -371,19 +365,19 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     /// The version
     pub fn version(&self) -> MajorMinor {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// The number of items in each array
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// A normal array offset
     pub fn nonnullable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.nonnullable_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`nonnullable_offsets`][Self::nonnullable_offsets].
@@ -396,7 +390,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     /// An offset that is nullable, but always present
     pub fn nullable_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         let range = self.nullable_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`nullable_offsets`][Self::nullable_offsets].
@@ -409,9 +403,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     /// A normal offset that is versioned
     pub fn versioned_nonnullable_offsets(&self) -> Option<&'a [BigEndian<Offset16>]> {
         let range = self.versioned_nonnullable_offsets_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_array(range).ok())
-            .flatten()
+        (!range.is_empty()).then(|| unsafe { self.data.read_array_unchecked(range) })
     }
 
     /// A dynamically resolving wrapper for [`versioned_nonnullable_offsets`][Self::versioned_nonnullable_offsets].
@@ -426,9 +418,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     /// An offset that is nullable and versioned
     pub fn versioned_nullable_offsets(&self) -> Option<&'a [BigEndian<Nullable<Offset16>>]> {
         let range = self.versioned_nullable_offsets_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_array(range).ok())
-            .flatten()
+        (!range.is_empty()).then(|| unsafe { self.data.read_array_unchecked(range) })
     }
 
     /// A dynamically resolving wrapper for [`versioned_nullable_offsets`][Self::versioned_nullable_offsets].
@@ -584,41 +574,37 @@ impl<'a> KindsOfArrays<'a> {
 
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// the number of items in each array
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// an array of scalars
     pub fn scalars(&self) -> &'a [BigEndian<u16>] {
         let range = self.scalars_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// an array of records
     pub fn records(&self) -> &'a [Shmecord] {
         let range = self.records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// a versioned array of scalars
     pub fn versioned_scalars(&self) -> Option<&'a [BigEndian<u16>]> {
         let range = self.versioned_scalars_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_array(range).ok())
-            .flatten()
+        (!range.is_empty()).then(|| unsafe { self.data.read_array_unchecked(range) })
     }
 
     /// a versioned array of scalars
     pub fn versioned_records(&self) -> Option<&'a [Shmecord]> {
         let range = self.versioned_records_byte_range();
-        (!range.is_empty())
-            .then(|| self.data.read_array(range).ok())
-            .flatten()
+        (!range.is_empty()).then(|| unsafe { self.data.read_array_unchecked(range) })
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -761,7 +747,7 @@ impl<'a> VarLenHaver<'a> {
 
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn var_len(&self) -> VarLenArray<'a, VarSizeDummy> {
@@ -774,7 +760,7 @@ impl<'a> VarLenHaver<'a> {
 
     pub fn other_field(&self) -> u32 {
         let range = self.other_field_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn count_byte_range(&self) -> Range<usize> {
@@ -875,7 +861,7 @@ impl<'a> Dummy<'a> {
 
     pub fn value(&self) -> u16 {
         let range = self.value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn value_byte_range(&self) -> Range<usize> {

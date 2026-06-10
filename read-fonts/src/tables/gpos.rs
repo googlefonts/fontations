@@ -53,7 +53,7 @@ impl<'a> AnchorTable<'a> {
     }
 }
 
-impl<'a, T: FastRead<'a, Args = ()> + Default> ExtensionLookup<'a, T>
+impl<'a, T: Sanitize<Args = ()> + FastRead<'a, Args = ()> + Default> ExtensionLookup<'a, T>
     for ExtensionPosFormat1<'a, T>
 {
     fn extension(&self) -> Result<T, ReadError> {

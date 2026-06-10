@@ -235,6 +235,10 @@ fn generate_sanitize(item: &TableFormat) -> TokenStream {
 
         impl<'a> FastRead<'a> for #name<'a> {
             fn fast_read(data: FontData<'a>, _args: ()) -> Self {
+                // NOTE: this read is deliberately checked: it happens once
+                // per table resolution (not per field access) and keeping it
+                // checked limits the blast radius if fast_read is ever called
+                // with unsanitized data.
                 let format: #format = data.read_at(#format_offset).unwrap_or_default();
                 #maybe_allow_lint
                 match format {

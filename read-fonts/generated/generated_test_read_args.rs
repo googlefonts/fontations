@@ -74,7 +74,7 @@ impl<'a> BaseArray<'a> {
     /// Number of BaseRecords
     pub fn base_count(&self) -> u16 {
         let range = self.base_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Array of BaseRecords, in order of baseCoverage Index.
@@ -87,7 +87,7 @@ impl<'a> BaseArray<'a> {
 
     pub fn face_count(&self) -> u16 {
         let range = self.face_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn face_records(&self) -> ComputedArray<'a, FaceRecord<'a>> {
@@ -387,7 +387,7 @@ impl<'a> Face<'a> {
 
     pub fn field(&self) -> u16 {
         let range = self.field_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn field_byte_range(&self) -> Range<usize> {

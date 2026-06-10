@@ -134,6 +134,84 @@ impl<'a> FontData<'a> {
             .ok_or(ReadError::OutOfBounds)
     }
 
+    /// Read a scalar at the provided location, without bounds checking.
+    ///
+    /// This is only intended to be called from generated code, for fields
+    /// that were previously validated by a [`Sanitize`] pass; see the
+    /// [`sanitize`] module docs for an explanation of the invariant.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `offset + T::RAW_BYTE_LEN <= self.len()`.
+    ///
+    /// [`Sanitize`]: crate::sanitize::Sanitize
+    /// [`sanitize`]: crate::sanitize
+    pub(crate) unsafe fn read_at_unchecked<T: Scalar>(&self, offset: usize) -> T {
+        let end = offset.wrapping_add(T::RAW_BYTE_LEN);
+        debug_assert!(offset <= end && end <= self.bytes.len());
+        // SAFETY: the caller promises that offset..end is in bounds
+        let bytes = unsafe { self.bytes.get_unchecked(offset..end) };
+        // SAFETY: Scalar::read always returns Some for a slice of exactly
+        // RAW_BYTE_LEN bytes
+        unsafe { T::read(bytes).unwrap_unchecked() }
+    }
+
+    /// Interpret the bytes in the provided range as a slice of `T`, without
+    /// bounds checking.
+    ///
+    /// This is only intended to be called from generated code, for fields
+    /// that were previously validated by a [`Sanitize`] pass; see the
+    /// [`sanitize`] module docs for an explanation of the invariant.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `range` is in bounds of the underlying
+    /// data, and that `T` is non-zero-sized, has an alignment of one, and
+    /// has a size equal to `T::RAW_BYTE_LEN`.
+    ///
+    /// [`Sanitize`]: crate::sanitize::Sanitize
+    /// [`sanitize`]: crate::sanitize
+    #[expect(clippy::arithmetic_side_effects)] // division is guarded by debug_asserts
+    pub(crate) unsafe fn read_array_unchecked<T: AnyBitPattern + FixedSize>(
+        &self,
+        range: Range<usize>,
+    ) -> &'a [T] {
+        // we use debug_asserts to triple-check our invariants: all of our
+        // code-generated types should be constructed in our test suite, so
+        // if we've broken an invariant in codegen we should catch it here
+        debug_assert!(range.start <= range.end && range.end <= self.bytes.len());
+        debug_assert!(std::mem::size_of::<T>() > 0);
+        debug_assert_eq!(std::mem::size_of::<T>(), T::RAW_BYTE_LEN);
+        debug_assert_eq!(range.len() % std::mem::size_of::<T>(), 0);
+        debug_assert!(std::mem::align_of::<T>() == 1);
+        // SAFETY: the caller promises that range is in bounds
+        let bytes = unsafe { self.bytes.get_unchecked(range) };
+        let new_len = bytes.len() / std::mem::size_of::<T>();
+        // SAFETY: the caller promises that T is an AnyBitPattern type with
+        // alignment one; the pointer is derived from a valid slice
+        unsafe { core::slice::from_raw_parts(bytes.as_ptr() as *const T, new_len) }
+    }
+
+    /// Returns self[pos..], without bounds checking.
+    ///
+    /// This is only intended to be called when resolving an offset that was
+    /// previously validated by a [`Sanitize`] pass; see the [`sanitize`]
+    /// module docs for an explanation of the invariant.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure that `pos <= self.len()`.
+    ///
+    /// [`Sanitize`]: crate::sanitize::Sanitize
+    /// [`sanitize`]: crate::sanitize
+    pub(crate) unsafe fn split_off_unchecked(&self, pos: usize) -> FontData<'a> {
+        debug_assert!(pos <= self.bytes.len());
+        FontData {
+            // SAFETY: the caller promises that pos <= len
+            bytes: unsafe { self.bytes.get_unchecked(pos..) },
+        }
+    }
+
     /// Read a big-endian value at the provided location in the data.
     pub fn read_be_at<T: Scalar>(&self, offset: usize) -> Result<BigEndian<T>, ReadError> {
         let end = offset

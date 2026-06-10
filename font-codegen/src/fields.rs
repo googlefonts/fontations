@@ -754,18 +754,32 @@ impl Field {
             (maybe_unwrap.is_none() && !is_conditional).then(|| quote!( .unwrap_or_default() ));
 
         let range_stmt = self.getter_range_stmt();
+        // in sanitized tables, scalar and plain array reads skip bounds
+        // checks; the ranges were validated when the table was sanitized
+        // (see the read-fonts sanitize module docs). reads that take args
+        // (e.g. computed arrays) and var-len arrays remain checked.
+        let unchecked = sanitize && self.attrs.read_with_args.is_none() && !is_var_array;
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
             quote!( self.data.read_with_args(range, &#get_args) #maybe_unwrap_or_def )
         } else if is_var_array {
             quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
         } else if is_array {
-            quote!(self.data.read_array(range).ok() #maybe_unwrap #maybe_unwrap_or_def)
+            if unchecked {
+                quote!(unsafe { self.data.read_array_unchecked(range) })
+            } else {
+                quote!(self.data.read_array(range).ok() #maybe_unwrap #maybe_unwrap_or_def)
+            }
+        } else if unchecked {
+            quote!(unsafe { self.data.read_at_unchecked(range.start) })
         } else {
             quote!(self.data.read_at(range.start).ok() #maybe_unwrap #maybe_unwrap_or_def)
         };
         if is_conditional {
-            read_stmt = quote! { (!range.is_empty()).then(||#read_stmt).flatten() };
+            // the unchecked reads return `T` rather than `Option<T>`,
+            // so there is no need to flatten
+            let maybe_flatten = (!unchecked).then(|| quote!(.flatten()));
+            read_stmt = quote! { (!range.is_empty()).then(||#read_stmt) #maybe_flatten };
         }
 
         let docs = &self.attrs.docs;

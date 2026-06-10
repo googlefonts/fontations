@@ -221,11 +221,7 @@ fn generate_font_read(item: &Table, sanitize: bool) -> syn::Result<TokenStream> 
             }
         })
     } else {
-        // Only use sanitize-then-fast_read for non-generic tables;
-        // generic tables keep the old bounds-check approach since their
-        // FontRead bound on T doesn't imply Sanitize.
-        let use_sanitize = sanitize && generic.is_none();
-        let body = if use_sanitize {
+        let body = if sanitize {
             quote! {
                 let mut state = SanitizeState::default();
                 let mut ctx = SanitizeContext::new(data, &mut state);
@@ -241,8 +237,13 @@ fn generate_font_read(item: &Table, sanitize: bool) -> syn::Result<TokenStream> 
                 Ok(Self { data, #phantom })
             }
         };
+        // generic tables (e.g. Lookup<T>) in sanitized modules need bounds
+        // on T so that read can sanitize; without sanitizing here, the
+        // unchecked getters could be reached with unvalidated data.
+        let generic_bounds = (sanitize && generic.is_some())
+            .then(|| quote!(: Sanitize<Args = ()> + FastRead<'a, Args = ()>));
         Ok(quote! {
-            impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
+            impl<'a, #generic #generic_bounds> FontRead<'a> for #name<'a, #generic> {
                 fn read(data: FontData<'a>) -> Result<Self, ReadError> {
                     #body
                 }
@@ -265,13 +266,23 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     };
 
     let generic = item.attrs.generic_offset.as_ref();
-    let generic_bounds = generic.map(|t| quote!(#t: Sanitize<Args = #args_typ>));
 
     let stmts = item.iter_sanitze_statements()?;
     let fast_read = generate_fast_read(item);
 
+    // the FastRead bound is not used by the sanitize impl itself, but is
+    // needed to satisfy the blanket ReadArgs impl (a supertrait of Sanitize),
+    // which goes through FontRead; for generic tables in sanitized modules
+    // FontRead requires both Sanitize and FastRead of T.
+    let impl_header = match generic {
+        Some(t) => quote! {
+            impl<'a, #t: Sanitize<Args = #args_typ> + FastRead<'a, Args = ()>> Sanitize for #name<'a, #t>
+        },
+        None => quote!( impl Sanitize for #name<'_> ),
+    };
+
     Ok(quote! {
-        impl<#generic_bounds> Sanitize for #name<'_, #generic> {
+        #impl_header {
             fn sanitize(ctx: &mut SanitizeContext, #args_arg) -> Result<(), ReadError> {
                 #destructure_args
                 #( #stmts )*
@@ -286,7 +297,9 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
 fn generate_fast_read(item: &Table) -> TokenStream {
     let name = item.raw_name();
     let generic = item.attrs.generic_offset.as_ref();
-    let generic_bounds = generic.map(|t| quote!(#t: FastRead<'a, Args = ()>));
+    // as with Sanitize, the extra Sanitize bound here exists to satisfy the
+    // blanket ReadArgs impl, via FontRead
+    let generic_bounds = generic.map(|t| quote!(#t: Sanitize<Args = ()> + FastRead<'a, Args = ()>));
     let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
 
     if let Some(read_args) = &item.attrs.read_args {

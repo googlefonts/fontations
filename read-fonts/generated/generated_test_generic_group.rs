@@ -21,16 +21,12 @@ impl<'a, T> MinByteRange<'a> for MyLookup<'a, T> {
     }
 }
 
-impl<'a, T> FontRead<'a> for MyLookup<'a, T> {
+impl<'a, T: Sanitize<Args = ()> + FastRead<'a, Args = ()>> FontRead<'a> for MyLookup<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self {
-            data,
-            offset_type: std::marker::PhantomData,
-        })
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext::new(data, &mut state);
+        Self::sanitize(&mut ctx, ())?;
+        Ok(Self::fast_read(data, ()))
     }
 }
 
@@ -45,7 +41,7 @@ impl<'a, T> MyLookup<'a, T> {
     }
 }
 
-impl<T: Sanitize<Args = ()>> Sanitize for MyLookup<'_, T> {
+impl<'a, T: Sanitize<Args = ()> + FastRead<'a, Args = ()>> Sanitize for MyLookup<'a, T> {
     fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         ctx.sanitize_offset::<Offset32, T>(())?;
@@ -55,7 +51,7 @@ impl<T: Sanitize<Args = ()>> Sanitize for MyLookup<'_, T> {
     }
 }
 
-impl<'a, T: FastRead<'a, Args = ()>> FastRead<'a> for MyLookup<'a, T> {
+impl<'a, T: Sanitize<Args = ()> + FastRead<'a, Args = ()>> FastRead<'a> for MyLookup<'a, T> {
     fn fast_read(data: FontData<'a>, _args: ()) -> Self {
         Self {
             data,
@@ -79,13 +75,13 @@ impl<'a, T> MyLookup<'a, T> {
     /// Determines the concrete type of T
     pub fn lookup_type(&self) -> u16 {
         let range = self.lookup_type_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// offset to a single generic table
     pub fn single_subtable_offset(&self) -> Offset32 {
         let range = self.single_subtable_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`single_subtable_offset`][Self::single_subtable_offset].
@@ -100,13 +96,13 @@ impl<'a, T> MyLookup<'a, T> {
     /// Number of subtables
     pub fn sub_table_count(&self) -> u16 {
         let range = self.sub_table_count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Offsets to subtables, from beginning of this table
     pub fn subtable_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.subtable_offsets_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
@@ -342,12 +338,12 @@ impl<'a> MySubtableFormat1<'a> {
 
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn value(&self) -> u16 {
         let range = self.value_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -445,17 +441,17 @@ impl<'a> MySubtableFormat2<'a> {
 
     pub fn format(&self) -> u16 {
         let range = self.format_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn count(&self) -> u16 {
         let range = self.count_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn values(&self) -> &'a [BigEndian<u16>] {
         let range = self.values_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        unsafe { self.data.read_array_unchecked(range) }
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -628,12 +624,12 @@ impl<'a> ContainsLookupGroup<'a> {
 
     pub fn version(&self) -> u16 {
         let range = self.version_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     pub fn lookup_offset(&self) -> Offset16 {
         let range = self.lookup_offset_byte_range();
-        self.data.read_at(range.start).ok().unwrap()
+        unsafe { self.data.read_at_unchecked(range.start) }
     }
 
     /// Attempt to resolve [`lookup_offset`][Self::lookup_offset].

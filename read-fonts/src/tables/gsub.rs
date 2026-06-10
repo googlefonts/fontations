@@ -25,7 +25,7 @@ pub type SubstitutionSequenceContext<'a> = super::layout::SequenceContext<'a>;
 /// A GSUB [ChainedSequenceContext]
 pub type SubstitutionChainContext<'a> = super::layout::ChainedSequenceContext<'a>;
 
-impl<'a, T: FastRead<'a, Args = ()> + Default> ExtensionLookup<'a, T>
+impl<'a, T: Sanitize<Args = ()> + FastRead<'a, Args = ()> + Default> ExtensionLookup<'a, T>
     for ExtensionSubstFormat1<'a, T>
 {
     fn extension(&self) -> Result<T, ReadError> {
