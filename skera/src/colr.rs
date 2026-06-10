@@ -650,9 +650,10 @@ impl SubsetTable<'_> for VarColorStop {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             // update VarIdxBase
-            s.embed(*new_varidx)?;
+            s.embed(*new_varidx).map(|_| ())
+        } else {
+            s.embed(varidx_base).map(|_| ())
         }
-        s.embed(varidx_base).map(|_| ())
     }
 }
 
