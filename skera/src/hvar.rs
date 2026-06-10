@@ -1,6 +1,7 @@
 //! impl subset() for HVAR
 
 use crate::fnv::FnvHashMap;
+use crate::offset::SerializeSerialize;
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
@@ -92,7 +93,7 @@ impl ListupIndexMaps for Hvar<'_> {
 
 pub(crate) fn serialize_index_maps(
     s: &mut Serializer,
-    plan: &Plan,
+    _plan: &Plan,
     index_maps: &[Option<DeltaSetIndexMap>],
     index_map_plans: &[IndexMapSubsetPlan],
 ) -> Result<(), SerializeErrorFlags> {
@@ -100,16 +101,14 @@ pub(crate) fn serialize_index_maps(
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
     }
 
-    for (index_map, index_map_subset_plan) in index_maps.iter().zip(index_map_plans) {
+    for index_map_subset_plan in index_map_plans {
         let offset_pos = s.embed(0_u32)?;
         if index_map_subset_plan.is_identity() {
             continue;
         }
 
-        Offset32::serialize_subset(
-            index_map.as_ref().unwrap(),
+        Offset32::serialize_serialize::<DeltaSetIndexMap>(
             s,
-            plan,
             &index_map_subset_plan.to_serialize_plan(),
             offset_pos,
         )?;
@@ -337,14 +336,12 @@ impl HvarVvarSubsetPlan {
             this.inner_maps.push(inner_map);
         }
 
-        for (i, index_map) in index_maps.iter().enumerate() {
-            this.index_map_subset_plans[i].remap(
-                plan,
-                index_map.as_ref(),
-                &outer_map,
-                &this.inner_maps,
-            );
-        }
+        this.index_map_subset_plans
+            .iter_mut()
+            .zip(index_maps)
+            .for_each(|(index_map_subset_plan, index_map)| {
+                index_map_subset_plan.remap(plan, index_map.as_ref(), &outer_map, &this.inner_maps)
+            });
         Ok(this)
     }
 
