@@ -456,8 +456,12 @@ impl HintingInstance {
                 let Some(subfont) = subfonts.get(*subfont_ix as usize) else {
                     return Err(DrawError::NoSources);
                 };
-                cff.draw(subfont, *glyph_id, &self.coords, true, pen)?;
-                Ok(AdjustedMetrics::default())
+                let advance_width = cff.draw(subfont, *glyph_id, &self.coords, true, pen)?;
+                Ok(AdjustedMetrics {
+                    has_overlaps: false,
+                    lsb: None,
+                    advance_width,
+                })
             }
             (HinterKind::Varc, OutlineKind::Varc(varc, outline)) => {
                 super::with_temporary_memory(glyph, Hinting::None, memory, |buf| {
