@@ -12,6 +12,14 @@ use read_fonts::{
     },
     types::GlyphId,
 };
+use skrifa::{
+    charmap::Charmap,
+    instance::{LocationRef, Size},
+    metrics::Metrics,
+    outline::OutlineGlyphFormat,
+    string::StringId,
+    FontRef, GlyphNameSource, GlyphNames, MetadataProvider, OutlineGlyphCollection,
+};
 
 #[cxx::bridge(namespace = "skrifa")]
 mod skrifa_ffi {
@@ -49,20 +57,24 @@ mod skrifa_ffi {
     }
 
     extern "Rust" {
-        type PsFont<'a>;
-        unsafe fn new_ps_font<'a>(data: &'a [u8]) -> Box<PsFont<'a>>;
+        type SkrifaFont<'a>;
+        unsafe fn new_font<'a>(data: &'a [u8], index: u32) -> Box<SkrifaFont<'a>>;
         fn is_ok(&self) -> bool;
-        unsafe fn name<'a>(&'a self) -> &'a str;
+        fn font_type(&self) -> &'static str;
+        unsafe fn postscript_name<'a>(&'a self) -> &'a str;
         unsafe fn family_name<'a>(&'a self) -> &'a str;
         fn units_per_em(&self) -> i32;
         fn ascent(&self) -> f32;
         fn descent(&self) -> f32;
         fn num_glyphs(&self) -> u32;
+        fn is_fixed_pitch(&self) -> bool;
         fn is_cid(&self) -> bool;
         fn cid_to_gid(&self, cid: u16) -> u32;
         fn unicode_to_gid(&self, unicode: u32) -> u32;
         fn encoding(&self) -> PsEncodingKind;
         fn code_to_gid(&self, code: u8) -> u32;
+        fn has_glyph_names(&self) -> bool;
+        fn glyph_name(&self, gid: u32) -> String;
         fn scaled_outline(&self, gid: u32, ppem: f32, outline: &mut Outline) -> bool;
         fn unscaled_outline(&self, gid: u32, outline: &mut Outline) -> bool;
 
@@ -79,10 +91,48 @@ mod skrifa_ffi {
 
 use skrifa_ffi::{Outline, PathVerb, Point, PsEncodingKind};
 
-pub enum PsFont<'a> {
+pub enum SkrifaFont<'a> {
+    Sfnt(Sfnt<'a>),
     Type1(Type1Font),
     Cff(CffFont<'a>),
     Error,
+}
+
+pub struct Sfnt<'a> {
+    font: FontRef<'a>,
+    metrics: Metrics,
+    ps_name: Option<String>,
+    family_name: Option<String>,
+    glyph_names: GlyphNames<'a>,
+    charmap: Charmap<'a>,
+    outlines: OutlineGlyphCollection<'a>,
+}
+
+impl<'a> Sfnt<'a> {
+    fn new(data: &'a [u8], index: u32) -> Option<Self> {
+        let font = FontRef::from_index(data, index).ok()?;
+        let metrics = font.metrics(Size::unscaled(), LocationRef::default());
+        let get_name = |id| {
+            font.localized_strings(id)
+                .english_or_first()
+                .map(|s| s.to_string())
+        };
+        let ps_name = get_name(StringId::POSTSCRIPT_NAME);
+        let family_name =
+            get_name(StringId::FAMILY_NAME).or_else(|| get_name(StringId::TYPOGRAPHIC_FAMILY_NAME));
+        let glyph_names = font.glyph_names();
+        let charmap = font.charmap();
+        let outlines = font.outline_glyphs();
+        Some(Self {
+            font,
+            ps_name,
+            metrics,
+            family_name,
+            glyph_names,
+            charmap,
+            outlines,
+        })
+    }
 }
 
 pub struct CffFont<'a> {
@@ -94,8 +144,11 @@ pub struct CffFont<'a> {
     subfonts: Vec<Option<CffSubfont>>,
 }
 
-pub fn new_ps_font(data: &[u8]) -> Box<PsFont<'_>> {
-    let font = if let Ok(cff) = CffFontRef::new(data, 0, None) {
+pub fn new_font(data: &[u8], index: u32) -> Box<SkrifaFont<'_>> {
+    if let Some(sfnt) = Sfnt::new(data, index) {
+        return Box::new(SkrifaFont::Sfnt(sfnt));
+    }
+    let font = if let Ok(cff) = CffFontRef::new(data, index, None) {
         let meta = cff.metadata();
         let charset = cff.charset();
         let encoding = cff.encoding();
@@ -109,7 +162,7 @@ pub fn new_ps_font(data: &[u8]) -> Box<PsFont<'_>> {
         } else {
             None
         };
-        PsFont::Cff(CffFont {
+        SkrifaFont::Cff(CffFont {
             font: cff,
             meta,
             charset,
@@ -118,20 +171,34 @@ pub fn new_ps_font(data: &[u8]) -> Box<PsFont<'_>> {
             subfonts,
         })
     } else if let Ok(type1) = Type1Font::new(data) {
-        PsFont::Type1(type1)
+        SkrifaFont::Type1(type1)
     } else {
-        PsFont::Error
+        SkrifaFont::Error
     };
     Box::new(font)
 }
 
-impl PsFont<'_> {
+impl SkrifaFont<'_> {
     fn is_ok(&self) -> bool {
         !matches!(self, Self::Error)
     }
 
-    fn name(&self) -> &str {
+    fn font_type(&self) -> &'static str {
         match self {
+            Self::Sfnt(sfnt) => match sfnt.outlines.format() {
+                Some(OutlineGlyphFormat::Glyf) => "TrueType",
+                Some(OutlineGlyphFormat::Cff) | Some(OutlineGlyphFormat::Cff2) => "CFF",
+                _ => "",
+            },
+            Self::Type1(_) => "Type 1",
+            Self::Cff(_) => "CFF",
+            Self::Error => "",
+        }
+    }
+
+    fn postscript_name(&self) -> &str {
+        match self {
+            Self::Sfnt(sfnt) => sfnt.ps_name.as_deref().unwrap_or_default(),
             Self::Type1(type1) => type1.name().unwrap_or_default(),
             Self::Cff(cff) => cff
                 .meta
@@ -144,6 +211,7 @@ impl PsFont<'_> {
 
     fn family_name(&self) -> &str {
         match self {
+            Self::Sfnt(sfnt) => sfnt.family_name.as_deref().unwrap_or_default(),
             Self::Type1(type1) => type1.family_name().unwrap_or_default(),
             Self::Cff(cff) => cff
                 .meta
@@ -156,6 +224,7 @@ impl PsFont<'_> {
 
     fn units_per_em(&self) -> i32 {
         match self {
+            Self::Sfnt(sfnt) => sfnt.metrics.units_per_em as i32,
             Self::Type1(type1) => type1.upem(),
             Self::Cff(cff) => cff.font.upem(),
             Self::Error => 0,
@@ -164,6 +233,7 @@ impl PsFont<'_> {
 
     fn ascent(&self) -> f32 {
         let bbox = match self {
+            Self::Sfnt(sfnt) => return sfnt.metrics.ascent,
             Self::Type1(type1) => type1.bbox(),
             Self::Cff(cff) => cff
                 .meta
@@ -177,6 +247,7 @@ impl PsFont<'_> {
 
     fn descent(&self) -> f32 {
         let bbox = match self {
+            Self::Sfnt(sfnt) => return sfnt.metrics.descent,
             Self::Type1(type1) => type1.bbox(),
             Self::Cff(cff) => cff
                 .meta
@@ -190,14 +261,29 @@ impl PsFont<'_> {
 
     fn num_glyphs(&self) -> u32 {
         match self {
+            Self::Sfnt(sfnt) => sfnt.metrics.glyph_count as u32,
             Self::Type1(type1) => type1.num_glyphs(),
             Self::Cff(cff) => cff.font.num_glyphs(),
             Self::Error => 0,
         }
     }
 
+    fn is_fixed_pitch(&self) -> bool {
+        match self {
+            Self::Sfnt(sfnt) => sfnt.metrics.is_monospace,
+            Self::Type1(type1) => type1.is_fixed_pitch(),
+            Self::Cff(cff) => cff
+                .meta
+                .as_ref()
+                .map(|meta| meta.is_fixed_pitch())
+                .unwrap_or(false),
+            Self::Error => false,
+        }
+    }
+
     fn unicode_to_gid(&self, unicode: u32) -> u32 {
         let gid = match self {
+            Self::Sfnt(sfnt) => sfnt.charmap.map(unicode),
             Self::Type1(type1) => type1.unicode_charmap().map(unicode),
             Self::Cff(cff) => cff.unicode_cmap.as_ref().and_then(|cmap| cmap.map(unicode)),
             Self::Error => return 0,
@@ -207,6 +293,7 @@ impl PsFont<'_> {
 
     fn encoding(&self) -> PsEncodingKind {
         let maybe_predefined = match self {
+            Self::Sfnt(_sfnt) => return PsEncodingKind::None,
             Self::Type1(type1) => type1.encoding().map(|encoding| encoding.predefined()),
             Self::Cff(cff) => cff.encoding.as_ref().map(|encoding| encoding.predefined()),
             Self::Error => return PsEncodingKind::None,
@@ -224,6 +311,7 @@ impl PsFont<'_> {
 
     fn code_to_gid(&self, code: u8) -> u32 {
         let gid = match self {
+            Self::Sfnt(_sfnt) => return 0,
             Self::Type1(type1) => type1.encoding().and_then(|encoding| encoding.map(code)),
             Self::Cff(cff) => cff
                 .encoding
@@ -236,6 +324,35 @@ impl PsFont<'_> {
             gid
         } else {
             0
+        }
+    }
+
+    fn has_glyph_names(&self) -> bool {
+        match self {
+            Self::Sfnt(sfnt) => sfnt.glyph_names.source() != GlyphNameSource::Synthesized,
+            Self::Type1(_type1) => true,
+            Self::Cff(cff) => cff.charset.is_some() && !cff.font.is_cid(),
+            Self::Error => false,
+        }
+    }
+
+    fn glyph_name(&self, gid: u32) -> String {
+        match self {
+            Self::Sfnt(sfnt) => sfnt
+                .glyph_names
+                .get(GlyphId::new(gid))
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            Self::Type1(type1) => type1.glyph_name(gid.into()).unwrap_or_default().to_string(),
+            Self::Cff(cff) if cff.charset.is_some() && !cff.font.is_cid() => cff
+                .charset
+                .as_ref()
+                .and_then(|charset| charset.string_id(gid.into()).ok())
+                .and_then(|sid| cff.font.string(sid))
+                .and_then(|s| core::str::from_utf8(s).ok())
+                .map(|s| s.to_string())
+                .unwrap_or_default(),
+            _ => String::new(),
         }
     }
 
@@ -271,6 +388,18 @@ impl PsFont<'_> {
         outline.points.clear();
         outline.advance_width = 0.0;
         let width = match self {
+            Self::Sfnt(sfnt) => {
+                let gid = GlyphId::new(gid);
+                let size = ppem.map(Size::new).unwrap_or(Size::unscaled());
+                let glyph = sfnt.outlines.get(gid)?;
+                let metrics = glyph.draw(size, outline).ok()?;
+                metrics.advance_width.unwrap_or_else(|| {
+                    sfnt.font
+                        .glyph_metrics(size, LocationRef::default())
+                        .advance_width(gid)
+                        .unwrap_or_default()
+                })
+            }
             Self::Type1(type1) => type1.draw(gid.into(), ppem, outline).ok()??,
             Self::Cff(cff) => {
                 let gid = GlyphId::new(gid);

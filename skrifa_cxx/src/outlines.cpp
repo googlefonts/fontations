@@ -8,48 +8,66 @@
 
 void dump_outline(skrifa::Outline& outline);
 
+struct MyFont {
+    // font_data must live as long as font
+    std::vector<char> font_data;
+    rust::Box<skrifa::SkrifaFont> font;
+
+    static MyFont from_file(const char* path, uint32_t index) {
+        std::ifstream input(path, std::ios::binary);
+        std::vector<char> bytes(
+             (std::istreambuf_iterator<char>(input)),
+             (std::istreambuf_iterator<char>()));
+        input.close();
+        rust::Slice<const uint8_t> slice((const uint8_t*)bytes.data(), bytes.size());
+        rust::Box<skrifa::SkrifaFont> font = skrifa::new_font(slice, index);
+        return MyFont{std::move(bytes), std::move(font)};
+    }
+
+    const skrifa::SkrifaFont* operator->() const {
+        return &*font;
+    }
+};
+
 void skrifa::run() {
-    // Load the font data
-    std::ifstream input("../font-test-data/test_data/type1/notoserif-regular.subset.pfa", std::ios::binary);
-    std::vector<char> bytes(
-         (std::istreambuf_iterator<char>(input)),
-         (std::istreambuf_iterator<char>()));
-    input.close();
+    using ::MyFont;
 
-    // Create a rust slice containing the font data
-    rust::Slice<const uint8_t> slice((const uint8_t*)bytes.data(), bytes.size());
+    //const char* path ="../font-test-data/test_data/type1/notoserif-regular.subset.pfa";
+    const char* path = "../font-test-data/test_data/ttf/notoserifhebrew_autohint_metrics.ttf";
+    MyFont font = MyFont::from_file(path, 0);
 
-    // Load the font. Note that the bytes vector must live as long as the font
-    auto font = skrifa::new_ps_font(slice);
     if (!font->is_ok()) {
         printf("Failed to load font!\n");
         return;
     }
 
     // Get the PostScript name
-    auto name = (std::string)font->name();
+    auto ps_name = (std::string)font->postscript_name();
 
     // And the family name
     auto family_name = (std::string)font->family_name();
+    auto font_type = (std::string)font->font_type();
 
-    printf("ps name = %s, family name = %s\n", name.c_str(), family_name.c_str());
+    printf("ps name = %s, family name = %s, font type = %s\n", ps_name.c_str(), family_name.c_str(), font_type.c_str());
 
     // How many glyphs?
     printf("Font has %d glyphs\n", font->num_glyphs());
 
-    // The font's encoding is Adobe standard
-    assert(font->encoding() == PsEncodingKind::Standard);
+    // // The font's encoding is Adobe standard
+    // assert(font->encoding() == PsEncodingKind::Standard);
 
-    // The Adobe standard code for 'x' is 120
-    auto gid_from_code = font->code_to_gid(120);
+    // // The Adobe standard code for 'x' is 120
+    // auto gid_from_code = font->code_to_gid(120);
 
-    // But we also generate a Unicode mapping for glyphs present in the AGL
-    auto gid = font->unicode_to_gid('x');
+    // // But we also generate a Unicode mapping for glyphs present in the AGL
+    // auto gid = font->unicode_to_gid('x');
 
-    assert(gid_from_code == gid);
+    // assert(gid_from_code == gid);
 
     // Storage for our outline
     skrifa::Outline outline;
+
+    auto gid = 2;
 
     // Load an unscaled outline
     font->unscaled_outline(gid, outline);
