@@ -15,8 +15,12 @@ impl<'a> MinByteRange<'a> for CountAll16<'a> {
     }
 }
 
+impl ReadArgs for CountAll16<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CountAll16<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -98,8 +102,12 @@ impl<'a> MinByteRange<'a> for CountAll32<'a> {
     }
 }
 
+impl ReadArgs for CountAll32<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CountAll32<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

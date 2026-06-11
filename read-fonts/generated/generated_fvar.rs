@@ -20,8 +20,12 @@ impl TopLevelTable for Fvar<'_> {
     const TAG: Tag = Tag::new(b"fvar");
 }
 
+impl ReadArgs for Fvar<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Fvar<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -189,7 +193,7 @@ impl ReadArgs for AxisInstanceArrays<'_> {
     type Args = (u16, u16, u16);
 }
 
-impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
+impl<'a> FontRead<'a> for AxisInstanceArrays<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
         let (axis_count, instance_count, instance_size) = *args;
 

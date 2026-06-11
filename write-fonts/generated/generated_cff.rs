@@ -65,8 +65,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v1::CffHeader<'a>> for CffHeader {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v1::CffHeader<'a>> for CffHeader {}
 
+impl ReadArgs for CffHeader {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CffHeader {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CffHeader as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -128,8 +132,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v1::Index<'a>> for Index {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v1::Index<'a>> for Index {}
 
+impl ReadArgs for Index {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Index {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::Index as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -206,8 +214,12 @@ impl FromObjRef<read_fonts::ps::cff::v1::FdSelect<'_>> for FdSelect {
 
 impl FromTableRef<read_fonts::ps::cff::v1::FdSelect<'_>> for FdSelect {}
 
+impl ReadArgs for FdSelect {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FdSelect {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::FdSelect as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -272,8 +284,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v1::FdSelectFormat0<'a>> for FdSelectFo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v1::FdSelectFormat0<'a>> for FdSelectFormat0 {}
 
+impl ReadArgs for FdSelectFormat0 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FdSelectFormat0 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::FdSelectFormat0 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -335,8 +351,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v1::FdSelectFormat3<'a>> for FdSelectFo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v1::FdSelectFormat3<'a>> for FdSelectFormat3 {}
 
+impl ReadArgs for FdSelectFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FdSelectFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::FdSelectFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -438,8 +458,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v1::FdSelectFormat4<'a>> for FdSelectFo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v1::FdSelectFormat4<'a>> for FdSelectFormat4 {}
 
+impl ReadArgs for FdSelectFormat4 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FdSelectFormat4 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::FdSelectFormat4 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -557,8 +581,12 @@ impl FromObjRef<read_fonts::ps::cff::v1::CustomCharset<'_>> for CustomCharset {
 
 impl FromTableRef<read_fonts::ps::cff::v1::CustomCharset<'_>> for CustomCharset {}
 
+impl ReadArgs for CustomCharset {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CustomCharset {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CustomCharset as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -623,8 +651,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v1::CharsetFormat0<'a>> for CharsetForm
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v1::CharsetFormat0<'a>> for CharsetFormat0 {}
 
+impl ReadArgs for CharsetFormat0 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CharsetFormat0 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CharsetFormat0 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -678,8 +710,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v1::CharsetFormat1<'a>> for CharsetForm
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v1::CharsetFormat1<'a>> for CharsetFormat1 {}
 
+impl ReadArgs for CharsetFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CharsetFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CharsetFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -773,8 +809,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v1::CharsetFormat2<'a>> for CharsetForm
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v1::CharsetFormat2<'a>> for CharsetFormat2 {}
 
+impl ReadArgs for CharsetFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CharsetFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CharsetFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

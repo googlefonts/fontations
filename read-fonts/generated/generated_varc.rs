@@ -20,8 +20,12 @@ impl TopLevelTable for Varc<'_> {
     const TAG: Tag = Tag::new(b"VARC");
 }
 
+impl ReadArgs for Varc<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Varc<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -208,8 +212,12 @@ impl<'a> MinByteRange<'a> for MultiItemVariationStore<'a> {
     }
 }
 
+impl ReadArgs for MultiItemVariationStore<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -343,8 +351,12 @@ impl<'a> MinByteRange<'a> for SparseVariationRegionList<'a> {
     }
 }
 
+impl ReadArgs for SparseVariationRegionList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -439,8 +451,12 @@ impl<'a> MinByteRange<'a> for SparseVariationRegion<'a> {
     }
 }
 
+impl ReadArgs for SparseVariationRegion<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -589,8 +605,12 @@ impl<'a> MinByteRange<'a> for MultiItemVariationData<'a> {
     }
 }
 
+impl ReadArgs for MultiItemVariationData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -697,8 +717,12 @@ impl<'a> MinByteRange<'a> for ConditionList<'a> {
     }
 }
 
+impl ReadArgs for ConditionList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ConditionList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

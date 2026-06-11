@@ -20,7 +20,7 @@ pub trait TableProvider<'a> {
         self.data_for_tag(tag).ok_or(ReadError::TableIsMissing(tag))
     }
 
-    fn expect_table<T: TopLevelTable + FontRead<'a>>(&self) -> Result<T, ReadError> {
+    fn expect_table<T: TopLevelTable + FontRead<'a, Args = ()>>(&self) -> Result<T, ReadError> {
         self.expect_data_for_tag(T::TAG).and_then(FontRead::read)
     }
 

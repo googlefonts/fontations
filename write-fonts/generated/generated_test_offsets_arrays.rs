@@ -127,8 +127,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'
 {
 }
 
+impl ReadArgs for KindsOfOffsets {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfOffsets {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::KindsOfOffsets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -237,8 +241,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfO
 {
 }
 
+impl ReadArgs for KindsOfArraysOfOffsets {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOffsets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -358,8 +366,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfArrays<'a
 {
 }
 
+impl ReadArgs for KindsOfArrays {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfArrays {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::KindsOfArrays as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -418,8 +430,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::VarLenHaver<'a>> f
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::VarLenHaver<'a>> for VarLenHaver {}
 
+impl ReadArgs for VarLenHaver {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarLenHaver {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::VarLenHaver as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -458,8 +474,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::Dummy<'a>> for Dum
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::Dummy<'a>> for Dummy {}
 
+impl ReadArgs for Dummy {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Dummy {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::Dummy as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

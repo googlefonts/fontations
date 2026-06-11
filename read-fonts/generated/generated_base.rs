@@ -20,8 +20,12 @@ impl TopLevelTable for Base<'_> {
     const TAG: Tag = Tag::new(b"BASE");
 }
 
+impl ReadArgs for Base<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Base<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -163,8 +167,12 @@ impl<'a> MinByteRange<'a> for Axis<'a> {
     }
 }
 
+impl ReadArgs for Axis<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Axis<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -268,8 +276,12 @@ impl<'a> MinByteRange<'a> for BaseTagList<'a> {
     }
 }
 
+impl ReadArgs for BaseTagList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseTagList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -357,8 +369,12 @@ impl<'a> MinByteRange<'a> for BaseScriptList<'a> {
     }
 }
 
+impl ReadArgs for BaseScriptList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseScriptList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -508,8 +524,12 @@ impl<'a> MinByteRange<'a> for BaseScript<'a> {
     }
 }
 
+impl ReadArgs for BaseScript<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseScript<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -705,8 +725,12 @@ impl<'a> MinByteRange<'a> for BaseValues<'a> {
     }
 }
 
+impl ReadArgs for BaseValues<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseValues<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -824,8 +848,12 @@ impl<'a> MinByteRange<'a> for MinMax<'a> {
     }
 }
 
+impl ReadArgs for MinMax<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MinMax<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1079,8 +1107,12 @@ impl<'a> BaseCoord<'a> {
     }
 }
 
+impl ReadArgs for BaseCoord<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoord<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             BaseCoordFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -1150,8 +1182,12 @@ impl<'a> MinByteRange<'a> for BaseCoordFormat1<'a> {
     }
 }
 
+impl ReadArgs for BaseCoordFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoordFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1242,8 +1278,12 @@ impl<'a> MinByteRange<'a> for BaseCoordFormat2<'a> {
     }
 }
 
+impl ReadArgs for BaseCoordFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoordFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1347,8 +1387,12 @@ impl<'a> MinByteRange<'a> for BaseCoordFormat3<'a> {
     }
 }
 
+impl ReadArgs for BaseCoordFormat3<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoordFormat3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

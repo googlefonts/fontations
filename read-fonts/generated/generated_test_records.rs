@@ -15,8 +15,12 @@ impl<'a> MinByteRange<'a> for BasicTable<'a> {
     }
 }
 
+impl ReadArgs for BasicTable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BasicTable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -223,7 +227,7 @@ impl ComputeSize for ContainsArrays<'_> {
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for ContainsArrays<'a> {
+impl<'a> FontRead<'a> for ContainsArrays<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let array_len = *args;
@@ -347,8 +351,12 @@ impl<'a> MinByteRange<'a> for VarLenItem<'a> {
     }
 }
 
+impl ReadArgs for VarLenItem<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarLenItem<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

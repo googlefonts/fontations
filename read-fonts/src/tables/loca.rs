@@ -3,7 +3,7 @@
 //! [loca]: https://docs.microsoft.com/en-us/typography/opentype/spec/loca
 
 use crate::{
-    read::{FontRead, FontReadWithArgs, ReadArgs, ReadError},
+    read::{FontRead, ReadArgs, ReadError},
     table_provider::TopLevelTable,
     FontData,
 };
@@ -88,7 +88,7 @@ impl ReadArgs for Loca<'_> {
     type Args = bool;
 }
 
-impl<'a> FontReadWithArgs<'a> for Loca<'a> {
+impl<'a> FontRead<'a> for Loca<'a> {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, crate::ReadError> {
         let is_long = *args;
         if is_long {

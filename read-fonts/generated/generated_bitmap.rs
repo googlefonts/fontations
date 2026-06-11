@@ -753,7 +753,7 @@ impl ReadArgs for IndexSubtableList<'_> {
     type Args = u32;
 }
 
-impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
+impl<'a> FontRead<'a> for IndexSubtableList<'a> {
     fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
         let number_of_index_subtables = *args;
 
@@ -933,7 +933,7 @@ impl ReadArgs for IndexSubtable1<'_> {
     type Args = (GlyphId16, GlyphId16);
 }
 
-impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
+impl<'a> FontRead<'a> for IndexSubtable1<'a> {
     fn read_with_args(
         data: FontData<'a>,
         args: &(GlyphId16, GlyphId16),
@@ -1087,8 +1087,12 @@ impl<'a> MinByteRange<'a> for IndexSubtable2<'a> {
     }
 }
 
+impl ReadArgs for IndexSubtable2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for IndexSubtable2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1215,7 +1219,7 @@ impl ReadArgs for IndexSubtable3<'_> {
     type Args = (GlyphId16, GlyphId16);
 }
 
-impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
+impl<'a> FontRead<'a> for IndexSubtable3<'a> {
     fn read_with_args(
         data: FontData<'a>,
         args: &(GlyphId16, GlyphId16),
@@ -1357,8 +1361,12 @@ impl<'a> MinByteRange<'a> for IndexSubtable4<'a> {
     }
 }
 
+impl ReadArgs for IndexSubtable4<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for IndexSubtable4<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1527,8 +1535,12 @@ impl<'a> MinByteRange<'a> for IndexSubtable5<'a> {
     }
 }
 
+impl ReadArgs for IndexSubtable5<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for IndexSubtable5<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

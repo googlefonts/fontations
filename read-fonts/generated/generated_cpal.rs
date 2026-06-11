@@ -20,8 +20,12 @@ impl TopLevelTable for Cpal<'_> {
     const TAG: Tag = Tag::new(b"CPAL");
 }
 
+impl ReadArgs for Cpal<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cpal<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

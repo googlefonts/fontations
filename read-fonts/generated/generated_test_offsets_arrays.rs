@@ -15,8 +15,12 @@ impl<'a> MinByteRange<'a> for KindsOfOffsets<'a> {
     }
 }
 
+impl ReadArgs for KindsOfOffsets<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -287,8 +291,12 @@ impl<'a> MinByteRange<'a> for KindsOfArraysOfOffsets<'a> {
     }
 }
 
+impl ReadArgs for KindsOfArraysOfOffsets<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -480,8 +488,12 @@ impl<'a> MinByteRange<'a> for KindsOfArrays<'a> {
     }
 }
 
+impl ReadArgs for KindsOfArrays<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -645,8 +657,12 @@ impl<'a> MinByteRange<'a> for VarLenHaver<'a> {
     }
 }
 
+impl ReadArgs for VarLenHaver<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -747,8 +763,12 @@ impl<'a> MinByteRange<'a> for Dummy<'a> {
     }
 }
 
+impl ReadArgs for Dummy<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Dummy<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

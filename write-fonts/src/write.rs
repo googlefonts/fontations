@@ -12,7 +12,7 @@ use crate::validate::Validate;
 #[cfg(feature = "tables")]
 use font_types::{FixedSize, Scalar};
 #[cfg(feature = "tables")]
-use read_fonts::{FontData, FontRead, FontReadWithArgs, ReadError};
+use read_fonts::{FontData, FontRead, ReadError};
 
 /// A type that that can be written out as part of a font file.
 ///
@@ -253,14 +253,14 @@ impl TableData {
     /// Used internally when modifying the graph after initial compilation,
     /// such as during table splitting.
     #[cfg(feature = "tables")]
-    pub(crate) fn reparse<'a, T: FontRead<'a>>(&'a self) -> Result<T, ReadError> {
+    pub(crate) fn reparse<'a, T: FontRead<'a, Args = ()>>(&'a self) -> Result<T, ReadError> {
         let data = FontData::new(&self.bytes);
         T::read(data)
     }
 
     // see above
     #[cfg(feature = "tables")]
-    pub(crate) fn reparse_with_args<'a, A, T: FontReadWithArgs<'a, Args = A>>(
+    pub(crate) fn reparse_with_args<'a, A, T: FontRead<'a, Args = A>>(
         &'a self,
         args: &A,
     ) -> Result<T, ReadError> {

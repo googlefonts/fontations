@@ -24,7 +24,7 @@ impl ReadArgs for Vmtx<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
+impl<'a> FontRead<'a> for Vmtx<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let number_of_long_ver_metrics = *args;
 

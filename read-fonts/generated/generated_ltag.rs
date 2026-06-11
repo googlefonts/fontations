@@ -20,8 +20,12 @@ impl TopLevelTable for Ltag<'_> {
     const TAG: Tag = Tag::new(b"ltag");
 }
 
+impl ReadArgs for Ltag<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Ltag<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

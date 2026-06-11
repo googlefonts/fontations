@@ -20,8 +20,12 @@ impl TopLevelTable for Svg<'_> {
     const TAG: Tag = Tag::new(b"SVG ");
 }
 
+impl ReadArgs for Svg<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Svg<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -121,8 +125,12 @@ impl<'a> MinByteRange<'a> for SVGDocumentList<'a> {
     }
 }
 
+impl ReadArgs for SVGDocumentList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SVGDocumentList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

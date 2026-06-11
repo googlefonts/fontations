@@ -20,8 +20,12 @@ impl TopLevelTable for Gvar<'_> {
     const TAG: Tag = Tag::new(b"gvar");
 }
 
+impl ReadArgs for Gvar<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gvar<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -521,7 +525,7 @@ impl ReadArgs for SharedTuples<'_> {
     type Args = (u16, u16);
 }
 
-impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
+impl<'a> FontRead<'a> for SharedTuples<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let (shared_tuple_count, axis_count) = *args;
 
@@ -638,8 +642,12 @@ impl<'a> MinByteRange<'a> for GlyphVariationDataHeader<'a> {
     }
 }
 
+impl ReadArgs for GlyphVariationDataHeader<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

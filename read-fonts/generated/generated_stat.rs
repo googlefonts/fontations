@@ -20,8 +20,12 @@ impl TopLevelTable for Stat<'_> {
     const TAG: Tag = Tag::new(b"STAT");
 }
 
+impl ReadArgs for Stat<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Stat<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -279,7 +283,7 @@ impl ReadArgs for AxisValueArray<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
+impl<'a> FontRead<'a> for AxisValueArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let axis_value_count = *args;
 
@@ -438,8 +442,12 @@ impl<'a> AxisValue<'a> {
     }
 }
 
+impl ReadArgs for AxisValue<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValue<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             AxisValueFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -513,8 +521,12 @@ impl<'a> MinByteRange<'a> for AxisValueFormat1<'a> {
     }
 }
 
+impl ReadArgs for AxisValueFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -648,8 +660,12 @@ impl<'a> MinByteRange<'a> for AxisValueFormat2<'a> {
     }
 }
 
+impl ReadArgs for AxisValueFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -799,8 +815,12 @@ impl<'a> MinByteRange<'a> for AxisValueFormat3<'a> {
     }
 }
 
+impl ReadArgs for AxisValueFormat3<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -935,8 +955,12 @@ impl<'a> MinByteRange<'a> for AxisValueFormat4<'a> {
     }
 }
 
+impl ReadArgs for AxisValueFormat4<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

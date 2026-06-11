@@ -20,8 +20,12 @@ impl TopLevelTable for Gdef<'_> {
     const TAG: Tag = Tag::new(b"GDEF");
 }
 
+impl ReadArgs for Gdef<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gdef<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -295,8 +299,12 @@ impl<'a> MinByteRange<'a> for AttachList<'a> {
     }
 }
 
+impl ReadArgs for AttachList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AttachList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -414,8 +422,12 @@ impl<'a> MinByteRange<'a> for AttachPoint<'a> {
     }
 }
 
+impl ReadArgs for AttachPoint<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AttachPoint<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -501,8 +513,12 @@ impl<'a> MinByteRange<'a> for LigCaretList<'a> {
     }
 }
 
+impl ReadArgs for LigCaretList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigCaretList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -621,8 +637,12 @@ impl<'a> MinByteRange<'a> for LigGlyph<'a> {
     }
 }
 
+impl ReadArgs for LigGlyph<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigGlyph<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -743,8 +763,12 @@ impl<'a> CaretValue<'a> {
     }
 }
 
+impl ReadArgs for CaretValue<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValue<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             CaretValueFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -814,8 +838,12 @@ impl<'a> MinByteRange<'a> for CaretValueFormat1<'a> {
     }
 }
 
+impl ReadArgs for CaretValueFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -906,8 +934,12 @@ impl<'a> MinByteRange<'a> for CaretValueFormat2<'a> {
     }
 }
 
+impl ReadArgs for CaretValueFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -989,8 +1021,12 @@ impl<'a> MinByteRange<'a> for CaretValueFormat3<'a> {
     }
 }
 
+impl ReadArgs for CaretValueFormat3<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1092,8 +1128,12 @@ impl<'a> MinByteRange<'a> for MarkGlyphSets<'a> {
     }
 }
 
+impl ReadArgs for MarkGlyphSets<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
