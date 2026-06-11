@@ -24,7 +24,7 @@ impl ReadArgs for Hdmx<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
+impl<'a> FontRead<'a> for Hdmx<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
 

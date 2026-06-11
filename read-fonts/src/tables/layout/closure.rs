@@ -7,13 +7,14 @@ use super::{
     ChainedSequenceContextFormat1, ChainedSequenceContextFormat2, ChainedSequenceContextFormat3,
     ChainedSequenceRule, ChainedSequenceRuleSet, ClassDef, ClassDefFormat1, ClassDefFormat2,
     ClassSequenceRule, ClassSequenceRuleSet, CoverageTable, ExtensionLookup, Feature, FeatureList,
-    FeatureVariations, FontRead, GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext,
+    FeatureVariations, GlyphId, LangSys, ReadError, Script, ScriptList, SequenceContext,
     SequenceContextFormat1, SequenceContextFormat2, SequenceContextFormat3, SequenceLookupRecord,
     SequenceRule, SequenceRuleSet, Subtables, Tag,
 };
 use crate::{
     collections::IntSet,
     tables::{gpos::PositionLookupList, gsub::SubstitutionLookupList},
+    FontRead,
 };
 
 const MAX_SCRIPTS: u16 = 500;
@@ -448,7 +449,7 @@ impl Intersect for ClassDefFormat2<'_> {
 
 impl<'a, T, Ext> LookupClosure for Subtables<'a, T, Ext>
 where
-    T: LookupClosure + Intersect + FontRead<'a> + 'a,
+    T: LookupClosure + Intersect + FontRead<'a, Args = ()> + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {
     fn closure_lookups(&self, c: &mut LookupClosureCtx, arg: u16) -> Result<(), ReadError> {
@@ -464,7 +465,7 @@ where
 
 impl<'a, T> Intersect for ArrayOfOffsets<'a, T, Offset16>
 where
-    T: Intersect + FontRead<'a>,
+    T: Intersect + FontRead<'a, Args = ()> + 'a,
 {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         for t in self.iter().filter_map(|table| match table {

@@ -91,8 +91,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {}
 
+impl ReadArgs for Gpos {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gpos {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::Gpos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -342,8 +346,12 @@ impl FromObjRef<read_fonts::tables::gpos::AnchorTable<'_>> for AnchorTable {
 
 impl FromTableRef<read_fonts::tables::gpos::AnchorTable<'_>> for AnchorTable {}
 
+impl ReadArgs for AnchorTable {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorTable {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorTable as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -414,8 +422,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat1<'a>> for AnchorForma
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat1<'a>> for AnchorFormat1 {}
 
+impl ReadArgs for AnchorFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -474,8 +486,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat2<'a>> for AnchorForma
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat2<'a>> for AnchorFormat2 {}
 
+impl ReadArgs for AnchorFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -557,8 +573,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat3<'a>> for AnchorForma
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat3<'a>> for AnchorFormat3 {}
 
+impl ReadArgs for AnchorFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -616,8 +636,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkArray<'a>> for MarkArray {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkArray<'a>> for MarkArray {}
 
+impl ReadArgs for MarkArray {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkArray {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkArray as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -733,8 +757,12 @@ impl FromObjRef<read_fonts::tables::gpos::SinglePos<'_>> for SinglePos {
 
 impl FromTableRef<read_fonts::tables::gpos::SinglePos<'_>> for SinglePos {}
 
+impl ReadArgs for SinglePos {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SinglePos {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::SinglePos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -808,8 +836,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat1<'a>> for SinglePo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat1<'a>> for SinglePosFormat1 {}
 
+impl ReadArgs for SinglePosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SinglePosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::SinglePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -882,8 +914,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat2<'a>> for SinglePo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat2<'a>> for SinglePosFormat2 {}
 
+impl ReadArgs for SinglePosFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SinglePosFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::SinglePosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -961,8 +997,12 @@ impl FromObjRef<read_fonts::tables::gpos::PairPos<'_>> for PairPos {
 
 impl FromTableRef<read_fonts::tables::gpos::PairPos<'_>> for PairPos {}
 
+impl ReadArgs for PairPos {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PairPos {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1043,8 +1083,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFor
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFormat1 {}
 
+impl ReadArgs for PairPosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PairPosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1255,8 +1299,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat2<'a>> for PairPosFor
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat2<'a>> for PairPosFormat2 {}
 
+impl ReadArgs for PairPosFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PairPosFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1416,8 +1464,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::CursivePosFormat1<'a>> for Cursive
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::CursivePosFormat1<'a>> for CursivePosFormat1 {}
 
+impl ReadArgs for CursivePosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CursivePosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::CursivePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1563,8 +1615,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkBasePosFormat1<'a>> for MarkBa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkBasePosFormat1<'a>> for MarkBasePosFormat1 {}
 
+impl ReadArgs for MarkBasePosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkBasePosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkBasePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1757,8 +1813,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkLigPosFormat1<'a>> for MarkLig
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkLigPosFormat1<'a>> for MarkLigPosFormat1 {}
 
+impl ReadArgs for MarkLigPosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkLigPosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkLigPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2008,8 +2068,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkMarkPosFormat1<'a>> for MarkMa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkMarkPosFormat1<'a>> for MarkMarkPosFormat1 {}
 
+impl ReadArgs for MarkMarkPosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkMarkPosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkMarkPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2155,7 +2219,7 @@ impl<T: Validate> Validate for ExtensionPosFormat1<T> {
 impl<'a, T, U> FromObjRef<read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>>
     for ExtensionPosFormat1<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
@@ -2173,7 +2237,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>>
     for ExtensionPosFormat1<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
 }

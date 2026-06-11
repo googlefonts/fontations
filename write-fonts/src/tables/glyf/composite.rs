@@ -5,7 +5,7 @@ use crate::{
     FontWrite,
 };
 
-use read_fonts::{tables::glyf::CompositeGlyphFlags, types::GlyphId16, FontRead};
+use read_fonts::{tables::glyf::CompositeGlyphFlags, types::GlyphId16, FontRead, ReadArgs};
 
 use super::Bbox;
 
@@ -86,8 +86,15 @@ impl FromObjRef<read_fonts::tables::glyf::CompositeGlyph<'_>> for CompositeGlyph
 
 impl FromTableRef<read_fonts::tables::glyf::CompositeGlyph<'_>> for CompositeGlyph {}
 
+impl ReadArgs for CompositeGlyph {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CompositeGlyph {
-    fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {
+    fn read_with_args(
+        data: read_fonts::FontData<'a>,
+        _: &(),
+    ) -> Result<Self, read_fonts::ReadError> {
         read_fonts::tables::glyf::CompositeGlyph::read(data).map(|g| g.to_owned_table())
     }
 }

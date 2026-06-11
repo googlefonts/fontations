@@ -23,7 +23,7 @@ use types::{
 use crate::{
     array::{ComputedArray, VarLenArray},
     read::{ComputeSize, ReadArgs},
-    FontData, FontRead, FontReadWithArgs, ReadError, VarSize,
+    FontData, FontRead, ReadError, VarSize,
 };
 
 /// Types of fields in font tables.
@@ -127,7 +127,7 @@ impl<'a> FieldType<'a> {
         data: FontData<'a>,
     ) -> FieldType<'a>
     where
-        T: FontReadWithArgs<'a> + ComputeSize + SomeRecord<'a> + 'a,
+        T: FontRead<'a> + ComputeSize + SomeRecord<'a> + 'a,
         T::Args: Copy + 'static,
     {
         ComputedArrayOfRecords {
@@ -145,7 +145,7 @@ impl<'a> FieldType<'a> {
         data: FontData<'a>,
     ) -> FieldType<'a>
     where
-        T: FontRead<'a> + VarSize + SomeRecord<'a> + 'a,
+        T: FontRead<'a, Args = ()> + VarSize + SomeRecord<'a> + 'a,
     {
         VarLenArrayOfRecords {
             type_name,
@@ -406,7 +406,7 @@ struct VarLenArrayOfRecords<'a, T> {
 
 impl<'a, T> SomeArray<'a> for ComputedArrayOfRecords<'a, T>
 where
-    T: FontReadWithArgs<'a> + ComputeSize + SomeRecord<'a> + 'a,
+    T: FontRead<'a> + ComputeSize + SomeRecord<'a> + 'a,
     T::Args: Copy + 'static,
     Self: 'a,
 {
@@ -444,7 +444,7 @@ impl<'a, T: SomeRecord<'a> + Clone> SomeArray<'a> for ArrayOfRecords<'a, T> {
 
 impl<'a, T> SomeArray<'a> for VarLenArrayOfRecords<'a, T>
 where
-    T: FontRead<'a> + VarSize + SomeRecord<'a> + 'a,
+    T: FontRead<'a, Args = ()> + VarSize + SomeRecord<'a> + 'a,
     Self: 'a,
 {
     fn len(&self) -> usize {

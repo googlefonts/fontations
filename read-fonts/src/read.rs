@@ -8,57 +8,49 @@ use crate::font_data::FontData;
 
 /// A type that can be read from raw table data.
 ///
-/// This trait is implemented for all font tables that are self-describing: that
-/// is, tables that do not require any external state in order to interpret their
-/// underlying bytes. (Tables that require external state implement
-/// [`FontReadWithArgs`] instead)
-pub trait FontRead<'a>: Sized {
-    /// Read an instance of `Self` from the provided data, performing validation.
+/// Some types require external state in order to be read; this is passed to
+/// [`read_with_args`], and its type is determined by the [`ReadArgs`]
+/// supertrait. Types that require no external state use `()` as their args,
+/// and get the argument-less [`read`] constructor for free.
+///
+/// [`read`]: Self::read
+/// [`read_with_args`]: Self::read_with_args
+pub trait FontRead<'a>: Sized + ReadArgs {
+    /// Read an item, performing validation.
     ///
     /// In the case of a table, this method is responsible for ensuring the input
     /// data is consistent: this means ensuring that any versioned fields are
     /// present as required by the version, and that any array lengths are not
     /// out-of-bounds.
-    fn read(data: FontData<'a>) -> Result<Self, ReadError>;
-}
-
-//NOTE: this is separate so that it can be a super trait of FontReadWithArgs and
-//ComputeSize, without them needing to know about each other? I'm not sure this
-//is necessary, but I don't know the full hierarchy of traits I'm going to need
-//yet, so this seems... okay?
-
-/// A trait for a type that needs additional arguments to be read.
-pub trait ReadArgs {
-    type Args: Copy;
-}
-
-/// A trait for types that require external data in order to be constructed.
-///
-/// You should not need to use this directly; it is intended to be used from
-/// generated code. Any type that requires external arguments also has a custom
-/// `read` constructor where you can pass those arguments like normal.
-pub trait FontReadWithArgs<'a>: Sized + ReadArgs {
-    /// read an item, using the provided args.
-    ///
-    /// If successful, returns a new item of this type, and the number of bytes
-    /// used to construct it.
     ///
     /// If a type requires multiple arguments, they will be passed as a tuple.
+    ///
+    /// You should not generally need to call this directly; it is intended to
+    /// be used from generated code. Any type that requires external arguments
+    /// also has a custom `read` constructor where you can pass those arguments
+    /// like normal.
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError>;
-}
 
-// a blanket impl of ReadArgs/FontReadWithArgs for general FontRead types.
-//
-// This is used by ArrayOfOffsets/ArrayOfNullableOffsets to provide a common
-// interface for regardless of whether a type has args.
-impl<'a, T: FontRead<'a>> ReadArgs for T {
-    type Args = ();
-}
-
-impl<'a, T: FontRead<'a>> FontReadWithArgs<'a> for T {
-    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
-        Self::read(data)
+    /// Read an instance of `Self` from the provided data, performing validation.
+    ///
+    /// This is only available for types that require no external state
+    /// (`Args = ()`).
+    fn read(data: FontData<'a>) -> Result<Self, ReadError>
+    where
+        Self: FontRead<'a, Args = ()>,
+    {
+        Self::read_with_args(data, &())
     }
+}
+
+/// A trait for a type that needs additional arguments to be read.
+///
+/// Types that do not require any external state use `()` as their args.
+///
+/// This is separate from [`FontRead`] so that it can also be a supertrait of
+/// [`ComputeSize`], which does not need a lifetime.
+pub trait ReadArgs {
+    type Args: Copy;
 }
 
 /// A trait for tables that have multiple possible formats.

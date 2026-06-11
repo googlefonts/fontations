@@ -149,7 +149,7 @@ impl Fields {
     }
 
     // used for validating lengths. handles both fields and 'virtual fields',
-    // e.g. arguments passed in FontReadWithArgs
+    // e.g. arguments passed in FontRead
     fn get_scalar_field_type(&self, name: &syn::Ident) -> &syn::Ident {
         self.iter()
             .find(|fld| &fld.name == name)
@@ -843,7 +843,7 @@ impl Field {
         let getter_name = self.offset_getter_name().unwrap();
         let target_is_generic =
             matches!(target, OffsetTarget::Table(ident) if Some(ident) == generic);
-        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
+        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a, Args = ()>));
         // if a record, data is passed in
         let input_data_if_needed = record.is_some().then(|| quote!(, data: FontData<'a>));
         let decl_lifetime_if_needed =

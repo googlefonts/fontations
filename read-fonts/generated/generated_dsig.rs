@@ -20,8 +20,12 @@ impl TopLevelTable for Dsig<'_> {
     const TAG: Tag = Tag::new(b"DSIG");
 }
 
+impl ReadArgs for Dsig<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Dsig<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -501,8 +505,12 @@ impl<'a> MinByteRange<'a> for SignatureBlockFormat1<'a> {
     }
 }
 
+impl ReadArgs for SignatureBlockFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SignatureBlockFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

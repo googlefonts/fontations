@@ -402,17 +402,13 @@ impl<'a> IndexSubtable<'a> {
 impl ReadArgs for IndexSubtable<'_> {
     type Args = (GlyphId16, GlyphId16);
 }
-impl<'a> FontReadWithArgs<'a> for IndexSubtable<'a> {
+impl<'a> FontRead<'a> for IndexSubtable<'a> {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
-            IndexSubtable1::FORMAT => {
-                FontReadWithArgs::read_with_args(data, args).map(Self::Format1)
-            }
+            IndexSubtable1::FORMAT => FontRead::read_with_args(data, args).map(Self::Format1),
             IndexSubtable2::FORMAT => FontRead::read(data).map(Self::Format2),
-            IndexSubtable3::FORMAT => {
-                FontReadWithArgs::read_with_args(data, args).map(Self::Format3)
-            }
+            IndexSubtable3::FORMAT => FontRead::read_with_args(data, args).map(Self::Format3),
             IndexSubtable4::FORMAT => FontRead::read(data).map(Self::Format4),
             IndexSubtable5::FORMAT => FontRead::read(data).map(Self::Format5),
             other => Err(ReadError::InvalidFormat(other.into())),

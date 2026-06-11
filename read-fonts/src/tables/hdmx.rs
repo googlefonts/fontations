@@ -65,7 +65,7 @@ impl ComputeSize for DeviceRecord<'_> {
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for DeviceRecord<'a> {
+impl<'a> FontRead<'a> for DeviceRecord<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u32)) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let (num_glyphs, _size_device_record) = *args;

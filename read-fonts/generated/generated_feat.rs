@@ -20,8 +20,12 @@ impl TopLevelTable for Feat<'_> {
     const TAG: Tag = Tag::new(b"feat");
 }
 
+impl ReadArgs for Feat<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Feat<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -236,7 +240,7 @@ impl ReadArgs for SettingNameArray<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
+impl<'a> FontRead<'a> for SettingNameArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let n_settings = *args;
 

@@ -20,8 +20,12 @@ impl TopLevelTable for Ankr<'_> {
     const TAG: Tag = Tag::new(b"ankr");
 }
 
+impl ReadArgs for Ankr<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Ankr<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -149,8 +153,12 @@ impl<'a> MinByteRange<'a> for GlyphDataEntry<'a> {
     }
 }
 
+impl ReadArgs for GlyphDataEntry<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
