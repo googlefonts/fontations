@@ -43,6 +43,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "fuzz_name_utf16"
+path = "fuzz_targets/fuzz_name_utf16.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "fuzz_skrifa_outline"
 path = "fuzz_targets/fuzz_skrifa_outline.rs"
 test = false

@@ -161,11 +161,23 @@ impl Iterator for CharIter<'_> {
         let rep = core::char::REPLACEMENT_CHARACTER;
         let raw_c = match self.encoding {
             Encoding::Utf16Be => {
-                let c1 = self.bump_u16()? as u32;
+                let Some(c1) = self.bump_u16().map(u32::from) else {
+                    // a dangling trailing byte
+                    self.pos = self.data.len();
+                    return Some(rep);
+                };
                 if (0xD800..0xDC00).contains(&c1) {
+                    // c1 is an unpaired high surrogate if there is no c2 or
+                    // c2 is not a low surrogate; in either case leave pos
+                    // pointing at the remaining data so the next iteration
+                    // decodes it independently
                     let Some(c2) = self.bump_u16() else {
                         return Some(rep);
                     };
+                    if !(0xDC00..0xE000).contains(&c2) {
+                        self.pos -= 2;
+                        return Some(rep);
+                    }
                     ((c1 & 0x3FF) << 10) + (c2 as u32 & 0x3FF) + 0x10000
                 } else {
                     c1
@@ -297,6 +309,60 @@ mod tests {
             let enc = MacRomanMapping.encode(c).unwrap();
             assert_eq!(MacRomanMapping.decode(enc), c);
         }
+    }
+
+    fn decode_utf16be(data: &[u8]) -> Vec<char> {
+        CharIter {
+            data,
+            encoding: Encoding::Utf16Be,
+            pos: 0,
+        }
+        .collect()
+    }
+
+    const REP: char = std::char::REPLACEMENT_CHARACTER;
+
+    #[test]
+    fn valid_surrogate_pair() {
+        // U+1D11E MUSICAL SYMBOL G CLEF (0xD834 0xDD1E)
+        assert_eq!(decode_utf16be(&[0xD8, 0x34, 0xDD, 0x1E]), ['𝄞']);
+    }
+
+    #[test]
+    fn high_surrogate_followed_by_bmp_char() {
+        // unpaired high surrogate (0xD800), then 'A'; the 'A' must not be
+        // consumed as part of a bogus pair
+        assert_eq!(decode_utf16be(&[0xD8, 0x00, 0x00, 0x41]), [REP, 'A']);
+    }
+
+    #[test]
+    fn high_surrogate_followed_by_surrogate_pair() {
+        // unpaired high surrogate (0xD800), then a valid pair for U+1D11E
+        assert_eq!(
+            decode_utf16be(&[0xD8, 0x00, 0xD8, 0x34, 0xDD, 0x1E]),
+            [REP, '𝄞']
+        );
+    }
+
+    #[test]
+    fn lone_low_surrogate() {
+        // low surrogate (0xDC00) without a preceding high surrogate
+        assert_eq!(decode_utf16be(&[0xDC, 0x00, 0x00, 0x41]), [REP, 'A']);
+    }
+
+    #[test]
+    fn unpaired_high_surrogates_then_dangling_byte() {
+        // found by fuzz_name_utf16: two unpaired high surrogates followed by
+        // a dangling byte must produce three replacement chars
+        assert_eq!(
+            decode_utf16be(&[0xD9, 0xE4, 0xD9, 0x00, 0x00]),
+            [REP, REP, REP]
+        );
+    }
+
+    #[test]
+    fn dangling_trailing_byte() {
+        assert_eq!(decode_utf16be(&[0x00, 0x41, 0x00]), ['A', REP]);
     }
 
     #[test]
