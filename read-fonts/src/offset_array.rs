@@ -6,7 +6,7 @@
 use crate::offset::ResolveNullableOffset;
 use font_types::{BigEndian, Nullable, Offset16, Scalar};
 
-use crate::{FontData, FontReadWithArgs, Offset, ReadArgs, ReadError, ResolveOffset};
+use crate::{FontData, FontRead, Offset, ReadArgs, ReadError, ResolveOffset};
 
 /// An array of offsets that can be resolved on access.
 ///
@@ -49,7 +49,7 @@ where
 impl<'a, T, O> ArrayOfOffsets<'a, T, O>
 where
     O: Scalar + Offset,
-    T: ReadArgs + FontReadWithArgs<'a>,
+    T: FontRead<'a>,
     T::Args: Copy + 'static,
 {
     /// The number of offsets in the array
@@ -120,7 +120,7 @@ where
 impl<'a, T, O> ArrayOfNullableOffsets<'a, T, O>
 where
     O: Scalar + Offset,
-    T: ReadArgs + FontReadWithArgs<'a>,
+    T: FontRead<'a>,
     T::Args: Copy + 'static,
 {
     /// The number of offsets in the array
@@ -163,7 +163,7 @@ where
 impl<'a, T, O> crate::traversal::SomeArray<'a> for ArrayOfOffsets<'a, T, O>
 where
     O: Scalar + Offset + Into<crate::traversal::OffsetType>,
-    T: ReadArgs + FontReadWithArgs<'a> + crate::traversal::SomeTable<'a> + 'a,
+    T: FontRead<'a> + crate::traversal::SomeTable<'a> + 'a,
     T::Args: Copy + 'static,
 {
     fn type_name(&self) -> &str {
@@ -187,7 +187,7 @@ where
 impl<'a, T, O> crate::traversal::SomeArray<'a> for ArrayOfNullableOffsets<'a, T, O>
 where
     O: Scalar + Offset + Into<crate::traversal::OffsetType> + Clone,
-    T: ReadArgs + FontReadWithArgs<'a> + crate::traversal::SomeTable<'a> + 'a,
+    T: FontRead<'a> + crate::traversal::SomeTable<'a> + 'a,
     T::Args: Copy + 'static,
 {
     fn type_name(&self) -> &str {

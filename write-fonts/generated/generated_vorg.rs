@@ -70,8 +70,12 @@ impl<'a> FromObjRef<read_fonts::tables::vorg::Vorg<'a>> for Vorg {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::vorg::Vorg<'a>> for Vorg {}
 
+impl ReadArgs for Vorg {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Vorg {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::vorg::Vorg as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

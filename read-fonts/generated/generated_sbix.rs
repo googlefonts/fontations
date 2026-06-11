@@ -332,7 +332,7 @@ impl ReadArgs for Sbix<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
+impl<'a> FontRead<'a> for Sbix<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
 
@@ -484,7 +484,7 @@ impl ReadArgs for Strike<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Strike<'a> {
+impl<'a> FontRead<'a> for Strike<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let num_glyphs = *args;
 
@@ -605,8 +605,12 @@ impl<'a> MinByteRange<'a> for GlyphData<'a> {
     }
 }
 
+impl ReadArgs for GlyphData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

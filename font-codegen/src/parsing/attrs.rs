@@ -110,7 +110,7 @@ pub(crate) struct EnumVariantAttrs {
     pub(crate) default: Option<syn::Path>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub(crate) struct TableReadArgs {
     pub(crate) args: Vec<TableReadArg>,
 }

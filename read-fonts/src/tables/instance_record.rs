@@ -4,7 +4,7 @@ use types::{BigEndian, Fixed, FixedSize, NameId};
 
 #[cfg(feature = "experimental_traverse")]
 use crate::traversal::{Field, RecordResolver, SomeRecord};
-use crate::{ComputeSize, FontData, FontReadWithArgs, ReadArgs, ReadError};
+use crate::{ComputeSize, FontData, FontRead, ReadArgs, ReadError};
 
 /// The [InstanceRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#instancerecord)
 #[derive(Clone, Debug)]
@@ -35,7 +35,7 @@ impl<'a> InstanceRecord<'a> {
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for InstanceRecord<'a> {
+impl<'a> FontRead<'a> for InstanceRecord<'a> {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
         let axis_count = args.0 as usize;
         let instance_size = args.1 as usize;

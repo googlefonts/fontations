@@ -77,8 +77,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::Base<'a>> for Base {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::Base<'a>> for Base {}
 
+impl ReadArgs for Base {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Base {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::Base as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -139,8 +143,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::Axis<'a>> for Axis {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::Axis<'a>> for Axis {}
 
+impl ReadArgs for Axis {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Axis {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::Axis as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -196,8 +204,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseTagList<'a>> for BaseTagList {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseTagList<'a>> for BaseTagList {}
 
+impl ReadArgs for BaseTagList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseTagList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseTagList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -256,8 +268,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseScriptList<'a>> for BaseScript
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseScriptList<'a>> for BaseScriptList {}
 
+impl ReadArgs for BaseScriptList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseScriptList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseScriptList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -389,8 +405,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseScript<'a>> for BaseScript {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseScript<'a>> for BaseScript {}
 
+impl ReadArgs for BaseScript {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseScript {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseScript as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -508,8 +528,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseValues<'a>> for BaseValues {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseValues<'a>> for BaseValues {}
 
+impl ReadArgs for BaseValues {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseValues {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseValues as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -590,8 +614,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::MinMax<'a>> for MinMax {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::MinMax<'a>> for MinMax {}
 
+impl ReadArgs for MinMax {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MinMax {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::MinMax as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -738,8 +766,12 @@ impl FromObjRef<read_fonts::tables::base::BaseCoord<'_>> for BaseCoord {
 
 impl FromTableRef<read_fonts::tables::base::BaseCoord<'_>> for BaseCoord {}
 
+impl ReadArgs for BaseCoord {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoord {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseCoord as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -803,8 +835,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseCoordFormat1<'a>> for BaseCoor
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseCoordFormat1<'a>> for BaseCoordFormat1 {}
 
+impl ReadArgs for BaseCoordFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoordFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseCoordFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -863,8 +899,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseCoordFormat2<'a>> for BaseCoor
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseCoordFormat2<'a>> for BaseCoordFormat2 {}
 
+impl ReadArgs for BaseCoordFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoordFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseCoordFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -926,8 +966,12 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseCoordFormat3<'a>> for BaseCoor
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::base::BaseCoordFormat3<'a>> for BaseCoordFormat3 {}
 
+impl ReadArgs for BaseCoordFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoordFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseCoordFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

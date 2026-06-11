@@ -137,8 +137,12 @@ impl VarSize for SegmentMaps<'_> {
     }
 }
 
+impl ReadArgs for SegmentMaps<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SegmentMaps<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let position_map_count: BigEndian<u16> = cursor.read_be()?;
         let axis_value_maps = cursor.read_array(position_map_count.get() as _)?;

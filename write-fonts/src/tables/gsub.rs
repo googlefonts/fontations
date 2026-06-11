@@ -56,14 +56,22 @@ impl<T: LookupSubtable + FontWrite> FontWrite for ExtensionSubstFormat1<T> {
 }
 
 // these can't have auto impls because the traits don't support generics
+impl ReadArgs for SubstitutionLookup {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SubstitutionLookup {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         read_fonts::tables::gsub::SubstitutionLookup::read(data).map(|x| x.to_owned_table())
     }
 }
 
+impl ReadArgs for SubstitutionLookupList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SubstitutionLookupList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         read_fonts::tables::gsub::SubstitutionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }

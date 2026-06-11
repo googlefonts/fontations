@@ -63,8 +63,12 @@ impl PartialEq<&str> for PString<'_> {
     }
 }
 
+impl ReadArgs for PString<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PString<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         let len: u8 = data.read_at(0)?;
         let pstring = data
             .as_bytes()

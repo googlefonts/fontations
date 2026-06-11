@@ -7,8 +7,7 @@ use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Scalar};
 
 use crate::array::ComputedArray;
-use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
-use crate::FontRead;
+use crate::read::{ComputeSize, FontRead, ReadArgs, ReadError};
 
 /// A reference to raw binary font data.
 ///
@@ -145,7 +144,7 @@ impl<'a> FontData<'a> {
 
     pub fn read_with_args<T>(&self, range: Range<usize>, args: &T::Args) -> Result<T, ReadError>
     where
-        T: FontReadWithArgs<'a>,
+        T: FontRead<'a>,
     {
         self.slice(range)
             .ok_or(ReadError::OutOfBounds)
@@ -277,7 +276,7 @@ impl<'a> Cursor<'a> {
 
     pub(crate) fn read_with_args<T>(&mut self, args: &T::Args) -> Result<T, ReadError>
     where
-        T: FontReadWithArgs<'a> + ComputeSize,
+        T: FontRead<'a> + ComputeSize,
     {
         let len = T::compute_size(args)?;
         let range_end = self.pos.checked_add(len).ok_or(ReadError::OutOfBounds)?;
@@ -293,7 +292,7 @@ impl<'a> Cursor<'a> {
         args: &T::Args,
     ) -> Result<ComputedArray<'a, T>, ReadError>
     where
-        T: FontReadWithArgs<'a> + ComputeSize,
+        T: FontRead<'a> + ComputeSize,
     {
         let len = len
             .checked_mul(T::compute_size(args)?)
@@ -338,8 +337,12 @@ impl<'a> Cursor<'a> {
 }
 
 // useful so we can have offsets that are just to data
+impl ReadArgs for FontData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FontData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         Ok(data)
     }
 }

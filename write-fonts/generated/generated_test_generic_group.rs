@@ -42,7 +42,7 @@ impl<T: Validate> Validate for MyLookup<T> {
 
 impl<'a, T, U> FromObjRef<read_fonts::codegen_test::generic_group::MyLookup<'a, U>> for MyLookup<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
@@ -60,7 +60,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::codegen_test::generic_group::MyLookup<'a, U>>
     for MyLookup<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
 }
@@ -120,8 +120,12 @@ impl FromObjRef<read_fonts::codegen_test::generic_group::MySubtable<'_>> for MyS
 
 impl FromTableRef<read_fonts::codegen_test::generic_group::MySubtable<'_>> for MySubtable {}
 
+impl ReadArgs for MySubtable {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MySubtable {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::generic_group::MySubtable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -177,8 +181,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::generic_group::MySubtableFormat1
 {
 }
 
+impl ReadArgs for MySubtableFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MySubtableFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::generic_group::MySubtableFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -234,8 +242,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::generic_group::MySubtableFormat2
 {
 }
 
+impl ReadArgs for MySubtableFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MySubtableFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::generic_group::MySubtableFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -356,8 +368,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::generic_group::ContainsLookupGro
 {
 }
 
+impl ReadArgs for ContainsLookupGroup {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ContainsLookupGroup {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::generic_group::ContainsLookupGroup as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

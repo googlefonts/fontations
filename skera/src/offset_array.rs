@@ -1,7 +1,7 @@
 //! Subset arrays of offsets
 use crate::{offset::SerializeSubset, Plan, SerializeErrorFlags, Serializer, SubsetTable};
 use write_fonts::{
-    read::{ArrayOfNullableOffsets, ArrayOfOffsets, FontReadWithArgs, Offset, ReadArgs, ReadError},
+    read::{ArrayOfNullableOffsets, ArrayOfOffsets, FontRead, Offset, ReadError},
     types::{FixedSize, Scalar},
 };
 
@@ -18,7 +18,7 @@ pub(crate) trait SubsetOffsetArray<'a, T: SubsetTable<'a>> {
 impl<'a, T, O> SubsetOffsetArray<'a, T> for ArrayOfOffsets<'a, T, O>
 where
     O: Scalar + Offset + FixedSize + SerializeSubset,
-    T: ReadArgs + FontReadWithArgs<'a> + SubsetTable<'a>,
+    T: FontRead<'a> + SubsetTable<'a>,
     T::Args: Copy + 'static,
 {
     fn subset_offset(
@@ -48,7 +48,7 @@ where
 impl<'a, T, O> SubsetOffsetArray<'a, T> for ArrayOfNullableOffsets<'a, T, O>
 where
     O: Scalar + Offset + FixedSize + SerializeSubset,
-    T: ReadArgs + FontReadWithArgs<'a> + SubsetTable<'a>,
+    T: FontRead<'a> + SubsetTable<'a>,
     T::Args: Copy + 'static,
 {
     fn subset_offset(
@@ -85,7 +85,7 @@ impl<'a, T, O> IterNullableHelper<'a, T> for ArrayOfOffsets<'a, T, O>
 // these bounds have to match what is in the read-fonts impl block that has the normal `iter` method
 where
     O: Scalar + Offset,
-    T: ReadArgs + FontReadWithArgs<'a>,
+    T: FontRead<'a>,
     T::Args: Copy + 'static,
 {
     fn iter_as_nullable(&self) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a {

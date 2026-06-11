@@ -19,7 +19,7 @@ impl ReadArgs for BaseArray<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
+impl<'a> FontRead<'a> for BaseArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
 
@@ -198,7 +198,7 @@ impl ComputeSize for BaseRecord<'_> {
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
+impl<'a> FontRead<'a> for BaseRecord<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
@@ -269,7 +269,7 @@ impl ComputeSize for FaceRecord<'_> {
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for FaceRecord<'a> {
+impl<'a> FontRead<'a> for FaceRecord<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
@@ -318,8 +318,12 @@ impl<'a> MinByteRange<'a> for Face<'a> {
     }
 }
 
+impl ReadArgs for Face<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Face<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

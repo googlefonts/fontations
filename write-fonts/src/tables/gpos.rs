@@ -67,14 +67,22 @@ impl<T: LookupSubtable + FontWrite> FontWrite for ExtensionPosFormat1<T> {
 }
 
 // these can't have auto impls because the traits don't support generics
+impl ReadArgs for PositionLookup {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PositionLookup {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         read_fonts::tables::gpos::PositionLookup::read(data).map(|x| x.to_owned_table())
     }
 }
 
+impl ReadArgs for PositionLookupList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PositionLookupList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         read_fonts::tables::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }

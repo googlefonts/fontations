@@ -24,7 +24,7 @@ impl ReadArgs for Hmtx<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
+impl<'a> FontRead<'a> for Hmtx<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let number_of_h_metrics = *args;
 

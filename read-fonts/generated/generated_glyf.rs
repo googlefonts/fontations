@@ -10,8 +10,12 @@ impl TopLevelTable for Glyf<'_> {
     const TAG: Tag = Tag::new(b"glyf");
 }
 
+impl ReadArgs for Glyf<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Glyf<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -76,8 +80,12 @@ impl<'a> MinByteRange<'a> for SimpleGlyph<'a> {
     }
 }
 
+impl ReadArgs for SimpleGlyph<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SimpleGlyph<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -671,8 +679,12 @@ impl<'a> MinByteRange<'a> for CompositeGlyph<'a> {
     }
 }
 
+impl ReadArgs for CompositeGlyph<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CompositeGlyph<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1252,8 +1264,12 @@ impl<'a> Glyph<'a> {
     }
 }
 
+impl ReadArgs for Glyph<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Glyph<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
         let format: i16 = data.read_at(0usize)?;
 
         #[allow(clippy::redundant_guards)]
