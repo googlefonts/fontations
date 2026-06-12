@@ -77,6 +77,7 @@ fn do_we_even_serde() {
         ift: ift::Ift,
     }
     let tables = AllTables::default();
-    let dumped = bincode::serialize(&tables).unwrap();
-    let _loaded: AllTables = bincode::deserialize(&dumped).unwrap();
+    let dumped = bincode::serde::encode_to_vec(&tables, bincode::config::legacy()).unwrap();
+    let (_loaded, _): (AllTables, usize) =
+        bincode::serde::decode_from_slice(&dumped, bincode::config::legacy()).unwrap();
 }
