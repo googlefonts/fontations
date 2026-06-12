@@ -40,7 +40,7 @@ read-fonts = { workspace = true, features = [
   "codegen_test", "experimental_traverse"
 ] }
 rstest = "0.18.0"
-bincode = "1.0"
+bincode = { version = "2", features = ["serde"] }
 rand = "0.8.5"
 
 pretty_assertions.workspace = true

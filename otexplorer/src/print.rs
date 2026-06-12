@@ -1,8 +1,8 @@
 //! pretty printing implementation
 
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 
-use ansi_term::{Color, Style};
+use owo_colors::{Style as OwoStyle, XtermColors};
 use read_fonts::traversal::{
     ArrayOffset, FieldType, OffsetType, ResolvedOffset, SomeArray, SomeString, SomeTable,
     StringOffset,
@@ -49,7 +49,7 @@ impl<'a> PrettyPrinter<'a> {
             depth: 0,
             line_pos: 0,
             cur_array_item: None,
-            is_tty: atty::is(atty::Stream::Stdout),
+            is_tty: std::io::stdout().is_terminal(),
             indent_size: 2,
             writer,
         }
@@ -107,7 +107,7 @@ impl<'a> PrettyPrinter<'a> {
 
     fn print_with_style(
         &mut self,
-        style: Style,
+        style: OwoStyle,
         f: impl FnOnce(&mut PrettyPrinter) -> std::io::Result<()>,
     ) -> std::io::Result<()> {
         if !self.is_tty {
@@ -115,11 +115,11 @@ impl<'a> PrettyPrinter<'a> {
         } else {
             // ansi styles aren't counted for the purpose of width calculations
             let pos = self.line_pos;
-            write!(self, "{}", style.prefix())?;
+            write!(self, "{}", style.prefix_formatter())?;
             self.line_pos = pos;
             f(self)?;
             let pos = self.line_pos;
-            write!(self, "{}", style.suffix())?;
+            write!(self, "{}", style.suffix_formatter())?;
             self.line_pos = pos;
         }
         Ok(())
@@ -131,7 +131,9 @@ impl<'a> PrettyPrinter<'a> {
                 self.print_newline()?;
             }
             self.print_indent()?;
-            self.print_with_style(Color::Cyan.into(), |this| write!(this, "{}", field.name))?;
+            self.print_with_style(OwoStyle::new().cyan(), |this| {
+                write!(this, "{}", field.name)
+            })?;
             write!(self, ": ")?;
             self.print_field(&field.value)?;
         }
@@ -176,12 +178,14 @@ impl<'a> PrettyPrinter<'a> {
             FieldType::F2Dot14(val) => write!(self, "{val}")?,
             FieldType::Fixed(val) => write!(self, "{val}")?,
             FieldType::LongDateTime(val) => write!(self, "{val:?}")?,
-            FieldType::GlyphId16(val) => self.print_with_style(Color::Yellow.into(), |this| {
-                write!(this, "{}", val.to_u16())
-            })?,
-            FieldType::GlyphId24(val) => self.print_with_style(Color::Yellow.into(), |this| {
-                write!(this, "{}", val.to_u32())
-            })?,
+            FieldType::GlyphId16(val) => self
+                .print_with_style(OwoStyle::new().yellow(), |this| {
+                    write!(this, "{}", val.to_u16())
+                })?,
+            FieldType::GlyphId24(val) => self
+                .print_with_style(OwoStyle::new().yellow(), |this| {
+                    write!(this, "{}", val.to_u32())
+                })?,
             FieldType::NameId(val) => write!(self, "{val:?}")?,
             FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => {
                 match target {
@@ -191,7 +195,9 @@ impl<'a> PrettyPrinter<'a> {
                         if self.line_pos == 0 {
                             self.print_indent()?;
                         }
-                        self.print_with_style(Color::Blue.into(), |this| write!(this, "{offset}"))?;
+                        self.print_with_style(OwoStyle::new().blue(), |this| {
+                            write!(this, "{offset}")
+                        })?;
                         self.print_current_array_pos()?;
                         self.print_offset_hex(*offset)?;
                         self.print_newline()?;
@@ -202,7 +208,7 @@ impl<'a> PrettyPrinter<'a> {
             }
             FieldType::StringOffset(StringOffset { offset, target }) => match target {
                 Ok(string) => {
-                    self.print_with_style(Color::Blue.into(), |this| write!(this, "{offset}"))?;
+                    self.print_with_style(OwoStyle::new().blue(), |this| write!(this, "{offset}"))?;
                     self.print_current_array_pos()?;
                     self.print_offset_hex(*offset)?;
                     self.print_newline()?;
@@ -212,7 +218,7 @@ impl<'a> PrettyPrinter<'a> {
             },
             FieldType::ArrayOffset(ArrayOffset { offset, target }) => match target {
                 Ok(array) => {
-                    self.print_with_style(Color::Blue.into(), |this| write!(this, "{offset}"))?;
+                    self.print_with_style(OwoStyle::new().blue(), |this| write!(this, "{offset}"))?;
                     self.print_current_array_pos()?;
                     self.print_offset_hex(*offset)?;
                     self.print_newline()?;
@@ -224,7 +230,7 @@ impl<'a> PrettyPrinter<'a> {
                 if self.line_pos == 0 {
                     self.print_indent()?;
                 }
-                self.print_with_style(Color::Blue.into(), |this| match offset.to_u32() {
+                self.print_with_style(OwoStyle::new().blue(), |this| match offset.to_u32() {
                     0 => write!(this, "Null"),
                     _ => write!(this, "{offset}"),
                 })?;
@@ -285,13 +291,13 @@ impl<'a> PrettyPrinter<'a> {
                     return Ok(());
                 }
                 len if self.line_pos + len < L_COLUMN_WIDTH => {
-                    self.print_with_style(Style::default().italic(), |this| this.write_all(&buf))?;
+                    self.print_with_style(OwoStyle::new().italic(), |this| this.write_all(&buf))?;
                 }
                 _ => {
                     self.print_hex(&[])?;
                     self.print_newline()?;
                     self.print_indent()?;
-                    self.print_with_style(Style::default().italic(), |this| this.write_all(&buf))?;
+                    self.print_with_style(OwoStyle::new().italic(), |this| this.write_all(&buf))?;
                 }
             }
         }
@@ -310,7 +316,10 @@ impl<'a> PrettyPrinter<'a> {
             let padding = ARRAY_POS_WIDTH.saturating_sub(self.line_pos);
             let wspace = &MANY_SPACES[..padding];
             self.write_all(wspace)?;
-            self.print_with_style(Color::Fixed(243).italic(), |this| write!(this, " {idx}"))?;
+            self.print_with_style(
+                OwoStyle::new().color(XtermColors::from(243u8)).italic(),
+                |this| write!(this, " {idx}"),
+            )?;
         }
         Ok(())
     }
@@ -327,7 +336,7 @@ impl<'a> PrettyPrinter<'a> {
         let padding = L_COLUMN_WIDTH.saturating_sub(self.line_pos);
         let wspace = &MANY_SPACES[..padding];
         self.write_all(wspace)?;
-        self.print_with_style(Color::Fixed(250).into(), |this| {
+        self.print_with_style(OwoStyle::new().color(XtermColors::from(250u8)), |this| {
             write!(this, "│")?;
             for b in bytes {
                 write!(this, " {b:02X}")?

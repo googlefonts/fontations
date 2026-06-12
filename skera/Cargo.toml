@@ -34,4 +34,4 @@ diff = "0.1.13"
 font-test-data = { workspace = true }
 rayon = { workspace = true }
 rstest = "0.26.1"
-tempdir = "0.3.7"
+tempfile = "3"

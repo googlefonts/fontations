@@ -16,7 +16,7 @@ use std::fs;
 use std::iter::Peekable;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use tempdir::TempDir;
+use tempfile::TempDir;
 use write_fonts::{
     read::{
         collections::{int_set::Domain, IntSet},
@@ -312,7 +312,7 @@ impl SubsetTestCase {
     }
 
     fn run(&self) {
-        let output_temp_dir = TempDir::new_in(".", "skera_test").unwrap();
+        let output_temp_dir = TempDir::new_in(".").unwrap();
         let output_dir = output_temp_dir.path();
         self.fonts.par_iter().for_each(|font| {
             self.profiles.par_iter().for_each(|profile| {
@@ -325,7 +325,7 @@ impl SubsetTestCase {
     }
 
     fn gen_expected_output(&self) {
-        let output_temp_dir = TempDir::new_in(".", "skera_test").unwrap();
+        let output_temp_dir = TempDir::new_in(".").unwrap();
         let output_dir = output_temp_dir.path();
         for font in &self.fonts {
             for profile in &self.profiles {
