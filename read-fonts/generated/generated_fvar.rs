@@ -265,7 +265,10 @@ impl<'a> AxisInstanceArrays<'a> {
     pub fn axes_byte_range(&self) -> Range<usize> {
         let axis_count = self.axis_count();
         let start = 0;
-        start..start + (axis_count as usize).saturating_mul(VariationAxisRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(axis_count))
+                    .saturating_mul(VariationAxisRecord::RAW_BYTE_LEN)
     }
 
     pub fn instances_byte_range(&self) -> Range<usize> {
@@ -273,7 +276,7 @@ impl<'a> AxisInstanceArrays<'a> {
         let start = self.axes_byte_range().end;
         start
             ..start
-                + (instance_count as usize).saturating_mul(
+                + (transforms::to_usize(instance_count)).saturating_mul(
                     <InstanceRecord as ComputeSize>::compute_size(&(
                         self.axis_count(),
                         self.instance_size(),

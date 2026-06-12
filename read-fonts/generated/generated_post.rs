@@ -206,7 +206,9 @@ impl<'a> Post<'a> {
         let start = self.num_glyphs_byte_range().end;
         start
             ..(self.version().compatible((2u16, 0u16)))
-                .then(|| start + (num_glyphs as usize).saturating_mul(u16::RAW_BYTE_LEN))
+                .then(|| {
+                    start + (transforms::to_usize(num_glyphs)).saturating_mul(u16::RAW_BYTE_LEN)
+                })
                 .unwrap_or(start)
     }
 

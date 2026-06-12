@@ -101,7 +101,7 @@ impl Validate for Cpal {
                 self.color_records_array.validate_impl(ctx);
             });
             ctx.in_field("color_record_indices", |ctx| {
-                if self.color_record_indices.len() > (u16::MAX as usize) {
+                if self.color_record_indices.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });

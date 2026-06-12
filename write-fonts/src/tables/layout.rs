@@ -1,6 +1,9 @@
 //! OpenType layout.
 
-use std::{collections::HashSet, hash::Hash};
+use std::{
+    collections::{BTreeMap, HashSet},
+    hash::Hash,
+};
 
 pub use read_fonts::tables::layout::LookupFlag;
 use read_fonts::FontRead;
@@ -252,10 +255,12 @@ impl FromObjRef<read_fonts::tables::layout::FeatureParams<'_>> for FeatureParams
 impl FromTableRef<read_fonts::tables::layout::FeatureParams<'_>> for FeatureParams {}
 
 impl ClassDefFormat1 {
-    fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
+    fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
         self.class_value_array.iter().enumerate().map(|(i, cls)| {
             (
-                GlyphId16::new(self.start_glyph_id.to_u16().saturating_add(i as u16)),
+                GlyphId::from(GlyphId16::new(
+                    self.start_glyph_id.to_u16().saturating_add(i as u16),
+                )),
                 *cls,
             )
         })
@@ -278,40 +283,93 @@ impl ClassRangeRecord {
 }
 
 impl ClassDefFormat2 {
-    fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
+    fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
         self.class_range_records.iter().flat_map(|rcd| {
             (rcd.start_glyph_id.to_u16()..=rcd.end_glyph_id.to_u16())
-                .map(|gid| (GlyphId16::new(gid), rcd.class))
+                .map(|gid| (GlyphId::from(GlyphId16::new(gid)), rcd.class))
+        })
+    }
+}
+
+impl ClassDefFormat3 {
+    fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+        let start = self.start_glyph_id.to_u32();
+        self.class_value_array
+            .iter()
+            .enumerate()
+            .map(move |(i, cls)| (GlyphId::new(start + i as u32), *cls))
+    }
+}
+
+impl ClassRangeRecord2 {
+    fn validate_glyph_range(&self, ctx: &mut ValidationCtx) {
+        if self.start_glyph_id > self.end_glyph_id {
+            ctx.report(format!(
+                "start_glyph_id {} larger than end_glyph_id {}",
+                self.start_glyph_id, self.end_glyph_id
+            ));
+        }
+    }
+
+    fn contains(&self, gid: GlyphId) -> bool {
+        (self.start_glyph_id.to_u32()..=self.end_glyph_id.to_u32()).contains(&gid.to_u32())
+    }
+}
+
+impl ClassDefFormat4 {
+    fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+        self.class_range_records.iter().flat_map(|rcd| {
+            (rcd.start_glyph_id.to_u32()..=rcd.end_glyph_id.to_u32())
+                .map(|gid| (GlyphId::new(gid), rcd.class))
         })
     }
 }
 
 impl ClassDef {
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
-        let (one, two) = match self {
-            Self::Format1(table) => (Some(table.iter()), None),
-            Self::Format2(table) => (None, Some(table.iter())),
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+        let (one, two, three, four) = match self {
+            Self::Format1(table) => (Some(table.iter()), None, None, None),
+            Self::Format2(table) => (None, Some(table.iter()), None, None),
+            Self::Format3(table) => (None, None, Some(table.iter()), None),
+            Self::Format4(table) => (None, None, None, Some(table.iter())),
         };
 
-        one.into_iter().flatten().chain(two.into_iter().flatten())
+        one.into_iter()
+            .flatten()
+            .chain(two.into_iter().flatten())
+            .chain(three.into_iter().flatten())
+            .chain(four.into_iter().flatten())
     }
 
     /// Return the glyph class for the provided glyph.
     ///
     /// Glyphs which have not been assigned a class are given class 0
-    pub fn get(&self, glyph: GlyphId16) -> u16 {
+    pub fn get(&self, glyph: impl Into<GlyphId>) -> u16 {
         self.get_raw(glyph).unwrap_or(0)
     }
 
     // exposed for testing
-    fn get_raw(&self, glyph: GlyphId16) -> Option<u16> {
+    fn get_raw(&self, glyph: impl Into<GlyphId>) -> Option<u16> {
+        let glyph = glyph.into();
         match self {
-            ClassDef::Format1(table) => glyph
-                .to_u16()
-                .checked_sub(table.start_glyph_id.to_u16())
+            ClassDef::Format1(table) => {
+                let glyph = GlyphId16::try_from(glyph).ok()?;
+                glyph
+                    .to_u16()
+                    .checked_sub(table.start_glyph_id.to_u16())
+                    .and_then(|idx| table.class_value_array.get(idx as usize))
+                    .copied()
+            }
+            ClassDef::Format2(table) => table.class_range_records.iter().find_map(|rec| {
+                rec.contains(GlyphId16::try_from(glyph).ok()?)
+                    .then_some(rec.class)
+            }),
+            ClassDef::Format3(table) => glyph
+                .to_u32()
+                .checked_sub(table.start_glyph_id.to_u32())
                 .and_then(|idx| table.class_value_array.get(idx as usize))
                 .copied(),
-            ClassDef::Format2(table) => table
+            ClassDef::Format4(table) => table
                 .class_range_records
                 .iter()
                 .find_map(|rec| rec.contains(glyph).then_some(rec.class)),
@@ -334,6 +392,8 @@ impl ClassDef {
         match self {
             Self::Format1(table) => table.class_value_array.is_empty(),
             Self::Format2(table) => table.class_range_records.is_empty(),
+            Self::Format3(table) => table.class_value_array.is_empty(),
+            Self::Format4(table) => table.class_range_records.is_empty(),
         }
     }
 }
@@ -349,10 +409,11 @@ impl CoverageFormat1 {
 }
 
 impl CoverageFormat2 {
-    fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
+    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
         self.range_records
             .iter()
             .flat_map(|rcd| iter_gids(rcd.start_glyph_id, rcd.end_glyph_id))
+            .map(GlyphId::from)
     }
 
     fn len(&self) -> usize {
@@ -369,19 +430,37 @@ impl CoverageFormat2 {
 }
 
 impl CoverageTable {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
-        let (one, two) = match self {
-            Self::Format1(table) => (Some(table.iter()), None),
-            Self::Format2(table) => (None, Some(table.iter())),
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        let one = match self {
+            Self::Format1(table) => Some(table.iter().map(GlyphId::from)),
+            _ => None,
+        };
+        let two = match self {
+            Self::Format2(table) => Some(table.iter()),
+            _ => None,
+        };
+        let three = match self {
+            Self::Format3(table) => Some(table.iter()),
+            _ => None,
+        };
+        let four = match self {
+            Self::Format4(table) => Some(table.iter()),
+            _ => None,
         };
 
-        one.into_iter().flatten().chain(two.into_iter().flatten())
+        one.into_iter()
+            .flatten()
+            .chain(two.into_iter().flatten())
+            .chain(three.into_iter().flatten())
+            .chain(four.into_iter().flatten())
     }
 
     pub fn len(&self) -> usize {
         match self {
             Self::Format1(table) => table.len(),
             Self::Format2(table) => table.len(),
+            Self::Format3(table) => table.len(),
+            Self::Format4(table) => table.len(),
         }
     }
 
@@ -390,10 +469,70 @@ impl CoverageTable {
     }
 }
 
+impl CoverageFormat3 {
+    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        self.glyph_array.iter().copied().map(GlyphId::from)
+    }
+
+    fn len(&self) -> usize {
+        self.glyph_array.len()
+    }
+}
+
+impl CoverageFormat4 {
+    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        self.range_records
+            .iter()
+            .flat_map(|rcd| iter_gids24(rcd.start_glyph_id, rcd.end_glyph_id).map(GlyphId::from))
+    }
+
+    fn len(&self) -> usize {
+        self.range_records
+            .iter()
+            .map(|rcd| {
+                rcd.end_glyph_id
+                    .to_u32()
+                    .saturating_sub(rcd.start_glyph_id.to_u32()) as usize
+                    + 1
+            })
+            .sum()
+    }
+}
+
 impl FromIterator<GlyphId16> for CoverageTable {
     fn from_iter<T: IntoIterator<Item = GlyphId16>>(iter: T) -> Self {
-        let glyphs = iter.into_iter().collect::<Vec<_>>();
-        builders::CoverageTableBuilder::from_glyphs(glyphs).build()
+        iter.into_iter().map(GlyphId::from).collect()
+    }
+}
+
+impl FromIterator<GlyphId> for CoverageTable {
+    fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
+        let mut glyphs = iter.into_iter().collect::<Vec<_>>();
+        glyphs.sort();
+        glyphs.dedup();
+
+        if let Some(glyphs16) = glyphs
+            .iter()
+            .copied()
+            .map(|gid| GlyphId16::try_from(gid).ok())
+            .collect::<Option<Vec<_>>>()
+        {
+            builders::CoverageTableBuilder::from_glyphs(glyphs16).build()
+        } else {
+            let glyphs = glyphs
+                .into_iter()
+                .map(|gid| GlyphId24::try_from(gid).expect("glyph id exceeds 24 bits"))
+                .collect::<Vec<_>>();
+            if should_choose_coverage_format_4(&glyphs) {
+                CoverageTable::Format4(CoverageFormat4 {
+                    range_records: RangeRecord2::iter_for_glyphs(&glyphs).collect(),
+                })
+            } else {
+                CoverageTable::Format3(CoverageFormat3 {
+                    glyph_array: glyphs,
+                })
+            }
+        }
     }
 }
 
@@ -406,6 +545,42 @@ impl From<Vec<GlyphId16>> for CoverageTable {
 impl FromIterator<(GlyphId16, u16)> for ClassDef {
     fn from_iter<T: IntoIterator<Item = (GlyphId16, u16)>>(iter: T) -> Self {
         builders::ClassDefBuilderImpl::from_iter(iter).build()
+    }
+}
+
+impl FromIterator<(GlyphId, u16)> for ClassDef {
+    fn from_iter<T: IntoIterator<Item = (GlyphId, u16)>>(iter: T) -> Self {
+        let items = iter
+            .into_iter()
+            .filter(|(_, cls)| *cls != 0)
+            .collect::<BTreeMap<_, _>>();
+
+        if let Some(items16) = items
+            .iter()
+            .map(|(gid, cls)| GlyphId16::try_from(*gid).ok().map(|gid| (gid, *cls)))
+            .collect::<Option<Vec<_>>>()
+        {
+            builders::ClassDefBuilderImpl::from_iter(items16).build()
+        } else if should_choose_classdef_format_3(&items) {
+            let first = items.keys().next().copied().unwrap_or_default().to_u32();
+            let last = items
+                .keys()
+                .next_back()
+                .copied()
+                .unwrap_or_default()
+                .to_u32();
+            let class_value_array = (first..=last)
+                .map(|gid| items.get(&GlyphId::new(gid)).copied().unwrap_or(0))
+                .collect();
+            ClassDef::Format3(ClassDefFormat3 {
+                start_glyph_id: GlyphId24::new(first),
+                class_value_array,
+            })
+        } else {
+            ClassDef::Format4(ClassDefFormat4 {
+                class_range_records: iter_class_ranges24(&items).collect(),
+            })
+        }
     }
 }
 
@@ -449,12 +624,119 @@ impl RangeRecord {
     }
 }
 
+impl RangeRecord2 {
+    /// An iterator over records for this array of glyphs.
+    ///
+    /// # Note
+    ///
+    /// this function expects that glyphs are already sorted.
+    pub fn iter_for_glyphs(glyphs: &[GlyphId24]) -> impl Iterator<Item = RangeRecord2> + '_ {
+        let mut cur_range = glyphs.first().copied().map(|g| (g, g));
+        let mut len = 0u32;
+        let mut iter = glyphs.iter().skip(1).copied();
+
+        #[allow(clippy::while_let_on_iterator)]
+        std::iter::from_fn(move || {
+            while let Some(glyph) = iter.next() {
+                match cur_range {
+                    None => return None,
+                    Some((a, b)) if are_sequential24(b, glyph) => cur_range = Some((a, glyph)),
+                    Some((a, b)) => {
+                        let result = RangeRecord2 {
+                            start_glyph_id: a,
+                            end_glyph_id: b,
+                            start_coverage_index: Uint24::new(len),
+                        };
+                        cur_range = Some((glyph, glyph));
+                        len += 1 + b.to_u32().saturating_sub(a.to_u32());
+                        return Some(result);
+                    }
+                }
+            }
+            cur_range
+                .take()
+                .map(|(start_glyph_id, end_glyph_id)| RangeRecord2 {
+                    start_glyph_id,
+                    end_glyph_id,
+                    start_coverage_index: Uint24::new(len),
+                })
+        })
+    }
+}
+
 fn iter_gids(gid1: GlyphId16, gid2: GlyphId16) -> impl Iterator<Item = GlyphId16> {
     (gid1.to_u16()..=gid2.to_u16()).map(GlyphId16::new)
 }
 
+fn iter_gids24(gid1: GlyphId24, gid2: GlyphId24) -> impl Iterator<Item = GlyphId24> {
+    (gid1.to_u32()..=gid2.to_u32()).map(GlyphId24::new)
+}
+
 fn are_sequential(gid1: GlyphId16, gid2: GlyphId16) -> bool {
     gid2.to_u16().saturating_sub(gid1.to_u16()) == 1
+}
+
+fn are_sequential24(gid1: GlyphId24, gid2: GlyphId24) -> bool {
+    gid2.to_u32().saturating_sub(gid1.to_u32()) == 1
+}
+
+fn should_choose_coverage_format_4(glyphs: &[GlyphId24]) -> bool {
+    let format4_len = 5 + RangeRecord2::iter_for_glyphs(glyphs).count() * 9;
+    let format3_len = 5 + glyphs.len() * 3;
+    format4_len < format3_len
+}
+
+fn should_choose_classdef_format_3(values: &BTreeMap<GlyphId, u16>) -> bool {
+    let Some(first) = values.keys().next() else {
+        return false;
+    };
+    let last = values.keys().next_back().unwrap();
+    let span_len = last.to_u32() - first.to_u32() + 1;
+    if span_len > Uint24::MAX.to_u32() {
+        return false;
+    }
+
+    let format3_len = 8 + span_len as usize * 2;
+    let format4_len = 5 + iter_class_ranges24(values).count() * 8;
+    format3_len < format4_len
+}
+
+fn iter_class_ranges24(
+    values: &BTreeMap<GlyphId, u16>,
+) -> impl Iterator<Item = ClassRangeRecord2> + '_ {
+    let mut iter = values.iter();
+    let mut prev = None;
+
+    #[allow(clippy::while_let_on_iterator)]
+    std::iter::from_fn(move || {
+        while let Some((gid, class)) = iter.next() {
+            match prev.take() {
+                None => prev = Some((*gid, *gid, *class)),
+                Some((start, end, pclass))
+                    if gid.to_u32().saturating_sub(end.to_u32()) == 1 && pclass == *class =>
+                {
+                    prev = Some((start, *gid, pclass))
+                }
+                Some((start_glyph_id, end_glyph_id, pclass)) => {
+                    prev = Some((*gid, *gid, *class));
+                    return Some(ClassRangeRecord2 {
+                        start_glyph_id: GlyphId24::try_from(start_glyph_id)
+                            .expect("glyph id exceeds 24 bits"),
+                        end_glyph_id: GlyphId24::try_from(end_glyph_id)
+                            .expect("glyph id exceeds 24 bits"),
+                        class: pclass,
+                    });
+                }
+            }
+        }
+        prev.take()
+            .map(|(start_glyph_id, end_glyph_id, class)| ClassRangeRecord2 {
+                start_glyph_id: GlyphId24::try_from(start_glyph_id)
+                    .expect("glyph id exceeds 24 bits"),
+                end_glyph_id: GlyphId24::try_from(end_glyph_id).expect("glyph id exceeds 24 bits"),
+                class,
+            })
+    })
 }
 
 impl Device {
@@ -531,6 +813,111 @@ impl From<VariationIndex> for u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn gids(values: &[u32]) -> Vec<GlyphId> {
+        values.iter().copied().map(GlyphId::new).collect()
+    }
+
+    #[test]
+    fn coverage_collects_high_sparse_glyphs_as_format4() {
+        let coverage = gids(&[
+            0x1_0000, 0x1_0001, 0x1_0002, 0x1_0003, 0x2_0000, 0x2_0001, 0x2_0002, 0x2_0003,
+        ])
+        .into_iter()
+        .collect::<CoverageTable>();
+
+        let CoverageTable::Format4(coverage) = coverage else {
+            panic!("expected CoverageFormat4");
+        };
+        assert_eq!(coverage.range_records.len(), 2);
+        assert_eq!(
+            coverage.range_records[0].start_glyph_id,
+            GlyphId24::new(0x1_0000)
+        );
+        assert_eq!(
+            coverage.range_records[0].end_glyph_id,
+            GlyphId24::new(0x1_0003)
+        );
+        assert_eq!(
+            coverage.range_records[0].start_coverage_index,
+            Uint24::new(0)
+        );
+        assert_eq!(
+            coverage.range_records[1].start_glyph_id,
+            GlyphId24::new(0x2_0000)
+        );
+        assert_eq!(
+            coverage.range_records[1].end_glyph_id,
+            GlyphId24::new(0x2_0003)
+        );
+        assert_eq!(
+            coverage.range_records[1].start_coverage_index,
+            Uint24::new(4)
+        );
+    }
+
+    #[test]
+    fn coverage_collects_high_dense_glyphs_as_format3() {
+        let coverage = gids(&[0x1_0000, 0x1_0100, 0x1_0200, 0x1_0300])
+            .into_iter()
+            .collect::<CoverageTable>();
+
+        let CoverageTable::Format3(coverage) = coverage else {
+            panic!("expected CoverageFormat3");
+        };
+        assert_eq!(
+            coverage.glyph_array,
+            vec![
+                GlyphId24::new(0x1_0000),
+                GlyphId24::new(0x1_0100),
+                GlyphId24::new(0x1_0200),
+                GlyphId24::new(0x1_0300),
+            ]
+        );
+    }
+
+    #[test]
+    fn classdef_collects_high_dense_glyphs_as_format3() {
+        let classdef = [
+            (GlyphId::new(0x1_0000), 5),
+            (GlyphId::new(0x1_0001), 0),
+            (GlyphId::new(0x1_0002), 7),
+        ]
+        .into_iter()
+        .collect::<ClassDef>();
+
+        let ClassDef::Format3(classdef) = classdef else {
+            panic!("expected ClassDefFormat3");
+        };
+        assert_eq!(classdef.start_glyph_id, GlyphId24::new(0x1_0000));
+        assert_eq!(classdef.class_value_array, vec![5, 0, 7]);
+    }
+
+    #[test]
+    fn classdef_collects_high_sparse_glyphs_as_format4() {
+        let classdef = [
+            (GlyphId::new(0x1_0000), 4),
+            (GlyphId::new(0x1_0001), 4),
+            (GlyphId::new(0x1_0002), 4),
+            (GlyphId::new(0x2_0000), 7),
+            (GlyphId::new(0x2_0001), 7),
+        ]
+        .into_iter()
+        .collect::<ClassDef>();
+
+        let ClassDef::Format4(classdef) = classdef else {
+            panic!("expected ClassDefFormat4");
+        };
+        assert_eq!(classdef.class_range_records.len(), 2);
+        assert_eq!(
+            classdef.class_range_records[0],
+            ClassRangeRecord2::new(GlyphId24::new(0x1_0000), GlyphId24::new(0x1_0002), 4)
+        );
+        assert_eq!(
+            classdef.class_range_records[1],
+            ClassRangeRecord2::new(GlyphId24::new(0x2_0000), GlyphId24::new(0x2_0001), 7)
+        );
+    }
 
     #[test]
     #[should_panic(expected = "array exceeds max length")]

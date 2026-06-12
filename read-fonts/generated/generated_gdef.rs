@@ -361,7 +361,7 @@ impl<'a> AttachList<'a> {
     pub fn attach_point_offsets_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -455,7 +455,7 @@ impl<'a> AttachPoint<'a> {
     pub fn point_indices_byte_range(&self) -> Range<usize> {
         let point_count = self.point_count();
         let start = self.point_count_byte_range().end;
-        start..start + (point_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(point_count)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -567,7 +567,8 @@ impl<'a> LigCaretList<'a> {
     pub fn lig_glyph_offsets_byte_range(&self) -> Range<usize> {
         let lig_glyph_count = self.lig_glyph_count();
         let start = self.lig_glyph_count_byte_range().end;
-        start..start + (lig_glyph_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start
+            ..start + (transforms::to_usize(lig_glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -669,7 +670,7 @@ impl<'a> LigGlyph<'a> {
     pub fn caret_value_offsets_byte_range(&self) -> Range<usize> {
         let caret_count = self.caret_count();
         let start = self.caret_count_byte_range().end;
-        start..start + (caret_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(caret_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -1151,7 +1152,10 @@ impl<'a> MarkGlyphSets<'a> {
     pub fn coverage_offsets_byte_range(&self) -> Range<usize> {
         let mark_glyph_set_count = self.mark_glyph_set_count();
         let start = self.mark_glyph_set_count_byte_range().end;
-        start..start + (mark_glyph_set_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(mark_glyph_set_count))
+                    .saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 }
 

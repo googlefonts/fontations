@@ -96,7 +96,7 @@ impl<'a> BaseArray<'a> {
         let start = self.base_count_byte_range().end;
         start
             ..start
-                + (base_count as usize).saturating_mul(
+                + (transforms::to_usize(base_count)).saturating_mul(
                     <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count())
                         .unwrap_or(0),
                 )
@@ -112,7 +112,7 @@ impl<'a> BaseArray<'a> {
         let start = self.face_count_byte_range().end;
         start
             ..start
-                + (base_count as usize).saturating_mul(
+                + (transforms::to_usize(base_count)).saturating_mul(
                     <FaceRecord as ComputeSize>::compute_size(&self.mark_class_count())
                         .unwrap_or(0),
                 )
@@ -194,7 +194,7 @@ impl ComputeSize for BaseRecord<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let mark_class_count = *args;
-        Ok((mark_class_count as usize).saturating_mul(u16::RAW_BYTE_LEN))
+        Ok((transforms::to_usize(mark_class_count)).saturating_mul(u16::RAW_BYTE_LEN))
     }
 }
 
@@ -203,7 +203,7 @@ impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            base_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
+            base_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
     }
 }
@@ -265,7 +265,7 @@ impl ComputeSize for FaceRecord<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let mark_class_count = *args;
-        Ok((mark_class_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN))
+        Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset16::RAW_BYTE_LEN))
     }
 }
 
@@ -274,7 +274,7 @@ impl<'a> FontReadWithArgs<'a> for FaceRecord<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            face_offsets: cursor.read_array(mark_class_count as usize)?,
+            face_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
     }
 }

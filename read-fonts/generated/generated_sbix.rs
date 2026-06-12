@@ -423,7 +423,7 @@ impl<'a> Sbix<'a> {
     pub fn strike_offsets_byte_range(&self) -> Range<usize> {
         let num_strikes = self.num_strikes();
         let start = self.num_strikes_byte_range().end;
-        start..start + (num_strikes as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_strikes)).saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 }
 

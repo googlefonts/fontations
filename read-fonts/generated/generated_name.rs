@@ -99,7 +99,7 @@ impl<'a> Name<'a> {
     pub fn name_record_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.storage_offset_byte_range().end;
-        start..start + (count as usize).saturating_mul(NameRecord::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(count)).saturating_mul(NameRecord::RAW_BYTE_LEN)
     }
 
     pub fn lang_tag_count_byte_range(&self) -> Range<usize> {
@@ -116,7 +116,9 @@ impl<'a> Name<'a> {
         start
             ..(self.version().compatible(1u16))
                 .then(|| {
-                    start + (lang_tag_count as usize).saturating_mul(LangTagRecord::RAW_BYTE_LEN)
+                    start
+                        + (transforms::to_usize(lang_tag_count))
+                            .saturating_mul(LangTagRecord::RAW_BYTE_LEN)
                 })
                 .unwrap_or(start)
     }

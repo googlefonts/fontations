@@ -87,7 +87,7 @@ impl<'a> Vorg<'a> {
         let start = self.num_vert_origin_y_metrics_byte_range().end;
         start
             ..start
-                + (num_vert_origin_y_metrics as usize)
+                + (transforms::to_usize(num_vert_origin_y_metrics))
                     .saturating_mul(VertOriginYMetrics::RAW_BYTE_LEN)
     }
 }

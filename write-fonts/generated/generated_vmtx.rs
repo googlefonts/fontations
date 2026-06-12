@@ -40,7 +40,7 @@ impl Validate for Vmtx {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Vmtx", |ctx| {
             ctx.in_field("v_metrics", |ctx| {
-                if self.v_metrics.len() > (u16::MAX as usize) {
+                if self.v_metrics.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.v_metrics.validate_impl(ctx);

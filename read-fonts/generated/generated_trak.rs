@@ -220,7 +220,8 @@ impl<'a> TrackData<'a> {
     pub fn track_table_byte_range(&self) -> Range<usize> {
         let n_tracks = self.n_tracks();
         let start = self.size_table_offset_byte_range().end;
-        start..start + (n_tracks as usize).saturating_mul(TrackTableEntry::RAW_BYTE_LEN)
+        start
+            ..start + (transforms::to_usize(n_tracks)).saturating_mul(TrackTableEntry::RAW_BYTE_LEN)
     }
 }
 

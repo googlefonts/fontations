@@ -708,7 +708,9 @@ impl Count {
     pub(crate) fn count_expr(&self) -> TokenStream {
         match self {
             Count::All(_) => unreachable!("'all' count handled separately"),
-            Count::SingleArg(CountArg::Field(arg)) => quote!(#arg as usize),
+            Count::SingleArg(CountArg::Field(arg)) => {
+                quote!(transforms::to_usize(#arg))
+            }
             Count::SingleArg(CountArg::Literal(arg)) => quote!(#arg),
             Count::Complicated { args, xform } => match (xform, args.as_slice()) {
                 (CountTransform::Sub, [a, b]) => {
@@ -748,7 +750,7 @@ impl Count {
                     quote!(transforms::subtract_add_two(#a, #b))
                 }
                 (CountTransform::TryInto, [a]) => {
-                    quote!(usize::try_from(#a).unwrap_or_default())
+                    quote!(transforms::to_usize(#a))
                 }
                 _ => unreachable!("validated before now"),
             },

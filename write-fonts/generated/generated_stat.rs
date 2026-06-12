@@ -174,7 +174,7 @@ impl Validate for AxisValueArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AxisValueArray", |ctx| {
             ctx.in_field("axis_values", |ctx| {
-                if self.axis_values.len() > (u16::MAX as usize) {
+                if self.axis_values.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.axis_values.validate_impl(ctx);
@@ -632,7 +632,7 @@ impl Validate for AxisValueFormat4 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AxisValueFormat4", |ctx| {
             ctx.in_field("axis_values", |ctx| {
-                if self.axis_values.len() > (u16::MAX as usize) {
+                if self.axis_values.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.axis_values.validate_impl(ctx);

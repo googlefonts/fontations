@@ -81,7 +81,8 @@ impl<'a> Kerx<'a> {
         let start = self.n_tables_byte_range().end;
         start..start + {
             let data = self.data.split_off(start).unwrap_or_default();
-            <Subtable as VarSize>::total_len_for_count(data, n_tables as usize).unwrap_or(0)
+            <Subtable as VarSize>::total_len_for_count(data, transforms::to_usize(n_tables))
+                .unwrap_or(0)
         }
     }
 }
@@ -317,7 +318,7 @@ impl<'a> Subtable0<'a> {
     pub fn pairs_byte_range(&self) -> Range<usize> {
         let n_pairs = self.n_pairs();
         let start = self.range_shift_byte_range().end;
-        start..start + (n_pairs as usize).saturating_mul(Subtable0Pair::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(n_pairs)).saturating_mul(Subtable0Pair::RAW_BYTE_LEN)
     }
 }
 

@@ -450,7 +450,7 @@ impl<'a> BaseGlyphList<'a> {
         let start = self.num_base_glyph_paint_records_byte_range().end;
         start
             ..start
-                + (num_base_glyph_paint_records as usize)
+                + (transforms::to_usize(num_base_glyph_paint_records))
                     .saturating_mul(BaseGlyphPaint::RAW_BYTE_LEN)
     }
 }
@@ -607,7 +607,7 @@ impl<'a> LayerList<'a> {
     pub fn paint_offsets_byte_range(&self) -> Range<usize> {
         let num_layers = self.num_layers();
         let start = self.num_layers_byte_range().end;
-        start..start + (num_layers as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_layers)).saturating_mul(Offset32::RAW_BYTE_LEN)
     }
 }
 
@@ -705,7 +705,7 @@ impl<'a> ClipList<'a> {
     pub fn clips_byte_range(&self) -> Range<usize> {
         let num_clips = self.num_clips();
         let start = self.num_clips_byte_range().end;
-        start..start + (num_clips as usize).saturating_mul(Clip::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_clips)).saturating_mul(Clip::RAW_BYTE_LEN)
     }
 }
 
@@ -1452,7 +1452,7 @@ impl<'a> ColorLine<'a> {
     pub fn color_stops_byte_range(&self) -> Range<usize> {
         let num_stops = self.num_stops();
         let start = self.num_stops_byte_range().end;
-        start..start + (num_stops as usize).saturating_mul(ColorStop::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_stops)).saturating_mul(ColorStop::RAW_BYTE_LEN)
     }
 }
 
@@ -1558,7 +1558,7 @@ impl<'a> VarColorLine<'a> {
     pub fn color_stops_byte_range(&self) -> Range<usize> {
         let num_stops = self.num_stops();
         let start = self.num_stops_byte_range().end;
-        start..start + (num_stops as usize).saturating_mul(VarColorStop::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_stops)).saturating_mul(VarColorStop::RAW_BYTE_LEN)
     }
 }
 

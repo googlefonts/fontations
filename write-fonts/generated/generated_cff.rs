@@ -313,7 +313,7 @@ impl Validate for FdSelectFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FdSelectFormat3", |ctx| {
             ctx.in_field("ranges", |ctx| {
-                if self.ranges.len() > (u16::MAX as usize) {
+                if self.ranges.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.ranges.validate_impl(ctx);
@@ -416,7 +416,7 @@ impl Validate for FdSelectFormat4 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FdSelectFormat4", |ctx| {
             ctx.in_field("ranges", |ctx| {
-                if self.ranges.len() > (u32::MAX as usize) {
+                if self.ranges.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.ranges.validate_impl(ctx);

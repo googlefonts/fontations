@@ -650,7 +650,7 @@ impl<'a> PatchMapFormat1<'a> {
     pub fn url_template_byte_range(&self) -> Range<usize> {
         let url_template_length = self.url_template_length();
         let start = self.url_template_length_byte_range().end;
-        start..start + (url_template_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(url_template_length)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn patch_format_byte_range(&self) -> Range<usize> {
@@ -971,7 +971,7 @@ impl<'a> FeatureMap<'a> {
         let start = self.feature_count_byte_range().end;
         start
             ..start
-                + (feature_count as usize).saturating_mul(
+                + (transforms::to_usize(feature_count)).saturating_mul(
                     <FeatureRecord as ComputeSize>::compute_size(&self.max_entry_index())
                         .unwrap_or(0),
                 )
@@ -1359,7 +1359,7 @@ impl<'a> PatchMapFormat2<'a> {
     pub fn url_template_byte_range(&self) -> Range<usize> {
         let url_template_length = self.url_template_length();
         let start = self.url_template_length_byte_range().end;
-        start..start + (url_template_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(url_template_length)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn cff_charstrings_offset_byte_range(&self) -> Range<usize> {
@@ -1622,7 +1622,9 @@ impl<'a> EntryData<'a> {
             ..(self
                 .format_flags()
                 .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
-            .then(|| start + (feature_count as usize).saturating_mul(Tag::RAW_BYTE_LEN))
+            .then(|| {
+                start + (transforms::to_usize(feature_count)).saturating_mul(Tag::RAW_BYTE_LEN)
+            })
             .unwrap_or(start)
     }
 
@@ -1645,7 +1647,8 @@ impl<'a> EntryData<'a> {
                 .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
             .then(|| {
                 start
-                    + (design_space_count as usize).saturating_mul(DesignSpaceSegment::RAW_BYTE_LEN)
+                    + (transforms::to_usize(design_space_count))
+                        .saturating_mul(DesignSpaceSegment::RAW_BYTE_LEN)
             })
             .unwrap_or(start)
     }
@@ -1669,7 +1672,7 @@ impl<'a> EntryData<'a> {
                 .contains(EntryFormatFlags::CHILD_INDICES))
             .then(|| {
                 start
-                    + (usize::try_from(match_mode_and_count).unwrap_or_default())
+                    + (transforms::to_usize(match_mode_and_count))
                         .saturating_mul(Uint24::RAW_BYTE_LEN)
             })
             .unwrap_or(start)
@@ -3297,7 +3300,7 @@ impl<'a> GlyphPatches<'a> {
         let start = self.table_count_byte_range().end;
         start
             ..start
-                + (glyph_count as usize).saturating_mul(
+                + (transforms::to_usize(glyph_count)).saturating_mul(
                     <U16Or24 as ComputeSize>::compute_size(&self.flags()).unwrap_or(0),
                 )
     }
@@ -3305,7 +3308,7 @@ impl<'a> GlyphPatches<'a> {
     pub fn tables_byte_range(&self) -> Range<usize> {
         let table_count = self.table_count();
         let start = self.glyph_ids_byte_range().end;
-        start..start + (table_count as usize).saturating_mul(Tag::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(table_count)).saturating_mul(Tag::RAW_BYTE_LEN)
     }
 
     pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {

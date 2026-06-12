@@ -185,7 +185,7 @@ impl<'a> Cpal<'a> {
     pub fn color_record_indices_byte_range(&self) -> Range<usize> {
         let num_palettes = self.num_palettes();
         let start = self.color_records_array_offset_byte_range().end;
-        start..start + (num_palettes as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_palettes)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 
     pub fn palette_types_array_offset_byte_range(&self) -> Range<usize> {

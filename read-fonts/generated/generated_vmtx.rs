@@ -83,7 +83,9 @@ impl<'a> Vmtx<'a> {
         let number_of_long_ver_metrics = self.number_of_long_ver_metrics();
         let start = 0;
         start
-            ..start + (number_of_long_ver_metrics as usize).saturating_mul(LongMetric::RAW_BYTE_LEN)
+            ..start
+                + (transforms::to_usize(number_of_long_ver_metrics))
+                    .saturating_mul(LongMetric::RAW_BYTE_LEN)
     }
 
     pub fn top_side_bearings_byte_range(&self) -> Range<usize> {

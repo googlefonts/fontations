@@ -185,7 +185,7 @@ impl<'a> GlyphDataEntry<'a> {
     pub fn anchor_points_byte_range(&self) -> Range<usize> {
         let num_points = self.num_points();
         let start = self.num_points_byte_range().end;
-        start..start + (num_points as usize).saturating_mul(AnchorPoint::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_points)).saturating_mul(AnchorPoint::RAW_BYTE_LEN)
     }
 }
 

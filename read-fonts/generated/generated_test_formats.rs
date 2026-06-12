@@ -165,7 +165,7 @@ impl<'a> Table2<'a> {
     pub fn values_byte_range(&self) -> Range<usize> {
         let value_count = self.value_count();
         let start = self.value_count_byte_range().end;
-        start..start + (value_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(value_count)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 

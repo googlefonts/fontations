@@ -175,7 +175,7 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
         let it = value_records
             .iter()
             .enumerate()
-            .filter(|&(i, ref _rec)| retained_rec_idxes.contains(i as u16))
+            .filter(|&(i, ref _rec)| retained_rec_idxes.contains(i as u32))
             .filter_map(|(_i, rec)| rec.ok());
         let new_format = compute_new_value_format(plan, state.has_gdef_varstore, font, it);
 
@@ -228,7 +228,7 @@ impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
         &'a [GlyphId],
         ValueFormat,
         &'a SinglePosFormat2<'a>,
-        &'a IntSet<u16>,
+        &'a IntSet<u32>,
         &'a Plan,
     );
     fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {

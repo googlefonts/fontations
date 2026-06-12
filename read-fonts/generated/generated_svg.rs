@@ -162,7 +162,10 @@ impl<'a> SVGDocumentList<'a> {
     pub fn document_records_byte_range(&self) -> Range<usize> {
         let num_entries = self.num_entries();
         let start = self.num_entries_byte_range().end;
-        start..start + (num_entries as usize).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(num_entries))
+                    .saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN)
     }
 }
 
