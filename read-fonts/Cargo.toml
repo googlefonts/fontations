@@ -57,3 +57,7 @@ harness = false
 [[bench]]
 name = "sparse_bit_set_benchmark"
 harness = false
+
+[[bench]]
+name = "table_lookup"
+harness = false
