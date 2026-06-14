@@ -47,7 +47,7 @@ impl From<FontTableFunction> for FontSource {
 
 /// An OpenType or PostScript font.
 #[derive(Clone)]
-pub struct Font(Arc<FontInner>);
+pub struct Font(Arc<FontRepr>);
 
 impl Font {
     /// Creates a new font from the given source and font index.
@@ -57,7 +57,7 @@ impl Font {
     pub fn new(source: impl Into<FontSource>, index: u32) -> Result<Self, ReadError> {
         let source = source.into();
         let kind = if let Ok(tables) = FontTables::new(source.clone(), index) {
-            Some(FontKind::OpenType(tables, index))
+            Some(FontKind::Sfnt(tables, index))
         } else if let FontSource::Blob(blob) = &source {
             match FontFormat::new(blob) {
                 Some(FontFormat::Type1) => Type1Font::new(blob).ok().map(FontKind::Type1),
@@ -68,12 +68,12 @@ impl Font {
             None
         };
         let kind = kind.ok_or(ReadError::MalformedData("Data isn't a font"))?;
-        let inner = FontInner {
+        let repr = FontRepr {
             source,
             kind,
             shaping_data: Once::new(),
         };
-        Ok(Self(Arc::new(inner)))
+        Ok(Self(Arc::new(repr)))
     }
 
     /// Returns the underlying source of font data.
@@ -86,18 +86,19 @@ impl Font {
         &self.0.kind
     }
 
-    /// If this is a table based (i.e. OpenType) font, then returns an object
-    /// that provides access to the individual tables.
-    pub fn tables(&self) -> Option<&FontTables> {
-        if let FontKind::OpenType(tables, _) = &self.0.kind {
-            Some(tables)
+    /// Returns an object that provides access to individual font tables.
+    ///
+    /// For non-SFNT fonts, this will return an empty set of tables.
+    pub fn tables(&self) -> &FontTables {
+        if let FontKind::Sfnt(tables, _) = &self.0.kind {
+            tables
         } else {
-            None
+            &tables::EMPTY_FONT_TABLES
         }
     }
 }
 
-struct FontInner {
+struct FontRepr {
     source: FontSource,
     kind: FontKind,
     // Storage cell for lazily loaded HarfRust shaping data.
@@ -105,10 +106,10 @@ struct FontInner {
 }
 
 /// The underlying type of a font.
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant)]
 pub enum FontKind {
-    /// An OpenType font represented by a set of tables and an index.
-    OpenType(FontTables, u32),
+    /// An SFNT-based font represented by a set of tables and an index.
+    Sfnt(FontTables, u32),
     /// An Adobe Type1 font.
     Type1(Type1Font),
 }

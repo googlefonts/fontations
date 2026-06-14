@@ -30,7 +30,7 @@ TABLES = [
 #   ("EBSC", "Embedded bitmap scaling data table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/ebsc"),
     ("feat", "Font feature table.", "https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6feat.html"),
 #   ("fdsc", "Font descriptor table.", "https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6fdsc.html"),
-    ("fmtx", "Font metrics table.", "https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6fmtx.html"),
+#   ("fmtx", "Font metrics table.", "https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6fmtx.html"),
 #   ("fond", "Font family compatibility table.", "https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6fond.html"),
     ("fpgm", "Font program table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/fpgm"),
     ("fvar", "Font variations table.", "https://learn.microsoft.com/en-us/typography/opentype/spec/fvar"),
@@ -135,6 +135,7 @@ def generate():
         buf += "    }\n\n"
         buf += "    fn {}_state(&self) -> Option<TableState<'_>> {{\n".format(name)
         buf += "        match &self.0 {\n"
+        buf += "            TableSource::None => None,\n"
         buf += "            TableSource::Blob(blob) => blob.{}(),\n".format(name)
         buf += "            TableSource::Function(func) => func.{}(),\n".format(name)
         buf += "        }\n"
