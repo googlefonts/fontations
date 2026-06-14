@@ -82,6 +82,7 @@ impl<'a> TableDataProvider<'a> for &'a FontTableFunction {
 
 /// Source for a set of font tables.
 enum TableSource {
+    None,
     Blob(BlobTables),
     Function(FontTableFunction),
 }
@@ -120,7 +121,7 @@ impl<'a> TableState<'a> {
     }
 }
 
-/// OpenType table access.
+/// Individual font table access.
 pub struct FontTables(TableSource);
 
 impl FontTables {
@@ -195,6 +196,8 @@ impl FontTables {
         )
     }
 }
+
+pub(super) static EMPTY_FONT_TABLES: FontTables = FontTables(TableSource::None);
 
 impl<'a> TableProvider<'a> for &'a FontTables {
     fn data_for_tag(&self, _tag: Tag) -> Option<crate::FontData<'a>> {

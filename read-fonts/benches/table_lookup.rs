@@ -32,7 +32,7 @@ pub fn font_ref_outlines_tables(c: &mut Criterion) {
 pub fn font_model_outlines_tables(c: &mut Criterion) {
     for (name, font_data) in TEST_FONTS {
         let font = Font::new(*font_data, 0).unwrap();
-        let tables = font.tables().unwrap();
+        let tables = font.tables();
         let name = "Font ".to_string() + name + " outline tables";
         c.bench_function(&name, |b| {
             b.iter(|| black_box(OutlineTables::new(&tables).unwrap()))
