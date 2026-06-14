@@ -1,9 +1,9 @@
 //! Read layout tables in a graph
+use crate::fnv::FnvHashMap;
 use crate::{
     graph::{Graph, RepackError},
     serialize::{Link, LinkWidth, ObjIdx},
 };
-use fnv::FnvHashMap;
 use write_fonts::types::{FixedSize, Offset16, Scalar};
 
 pub(super) struct DataBytes<'a> {

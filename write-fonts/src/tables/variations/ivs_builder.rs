@@ -92,14 +92,22 @@ impl VariationStoreBuilder {
             let region_idx = self.canonical_index_for_region(region) as u16;
             delta_set.push((region_idx, delta.into()));
         }
+        // Strip zero-valued entries before deduplication. A zero delta for a region
+        // is semantically equivalent to not specifying that region at all (the
+        // interpolation engine defaults to 0), so two delta sets that differ only by
+        // explicit zeros must be treated as identical.
+        //
+        // A concrete case: a glyph with an intermediate master whose advance equals
+        // the interpolated value produces an explicit zero for that region; without
+        // stripping it would not deduplicate against an otherwise-identical glyph that
+        // simply lacks that intermediate master.
+        //
+        // fonttools achieves the same result via VarStore_optimize, which expands every
+        // row to the full region width (padding absent regions with 0) before
+        // deduplication:
+        // https://github.com/fonttools/fonttools/blob/772918952/Lib/fontTools/varLib/varStore.py#L575-L598
+        delta_set.retain(|(_, delta)| *delta != 0);
         delta_set.sort_unstable();
-        // treat a deltaset containing all zeros the same as an empty one;
-        // e.g. a glyph that only has one instance at the default location (no deltas)
-        // vs another that defines multiple instances but all of them are at the
-        // default location (all deltas are zero).
-        if delta_set.iter().all(|(_, delta)| *delta == 0) {
-            delta_set.clear();
-        }
         self.delta_sets.add(DeltaSet(delta_set))
     }
 
@@ -1412,6 +1420,47 @@ mod tests {
         // glyph 1 and 3 should map to deltaset [50, 100];
         // glyph 4 should map to deltaset [0, 100]
         assert_eq!(varidx_map, vec![0, 2, 0, 2, 1]);
+    }
+
+    #[test]
+    fn zero_deltas_deduplicate_with_absent_regions() {
+        // A glyph with an intermediate master whose advance equals the interpolated
+        // value produces an explicit zero delta for that region. It must deduplicate
+        // against a glyph that simply lacks that intermediate master but has identical
+        // non-zero deltas. This matches the behaviour of fonttools' VarStore_optimize,
+        // which expands every row to the full region width (padding absent regions with 0)
+        // before deduplication:
+        // https://github.com/fonttools/fonttools/blob/772918952/Lib/fontTools/varLib/varStore.py#L575-L598
+        let r0 = VariationRegion::new(vec![reg_coords(0.0, 0.5, 1.0)]);
+        let r1 = VariationRegion::new(vec![reg_coords(0.5, 1.0, 1.0)]);
+        // An intermediate master region (e.g. SemiBold) that glyph A has but glyph B lacks.
+        let r_intermediate = VariationRegion::new(vec![reg_coords(0.0, 0.7, 1.0)]);
+
+        let mut builder = VariationStoreBuilder::new(1);
+
+        // Glyph A: built from a model that includes the intermediate master; its
+        // advance at the intermediate is the same as the interpolated value, so the
+        // delta for r_intermediate is 0.
+        let idx_a = builder.add_deltas(vec![
+            (r0.clone(), -87_i16),
+            (r1.clone(), 20_i16),
+            (r_intermediate.clone(), 0_i16),
+        ]);
+        // Glyph B: no intermediate master at all; same non-zero deltas for r0 and r1.
+        let idx_b = builder.add_deltas(vec![(r0.clone(), -87_i16), (r1.clone(), 20_i16)]);
+
+        let (store, key_map) = builder.build();
+
+        // Both glyphs must resolve to the same (outer, inner) delta-set index.
+        assert_eq!(
+            key_map.get(idx_a),
+            key_map.get(idx_b),
+            "explicit zero delta should deduplicate with absent region"
+        );
+
+        // Only the two non-zero regions should appear in the final store; r_intermediate
+        // is registered internally but must be pruned because no item references it.
+        assert_eq!(store.variation_region_list.variation_regions.len(), 2);
     }
 
     #[test]

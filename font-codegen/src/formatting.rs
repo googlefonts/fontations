@@ -1,4 +1,5 @@
 //! improve readability of generated code
+use log::error;
 
 /// reformats the generated code to improve readability.
 pub(crate) fn format(tables: proc_macro2::TokenStream) -> Result<String, syn::Error> {
@@ -6,7 +7,10 @@ pub(crate) fn format(tables: proc_macro2::TokenStream) -> Result<String, syn::Er
     // can see the compiler errors
     let source_str = match rustfmt_wrapper::rustfmt(&tables) {
         Ok(s) => s,
-        Err(_) => return Ok(tables.to_string()),
+        Err(err) => {
+            error!("Failed to format Rust source code: {err}");
+            return Ok(tables.to_string());
+        }
     };
     // convert doc comment attributes into normal doc comments
     let doc_comments = regex::Regex::new(r##"#\[doc = r?#?"(.*)"#?\]"##).unwrap();

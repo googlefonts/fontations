@@ -201,6 +201,16 @@ impl<'a> KindsOfOffsets<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(KindsOfOffsets::MIN_SIZE));
+
+impl Default for KindsOfOffsets<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
     fn type_name(&self) -> &str {
@@ -406,6 +416,18 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    KindsOfArraysOfOffsets::MIN_SIZE
+));
+
+impl Default for KindsOfArraysOfOffsets<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
     fn type_name(&self) -> &str {
@@ -415,62 +437,22 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("count", self.count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "nonnullable_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Dummy>(),
-                        self.nonnullable_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Dummy>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "nullable_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Dummy>(),
-                        self.nullable_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Dummy>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
-            4usize if self.version().compatible((1u16, 1u16)) => Some({
-                let data = self.data;
-                Field::new(
-                    "versioned_nonnullable_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Dummy>(),
-                        self.versioned_nonnullable_offsets().unwrap(),
-                        move |off| {
-                            let target = off.get().resolve::<Dummy>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
-            5usize if self.version().compatible((1u16, 1u16)) => Some({
-                let data = self.data;
-                Field::new(
-                    "versioned_nullable_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Dummy>(),
-                        self.versioned_nullable_offsets().unwrap(),
-                        move |off| {
-                            let target = off.get().resolve::<Dummy>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "nonnullable_offsets",
+                FieldType::from(self.nonnullables()),
+            )),
+            3usize => Some(Field::new(
+                "nullable_offsets",
+                FieldType::from(self.nullables()),
+            )),
+            4usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
+                "versioned_nonnullable_offsets",
+                FieldType::from(self.versioned_nonnullables().unwrap()),
+            )),
+            5usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
+                "versioned_nullable_offsets",
+                FieldType::from(self.versioned_nullables().unwrap()),
+            )),
             _ => None,
         }
     }
@@ -594,6 +576,16 @@ impl<'a> KindsOfArrays<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(KindsOfArrays::MIN_SIZE));
+
+impl Default for KindsOfArrays<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for KindsOfArrays<'a> {
     fn type_name(&self) -> &str {
@@ -705,6 +697,16 @@ impl<'a> VarLenHaver<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(VarLenHaver::MIN_SIZE));
+
+impl Default for VarLenHaver<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VarLenHaver<'a> {
     fn type_name(&self) -> &str {
@@ -771,6 +773,16 @@ impl<'a> Dummy<'a> {
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.value_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Dummy::MIN_SIZE));
+
+impl Default for Dummy<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

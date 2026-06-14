@@ -175,6 +175,16 @@ impl<'a> Gdef<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Gdef::MIN_SIZE));
+
+impl Default for Gdef<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gdef<'a> {
     fn type_name(&self) -> &str {
@@ -355,6 +365,16 @@ impl<'a> AttachList<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(AttachList::MIN_SIZE));
+
+impl Default for AttachList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AttachList<'a> {
     fn type_name(&self) -> &str {
@@ -367,20 +387,10 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "attach_point_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<AttachPoint>(),
-                        self.attach_point_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<AttachPoint>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "attach_point_offsets",
+                FieldType::from(self.attach_points()),
+            )),
             _ => None,
         }
     }
@@ -446,6 +456,16 @@ impl<'a> AttachPoint<'a> {
         let point_count = self.point_count();
         let start = self.point_count_byte_range().end;
         start..start + (point_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(AttachPoint::MIN_SIZE));
+
+impl Default for AttachPoint<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -551,6 +571,16 @@ impl<'a> LigCaretList<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(LigCaretList::MIN_SIZE));
+
+impl Default for LigCaretList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigCaretList<'a> {
     fn type_name(&self) -> &str {
@@ -563,20 +593,10 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             1usize => Some(Field::new("lig_glyph_count", self.lig_glyph_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "lig_glyph_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<LigGlyph>(),
-                        self.lig_glyph_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<LigGlyph>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "lig_glyph_offsets",
+                FieldType::from(self.lig_glyphs()),
+            )),
             _ => None,
         }
     }
@@ -653,6 +673,16 @@ impl<'a> LigGlyph<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(LigGlyph::MIN_SIZE));
+
+impl Default for LigGlyph<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigGlyph<'a> {
     fn type_name(&self) -> &str {
@@ -661,20 +691,10 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("caret_count", self.caret_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "caret_value_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CaretValue>(),
-                        self.caret_value_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CaretValue>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "caret_value_offsets",
+                FieldType::from(self.caret_values()),
+            )),
             _ => None,
         }
     }
@@ -694,6 +714,12 @@ pub enum CaretValue<'a> {
     Format1(CaretValueFormat1<'a>),
     Format2(CaretValueFormat2<'a>),
     Format3(CaretValueFormat3<'a>),
+}
+
+impl Default for CaretValue<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> CaretValue<'a> {
@@ -828,6 +854,18 @@ impl<'a> CaretValueFormat1<'a> {
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    CaretValueFormat1::MIN_SIZE
+));
+
+impl Default for CaretValueFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -1117,6 +1155,16 @@ impl<'a> MarkGlyphSets<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(MarkGlyphSets::MIN_SIZE));
+
+impl Default for MarkGlyphSets<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
     fn type_name(&self) -> &str {
@@ -1129,20 +1177,10 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
                 "mark_glyph_set_count",
                 self.mark_glyph_set_count(),
             )),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "coverage_offsets",
+                FieldType::from(self.coverages()),
+            )),
             _ => None,
         }
     }

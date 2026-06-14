@@ -8,8 +8,9 @@ use syn::spanned::Spanned;
 
 use super::parsing::{
     logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
-    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record,
+    FieldType, FieldValidation, Fields, OffsetTarget, Record,
 };
+use crate::Phase;
 
 impl Fields {
     pub(crate) fn new(fields: Vec<Field>) -> syn::Result<Self> {
@@ -90,6 +91,10 @@ impl Fields {
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Field> {
         self.fields.iter()
+    }
+
+    pub(crate) fn find(&self, ident: &syn::Ident) -> Option<&Field> {
+        self.iter().find(|fld| &fld.name == ident)
     }
 
     pub(crate) fn iter_compile_decls(&self) -> impl Iterator<Item = TokenStream> + '_ {
@@ -381,32 +386,11 @@ fn traversal_arm_for_field(
             }
 
             FieldType::Offset {
-                target: OffsetTarget::Table(target),
+                target: OffsetTarget::Table(_),
                 ..
             } => {
-                let maybe_data = pass_data.is_none().then(|| quote!(let data = self.data;));
-                let args_if_needed = fld.attrs.read_offset_args.as_ref().map(|args| {
-                    let args = args.to_tokens_for_table_getter();
-                    quote!(let args = #args;)
-                });
-                let resolve = match fld.attrs.read_offset_args.as_deref() {
-                    None => quote!(resolve::<#target>(data)),
-                    Some(_) => quote!(resolve_with_args::<#target>(data, &args)),
-                };
-
-                quote! {{
-                    #maybe_data
-                    #args_if_needed
-                    Field::new(#name_str,
-                        FieldType::array_of_offsets(
-                            better_type_name::<#target>(),
-                            self.#name()#maybe_unwrap,
-                            move |off| {
-                                let target = off.get().#resolve;
-                                FieldType::offset(off.get(), target)
-                            }
-                        ))
-                }}
+                let getter = fld.offset_getter_name().unwrap();
+                quote!(Field::new(#name_str, FieldType::from(self.#getter(#pass_data)#maybe_unwrap)))
             }
             FieldType::Offset {
                 target: OffsetTarget::Array(_),
@@ -649,35 +633,17 @@ impl Field {
         self.attrs.skip_getter.is_none()
     }
 
-    /// iterate the names of fields that are required for parsing or instantiating
-    /// this field.
-    pub(crate) fn input_fields(&self) -> Vec<(syn::Ident, NeededWhen)> {
-        let mut result = Vec::new();
-        if let Some(count) = self.attrs.count.as_ref() {
-            result.extend(
-                count
-                    .iter_referenced_fields()
-                    .map(|fld| (fld.clone(), NeededWhen::Parse)),
-            );
-        }
-
-        if let Some(read_with) = self.attrs.read_with_args.as_ref() {
-            result.extend(
-                read_with
-                    .inputs
-                    .iter()
-                    .map(|fld| (fld.clone(), NeededWhen::Both)),
-            );
-        }
-        if let Some(read_offset) = self.attrs.read_offset_args.as_ref() {
-            result.extend(
-                read_offset
-                    .inputs
-                    .iter()
-                    .map(|fld| (fld.clone(), NeededWhen::Runtime)),
-            );
-        }
-        result
+    /// iterate the names of fields that are required for parsing this field
+    ///
+    /// This does not include the version field, since we don't have a reference
+    /// to that.
+    pub(crate) fn count_arg_names(&self) -> impl Iterator<Item = &syn::Ident> + '_ {
+        self.attrs
+            .count
+            .as_ref()
+            .map(|count| count.iter_referenced_fields())
+            .into_iter()
+            .flatten()
     }
 
     /// 'raw' as in this does not include handling offset resolution

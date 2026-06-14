@@ -86,6 +86,18 @@ impl<'a> MajorMinorVersion<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    MajorMinorVersion::MIN_SIZE
+));
+
+impl Default for MajorMinorVersion<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MajorMinorVersion<'a> {
     fn type_name(&self) -> &str {
@@ -497,6 +509,16 @@ impl<'a> FlagDay<'a> {
             ..(self.flags().contains(GotFlags::BAR))
                 .then(|| start + u16::RAW_BYTE_LEN)
                 .unwrap_or(start)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(FlagDay::MIN_SIZE));
+
+impl Default for FlagDay<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

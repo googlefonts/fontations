@@ -119,6 +119,17 @@ impl<'a> Hdmx<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Hdmx::MIN_SIZE));
+
+impl Default for Hdmx<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            num_glyphs: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Hdmx<'a> {
     fn type_name(&self) -> &str {

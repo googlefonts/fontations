@@ -226,6 +226,16 @@ impl<'a> Vhea<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Vhea::MIN_SIZE));
+
+impl Default for Vhea<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Vhea<'a> {
     fn type_name(&self) -> &str {

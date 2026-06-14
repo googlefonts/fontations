@@ -10,6 +10,7 @@ mod pair_pos;
 mod single_pos;
 mod value_record;
 
+use crate::fnv::FnvHashMap;
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
@@ -18,7 +19,6 @@ use crate::{
     CollectVariationIndices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset,
     SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -27,7 +27,7 @@ use write_fonts::{
             layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
         },
         types::Tag,
-        FontRead, FontRef, TopLevelTable,
+        FontRead, FontRef, ReadError, TopLevelTable,
     },
     types::{MajorMinor, Offset16, Offset32},
     FontBuilder,
@@ -107,7 +107,10 @@ impl LayoutClosure for Gpos<'_> {
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
-        let Ok(_) = self.closure_lookups(&plan.glyphset_gsub, &mut lookup_indices) else {
+        if self
+            .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
+            .is_err()
+        {
             return;
         };
 
@@ -148,36 +151,42 @@ fn subset_gpos(
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
     let version_pos = s.embed(gpos.version())?;
+    let mut c = SubsetLayoutContext::new(Gpos::TAG);
 
     // script_list
     let script_list_offset_pos = s.embed(0_u16)?;
 
-    let script_list = gpos
-        .script_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+    if !gpos.script_list_offset().is_null() {
+        let script_list = gpos
+            .script_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-    let mut c = SubsetLayoutContext::new(Gpos::TAG);
-    Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+        Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+    }
 
     // feature list
     let feature_list_offset_pos = s.embed(0_u16)?;
-    let feature_list = gpos
-        .feature_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    if !gpos.feature_list_offset().is_null() {
+        let feature_list = gpos
+            .feature_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    }
 
     // lookup list
     let lookup_list_offset_pos = s.embed(0_u16)?;
-    let lookup_list = gpos
-        .lookup_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(
-        &lookup_list,
-        s,
-        plan,
-        (state, font, &plan.gpos_lookups),
-        lookup_list_offset_pos,
-    )?;
+    if !gpos.lookup_list_offset().is_null() {
+        let lookup_list = gpos
+            .lookup_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(
+            &lookup_list,
+            s,
+            plan,
+            (state, font, &plan.gpos_lookups),
+            lookup_list_offset_pos,
+        )?;
+    }
 
     if let Some(feature_variations) = gpos
         .feature_variations()
@@ -227,11 +236,15 @@ impl<'a> SubsetTable<'a> for PositionLookup<'_> {
             PositionSubtables::MarkToMark(_) => 6,
             PositionSubtables::Contextual(_) => 7,
             PositionSubtables::ChainContextual(_) => 8,
+            PositionSubtables::EmptyExtension => {
+                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
+            }
         };
         s.embed(lookup_type)?;
 
         let lookup_flag = self.lookup_flag();
         let lookup_flag_pos = s.embed(lookup_flag)?;
+
         let lookup_count_pos = s.embed(0_u16)?;
         let lookup_count = subtables.subset(plan, s, args)?;
         s.copy_assign(lookup_count_pos, lookup_count);
@@ -269,6 +282,7 @@ impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
             PositionSubtables::MarkToMark(subtables) => subtables.subset(plan, s, args),
             PositionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
             PositionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
+            PositionSubtables::EmptyExtension => Ok(0),
         }
     }
 }
@@ -285,10 +299,11 @@ impl CollectVariationIndices for Gpos<'_> {
                 return;
             };
 
-            let Ok(subtables) = lookup.subtables() else {
-                return;
-            };
-            subtables.collect_variation_indices(plan, varidx_set);
+            match lookup.subtables() {
+                Ok(subs) => subs.collect_variation_indices(plan, varidx_set),
+                Err(ReadError::NullOffset) => continue,
+                Err(_) => return,
+            }
         }
     }
 }
@@ -326,7 +341,10 @@ where
     Ext: ExtensionLookup<'a, T> + 'a,
 {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        for t in self.iter() {
+        for t in self.iter().filter_map(|table| match table {
+            Err(ReadError::NullOffset) => None,
+            other => Some(other),
+        }) {
             let Ok(t) = t else {
                 return;
             };

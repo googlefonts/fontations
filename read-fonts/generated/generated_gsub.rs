@@ -130,6 +130,16 @@ impl<'a> Gsub<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Gsub::MIN_SIZE));
+
+impl Default for Gsub<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gsub<'a> {
     fn type_name(&self) -> &str {
@@ -182,18 +192,24 @@ pub enum SubstitutionLookup<'a> {
     Reverse(Lookup<'a, ReverseChainSingleSubstFormat1<'a>>),
 }
 
+impl Default for SubstitutionLookup<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
 impl<'a> FontRead<'a> for SubstitutionLookup<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-        let untyped = Lookup::read(bytes)?;
-        match untyped.lookup_type() {
-            1 => Ok(SubstitutionLookup::Single(untyped.into_concrete())),
-            2 => Ok(SubstitutionLookup::Multiple(untyped.into_concrete())),
-            3 => Ok(SubstitutionLookup::Alternate(untyped.into_concrete())),
-            4 => Ok(SubstitutionLookup::Ligature(untyped.into_concrete())),
-            5 => Ok(SubstitutionLookup::Contextual(untyped.into_concrete())),
-            6 => Ok(SubstitutionLookup::ChainContextual(untyped.into_concrete())),
-            7 => Ok(SubstitutionLookup::Extension(untyped.into_concrete())),
-            8 => Ok(SubstitutionLookup::Reverse(untyped.into_concrete())),
+        let discriminant = Lookup::read_discriminant(bytes)?;
+        match discriminant {
+            1 => Ok(SubstitutionLookup::Single(FontRead::read(bytes)?)),
+            2 => Ok(SubstitutionLookup::Multiple(FontRead::read(bytes)?)),
+            3 => Ok(SubstitutionLookup::Alternate(FontRead::read(bytes)?)),
+            4 => Ok(SubstitutionLookup::Ligature(FontRead::read(bytes)?)),
+            5 => Ok(SubstitutionLookup::Contextual(FontRead::read(bytes)?)),
+            6 => Ok(SubstitutionLookup::ChainContextual(FontRead::read(bytes)?)),
+            7 => Ok(SubstitutionLookup::Extension(FontRead::read(bytes)?)),
+            8 => Ok(SubstitutionLookup::Reverse(FontRead::read(bytes)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -256,6 +272,12 @@ impl std::fmt::Debug for SubstitutionLookup<'_> {
 pub enum SingleSubst<'a> {
     Format1(SingleSubstFormat1<'a>),
     Format2(SingleSubstFormat2<'a>),
+}
+
+impl Default for SingleSubst<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> SingleSubst<'a> {
@@ -411,6 +433,18 @@ impl<'a> SingleSubstFormat1<'a> {
     pub fn delta_glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    SingleSubstFormat1::MIN_SIZE
+));
+
+impl Default for SingleSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -654,6 +688,18 @@ impl<'a> MultipleSubstFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    MultipleSubstFormat1::MIN_SIZE
+));
+
+impl Default for MultipleSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -667,20 +713,10 @@ impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             2usize => Some(Field::new("sequence_count", self.sequence_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "sequence_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Sequence>(),
-                        self.sequence_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Sequence>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "sequence_offsets",
+                FieldType::from(self.sequences()),
+            )),
             _ => None,
         }
     }
@@ -747,6 +783,16 @@ impl<'a> Sequence<'a> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
         start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Sequence::MIN_SIZE));
+
+impl Default for Sequence<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -871,6 +917,18 @@ impl<'a> AlternateSubstFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    AlternateSubstFormat1::MIN_SIZE
+));
+
+impl Default for AlternateSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -887,20 +945,10 @@ impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
                 "alternate_set_count",
                 self.alternate_set_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "alternate_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<AlternateSet>(),
-                        self.alternate_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<AlternateSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "alternate_set_offsets",
+                FieldType::from(self.alternate_sets()),
+            )),
             _ => None,
         }
     }
@@ -966,6 +1014,16 @@ impl<'a> AlternateSet<'a> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
         start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(AlternateSet::MIN_SIZE));
+
+impl Default for AlternateSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1090,6 +1148,18 @@ impl<'a> LigatureSubstFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    LigatureSubstFormat1::MIN_SIZE
+));
+
+impl Default for LigatureSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -1103,20 +1173,10 @@ impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             2usize => Some(Field::new("ligature_set_count", self.ligature_set_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "ligature_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<LigatureSet>(),
-                        self.ligature_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<LigatureSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "ligature_set_offsets",
+                FieldType::from(self.ligature_sets()),
+            )),
             _ => None,
         }
     }
@@ -1193,6 +1253,16 @@ impl<'a> LigatureSet<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(LigatureSet::MIN_SIZE));
+
+impl Default for LigatureSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigatureSet<'a> {
     fn type_name(&self) -> &str {
@@ -1201,20 +1271,10 @@ impl<'a> SomeTable<'a> for LigatureSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "ligature_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Ligature>(),
-                        self.ligature_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Ligature>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "ligature_offsets",
+                FieldType::from(self.ligatures()),
+            )),
             _ => None,
         }
     }
@@ -1298,6 +1358,16 @@ impl<'a> Ligature<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Ligature::MIN_SIZE));
+
+impl Default for Ligature<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Ligature<'a> {
     fn type_name(&self) -> &str {
@@ -1328,6 +1398,12 @@ impl Format<u16> for ExtensionSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
+impl Discriminant for ExtensionSubstFormat1<'_, ()> {
+    fn read_discriminant(data: FontData<'_>) -> Result<u16, ReadError> {
+        data.read_at(u16::RAW_BYTE_LEN)
+    }
+}
+
 impl<'a, T> MinByteRange<'a> for ExtensionSubstFormat1<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.extension_offset_byte_range().end
@@ -1348,16 +1424,6 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
             data,
             offset_type: std::marker::PhantomData,
         })
-    }
-}
-
-impl<'a> ExtensionSubstFormat1<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> ExtensionSubstFormat1<'a, T> {
-        ExtensionSubstFormat1 {
-            data: self.data,
-            offset_type: std::marker::PhantomData,
-        }
     }
 }
 
@@ -1430,6 +1496,19 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    ExtensionSubstFormat1::<()>::MIN_SIZE
+));
+
+impl<T> Default for ExtensionSubstFormat1<'_, T> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstFormat1<'a, T> {
     fn type_name(&self) -> &str {
@@ -1470,17 +1549,23 @@ pub enum ExtensionSubtable<'a> {
     Reverse(ExtensionSubstFormat1<'a, ReverseChainSingleSubstFormat1<'a>>),
 }
 
+impl Default for ExtensionSubtable<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-        let untyped = ExtensionSubstFormat1::read(bytes)?;
-        match untyped.extension_lookup_type() {
-            1 => Ok(ExtensionSubtable::Single(untyped.into_concrete())),
-            2 => Ok(ExtensionSubtable::Multiple(untyped.into_concrete())),
-            3 => Ok(ExtensionSubtable::Alternate(untyped.into_concrete())),
-            4 => Ok(ExtensionSubtable::Ligature(untyped.into_concrete())),
-            5 => Ok(ExtensionSubtable::Contextual(untyped.into_concrete())),
-            6 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
-            8 => Ok(ExtensionSubtable::Reverse(untyped.into_concrete())),
+        let discriminant = ExtensionSubstFormat1::read_discriminant(bytes)?;
+        match discriminant {
+            1 => Ok(ExtensionSubtable::Single(FontRead::read(bytes)?)),
+            2 => Ok(ExtensionSubtable::Multiple(FontRead::read(bytes)?)),
+            3 => Ok(ExtensionSubtable::Alternate(FontRead::read(bytes)?)),
+            4 => Ok(ExtensionSubtable::Ligature(FontRead::read(bytes)?)),
+            5 => Ok(ExtensionSubtable::Contextual(FontRead::read(bytes)?)),
+            6 => Ok(ExtensionSubtable::ChainContextual(FontRead::read(bytes)?)),
+            8 => Ok(ExtensionSubtable::Reverse(FontRead::read(bytes)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1690,6 +1775,18 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    ReverseChainSingleSubstFormat1::MIN_SIZE
+));
+
+impl Default for ReverseChainSingleSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -1706,38 +1803,18 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                 "backtrack_glyph_count",
                 self.backtrack_glyph_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "backtrack_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.backtrack_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "backtrack_coverage_offsets",
+                FieldType::from(self.backtrack_coverages()),
+            )),
             4usize => Some(Field::new(
                 "lookahead_glyph_count",
                 self.lookahead_glyph_count(),
             )),
-            5usize => Some({
-                let data = self.data;
-                Field::new(
-                    "lookahead_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.lookahead_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            5usize => Some(Field::new(
+                "lookahead_coverage_offsets",
+                FieldType::from(self.lookahead_coverages()),
+            )),
             6usize => Some(Field::new("glyph_count", self.glyph_count())),
             7usize => Some(Field::new(
                 "substitute_glyph_ids",

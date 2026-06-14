@@ -649,6 +649,10 @@ impl<'a> ClassDefFormat2<'a> {
                 }
                 start = range_end + 1;
             }
+
+            if start <= last {
+                out.extend(glyphs.range(GlyphId::from(start)..=GlyphId::from(last)));
+            }
             return out;
         }
 
@@ -664,10 +668,10 @@ impl<'a> ClassDefFormat2<'a> {
             for range in self.class_range_records() {
                 let range_start = range.start_glyph_id().to_u32();
                 let range_end = range.end_glyph_id().to_u32();
-                if range_start > last || range.end_glyph_id().to_u32() < first {
+                if range_start > last {
                     break;
                 }
-                if range.class() != class {
+                if range.class() != class || range.end_glyph_id().to_u32() < first {
                     continue;
                 }
                 out.extend(glyphs.range(GlyphId::from(range_start)..=GlyphId::from(range_end)));
@@ -927,5 +931,18 @@ mod tests {
         assert_eq!(bit_storage(0x1234), 13);
         assert_eq!(bit_storage(0xffff), 16);
         assert_eq!(bit_storage(0xffff_ffff), 32);
+    }
+
+    #[test]
+    fn default_coverage() {
+        let coverage = CoverageTable::default();
+        assert_eq!(coverage.iter().count(), 0)
+    }
+
+    #[test]
+    fn default_classdef() {
+        let classdef = ClassDef::default();
+        assert_eq!(classdef.population(), 0);
+        assert_eq!(classdef.iter().count(), 0);
     }
 }

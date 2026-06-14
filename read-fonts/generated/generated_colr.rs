@@ -227,6 +227,16 @@ impl<'a> Colr<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Colr::MIN_SIZE));
+
+impl Default for Colr<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Colr<'a> {
     fn type_name(&self) -> &str {
@@ -445,6 +455,16 @@ impl<'a> BaseGlyphList<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(BaseGlyphList::MIN_SIZE));
+
+impl Default for BaseGlyphList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseGlyphList<'a> {
     fn type_name(&self) -> &str {
@@ -591,6 +611,16 @@ impl<'a> LayerList<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(LayerList::MIN_SIZE));
+
+impl Default for LayerList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LayerList<'a> {
     fn type_name(&self) -> &str {
@@ -599,20 +629,7 @@ impl<'a> SomeTable<'a> for LayerList<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("num_layers", self.num_layers())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "paint_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Paint>(),
-                        self.paint_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Paint>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new("paint_offsets", FieldType::from(self.paints()))),
             _ => None,
         }
     }
@@ -689,6 +706,16 @@ impl<'a> ClipList<'a> {
         let num_clips = self.num_clips();
         let start = self.num_clips_byte_range().end;
         start..start + (num_clips as usize).saturating_mul(Clip::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(ClipList::MIN_SIZE));
+
+impl Default for ClipList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -789,6 +816,12 @@ impl<'a> SomeRecord<'a> for Clip {
 pub enum ClipBox<'a> {
     Format1(ClipBoxFormat1<'a>),
     Format2(ClipBoxFormat2<'a>),
+}
+
+impl Default for ClipBox<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> ClipBox<'a> {
@@ -986,6 +1019,16 @@ impl<'a> ClipBoxFormat1<'a> {
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(ClipBoxFormat1::MIN_SIZE));
+
+impl Default for ClipBoxFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
     }
 }
 
@@ -1413,6 +1456,16 @@ impl<'a> ColorLine<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(ColorLine::MIN_SIZE));
+
+impl Default for ColorLine<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ColorLine<'a> {
     fn type_name(&self) -> &str {
@@ -1506,6 +1559,16 @@ impl<'a> VarColorLine<'a> {
         let num_stops = self.num_stops();
         let start = self.num_stops_byte_range().end;
         start..start + (num_stops as usize).saturating_mul(VarColorStop::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(VarColorLine::MIN_SIZE));
+
+impl Default for VarColorLine<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1621,6 +1684,12 @@ pub enum Paint<'a> {
     SkewAroundCenter(PaintSkewAroundCenter<'a>),
     VarSkewAroundCenter(PaintVarSkewAroundCenter<'a>),
     Composite(PaintComposite<'a>),
+}
+
+impl Default for Paint<'_> {
+    fn default() -> Self {
+        Self::ColrLayers(Default::default())
+    }
 }
 
 impl<'a> Paint<'a> {
@@ -1950,6 +2019,18 @@ impl<'a> PaintColrLayers<'a> {
     pub fn first_layer_index_byte_range(&self) -> Range<usize> {
         let start = self.num_layers_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    PaintColrLayers::MIN_SIZE
+));
+
+impl Default for PaintColrLayers<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
     }
 }
 
@@ -3691,6 +3772,16 @@ impl<'a> Affine2x3<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Affine2x3::MIN_SIZE));
+
+impl Default for Affine2x3<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Affine2x3<'a> {
     fn type_name(&self) -> &str {
@@ -3833,6 +3924,16 @@ impl<'a> VarAffine2x3<'a> {
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.dy_byte_range().end;
         start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(VarAffine2x3::MIN_SIZE));
+
+impl Default for VarAffine2x3<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

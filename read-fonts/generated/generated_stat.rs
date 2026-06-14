@@ -155,6 +155,16 @@ impl<'a> Stat<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Stat::MIN_SIZE));
+
+impl Default for Stat<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Stat<'a> {
     fn type_name(&self) -> &str {
@@ -332,6 +342,18 @@ impl<'a> AxisValueArray<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(AxisValueArray::MIN_SIZE));
+
+impl Default for AxisValueArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            axis_value_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for AxisValueArray<'a> {
     fn type_name(&self) -> &str {
@@ -339,20 +361,10 @@ impl<'a> SomeTable<'a> for AxisValueArray<'a> {
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
-            0usize => Some({
-                let data = self.data;
-                Field::new(
-                    "axis_value_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<AxisValue>(),
-                        self.axis_value_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<AxisValue>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            0usize => Some(Field::new(
+                "axis_value_offsets",
+                FieldType::from(self.axis_values()),
+            )),
             _ => None,
         }
     }
@@ -373,6 +385,12 @@ pub enum AxisValue<'a> {
     Format2(AxisValueFormat2<'a>),
     Format3(AxisValueFormat3<'a>),
     Format4(AxisValueFormat4<'a>),
+}
+
+impl Default for AxisValue<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> AxisValue<'a> {
@@ -574,6 +592,18 @@ impl<'a> AxisValueFormat1<'a> {
     pub fn value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
         start..start + Fixed::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    AxisValueFormat1::MIN_SIZE
+));
+
+impl Default for AxisValueFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 

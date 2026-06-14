@@ -28,6 +28,7 @@ use crate::{
 ///
 /// Also optionally includes a list of patches which are not compatible but have been
 /// requested to be preloaded.
+#[derive(Clone)]
 pub struct PatchGroup<'a> {
     font: FontRef<'a>,
     patches: Option<CompatibleGroup>,
@@ -35,6 +36,17 @@ pub struct PatchGroup<'a> {
     // These patches aren't compatible, but have been requested as preloads by the
     // patch mapping.
     preload_urls: BTreeSet<PatchUrl>,
+}
+
+// We implement Debug manually because FontRef does not implement Debug unconditionally.
+// Additionally, FontRef may be too verbose to be helpful.
+impl std::fmt::Debug for PatchGroup<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PatchGroup")
+            .field("patches", &self.patches)
+            .field("preload_urls", &self.preload_urls)
+            .finish_non_exhaustive()
+    }
 }
 
 enum Selection {
@@ -476,14 +488,14 @@ impl GroupingByInvalidation {
 }
 
 /// Tracks whether a URL has already been applied to a font or not.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum UrlStatus {
     Applied,
     Pending(Vec<u8>),
 }
 
 /// Tracks information related to a patch necessary to apply that patch.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub struct PatchInfo {
     pub(crate) url: PatchUrl,
     pub(crate) source_table: IftTableTag,
@@ -584,11 +596,11 @@ impl From<PatchMapEntry> for CandidateNoInvalidationPatch {
 }
 
 /// Type for a single non invalidating patch.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 struct NoInvalidationPatch(PatchInfo);
 
 /// Type for a single partially invalidating patch.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 struct PartialInvalidationPatch(PatchInfo);
 
 impl From<CandidatePatch> for PartialInvalidationPatch {
@@ -598,7 +610,7 @@ impl From<CandidatePatch> for PartialInvalidationPatch {
 }
 
 /// Type for a single fully invalidating patch.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 struct FullInvalidationPatch(PatchInfo);
 
 impl From<CandidatePatch> for FullInvalidationPatch {
@@ -609,7 +621,7 @@ impl From<CandidatePatch> for FullInvalidationPatch {
 
 /// Represents a group of patches which are valid (compatible) to be applied together to
 /// an IFT font.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 enum CompatibleGroup {
     Full(FullInvalidationPatch),
     Mixed { ift: ScopedGroup, iftx: ScopedGroup },
@@ -617,7 +629,7 @@ enum CompatibleGroup {
 
 /// A set of zero or more compatible patches that are derived from the same scope
 /// ("IFT " vs "IFTX")
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 enum ScopedGroup {
     PartialInvalidation(PartialInvalidationPatch),
     NoInvalidation(BTreeMap<OrderedPatchUrl, NoInvalidationPatch>),
@@ -646,7 +658,7 @@ impl ScopedGroup {
 /// That is the order that the physical entries in the patch map are in. This struct
 /// adds that ordering onto PatchUrl's for when they are stored in a btree set/map.
 /// Context: <https://github.com/w3c/IFT/pull/279>
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone)]
 pub struct OrderedPatchUrl(usize, PatchUrl);
 
 struct NoInvalidationPatchesIter<'a, T>

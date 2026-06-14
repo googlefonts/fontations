@@ -3,21 +3,49 @@
 use super::write::{FontWrite, TableWriter};
 
 /// The width in bytes of an Offset16
-#[allow(dead_code)] // currently unused because of a serde bug?
-                    // https://github.com/serde-rs/serde/issues/2449
 pub const WIDTH_16: usize = 2;
 /// The width in bytes of an Offset24
-#[allow(dead_code)] // will be used one day :')
 pub const WIDTH_24: usize = 3;
 /// The width in bytes of an Offset32
+#[allow(dead_code)]
 pub const WIDTH_32: usize = 4;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum OffsetLen {
+    Offset16 = 2,
+    Offset24 = 3,
+    Offset32 = 4,
+}
+
+impl OffsetLen {
+    /// The maximum value for an offset of this length.
+    #[cfg(feature = "tables")]
+    pub const fn max_value(self) -> u32 {
+        match self {
+            Self::Offset16 => u16::MAX as u32,
+            Self::Offset24 => (1 << 24) - 1,
+            Self::Offset32 => u32::MAX,
+        }
+    }
+}
+
+impl std::fmt::Display for OffsetLen {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Offset16 => write!(f, "Offset16"),
+            Self::Offset24 => write!(f, "Offset24"),
+            Self::Offset32 => write!(f, "Offset32"),
+        }
+    }
+}
 
 /// An offset subtable.
 ///
 /// The generic const `N` is the width of the offset, in bytes.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct OffsetMarker<T, const N: usize = 2> {
+pub struct OffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Box<T>,
 }
 
@@ -26,7 +54,7 @@ pub struct OffsetMarker<T, const N: usize = 2> {
 /// The generic const `N` is the width of the offset, in bytes.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct NullableOffsetMarker<T, const N: usize = 2> {
+pub struct NullableOffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Option<Box<T>>,
 }
 
@@ -70,7 +98,6 @@ impl<T, const N: usize> AsMut<T> for OffsetMarker<T, N> {
 
 // NOTE: we don't impl AsRef/AsMut for NullableOffsetMarker, since it is less
 // useful than the Option::as_ref and Option::as_mut methods available through deref
-
 impl<const N: usize, T> OffsetMarker<T, N> {
     /// Create a new marker.
     pub fn new(obj: T) -> Self {
@@ -78,11 +105,13 @@ impl<const N: usize, T> OffsetMarker<T, N> {
     }
 
     /// Set the contents of the marker, replacing any existing contents.
+    #[cfg(feature = "tables")]
     pub fn set(&mut self, obj: impl Into<T>) {
         self.obj = Box::new(obj.into());
     }
 
     /// Convert into the inner type
+    #[cfg(feature = "tables")]
     pub fn into_inner(self) -> T {
         *self.obj
     }
@@ -102,16 +131,19 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
     /// [`clear`] method.
     ///
     /// [`clear`]: Self::clear
+    #[cfg(feature = "tables")]
     pub fn set(&mut self, obj: impl Into<T>) {
         self.obj = Some(Box::new(obj.into()))
     }
 
     /// Clear the contents of the marker.
+    #[cfg(feature = "tables")]
     pub fn clear(&mut self) {
         self.obj = None;
     }
 
     /// Convert into the inner type
+    #[cfg(feature = "tables")]
     pub fn into_inner(self) -> Option<T> {
         self.obj.map(|b| *b)
     }
@@ -123,6 +155,7 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
         }
     }
 
+    #[cfg(feature = "tables")]
     pub fn as_mut(&mut self) -> Option<&mut T> {
         match &mut self.obj {
             Some(obj) => Some(&mut *obj),

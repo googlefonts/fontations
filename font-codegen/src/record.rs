@@ -6,9 +6,9 @@ use quote::{quote, ToTokens};
 use crate::{
     fields::FieldConstructorInfo,
     parsing::{
-        logged_syn_error, CustomCompile, Field, FieldType, Fields, Item, Items, Phase, Record,
-        TableAttrs,
+        logged_syn_error, CustomCompile, Field, FieldType, Fields, Item, Items, Record, TableAttrs,
     },
+    Phase,
 };
 
 pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStream> {

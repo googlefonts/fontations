@@ -135,3 +135,47 @@ pub mod conditions {
         crate::dump_table(&flags_are_wrong).unwrap();
     }
 }
+
+mod generic_group {
+    include!("../generated/generated_test_generic_group.rs");
+
+    #[test]
+    fn construct_subtable_format1() {
+        let st = MySubtableFormat1 { value: 42 };
+        let bytes = crate::dump_table(&st).unwrap();
+        // format=1 (2 bytes) + value=42 (2 bytes)
+        assert_eq!(bytes, [0, 1, 0, 42]);
+    }
+
+    #[test]
+    fn construct_subtable_enum() {
+        let st = MySubtable::from(MySubtableFormat1 { value: 7 });
+        assert!(matches!(st, MySubtable::Format1(_)));
+
+        let st2 = MySubtable::from(MySubtableFormat2 {
+            values: vec![1, 2, 3],
+        });
+        assert!(matches!(st2, MySubtable::Format2(_)));
+    }
+
+    #[test]
+    fn construct_lookup_group() {
+        let lookup: MyLookup<MySubtableFormat1> = MyLookup {
+            lookup_type: 2,
+            subtables: vec![OffsetMarker::new(MySubtableFormat1 { value: 99 })],
+        };
+        let group = MyLookupGroup::from(lookup);
+        assert!(matches!(group, MyLookupGroup::TypeTwo(_)));
+    }
+
+    #[test]
+    fn round_trip_subtable_format1() {
+        let owned = MySubtableFormat1 { value: 42 };
+        let bytes = crate::dump_table(&owned).unwrap();
+        let parsed = read_fonts::codegen_test::generic_group::MySubtableFormat1::read(
+            bytes.as_slice().into(),
+        )
+        .unwrap();
+        assert_eq!(parsed.value(), 42);
+    }
+}

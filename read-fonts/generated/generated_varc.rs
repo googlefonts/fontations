@@ -140,6 +140,16 @@ impl<'a> Varc<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Varc::MIN_SIZE));
+
+impl Default for Varc<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Varc<'a> {
     fn type_name(&self) -> &str {
@@ -275,6 +285,18 @@ impl<'a> MultiItemVariationStore<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    MultiItemVariationStore::MIN_SIZE
+));
+
+impl Default for MultiItemVariationStore<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
     fn type_name(&self) -> &str {
@@ -291,20 +313,10 @@ impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
                 "variation_data_count",
                 self.variation_data_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "variation_data_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<MultiItemVariationData>(),
-                        self.variation_data_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<MultiItemVariationData>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "variation_data_offsets",
+                FieldType::from(self.variation_data()),
+            )),
             _ => None,
         }
     }
@@ -377,6 +389,18 @@ impl<'a> SparseVariationRegionList<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    SparseVariationRegionList::MIN_SIZE
+));
+
+impl Default for SparseVariationRegionList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
     fn type_name(&self) -> &str {
@@ -385,20 +409,10 @@ impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("region_count", self.region_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "region_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<SparseVariationRegion>(),
-                        self.region_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<SparseVariationRegion>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "region_offsets",
+                FieldType::from(self.regions()),
+            )),
             _ => None,
         }
     }
@@ -464,6 +478,18 @@ impl<'a> SparseVariationRegion<'a> {
             ..start
                 + (region_axis_count as usize)
                     .saturating_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    SparseVariationRegion::MIN_SIZE
+));
+
+impl Default for SparseVariationRegion<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -622,6 +648,18 @@ impl<'a> MultiItemVariationData<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    MultiItemVariationData::MIN_SIZE
+));
+
+impl Default for MultiItemVariationData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MultiItemVariationData<'a> {
     fn type_name(&self) -> &str {
@@ -705,6 +743,16 @@ impl<'a> ConditionList<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(ConditionList::MIN_SIZE));
+
+impl Default for ConditionList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ConditionList<'a> {
     fn type_name(&self) -> &str {
@@ -713,20 +761,10 @@ impl<'a> SomeTable<'a> for ConditionList<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("condition_count", self.condition_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "condition_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Condition>(),
-                        self.condition_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Condition>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "condition_offsets",
+                FieldType::from(self.conditions()),
+            )),
             _ => None,
         }
     }

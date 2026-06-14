@@ -109,7 +109,7 @@ pub(crate) mod codegen_prelude {
     pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
     //pub(crate) use crate::read::sealed;
     pub use crate::read::{
-        ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
+        ComputeSize, Discriminant, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;
@@ -119,14 +119,6 @@ pub(crate) mod codegen_prelude {
 
     #[cfg(feature = "experimental_traverse")]
     pub use crate::traversal::{self, Field, FieldType, RecordResolver, SomeRecord, SomeTable};
-
-    // used in generated traversal code to get type names of offset fields, which
-    // may include generics
-    #[cfg(feature = "experimental_traverse")]
-    pub(crate) fn better_type_name<T>() -> &'static str {
-        let raw_name = std::any::type_name::<T>();
-        raw_name.rsplit("::").next().unwrap_or(raw_name)
-    }
 
     /// named transforms used in 'count', e.g
     pub(crate) mod transforms {

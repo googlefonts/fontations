@@ -1,9 +1,10 @@
 [package]
 name = "skera"
-version = "0.1.4"
+version = "0.3.0"
 description = "Subsetting a font file according to provided input."
 readme = "README.md"
 categories = ["text-processing"]
+exclude = ["/test-data"]
 
 edition.workspace = true
 license.workspace = true
@@ -22,8 +23,7 @@ cli = ["clap"]
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"], optional = true }
-fnv = "1.0.7"
-hashbrown = { version = "0.16.1", default-features = false, features = ["inline-more"] }
+hashbrown = { version = "0.17.0", default-features = false, features = ["inline-more"] }
 skrifa = { workspace = true }
 thiserror = "2.0"
 write-fonts = { workspace = true, features = ["read"] }
@@ -31,5 +31,7 @@ write-fonts = { workspace = true, features = ["read"] }
 
 [dev-dependencies]
 diff = "0.1.13"
-tempdir = "0.3.7"
 font-test-data = { workspace = true }
+rayon = { workspace = true }
+rstest = "0.26.1"
+tempfile = "3"

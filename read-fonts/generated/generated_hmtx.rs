@@ -92,6 +92,18 @@ impl<'a> Hmtx<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(Hmtx::MIN_SIZE));
+
+impl Default for Hmtx<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            number_of_h_metrics: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Hmtx<'a> {
     fn type_name(&self) -> &str {

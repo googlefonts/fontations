@@ -427,6 +427,17 @@ impl<'a> Sbix<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Sbix::MIN_SIZE));
+
+impl Default for Sbix<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            num_glyphs: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Sbix<'a> {
     fn type_name(&self) -> &str {
@@ -437,21 +448,10 @@ impl<'a> SomeTable<'a> for Sbix<'a> {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("flags", self.flags())),
             2usize => Some(Field::new("num_strikes", self.num_strikes())),
-            3usize => Some({
-                let data = self.data;
-                let args = self.num_glyphs();
-                Field::new(
-                    "strike_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Strike>(),
-                        self.strike_offsets(),
-                        move |off| {
-                            let target = off.get().resolve_with_args::<Strike>(data, &args);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "strike_offsets",
+                FieldType::from(self.strikes()),
+            )),
             _ => None,
         }
     }
@@ -553,6 +553,17 @@ impl<'a> Strike<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Strike::MIN_SIZE));
+
+impl Default for Strike<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            num_glyphs: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Strike<'a> {
     fn type_name(&self) -> &str {
@@ -649,6 +660,16 @@ impl<'a> GlyphData<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.graphic_type_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(GlyphData::MIN_SIZE));
+
+impl Default for GlyphData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

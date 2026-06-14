@@ -159,6 +159,16 @@ impl<'a> Gvar<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Gvar::MIN_SIZE));
+
+impl Default for Gvar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gvar<'a> {
     fn type_name(&self) -> &str {
@@ -581,6 +591,19 @@ impl<'a> SharedTuples<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(SharedTuples::MIN_SIZE));
+
+impl Default for SharedTuples<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            shared_tuple_count: Default::default(),
+            axis_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SharedTuples<'a> {
     fn type_name(&self) -> &str {
@@ -680,6 +703,18 @@ impl<'a> GlyphVariationDataHeader<'a> {
     pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
         let start = self.serialized_data_offset_byte_range().end;
         start..start + self.data.len().saturating_sub(start)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    GlyphVariationDataHeader::MIN_SIZE
+));
+
+impl Default for GlyphVariationDataHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

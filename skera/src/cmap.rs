@@ -7,7 +7,7 @@ use crate::{
     SubsetError::{self, SubsetTableError},
 };
 
-use fnv::FnvHashMap;
+use crate::fnv::FnvHashMap;
 use skrifa::raw::tables::cmap::UnicodeRange;
 use write_fonts::{
     read::{
@@ -76,7 +76,7 @@ impl Subset for Cmap<'_> {
             return Err(SubsetTableError(Cmap::TAG));
         }
 
-        serialize_cmap(self, s, plan, &retained_encoding_records, false)
+        serialize_cmap(self, s, plan, &retained_encoding_records)
             .map_err(|_| SubsetTableError(Cmap::TAG))
     }
 }
@@ -151,13 +151,13 @@ fn serialize_cmap(
     s: &mut Serializer,
     plan: &Plan,
     retained_encoding_records: &[(usize, &EncodingRecord)],
-    drop_format_4: bool,
 ) -> Result<(), SerializeErrorFlags> {
     // allocate header: version + numTables
     s.allocate_size(HEADER_SIZE, false)?;
 
-    let snap = s.snapshot();
+    let mut format4_objidx = None;
     let mut format12_objidx = None;
+    let mut format14_objidx = None;
     //TODO: add support for cmap_cache in plan accelerator
     let mut unicodes_cache =
         SubtableUnicodeCache::new(cmap.offset_data().as_bytes().as_ptr() as usize);
@@ -175,7 +175,7 @@ fn serialize_cmap(
             continue;
         }
 
-        if !drop_format_4 && format == 4 {
+        if format == 4 {
             let Some(unicodes_set) =
                 unicodes_cache.set_for(*rec_idx, &subtable, plan.font_num_glyphs)
             else {
@@ -187,11 +187,25 @@ fn serialize_cmap(
                 .filter_map(|(cp, gid)| unicodes_set.contains(*cp).then_some((*cp, *gid)))
                 .collect();
 
-            serialize_encoding_record(record, &subtable, s, &cp_to_new_gid_list, plan)?;
-            if s.in_error() && s.only_overflow() {
-                // cmap4 overflowed, reset and retry serialization without format 4 subtables.
-                s.revert_snapshot(snap);
-                return serialize_cmap(cmap, s, plan, retained_encoding_records, true);
+            let snap = s.snapshot();
+            format4_objidx = match serialize_encoding_record(
+                record,
+                &subtable,
+                s,
+                &cp_to_new_gid_list,
+                plan,
+                format4_objidx,
+            ) {
+                Ok(obj_idx) => obj_idx,
+                Err(e) => {
+                    if s.in_error() && s.only_overflow() {
+                        // cmap4 overflowed, drop cmap4 table and continue serialization with other tables
+                        s.revert_snapshot(snap);
+                        None
+                    } else {
+                        return Err(e);
+                    }
+                }
             }
         } else if format == 12 {
             let Some(unicodes_set) =
@@ -220,10 +234,23 @@ fn serialize_cmap(
                 .filter(|&(cp, _gid)| cmap12_subset_unicodes.contains(*cp))
                 .map(|(cp, gid)| (*cp, *gid))
                 .collect();
-            format12_objidx =
-                serialize_encoding_record(record, &subtable, s, &cp_to_new_gid_list, plan)?;
+            format12_objidx = serialize_encoding_record(
+                record,
+                &subtable,
+                s,
+                &cp_to_new_gid_list,
+                plan,
+                format12_objidx,
+            )?;
         } else if format == 14 {
-            serialize_encoding_record(record, &subtable, s, &plan.unicode_to_new_gid_list, plan)?;
+            format14_objidx = serialize_encoding_record(
+                record,
+                &subtable,
+                s,
+                &plan.unicode_to_new_gid_list,
+                plan,
+                format14_objidx,
+            )?;
         }
     }
 
@@ -235,7 +262,7 @@ fn serialize_cmap(
     )?;
 
     // Fail if format 4 was dropped and there is no cmap12.
-    if drop_format_4 && format12_objidx.is_none() {
+    if format4_objidx.is_none() && format12_objidx.is_none() {
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
     }
 
@@ -248,36 +275,43 @@ fn serialize_encoding_record(
     s: &mut Serializer,
     cp_to_new_gid_list: &[(u32, GlyphId)],
     plan: &Plan,
+    obj_idx: Option<ObjIdx>,
 ) -> Result<Option<ObjIdx>, SerializeErrorFlags> {
     let snap = s.snapshot();
     s.embed(record.platform_id())?;
     s.embed(record.encoding_id())?;
     let offset_pos = s.embed(Offset32::new(0))?;
 
-    s.push()?;
-    let init_len = s.length();
-    cmap_subtable.serialize(s, plan, cp_to_new_gid_list)?;
-    let mut obj_idx = None;
-    if s.length() > init_len {
-        obj_idx = s.pop_pack(true);
-        if obj_idx.is_none() {
-            s.revert_snapshot(snap);
-            return Err(s.error());
-        }
+    let subtable_idx = if let Some(idx) = obj_idx {
+        idx
     } else {
-        s.pop_discard();
-        s.revert_snapshot(snap);
-        return Ok(obj_idx);
-    }
+        s.push()?;
+        let init_len = s.length();
+        match cmap_subtable.serialize(s, plan, cp_to_new_gid_list) {
+            Ok(()) => {
+                if s.length() > init_len {
+                    s.pop_pack(true).ok_or_else(|| s.error())?
+                } else {
+                    s.pop_discard();
+                    s.revert_snapshot(snap);
+                    return Ok(None);
+                }
+            }
+            Err(e) => {
+                s.pop_discard();
+                return Err(e);
+            }
+        }
+    };
 
     s.add_link(
         offset_pos..offset_pos + 4,
-        obj_idx.unwrap(),
+        subtable_idx,
         OffsetWhence::Head,
         0,
         false,
     )?;
-    Ok(obj_idx)
+    Ok(Some(subtable_idx))
 }
 
 fn is_gid_consecutive(

@@ -11,6 +11,12 @@ pub enum Ift<'a> {
     Format2(PatchMapFormat2<'a>),
 }
 
+impl Default for Ift<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl<'a> Ift<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -673,6 +679,18 @@ impl<'a> PatchMapFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    PatchMapFormat1::MIN_SIZE
+));
+
+impl Default for PatchMapFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PatchMapFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -837,6 +855,18 @@ impl<'a> GlyphMap<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(GlyphMap::MIN_SIZE));
+
+impl Default for GlyphMap<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            glyph_count: Default::default(),
+            max_entry_index: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for GlyphMap<'a> {
     fn type_name(&self) -> &str {
@@ -950,6 +980,17 @@ impl<'a> FeatureMap<'a> {
     pub fn entry_map_data_byte_range(&self) -> Range<usize> {
         let start = self.feature_records_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(FeatureMap::MIN_SIZE));
+
+impl Default for FeatureMap<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            max_entry_index: Default::default(),
+        }
     }
 }
 
@@ -1450,6 +1491,17 @@ impl<'a> MappingEntries<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(MappingEntries::MIN_SIZE));
+
+impl Default for MappingEntries<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MappingEntries<'a> {
     fn type_name(&self) -> &str {
@@ -1626,6 +1678,16 @@ impl<'a> EntryData<'a> {
     pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self.child_indices_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(EntryData::MIN_SIZE));
+
+impl Default for EntryData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -2119,6 +2181,17 @@ impl<'a> IdStringData<'a> {
     }
 }
 
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(IdStringData::MIN_SIZE));
+
+impl Default for IdStringData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for IdStringData<'a> {
     fn type_name(&self) -> &str {
@@ -2229,6 +2302,18 @@ impl<'a> TableKeyedPatch<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    TableKeyedPatch::MIN_SIZE
+));
+
+impl Default for TableKeyedPatch<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for TableKeyedPatch<'a> {
     fn type_name(&self) -> &str {
@@ -2242,20 +2327,7 @@ impl<'a> SomeTable<'a> for TableKeyedPatch<'a> {
                 traversal::FieldType::Unknown,
             )),
             2usize => Some(Field::new("patches_count", self.patches_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "patch_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<TablePatch>(),
-                        self.patch_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<TablePatch>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new("patch_offsets", FieldType::from(self.patches()))),
             _ => None,
         }
     }
@@ -2339,6 +2411,16 @@ impl<'a> TablePatch<'a> {
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(TablePatch::MIN_SIZE));
+
+impl Default for TablePatch<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -2762,6 +2844,18 @@ impl<'a> GlyphKeyedPatch<'a> {
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    GlyphKeyedPatch::MIN_SIZE
+));
+
+impl Default for GlyphKeyedPatch<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -3225,6 +3319,17 @@ impl<'a> GlyphPatches<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(GlyphPatches::MIN_SIZE));
+
+impl Default for GlyphPatches<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            flags: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for GlyphPatches<'a> {
     fn type_name(&self) -> &str {
@@ -3236,20 +3341,10 @@ impl<'a> SomeTable<'a> for GlyphPatches<'a> {
             1usize => Some(Field::new("table_count", self.table_count())),
             2usize => Some(Field::new("glyph_ids", traversal::FieldType::Unknown)),
             3usize => Some(Field::new("tables", self.tables())),
-            4usize => Some({
-                let data = self.data;
-                Field::new(
-                    "glyph_data_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<GlyphData>(),
-                        self.glyph_data_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<GlyphData>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            4usize => Some(Field::new(
+                "glyph_data_offsets",
+                FieldType::from(self.glyph_data()),
+            )),
             _ => None,
         }
     }
@@ -3301,6 +3396,17 @@ impl<'a> GlyphData<'a> {
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(GlyphData::MIN_SIZE));
+
+impl Default for GlyphData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

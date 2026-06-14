@@ -1,12 +1,13 @@
 //! impl subset() for HVAR
 
+use crate::fnv::FnvHashMap;
+use crate::offset::SerializeSerialize;
 use crate::{
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
     variations::DeltaSetIndexMapSerializePlan,
-    IncBiMap, Plan, Subset, SubsetError, SubsetFlags,
+    IncBiMap, Plan, Serialize, Subset, SubsetError, SubsetFlags,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -16,7 +17,7 @@ use write_fonts::{
         },
         FontRef, ReadError, TopLevelTable,
     },
-    types::Offset32,
+    types::{FixedSize, Offset32},
     FontBuilder,
 };
 
@@ -30,23 +31,33 @@ impl Subset for Hvar<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        let var_store = self
-            .item_variation_store()
-            .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
+        Self::serialize(s, (self, plan)).map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))
+    }
+}
 
-        let index_maps = self
+impl<'a> Serialize<'a> for Hvar<'_> {
+    type Args = (&'a Hvar<'a>, &'a Plan);
+    fn serialize(s: &mut Serializer, args: Self::Args) -> Result<(), SerializeErrorFlags> {
+        let (hvar, plan) = args;
+        s.embed(hvar.version())?;
+        if hvar.item_variation_store_offset().is_null() {
+            return s
+                .allocate_size(5 * Offset32::RAW_BYTE_LEN, true)
+                .map(|_| ());
+        }
+
+        let var_store = hvar
+            .item_variation_store()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        let index_maps = hvar
             .listup_index_maps()
-            .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
         let hvar_subset_plan = HvarVvarSubsetPlan::new(plan, &var_store, &index_maps)
-            .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-        s.embed(self.version())
-            .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
-
-        let var_store_offset_pos = s
-            .embed(0_u32)
-            .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
+        let var_store_offset_pos = s.embed(0_u32)?;
 
         Offset32::serialize_subset(
             &var_store,
@@ -54,8 +65,7 @@ impl Subset for Hvar<'_> {
             plan,
             (hvar_subset_plan.inner_maps(), true),
             var_store_offset_pos,
-        )
-        .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))?;
+        )?;
 
         serialize_index_maps(
             s,
@@ -63,7 +73,6 @@ impl Subset for Hvar<'_> {
             &index_maps,
             hvar_subset_plan.index_map_subset_plans(),
         )
-        .map_err(|_| SubsetError::SubsetTableError(Hvar::TAG))
     }
 }
 
@@ -84,7 +93,7 @@ impl ListupIndexMaps for Hvar<'_> {
 
 pub(crate) fn serialize_index_maps(
     s: &mut Serializer,
-    plan: &Plan,
+    _plan: &Plan,
     index_maps: &[Option<DeltaSetIndexMap>],
     index_map_plans: &[IndexMapSubsetPlan],
 ) -> Result<(), SerializeErrorFlags> {
@@ -92,16 +101,14 @@ pub(crate) fn serialize_index_maps(
         return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
     }
 
-    for (index_map, index_map_subset_plan) in index_maps.iter().zip(index_map_plans) {
+    for index_map_subset_plan in index_map_plans {
         let offset_pos = s.embed(0_u32)?;
         if index_map_subset_plan.is_identity() {
             continue;
         }
 
-        Offset32::serialize_subset(
-            index_map.as_ref().unwrap(),
+        Offset32::serialize_serialize::<DeltaSetIndexMap>(
             s,
-            plan,
             &index_map_subset_plan.to_serialize_plan(),
             offset_pos,
         )?;
@@ -329,14 +336,12 @@ impl HvarVvarSubsetPlan {
             this.inner_maps.push(inner_map);
         }
 
-        for (i, index_map) in index_maps.iter().enumerate() {
-            this.index_map_subset_plans[i].remap(
-                plan,
-                index_map.as_ref(),
-                &outer_map,
-                &this.inner_maps,
-            );
-        }
+        this.index_map_subset_plans
+            .iter_mut()
+            .zip(index_maps)
+            .for_each(|(index_map_subset_plan, index_map)| {
+                index_map_subset_plan.remap(plan, index_map.as_ref(), &outer_map, &this.inner_maps)
+            });
         Ok(this)
     }
 

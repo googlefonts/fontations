@@ -129,6 +129,16 @@ impl<'a> Gpos<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Gpos::MIN_SIZE));
+
+impl Default for Gpos<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Gpos<'a> {
     fn type_name(&self) -> &str {
@@ -182,19 +192,25 @@ pub enum PositionLookup<'a> {
     Extension(Lookup<'a, ExtensionSubtable<'a>>),
 }
 
+impl Default for PositionLookup<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
 impl<'a> FontRead<'a> for PositionLookup<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-        let untyped = Lookup::read(bytes)?;
-        match untyped.lookup_type() {
-            1 => Ok(PositionLookup::Single(untyped.into_concrete())),
-            2 => Ok(PositionLookup::Pair(untyped.into_concrete())),
-            3 => Ok(PositionLookup::Cursive(untyped.into_concrete())),
-            4 => Ok(PositionLookup::MarkToBase(untyped.into_concrete())),
-            5 => Ok(PositionLookup::MarkToLig(untyped.into_concrete())),
-            6 => Ok(PositionLookup::MarkToMark(untyped.into_concrete())),
-            7 => Ok(PositionLookup::Contextual(untyped.into_concrete())),
-            8 => Ok(PositionLookup::ChainContextual(untyped.into_concrete())),
-            9 => Ok(PositionLookup::Extension(untyped.into_concrete())),
+        let discriminant = Lookup::read_discriminant(bytes)?;
+        match discriminant {
+            1 => Ok(PositionLookup::Single(FontRead::read(bytes)?)),
+            2 => Ok(PositionLookup::Pair(FontRead::read(bytes)?)),
+            3 => Ok(PositionLookup::Cursive(FontRead::read(bytes)?)),
+            4 => Ok(PositionLookup::MarkToBase(FontRead::read(bytes)?)),
+            5 => Ok(PositionLookup::MarkToLig(FontRead::read(bytes)?)),
+            6 => Ok(PositionLookup::MarkToMark(FontRead::read(bytes)?)),
+            7 => Ok(PositionLookup::Contextual(FontRead::read(bytes)?)),
+            8 => Ok(PositionLookup::ChainContextual(FontRead::read(bytes)?)),
+            9 => Ok(PositionLookup::Extension(FontRead::read(bytes)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -606,6 +622,12 @@ pub enum AnchorTable<'a> {
     Format3(AnchorFormat3<'a>),
 }
 
+impl Default for AnchorTable<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl<'a> AnchorTable<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -767,6 +789,16 @@ impl<'a> AnchorFormat1<'a> {
     pub fn y_coordinate_byte_range(&self) -> Range<usize> {
         let start = self.x_coordinate_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(AnchorFormat1::MIN_SIZE));
+
+impl Default for AnchorFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -1096,6 +1128,16 @@ impl<'a> MarkArray<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(MarkArray::MIN_SIZE));
+
+impl Default for MarkArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MarkArray<'a> {
     fn type_name(&self) -> &str {
@@ -1183,6 +1225,12 @@ impl<'a> SomeRecord<'a> for MarkRecord {
 pub enum SinglePos<'a> {
     Format1(SinglePosFormat1<'a>),
     Format2(SinglePosFormat2<'a>),
+}
+
+impl Default for SinglePos<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> SinglePos<'a> {
@@ -1359,6 +1407,18 @@ impl<'a> SinglePosFormat1<'a> {
     pub fn value_record_byte_range(&self) -> Range<usize> {
         let start = self.value_format_byte_range().end;
         start..start + <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap_or(0)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    SinglePosFormat1::MIN_SIZE
+));
+
+impl Default for SinglePosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -1540,6 +1600,12 @@ impl<'a> std::fmt::Debug for SinglePosFormat2<'a> {
 pub enum PairPos<'a> {
     Format1(PairPosFormat1<'a>),
     Format2(PairPosFormat2<'a>),
+}
+
+impl Default for PairPos<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> PairPos<'a> {
@@ -1763,6 +1829,16 @@ impl<'a> PairPosFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(PairPosFormat1::MIN_SIZE));
+
+impl Default for PairPosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -1778,21 +1854,10 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
             2usize => Some(Field::new("value_format1", self.value_format1())),
             3usize => Some(Field::new("value_format2", self.value_format2())),
             4usize => Some(Field::new("pair_set_count", self.pair_set_count())),
-            5usize => Some({
-                let data = self.data;
-                let args = (self.value_format1(), self.value_format2());
-                Field::new(
-                    "pair_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<PairSet>(),
-                        self.pair_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve_with_args::<PairSet>(data, &args);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            5usize => Some(Field::new(
+                "pair_set_offsets",
+                FieldType::from(self.pair_sets()),
+            )),
             _ => None,
         }
     }
@@ -1907,6 +1972,18 @@ impl<'a> PairSet<'a> {
                     ))
                     .unwrap_or(0),
                 )
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(PairSet::MIN_SIZE));
+
+impl Default for PairSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            value_format1: Default::default(),
+            value_format2: Default::default(),
+        }
     }
 }
 
@@ -2531,6 +2608,18 @@ impl<'a> CursivePosFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    CursivePosFormat1::MIN_SIZE
+));
+
+impl Default for CursivePosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -2777,6 +2866,18 @@ impl<'a> MarkBasePosFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    MarkBasePosFormat1::MIN_SIZE
+));
+
+impl Default for MarkBasePosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MarkBasePosFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -2902,6 +3003,17 @@ impl<'a> BaseArray<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(BaseArray::MIN_SIZE));
+
+impl Default for BaseArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseArray<'a> {
     fn type_name(&self) -> &str {
@@ -3003,19 +3115,10 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
         RecordResolver {
             name: "BaseRecord",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some({
-                    Field::new(
-                        "base_anchor_offsets",
-                        FieldType::array_of_offsets(
-                            better_type_name::<AnchorTable>(),
-                            self.base_anchor_offsets(),
-                            move |off| {
-                                let target = off.get().resolve::<AnchorTable>(data);
-                                FieldType::offset(off.get(), target)
-                            },
-                        ),
-                    )
-                }),
+                0usize => Some(Field::new(
+                    "base_anchor_offsets",
+                    FieldType::from(self.base_anchors(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -3159,6 +3262,18 @@ impl<'a> MarkLigPosFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    MarkLigPosFormat1::MIN_SIZE
+));
+
+impl Default for MarkLigPosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MarkLigPosFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -3287,6 +3402,17 @@ impl<'a> LigatureArray<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(LigatureArray::MIN_SIZE));
+
+impl Default for LigatureArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LigatureArray<'a> {
     fn type_name(&self) -> &str {
@@ -3295,21 +3421,10 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
-            1usize => Some({
-                let data = self.data;
-                let args = self.mark_class_count();
-                Field::new(
-                    "ligature_attach_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<LigatureAttach>(),
-                        self.ligature_attach_offsets(),
-                        move |off| {
-                            let target = off.get().resolve_with_args::<LigatureAttach>(data, &args);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "ligature_attach_offsets",
+                FieldType::from(self.ligature_attaches()),
+            )),
             _ => None,
         }
     }
@@ -3407,6 +3522,17 @@ impl<'a> LigatureAttach<'a> {
                     <ComponentRecord as ComputeSize>::compute_size(&self.mark_class_count())
                         .unwrap_or(0),
                 )
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(LigatureAttach::MIN_SIZE));
+
+impl Default for LigatureAttach<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            mark_class_count: Default::default(),
+        }
     }
 }
 
@@ -3511,19 +3637,10 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
         RecordResolver {
             name: "ComponentRecord",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some({
-                    Field::new(
-                        "ligature_anchor_offsets",
-                        FieldType::array_of_offsets(
-                            better_type_name::<AnchorTable>(),
-                            self.ligature_anchor_offsets(),
-                            move |off| {
-                                let target = off.get().resolve::<AnchorTable>(data);
-                                FieldType::offset(off.get(), target)
-                            },
-                        ),
-                    )
-                }),
+                0usize => Some(Field::new(
+                    "ligature_anchor_offsets",
+                    FieldType::from(self.ligature_anchors(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -3667,6 +3784,18 @@ impl<'a> MarkMarkPosFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    MarkMarkPosFormat1::MIN_SIZE
+));
+
+impl Default for MarkMarkPosFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for MarkMarkPosFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -3792,6 +3921,17 @@ impl<'a> Mark2Array<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Mark2Array::MIN_SIZE));
+
+impl Default for Mark2Array<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            mark_class_count: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Mark2Array<'a> {
     fn type_name(&self) -> &str {
@@ -3893,19 +4033,10 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
         RecordResolver {
             name: "Mark2Record",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some({
-                    Field::new(
-                        "mark2_anchor_offsets",
-                        FieldType::array_of_offsets(
-                            better_type_name::<AnchorTable>(),
-                            self.mark2_anchor_offsets(),
-                            move |off| {
-                                let target = off.get().resolve::<AnchorTable>(data);
-                                FieldType::offset(off.get(), target)
-                            },
-                        ),
-                    )
-                }),
+                0usize => Some(Field::new(
+                    "mark2_anchor_offsets",
+                    FieldType::from(self.mark2_anchors(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -3915,6 +4046,12 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
 
 impl Format<u16> for ExtensionPosFormat1<'_> {
     const FORMAT: u16 = 1;
+}
+
+impl Discriminant for ExtensionPosFormat1<'_, ()> {
+    fn read_discriminant(data: FontData<'_>) -> Result<u16, ReadError> {
+        data.read_at(u16::RAW_BYTE_LEN)
+    }
 }
 
 impl<'a, T> MinByteRange<'a> for ExtensionPosFormat1<'a, T> {
@@ -3937,16 +4074,6 @@ impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
             data,
             offset_type: std::marker::PhantomData,
         })
-    }
-}
-
-impl<'a> ExtensionPosFormat1<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
-        ExtensionPosFormat1 {
-            data: self.data,
-            offset_type: std::marker::PhantomData,
-        }
     }
 }
 
@@ -4019,6 +4146,19 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    ExtensionPosFormat1::<()>::MIN_SIZE
+));
+
+impl<T> Default for ExtensionPosFormat1<'_, T> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionPosFormat1<'a, T> {
     fn type_name(&self) -> &str {
@@ -4060,18 +4200,24 @@ pub enum ExtensionSubtable<'a> {
     ChainContextual(ExtensionPosFormat1<'a, PositionChainContext<'a>>),
 }
 
+impl Default for ExtensionSubtable<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-        let untyped = ExtensionPosFormat1::read(bytes)?;
-        match untyped.extension_lookup_type() {
-            1 => Ok(ExtensionSubtable::Single(untyped.into_concrete())),
-            2 => Ok(ExtensionSubtable::Pair(untyped.into_concrete())),
-            3 => Ok(ExtensionSubtable::Cursive(untyped.into_concrete())),
-            4 => Ok(ExtensionSubtable::MarkToBase(untyped.into_concrete())),
-            5 => Ok(ExtensionSubtable::MarkToLig(untyped.into_concrete())),
-            6 => Ok(ExtensionSubtable::MarkToMark(untyped.into_concrete())),
-            7 => Ok(ExtensionSubtable::Contextual(untyped.into_concrete())),
-            8 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
+        let discriminant = ExtensionPosFormat1::read_discriminant(bytes)?;
+        match discriminant {
+            1 => Ok(ExtensionSubtable::Single(FontRead::read(bytes)?)),
+            2 => Ok(ExtensionSubtable::Pair(FontRead::read(bytes)?)),
+            3 => Ok(ExtensionSubtable::Cursive(FontRead::read(bytes)?)),
+            4 => Ok(ExtensionSubtable::MarkToBase(FontRead::read(bytes)?)),
+            5 => Ok(ExtensionSubtable::MarkToLig(FontRead::read(bytes)?)),
+            6 => Ok(ExtensionSubtable::MarkToMark(FontRead::read(bytes)?)),
+            7 => Ok(ExtensionSubtable::Contextual(FontRead::read(bytes)?)),
+            8 => Ok(ExtensionSubtable::ChainContextual(FontRead::read(bytes)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }

@@ -5,15 +5,15 @@ mod multiple_subst;
 mod reverse_chain_single_subst;
 mod single_subst;
 
+use crate::fnv::FnvHashMap;
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
-    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError,
+    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError, SubsetFlags,
     SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -97,14 +97,22 @@ impl LayoutClosure for Gsub<'_> {
         else {
             return;
         };
-
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
-        let Ok(_) = self.closure_glyphs(&lookup_indices, &mut plan.glyphset_gsub) else {
+        if !plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE)
+            && self
+                .closure_glyphs(&lookup_indices, &mut plan.glyphset_gsub)
+                .is_err()
+        {
             return;
         };
-        let Ok(_) = self.closure_lookups(&plan.glyphset_gsub, &mut lookup_indices) else {
+        if self
+            .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
+            .is_err()
+        {
             return;
         };
 
@@ -144,36 +152,41 @@ fn subset_gsub(
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
     let version_pos = s.embed(gsub.version())?;
-
+    let mut c = SubsetLayoutContext::new(Gsub::TAG);
     // script_list
     let script_list_offset_pos = s.embed(0_u16)?;
 
-    let script_list = gsub
-        .script_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+    if !gsub.script_list_offset().is_null() {
+        let script_list = gsub
+            .script_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-    let mut c = SubsetLayoutContext::new(Gsub::TAG);
-    Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+        Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+    }
 
     // feature list
     let feature_list_offset_pos = s.embed(0_u16)?;
-    let feature_list = gsub
-        .feature_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    if !gsub.feature_list_offset().is_null() {
+        let feature_list = gsub
+            .feature_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    }
 
     // lookup list
     let lookup_list_offset_pos = s.embed(0_u16)?;
-    let lookup_list = gsub
-        .lookup_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(
-        &lookup_list,
-        s,
-        plan,
-        (state, font, &plan.gsub_lookups),
-        lookup_list_offset_pos,
-    )?;
+    if !gsub.lookup_list_offset().is_null() {
+        let lookup_list = gsub
+            .lookup_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(
+            &lookup_list,
+            s,
+            plan,
+            (state, font, &plan.gsub_lookups),
+            lookup_list_offset_pos,
+        )?;
+    }
 
     if let Some(feature_variations) = gsub
         .feature_variations()
@@ -213,6 +226,7 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
         let subtables = self
             .subtables()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
         let lookup_type: u16 = match subtables {
             SubstitutionSubtables::Single(_) => 1,
             SubstitutionSubtables::Multiple(_) => 2,
@@ -221,6 +235,9 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
             SubstitutionSubtables::Contextual(_) => 5,
             SubstitutionSubtables::ChainContextual(_) => 6,
             SubstitutionSubtables::Reverse(_) => 8,
+            SubstitutionSubtables::EmptyExtension => {
+                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))
+            }
         };
         s.embed(lookup_type)?;
 
@@ -262,6 +279,7 @@ impl<'a> SubsetTable<'a> for SubstitutionSubtables<'a> {
             SubstitutionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
             SubstitutionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
             SubstitutionSubtables::Reverse(subtables) => subtables.subset(plan, s, args),
+            SubstitutionSubtables::EmptyExtension => Ok(0),
         }
     }
 }

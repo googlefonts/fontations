@@ -51,14 +51,13 @@ fn update_unicode_ranges(unicodes: &IntSet<u32>, ul_unicode_range: &mut [u8]) {
     let mut new_ranges = [0_u32; 4];
 
     for cp in unicodes.iter() {
-        let Some(bit) = get_unicode_range_bit(cp) else {
-            continue;
-        };
-        if bit < 128 {
-            let block = (bit / 32) as usize;
-            let bit_in_block = bit % 32;
-            let mask = 1 << bit_in_block;
-            new_ranges[block] |= mask;
+        if let Some(bit) = get_unicode_range_bit(cp) {
+            if bit < 128 {
+                let block = (bit / 32) as usize;
+                let bit_in_block = bit % 32;
+                let mask = 1 << bit_in_block;
+                new_ranges[block] |= mask;
+            }
         }
 
         // the spec says that bit 57 ("Non Plane 0") implies that there's

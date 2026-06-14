@@ -133,6 +133,16 @@ impl<'a> Fvar<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Fvar::MIN_SIZE));
+
+impl Default for Fvar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Fvar<'a> {
     fn type_name(&self) -> &str {
@@ -270,6 +280,22 @@ impl<'a> AxisInstanceArrays<'a> {
                     ))
                     .unwrap_or(0),
                 )
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(
+    AxisInstanceArrays::MIN_SIZE
+));
+
+impl Default for AxisInstanceArrays<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            axis_count: Default::default(),
+            instance_count: Default::default(),
+            instance_size: Default::default(),
+        }
     }
 }
 

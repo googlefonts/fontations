@@ -88,6 +88,16 @@ impl<'a> Feat<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Feat::MIN_SIZE));
+
+impl Default for Feat<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Feat<'a> {
     fn type_name(&self) -> &str {
@@ -268,6 +278,20 @@ impl<'a> SettingNameArray<'a> {
         let n_settings = self.n_settings();
         let start = 0;
         start..start + (n_settings as usize).saturating_mul(SettingName::RAW_BYTE_LEN)
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(
+    SettingNameArray::MIN_SIZE
+));
+
+impl Default for SettingNameArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            n_settings: Default::default(),
+        }
     }
 }
 

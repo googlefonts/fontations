@@ -110,6 +110,16 @@ impl<'a> Base<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Base::MIN_SIZE));
+
+impl Default for Base<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Base<'a> {
     fn type_name(&self) -> &str {
@@ -210,6 +220,16 @@ impl<'a> Axis<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Axis::MIN_SIZE));
+
+impl Default for Axis<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Axis<'a> {
     fn type_name(&self) -> &str {
@@ -295,6 +315,16 @@ impl<'a> BaseTagList<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(BaseTagList::MIN_SIZE));
+
+impl Default for BaseTagList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseTagList<'a> {
     fn type_name(&self) -> &str {
@@ -370,6 +400,16 @@ impl<'a> BaseScriptList<'a> {
         let base_script_count = self.base_script_count();
         let start = self.base_script_count_byte_range().end;
         start..start + (base_script_count as usize).saturating_mul(BaseScriptRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(BaseScriptList::MIN_SIZE));
+
+impl Default for BaseScriptList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -547,6 +587,16 @@ impl<'a> BaseScript<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(BaseScript::MIN_SIZE));
+
+impl Default for BaseScript<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseScript<'a> {
     fn type_name(&self) -> &str {
@@ -718,6 +768,16 @@ impl<'a> BaseValues<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(BaseValues::MIN_SIZE));
+
+impl Default for BaseValues<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for BaseValues<'a> {
     fn type_name(&self) -> &str {
@@ -730,20 +790,10 @@ impl<'a> SomeTable<'a> for BaseValues<'a> {
                 self.default_baseline_index(),
             )),
             1usize => Some(Field::new("base_coord_count", self.base_coord_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "base_coord_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<BaseCoord>(),
-                        self.base_coord_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<BaseCoord>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "base_coord_offsets",
+                FieldType::from(self.base_coords()),
+            )),
             _ => None,
         }
     }
@@ -847,6 +897,16 @@ impl<'a> MinMax<'a> {
         let feat_min_max_count = self.feat_min_max_count();
         let start = self.feat_min_max_count_byte_range().end;
         start..start + (feat_min_max_count as usize).saturating_mul(FeatMinMaxRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(MinMax::MIN_SIZE));
+
+impl Default for MinMax<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -972,6 +1032,12 @@ pub enum BaseCoord<'a> {
     Format1(BaseCoordFormat1<'a>),
     Format2(BaseCoordFormat2<'a>),
     Format3(BaseCoordFormat3<'a>),
+}
+
+impl Default for BaseCoord<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> BaseCoord<'a> {
@@ -1115,6 +1181,18 @@ impl<'a> BaseCoordFormat1<'a> {
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.base_coord_format_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    BaseCoordFormat1::MIN_SIZE
+));
+
+impl Default for BaseCoordFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 

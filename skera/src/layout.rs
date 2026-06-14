@@ -2,13 +2,13 @@
 
 use std::{cmp::Ordering, mem};
 
+use crate::fnv::FnvHashMap;
 use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
     serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
     CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -26,7 +26,7 @@ use write_fonts::{
             },
         },
         types::{GlyphId, GlyphId16, NameId},
-        FontData, FontRead, FontRef, MinByteRange, TopLevelTable,
+        FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32, Tag},
 };
@@ -817,6 +817,9 @@ pub(crate) fn collect_features_with_retained_subs(
         };
 
         for rec in subs.substitutions() {
+            if rec.alternate_feature_offset().is_null() {
+                continue;
+            }
             let Ok(sub_f) = rec.alternate_feature(subs.offset_data()) else {
                 return IntSet::empty();
             };
@@ -847,6 +850,9 @@ pub(crate) fn prune_features(
         let Some(feature_rec) = feature_records.get(i as usize) else {
             continue;
         };
+        if feature_rec.feature_offset().is_null() {
+            continue;
+        }
         let feature_tag = feature_rec.feature_tag();
         // never drop feature "pref"
         // ref: https://github.com/harfbuzz/harfbuzz/blob/fc6231726e514f96bfbb098283aab332fc6b45fb/src/hb-ot-layout-gsubgpos.hh#L4822
@@ -880,7 +886,7 @@ pub(crate) fn find_duplicate_features(
     feature_indices: IntSet<u16>,
 ) -> FnvHashMap<u16, u16> {
     let mut out = FnvHashMap::default();
-    if lookup_indices.is_empty() {
+    if feature_indices.is_empty() {
         return out;
     }
 
@@ -1032,6 +1038,9 @@ impl<'a> PruneLangSysContext<'a> {
             }
 
             for (i, langsys_rec) in script.lang_sys_records().iter().enumerate() {
+                if langsys_rec.lang_sys_offset().is_null() {
+                    continue;
+                }
                 let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
                     return;
                 };
@@ -1047,6 +1056,9 @@ impl<'a> PruneLangSysContext<'a> {
             }
         } else {
             for (i, langsys_rec) in script.lang_sys_records().iter().enumerate() {
+                if langsys_rec.lang_sys_offset().is_null() {
+                    continue;
+                }
                 let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
                     return;
                 };
@@ -1073,6 +1085,9 @@ impl<'a> PruneLangSysContext<'a> {
         layout_scripts: &IntSet<Tag>,
     ) -> (FnvHashMap<u16, IntSet<u16>>, IntSet<u16>) {
         for (i, script_rec) in script_list.script_records().iter().enumerate() {
+            if script_rec.script_offset().is_null() {
+                continue;
+            }
             let script_tag = script_rec.script_tag();
             if !layout_scripts.contains(script_tag) {
                 continue;
@@ -1175,6 +1190,9 @@ impl<'a> SubsetTable<'a> for ScriptList<'_> {
         let mut num_records = 0_u16;
         let font_data = self.offset_data();
         for (i, script_record) in self.script_records().iter().enumerate() {
+            if script_record.script_offset().is_null() {
+                continue;
+            }
             let tag = script_record.script_tag();
             if !plan.layout_scripts.contains(tag) {
                 continue;
@@ -1642,8 +1660,9 @@ impl SubsetTable<'_> for ConditionSet<'_> {
         let mut count = 0_u16;
 
         let conditions = self.conditions();
-        for i in 0..self.condition_count() {
-            match conditions.subset_offset(i as usize, s, plan, ()) {
+        let condition_count = self.condition_count() as usize;
+        for i in 0..condition_count {
+            match conditions.subset_offset(i, s, plan, ()) {
                 Ok(()) => count += 1,
                 Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
                 Err(e) => return Err(e),
@@ -1732,6 +1751,9 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.alternate_feature_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let (feature_index_map, c, font_data) = args;
         let Some(new_feature_indx) = feature_index_map.get(&self.feature_index()) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -1766,10 +1788,12 @@ where
         args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
         let mut count = 0_u16;
-        for sub in self.iter() {
+        for sub in self.iter().filter_map(|table| match table {
+            Err(ReadError::NullOffset) => None,
+            other => Some(other),
+        }) {
             let sub =
                 sub.map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-
             if !sub
                 .intersects(&plan.glyphset_gsub)
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?

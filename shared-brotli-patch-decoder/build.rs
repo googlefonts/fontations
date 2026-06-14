@@ -4,6 +4,10 @@ fn main() {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     println!("cargo:rerun-if-changed={}/build.rs", manifest_dir);
 
+    if std::env::var("DOCS_RS").is_ok() {
+        return;
+    }
+
     #[cfg(feature = "c-brotli")]
     c_brotli::build_brotli();
 }
@@ -21,8 +25,6 @@ mod c_brotli {
             let status = Command::new("git")
                 .args([
                     "clone",
-                    "--depth",
-                    "1",
                     "https://github.com/google/brotli.git",
                     brotli_dir.to_str().unwrap(),
                 ])
@@ -31,6 +33,16 @@ mod c_brotli {
 
             if !status.success() {
                 panic!("Failed to clone brotli repository");
+            }
+
+            let status = Command::new("git")
+                .args(["checkout", "1736fe1d50b205f718281a94035fd66f14d72ef5"])
+                .current_dir(&brotli_dir)
+                .status()
+                .expect("Failed to execute git checkout");
+
+            if !status.success() {
+                panic!("Failed to checkout specific commit");
             }
         }
 

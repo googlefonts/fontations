@@ -1,4 +1,5 @@
 //! impl subset() for MarkMarkPos subtable
+use crate::fnv::FnvHashMap;
 use crate::{
     gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
@@ -6,7 +7,6 @@ use crate::{
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::read::{
     collections::IntSet,
     tables::{
@@ -73,6 +73,13 @@ impl<'a> SubsetTable<'a> for MarkMarkPosFormat1<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.mark1_coverage_offset().is_null()
+            || self.mark1_array_offset().is_null()
+            || self.mark2_coverage_offset().is_null()
+            || self.mark2_array_offset().is_null()
+        {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let mark1_coverage = self
             .mark1_coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;

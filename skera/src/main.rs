@@ -224,7 +224,7 @@ fn main() {
                 std::process::exit(1);
             }
         },
-        // default value: <https://github.com/harfbuzz/harfbuzz/blob/021b44388667903d7bc9c92c924ad079f13b90ce/src/hb-subset-input.cc#L82>
+        // default value: <https://github.com/harfbuzz/harfbuzz/blob/689383d05b2609a67efa307a9860b85cf40bf8c3/src/hb-subset-input.cc#L82>
         None => {
             let mut default_layout_features = IntSet::<Tag>::empty();
             default_layout_features.extend(DEFAULT_LAYOUT_FEATURES.iter().copied());

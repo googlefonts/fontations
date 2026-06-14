@@ -9,10 +9,16 @@ table BaseArray {
     /// Array of BaseRecords, in order of baseCoverage Index.
     #[count($base_count)]
     #[read_with($mark_class_count)]
-    base_records: ComputedArray<BaseRecord<'a>>
+    base_records: ComputedArray<BaseRecord<'a>>,
+    #[compile(array_len($face_records))]
+    face_count: u16,
+    #[count($base_count)]
+    #[read_with($mark_class_count)]
+    face_records: ComputedArray<FaceRecord<'a>>,
+
 }
 
-/// Part of [BaseArray]
+/// Contains a scalar array
 #[read_args(mark_class_count: u16)]
 #[skip_constructor]
 record BaseRecord<'a> {
@@ -25,3 +31,16 @@ record BaseRecord<'a> {
 }
 
 
+/// Contains offsets
+#[read_args(mark_class_count: u16)]
+#[skip_constructor]
+record FaceRecord<'a> {
+    #[nullable]
+    #[count($mark_class_count)]
+    face_offsets: [Offset16<Face>],
+}
+
+#[skip_constructor]
+table Face {
+    field: u16,
+}

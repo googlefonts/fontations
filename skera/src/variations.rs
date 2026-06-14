@@ -1,11 +1,11 @@
 //! impl Subset for OpenType font variations common tables.
+use crate::fnv::FnvHashMap;
 use crate::{
     inc_bimap::IncBiMap,
     offset::SerializeSubset,
     serialize::{SerializeErrorFlags, Serializer},
-    Plan, SubsetTable,
+    Plan, Serialize, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -31,6 +31,17 @@ impl<'a> SubsetTable<'a> for ItemVariationStore<'a> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         s.embed(self.format())?;
+
+        if self.variation_region_list_offset().is_null() {
+            if keep_empty {
+                // in case of null var_region_list, set vardata count = 0 and return
+                s.embed(Offset32::new(0))?;
+                s.embed(0_u16)?;
+                return Ok(());
+            } else {
+                return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+            }
+        }
 
         let var_region_list = self
             .variation_region_list()
@@ -168,6 +179,7 @@ fn serialize_var_data_offset_array(
             }
         }
     }
+
     if vardata_count == 0 {
         if !keep_empty {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -215,7 +227,7 @@ impl<'a> SubsetTable<'a> for ItemVariationData<'_> {
 
         let src_word_delta_count = self.word_delta_count();
         let src_word_count = (src_word_delta_count & 0x7FFF) as usize;
-        let src_long_words = src_word_count & 0x8000 != 0;
+        let src_long_words = (src_word_delta_count & 0x8000) != 0;
 
         let mut has_long = false;
         if src_long_words {
@@ -481,15 +493,11 @@ impl<'a> DeltaSetIndexMapSerializePlan<'a> {
     }
 }
 
-impl<'a> SubsetTable<'a> for DeltaSetIndexMap<'a> {
-    type ArgsForSubset = &'a DeltaSetIndexMapSerializePlan<'a>;
-    type Output = ();
-
-    fn subset(
-        &self,
-        _plan: &Plan,
+impl<'a> Serialize<'a> for DeltaSetIndexMap<'a> {
+    type Args = &'a DeltaSetIndexMapSerializePlan<'a>;
+    fn serialize(
         s: &mut Serializer,
-        index_map_subset_plan: &'a DeltaSetIndexMapSerializePlan<'a>,
+        index_map_subset_plan: Self::Args,
     ) -> Result<(), SerializeErrorFlags> {
         let output_map = index_map_subset_plan.output_map();
         let width = index_map_subset_plan.width();

@@ -1,12 +1,14 @@
 //!  A builder for top-level font objects
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::{borrow::Cow, fmt::Display};
 
 use read_fonts::{FontRef, TableProvider};
 use types::{Tag, TT_SFNT_VERSION};
 
-use crate::util::SearchRange;
+#[cfg(feature = "tables")]
+use crate::error::BuilderError;
+use crate::search_range::SearchRange;
 
 include!("../generated/generated_font.rs");
 
@@ -18,19 +20,6 @@ const CFF2: Tag = Tag::new(b"CFF2");
 #[derive(Debug, Clone, Default)]
 pub struct FontBuilder<'a> {
     tables: BTreeMap<Tag, Cow<'a, [u8]>>,
-}
-
-/// An error returned when attempting to add a table to the builder.
-///
-/// This wraps a compilation error, adding the tag of the table where it was
-/// encountered.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct BuilderError {
-    /// The tag of the root table where the error occurred
-    pub tag: Tag,
-    /// The underlying error
-    pub inner: crate::error::Error,
 }
 
 impl TableDirectory {
@@ -103,6 +92,7 @@ impl<'a> FontBuilder<'a> {
     /// The table can be any top-level table defined in this crate. This function
     /// will attempt to compile the table and then add it to the builder if
     /// successful, returning an error otherwise.
+    #[cfg(feature = "tables")]
     pub fn add_table<T>(&mut self, table: &T) -> Result<&mut Self, BuilderError>
     where
         T: FontWrite + Validate + TopLevelTable,
@@ -263,18 +253,6 @@ fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
 impl TTCHeader {
     fn compute_version(&self) -> MajorMinor {
         panic!("TTCHeader writing not supported (yet)")
-    }
-}
-
-impl Display for BuilderError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "failed to build '{}' table: '{}'", self.tag, self.inner)
-    }
-}
-
-impl std::error::Error for BuilderError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.inner)
     }
 }
 

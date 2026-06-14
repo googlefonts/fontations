@@ -1,0 +1,13 @@
+FONTS:
+SourceSerif4Variable-Roman-HelloWorld.otf
+
+PROFILES:
+
+SUBSETS:
+Hello World
+
+INSTANCES:
+wght=400,opsz=20
+
+OPTIONS:
+no_fonttools

@@ -60,6 +60,16 @@ impl<'a> ScriptList<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(ScriptList::MIN_SIZE));
+
+impl Default for ScriptList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ScriptList<'a> {
     fn type_name(&self) -> &str {
@@ -213,6 +223,16 @@ impl<'a> Script<'a> {
         let lang_sys_count = self.lang_sys_count();
         let start = self.lang_sys_count_byte_range().end;
         start..start + (lang_sys_count as usize).saturating_mul(LangSysRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Script::MIN_SIZE));
+
+impl Default for Script<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -374,6 +394,16 @@ impl<'a> LangSys<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(LangSys::MIN_SIZE));
+
+impl Default for LangSys<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for LangSys<'a> {
     fn type_name(&self) -> &str {
@@ -456,6 +486,16 @@ impl<'a> FeatureList<'a> {
         let feature_count = self.feature_count();
         let start = self.feature_count_byte_range().end;
         start..start + (feature_count as usize).saturating_mul(FeatureRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(FeatureList::MIN_SIZE));
+
+impl Default for FeatureList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -638,6 +678,17 @@ impl<'a> Feature<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Feature::MIN_SIZE));
+
+impl Default for Feature<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            feature_tag: Default::default(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Feature<'a> {
     fn type_name(&self) -> &str {
@@ -687,16 +738,6 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
             data,
             offset_type: std::marker::PhantomData,
         })
-    }
-}
-
-impl<'a> LookupList<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> LookupList<'a, T> {
-        LookupList {
-            data: self.data,
-            offset_type: std::marker::PhantomData,
-        }
     }
 }
 
@@ -758,6 +799,19 @@ impl<'a, T> LookupList<'a, T> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    LookupList::<()>::MIN_SIZE
+));
+
+impl<T> Default for LookupList<'_, T> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, T> {
     fn type_name(&self) -> &str {
@@ -766,20 +820,10 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, 
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("lookup_count", self.lookup_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "lookup_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<T>(),
-                        self.lookup_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<T>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "lookup_offsets",
+                FieldType::from(self.lookups()),
+            )),
             _ => None,
         }
     }
@@ -790,6 +834,12 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, 
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl Discriminant for Lookup<'_, ()> {
+    fn read_discriminant(data: FontData<'_>) -> Result<u16, ReadError> {
+        data.read_at(0)
     }
 }
 
@@ -813,16 +863,6 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
             data,
             offset_type: std::marker::PhantomData,
         })
-    }
-}
-
-impl<'a> Lookup<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> Lookup<'a, T> {
-        Lookup {
-            data: self.data,
-            offset_type: std::marker::PhantomData,
-        }
     }
 }
 
@@ -926,6 +966,17 @@ impl<'a, T> Lookup<'a, T> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Lookup::<()>::MIN_SIZE));
+
+impl<T> Default for Lookup<'_, T> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
     fn type_name(&self) -> &str {
@@ -936,20 +987,10 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
             1usize => Some(Field::new("lookup_flag", self.traverse_lookup_flag())),
             2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "subtable_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<T>(),
-                        self.subtable_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<T>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "subtable_offsets",
+                FieldType::from(self.subtables()),
+            )),
             4usize
                 if self
                     .lookup_flag()
@@ -1040,6 +1081,18 @@ impl<'a> CoverageFormat1<'a> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
         start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    CoverageFormat1::MIN_SIZE
+));
+
+impl Default for CoverageFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -1227,6 +1280,12 @@ pub enum CoverageTable<'a> {
     Format2(CoverageFormat2<'a>),
 }
 
+impl Default for CoverageTable<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl<'a> CoverageTable<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -1376,6 +1435,18 @@ impl<'a> ClassDefFormat1<'a> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
         start..start + (glyph_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ClassDefFormat1::MIN_SIZE
+));
+
+impl Default for ClassDefFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -1559,6 +1630,12 @@ impl<'a> SomeRecord<'a> for ClassRangeRecord {
 pub enum ClassDef<'a> {
     Format1(ClassDefFormat1<'a>),
     Format2(ClassDefFormat2<'a>),
+}
+
+impl Default for ClassDef<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> ClassDef<'a> {
@@ -1770,6 +1847,18 @@ impl<'a> SequenceContextFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    SequenceContextFormat1::MIN_SIZE
+));
+
+impl Default for SequenceContextFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -1783,20 +1872,10 @@ impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             2usize => Some(Field::new("seq_rule_set_count", self.seq_rule_set_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "seq_rule_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<SequenceRuleSet>(),
-                        self.seq_rule_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<SequenceRuleSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "seq_rule_set_offsets",
+                FieldType::from(self.seq_rule_sets()),
+            )),
             _ => None,
         }
     }
@@ -1873,6 +1952,18 @@ impl<'a> SequenceRuleSet<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    SequenceRuleSet::MIN_SIZE
+));
+
+impl Default for SequenceRuleSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
     fn type_name(&self) -> &str {
@@ -1881,20 +1972,10 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("seq_rule_count", self.seq_rule_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "seq_rule_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<SequenceRule>(),
-                        self.seq_rule_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<SequenceRule>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "seq_rule_offsets",
+                FieldType::from(self.seq_rules()),
+            )),
             _ => None,
         }
     }
@@ -1987,6 +2068,16 @@ impl<'a> SequenceRule<'a> {
         let start = self.input_sequence_byte_range().end;
         start
             ..start + (seq_lookup_count as usize).saturating_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(SequenceRule::MIN_SIZE));
+
+impl Default for SequenceRule<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -2158,20 +2249,10 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
                 "class_seq_rule_set_count",
                 self.class_seq_rule_set_count(),
             )),
-            4usize => Some({
-                let data = self.data;
-                Field::new(
-                    "class_seq_rule_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ClassSequenceRuleSet>(),
-                        self.class_seq_rule_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ClassSequenceRuleSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            4usize => Some(Field::new(
+                "class_seq_rule_set_offsets",
+                FieldType::from(self.class_seq_rule_sets()),
+            )),
             _ => None,
         }
     }
@@ -2248,6 +2329,18 @@ impl<'a> ClassSequenceRuleSet<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    ClassSequenceRuleSet::MIN_SIZE
+));
+
+impl Default for ClassSequenceRuleSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
     fn type_name(&self) -> &str {
@@ -2259,20 +2352,10 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
                 "class_seq_rule_count",
                 self.class_seq_rule_count(),
             )),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "class_seq_rule_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ClassSequenceRule>(),
-                        self.class_seq_rule_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ClassSequenceRule>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "class_seq_rule_offsets",
+                FieldType::from(self.class_seq_rules()),
+            )),
             _ => None,
         }
     }
@@ -2364,6 +2447,18 @@ impl<'a> ClassSequenceRule<'a> {
         let start = self.input_sequence_byte_range().end;
         start
             ..start + (seq_lookup_count as usize).saturating_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ClassSequenceRule::MIN_SIZE
+));
+
+impl Default for ClassSequenceRule<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -2510,20 +2605,10 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
             2usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "coverage_offsets",
+                FieldType::from(self.coverages()),
+            )),
             4usize => Some(Field::new(
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
@@ -2550,6 +2635,12 @@ pub enum SequenceContext<'a> {
     Format1(SequenceContextFormat1<'a>),
     Format2(SequenceContextFormat2<'a>),
     Format3(SequenceContextFormat3<'a>),
+}
+
+impl Default for SequenceContext<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> SequenceContext<'a> {
@@ -2727,6 +2818,18 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    ChainedSequenceContextFormat1::MIN_SIZE
+));
+
+impl Default for ChainedSequenceContextFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
     fn type_name(&self) -> &str {
@@ -2743,20 +2846,10 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
                 "chained_seq_rule_set_count",
                 self.chained_seq_rule_set_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "chained_seq_rule_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ChainedSequenceRuleSet>(),
-                        self.chained_seq_rule_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ChainedSequenceRuleSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "chained_seq_rule_set_offsets",
+                FieldType::from(self.chained_seq_rule_sets()),
+            )),
             _ => None,
         }
     }
@@ -2833,6 +2926,18 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    ChainedSequenceRuleSet::MIN_SIZE
+));
+
+impl Default for ChainedSequenceRuleSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
     fn type_name(&self) -> &str {
@@ -2844,20 +2949,10 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
                 "chained_seq_rule_count",
                 self.chained_seq_rule_count(),
             )),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "chained_seq_rule_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ChainedSequenceRule>(),
-                        self.chained_seq_rule_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ChainedSequenceRule>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "chained_seq_rule_offsets",
+                FieldType::from(self.chained_seq_rules()),
+            )),
             _ => None,
         }
     }
@@ -2997,6 +3092,18 @@ impl<'a> ChainedSequenceRule<'a> {
         let start = self.seq_lookup_count_byte_range().end;
         start
             ..start + (seq_lookup_count as usize).saturating_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ChainedSequenceRule::MIN_SIZE
+));
+
+impl Default for ChainedSequenceRule<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -3234,20 +3341,10 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
                 "chained_class_seq_rule_set_count",
                 self.chained_class_seq_rule_set_count(),
             )),
-            6usize => Some({
-                let data = self.data;
-                Field::new(
-                    "chained_class_seq_rule_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ChainedClassSequenceRuleSet>(),
-                        self.chained_class_seq_rule_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ChainedClassSequenceRuleSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            6usize => Some(Field::new(
+                "chained_class_seq_rule_set_offsets",
+                FieldType::from(self.chained_class_seq_rule_sets()),
+            )),
             _ => None,
         }
     }
@@ -3327,6 +3424,18 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(
+    ChainedClassSequenceRuleSet::MIN_SIZE
+));
+
+impl Default for ChainedClassSequenceRuleSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
     fn type_name(&self) -> &str {
@@ -3338,20 +3447,10 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
                 "chained_class_seq_rule_count",
                 self.chained_class_seq_rule_count(),
             )),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "chained_class_seq_rule_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ChainedClassSequenceRule>(),
-                        self.chained_class_seq_rule_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ChainedClassSequenceRule>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "chained_class_seq_rule_offsets",
+                FieldType::from(self.chained_class_seq_rules()),
+            )),
             _ => None,
         }
     }
@@ -3492,6 +3591,18 @@ impl<'a> ChainedClassSequenceRule<'a> {
         let start = self.seq_lookup_count_byte_range().end;
         start
             ..start + (seq_lookup_count as usize).saturating_mul(SequenceLookupRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ChainedClassSequenceRule::MIN_SIZE
+));
+
+impl Default for ChainedClassSequenceRule<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -3713,53 +3824,23 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 "backtrack_glyph_count",
                 self.backtrack_glyph_count(),
             )),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "backtrack_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.backtrack_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "backtrack_coverage_offsets",
+                FieldType::from(self.backtrack_coverages()),
+            )),
             3usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
-            4usize => Some({
-                let data = self.data;
-                Field::new(
-                    "input_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.input_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            4usize => Some(Field::new(
+                "input_coverage_offsets",
+                FieldType::from(self.input_coverages()),
+            )),
             5usize => Some(Field::new(
                 "lookahead_glyph_count",
                 self.lookahead_glyph_count(),
             )),
-            6usize => Some({
-                let data = self.data;
-                Field::new(
-                    "lookahead_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.lookahead_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            6usize => Some(Field::new(
+                "lookahead_coverage_offsets",
+                FieldType::from(self.lookahead_coverages()),
+            )),
             7usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
             8usize => Some(Field::new(
                 "seq_lookup_records",
@@ -3787,6 +3868,12 @@ pub enum ChainedSequenceContext<'a> {
     Format1(ChainedSequenceContextFormat1<'a>),
     Format2(ChainedSequenceContextFormat2<'a>),
     Format3(ChainedSequenceContextFormat3<'a>),
+}
+
+impl Default for ChainedSequenceContext<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> ChainedSequenceContext<'a> {
@@ -4002,6 +4089,16 @@ impl<'a> Device<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Device::MIN_SIZE));
+
+impl Default for Device<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Device<'a> {
     fn type_name(&self) -> &str {
@@ -4093,6 +4190,16 @@ impl<'a> VariationIndex<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(VariationIndex::MIN_SIZE));
+
+impl Default for VariationIndex<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for VariationIndex<'a> {
     fn type_name(&self) -> &str {
@@ -4127,6 +4234,12 @@ impl<'a> std::fmt::Debug for VariationIndex<'a> {
 pub enum DeviceOrVariationIndex<'a> {
     Device(Device<'a>),
     VariationIndex(VariationIndex<'a>),
+}
+
+impl Default for DeviceOrVariationIndex<'_> {
+    fn default() -> Self {
+        Self::Device(Default::default())
+    }
 }
 
 impl<'a> DeviceOrVariationIndex<'a> {
@@ -4263,6 +4376,18 @@ impl<'a> FeatureVariations<'a> {
             ..start
                 + (feature_variation_record_count as usize)
                     .saturating_mul(FeatureVariationRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    FeatureVariations::MIN_SIZE
+));
+
+impl Default for FeatureVariations<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -4441,6 +4566,16 @@ impl<'a> ConditionSet<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(ConditionSet::MIN_SIZE));
+
+impl Default for ConditionSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for ConditionSet<'a> {
     fn type_name(&self) -> &str {
@@ -4449,20 +4584,10 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("condition_count", self.condition_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "condition_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Condition>(),
-                        self.condition_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Condition>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "condition_offsets",
+                FieldType::from(self.conditions()),
+            )),
             _ => None,
         }
     }
@@ -4487,6 +4612,12 @@ pub enum Condition<'a> {
     Format3And(ConditionFormat3<'a>),
     Format4Or(ConditionFormat4<'a>),
     Format5Negate(ConditionFormat5<'a>),
+}
+
+impl Default for Condition<'_> {
+    fn default() -> Self {
+        Self::Format1AxisRange(Default::default())
+    }
 }
 
 impl<'a> Condition<'a> {
@@ -4659,6 +4790,18 @@ impl<'a> ConditionFormat1<'a> {
     pub fn filter_range_max_value_byte_range(&self) -> Range<usize> {
         let start = self.filter_range_min_value_byte_range().end;
         start..start + F2Dot14::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ConditionFormat1::MIN_SIZE
+));
+
+impl Default for ConditionFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -4870,20 +5013,10 @@ impl<'a> SomeTable<'a> for ConditionFormat3<'a> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("condition_count", self.condition_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "condition_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Condition>(),
-                        self.condition_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Condition>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "condition_offsets",
+                FieldType::from(self.conditions()),
+            )),
             _ => None,
         }
     }
@@ -4983,20 +5116,10 @@ impl<'a> SomeTable<'a> for ConditionFormat4<'a> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("condition_count", self.condition_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "condition_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Condition>(),
-                        self.condition_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Condition>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "condition_offsets",
+                FieldType::from(self.conditions()),
+            )),
             _ => None,
         }
     }
@@ -5165,6 +5288,18 @@ impl<'a> FeatureTableSubstitution<'a> {
             ..start
                 + (substitution_count as usize)
                     .saturating_mul(FeatureTableSubstitutionRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    FeatureTableSubstitution::MIN_SIZE
+));
+
+impl Default for FeatureTableSubstitution<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -5358,6 +5493,16 @@ impl<'a> SizeParams<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(SizeParams::MIN_SIZE));
+
+impl Default for SizeParams<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for SizeParams<'a> {
     fn type_name(&self) -> &str {
@@ -5440,6 +5585,18 @@ impl<'a> StylisticSetParams<'a> {
     pub fn ui_name_id_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
         start..start + NameId::RAW_BYTE_LEN
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    StylisticSetParams::MIN_SIZE
+));
+
+impl Default for StylisticSetParams<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -5602,6 +5759,18 @@ impl<'a> CharacterVariantParams<'a> {
         let char_count = self.char_count();
         let start = self.char_count_byte_range().end;
         start..start + (char_count as usize).saturating_mul(Uint24::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    CharacterVariantParams::MIN_SIZE
+));
+
+impl Default for CharacterVariantParams<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

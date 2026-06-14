@@ -76,6 +76,16 @@ impl<'a> Svg<'a> {
     }
 }
 
+const _: () = assert!(FontData::default_data_long_enough(Svg::MIN_SIZE));
+
+impl Default for Svg<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeTable<'a> for Svg<'a> {
     fn type_name(&self) -> &str {
@@ -153,6 +163,18 @@ impl<'a> SVGDocumentList<'a> {
         let num_entries = self.num_entries();
         let start = self.num_entries_byte_range().end;
         start..start + (num_entries as usize).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    SVGDocumentList::MIN_SIZE
+));
+
+impl Default for SVGDocumentList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

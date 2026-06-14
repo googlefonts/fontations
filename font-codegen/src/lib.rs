@@ -9,12 +9,14 @@ use quote::quote;
 mod error;
 mod fields;
 mod flags_enums;
+mod format_group;
 mod formatting;
+mod generic_group;
 mod parsing;
 mod record;
 mod table;
 
-use parsing::{Item, Items, Phase};
+use parsing::{Item, Items};
 
 pub use error::ErrorReport;
 
@@ -26,6 +28,13 @@ pub enum Mode {
     Parse,
     /// Generate compilation code
     Compile,
+}
+
+/// we check invariants twice
+#[derive(Debug, Copy, Clone)]
+pub(crate) enum Phase {
+    Parse,
+    Analysis,
 }
 
 pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
@@ -69,8 +78,8 @@ pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenS
         let item_code = match item {
             Item::Record(item) => record::generate(item, items)?,
             Item::Table(item) => table::generate(item)?,
-            Item::GenericGroup(item) => table::generate_group(item)?,
-            Item::Format(item) => table::generate_format_group(item, items)?,
+            Item::GenericGroup(item) => generic_group::generate(item)?,
+            Item::Format(item) => format_group::generate(item, items)?,
             Item::RawEnum(item) => flags_enums::generate_raw_enum(item),
             Item::Flags(item) => flags_enums::generate_flags(item),
             Item::Extern(..) => Default::default(),
@@ -94,9 +103,9 @@ pub(crate) fn generate_compile_module(
             Item::Record(item) => record::generate_compile(item, &items.parse_module_path),
             Item::Table(item) => table::generate_compile(item, &items.parse_module_path),
             Item::GenericGroup(item) => {
-                table::generate_group_compile(item, &items.parse_module_path)
+                generic_group::generate_compile(item, &items.parse_module_path)
             }
-            Item::Format(item) => table::generate_format_compile(item, items),
+            Item::Format(item) => format_group::generate_compile(item, items),
             Item::RawEnum(item) => Ok(flags_enums::generate_raw_enum_compile(item)),
             Item::Flags(item) => Ok(flags_enums::generate_flags_compile(item)),
             Item::Extern(..) => Ok(TokenStream::new()),
