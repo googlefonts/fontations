@@ -2,10 +2,14 @@
 
 mod blob;
 mod format;
+mod instance;
 mod tables;
 
 pub use blob::FontBlob;
 pub use format::FontFormat;
+pub use instance::{
+    FontFeatureVariations, FontInstance, FontInstanceBuilder, FontVariation, NormalizedCoord,
+};
 pub use tables::{FontTableFunction, FontTables};
 
 // Do our best to not expose this to users through docs or rust-analyzer.
