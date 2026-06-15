@@ -33,41 +33,36 @@ impl_offset!(Offset32, 4);
 
 /// A helper trait providing a 'resolve' method for offset types
 pub trait ResolveOffset {
-    fn resolve<'a, T: FontRead<'a, Args = ()>>(&self, data: FontData<'a>) -> Result<T, ReadError>;
-
     fn resolve_with_args<'a, T: FontRead<'a>>(
         &self,
         data: FontData<'a>,
         args: &T::Args,
     ) -> Result<T, ReadError>;
+
+    /// Resolve an offset to a target requiring no external state (`Args = ()`).
+    fn resolve<'a, T: FontRead<'a, Args = ()>>(&self, data: FontData<'a>) -> Result<T, ReadError> {
+        self.resolve_with_args(data, &())
+    }
 }
 
 /// A helper trait providing a 'resolve' method for nullable offset types
 pub trait ResolveNullableOffset {
-    fn resolve<'a, T: FontRead<'a, Args = ()>>(
-        &self,
-        data: FontData<'a>,
-    ) -> Option<Result<T, ReadError>>;
-
     fn resolve_with_args<'a, T: FontRead<'a>>(
         &self,
         data: FontData<'a>,
         args: &T::Args,
     ) -> Option<Result<T, ReadError>>;
-}
 
-impl<O: Offset> ResolveNullableOffset for Nullable<O> {
+    /// Resolve an offset to a target requiring no external state (`Args = ()`).
     fn resolve<'a, T: FontRead<'a, Args = ()>>(
         &self,
         data: FontData<'a>,
     ) -> Option<Result<T, ReadError>> {
-        match self.offset().resolve(data) {
-            Ok(thing) => Some(Ok(thing)),
-            Err(ReadError::NullOffset) => None,
-            Err(e) => Some(Err(e)),
-        }
+        self.resolve_with_args(data, &())
     }
+}
 
+impl<O: Offset> ResolveNullableOffset for Nullable<O> {
     fn resolve_with_args<'a, T: FontRead<'a>>(
         &self,
         data: FontData<'a>,
@@ -82,13 +77,6 @@ impl<O: Offset> ResolveNullableOffset for Nullable<O> {
 }
 
 impl<O: Offset> ResolveOffset for O {
-    fn resolve<'a, T: FontRead<'a, Args = ()>>(&self, data: FontData<'a>) -> Result<T, ReadError> {
-        self.non_null()
-            .ok_or(ReadError::NullOffset)
-            .and_then(|off| data.split_off(off).ok_or(ReadError::OutOfBounds))
-            .and_then(T::read)
-    }
-
     fn resolve_with_args<'a, T: FontRead<'a>>(
         &self,
         data: FontData<'a>,
