@@ -28,6 +28,9 @@ experimental_traverse = ["std"]
 # Enables experimental implementations of proposed changes to the spec
 # as discussed at https://github.com/harfbuzz/boring-expansion-spec
 spec_next = []
+# Enables support for a new font API, as proposed at
+# https://github.com/googlefonts/oxidize/pull/77
+experimental_font_api = []
 default = ["std"]
 serde = ["dep:serde", "font-types/serde"]
 libm = ["dep:core_maths"]

@@ -4,7 +4,7 @@ use core::hint::black_box;
 use criterion::{criterion_group, criterion_main, Criterion};
 use font_types::BigEndian;
 use read_fonts::{
-    model::font::Font,
+    model::Font,
     tables::{
         cff::Cff, cff2::Cff2, cvar::Cvar, glyf::Glyf, gvar::Gvar, hdmx::Hdmx, hmtx::Hmtx,
         hvar::Hvar, loca::Loca, maxp::Maxp,
