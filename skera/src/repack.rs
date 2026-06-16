@@ -56,6 +56,13 @@ pub(crate) fn resolve_graph_overflows(
             let mut visited = FnvHashMap::default();
             presplit_subtables_if_needed(graph, tag, &lookup_indices, &mut visited)?;
             promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, tag)?;
+
+            // an additional sorting is needed before assign_spaces (),
+            // which requires correct topological ordering to find space roots
+            graph.sort_shortest_distance_if_needed()?;
+            if graph.overflows().is_empty() {
+                return Ok(());
+            }
         }
         if graph.assign_spaces()? {
             graph.sort_shortest_distance()?;
