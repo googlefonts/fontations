@@ -251,7 +251,8 @@ where
     coords.clear_if_all_zeroes();
 }
 
-/// A normalized variation coordinate, in the range `[-1.0, 1.0]`.
+/// A normalized variation coordinate in 2.14 fixed point in the range
+/// [-1.0, 1.0].
 pub type NormalizedCoord = types::F2Dot14;
 
 /// A variation setting for a font instance.
