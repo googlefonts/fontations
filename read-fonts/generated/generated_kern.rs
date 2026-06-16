@@ -506,7 +506,7 @@ impl<'a> Subtable0<'a> {
     pub fn pairs_byte_range(&self) -> Range<usize> {
         let n_pairs = self.n_pairs();
         let start = self.range_shift_byte_range().end;
-        start..start + (n_pairs as usize).saturating_mul(Subtable0Pair::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(n_pairs)).saturating_mul(Subtable0Pair::RAW_BYTE_LEN)
     }
 }
 
@@ -614,7 +614,7 @@ impl<'a> Subtable2ClassTable<'a> {
     pub fn offsets_byte_range(&self) -> Range<usize> {
         let n_glyphs = self.n_glyphs();
         let start = self.n_glyphs_byte_range().end;
-        start..start + (n_glyphs as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(n_glyphs)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -770,19 +770,19 @@ impl<'a> Subtable3<'a> {
     pub fn kern_value_byte_range(&self) -> Range<usize> {
         let kern_value_count = self.kern_value_count();
         let start = self.flags_byte_range().end;
-        start..start + (kern_value_count as usize).saturating_mul(i16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(kern_value_count)).saturating_mul(i16::RAW_BYTE_LEN)
     }
 
     pub fn left_class_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.kern_value_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(glyph_count)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn right_class_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.left_class_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(glyph_count)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn kern_index_byte_range(&self) -> Range<usize> {

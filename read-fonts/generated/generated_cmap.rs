@@ -71,7 +71,9 @@ impl<'a> Cmap<'a> {
     pub fn encoding_records_byte_range(&self) -> Range<usize> {
         let num_tables = self.num_tables();
         let start = self.num_tables_byte_range().end;
-        start..start + (num_tables as usize).saturating_mul(EncodingRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(num_tables)).saturating_mul(EncodingRecord::RAW_BYTE_LEN)
     }
 }
 
@@ -971,7 +973,7 @@ impl<'a> Cmap6<'a> {
     pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let entry_count = self.entry_count();
         let start = self.entry_count_byte_range().end;
-        start..start + (entry_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(entry_count)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -1113,7 +1115,10 @@ impl<'a> Cmap8<'a> {
     pub fn groups_byte_range(&self) -> Range<usize> {
         let num_groups = self.num_groups();
         let start = self.num_groups_byte_range().end;
-        start..start + (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(num_groups))
+                    .saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
     }
 }
 
@@ -1318,7 +1323,7 @@ impl<'a> Cmap10<'a> {
     pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let num_chars = self.num_chars();
         let start = self.num_chars_byte_range().end;
-        start..start + (num_chars as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_chars)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 
@@ -1446,7 +1451,10 @@ impl<'a> Cmap12<'a> {
     pub fn groups_byte_range(&self) -> Range<usize> {
         let num_groups = self.num_groups();
         let start = self.num_groups_byte_range().end;
-        start..start + (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(num_groups))
+                    .saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
     }
 }
 
@@ -1580,7 +1588,9 @@ impl<'a> Cmap13<'a> {
     pub fn groups_byte_range(&self) -> Range<usize> {
         let num_groups = self.num_groups();
         let start = self.num_groups_byte_range().end;
-        start..start + (num_groups as usize).saturating_mul(ConstantMapGroup::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(num_groups)).saturating_mul(ConstantMapGroup::RAW_BYTE_LEN)
     }
 }
 
@@ -1747,7 +1757,7 @@ impl<'a> Cmap14<'a> {
         let start = self.num_var_selector_records_byte_range().end;
         start
             ..start
-                + (num_var_selector_records as usize)
+                + (transforms::to_usize(num_var_selector_records))
                     .saturating_mul(VariationSelector::RAW_BYTE_LEN)
     }
 }
@@ -1920,7 +1930,9 @@ impl<'a> DefaultUvs<'a> {
         let num_unicode_value_ranges = self.num_unicode_value_ranges();
         let start = self.num_unicode_value_ranges_byte_range().end;
         start
-            ..start + (num_unicode_value_ranges as usize).saturating_mul(UnicodeRange::RAW_BYTE_LEN)
+            ..start
+                + (transforms::to_usize(num_unicode_value_ranges))
+                    .saturating_mul(UnicodeRange::RAW_BYTE_LEN)
     }
 }
 
@@ -2015,7 +2027,9 @@ impl<'a> NonDefaultUvs<'a> {
     pub fn uvs_mapping_byte_range(&self) -> Range<usize> {
         let num_uvs_mappings = self.num_uvs_mappings();
         let start = self.num_uvs_mappings_byte_range().end;
-        start..start + (num_uvs_mappings as usize).saturating_mul(UvsMapping::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(num_uvs_mappings)).saturating_mul(UvsMapping::RAW_BYTE_LEN)
     }
 }
 

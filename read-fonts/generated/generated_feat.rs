@@ -84,7 +84,10 @@ impl<'a> Feat<'a> {
     pub fn names_byte_range(&self) -> Range<usize> {
         let feature_name_count = self.feature_name_count();
         let start = self._reserved2_byte_range().end;
-        start..start + (feature_name_count as usize).saturating_mul(FeatureName::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(feature_name_count))
+                    .saturating_mul(FeatureName::RAW_BYTE_LEN)
     }
 }
 
@@ -277,7 +280,7 @@ impl<'a> SettingNameArray<'a> {
     pub fn settings_byte_range(&self) -> Range<usize> {
         let n_settings = self.n_settings();
         let start = 0;
-        start..start + (n_settings as usize).saturating_mul(SettingName::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(n_settings)).saturating_mul(SettingName::RAW_BYTE_LEN)
     }
 }
 

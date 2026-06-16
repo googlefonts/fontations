@@ -30,13 +30,13 @@ impl Validate for BaseArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseArray", |ctx| {
             ctx.in_field("base_records", |ctx| {
-                if self.base_records.len() > (u16::MAX as usize) {
+                if self.base_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.base_records.validate_impl(ctx);
             });
             ctx.in_field("face_records", |ctx| {
-                if self.face_records.len() > (u16::MAX as usize) {
+                if self.face_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.face_records.validate_impl(ctx);
@@ -89,7 +89,7 @@ impl Validate for BaseRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseRecord", |ctx| {
             ctx.in_field("base_anchor_offsets", |ctx| {
-                if self.base_anchor_offsets.len() > (u16::MAX as usize) {
+                if self.base_anchor_offsets.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -128,7 +128,7 @@ impl Validate for FaceRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FaceRecord", |ctx| {
             ctx.in_field("faces", |ctx| {
-                if self.faces.len() > (u16::MAX as usize) {
+                if self.faces.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.faces.validate_impl(ctx);

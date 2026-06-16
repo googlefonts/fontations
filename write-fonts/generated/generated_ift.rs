@@ -246,7 +246,7 @@ impl Validate for PatchMapFormat1 {
                 self.feature_map.validate_impl(ctx);
             });
             ctx.in_field("url_template", |ctx| {
-                if self.url_template.len() > (u16::MAX as usize) {
+                if self.url_template.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -563,7 +563,7 @@ impl Validate for PatchMapFormat2 {
                 self.entry_id_string_data.validate_impl(ctx);
             });
             ctx.in_field("url_template", |ctx| {
-                if self.url_template.len() > (u16::MAX as usize) {
+                if self.url_template.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -791,7 +791,7 @@ impl Validate for EntryData {
                     ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'feature_tags' is None")
                 }
                 if self.feature_tags.is_some()
-                    && self.feature_tags.as_ref().unwrap().len() > (u8::MAX as usize)
+                    && self.feature_tags.as_ref().unwrap().len() > to_usize(u8::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }
@@ -834,7 +834,7 @@ impl Validate for EntryData {
                     )
                 }
                 if self.design_space_segments.is_some()
-                    && self.design_space_segments.as_ref().unwrap().len() > (u16::MAX as usize)
+                    && self.design_space_segments.as_ref().unwrap().len() > to_usize(u16::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }
@@ -1239,7 +1239,7 @@ impl Validate for GlyphPatches {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("GlyphPatches", |ctx| {
             ctx.in_field("tables", |ctx| {
-                if self.tables.len() > (u8::MAX as usize) {
+                if self.tables.len() > to_usize(u8::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });

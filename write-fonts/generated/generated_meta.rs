@@ -38,7 +38,7 @@ impl Validate for Meta {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Meta", |ctx| {
             ctx.in_field("data_maps", |ctx| {
-                if self.data_maps.len() > (u32::MAX as usize) {
+                if self.data_maps.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.data_maps.validate_impl(ctx);

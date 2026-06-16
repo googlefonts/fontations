@@ -57,7 +57,7 @@ impl Validate for Name {
         ctx.in_table("Name", |ctx| {
             let version: u16 = self.compute_version();
             ctx.in_field("name_record", |ctx| {
-                if self.name_record.len() > (u16::MAX as usize) {
+                if self.name_record.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.check_sorted_and_unique_name_records(ctx);
@@ -67,7 +67,7 @@ impl Validate for Name {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.lang_tag_record.is_some()
-                    && self.lang_tag_record.as_ref().unwrap().len() > (u16::MAX as usize)
+                    && self.lang_tag_record.as_ref().unwrap().len() > to_usize(u16::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }

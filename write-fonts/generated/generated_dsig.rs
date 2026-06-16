@@ -44,7 +44,7 @@ impl Validate for Dsig {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Dsig", |ctx| {
             ctx.in_field("signature_records", |ctx| {
-                if self.signature_records.len() > (u16::MAX as usize) {
+                if self.signature_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.signature_records.validate_impl(ctx);
@@ -164,7 +164,7 @@ impl Validate for SignatureBlockFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SignatureBlockFormat1", |ctx| {
             ctx.in_field("signature", |ctx| {
-                if self.signature.len() > (u32::MAX as usize) {
+                if self.signature.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });

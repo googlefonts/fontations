@@ -338,7 +338,9 @@ impl<'a> AxisValueArray<'a> {
     pub fn axis_value_offsets_byte_range(&self) -> Range<usize> {
         let axis_value_count = self.axis_value_count();
         let start = 0;
-        start..start + (axis_value_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(axis_value_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -1013,7 +1015,9 @@ impl<'a> AxisValueFormat4<'a> {
     pub fn axis_values_byte_range(&self) -> Range<usize> {
         let axis_count = self.axis_count();
         let start = self.value_name_id_byte_range().end;
-        start..start + (axis_count as usize).saturating_mul(AxisValueRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(axis_count)).saturating_mul(AxisValueRecord::RAW_BYTE_LEN)
     }
 }
 

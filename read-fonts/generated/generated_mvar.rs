@@ -110,7 +110,10 @@ impl<'a> Mvar<'a> {
     pub fn value_records_byte_range(&self) -> Range<usize> {
         let value_record_count = self.value_record_count();
         let start = self.item_variation_store_offset_byte_range().end;
-        start..start + (value_record_count as usize).saturating_mul(ValueRecord::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(value_record_count))
+                    .saturating_mul(ValueRecord::RAW_BYTE_LEN)
     }
 }
 

@@ -52,7 +52,7 @@ impl Validate for Hdmx {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Hdmx", |ctx| {
             ctx.in_field("records", |ctx| {
-                if self.records.len() > (u16::MAX as usize) {
+                if self.records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.records.validate_impl(ctx);

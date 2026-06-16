@@ -45,7 +45,7 @@ impl Validate for Gasp {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gasp", |ctx| {
             ctx.in_field("gasp_ranges", |ctx| {
-                if self.gasp_ranges.len() > (u16::MAX as usize) {
+                if self.gasp_ranges.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.gasp_ranges.validate_impl(ctx);

@@ -558,7 +558,7 @@ impl<'a> SingleSubstFormat2<'a> {
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId16::RAW_BYTE_LEN)
     }
 }
 
@@ -684,7 +684,7 @@ impl<'a> MultipleSubstFormat1<'a> {
     pub fn sequence_offsets_byte_range(&self) -> Range<usize> {
         let sequence_count = self.sequence_count();
         let start = self.sequence_count_byte_range().end;
-        start..start + (sequence_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(sequence_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -782,7 +782,7 @@ impl<'a> Sequence<'a> {
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId16::RAW_BYTE_LEN)
     }
 }
 
@@ -913,7 +913,9 @@ impl<'a> AlternateSubstFormat1<'a> {
     pub fn alternate_set_offsets_byte_range(&self) -> Range<usize> {
         let alternate_set_count = self.alternate_set_count();
         let start = self.alternate_set_count_byte_range().end;
-        start..start + (alternate_set_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(alternate_set_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -1013,7 +1015,7 @@ impl<'a> AlternateSet<'a> {
     pub fn alternate_glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId16::RAW_BYTE_LEN)
     }
 }
 
@@ -1144,7 +1146,9 @@ impl<'a> LigatureSubstFormat1<'a> {
     pub fn ligature_set_offsets_byte_range(&self) -> Range<usize> {
         let ligature_set_count = self.ligature_set_count();
         let start = self.ligature_set_count_byte_range().end;
-        start..start + (ligature_set_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(ligature_set_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -1249,7 +1253,7 @@ impl<'a> LigatureSet<'a> {
     pub fn ligature_offsets_byte_range(&self) -> Range<usize> {
         let ligature_count = self.ligature_count();
         let start = self.ligature_count_byte_range().end;
-        start..start + (ligature_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(ligature_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -1749,7 +1753,10 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     pub fn backtrack_coverage_offsets_byte_range(&self) -> Range<usize> {
         let backtrack_glyph_count = self.backtrack_glyph_count();
         let start = self.backtrack_glyph_count_byte_range().end;
-        start..start + (backtrack_glyph_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(backtrack_glyph_count))
+                    .saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 
     pub fn lookahead_glyph_count_byte_range(&self) -> Range<usize> {
@@ -1760,7 +1767,10 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     pub fn lookahead_coverage_offsets_byte_range(&self) -> Range<usize> {
         let lookahead_glyph_count = self.lookahead_glyph_count();
         let start = self.lookahead_glyph_count_byte_range().end;
-        start..start + (lookahead_glyph_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start
+            ..start
+                + (transforms::to_usize(lookahead_glyph_count))
+                    .saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
@@ -1771,7 +1781,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId16::RAW_BYTE_LEN)
     }
 }
 

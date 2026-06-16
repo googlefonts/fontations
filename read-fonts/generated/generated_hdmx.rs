@@ -109,7 +109,7 @@ impl<'a> Hdmx<'a> {
         let start = self.size_device_record_byte_range().end;
         start
             ..start
-                + (num_records as usize).saturating_mul(
+                + (transforms::to_usize(num_records)).saturating_mul(
                     <DeviceRecord as ComputeSize>::compute_size(&(
                         self.num_glyphs(),
                         self.size_device_record(),

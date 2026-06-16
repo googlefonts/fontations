@@ -37,7 +37,7 @@ impl Validate for Cmap {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap", |ctx| {
             ctx.in_field("encoding_records", |ctx| {
-                if self.encoding_records.len() > (u16::MAX as usize) {
+                if self.encoding_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.encoding_records.validate_impl(ctx);
@@ -689,7 +689,7 @@ impl Validate for Cmap6 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap6", |ctx| {
             ctx.in_field("glyph_id_array", |ctx| {
-                if self.glyph_id_array.len() > (u16::MAX as usize) {
+                if self.glyph_id_array.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -777,7 +777,7 @@ impl Validate for Cmap8 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap8", |ctx| {
             ctx.in_field("groups", |ctx| {
-                if self.groups.len() > (u32::MAX as usize) {
+                if self.groups.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.groups.validate_impl(ctx);
@@ -907,7 +907,7 @@ impl Validate for Cmap10 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap10", |ctx| {
             ctx.in_field("glyph_id_array", |ctx| {
-                if self.glyph_id_array.len() > (u32::MAX as usize) {
+                if self.glyph_id_array.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -973,7 +973,7 @@ impl Validate for Cmap12 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap12", |ctx| {
             ctx.in_field("groups", |ctx| {
-                if self.groups.len() > (u32::MAX as usize) {
+                if self.groups.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.groups.validate_impl(ctx);
@@ -1047,7 +1047,7 @@ impl Validate for Cmap13 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap13", |ctx| {
             ctx.in_field("groups", |ctx| {
-                if self.groups.len() > (u32::MAX as usize) {
+                if self.groups.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.groups.validate_impl(ctx);
@@ -1170,7 +1170,7 @@ impl Validate for Cmap14 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap14", |ctx| {
             ctx.in_field("var_selector", |ctx| {
-                if self.var_selector.len() > (u32::MAX as usize) {
+                if self.var_selector.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.var_selector.validate_impl(ctx);
@@ -1299,7 +1299,7 @@ impl Validate for DefaultUvs {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("DefaultUvs", |ctx| {
             ctx.in_field("ranges", |ctx| {
-                if self.ranges.len() > (u32::MAX as usize) {
+                if self.ranges.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.ranges.validate_impl(ctx);
@@ -1359,7 +1359,7 @@ impl Validate for NonDefaultUvs {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("NonDefaultUvs", |ctx| {
             ctx.in_field("uvs_mapping", |ctx| {
-                if self.uvs_mapping.len() > (u32::MAX as usize) {
+                if self.uvs_mapping.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.uvs_mapping.validate_impl(ctx);

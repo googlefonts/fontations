@@ -263,7 +263,7 @@ impl Validate for BaseGlyphList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseGlyphList", |ctx| {
             ctx.in_field("base_glyph_paint_records", |ctx| {
-                if self.base_glyph_paint_records.len() > (u32::MAX as usize) {
+                if self.base_glyph_paint_records.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.base_glyph_paint_records.validate_impl(ctx);
@@ -374,7 +374,7 @@ impl Validate for LayerList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LayerList", |ctx| {
             ctx.in_field("paints", |ctx| {
-                if self.paints.len() > (u32::MAX as usize) {
+                if self.paints.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.paints.validate_impl(ctx);
@@ -439,7 +439,7 @@ impl Validate for ClipList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClipList", |ctx| {
             ctx.in_field("clips", |ctx| {
-                if self.clips.len() > (u32::MAX as usize) {
+                if self.clips.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.clips.validate_impl(ctx);
@@ -989,7 +989,7 @@ impl Validate for ColorLine {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ColorLine", |ctx| {
             ctx.in_field("color_stops", |ctx| {
-                if self.color_stops.len() > (u16::MAX as usize) {
+                if self.color_stops.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.color_stops.validate_impl(ctx);
@@ -1056,7 +1056,7 @@ impl Validate for VarColorLine {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VarColorLine", |ctx| {
             ctx.in_field("color_stops", |ctx| {
-                if self.color_stops.len() > (u16::MAX as usize) {
+                if self.color_stops.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.color_stops.validate_impl(ctx);

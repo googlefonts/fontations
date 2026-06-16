@@ -44,7 +44,7 @@ impl Validate for Mvar {
                 self.item_variation_store.validate_impl(ctx);
             });
             ctx.in_field("value_records", |ctx| {
-                if self.value_records.len() > (u16::MAX as usize) {
+                if self.value_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.value_records.validate_impl(ctx);

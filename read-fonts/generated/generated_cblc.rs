@@ -83,7 +83,7 @@ impl<'a> Cblc<'a> {
     pub fn bitmap_sizes_byte_range(&self) -> Range<usize> {
         let num_sizes = self.num_sizes();
         let start = self.num_sizes_byte_range().end;
-        start..start + (num_sizes as usize).saturating_mul(BitmapSize::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(num_sizes)).saturating_mul(BitmapSize::RAW_BYTE_LEN)
     }
 }
 
