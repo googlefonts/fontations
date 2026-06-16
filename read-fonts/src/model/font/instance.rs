@@ -26,7 +26,7 @@ pub struct FontInstance {
 
 impl FontInstance {
     /// Returns a builder for configuring a font instance from the given font.
-    pub fn new(font: &Font) -> FontInstanceBuilder {
+    pub fn builder(font: &Font) -> FontInstanceBuilder {
         FontInstanceBuilder {
             instance: Self {
                 font: font.clone(),
@@ -82,8 +82,8 @@ impl FontInstanceBuilder {
     /// Sets the variations for the font instance from an unordered sequence of
     /// variations in user space.
     ///
-    /// Ommitted axes will be set to their default values. Unsupported axes are
-    /// ignored. If an axis is specfied multiple times, the last value is used.
+    /// Omitted axes will be set to their default values. Unsupported axes are
+    /// ignored. If an axis is specified multiple times, the last value is used.
     ///
     /// This will overwrite any previous variation settings.
     pub fn variations<V>(mut self, variations: V) -> Self
@@ -120,6 +120,22 @@ impl FontInstanceBuilder {
         self
     }
 
+    /// Sets the variations for the font instance from a named instance, with
+    /// additional overrides.
+    ///
+    /// If the given named instance index is invalid, then it is ignored and
+    /// only overrides are applied.
+    ///
+    /// This will overwrite any previous variation settings.
+    pub fn named_instance_with_overrides<V>(mut self, index: usize, overrides: V) -> Self
+    where
+        V: IntoIterator,
+        V::Item: Into<FontVariation>,
+    {
+        self.set_named_instance_with_overrides(index, overrides);
+        self
+    }
+
     /// Builds the font instance.
     pub fn build(self) -> FontInstance {
         self.instance
@@ -135,7 +151,7 @@ impl FontInstanceBuilder {
         let tables = self.instance.font.tables();
         if let Ok(fvar) = tables.fvar() {
             set_variations(
-                fvar,
+                &fvar,
                 tables.avar().ok(),
                 &mut self.instance.coords,
                 variations,
@@ -165,31 +181,60 @@ impl FontInstanceBuilder {
     fn set_named_instance(&mut self, index: usize) {
         let tables = self.instance.font.tables();
         if let Ok(fvar) = tables.fvar() {
-            if let Ok((axes, instance)) = fvar
-                .axis_instance_arrays()
-                .and_then(|arrays| Ok((arrays.axes(), arrays.instances().get(index)?)))
-            {
-                set_variations(
-                    fvar,
-                    tables.avar().ok(),
-                    &mut self.instance.coords,
-                    axes.iter()
-                        .zip(instance.coordinates)
-                        .map(|(axis, coord)| (axis.axis_tag(), coord.get().to_f32())),
-                );
-            } else {
-                self.instance.coords.resize(0);
-            }
+            set_variations(
+                &fvar,
+                tables.avar().ok(),
+                &mut self.instance.coords,
+                named_instance_variations(&fvar, index),
+            );
+        } else {
+            self.instance.coords.resize(0);
+        }
+    }
+
+    fn set_named_instance_with_overrides<V>(&mut self, index: usize, overrides: V)
+    where
+        V: IntoIterator,
+        V::Item: Into<FontVariation>,
+    {
+        let tables = self.instance.font.tables();
+        if let Ok(fvar) = tables.fvar() {
+            set_variations(
+                &fvar,
+                tables.avar().ok(),
+                &mut self.instance.coords,
+                named_instance_variations(&fvar, index)
+                    .chain(overrides.into_iter().map(Into::into)),
+            );
         } else {
             self.instance.coords.resize(0);
         }
     }
 }
 
+// Helper to extract an iterator of FontVariation from a named instance index.
+fn named_instance_variations<'a>(
+    fvar: &'a Fvar,
+    index: usize,
+) -> impl Iterator<Item = FontVariation> + 'a {
+    fvar.axis_instance_arrays()
+        .ok()
+        .and_then(|arrays| {
+            let axes = arrays.axes();
+            arrays.instances().get(index).ok().map(|instance| {
+                axes.iter()
+                    .zip(instance.coordinates)
+                    .map(|(axis, coord)| FontVariation::new(axis.axis_tag(), coord.get().to_f32()))
+            })
+        })
+        .into_iter()
+        .flatten()
+}
+
 /// Helper for setting variations.
 ///
 /// Pulled out into a separate function to avoid borrow checker issues.
-fn set_variations<V>(fvar: Fvar, avar: Option<Avar>, coords: &mut CoordStorage, variations: V)
+fn set_variations<V>(fvar: &Fvar, avar: Option<Avar>, coords: &mut CoordStorage, variations: V)
 where
     V: IntoIterator,
     V::Item: Into<FontVariation>,
@@ -491,6 +536,7 @@ pub(crate) fn feature_variation_index(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::sync::atomic::Ordering;
 
     #[test]
     fn named_instances() {
@@ -504,8 +550,8 @@ mod tests {
             (4, 800.0),
         ];
         for (index, weight) in cases {
-            let named_instance = FontInstance::new(&font).named_instance(index).build();
-            let var_instance = FontInstance::new(&font)
+            let named_instance = FontInstance::builder(&font).named_instance(index).build();
+            let var_instance = FontInstance::builder(&font)
                 .variations([("wght", weight)])
                 .build();
             assert_eq!(
@@ -515,11 +561,59 @@ mod tests {
             );
         }
         // Out of bounds index should give us the default instance.
-        let invalid_instance = FontInstance::new(&font).named_instance(5).build();
+        let invalid_instance = FontInstance::builder(&font).named_instance(5).build();
         assert!(
             invalid_instance.normalized_coords().is_empty(),
             "out of bounds index should give default instance"
         );
+    }
+
+    #[test]
+    fn named_instance_with_overrides_override_named_value() {
+        let font = Font::new(font_test_data::MATERIAL_SYMBOLS_SUBSET, 0).unwrap();
+        let actual = FontInstance::builder(&font)
+            .named_instance_with_overrides(3, [("FILL", 1.0)])
+            .build();
+        let expected = FontInstance::builder(&font)
+            .variations([
+                ("FILL", 1.0),
+                ("GRAD", 0.0),
+                ("opsz", 24.0),
+                ("wght", 400.0),
+            ])
+            .build();
+        assert_eq!(actual.normalized_coords(), expected.normalized_coords());
+    }
+
+    #[test]
+    fn named_instance_with_overrides_invalid_index_uses_overrides_only() {
+        let font = Font::new(font_test_data::MATERIAL_SYMBOLS_SUBSET, 0).unwrap();
+        let actual = FontInstance::builder(&font)
+            .named_instance_with_overrides(999, [("FILL", 1.0), ("ZZZZ", 123.0)])
+            .build();
+        let expected = FontInstance::builder(&font)
+            .variations([("FILL", 1.0), ("ZZZZ", 123.0)])
+            .build();
+        assert_eq!(actual.normalized_coords(), expected.normalized_coords());
+        assert_eq!(actual.normalized_coords().len(), 4);
+    }
+
+    #[test]
+    fn named_instance_with_overrides_overwrites_previous_settings() {
+        let font = Font::new(font_test_data::MATERIAL_SYMBOLS_SUBSET, 0).unwrap();
+        let actual = FontInstance::builder(&font)
+            .variations([("FILL", 0.0), ("wght", 100.0)])
+            .named_instance_with_overrides(5, [("GRAD", -25.0)])
+            .build();
+        let expected = FontInstance::builder(&font)
+            .variations([
+                ("FILL", 0.0),
+                ("GRAD", -25.0),
+                ("opsz", 24.0),
+                ("wght", 600.0),
+            ])
+            .build();
+        assert_eq!(actual.normalized_coords(), expected.normalized_coords());
     }
 
     #[test]
@@ -534,12 +628,122 @@ mod tests {
             (1.0, [Some(0), None]),
         ];
         for (fill, [gsub, gpos]) in cases {
-            let instance = FontInstance::new(&font)
+            let instance = FontInstance::builder(&font)
                 .variations([("FILL", fill)])
                 .build();
             let feature_vars = instance.feature_variations();
             let actual = [feature_vars.gsub(), feature_vars.gpos()];
             assert_eq!(actual, [gsub, gpos], "fill={fill}");
         }
+    }
+
+    #[test]
+    fn feature_variation_cache_marks_both_absent() {
+        let font = Font::new(font_test_data::MATERIAL_SYMBOLS_SUBSET, 0).unwrap();
+        let instance = FontInstance::builder(&font)
+            .variations([("FILL", 0.5)])
+            .build();
+        assert_eq!(instance.feature_vars.status.load(Ordering::Acquire), 0);
+        assert_eq!(
+            instance.feature_variations(),
+            FontFeatureVariations::default()
+        );
+        assert_eq!(
+            instance.feature_vars.status.load(Ordering::Acquire),
+            FeatureVariationStorage::BOTH_ABSENT
+        );
+    }
+
+    #[test]
+    fn feature_variation_cache_is_thread_safe_and_stable() {
+        let font = Font::new(font_test_data::MATERIAL_SYMBOLS_SUBSET, 0).unwrap();
+        let instance = FontInstance::builder(&font)
+            .variations([("FILL", 1.0)])
+            .build();
+        std::thread::scope(|scope| {
+            for _ in 0..8 {
+                scope.spawn(|| {
+                    for _ in 0..64 {
+                        let vars = instance.feature_variations();
+                        assert_eq!(
+                            vars,
+                            FontFeatureVariations {
+                                gsub: Some(0),
+                                gpos: None
+                            }
+                        );
+                    }
+                });
+            }
+        });
+        let status = instance.feature_vars.status.load(Ordering::Acquire);
+        assert_eq!(status & 0xFFFF, FeatureVariationStorage::PRESENT);
+        assert_eq!(
+            (status >> FeatureVariationStorage::GPOS_SHIFT) & 0xFFFF,
+            FeatureVariationStorage::ABSENT
+        );
+        assert_eq!(instance.feature_vars.gsub.load(Ordering::Acquire), 0);
+    }
+
+    #[test]
+    fn variations_last_value_wins_and_unknown_axis_ignored() {
+        let font = Font::new(font_test_data::CANTARELL_VF_TRIMMED, 0).unwrap();
+        let expected = FontInstance::builder(&font)
+            .variations([("wght", 700.0)])
+            .build();
+        let repeated_axis = FontInstance::builder(&font)
+            .variations([("wght", 100.0), ("wght", 700.0)])
+            .build();
+        assert_eq!(
+            repeated_axis.normalized_coords(),
+            expected.normalized_coords()
+        );
+        let unknown_axis = FontInstance::builder(&font)
+            .variations([("wght", 700.0), ("ZZZZ", 123.0)])
+            .build();
+        assert_eq!(
+            unknown_axis.normalized_coords(),
+            expected.normalized_coords()
+        );
+    }
+
+    #[test]
+    fn later_variation_call_overwrites_previous() {
+        let font = Font::new(font_test_data::CANTARELL_VF_TRIMMED, 0).unwrap();
+        let overwritten = FontInstance::builder(&font)
+            .variations([("wght", 700.0)])
+            .variations([("wght", 100.0)])
+            .build();
+        let expected = FontInstance::builder(&font)
+            .variations([("wght", 100.0)])
+            .build();
+        assert_eq!(
+            overwritten.normalized_coords(),
+            expected.normalized_coords()
+        );
+    }
+
+    #[test]
+    fn normalized_coords_empty_resets_to_default_instance() {
+        let font = Font::new(font_test_data::MATERIAL_SYMBOLS_SUBSET, 0).unwrap();
+        let instance = FontInstance::builder(&font).normalized_coords([]).build();
+        assert!(instance.normalized_coords().is_empty());
+    }
+
+    #[test]
+    fn normalized_coords_truncates_and_pads() {
+        let font = Font::new(font_test_data::MATERIAL_SYMBOLS_SUBSET, 0).unwrap();
+        let axis_count = font.tables().fvar().unwrap().axis_count() as usize;
+        let values = [0.25, -0.5, 1.0, 0.75, -0.25].map(NormalizedCoord::from_f32);
+        let instance = FontInstance::builder(&font)
+            .normalized_coords(values)
+            .build();
+        let coords = instance.normalized_coords();
+        assert_eq!(coords.len(), axis_count);
+        let copied = values.len().min(axis_count);
+        assert_eq!(&coords[..copied], &values[..copied]);
+        assert!(coords[copied..]
+            .iter()
+            .all(|&coord| coord == NormalizedCoord::ZERO));
     }
 }
