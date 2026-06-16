@@ -83,7 +83,7 @@ impl Validate for Table2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Table2", |ctx| {
             ctx.in_field("values", |ctx| {
-                if self.values.len() > (u16::MAX as usize) {
+                if self.values.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });

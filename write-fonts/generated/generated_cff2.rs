@@ -60,7 +60,7 @@ impl Validate for Cff2Header {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cff2Header", |ctx| {
             ctx.in_field("top_dict_data", |ctx| {
-                if self.top_dict_data.len() > (u16::MAX as usize) {
+                if self.top_dict_data.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });

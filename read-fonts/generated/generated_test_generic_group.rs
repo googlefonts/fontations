@@ -98,7 +98,8 @@ impl<'a, T> MyLookup<'a, T> {
     pub fn subtable_offsets_byte_range(&self) -> Range<usize> {
         let sub_table_count = self.sub_table_count();
         let start = self.sub_table_count_byte_range().end;
-        start..start + (sub_table_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        start
+            ..start + (transforms::to_usize(sub_table_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -373,7 +374,7 @@ impl<'a> MySubtableFormat2<'a> {
     pub fn values_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let start = self.count_byte_range().end;
-        start..start + (count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(count)).saturating_mul(u16::RAW_BYTE_LEN)
     }
 }
 

@@ -146,7 +146,7 @@ impl Validate for MultiItemVariationStore {
                 self.region_list.validate_impl(ctx);
             });
             ctx.in_field("variation_data", |ctx| {
-                if self.variation_data.len() > (u16::MAX as usize) {
+                if self.variation_data.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.variation_data.validate_impl(ctx);
@@ -214,7 +214,7 @@ impl Validate for SparseVariationRegionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SparseVariationRegionList", |ctx| {
             ctx.in_field("regions", |ctx| {
-                if self.regions.len() > (u16::MAX as usize) {
+                if self.regions.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.regions.validate_impl(ctx);
@@ -281,7 +281,7 @@ impl Validate for SparseVariationRegion {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SparseVariationRegion", |ctx| {
             ctx.in_field("region_axes", |ctx| {
-                if self.region_axes.len() > (u16::MAX as usize) {
+                if self.region_axes.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.region_axes.validate_impl(ctx);
@@ -405,7 +405,7 @@ impl Validate for MultiItemVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MultiItemVariationData", |ctx| {
             ctx.in_field("region_indices", |ctx| {
-                if self.region_indices.len() > (u16::MAX as usize) {
+                if self.region_indices.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -473,7 +473,7 @@ impl Validate for ConditionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionList", |ctx| {
             ctx.in_field("conditions", |ctx| {
-                if self.conditions.len() > (u32::MAX as usize) {
+                if self.conditions.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.conditions.validate_impl(ctx);

@@ -44,7 +44,7 @@ impl Validate for Vorg {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Vorg", |ctx| {
             ctx.in_field("vert_origin_y_metrics", |ctx| {
-                if self.vert_origin_y_metrics.len() > (u16::MAX as usize) {
+                if self.vert_origin_y_metrics.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.vert_origin_y_metrics.validate_impl(ctx);

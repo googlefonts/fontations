@@ -108,7 +108,7 @@ impl<'a> Cff2Header<'a> {
     pub fn top_dict_data_byte_range(&self) -> Range<usize> {
         let top_dict_length = self.top_dict_length();
         let start = self._padding_byte_range().end;
-        start..start + (top_dict_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        start..start + (transforms::to_usize(top_dict_length)).saturating_mul(u8::RAW_BYTE_LEN)
     }
 
     pub fn trailing_data_byte_range(&self) -> Range<usize> {

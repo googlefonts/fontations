@@ -52,7 +52,7 @@ impl Validate for Sbix {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Sbix", |ctx| {
             ctx.in_field("strikes", |ctx| {
-                if self.strikes.len() > (u32::MAX as usize) {
+                if self.strikes.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.strikes.validate_impl(ctx);

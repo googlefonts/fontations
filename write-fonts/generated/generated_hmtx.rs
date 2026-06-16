@@ -41,7 +41,7 @@ impl Validate for Hmtx {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Hmtx", |ctx| {
             ctx.in_field("h_metrics", |ctx| {
-                if self.h_metrics.len() > (u16::MAX as usize) {
+                if self.h_metrics.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.h_metrics.validate_impl(ctx);
