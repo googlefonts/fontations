@@ -2,6 +2,7 @@
 
 pub mod pen;
 
+#[cfg(feature = "experimental_font_api")]
 mod once;
 
 #[cfg(feature = "experimental_font_api")]
