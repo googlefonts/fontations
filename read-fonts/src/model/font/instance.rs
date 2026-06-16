@@ -21,7 +21,7 @@ pub struct FontInstance {
     font: Font,
     size: Option<f32>,
     coords: CoordStorage,
-    feature_vars: FeatureVariationStorage,
+    feature_vars: FeatureVarsStorage,
 }
 
 impl FontInstance {
@@ -32,7 +32,7 @@ impl FontInstance {
                 font: font.clone(),
                 size: None,
                 coords: CoordStorage::default(),
-                feature_vars: FeatureVariationStorage::new(),
+                feature_vars: FeatureVarsStorage::new(),
             },
         }
     }
@@ -413,19 +413,19 @@ impl FontFeatureVariations {
 /// Lazy atomic storage for feature variation selections.
 ///
 /// We don't want to load the GSUB and GPOS tables unless explicitly requested.
-struct FeatureVariationStorage {
+struct FeatureVarsStorage {
     status: AtomicU32,
     gsub: AtomicU32,
     gpos: AtomicU32,
 }
 
-impl Default for FeatureVariationStorage {
+impl Default for FeatureVarsStorage {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl FeatureVariationStorage {
+impl FeatureVarsStorage {
     /// We haven't checked yet.
     const UNCHECKED: u32 = 0;
     /// We have a selected feature variation.
@@ -480,16 +480,10 @@ impl FeatureVariationStorage {
             let gsub_status = status & 0xFFFF;
             let gpos_status = (status >> Self::GPOS_SHIFT) & 0xFFFF;
             FontFeatureVariations {
-                gsub: if gsub_status == Self::PRESENT {
-                    Some(self.gsub.load(atomic::Ordering::Acquire))
-                } else {
-                    None
-                },
-                gpos: if gpos_status == Self::PRESENT {
-                    Some(self.gpos.load(atomic::Ordering::Acquire))
-                } else {
-                    None
-                },
+                gsub: (gsub_status == Self::PRESENT)
+                    .then(|| self.gsub.load(atomic::Ordering::Acquire)),
+                gpos: (gpos_status == Self::PRESENT)
+                    .then(|| self.gpos.load(atomic::Ordering::Acquire)),
             }
         } else {
             FontFeatureVariations::default()
@@ -651,7 +645,7 @@ mod tests {
         );
         assert_eq!(
             instance.feature_vars.status.load(Ordering::Acquire),
-            FeatureVariationStorage::BOTH_ABSENT
+            FeatureVarsStorage::BOTH_ABSENT
         );
     }
 
@@ -678,10 +672,10 @@ mod tests {
             }
         });
         let status = instance.feature_vars.status.load(Ordering::Acquire);
-        assert_eq!(status & 0xFFFF, FeatureVariationStorage::PRESENT);
+        assert_eq!(status & 0xFFFF, FeatureVarsStorage::PRESENT);
         assert_eq!(
-            (status >> FeatureVariationStorage::GPOS_SHIFT) & 0xFFFF,
-            FeatureVariationStorage::ABSENT
+            (status >> FeatureVarsStorage::GPOS_SHIFT) & 0xFFFF,
+            FeatureVarsStorage::ABSENT
         );
         assert_eq!(instance.feature_vars.gsub.load(Ordering::Acquire), 0);
     }

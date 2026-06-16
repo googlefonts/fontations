@@ -2,8 +2,10 @@
 
 pub mod pen;
 
-mod font;
 mod once;
+
+#[cfg(feature = "experimental_font_api")]
+mod font;
 
 #[cfg(feature = "experimental_font_api")]
 pub use font::{
