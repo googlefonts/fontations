@@ -75,7 +75,7 @@ impl ReadArgs for Dsig {
 }
 
 impl<'a> FontRead<'a> for Dsig {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::dsig::Dsig as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -199,7 +199,7 @@ impl ReadArgs for SignatureBlockFormat1 {
 }
 
 impl<'a> FontRead<'a> for SignatureBlockFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::dsig::SignatureBlockFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

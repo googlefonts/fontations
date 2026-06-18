@@ -214,7 +214,7 @@ impl<T> ReadArgs for TypedLookup<'_, T> {
 }
 
 impl<'a, T> FontRead<'a> for TypedLookup<'a, T> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         Ok(Self {
             lookup: Lookup::read(data)?,
             _marker: std::marker::PhantomData,
@@ -303,7 +303,7 @@ impl<T: bytemuck::AnyBitPattern + FixedSize> ReadArgs for StateEntry<T> {
 }
 
 impl<'a, T: bytemuck::AnyBitPattern + FixedSize> FontRead<'a> for StateEntry<T> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let new_state = cursor.read()?;
         let flags = cursor.read()?;
@@ -398,7 +398,7 @@ impl ReadArgs for StateTable<'_> {
 }
 
 impl<'a> FontRead<'a> for StateTable<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let header = StateHeader::read(data)?;
         // Each state has a 1-byte entry per class so state_size == n_classes
         let n_classes = header.state_size() as usize;
@@ -498,7 +498,7 @@ impl<T> ReadArgs for ExtendedStateTable<'_, T> {
 }
 
 impl<'a, T> FontRead<'a> for ExtendedStateTable<'a, T> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let header = StxHeader::read(data)?;
         let n_classes = header.n_classes() as usize;
         let class_table = header.class_table()?;

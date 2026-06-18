@@ -136,7 +136,7 @@ impl ReadArgs for Colr {
 }
 
 impl<'a> FontRead<'a> for Colr {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::Colr as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -294,7 +294,7 @@ impl ReadArgs for BaseGlyphList {
 }
 
 impl<'a> FontRead<'a> for BaseGlyphList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::BaseGlyphList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -408,7 +408,7 @@ impl ReadArgs for LayerList {
 }
 
 impl<'a> FontRead<'a> for LayerList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::LayerList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -479,7 +479,7 @@ impl ReadArgs for ClipList {
 }
 
 impl<'a> FontRead<'a> for ClipList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ClipList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -617,7 +617,7 @@ impl ReadArgs for ClipBox {
 }
 
 impl<'a> FontRead<'a> for ClipBox {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ClipBox as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -697,7 +697,7 @@ impl ReadArgs for ClipBoxFormat1 {
 }
 
 impl<'a> FontRead<'a> for ClipBoxFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ClipBoxFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -777,7 +777,7 @@ impl ReadArgs for ClipBoxFormat2 {
 }
 
 impl<'a> FontRead<'a> for ClipBoxFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ClipBoxFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1045,7 +1045,7 @@ impl ReadArgs for ColorLine {
 }
 
 impl<'a> FontRead<'a> for ColorLine {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ColorLine as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1116,7 +1116,7 @@ impl ReadArgs for VarColorLine {
 }
 
 impl<'a> FontRead<'a> for VarColorLine {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::VarColorLine as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1698,7 +1698,7 @@ impl ReadArgs for Paint {
 }
 
 impl<'a> FontRead<'a> for Paint {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::Paint as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1948,7 +1948,7 @@ impl ReadArgs for PaintColrLayers {
 }
 
 impl<'a> FontRead<'a> for PaintColrLayers {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintColrLayers as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2007,7 +2007,7 @@ impl ReadArgs for PaintSolid {
 }
 
 impl<'a> FontRead<'a> for PaintSolid {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintSolid as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -2070,7 +2070,7 @@ impl ReadArgs for PaintVarSolid {
 }
 
 impl<'a> FontRead<'a> for PaintVarSolid {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarSolid as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2168,7 +2168,7 @@ impl ReadArgs for PaintLinearGradient {
 }
 
 impl<'a> FontRead<'a> for PaintLinearGradient {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintLinearGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2287,7 +2287,7 @@ impl ReadArgs for PaintVarLinearGradient {
 }
 
 impl<'a> FontRead<'a> for PaintVarLinearGradient {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarLinearGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2385,7 +2385,7 @@ impl ReadArgs for PaintRadialGradient {
 }
 
 impl<'a> FontRead<'a> for PaintRadialGradient {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintRadialGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2502,7 +2502,7 @@ impl ReadArgs for PaintVarRadialGradient {
 }
 
 impl<'a> FontRead<'a> for PaintVarRadialGradient {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarRadialGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2590,7 +2590,7 @@ impl ReadArgs for PaintSweepGradient {
 }
 
 impl<'a> FontRead<'a> for PaintSweepGradient {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintSweepGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2692,7 +2692,7 @@ impl ReadArgs for PaintVarSweepGradient {
 }
 
 impl<'a> FontRead<'a> for PaintVarSweepGradient {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarSweepGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2757,7 +2757,7 @@ impl ReadArgs for PaintGlyph {
 }
 
 impl<'a> FontRead<'a> for PaintGlyph {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintGlyph as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -2808,7 +2808,7 @@ impl ReadArgs for PaintColrGlyph {
 }
 
 impl<'a> FontRead<'a> for PaintColrGlyph {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintColrGlyph as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2876,7 +2876,7 @@ impl ReadArgs for PaintTransform {
 }
 
 impl<'a> FontRead<'a> for PaintTransform {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintTransform as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2944,7 +2944,7 @@ impl ReadArgs for PaintVarTransform {
 }
 
 impl<'a> FontRead<'a> for PaintVarTransform {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarTransform as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3021,7 +3021,7 @@ impl ReadArgs for Affine2x3 {
 }
 
 impl<'a> FontRead<'a> for Affine2x3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::Affine2x3 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3114,7 +3114,7 @@ impl ReadArgs for VarAffine2x3 {
 }
 
 impl<'a> FontRead<'a> for VarAffine2x3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::VarAffine2x3 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3183,7 +3183,7 @@ impl ReadArgs for PaintTranslate {
 }
 
 impl<'a> FontRead<'a> for PaintTranslate {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintTranslate as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3258,7 +3258,7 @@ impl ReadArgs for PaintVarTranslate {
 }
 
 impl<'a> FontRead<'a> for PaintVarTranslate {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarTranslate as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3328,7 +3328,7 @@ impl ReadArgs for PaintScale {
 }
 
 impl<'a> FontRead<'a> for PaintScale {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintScale as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3404,7 +3404,7 @@ impl ReadArgs for PaintVarScale {
 }
 
 impl<'a> FontRead<'a> for PaintVarScale {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarScale as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3498,7 +3498,7 @@ impl ReadArgs for PaintScaleAroundCenter {
 }
 
 impl<'a> FontRead<'a> for PaintScaleAroundCenter {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintScaleAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3602,7 +3602,7 @@ impl ReadArgs for PaintVarScaleAroundCenter {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarScaleAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3667,7 +3667,7 @@ impl ReadArgs for PaintScaleUniform {
 }
 
 impl<'a> FontRead<'a> for PaintScaleUniform {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintScaleUniform as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3738,7 +3738,7 @@ impl ReadArgs for PaintVarScaleUniform {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleUniform {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarScaleUniform as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3821,7 +3821,7 @@ impl ReadArgs for PaintScaleUniformAroundCenter {
 }
 
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintScaleUniformAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3918,7 +3918,7 @@ impl ReadArgs for PaintVarScaleUniformAroundCenter {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarScaleUniformAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3984,7 +3984,7 @@ impl ReadArgs for PaintRotate {
 }
 
 impl<'a> FontRead<'a> for PaintRotate {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintRotate as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -4054,7 +4054,7 @@ impl ReadArgs for PaintVarRotate {
 }
 
 impl<'a> FontRead<'a> for PaintVarRotate {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarRotate as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -4138,7 +4138,7 @@ impl ReadArgs for PaintRotateAroundCenter {
 }
 
 impl<'a> FontRead<'a> for PaintRotateAroundCenter {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintRotateAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -4235,7 +4235,7 @@ impl ReadArgs for PaintVarRotateAroundCenter {
 }
 
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarRotateAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -4307,7 +4307,7 @@ impl ReadArgs for PaintSkew {
 }
 
 impl<'a> FontRead<'a> for PaintSkew {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintSkew as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -4390,7 +4390,7 @@ impl ReadArgs for PaintVarSkew {
 }
 
 impl<'a> FontRead<'a> for PaintVarSkew {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarSkew as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -4483,7 +4483,7 @@ impl ReadArgs for PaintSkewAroundCenter {
 }
 
 impl<'a> FontRead<'a> for PaintSkewAroundCenter {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintSkewAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -4589,7 +4589,7 @@ impl ReadArgs for PaintVarSkewAroundCenter {
 }
 
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarSkewAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -4662,7 +4662,7 @@ impl ReadArgs for PaintComposite {
 }
 
 impl<'a> FontRead<'a> for PaintComposite {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintComposite as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

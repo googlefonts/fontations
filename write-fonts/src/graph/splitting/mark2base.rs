@@ -170,7 +170,7 @@ fn split_off_base_array(
     // in the range (start..end).
 
     let base_array: rgpos::BaseArray = old_base_array
-        .reparse_with_args(&(old_mark_class_count as u16))
+        .reparse_with_args(old_mark_class_count as u16)
         .unwrap();
 
     let mut next_offset_idx = 0;

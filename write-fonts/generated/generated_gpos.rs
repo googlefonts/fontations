@@ -96,7 +96,7 @@ impl ReadArgs for Gpos {
 }
 
 impl<'a> FontRead<'a> for Gpos {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::Gpos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -351,7 +351,7 @@ impl ReadArgs for AnchorTable {
 }
 
 impl<'a> FontRead<'a> for AnchorTable {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorTable as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -427,7 +427,7 @@ impl ReadArgs for AnchorFormat1 {
 }
 
 impl<'a> FontRead<'a> for AnchorFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -491,7 +491,7 @@ impl ReadArgs for AnchorFormat2 {
 }
 
 impl<'a> FontRead<'a> for AnchorFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -578,7 +578,7 @@ impl ReadArgs for AnchorFormat3 {
 }
 
 impl<'a> FontRead<'a> for AnchorFormat3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -641,7 +641,7 @@ impl ReadArgs for MarkArray {
 }
 
 impl<'a> FontRead<'a> for MarkArray {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkArray as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -762,7 +762,7 @@ impl ReadArgs for SinglePos {
 }
 
 impl<'a> FontRead<'a> for SinglePos {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::SinglePos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -841,7 +841,7 @@ impl ReadArgs for SinglePosFormat1 {
 }
 
 impl<'a> FontRead<'a> for SinglePosFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::SinglePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -919,7 +919,7 @@ impl ReadArgs for SinglePosFormat2 {
 }
 
 impl<'a> FontRead<'a> for SinglePosFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::SinglePosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1002,7 +1002,7 @@ impl ReadArgs for PairPos {
 }
 
 impl<'a> FontRead<'a> for PairPos {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1088,7 +1088,7 @@ impl ReadArgs for PairPosFormat1 {
 }
 
 impl<'a> FontRead<'a> for PairPosFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1304,7 +1304,7 @@ impl ReadArgs for PairPosFormat2 {
 }
 
 impl<'a> FontRead<'a> for PairPosFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1469,7 +1469,7 @@ impl ReadArgs for CursivePosFormat1 {
 }
 
 impl<'a> FontRead<'a> for CursivePosFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::CursivePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1620,7 +1620,7 @@ impl ReadArgs for MarkBasePosFormat1 {
 }
 
 impl<'a> FontRead<'a> for MarkBasePosFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkBasePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1818,7 +1818,7 @@ impl ReadArgs for MarkLigPosFormat1 {
 }
 
 impl<'a> FontRead<'a> for MarkLigPosFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkLigPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2073,7 +2073,7 @@ impl ReadArgs for MarkMarkPosFormat1 {
 }
 
 impl<'a> FontRead<'a> for MarkMarkPosFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkMarkPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

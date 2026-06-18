@@ -20,7 +20,7 @@ impl ReadArgs for BasicTable<'_> {
 }
 
 impl<'a> FontRead<'a> for BasicTable<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -62,7 +62,7 @@ impl<'a> BasicTable<'a> {
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
         let range = self.array_records_byte_range();
         self.data
-            .read_with_args(range, &self.arrays_inner_count())
+            .read_with_args(range, self.arrays_inner_count())
             .unwrap_or_default()
     }
 
@@ -97,7 +97,7 @@ impl<'a> BasicTable<'a> {
         let start = self.array_records_count_byte_range().end;
         let end = start
             + (transforms::to_usize(array_records_count)).saturating_mul(
-                <ContainsArrays as ComputeSize>::compute_size(&self.arrays_inner_count())
+                <ContainsArrays as ComputeSize>::compute_size(self.arrays_inner_count())
                     .unwrap_or(0),
             );
         start..end
@@ -215,8 +215,8 @@ impl ReadArgs for ContainsArrays<'_> {
 
 impl ComputeSize for ContainsArrays<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let array_len = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let array_len = args;
         let mut result = 0usize;
         result = result
             .checked_add((transforms::to_usize(array_len)).saturating_mul(u16::RAW_BYTE_LEN))
@@ -231,9 +231,9 @@ impl ComputeSize for ContainsArrays<'_> {
 }
 
 impl<'a> FontRead<'a> for ContainsArrays<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let array_len = *args;
+        let array_len = args;
         Ok(Self {
             scalars: cursor.read_array(transforms::to_usize(array_len))?,
             records: cursor.read_array(transforms::to_usize(array_len))?,
@@ -249,7 +249,7 @@ impl<'a> ContainsArrays<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, array_len: u16) -> Result<Self, ReadError> {
         let args = array_len;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -298,7 +298,7 @@ impl ContainsOffsets {
     /// By calling its `offset_data` method.
     pub fn array<'a>(&self, data: FontData<'a>) -> Result<&'a [SimpleRecord], ReadError> {
         let args = self.off_array_count();
-        self.array_offset().resolve_with_args(data, &args)
+        self.array_offset().resolve_with_args(data, args)
     }
 
     pub fn other_offset(&self) -> Offset32 {
@@ -359,7 +359,7 @@ impl ReadArgs for VarLenItem<'_> {
 }
 
 impl<'a> FontRead<'a> for VarLenItem<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

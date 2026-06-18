@@ -75,7 +75,7 @@ impl ReadArgs for Vorg {
 }
 
 impl<'a> FontRead<'a> for Vorg {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::vorg::Vorg as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

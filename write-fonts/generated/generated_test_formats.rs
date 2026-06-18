@@ -52,7 +52,7 @@ impl ReadArgs for Table1 {
 }
 
 impl<'a> FontRead<'a> for Table1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::formats::Table1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -112,7 +112,7 @@ impl ReadArgs for Table2 {
 }
 
 impl<'a> FontRead<'a> for Table2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::formats::Table2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -155,7 +155,7 @@ impl ReadArgs for Table3 {
 }
 
 impl<'a> FontRead<'a> for Table3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::formats::Table3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -232,7 +232,7 @@ impl ReadArgs for MyTable {
 }
 
 impl<'a> FontRead<'a> for MyTable {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::formats::MyTable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

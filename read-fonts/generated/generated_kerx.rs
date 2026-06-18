@@ -25,7 +25,7 @@ impl ReadArgs for Kerx<'_> {
 }
 
 impl<'a> FontRead<'a> for Kerx<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -146,7 +146,7 @@ impl ReadArgs for Subtable<'_> {
 }
 
 impl<'a> FontRead<'a> for Subtable<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -265,7 +265,7 @@ impl ReadArgs for Subtable0<'_> {
 }
 
 impl<'a> FontRead<'a> for Subtable0<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

@@ -50,7 +50,7 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
         }
 
         impl<'a> FontRead<'a> for #name <'a> {
-            fn read_with_args(bytes: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+            fn read_with_args(bytes: FontData<'a>, _: ()) -> Result<Self, ReadError> {
                 let discriminant = #inner::read_discriminant(bytes)?;
                 match discriminant {
                     #( #read_match_arms, )*

@@ -25,7 +25,7 @@ impl ReadArgs for Stat<'_> {
 }
 
 impl<'a> FontRead<'a> for Stat<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -84,7 +84,7 @@ impl<'a> Stat<'a> {
     pub fn design_axes(&self) -> Result<&'a [AxisRecord], ReadError> {
         let data = self.data;
         let args = self.design_axis_count();
-        self.design_axes_offset().resolve_with_args(data, &args)
+        self.design_axes_offset().resolve_with_args(data, args)
     }
 
     /// The number of axis value tables.
@@ -107,7 +107,7 @@ impl<'a> Stat<'a> {
         let data = self.data;
         let args = self.axis_value_count();
         self.offset_to_axis_value_offsets()
-            .resolve_with_args(data, &args)
+            .resolve_with_args(data, args)
     }
 
     /// Name ID used as fallback when projection of names into a
@@ -292,8 +292,8 @@ impl ReadArgs for AxisValueArray<'_> {
 }
 
 impl<'a> FontRead<'a> for AxisValueArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let axis_value_count = *args;
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let axis_value_count = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -313,7 +313,7 @@ impl<'a> AxisValueArray<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, axis_value_count: u16) -> Result<Self, ReadError> {
         let args = axis_value_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -455,7 +455,7 @@ impl ReadArgs for AxisValue<'_> {
 }
 
 impl<'a> FontRead<'a> for AxisValue<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             AxisValueFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -534,7 +534,7 @@ impl ReadArgs for AxisValueFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -678,7 +678,7 @@ impl ReadArgs for AxisValueFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -840,7 +840,7 @@ impl ReadArgs for AxisValueFormat3<'_> {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -986,7 +986,7 @@ impl ReadArgs for AxisValueFormat4<'_> {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

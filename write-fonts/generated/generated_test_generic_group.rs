@@ -125,7 +125,7 @@ impl ReadArgs for MySubtable {
 }
 
 impl<'a> FontRead<'a> for MySubtable {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::generic_group::MySubtable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -186,7 +186,7 @@ impl ReadArgs for MySubtableFormat1 {
 }
 
 impl<'a> FontRead<'a> for MySubtableFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::generic_group::MySubtableFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -247,7 +247,7 @@ impl ReadArgs for MySubtableFormat2 {
 }
 
 impl<'a> FontRead<'a> for MySubtableFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::generic_group::MySubtableFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -373,7 +373,7 @@ impl ReadArgs for ContainsLookupGroup {
 }
 
 impl<'a> FontRead<'a> for ContainsLookupGroup {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::generic_group::ContainsLookupGroup as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

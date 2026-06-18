@@ -63,7 +63,7 @@ impl ReadArgs for ScriptList {
 }
 
 impl<'a> FontRead<'a> for ScriptList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ScriptList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -184,7 +184,7 @@ impl ReadArgs for Script {
 }
 
 impl<'a> FontRead<'a> for Script {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::Script as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -313,7 +313,7 @@ impl ReadArgs for LangSys {
 }
 
 impl<'a> FontRead<'a> for LangSys {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::LangSys as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -375,7 +375,7 @@ impl ReadArgs for FeatureList {
 }
 
 impl<'a> FontRead<'a> for FeatureList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::FeatureList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -689,7 +689,7 @@ impl ReadArgs for CoverageFormat1 {
 }
 
 impl<'a> FontRead<'a> for CoverageFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::CoverageFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -752,7 +752,7 @@ impl ReadArgs for CoverageFormat2 {
 }
 
 impl<'a> FontRead<'a> for CoverageFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::CoverageFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -877,7 +877,7 @@ impl ReadArgs for CoverageTable {
 }
 
 impl<'a> FontRead<'a> for CoverageTable {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::CoverageTable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -958,7 +958,7 @@ impl ReadArgs for ClassDefFormat1 {
 }
 
 impl<'a> FontRead<'a> for ClassDefFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassDefFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1023,7 +1023,7 @@ impl ReadArgs for ClassDefFormat2 {
 }
 
 impl<'a> FontRead<'a> for ClassDefFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassDefFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1150,7 +1150,7 @@ impl ReadArgs for ClassDef {
 }
 
 impl<'a> FontRead<'a> for ClassDef {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassDef as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1286,7 +1286,7 @@ impl ReadArgs for SequenceContextFormat1 {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceContextFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1350,7 +1350,7 @@ impl ReadArgs for SequenceRuleSet {
 }
 
 impl<'a> FontRead<'a> for SequenceRuleSet {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1423,7 +1423,7 @@ impl ReadArgs for SequenceRule {
 }
 
 impl<'a> FontRead<'a> for SequenceRule {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1518,7 +1518,7 @@ impl ReadArgs for SequenceContextFormat2 {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceContextFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1588,7 +1588,7 @@ impl ReadArgs for ClassSequenceRuleSet {
 }
 
 impl<'a> FontRead<'a> for ClassSequenceRuleSet {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassSequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1659,7 +1659,7 @@ impl ReadArgs for ClassSequenceRule {
 }
 
 impl<'a> FontRead<'a> for ClassSequenceRule {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassSequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1748,7 +1748,7 @@ impl ReadArgs for SequenceContextFormat3 {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceContextFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1841,7 +1841,7 @@ impl ReadArgs for SequenceContext {
 }
 
 impl<'a> FontRead<'a> for SequenceContext {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceContext as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1944,7 +1944,7 @@ impl ReadArgs for ChainedSequenceContextFormat1 {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceContextFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2016,7 +2016,7 @@ impl ReadArgs for ChainedSequenceRuleSet {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceRuleSet {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2116,7 +2116,7 @@ impl ReadArgs for ChainedSequenceRule {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceRule {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2234,7 +2234,7 @@ impl ReadArgs for ChainedSequenceContextFormat2 {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceContextFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2309,7 +2309,7 @@ impl ReadArgs for ChainedClassSequenceRuleSet {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedClassSequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2415,7 +2415,7 @@ impl ReadArgs for ChainedClassSequenceRule {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRule {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedClassSequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2529,7 +2529,7 @@ impl ReadArgs for ChainedSequenceContextFormat3 {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceContextFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2642,7 +2642,7 @@ impl ReadArgs for ChainedSequenceContext {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContext {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceContext as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2723,7 +2723,7 @@ impl ReadArgs for Device {
 }
 
 impl<'a> FontRead<'a> for Device {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::Device as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -2783,7 +2783,7 @@ impl ReadArgs for VariationIndex {
 }
 
 impl<'a> FontRead<'a> for VariationIndex {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::VariationIndex as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2896,7 +2896,7 @@ impl ReadArgs for DeviceOrVariationIndex {
 }
 
 impl<'a> FontRead<'a> for DeviceOrVariationIndex {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::DeviceOrVariationIndex as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2979,7 +2979,7 @@ impl ReadArgs for FeatureVariations {
 }
 
 impl<'a> FontRead<'a> for FeatureVariations {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::FeatureVariations as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3105,7 +3105,7 @@ impl ReadArgs for ConditionSet {
 }
 
 impl<'a> FontRead<'a> for ConditionSet {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3223,7 +3223,7 @@ impl ReadArgs for Condition {
 }
 
 impl<'a> FontRead<'a> for Condition {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::Condition as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3323,7 +3323,7 @@ impl ReadArgs for ConditionFormat1 {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3382,7 +3382,7 @@ impl ReadArgs for ConditionFormat2 {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3450,7 +3450,7 @@ impl ReadArgs for ConditionFormat3 {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3518,7 +3518,7 @@ impl ReadArgs for ConditionFormat4 {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat4 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat4 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3578,7 +3578,7 @@ impl ReadArgs for ConditionFormat5 {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat5 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat5 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3649,7 +3649,7 @@ impl ReadArgs for FeatureTableSubstitution {
 }
 
 impl<'a> FontRead<'a> for FeatureTableSubstitution {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::FeatureTableSubstitution as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3801,7 +3801,7 @@ impl ReadArgs for SizeParams {
 }
 
 impl<'a> FontRead<'a> for SizeParams {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SizeParams as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3859,7 +3859,7 @@ impl ReadArgs for StylisticSetParams {
 }
 
 impl<'a> FontRead<'a> for StylisticSetParams {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::StylisticSetParams as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3971,7 +3971,7 @@ impl ReadArgs for CharacterVariantParams {
 }
 
 impl<'a> FontRead<'a> for CharacterVariantParams {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::CharacterVariantParams as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

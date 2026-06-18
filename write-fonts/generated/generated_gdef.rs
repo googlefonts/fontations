@@ -120,7 +120,7 @@ impl ReadArgs for Gdef {
 }
 
 impl<'a> FontRead<'a> for Gdef {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::Gdef as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -198,7 +198,7 @@ impl ReadArgs for AttachList {
 }
 
 impl<'a> FontRead<'a> for AttachList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::AttachList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -258,7 +258,7 @@ impl ReadArgs for AttachPoint {
 }
 
 impl<'a> FontRead<'a> for AttachPoint {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::AttachPoint as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -329,7 +329,7 @@ impl ReadArgs for LigCaretList {
 }
 
 impl<'a> FontRead<'a> for LigCaretList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::LigCaretList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -392,7 +392,7 @@ impl ReadArgs for LigGlyph {
 }
 
 impl<'a> FontRead<'a> for LigGlyph {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::LigGlyph as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -474,7 +474,7 @@ impl ReadArgs for CaretValue {
 }
 
 impl<'a> FontRead<'a> for CaretValue {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValue as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -543,7 +543,7 @@ impl ReadArgs for CaretValueFormat1 {
 }
 
 impl<'a> FontRead<'a> for CaretValueFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValueFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -597,7 +597,7 @@ impl ReadArgs for CaretValueFormat2 {
 }
 
 impl<'a> FontRead<'a> for CaretValueFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValueFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -664,7 +664,7 @@ impl ReadArgs for CaretValueFormat3 {
 }
 
 impl<'a> FontRead<'a> for CaretValueFormat3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValueFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -729,7 +729,7 @@ impl ReadArgs for MarkGlyphSets {
 }
 
 impl<'a> FontRead<'a> for MarkGlyphSets {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::MarkGlyphSets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

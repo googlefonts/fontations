@@ -186,7 +186,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             /// parsed.
             pub fn read(data: FontData<'a>, #( #constructor_args, )* ) -> Result<Self, ReadError> {
                 let args = #args_from_constructor_args;
-                Self::read_with_args(data, &args)
+                Self::read_with_args(data, args)
             }
         }
     });
@@ -201,7 +201,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         }
 
         impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
-            fn read_with_args(data: FontData<'a>, #args_arg: &#args_type) -> Result<Self, ReadError> {
+            fn read_with_args(data: FontData<'a>, #args_arg: #args_type) -> Result<Self, ReadError> {
                 #destructure_pattern
                 #[allow(clippy::absurd_extreme_comparisons)] // if MIN_SIZE is 0
                 if data.len() < Self::MIN_SIZE {
@@ -314,7 +314,7 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
             }
 
             impl<'a> FontRead<'a> for #name {
-                fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+                fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
                     <#parse_module :: #name as FontRead>::read(data)
                         .map(|x| x.to_owned_table())
                 }
@@ -523,10 +523,10 @@ impl TableReadArgs {
     pub(crate) fn destructure_pattern(&self) -> TokenStream {
         match self.args.as_slice() {
             [] => Default::default(),
-            [TableReadArg { ident, .. }] => quote!(let #ident = *args;),
+            [TableReadArg { ident, .. }] => quote!(let #ident = args;),
             other => {
                 let idents = other.iter().map(|arg| &arg.ident);
-                quote!( let  ( #(#idents,)* ) = *args; )
+                quote!( let  ( #(#idents,)* ) = args; )
             }
         }
     }

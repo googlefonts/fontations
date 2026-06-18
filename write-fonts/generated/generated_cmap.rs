@@ -67,7 +67,7 @@ impl ReadArgs for Cmap {
 }
 
 impl<'a> FontRead<'a> for Cmap {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -322,7 +322,7 @@ impl ReadArgs for CmapSubtable {
 }
 
 impl<'a> FontRead<'a> for CmapSubtable {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::CmapSubtable as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -437,7 +437,7 @@ impl ReadArgs for Cmap0 {
 }
 
 impl<'a> FontRead<'a> for Cmap0 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap0 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -503,7 +503,7 @@ impl ReadArgs for Cmap2 {
 }
 
 impl<'a> FontRead<'a> for Cmap2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap2 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -649,7 +649,7 @@ impl ReadArgs for Cmap4 {
 }
 
 impl<'a> FontRead<'a> for Cmap4 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap4 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -738,7 +738,7 @@ impl ReadArgs for Cmap6 {
 }
 
 impl<'a> FontRead<'a> for Cmap6 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap6 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -831,7 +831,7 @@ impl ReadArgs for Cmap8 {
 }
 
 impl<'a> FontRead<'a> for Cmap8 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap8 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -963,7 +963,7 @@ impl ReadArgs for Cmap10 {
 }
 
 impl<'a> FontRead<'a> for Cmap10 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap10 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1032,7 +1032,7 @@ impl ReadArgs for Cmap12 {
 }
 
 impl<'a> FontRead<'a> for Cmap12 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap12 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1112,7 +1112,7 @@ impl ReadArgs for Cmap13 {
 }
 
 impl<'a> FontRead<'a> for Cmap13 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap13 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1238,7 +1238,7 @@ impl ReadArgs for Cmap14 {
 }
 
 impl<'a> FontRead<'a> for Cmap14 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap14 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1370,7 +1370,7 @@ impl ReadArgs for DefaultUvs {
 }
 
 impl<'a> FontRead<'a> for DefaultUvs {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::DefaultUvs as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1434,7 +1434,7 @@ impl ReadArgs for NonDefaultUvs {
 }
 
 impl<'a> FontRead<'a> for NonDefaultUvs {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::NonDefaultUvs as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

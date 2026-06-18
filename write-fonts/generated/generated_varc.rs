@@ -100,7 +100,7 @@ impl ReadArgs for Varc {
 }
 
 impl<'a> FontRead<'a> for Varc {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::Varc as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -185,7 +185,7 @@ impl ReadArgs for MultiItemVariationStore {
 }
 
 impl<'a> FontRead<'a> for MultiItemVariationStore {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::MultiItemVariationStore as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -256,7 +256,7 @@ impl ReadArgs for SparseVariationRegionList {
 }
 
 impl<'a> FontRead<'a> for SparseVariationRegionList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::SparseVariationRegionList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -326,7 +326,7 @@ impl ReadArgs for SparseVariationRegion {
 }
 
 impl<'a> FontRead<'a> for SparseVariationRegion {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::SparseVariationRegion as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -456,7 +456,7 @@ impl ReadArgs for MultiItemVariationData {
 }
 
 impl<'a> FontRead<'a> for MultiItemVariationData {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::MultiItemVariationData as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -519,7 +519,7 @@ impl ReadArgs for ConditionList {
 }
 
 impl<'a> FontRead<'a> for ConditionList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::ConditionList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

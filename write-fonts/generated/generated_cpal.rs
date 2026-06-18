@@ -137,7 +137,7 @@ impl ReadArgs for Cpal {
 }
 
 impl<'a> FontRead<'a> for Cpal {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cpal::Cpal as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

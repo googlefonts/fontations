@@ -25,7 +25,7 @@ impl ReadArgs for Dsig<'_> {
 }
 
 impl<'a> FontRead<'a> for Dsig<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -510,7 +510,7 @@ impl ReadArgs for SignatureBlockFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for SignatureBlockFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

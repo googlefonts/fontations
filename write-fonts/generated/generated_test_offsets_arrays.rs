@@ -132,7 +132,7 @@ impl ReadArgs for KindsOfOffsets {
 }
 
 impl<'a> FontRead<'a> for KindsOfOffsets {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::KindsOfOffsets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -246,7 +246,7 @@ impl ReadArgs for KindsOfArraysOfOffsets {
 }
 
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOffsets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -371,7 +371,7 @@ impl ReadArgs for KindsOfArrays {
 }
 
 impl<'a> FontRead<'a> for KindsOfArrays {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::KindsOfArrays as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -435,7 +435,7 @@ impl ReadArgs for VarLenHaver {
 }
 
 impl<'a> FontRead<'a> for VarLenHaver {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::VarLenHaver as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -479,7 +479,7 @@ impl ReadArgs for Dummy {
 }
 
 impl<'a> FontRead<'a> for Dummy {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::Dummy as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

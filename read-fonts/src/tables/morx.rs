@@ -58,7 +58,7 @@ impl<'a> Subtable<'a> {
 
     /// Returns an enum representing the actual subtable data.
     pub fn kind(&self) -> Result<SubtableKind<'a>, ReadError> {
-        SubtableKind::read_with_args(FontData::new(self.data()), &self.coverage())
+        SubtableKind::read_with_args(FontData::new(self.data()), self.coverage())
     }
 }
 
@@ -77,9 +77,9 @@ impl ReadArgs for SubtableKind<'_> {
 }
 
 impl<'a> FontRead<'a> for SubtableKind<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
         // Format is low byte of coverage
-        let format = *args & 0xFF;
+        let format = args & 0xFF;
         match format {
             0 => Ok(Self::Rearrangement(ExtendedStateTable::read(data)?)),
             1 => Ok(Self::Contextual(ContextualSubtable::read(data)?)),
@@ -106,7 +106,7 @@ impl ReadArgs for ContextualSubtable<'_> {
 }
 
 impl<'a> FontRead<'a> for ContextualSubtable<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let state_table = ExtendedStateTable::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);
@@ -140,7 +140,7 @@ impl ReadArgs for LigatureSubtable<'_> {
 }
 
 impl<'a> FontRead<'a> for LigatureSubtable<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let state_table = ExtendedStateTable::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);
@@ -175,7 +175,7 @@ impl ReadArgs for InsertionSubtable<'_> {
 }
 
 impl<'a> FontRead<'a> for InsertionSubtable<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let state_table = ExtendedStateTable::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);

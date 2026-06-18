@@ -1043,7 +1043,7 @@ impl Intersect for ExtensionSubtable<'_> {
 
 impl<'a, T> Intersect for ExtensionSubstFormat1<'a, T>
 where
-    T: Intersect + FontRead<'a>,
+    T: Intersect + FontRead<'a, Args = ()>,
 {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         if self.extension_offset().is_null() {

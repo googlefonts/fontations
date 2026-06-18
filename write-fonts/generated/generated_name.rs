@@ -99,7 +99,7 @@ impl ReadArgs for Name {
 }
 
 impl<'a> FontRead<'a> for Name {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::name::Name as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
