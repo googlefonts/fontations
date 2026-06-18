@@ -126,7 +126,7 @@ impl ReadArgs for Glyph {
 impl<'a> FontRead<'a> for Glyph {
     fn read_with_args(
         data: read_fonts::FontData<'a>,
-        _: &(),
+        _: (),
     ) -> Result<Self, read_fonts::ReadError> {
         read_fonts::tables::glyf::Glyph::read(data).map(|g| Glyph::from_table_ref(&g))
     }

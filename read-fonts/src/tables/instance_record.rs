@@ -31,12 +31,12 @@ impl<'a> InstanceRecord<'a> {
         instance_size: u16,
     ) -> Result<Self, ReadError> {
         let args = (axis_count, instance_size);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
 impl<'a> FontRead<'a> for InstanceRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
         let axis_count = args.0 as usize;
         let instance_size = args.1 as usize;
         let mut cursor = data.cursor();
@@ -68,7 +68,7 @@ impl<'a> FontRead<'a> for InstanceRecord<'a> {
 
 impl ComputeSize for InstanceRecord<'_> {
     #[inline]
-    fn compute_size(args: &(u16, u16)) -> Result<usize, ReadError> {
+    fn compute_size(args: (u16, u16)) -> Result<usize, ReadError> {
         Ok(args.1 as usize)
     }
 }

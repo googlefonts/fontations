@@ -25,7 +25,7 @@ impl ReadArgs for Fvar<'_> {
 }
 
 impl<'a> FontRead<'a> for Fvar<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -74,7 +74,7 @@ impl<'a> Fvar<'a> {
             self.instance_size(),
         );
         self.axis_instance_arrays_offset()
-            .resolve_with_args(data, &args)
+            .resolve_with_args(data, args)
     }
 
     /// The number of variation axes in the font (the number of records in the axes array).
@@ -201,8 +201,8 @@ impl ReadArgs for AxisInstanceArrays<'_> {
 }
 
 impl<'a> FontRead<'a> for AxisInstanceArrays<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
-        let (axis_count, instance_count, instance_size) = *args;
+    fn read_with_args(data: FontData<'a>, args: (u16, u16, u16)) -> Result<Self, ReadError> {
+        let (axis_count, instance_count, instance_size) = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -229,7 +229,7 @@ impl<'a> AxisInstanceArrays<'a> {
         instance_size: u16,
     ) -> Result<Self, ReadError> {
         let args = (axis_count, instance_count, instance_size);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -257,7 +257,7 @@ impl<'a> AxisInstanceArrays<'a> {
     pub fn instances(&self) -> ComputedArray<'a, InstanceRecord<'a>> {
         let range = self.instances_byte_range();
         self.data
-            .read_with_args(range, &(self.axis_count(), self.instance_size()))
+            .read_with_args(range, (self.axis_count(), self.instance_size()))
             .unwrap_or_default()
     }
 
@@ -286,7 +286,7 @@ impl<'a> AxisInstanceArrays<'a> {
         let start = self.axes_byte_range().end;
         let end = start
             + (transforms::to_usize(instance_count)).saturating_mul(
-                <InstanceRecord as ComputeSize>::compute_size(&(
+                <InstanceRecord as ComputeSize>::compute_size((
                     self.axis_count(),
                     self.instance_size(),
                 ))

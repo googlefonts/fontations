@@ -189,7 +189,7 @@ impl ReadArgs for DeltaSetIndexMapFormat0 {
 }
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::DeltaSetIndexMapFormat0 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -263,7 +263,7 @@ impl ReadArgs for DeltaSetIndexMapFormat1 {
 }
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::DeltaSetIndexMapFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -344,7 +344,7 @@ impl ReadArgs for DeltaSetIndexMap {
 }
 
 impl<'a> FontRead<'a> for DeltaSetIndexMap {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::DeltaSetIndexMap as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -444,7 +444,7 @@ impl ReadArgs for VariationRegionList {
 }
 
 impl<'a> FontRead<'a> for VariationRegionList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::VariationRegionList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -627,7 +627,7 @@ impl ReadArgs for ItemVariationStore {
 }
 
 impl<'a> FontRead<'a> for ItemVariationStore {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::ItemVariationStore as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -714,7 +714,7 @@ impl ReadArgs for ItemVariationData {
 }
 
 impl<'a> FontRead<'a> for ItemVariationData {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::ItemVariationData as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

@@ -29,7 +29,7 @@ pub trait FontRead<'a>: Sized + ReadArgs {
     /// be used from generated code. Any type that requires external arguments
     /// also has a custom `read` constructor where you can pass those arguments
     /// like normal.
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError>;
+    fn read_with_args(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError>;
 
     /// Read an instance of `Self` from the provided data, performing validation.
     ///
@@ -39,7 +39,7 @@ pub trait FontRead<'a>: Sized + ReadArgs {
     where
         Self: FontRead<'a, Args = ()>,
     {
-        Self::read_with_args(data, &())
+        Self::read_with_args(data, ())
     }
 }
 
@@ -75,7 +75,7 @@ pub trait Discriminant {
 /// for types which store their size inline, see [`VarSize`].
 pub trait ComputeSize: ReadArgs {
     /// Compute the number of bytes required to represent this type.
-    fn compute_size(args: &Self::Args) -> Result<usize, ReadError>;
+    fn compute_size(args: Self::Args) -> Result<usize, ReadError>;
 }
 
 /// A trait for types that have variable length.

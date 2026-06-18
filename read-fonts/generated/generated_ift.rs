@@ -83,7 +83,7 @@ impl ReadArgs for Ift<'_> {
 }
 
 impl<'a> FontRead<'a> for Ift<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             PatchMapFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -459,7 +459,7 @@ impl ReadArgs for PatchMapFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -535,7 +535,7 @@ impl<'a> PatchMapFormat1<'a> {
     pub fn glyph_map(&self) -> Result<GlyphMap<'a>, ReadError> {
         let data = self.data;
         let args = (self.glyph_count(), self.max_entry_index());
-        self.glyph_map_offset().resolve_with_args(data, &args)
+        self.glyph_map_offset().resolve_with_args(data, args)
     }
 
     /// Sub table that maps feature and glyph ids to entry indices.
@@ -548,7 +548,7 @@ impl<'a> PatchMapFormat1<'a> {
     pub fn feature_map(&self) -> Option<Result<FeatureMap<'a>, ReadError>> {
         let data = self.data;
         let args = self.max_entry_index();
-        self.feature_map_offset().resolve_with_args(data, &args)
+        self.feature_map_offset().resolve_with_args(data, args)
     }
 
     pub fn applied_entries_bitmap(&self) -> &'a [u8] {
@@ -804,8 +804,8 @@ impl ReadArgs for GlyphMap<'_> {
 }
 
 impl<'a> FontRead<'a> for GlyphMap<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(Uint24, u16)) -> Result<Self, ReadError> {
-        let (glyph_count, max_entry_index) = *args;
+    fn read_with_args(data: FontData<'a>, args: (Uint24, u16)) -> Result<Self, ReadError> {
+        let (glyph_count, max_entry_index) = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -830,7 +830,7 @@ impl<'a> GlyphMap<'a> {
         max_entry_index: u16,
     ) -> Result<Self, ReadError> {
         let args = (glyph_count, max_entry_index);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -854,7 +854,7 @@ impl<'a> GlyphMap<'a> {
     pub fn entry_index(&self) -> ComputedArray<'a, U8Or16> {
         let range = self.entry_index_byte_range();
         self.data
-            .read_with_args(range, &self.max_entry_index())
+            .read_with_args(range, self.max_entry_index())
             .unwrap_or_default()
     }
 
@@ -878,7 +878,7 @@ impl<'a> GlyphMap<'a> {
         let start = self.first_mapped_glyph_byte_range().end;
         let end = start
             + (transforms::subtract(glyph_count, first_mapped_glyph)).saturating_mul(
-                <U8Or16 as ComputeSize>::compute_size(&self.max_entry_index()).unwrap_or(0),
+                <U8Or16 as ComputeSize>::compute_size(self.max_entry_index()).unwrap_or(0),
             );
         start..end
     }
@@ -933,8 +933,8 @@ impl ReadArgs for FeatureMap<'_> {
 }
 
 impl<'a> FontRead<'a> for FeatureMap<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let max_entry_index = *args;
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let max_entry_index = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -954,7 +954,7 @@ impl<'a> FeatureMap<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
         let args = max_entry_index;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -977,7 +977,7 @@ impl<'a> FeatureMap<'a> {
     pub fn feature_records(&self) -> ComputedArray<'a, FeatureRecord> {
         let range = self.feature_records_byte_range();
         self.data
-            .read_with_args(range, &self.max_entry_index())
+            .read_with_args(range, self.max_entry_index())
             .unwrap_or_default()
     }
 
@@ -1001,7 +1001,7 @@ impl<'a> FeatureMap<'a> {
         let start = self.feature_count_byte_range().end;
         let end = start
             + (transforms::to_usize(feature_count)).saturating_mul(
-                <FeatureRecord as ComputeSize>::compute_size(&self.max_entry_index()).unwrap_or(0),
+                <FeatureRecord as ComputeSize>::compute_size(self.max_entry_index()).unwrap_or(0),
             );
         start..end
     }
@@ -1075,30 +1075,30 @@ impl ReadArgs for FeatureRecord {
 
 impl ComputeSize for FeatureRecord {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let max_entry_index = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let max_entry_index = args;
         let mut result = 0usize;
         result = result
             .checked_add(Tag::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         result = result
-            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index).unwrap_or(0))
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(max_entry_index).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         result = result
-            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index).unwrap_or(0))
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(max_entry_index).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         Ok(result)
     }
 }
 
 impl<'a> FontRead<'a> for FeatureRecord {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let max_entry_index = *args;
+        let max_entry_index = args;
         Ok(Self {
             feature_tag: cursor.read_be()?,
-            first_new_entry_index: cursor.read_with_args(&max_entry_index)?,
-            entry_map_count: cursor.read_with_args(&max_entry_index)?,
+            first_new_entry_index: cursor.read_with_args(max_entry_index)?,
+            entry_map_count: cursor.read_with_args(max_entry_index)?,
         })
     }
 }
@@ -1111,7 +1111,7 @@ impl<'a> FeatureRecord {
     /// parsed.
     pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
         let args = max_entry_index;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1156,26 +1156,26 @@ impl ReadArgs for EntryMapRecord {
 
 impl ComputeSize for EntryMapRecord {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let max_entry_index = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let max_entry_index = args;
         let mut result = 0usize;
         result = result
-            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index).unwrap_or(0))
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(max_entry_index).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         result = result
-            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index).unwrap_or(0))
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(max_entry_index).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         Ok(result)
     }
 }
 
 impl<'a> FontRead<'a> for EntryMapRecord {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let max_entry_index = *args;
+        let max_entry_index = args;
         Ok(Self {
-            first_entry_index: cursor.read_with_args(&max_entry_index)?,
-            last_entry_index: cursor.read_with_args(&max_entry_index)?,
+            first_entry_index: cursor.read_with_args(max_entry_index)?,
+            last_entry_index: cursor.read_with_args(max_entry_index)?,
         })
     }
 }
@@ -1188,7 +1188,7 @@ impl<'a> EntryMapRecord {
     /// parsed.
     pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
         let args = max_entry_index;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1232,7 +1232,7 @@ impl ReadArgs for PatchMapFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1519,7 +1519,7 @@ impl ReadArgs for MappingEntries<'_> {
 }
 
 impl<'a> FontRead<'a> for MappingEntries<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1598,7 +1598,7 @@ impl ReadArgs for EntryData<'_> {
 }
 
 impl<'a> FontRead<'a> for EntryData<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2236,7 +2236,7 @@ impl ReadArgs for IdStringData<'_> {
 }
 
 impl<'a> FontRead<'a> for IdStringData<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2315,7 +2315,7 @@ impl ReadArgs for TableKeyedPatch<'_> {
 }
 
 impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2451,7 +2451,7 @@ impl ReadArgs for TablePatch<'_> {
 }
 
 impl<'a> FontRead<'a> for TablePatch<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2875,7 +2875,7 @@ impl ReadArgs for GlyphKeyedPatch<'_> {
 }
 
 impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3325,8 +3325,8 @@ impl ReadArgs for GlyphPatches<'_> {
 }
 
 impl<'a> FontRead<'a> for GlyphPatches<'a> {
-    fn read_with_args(data: FontData<'a>, args: &GlyphKeyedFlags) -> Result<Self, ReadError> {
-        let flags = *args;
+    fn read_with_args(data: FontData<'a>, args: GlyphKeyedFlags) -> Result<Self, ReadError> {
+        let flags = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -3343,7 +3343,7 @@ impl<'a> GlyphPatches<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, flags: GlyphKeyedFlags) -> Result<Self, ReadError> {
         let args = flags;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -3372,7 +3372,7 @@ impl<'a> GlyphPatches<'a> {
     pub fn glyph_ids(&self) -> ComputedArray<'a, U16Or24> {
         let range = self.glyph_ids_byte_range();
         self.data
-            .read_with_args(range, &self.flags())
+            .read_with_args(range, self.flags())
             .unwrap_or_default()
     }
 
@@ -3414,7 +3414,7 @@ impl<'a> GlyphPatches<'a> {
         let start = self.table_count_byte_range().end;
         let end = start
             + (transforms::to_usize(glyph_count))
-                .saturating_mul(<U16Or24 as ComputeSize>::compute_size(&self.flags()).unwrap_or(0));
+                .saturating_mul(<U16Or24 as ComputeSize>::compute_size(self.flags()).unwrap_or(0));
         start..end
     }
 
@@ -3490,7 +3490,7 @@ impl ReadArgs for GlyphData<'_> {
 }
 
 impl<'a> FontRead<'a> for GlyphData<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

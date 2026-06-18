@@ -93,7 +93,7 @@ impl ReadArgs for CompositeGlyph {
 impl<'a> FontRead<'a> for CompositeGlyph {
     fn read_with_args(
         data: read_fonts::FontData<'a>,
-        _: &(),
+        _: (),
     ) -> Result<Self, read_fonts::ReadError> {
         read_fonts::tables::glyf::CompositeGlyph::read(data).map(|g| g.to_owned_table())
     }

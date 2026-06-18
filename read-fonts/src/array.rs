@@ -27,7 +27,7 @@ pub struct ComputedArray<'a, T: ReadArgs> {
 
 impl<'a, T: ComputeSize> ComputedArray<'a, T> {
     pub fn new(data: FontData<'a>, args: T::Args) -> Result<Self, ReadError> {
-        let item_len = T::compute_size(&args)?;
+        let item_len = T::compute_size(args)?;
         let len = data.len().checked_div(item_len).unwrap_or(0);
         Ok(ComputedArray {
             item_len,
@@ -56,8 +56,8 @@ where
     T: ComputeSize + FontRead<'a>,
     T::Args: Copy,
 {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
-        Self::new(data, *args)
+    fn read_with_args(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
+        Self::new(data, args)
     }
 }
 
@@ -95,7 +95,7 @@ where
             let item_start = item_len.checked_mul(i)?;
             i = i.checked_add(1)?;
             let data = data.split_off(item_start)?;
-            Some(T::read_with_args(data, &args))
+            Some(T::read_with_args(data, args))
         })
     }
 
@@ -107,7 +107,7 @@ where
         self.data
             .split_off(item_start)
             .ok_or(ReadError::OutOfBounds)
-            .and_then(|data| T::read_with_args(data, &self.args))
+            .and_then(|data| T::read_with_args(data, self.args))
     }
 }
 
@@ -182,7 +182,7 @@ impl<T> ReadArgs for VarLenArray<'_, T> {
 }
 
 impl<'a, T> FontRead<'a> for VarLenArray<'a, T> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         Ok(VarLenArray {
             data,
             phantom: core::marker::PhantomData,
@@ -204,8 +204,8 @@ impl<T: AnyBitPattern> ReadArgs for &[T] {
 }
 
 impl<'a, T: AnyBitPattern + FixedSize> FontRead<'a> for &'a [T] {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let len = (*args as usize)
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let len = (args as usize)
             .checked_mul(T::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         data.read_array(0..len)

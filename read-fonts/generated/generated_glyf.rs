@@ -15,7 +15,7 @@ impl ReadArgs for Glyf<'_> {
 }
 
 impl<'a> FontRead<'a> for Glyf<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -85,7 +85,7 @@ impl ReadArgs for SimpleGlyph<'_> {
 }
 
 impl<'a> FontRead<'a> for SimpleGlyph<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -684,7 +684,7 @@ impl ReadArgs for CompositeGlyph<'_> {
 }
 
 impl<'a> FontRead<'a> for CompositeGlyph<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1269,7 +1269,7 @@ impl ReadArgs for Glyph<'_> {
 }
 
 impl<'a> FontRead<'a> for Glyph<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: i16 = data.read_at(0usize)?;
 
         #[allow(clippy::redundant_guards)]

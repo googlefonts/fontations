@@ -27,7 +27,7 @@ impl TopLevelTable for Loca<'_> {
 
 impl<'a> Loca<'a> {
     pub fn read(data: FontData<'a>, is_long: bool) -> Result<Self, crate::ReadError> {
-        Self::read_with_args(data, &is_long)
+        Self::read_with_args(data, is_long)
     }
 
     pub fn len(&self) -> usize {
@@ -89,8 +89,8 @@ impl ReadArgs for Loca<'_> {
 }
 
 impl<'a> FontRead<'a> for Loca<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, crate::ReadError> {
-        let is_long = *args;
+    fn read_with_args(data: FontData<'a>, args: Self::Args) -> Result<Self, crate::ReadError> {
+        let is_long = args;
         if is_long {
             data.read_array(0..data.len()).map(Loca::Long)
         } else {

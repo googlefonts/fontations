@@ -25,8 +25,8 @@ impl ReadArgs for Hmtx<'_> {
 }
 
 impl<'a> FontRead<'a> for Hmtx<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let number_of_h_metrics = *args;
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let number_of_h_metrics = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -46,7 +46,7 @@ impl<'a> Hmtx<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, number_of_h_metrics: u16) -> Result<Self, ReadError> {
         let args = number_of_h_metrics;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 

@@ -754,8 +754,8 @@ impl ReadArgs for IndexSubtableList<'_> {
 }
 
 impl<'a> FontRead<'a> for IndexSubtableList<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
-        let number_of_index_subtables = *args;
+    fn read_with_args(data: FontData<'a>, args: u32) -> Result<Self, ReadError> {
+        let number_of_index_subtables = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -775,7 +775,7 @@ impl<'a> IndexSubtableList<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, number_of_index_subtables: u32) -> Result<Self, ReadError> {
         let args = number_of_index_subtables;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -887,7 +887,7 @@ impl IndexSubtableRecord {
     /// By calling its `offset_data` method.
     pub fn index_subtable<'a>(&self, data: FontData<'a>) -> Result<IndexSubtable<'a>, ReadError> {
         let args = (self.last_glyph_index(), self.first_glyph_index());
-        self.index_subtable_offset().resolve_with_args(data, &args)
+        self.index_subtable_offset().resolve_with_args(data, args)
     }
 }
 
@@ -934,11 +934,8 @@ impl ReadArgs for IndexSubtable1<'_> {
 }
 
 impl<'a> FontRead<'a> for IndexSubtable1<'a> {
-    fn read_with_args(
-        data: FontData<'a>,
-        args: &(GlyphId16, GlyphId16),
-    ) -> Result<Self, ReadError> {
-        let (last_glyph_index, first_glyph_index) = *args;
+    fn read_with_args(data: FontData<'a>, args: (GlyphId16, GlyphId16)) -> Result<Self, ReadError> {
+        let (last_glyph_index, first_glyph_index) = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -963,7 +960,7 @@ impl<'a> IndexSubtable1<'a> {
         first_glyph_index: GlyphId16,
     ) -> Result<Self, ReadError> {
         let args = (last_glyph_index, first_glyph_index);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1095,7 +1092,7 @@ impl ReadArgs for IndexSubtable2<'_> {
 }
 
 impl<'a> FontRead<'a> for IndexSubtable2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1228,11 +1225,8 @@ impl ReadArgs for IndexSubtable3<'_> {
 }
 
 impl<'a> FontRead<'a> for IndexSubtable3<'a> {
-    fn read_with_args(
-        data: FontData<'a>,
-        args: &(GlyphId16, GlyphId16),
-    ) -> Result<Self, ReadError> {
-        let (last_glyph_index, first_glyph_index) = *args;
+    fn read_with_args(data: FontData<'a>, args: (GlyphId16, GlyphId16)) -> Result<Self, ReadError> {
+        let (last_glyph_index, first_glyph_index) = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -1257,7 +1251,7 @@ impl<'a> IndexSubtable3<'a> {
         first_glyph_index: GlyphId16,
     ) -> Result<Self, ReadError> {
         let args = (last_glyph_index, first_glyph_index);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1377,7 +1371,7 @@ impl ReadArgs for IndexSubtable4<'_> {
 }
 
 impl<'a> FontRead<'a> for IndexSubtable4<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1555,7 +1549,7 @@ impl ReadArgs for IndexSubtable5<'_> {
 }
 
 impl<'a> FontRead<'a> for IndexSubtable5<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

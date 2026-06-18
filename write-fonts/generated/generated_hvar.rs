@@ -92,7 +92,7 @@ impl ReadArgs for Hvar {
 }
 
 impl<'a> FontRead<'a> for Hvar {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::hvar::Hvar as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

@@ -142,7 +142,7 @@ impl<'a> FontData<'a> {
             .ok_or(ReadError::OutOfBounds)
     }
 
-    pub fn read_with_args<T>(&self, range: Range<usize>, args: &T::Args) -> Result<T, ReadError>
+    pub fn read_with_args<T>(&self, range: Range<usize>, args: T::Args) -> Result<T, ReadError>
     where
         T: FontRead<'a>,
     {
@@ -274,7 +274,7 @@ impl<'a> Cursor<'a> {
         temp
     }
 
-    pub(crate) fn read_with_args<T>(&mut self, args: &T::Args) -> Result<T, ReadError>
+    pub(crate) fn read_with_args<T>(&mut self, args: T::Args) -> Result<T, ReadError>
     where
         T: FontRead<'a> + ComputeSize,
     {
@@ -289,7 +289,7 @@ impl<'a> Cursor<'a> {
     pub(crate) fn read_computed_array<T>(
         &mut self,
         len: usize,
-        args: &T::Args,
+        args: T::Args,
     ) -> Result<ComputedArray<'a, T>, ReadError>
     where
         T: FontRead<'a> + ComputeSize,
@@ -342,7 +342,7 @@ impl ReadArgs for FontData<'_> {
 }
 
 impl<'a> FontRead<'a> for FontData<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         Ok(data)
     }
 }

@@ -264,7 +264,7 @@ impl ReadArgs for SimpleGlyph {
 impl<'a> FontRead<'a> for SimpleGlyph {
     fn read_with_args(
         data: read_fonts::FontData<'a>,
-        _: &(),
+        _: (),
     ) -> Result<Self, read_fonts::ReadError> {
         read_fonts::tables::glyf::SimpleGlyph::read(data).map(|g| g.to_owned_table())
     }

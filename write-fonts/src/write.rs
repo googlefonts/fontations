@@ -262,7 +262,7 @@ impl TableData {
     #[cfg(feature = "tables")]
     pub(crate) fn reparse_with_args<'a, A, T: FontRead<'a, Args = A>>(
         &'a self,
-        args: &A,
+        args: A,
     ) -> Result<T, ReadError> {
         let data = FontData::new(&self.bytes);
         T::read_with_args(data, args)

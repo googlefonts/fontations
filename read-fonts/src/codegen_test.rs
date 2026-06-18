@@ -42,7 +42,7 @@ pub mod offsets_arrays {
     }
 
     impl<'a> FontRead<'a> for VarSizeDummy<'a> {
-        fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+        fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
             let count: u16 = data.read_at(0)?;
             let bytes = data
                 .as_bytes()
