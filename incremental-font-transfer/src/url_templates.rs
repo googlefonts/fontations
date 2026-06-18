@@ -5,7 +5,6 @@
 //! URL templates in IFT use an series of one byte opcodes to insert literals or expand template variables.
 use data_encoding::BASE64URL;
 use data_encoding_macro::new_encoding;
-use std::io::{Cursor, Read};
 
 use crate::patchmap::PatchId;
 
@@ -28,7 +27,7 @@ impl std::fmt::Display for UrlTemplateError {
 }
 
 enum OpCode {
-    InsertLiteral(usize),
+    InsertLiteral(u8),
     InsertVariable(Variable),
 }
 
@@ -46,7 +45,7 @@ impl TryFrom<u8> for OpCode {
         if value & (1 << 7) > 0 {
             Ok(OpCode::InsertVariable(value.try_into()?))
         } else if value != 0 {
-            Ok(OpCode::InsertLiteral(value as usize))
+            Ok(OpCode::InsertLiteral(value))
         } else {
             Err(UrlTemplateError::InvalidOpCode(value))
         }
@@ -71,7 +70,7 @@ impl TryFrom<u8> for Variable {
 }
 
 struct State<'a> {
-    template_bytes: Cursor<&'a [u8]>,
+    template_bytes: &'a [u8],
     output_buffer: String,
     id32_string: String,
     id64_string: String,
@@ -79,11 +78,13 @@ struct State<'a> {
 
 impl State<'_> {
     fn next_byte(&mut self) -> Option<u8> {
-        let mut next_byte = [0u8];
-        if self.template_bytes.read_exact(&mut next_byte).is_err() {
-            return None;
+        match self.template_bytes {
+            [] => None,
+            [next, rest @ ..] => {
+                self.template_bytes = rest;
+                Some(*next)
+            }
         }
-        Some(next_byte[0])
     }
 
     fn apply(&mut self, op_code: OpCode) -> Result<(), UrlTemplateError> {
@@ -96,14 +97,14 @@ impl State<'_> {
         }
     }
 
-    fn copy_literals(&mut self, count: usize) -> Result<(), UrlTemplateError> {
-        let mut literals = vec![0; count];
-        self.template_bytes
-            .read_exact(literals.as_mut_slice())
-            .map_err(|_| UrlTemplateError::UnexpectedEndOfBuffer(count as u8))?;
-
-        let literals = String::from_utf8(literals).map_err(|_| UrlTemplateError::InvalidUtf8)?;
-        self.output_buffer.push_str(&literals);
+    fn copy_literals(&mut self, count: u8) -> Result<(), UrlTemplateError> {
+        let (literals, rest) = self
+            .template_bytes
+            .split_at_checked(count as usize)
+            .ok_or(UrlTemplateError::UnexpectedEndOfBuffer(count))?;
+        self.template_bytes = rest;
+        let literals = core::str::from_utf8(literals).map_err(|_| UrlTemplateError::InvalidUtf8)?;
+        self.output_buffer.push_str(literals);
         Ok(())
     }
 
@@ -113,7 +114,14 @@ impl State<'_> {
             Variable::Digit(digit) => self
                 .output_buffer
                 .push(Self::id_digit(&self.id32_string, digit).into()),
-            Variable::Id64 => self.output_buffer.push_str(&self.id64_string),
+            Variable::Id64 => {
+                for ch in self.id64_string.chars() {
+                    match ch {
+                        '=' => self.output_buffer.push_str("%3D"),
+                        ch => self.output_buffer.push(ch),
+                    }
+                }
+            }
         };
     }
 
@@ -143,10 +151,9 @@ pub(crate) fn expand_template(
         }
         PatchId::String(id) => (BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id)),
     };
-    let id64_string = id64_string.replace("=", "%3D");
 
     let mut state = State {
-        template_bytes: Cursor::new(template_bytes),
+        template_bytes,
         output_buffer: Default::default(),
         id32_string,
         id64_string,
