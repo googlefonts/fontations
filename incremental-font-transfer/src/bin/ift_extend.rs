@@ -128,8 +128,8 @@ fn main() {
         let mut fetched = false;
         for url in next_patches.urls() {
             patch_data.entry(url.clone()).or_insert_with_key(|key| {
-                let url_path = args.font.parent().unwrap().join(url.as_ref());
-                println!("    Fetching {}", key.as_ref());
+                let url_path = args.font.parent().unwrap().join(url.url());
+                println!("    Fetching {}", key.url());
                 fetched = true;
                 fetch_count += 1;
                 if let Some(max_fetch_count) = args.max_fetches {

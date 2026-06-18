@@ -189,7 +189,7 @@ fn get_node_name(font: &FontRef<'_>) -> Result<String, ReadError> {
 }
 
 fn to_next_font(base_path: &Path, font: &FontRef<'_>, patch: PatchMapEntry) -> Vec<u8> {
-    let path = base_path.join(patch.url().as_ref());
+    let path = base_path.join(patch.url().url());
     let patch_bytes = std::fs::read(&path)
         .unwrap_or_else(|e| panic!("Unable to read patch file ({}): {:?}", path.display(), e));
 
@@ -224,7 +224,7 @@ fn to_graph(
             continue;
         }
 
-        let url_string = patch.url().as_ref().to_string();
+        let url_string = patch.url().url();
         let next_font = to_next_font(base_path, &font, patch);
         let next_font = FontRef::new(&next_font).expect("Downstream font parsing failed");
 

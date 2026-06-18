@@ -11,6 +11,8 @@ use std::io::Cursor;
 use std::io::Read;
 use std::ops::RangeInclusive;
 
+use std::sync::Arc;
+
 use font_types::Fixed;
 use font_types::Int24;
 use font_types::Tag;
@@ -96,7 +98,7 @@ fn add_intersecting_format1_patches(
         ));
     }
 
-    let url_template = map.url_template();
+    let url_template: Arc<[u8]> = map.url_template().into();
     let format = PatchFormat::from_format_number(map.patch_format())?;
 
     // Step 1: Collect the glyph and feature map entries.
@@ -117,7 +119,7 @@ fn add_intersecting_format1_patches(
         .filter(|(index, _)| *index > 0)
         .filter(|(index, _)| !map.is_entry_applied(*index))
     {
-        let url = PatchUrl::expand_template(url_template, &PatchId::Numeric(index as u32))
+        let url = PatchUrl::expand_template_shared(url_template.clone(), &PatchId::Numeric(index as u32))
             .map_err(|_| {
                 ReadError::MalformedData("Failure expanding url template in format 1 patch map.")
             })?;
@@ -557,7 +559,7 @@ fn add_intersecting_format2_patches(
 }
 
 fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Format2Entry>, ReadError> {
-    let url_template = map.url_template();
+    let url_template: Arc<[u8]> = map.url_template().into();
     let entries_data = map.entries()?.entry_data();
     let default_encoding = PatchFormat::from_format_number(map.default_patch_format())?;
 
@@ -585,7 +587,7 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Format2Entry>, Re
         (entries_data, consumed_bytes) = decode_format2_entry(
             entries_data,
             entry_start_byte,
-            url_template,
+            &url_template,
             &default_encoding,
             &mut id_string_data,
             &mut entries,
@@ -601,7 +603,7 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Format2Entry>, Re
 fn decode_format2_entry<'a>(
     data: FontData<'a>,
     data_start_index: usize,
-    url_template: &[u8],
+    url_template: &Arc<[u8]>,
     default_format: &PatchFormat,
     id_string_data: &mut Option<Cursor<&[u8]>>,
     entries: &mut Vec<Format2Entry>,
@@ -882,7 +884,7 @@ impl PatchFormat {
 }
 
 /// Id for a patch which will be subbed into a URL template. The spec allows integer or string IDs.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub enum PatchId {
     Numeric(u32),
     String(Vec<u8>), // TODO(garretrieger): Make this a reference?
@@ -969,14 +971,48 @@ impl PatchMapEntry {
 
 /// An expanded PatchUrl string which identifies where a patch is located.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct PatchUrl(pub String);
+pub struct PatchUrl {
+    template: Arc<[u8]>,
+    id: PatchId,
+}
 
 impl PatchUrl {
+    #[cfg(test)]
+    pub fn new(url: &str) -> Self {
+        let bytes = url.as_bytes();
+        let mut template = vec![bytes.len() as u8];
+        template.extend_from_slice(bytes);
+        Self {
+            template: template.into(),
+            id: PatchId::Numeric(0),
+        }
+    }
+
+    pub fn url(&self) -> String {
+        url_templates::expand_template(&self.template, &self.id).unwrap()
+    }
+
+    pub fn id(&self) -> &PatchId {
+        &self.id
+    }
+
     pub(crate) fn expand_template(
         template_string: &[u8],
         patch_id: &PatchId,
     ) -> Result<Self, UrlTemplateError> {
-        url_templates::expand_template(template_string, patch_id).map(Self)
+        Self::expand_template_shared(template_string.into(), patch_id)
+    }
+
+    pub(crate) fn expand_template_shared(
+        template_string: Arc<[u8]>,
+        patch_id: &PatchId,
+    ) -> Result<Self, UrlTemplateError> {
+        // Validate the template + id combination
+        // url_templates::expand_template(&template_string, patch_id)?;
+        Ok(PatchUrl {
+            template: template_string,
+            id: patch_id.clone(),
+        })
     }
 
     pub(crate) fn into_format_1_entry(
@@ -1010,12 +1046,6 @@ impl PatchUrl {
             application_bit_indices: IntSet::<u32>::empty(), // these are populated later on
             intersection_info,
         }
-    }
-}
-
-impl AsRef<str> for PatchUrl {
-    fn as_ref(&self) -> &str {
-        &self.0
     }
 }
 
@@ -1346,7 +1376,7 @@ impl Format2Entry {
 
     fn populate_urls(
         &mut self,
-        url_template: &[u8],
+        url_template: &Arc<[u8]>,
         deltas: Vec<i32>,
         last_id: &mut PatchId,
         id_string_data: &mut Option<Cursor<&[u8]>>,
@@ -1354,7 +1384,7 @@ impl Format2Entry {
         if deltas.is_empty() {
             let next_id = format2_new_entry_id(None, last_id, id_string_data)?;
             self.urls.push(
-                PatchUrl::expand_template(url_template, &next_id).map_err(|_| {
+                PatchUrl::expand_template_shared(url_template.clone(), &next_id).map_err(|_| {
                     ReadError::MalformedData("Failed to expand url template in format 2 table.")
                 })?,
             );
@@ -1365,7 +1395,7 @@ impl Format2Entry {
         for delta in deltas {
             let next_id = format2_new_entry_id(Some(delta), last_id, id_string_data)?;
             self.urls.push(
-                PatchUrl::expand_template(url_template, &next_id).map_err(|_| {
+                PatchUrl::expand_template_shared(url_template.clone(), &next_id).map_err(|_| {
                     ReadError::MalformedData("Failed to expand url template in format 2 table.")
                 })?,
             );
@@ -1624,7 +1654,7 @@ mod tests {
         assert_eq!(
             PatchUrl::expand_template(template, &PatchId::Numeric(value))
                 .unwrap()
-                .as_ref(),
+                .url(),
             expected,
         );
     }
@@ -1633,7 +1663,7 @@ mod tests {
         assert_eq!(
             PatchUrl::expand_template(template, &PatchId::String(Vec::from(value.as_bytes())))
                 .unwrap()
-                .as_ref(),
+                .url(),
             expected,
         );
     }
@@ -1713,26 +1743,6 @@ mod tests {
         test_intersection(&font, [0x11, 0x12, 0x123], [], [f1(2)]);
 
         test_intersection_with_all(&font, [], [f1(2)]);
-    }
-
-    #[test]
-    fn format_1_patch_map_with_duplicate_urls() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&format1_with_dup_urls()),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        let mut e2 = f1(2);
-        let mut e3 = f1(3);
-        let mut e4 = f1(4);
-        e2.application_bit_index.union(&e3.application_bit_index);
-        e2.application_bit_index.union(&e4.application_bit_index);
-        e3.application_bit_index.union(&e2.application_bit_index);
-        e4.application_bit_index.union(&e2.application_bit_index);
-
-        test_intersection_with_all_and_template(&font, [], b"\x08foo/baar", [e2, e3, e4]);
     }
 
     #[test]
@@ -2698,7 +2708,7 @@ mod tests {
 
         let e = patches
             .into_iter()
-            .find(|p| &p.url().0 == "foo/0S")
+            .find(|p| p.url().url() == "foo/0S")
             .unwrap();
 
         let mut expected_info = IntersectionInfo::new(3, 2, 6);

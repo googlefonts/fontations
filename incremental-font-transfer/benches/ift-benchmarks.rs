@@ -32,7 +32,11 @@ const FONTS: &[FontEntry] = &[ROBOTO, NOTO_SC_HIGH];
 
 impl FontEntry {
     fn font_dir(&self) -> std::path::PathBuf {
-        Path::new("resources/testdata/fonts").join(self.dir)
+        Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/resources/testdata/fonts"
+        ))
+        .join(self.dir)
     }
 
     fn font_bytes(&self) -> Vec<u8> {
@@ -71,7 +75,7 @@ impl FontEntry {
             }
             for url in pg.urls() {
                 if !patch_data.contains_key(url) {
-                    let path = font_dir.join(url.as_ref());
+                    let path = font_dir.join(url.url());
                     let bytes = std::fs::read(&path)
                         .unwrap_or_else(|e| panic!("failed to read patch {path:?}: {e}"));
                     patch_data.insert(url.clone(), UrlStatus::Pending(bytes.clone()));
