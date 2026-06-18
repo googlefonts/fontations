@@ -69,69 +69,35 @@ impl TryFrom<u8> for Variable {
     }
 }
 
-struct State<'a> {
-    template_bytes: &'a [u8],
-    output_buffer: String,
-    id32_string: String,
-    id64_string: String,
+fn encode_id32(patch_id: &PatchId) -> String {
+    match patch_id {
+        PatchId::Numeric(id) => {
+            let id = id.to_be_bytes();
+            let id = &id[count_leading_zeroes(&id)..];
+            BASE32HEX_NO_PADDING.encode(id)
+        }
+        PatchId::String(id) => BASE32HEX_NO_PADDING.encode(id),
+    }
 }
 
-impl State<'_> {
-    fn next_byte(&mut self) -> Option<u8> {
-        match self.template_bytes {
-            [] => None,
-            [next, rest @ ..] => {
-                self.template_bytes = rest;
-                Some(*next)
-            }
+fn encode_id64(patch_id: &PatchId) -> String {
+    match patch_id {
+        PatchId::Numeric(id) => {
+            let id = id.to_be_bytes();
+            let id = &id[count_leading_zeroes(&id)..];
+            BASE64URL.encode(id)
         }
+        PatchId::String(id) => BASE64URL.encode(id),
     }
+}
 
-    fn apply(&mut self, op_code: OpCode) -> Result<(), UrlTemplateError> {
-        match op_code {
-            OpCode::InsertLiteral(count) => self.copy_literals(count),
-            OpCode::InsertVariable(variable) => {
-                self.expand_variable(variable);
-                Ok(())
-            }
-        }
-    }
-
-    fn copy_literals(&mut self, count: u8) -> Result<(), UrlTemplateError> {
-        let (literals, rest) = self
-            .template_bytes
-            .split_at_checked(count as usize)
-            .ok_or(UrlTemplateError::UnexpectedEndOfBuffer(count))?;
-        self.template_bytes = rest;
-        let literals = core::str::from_utf8(literals).map_err(|_| UrlTemplateError::InvalidUtf8)?;
-        self.output_buffer.push_str(literals);
-        Ok(())
-    }
-
-    fn expand_variable(&mut self, variable: Variable) {
-        match variable {
-            Variable::Id32 => self.output_buffer.push_str(&self.id32_string),
-            Variable::Digit(digit) => self
-                .output_buffer
-                .push(Self::id_digit(&self.id32_string, digit).into()),
-            Variable::Id64 => {
-                for ch in self.id64_string.chars() {
-                    match ch {
-                        '=' => self.output_buffer.push_str("%3D"),
-                        ch => self.output_buffer.push(ch),
-                    }
-                }
-            }
-        };
-    }
-
-    fn id_digit(id_value: &str, digit: u8) -> u8 {
-        id_value
-            .len()
-            .checked_sub(digit.into())
-            .and_then(|index| id_value.as_bytes().get(index).copied())
-            .unwrap_or(b'_')
-    }
+fn id_digit(id_value: &str, digit: u8) -> char {
+    id_value
+        .len()
+        .checked_sub(digit.into())
+        .and_then(|index| id_value.as_bytes().get(index).copied())
+        .unwrap_or(b'_')
+        .into()
 }
 
 impl std::error::Error for UrlTemplateError {}
@@ -140,30 +106,46 @@ impl std::error::Error for UrlTemplateError {}
 ///
 /// Specification: <https://w3c.github.io/IFT/Overview.html#url-templates>
 pub(crate) fn expand_template(
-    template_bytes: &[u8],
+    mut template_bytes: &[u8],
     patch_id: &PatchId,
 ) -> Result<String, UrlTemplateError> {
-    let (id32_string, id64_string) = match &patch_id {
-        PatchId::Numeric(id) => {
-            let id = id.to_be_bytes();
-            let id = &id[count_leading_zeroes(&id)..];
-            (BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id))
-        }
-        PatchId::String(id) => (BASE32HEX_NO_PADDING.encode(id), BASE64URL.encode(id)),
-    };
-
-    let mut state = State {
-        template_bytes,
-        output_buffer: Default::default(),
-        id32_string,
-        id64_string,
-    };
-
-    while let Some(next_byte) = state.next_byte() {
-        state.apply(next_byte.try_into()?)?;
+    let mut id32: (Option<String>, fn(&PatchId) -> String) = (None, encode_id32);
+    let mut id64: (Option<String>, fn(&PatchId) -> String) = (None, encode_id64);
+    // Usage: cached_encode!(id32|id64) -> &str
+    macro_rules! cached_encode {
+        ($expr:expr) => {
+            $expr.0.get_or_insert_with(|| $expr.1(patch_id)).as_str()
+        };
     }
 
-    Ok(state.output_buffer)
+    let mut output_buffer = String::new();
+    while let Some((opcode, rest)) = template_bytes.split_first() {
+        template_bytes = rest;
+        match OpCode::try_from(*opcode)? {
+            OpCode::InsertLiteral(count) => {
+                let (literals, rest) = template_bytes
+                    .split_at_checked(count as usize)
+                    .ok_or(UrlTemplateError::UnexpectedEndOfBuffer(*opcode))?;
+                template_bytes = rest;
+                let literals =
+                    core::str::from_utf8(literals).map_err(|_| UrlTemplateError::InvalidUtf8)?;
+                output_buffer.push_str(literals);
+            }
+            OpCode::InsertVariable(Variable::Id32) => output_buffer.push_str(cached_encode!(id32)),
+            OpCode::InsertVariable(Variable::Digit(digit)) => {
+                output_buffer.push(id_digit(cached_encode!(id32), digit))
+            }
+            OpCode::InsertVariable(Variable::Id64) => {
+                for ch in cached_encode!(id64).chars() {
+                    match ch {
+                        '=' => output_buffer.push_str("%3D"),
+                        ch => output_buffer.push(ch),
+                    }
+                }
+            }
+        }
+    }
+    Ok(output_buffer)
 }
 
 const BASE32HEX_NO_PADDING: data_encoding::Encoding = new_encoding! {
