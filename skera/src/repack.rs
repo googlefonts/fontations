@@ -209,6 +209,7 @@ fn promote_extensions_if_needed(
 ) -> Result<(), RepackError> {
     struct LookupSize {
         obj_idx: ObjIdx,
+        lookup_pos: u32,
         lookup_size: usize,
         subgraph_size: usize,
         subtable_count: usize,
@@ -225,14 +226,14 @@ fn promote_extensions_if_needed(
             } else if bytes_per_subtable_b > bytes_per_subtable_a {
                 Ordering::Greater
             } else {
-                Ordering::Equal
+                other.lookup_pos.cmp(&self.lookup_pos)
             }
         }
     }
     let mut total_lookup_table_sizes = 0;
     let mut lookup_sizes = Vec::with_capacity(lookups.len());
     let mut visited = IntSet::empty();
-    for (lookup_idx, lookup_pos) in lookups {
+    for (lookup_idx, &lookup_pos) in lookups {
         let lookup_v = graph
             .vertex(*lookup_idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
@@ -248,6 +249,7 @@ fn promote_extensions_if_needed(
         let subgraph_size = graph.find_subgraph_size(*lookup_idx, &mut visited, u16::MAX)?;
         lookup_sizes.push(LookupSize {
             obj_idx: *lookup_idx,
+            lookup_pos,
             lookup_size: table_size,
             subgraph_size,
             subtable_count: subtable_count as usize,
