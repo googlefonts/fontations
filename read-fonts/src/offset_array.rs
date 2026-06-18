@@ -70,7 +70,7 @@ where
         self.offsets
             .get(idx)
             .ok_or(ReadError::InvalidCollectionIndex(idx as _))
-            .and_then(|o| o.get().resolve_with_args(self.data, &self.args))
+            .and_then(|o| o.get().resolve_with_args(self.data, self.args))
     }
 
     /// Iterate over all of the offset targets.
@@ -82,7 +82,7 @@ where
         let data = self.data;
         std::iter::from_fn(move || {
             iter.next()
-                .map(|off| off.get().resolve_with_args(data, &args))
+                .map(|off| off.get().resolve_with_args(data, args))
         })
     }
 
@@ -142,7 +142,7 @@ where
         let Some(offset) = self.offsets.get(idx) else {
             return Some(Err(ReadError::InvalidCollectionIndex(idx as _)));
         };
-        offset.get().resolve_with_args(self.data, &self.args)
+        offset.get().resolve_with_args(self.data, self.args)
     }
 
     /// Iterate over all of the offset targets.
@@ -154,7 +154,7 @@ where
         let data = self.data;
         std::iter::from_fn(move || {
             iter.next()
-                .map(|off| off.get().resolve_with_args(data, &args))
+                .map(|off| off.get().resolve_with_args(data, args))
         })
     }
 }
@@ -178,7 +178,7 @@ where
     fn get(&self, idx: usize) -> Option<crate::traversal::FieldType<'a>> {
         let off = self.offsets.get(idx)?;
         let raw = off.get();
-        let result = raw.resolve_with_args::<T>(self.data, &self.args);
+        let result = raw.resolve_with_args::<T>(self.data, self.args);
         Some(crate::traversal::FieldType::offset(raw, result))
     }
 }
@@ -202,7 +202,7 @@ where
     fn get(&self, idx: usize) -> Option<crate::traversal::FieldType<'a>> {
         let off = self.offsets.get(idx)?;
         let raw = off.get();
-        let result = raw.resolve_with_args::<T>(self.data, &self.args);
+        let result = raw.resolve_with_args::<T>(self.data, self.args);
         Some(crate::traversal::FieldType::offset(raw, result))
     }
 }

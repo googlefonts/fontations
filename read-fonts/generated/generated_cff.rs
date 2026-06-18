@@ -20,7 +20,7 @@ impl ReadArgs for CffHeader<'_> {
 }
 
 impl<'a> FontRead<'a> for CffHeader<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -160,7 +160,7 @@ impl ReadArgs for Index<'_> {
 }
 
 impl<'a> FontRead<'a> for Index<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -303,7 +303,7 @@ impl ReadArgs for FdSelect<'_> {
 }
 
 impl<'a> FontRead<'a> for FdSelect<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             FdSelectFormat0::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
@@ -378,7 +378,7 @@ impl ReadArgs for FdSelectFormat0<'_> {
 }
 
 impl<'a> FontRead<'a> for FdSelectFormat0<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -474,7 +474,7 @@ impl ReadArgs for FdSelectFormat3<'_> {
 }
 
 impl<'a> FontRead<'a> for FdSelectFormat3<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -632,7 +632,7 @@ impl ReadArgs for FdSelectFormat4<'_> {
 }
 
 impl<'a> FontRead<'a> for FdSelectFormat4<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -810,7 +810,7 @@ impl ReadArgs for CustomCharset<'_> {
 }
 
 impl<'a> FontRead<'a> for CustomCharset<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             CharsetFormat0::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
@@ -885,7 +885,7 @@ impl ReadArgs for CharsetFormat0<'_> {
 }
 
 impl<'a> FontRead<'a> for CharsetFormat0<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -979,7 +979,7 @@ impl ReadArgs for CharsetFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for CharsetFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1125,7 +1125,7 @@ impl ReadArgs for CharsetFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for CharsetFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

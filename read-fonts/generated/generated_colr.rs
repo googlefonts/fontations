@@ -25,7 +25,7 @@ impl ReadArgs for Colr<'_> {
 }
 
 impl<'a> FontRead<'a> for Colr<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -72,7 +72,7 @@ impl<'a> Colr<'a> {
         let data = self.data;
         let args = self.num_base_glyph_records();
         self.base_glyph_records_offset()
-            .resolve_with_args(data, &args)
+            .resolve_with_args(data, args)
     }
 
     /// Offset to layerRecords array (may be NULL).
@@ -85,7 +85,7 @@ impl<'a> Colr<'a> {
     pub fn layer_records(&self) -> Option<Result<&'a [Layer], ReadError>> {
         let data = self.data;
         let args = self.num_layer_records();
-        self.layer_records_offset().resolve_with_args(data, &args)
+        self.layer_records_offset().resolve_with_args(data, args)
     }
 
     /// Number of Layer records; may be 0 in a version 1 table.
@@ -418,7 +418,7 @@ impl ReadArgs for BaseGlyphList<'_> {
 }
 
 impl<'a> FontRead<'a> for BaseGlyphList<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -573,7 +573,7 @@ impl ReadArgs for LayerList<'_> {
 }
 
 impl<'a> FontRead<'a> for LayerList<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -670,7 +670,7 @@ impl ReadArgs for ClipList<'_> {
 }
 
 impl<'a> FontRead<'a> for ClipList<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -895,7 +895,7 @@ impl ReadArgs for ClipBox<'_> {
 }
 
 impl<'a> FontRead<'a> for ClipBox<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             ClipBoxFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -966,7 +966,7 @@ impl ReadArgs for ClipBoxFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1100,7 +1100,7 @@ impl ReadArgs for ClipBoxFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1434,7 +1434,7 @@ impl ReadArgs for ColorLine<'_> {
 }
 
 impl<'a> FontRead<'a> for ColorLine<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1543,7 +1543,7 @@ impl ReadArgs for VarColorLine<'_> {
 }
 
 impl<'a> FontRead<'a> for VarColorLine<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1811,7 +1811,7 @@ impl ReadArgs for Paint<'_> {
 }
 
 impl<'a> FontRead<'a> for Paint<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             PaintColrLayers::FORMAT => Ok(Self::ColrLayers(FontRead::read(data)?)),
@@ -2012,7 +2012,7 @@ impl ReadArgs for PaintColrLayers<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintColrLayers<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2120,7 +2120,7 @@ impl ReadArgs for PaintSolid<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintSolid<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2216,7 +2216,7 @@ impl ReadArgs for PaintVarSolid<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarSolid<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2325,7 +2325,7 @@ impl ReadArgs for PaintLinearGradient<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2497,7 +2497,7 @@ impl ReadArgs for PaintVarLinearGradient<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2688,7 +2688,7 @@ impl ReadArgs for PaintRadialGradient<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2860,7 +2860,7 @@ impl ReadArgs for PaintVarRadialGradient<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3049,7 +3049,7 @@ impl ReadArgs for PaintSweepGradient<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3197,7 +3197,7 @@ impl ReadArgs for PaintVarSweepGradient<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3360,7 +3360,7 @@ impl ReadArgs for PaintGlyph<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintGlyph<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3466,7 +3466,7 @@ impl ReadArgs for PaintColrGlyph<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3550,7 +3550,7 @@ impl ReadArgs for PaintTransform<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintTransform<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3665,7 +3665,7 @@ impl ReadArgs for PaintVarTransform<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarTransform<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3776,7 +3776,7 @@ impl ReadArgs for Affine2x3<'_> {
 }
 
 impl<'a> FontRead<'a> for Affine2x3<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3919,7 +3919,7 @@ impl ReadArgs for VarAffine2x3<'_> {
 }
 
 impl<'a> FontRead<'a> for VarAffine2x3<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4083,7 +4083,7 @@ impl ReadArgs for PaintTranslate<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintTranslate<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4201,7 +4201,7 @@ impl ReadArgs for PaintVarTranslate<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4334,7 +4334,7 @@ impl ReadArgs for PaintScale<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintScale<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4452,7 +4452,7 @@ impl ReadArgs for PaintVarScale<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarScale<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4587,7 +4587,7 @@ impl ReadArgs for PaintScaleAroundCenter<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4733,7 +4733,7 @@ impl ReadArgs for PaintVarScaleAroundCenter<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4896,7 +4896,7 @@ impl ReadArgs for PaintScaleUniform<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5001,7 +5001,7 @@ impl ReadArgs for PaintVarScaleUniform<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5120,7 +5120,7 @@ impl ReadArgs for PaintScaleUniformAroundCenter<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5253,7 +5253,7 @@ impl ReadArgs for PaintVarScaleUniformAroundCenter<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5402,7 +5402,7 @@ impl ReadArgs for PaintRotate<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintRotate<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5508,7 +5508,7 @@ impl ReadArgs for PaintVarRotate<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarRotate<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5627,7 +5627,7 @@ impl ReadArgs for PaintRotateAroundCenter<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5761,7 +5761,7 @@ impl ReadArgs for PaintVarRotateAroundCenter<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5910,7 +5910,7 @@ impl ReadArgs for PaintSkew<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintSkew<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -6030,7 +6030,7 @@ impl ReadArgs for PaintVarSkew<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarSkew<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -6167,7 +6167,7 @@ impl ReadArgs for PaintSkewAroundCenter<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -6315,7 +6315,7 @@ impl ReadArgs for PaintVarSkewAroundCenter<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -6480,7 +6480,7 @@ impl ReadArgs for PaintComposite<'_> {
 }
 
 impl<'a> FontRead<'a> for PaintComposite<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

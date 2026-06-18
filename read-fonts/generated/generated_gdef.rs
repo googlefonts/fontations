@@ -25,7 +25,7 @@ impl ReadArgs for Gdef<'_> {
 }
 
 impl<'a> FontRead<'a> for Gdef<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -304,7 +304,7 @@ impl ReadArgs for AttachList<'_> {
 }
 
 impl<'a> FontRead<'a> for AttachList<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -427,7 +427,7 @@ impl ReadArgs for AttachPoint<'_> {
 }
 
 impl<'a> FontRead<'a> for AttachPoint<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -518,7 +518,7 @@ impl ReadArgs for LigCaretList<'_> {
 }
 
 impl<'a> FontRead<'a> for LigCaretList<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -642,7 +642,7 @@ impl ReadArgs for LigGlyph<'_> {
 }
 
 impl<'a> FontRead<'a> for LigGlyph<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -768,7 +768,7 @@ impl ReadArgs for CaretValue<'_> {
 }
 
 impl<'a> FontRead<'a> for CaretValue<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             CaretValueFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -843,7 +843,7 @@ impl ReadArgs for CaretValueFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -939,7 +939,7 @@ impl ReadArgs for CaretValueFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1026,7 +1026,7 @@ impl ReadArgs for CaretValueFormat3<'_> {
 }
 
 impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1133,7 +1133,7 @@ impl ReadArgs for MarkGlyphSets<'_> {
 }
 
 impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

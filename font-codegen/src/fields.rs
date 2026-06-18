@@ -726,7 +726,7 @@ impl Field {
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args) #maybe_unwrap_or_def )
+            quote!( self.data.read_with_args(range, #get_args) #maybe_unwrap_or_def )
         } else if is_var_array {
             quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
         } else if is_array {
@@ -901,7 +901,7 @@ impl Field {
             }
             let resolve = match self.attrs.read_offset_args.as_deref() {
                 None => quote!(resolve(data)),
-                Some(_) => quote!(resolve_with_args(data, &args)),
+                Some(_) => quote!(resolve_with_args(data, args)),
             };
             let getter_impl = if self.is_conditional() {
                 // if this is nullable *and* version dependent we add a `?`
@@ -995,7 +995,7 @@ impl Field {
         };
 
         if let FieldType::Struct { typ } = &self.typ {
-            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args).unwrap_or(0) ));
+            return Some(quote!( <#typ as ComputeSize>::compute_size(#read_args).unwrap_or(0) ));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
             panic!("Should have resolved {self:?}")
@@ -1022,7 +1022,7 @@ impl Field {
                     }
                     FieldType::ComputedArray(array) => {
                         let inner = array.raw_inner_type();
-                        quote!( <#inner as ComputeSize>::compute_size(&#read_args).unwrap_or(0) )
+                        quote!( <#inner as ComputeSize>::compute_size(#read_args).unwrap_or(0) )
                     }
                     FieldType::VarLenArray(array) => {
                         let inner = array.raw_inner_type();
@@ -1072,7 +1072,7 @@ impl Field {
                     .unwrap()
                     .to_tokens_for_validation();
                 let count = self.attrs.count.as_ref().unwrap().count_expr();
-                quote!(cursor.read_computed_array(#count, &#args)?)
+                quote!(cursor.read_computed_array(#count, #args)?)
             }
             FieldType::Scalar { typ } => {
                 if typ == "u8" {
@@ -1089,7 +1089,7 @@ impl Field {
                 .as_deref()
                 .map(FieldReadArgs::to_tokens_for_validation)
             {
-                Some(args) => quote!(cursor.read_with_args(&#args)?),
+                Some(args) => quote!(cursor.read_with_args(#args)?),
                 None => quote!(cursor.read_be()?),
             },
         };

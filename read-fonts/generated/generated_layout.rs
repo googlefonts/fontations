@@ -20,7 +20,7 @@ impl ReadArgs for ScriptList<'_> {
 }
 
 impl<'a> FontRead<'a> for ScriptList<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -173,7 +173,7 @@ impl ReadArgs for Script<'_> {
 }
 
 impl<'a> FontRead<'a> for Script<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -348,7 +348,7 @@ impl ReadArgs for LangSys<'_> {
 }
 
 impl<'a> FontRead<'a> for LangSys<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -464,7 +464,7 @@ impl ReadArgs for FeatureList<'_> {
 }
 
 impl<'a> FontRead<'a> for FeatureList<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -578,7 +578,7 @@ impl FeatureRecord {
     /// By calling its `offset_data` method.
     pub fn feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         let args = self.feature_tag();
-        self.feature_offset().resolve_with_args(data, &args)
+        self.feature_offset().resolve_with_args(data, args)
     }
 }
 
@@ -619,8 +619,8 @@ impl ReadArgs for Feature<'_> {
 }
 
 impl<'a> FontRead<'a> for Feature<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Tag) -> Result<Self, ReadError> {
-        let feature_tag = *args;
+    fn read_with_args(data: FontData<'a>, args: Tag) -> Result<Self, ReadError> {
+        let feature_tag = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -637,7 +637,7 @@ impl<'a> Feature<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, feature_tag: Tag) -> Result<Self, ReadError> {
         let args = feature_tag;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -663,7 +663,7 @@ impl<'a> Feature<'a> {
     pub fn feature_params(&self) -> Option<Result<FeatureParams<'a>, ReadError>> {
         let data = self.data;
         let args = self.feature_tag();
-        self.feature_params_offset().resolve_with_args(data, &args)
+        self.feature_params_offset().resolve_with_args(data, args)
     }
 
     /// Number of LookupList indices for this feature
@@ -755,7 +755,7 @@ impl<T> ReadArgs for LookupList<'_, T> {
 }
 
 impl<'a, T> FontRead<'a> for LookupList<'a, T> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -884,7 +884,7 @@ impl<T> ReadArgs for Lookup<'_, T> {
 }
 
 impl<'a, T> FontRead<'a> for Lookup<'a, T> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1064,7 +1064,7 @@ impl ReadArgs for CoverageFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for CoverageFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1173,7 +1173,7 @@ impl ReadArgs for CoverageFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for CoverageFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1348,7 +1348,7 @@ impl ReadArgs for CoverageTable<'_> {
 }
 
 impl<'a> FontRead<'a> for CoverageTable<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             CoverageFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -1419,7 +1419,7 @@ impl ReadArgs for ClassDefFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1540,7 +1540,7 @@ impl ReadArgs for ClassDefFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1715,7 +1715,7 @@ impl ReadArgs for ClassDef<'_> {
 }
 
 impl<'a> FontRead<'a> for ClassDef<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             ClassDefFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -1828,7 +1828,7 @@ impl ReadArgs for SequenceContextFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1968,7 +1968,7 @@ impl ReadArgs for SequenceRuleSet<'_> {
 }
 
 impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2072,7 +2072,7 @@ impl ReadArgs for SequenceRule<'_> {
 }
 
 impl<'a> FontRead<'a> for SequenceRule<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2205,7 +2205,7 @@ impl ReadArgs for SequenceContextFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2362,7 +2362,7 @@ impl ReadArgs for ClassSequenceRuleSet<'_> {
 }
 
 impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2472,7 +2472,7 @@ impl ReadArgs for ClassSequenceRule<'_> {
 }
 
 impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2606,7 +2606,7 @@ impl ReadArgs for SequenceContextFormat3<'_> {
 }
 
 impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2768,7 +2768,7 @@ impl ReadArgs for SequenceContext<'_> {
 }
 
 impl<'a> FontRead<'a> for SequenceContext<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             SequenceContextFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -2843,7 +2843,7 @@ impl ReadArgs for ChainedSequenceContextFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2989,7 +2989,7 @@ impl ReadArgs for ChainedSequenceRuleSet<'_> {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3099,7 +3099,7 @@ impl ReadArgs for ChainedSequenceRule<'_> {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3297,7 +3297,7 @@ impl ReadArgs for ChainedSequenceContextFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3508,7 +3508,7 @@ impl ReadArgs for ChainedClassSequenceRuleSet<'_> {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3620,7 +3620,7 @@ impl ReadArgs for ChainedClassSequenceRule<'_> {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3817,7 +3817,7 @@ impl ReadArgs for ChainedSequenceContextFormat3<'_> {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4066,7 +4066,7 @@ impl ReadArgs for ChainedSequenceContext<'_> {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             ChainedSequenceContextFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -4191,7 +4191,7 @@ impl ReadArgs for Device<'_> {
 }
 
 impl<'a> FontRead<'a> for Device<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4311,7 +4311,7 @@ impl ReadArgs for VariationIndex<'_> {
 }
 
 impl<'a> FontRead<'a> for VariationIndex<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4434,7 +4434,7 @@ impl ReadArgs for DeviceOrVariationIndex<'_> {
 }
 
 impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: DeltaFormat = data.read_at(4usize)?;
 
         #[allow(clippy::redundant_guards)]
@@ -4507,7 +4507,7 @@ impl ReadArgs for FeatureVariations<'_> {
 }
 
 impl<'a> FontRead<'a> for FeatureVariations<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4703,7 +4703,7 @@ impl ReadArgs for ConditionSet<'_> {
 }
 
 impl<'a> FontRead<'a> for ConditionSet<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4839,7 +4839,7 @@ impl ReadArgs for Condition<'_> {
 }
 
 impl<'a> FontRead<'a> for Condition<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             ConditionFormat1::FORMAT => Ok(Self::Format1AxisRange(FontRead::read(data)?)),
@@ -4922,7 +4922,7 @@ impl ReadArgs for ConditionFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5052,7 +5052,7 @@ impl ReadArgs for ConditionFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5148,7 +5148,7 @@ impl ReadArgs for ConditionFormat3<'_> {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat3<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5256,7 +5256,7 @@ impl ReadArgs for ConditionFormat4<'_> {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat4<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5364,7 +5364,7 @@ impl ReadArgs for ConditionFormat5<'_> {
 }
 
 impl<'a> FontRead<'a> for ConditionFormat5<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5453,7 +5453,7 @@ impl ReadArgs for FeatureTableSubstitution<'_> {
 }
 
 impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5618,7 +5618,7 @@ impl ReadArgs for SizeParams<'_> {
 }
 
 impl<'a> FontRead<'a> for SizeParams<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5767,7 +5767,7 @@ impl ReadArgs for StylisticSetParams<'_> {
 }
 
 impl<'a> FontRead<'a> for StylisticSetParams<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5869,7 +5869,7 @@ impl ReadArgs for CharacterVariantParams<'_> {
 }
 
 impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

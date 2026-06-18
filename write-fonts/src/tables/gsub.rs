@@ -61,7 +61,7 @@ impl ReadArgs for SubstitutionLookup {
 }
 
 impl<'a> FontRead<'a> for SubstitutionLookup {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         read_fonts::tables::gsub::SubstitutionLookup::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -71,7 +71,7 @@ impl ReadArgs for SubstitutionLookupList {
 }
 
 impl<'a> FontRead<'a> for SubstitutionLookupList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         read_fonts::tables::gsub::SubstitutionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }

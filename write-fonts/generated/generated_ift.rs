@@ -119,7 +119,7 @@ impl ReadArgs for Ift {
 }
 
 impl<'a> FontRead<'a> for Ift {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::Ift as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -325,7 +325,7 @@ impl ReadArgs for PatchMapFormat1 {
 }
 
 impl<'a> FontRead<'a> for PatchMapFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::PatchMapFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -643,7 +643,7 @@ impl ReadArgs for PatchMapFormat2 {
 }
 
 impl<'a> FontRead<'a> for PatchMapFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::PatchMapFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -692,7 +692,7 @@ impl ReadArgs for MappingEntries {
 }
 
 impl<'a> FontRead<'a> for MappingEntries {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::MappingEntries as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -895,7 +895,7 @@ impl ReadArgs for EntryData {
 }
 
 impl<'a> FontRead<'a> for EntryData {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::EntryData as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -993,7 +993,7 @@ impl ReadArgs for IdStringData {
 }
 
 impl<'a> FontRead<'a> for IdStringData {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::IdStringData as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1069,7 +1069,7 @@ impl ReadArgs for TableKeyedPatch {
 }
 
 impl<'a> FontRead<'a> for TableKeyedPatch {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::TableKeyedPatch as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1138,7 +1138,7 @@ impl ReadArgs for TablePatch {
 }
 
 impl<'a> FontRead<'a> for TablePatch {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::TablePatch as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1219,7 +1219,7 @@ impl ReadArgs for GlyphKeyedPatch {
 }
 
 impl<'a> FontRead<'a> for GlyphKeyedPatch {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::GlyphKeyedPatch as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1344,7 +1344,7 @@ impl ReadArgs for GlyphData {
 }
 
 impl<'a> FontRead<'a> for GlyphData {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::GlyphData as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

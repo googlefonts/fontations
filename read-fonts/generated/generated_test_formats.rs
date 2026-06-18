@@ -24,7 +24,7 @@ impl ReadArgs for Table1<'_> {
 }
 
 impl<'a> FontRead<'a> for Table1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -126,7 +126,7 @@ impl ReadArgs for Table2<'_> {
 }
 
 impl<'a> FontRead<'a> for Table2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -219,7 +219,7 @@ impl ReadArgs for Table3<'_> {
 }
 
 impl<'a> FontRead<'a> for Table3<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -318,7 +318,7 @@ impl ReadArgs for MyTable<'_> {
 }
 
 impl<'a> FontRead<'a> for MyTable<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             Table1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),

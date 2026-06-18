@@ -45,7 +45,7 @@ impl ReadArgs for Cff2<'_> {
 }
 
 impl<'a> FontRead<'a> for Cff2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let header = Cff2Header::read(data)?;
         let global_subrs = Index::read(FontData::new(header.trailing_data()))?;
         Ok(Self {

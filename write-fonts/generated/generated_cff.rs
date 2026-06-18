@@ -70,7 +70,7 @@ impl ReadArgs for CffHeader {
 }
 
 impl<'a> FontRead<'a> for CffHeader {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CffHeader as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -137,7 +137,7 @@ impl ReadArgs for Index {
 }
 
 impl<'a> FontRead<'a> for Index {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::Index as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -219,7 +219,7 @@ impl ReadArgs for FdSelect {
 }
 
 impl<'a> FontRead<'a> for FdSelect {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::FdSelect as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -289,7 +289,7 @@ impl ReadArgs for FdSelectFormat0 {
 }
 
 impl<'a> FontRead<'a> for FdSelectFormat0 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::FdSelectFormat0 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -356,7 +356,7 @@ impl ReadArgs for FdSelectFormat3 {
 }
 
 impl<'a> FontRead<'a> for FdSelectFormat3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::FdSelectFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -463,7 +463,7 @@ impl ReadArgs for FdSelectFormat4 {
 }
 
 impl<'a> FontRead<'a> for FdSelectFormat4 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::FdSelectFormat4 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -586,7 +586,7 @@ impl ReadArgs for CustomCharset {
 }
 
 impl<'a> FontRead<'a> for CustomCharset {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CustomCharset as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -656,7 +656,7 @@ impl ReadArgs for CharsetFormat0 {
 }
 
 impl<'a> FontRead<'a> for CharsetFormat0 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CharsetFormat0 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -715,7 +715,7 @@ impl ReadArgs for CharsetFormat1 {
 }
 
 impl<'a> FontRead<'a> for CharsetFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CharsetFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -814,7 +814,7 @@ impl ReadArgs for CharsetFormat2 {
 }
 
 impl<'a> FontRead<'a> for CharsetFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v1::CharsetFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

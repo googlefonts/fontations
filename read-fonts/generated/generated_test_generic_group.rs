@@ -26,7 +26,7 @@ impl<T> ReadArgs for MyLookup<'_, T> {
 }
 
 impl<'a, T> FontRead<'a> for MyLookup<'a, T> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -179,7 +179,7 @@ impl ReadArgs for MySubtable<'_> {
 }
 
 impl<'a> FontRead<'a> for MySubtable<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             MySubtableFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -250,7 +250,7 @@ impl ReadArgs for MySubtableFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for MySubtableFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -343,7 +343,7 @@ impl ReadArgs for MySubtableFormat2<'_> {
 }
 
 impl<'a> FontRead<'a> for MySubtableFormat2<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -434,7 +434,7 @@ impl ReadArgs for MyLookupGroup<'_> {
 }
 
 impl<'a> FontRead<'a> for MyLookupGroup<'a> {
-    fn read_with_args(bytes: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(bytes: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let discriminant = MyLookup::read_discriminant(bytes)?;
         match discriminant {
             1 => Ok(MyLookupGroup::TypeOne(FontRead::read(bytes)?)),
@@ -499,7 +499,7 @@ impl ReadArgs for ContainsLookupGroup<'_> {
 }
 
 impl<'a> FontRead<'a> for ContainsLookupGroup<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

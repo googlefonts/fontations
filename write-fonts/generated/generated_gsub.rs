@@ -95,7 +95,7 @@ impl ReadArgs for Gsub {
 }
 
 impl<'a> FontRead<'a> for Gsub {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::Gsub as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -313,7 +313,7 @@ impl ReadArgs for SingleSubst {
 }
 
 impl<'a> FontRead<'a> for SingleSubst {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::SingleSubst as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -390,7 +390,7 @@ impl ReadArgs for SingleSubstFormat1 {
 }
 
 impl<'a> FontRead<'a> for SingleSubstFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::SingleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -463,7 +463,7 @@ impl ReadArgs for SingleSubstFormat2 {
 }
 
 impl<'a> FontRead<'a> for SingleSubstFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::SingleSubstFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -537,7 +537,7 @@ impl ReadArgs for MultipleSubstFormat1 {
 }
 
 impl<'a> FontRead<'a> for MultipleSubstFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::MultipleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -600,7 +600,7 @@ impl ReadArgs for Sequence {
 }
 
 impl<'a> FontRead<'a> for Sequence {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::Sequence as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -679,7 +679,7 @@ impl ReadArgs for AlternateSubstFormat1 {
 }
 
 impl<'a> FontRead<'a> for AlternateSubstFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::AlternateSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -742,7 +742,7 @@ impl ReadArgs for AlternateSet {
 }
 
 impl<'a> FontRead<'a> for AlternateSet {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::AlternateSet as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -815,7 +815,7 @@ impl ReadArgs for LigatureSubstFormat1 {
 }
 
 impl<'a> FontRead<'a> for LigatureSubstFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::LigatureSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -879,7 +879,7 @@ impl ReadArgs for LigatureSet {
 }
 
 impl<'a> FontRead<'a> for LigatureSet {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::LigatureSet as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -939,7 +939,7 @@ impl ReadArgs for Ligature {
 }
 
 impl<'a> FontRead<'a> for Ligature {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::Ligature as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1242,7 +1242,7 @@ impl ReadArgs for ReverseChainSingleSubstFormat1 {
 }
 
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::ReverseChainSingleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

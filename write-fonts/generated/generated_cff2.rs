@@ -89,7 +89,7 @@ impl ReadArgs for Cff2Header {
 }
 
 impl<'a> FontRead<'a> for Cff2Header {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v2::Cff2Header as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -156,7 +156,7 @@ impl ReadArgs for Index {
 }
 
 impl<'a> FontRead<'a> for Index {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v2::Index as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

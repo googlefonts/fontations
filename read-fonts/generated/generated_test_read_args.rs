@@ -20,8 +20,8 @@ impl ReadArgs for BaseArray<'_> {
 }
 
 impl<'a> FontRead<'a> for BaseArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mark_class_count = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -41,7 +41,7 @@ impl<'a> BaseArray<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -66,7 +66,7 @@ impl<'a> BaseArray<'a> {
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
         let range = self.base_records_byte_range();
         self.data
-            .read_with_args(range, &self.mark_class_count())
+            .read_with_args(range, self.mark_class_count())
             .unwrap_or_default()
     }
 
@@ -78,7 +78,7 @@ impl<'a> BaseArray<'a> {
     pub fn face_records(&self) -> ComputedArray<'a, FaceRecord<'a>> {
         let range = self.face_records_byte_range();
         self.data
-            .read_with_args(range, &self.mark_class_count())
+            .read_with_args(range, self.mark_class_count())
             .unwrap_or_default()
     }
 
@@ -97,8 +97,7 @@ impl<'a> BaseArray<'a> {
         start
             ..start
                 + (transforms::to_usize(base_count)).saturating_mul(
-                    <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count())
-                        .unwrap_or(0),
+                    <BaseRecord as ComputeSize>::compute_size(self.mark_class_count()).unwrap_or(0),
                 )
     }
 
@@ -113,8 +112,7 @@ impl<'a> BaseArray<'a> {
         start
             ..start
                 + (transforms::to_usize(base_count)).saturating_mul(
-                    <FaceRecord as ComputeSize>::compute_size(&self.mark_class_count())
-                        .unwrap_or(0),
+                    <FaceRecord as ComputeSize>::compute_size(self.mark_class_count()).unwrap_or(0),
                 )
     }
 }
@@ -192,16 +190,16 @@ impl ReadArgs for BaseRecord<'_> {
 
 impl ComputeSize for BaseRecord<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let mark_class_count = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let mark_class_count = args;
         Ok((transforms::to_usize(mark_class_count)).saturating_mul(u16::RAW_BYTE_LEN))
     }
 }
 
 impl<'a> FontRead<'a> for BaseRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let mark_class_count = *args;
+        let mark_class_count = args;
         Ok(Self {
             base_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
@@ -216,7 +214,7 @@ impl<'a> BaseRecord<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -263,16 +261,16 @@ impl ReadArgs for FaceRecord<'_> {
 
 impl ComputeSize for FaceRecord<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let mark_class_count = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let mark_class_count = args;
         Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset16::RAW_BYTE_LEN))
     }
 }
 
 impl<'a> FontRead<'a> for FaceRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let mark_class_count = *args;
+        let mark_class_count = args;
         Ok(Self {
             face_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
@@ -287,7 +285,7 @@ impl<'a> FaceRecord<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -323,7 +321,7 @@ impl ReadArgs for Face<'_> {
 }
 
 impl<'a> FontRead<'a> for Face<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

@@ -68,7 +68,7 @@ impl ReadArgs for Meta {
 }
 
 impl<'a> FontRead<'a> for Meta {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::meta::Meta as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

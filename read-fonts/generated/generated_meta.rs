@@ -25,7 +25,7 @@ impl ReadArgs for Meta<'_> {
 }
 
 impl<'a> FontRead<'a> for Meta<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -171,7 +171,7 @@ impl DataMapRecord {
     /// By calling its `offset_data` method.
     pub fn data<'a>(&self, data: FontData<'a>) -> Result<Metadata<'a>, ReadError> {
         let args = (self.tag(), self.data_length());
-        self.data_offset().resolve_with_args(data, &args)
+        self.data_offset().resolve_with_args(data, args)
     }
 
     /// Length of the data, in bytes. The data is not required to be padded to any byte boundary.

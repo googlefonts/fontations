@@ -95,7 +95,7 @@ impl ReadArgs for MajorMinorVersion {
 }
 
 impl<'a> FontRead<'a> for MajorMinorVersion {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::conditions::MajorMinorVersion as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -191,7 +191,7 @@ impl ReadArgs for FlagDay {
 }
 
 impl<'a> FontRead<'a> for FlagDay {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::conditions::FlagDay as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

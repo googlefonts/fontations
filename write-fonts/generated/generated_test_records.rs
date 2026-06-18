@@ -78,7 +78,7 @@ impl ReadArgs for BasicTable {
 }
 
 impl<'a> FontRead<'a> for BasicTable {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::records::BasicTable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -268,7 +268,7 @@ impl ReadArgs for VarLenItem {
 }
 
 impl<'a> FontRead<'a> for VarLenItem {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::records::VarLenItem as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

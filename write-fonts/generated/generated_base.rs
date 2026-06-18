@@ -82,7 +82,7 @@ impl ReadArgs for Base {
 }
 
 impl<'a> FontRead<'a> for Base {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::Base as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -148,7 +148,7 @@ impl ReadArgs for Axis {
 }
 
 impl<'a> FontRead<'a> for Axis {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::Axis as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -209,7 +209,7 @@ impl ReadArgs for BaseTagList {
 }
 
 impl<'a> FontRead<'a> for BaseTagList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseTagList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -273,7 +273,7 @@ impl ReadArgs for BaseScriptList {
 }
 
 impl<'a> FontRead<'a> for BaseScriptList {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseScriptList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -410,7 +410,7 @@ impl ReadArgs for BaseScript {
 }
 
 impl<'a> FontRead<'a> for BaseScript {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseScript as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -533,7 +533,7 @@ impl ReadArgs for BaseValues {
 }
 
 impl<'a> FontRead<'a> for BaseValues {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseValues as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -619,7 +619,7 @@ impl ReadArgs for MinMax {
 }
 
 impl<'a> FontRead<'a> for MinMax {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::MinMax as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -771,7 +771,7 @@ impl ReadArgs for BaseCoord {
 }
 
 impl<'a> FontRead<'a> for BaseCoord {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseCoord as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -840,7 +840,7 @@ impl ReadArgs for BaseCoordFormat1 {
 }
 
 impl<'a> FontRead<'a> for BaseCoordFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseCoordFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -904,7 +904,7 @@ impl ReadArgs for BaseCoordFormat2 {
 }
 
 impl<'a> FontRead<'a> for BaseCoordFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseCoordFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -971,7 +971,7 @@ impl ReadArgs for BaseCoordFormat3 {
 }
 
 impl<'a> FontRead<'a> for BaseCoordFormat3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::base::BaseCoordFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

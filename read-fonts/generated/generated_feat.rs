@@ -25,7 +25,7 @@ impl ReadArgs for Feat<'_> {
 }
 
 impl<'a> FontRead<'a> for Feat<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -180,7 +180,7 @@ impl FeatureName {
     /// By calling its `offset_data` method.
     pub fn setting_table<'a>(&self, data: FontData<'a>) -> Result<SettingNameArray<'a>, ReadError> {
         let args = self.n_settings();
-        self.setting_table_offset().resolve_with_args(data, &args)
+        self.setting_table_offset().resolve_with_args(data, args)
     }
 
     /// Flags associated with the feature type.
@@ -238,8 +238,8 @@ impl ReadArgs for SettingNameArray<'_> {
 }
 
 impl<'a> FontRead<'a> for SettingNameArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let n_settings = *args;
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let n_settings = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -256,7 +256,7 @@ impl<'a> SettingNameArray<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, n_settings: u16) -> Result<Self, ReadError> {
         let args = n_settings;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 

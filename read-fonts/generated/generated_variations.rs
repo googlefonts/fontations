@@ -20,8 +20,8 @@ impl ReadArgs for TupleVariationHeader<'_> {
 }
 
 impl<'a> FontRead<'a> for TupleVariationHeader<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let axis_count = *args;
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let axis_count = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -38,7 +38,7 @@ impl<'a> TupleVariationHeader<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
         let args = axis_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -181,16 +181,16 @@ impl ReadArgs for Tuple<'_> {
 
 impl ComputeSize for Tuple<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let axis_count = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let axis_count = args;
         Ok((transforms::to_usize(axis_count)).saturating_mul(F2Dot14::RAW_BYTE_LEN))
     }
 }
 
 impl<'a> FontRead<'a> for Tuple<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let axis_count = *args;
+        let axis_count = args;
         Ok(Self {
             values: cursor.read_array(transforms::to_usize(axis_count))?,
         })
@@ -205,7 +205,7 @@ impl<'a> Tuple<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
         let args = axis_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -242,7 +242,7 @@ impl ReadArgs for DeltaSetIndexMapFormat0<'_> {
 }
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -367,7 +367,7 @@ impl ReadArgs for DeltaSetIndexMapFormat1<'_> {
 }
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -526,7 +526,7 @@ impl ReadArgs for DeltaSetIndexMap<'_> {
 }
 
 impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             DeltaSetIndexMapFormat0::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
@@ -904,7 +904,7 @@ impl ReadArgs for VariationRegionList<'_> {
 }
 
 impl<'a> FontRead<'a> for VariationRegionList<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -942,7 +942,7 @@ impl<'a> VariationRegionList<'a> {
     pub fn variation_regions(&self) -> ComputedArray<'a, VariationRegion<'a>> {
         let range = self.variation_regions_byte_range();
         self.data
-            .read_with_args(range, &self.axis_count())
+            .read_with_args(range, self.axis_count())
             .unwrap_or_default()
     }
 
@@ -962,7 +962,7 @@ impl<'a> VariationRegionList<'a> {
         start
             ..start
                 + (transforms::to_usize(region_count)).saturating_mul(
-                    <VariationRegion as ComputeSize>::compute_size(&self.axis_count()).unwrap_or(0),
+                    <VariationRegion as ComputeSize>::compute_size(self.axis_count()).unwrap_or(0),
                 )
     }
 }
@@ -1031,16 +1031,16 @@ impl ReadArgs for VariationRegion<'_> {
 
 impl ComputeSize for VariationRegion<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let axis_count = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let axis_count = args;
         Ok((transforms::to_usize(axis_count)).saturating_mul(RegionAxisCoordinates::RAW_BYTE_LEN))
     }
 }
 
 impl<'a> FontRead<'a> for VariationRegion<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let axis_count = *args;
+        let axis_count = args;
         Ok(Self {
             region_axes: cursor.read_array(transforms::to_usize(axis_count))?,
         })
@@ -1055,7 +1055,7 @@ impl<'a> VariationRegion<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
         let args = axis_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1146,7 +1146,7 @@ impl ReadArgs for ItemVariationStore<'_> {
 }
 
 impl<'a> FontRead<'a> for ItemVariationStore<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1295,7 +1295,7 @@ impl ReadArgs for ItemVariationData<'_> {
 }
 
 impl<'a> FontRead<'a> for ItemVariationData<'a> {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

@@ -91,7 +91,7 @@ impl ReadArgs for Stat {
 }
 
 impl<'a> FontRead<'a> for Stat {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::Stat as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -325,7 +325,7 @@ impl ReadArgs for AxisValue {
 }
 
 impl<'a> FontRead<'a> for AxisValue {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValue as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -425,7 +425,7 @@ impl ReadArgs for AxisValueFormat1 {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat1 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValueFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -516,7 +516,7 @@ impl ReadArgs for AxisValueFormat2 {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat2 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValueFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -599,7 +599,7 @@ impl ReadArgs for AxisValueFormat3 {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat3 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValueFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -680,7 +680,7 @@ impl ReadArgs for AxisValueFormat4 {
 }
 
 impl<'a> FontRead<'a> for AxisValueFormat4 {
-    fn read_with_args(data: FontData<'a>, _: &()) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValueFormat4 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

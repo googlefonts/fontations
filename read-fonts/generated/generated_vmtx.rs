@@ -25,8 +25,8 @@ impl ReadArgs for Vmtx<'_> {
 }
 
 impl<'a> FontRead<'a> for Vmtx<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let number_of_long_ver_metrics = *args;
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let number_of_long_ver_metrics = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -46,7 +46,7 @@ impl<'a> Vmtx<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, number_of_long_ver_metrics: u16) -> Result<Self, ReadError> {
         let args = number_of_long_ver_metrics;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 

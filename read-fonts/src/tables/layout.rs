@@ -117,8 +117,8 @@ impl ReadArgs for FeatureParams<'_> {
 }
 
 impl<'a> FontRead<'a> for FeatureParams<'a> {
-    fn read_with_args(bytes: FontData<'a>, args: &Tag) -> Result<FeatureParams<'a>, ReadError> {
-        match *args {
+    fn read_with_args(bytes: FontData<'a>, args: Tag) -> Result<FeatureParams<'a>, ReadError> {
+        match args {
             t if t == Tag::new(b"size") => SizeParams::read(bytes).map(Self::Size),
             // to whoever is debugging this dumb bug I wrote: I'm sorry.
             t if &t.to_raw()[..2] == b"ss" => {
@@ -156,7 +156,7 @@ impl<'a> SomeTable<'a> for FeatureParams<'a> {
 impl FeatureTableSubstitutionRecord {
     pub fn alternate_feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         self.alternate_feature_offset()
-            .resolve_with_args(data, &Tag::new(b"NULL"))
+            .resolve_with_args(data, Tag::new(b"NULL"))
     }
 }
 
