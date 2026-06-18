@@ -99,10 +99,10 @@ pub(crate) fn resolve_graph_overflows(
 fn presplit_subtables_if_needed(
     graph: &mut Graph,
     table_tag: Tag,
-    lookup_indices: &Vec<ObjIdx>,
+    lookup_indices: &FnvHashMap<ObjIdx, u32>,
     visited: &mut FnvHashMap<ObjIdx, Vec<ObjIdx>>,
 ) -> Result<(), RepackError> {
-    for lookup_idx in lookup_indices {
+    for lookup_idx in lookup_indices.keys() {
         split_lookup_subtables_if_needed(graph, table_tag, *lookup_idx, visited)?;
     }
     Ok(())
@@ -204,7 +204,7 @@ fn splitting_supported_lookup_type(lookup_type: u16, table_tag: Tag) -> bool {
 fn promote_extensions_if_needed(
     graph: &mut Graph,
     lookup_list_idx: ObjIdx,
-    lookups: &[ObjIdx],
+    lookups: &FnvHashMap<ObjIdx, u32>,
     table_tag: Tag,
 ) -> Result<(), RepackError> {
     struct LookupSize {
@@ -232,7 +232,7 @@ fn promote_extensions_if_needed(
     let mut total_lookup_table_sizes = 0;
     let mut lookup_sizes = Vec::with_capacity(lookups.len());
     let mut visited = IntSet::empty();
-    for lookup_idx in lookups {
+    for (lookup_idx, lookup_pos) in lookups {
         let lookup_v = graph
             .vertex(*lookup_idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
@@ -323,7 +323,7 @@ fn extension_type(table_tag: Tag) -> Option<u16> {
     }
 }
 
-fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, Vec<ObjIdx>), RepackError> {
+fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, FnvHashMap<ObjIdx, u32>), RepackError> {
     // pos=8: lookup list position in GSUB/GPOS table
     let lookup_list_idx = graph
         .index_for_position(graph.root_idx(), 8)
