@@ -18,15 +18,14 @@ use write_fonts::{
                 CharacterVariantParams, ClassDef, ClassDefFormat1, ClassDefFormat2,
                 ClassRangeRecord, Condition, ConditionFormat1, ConditionSet, CoverageFormat1,
                 CoverageFormat2, CoverageTable, DeltaFormat, Device, DeviceOrVariationIndex,
-                ExtensionLookup, Feature, FeatureList, FeatureParams, FeatureRecord,
-                FeatureTableSubstitution, FeatureTableSubstitutionRecord, FeatureVariationRecord,
-                FeatureVariations, Intersect, LangSys, LangSysRecord, LookupList, RangeRecord,
-                Script, ScriptList, ScriptRecord, SizeParams, StylisticSetParams, Subtables,
-                VariationIndex,
+                Feature, FeatureList, FeatureParams, FeatureRecord, FeatureTableSubstitution,
+                FeatureTableSubstitutionRecord, FeatureVariationRecord, FeatureVariations,
+                Intersect, LangSys, LangSysRecord, LookupList, RangeRecord, Script, ScriptList,
+                ScriptRecord, SizeParams, StylisticSetParams, VariationIndex,
             },
         },
         types::{GlyphId, GlyphId16, NameId},
-        FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
+        ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32, Tag},
 };
@@ -1769,7 +1768,7 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
     }
 }
 
-impl<'a, T, Ext> SubsetTable<'a> for Subtables<'a, T, Ext>
+impl<'a, T> SubsetTable<'a> for ArrayOfOffsets<'a, T, Offset16>
 where
     T: SubsetTable<
             'a,
@@ -1777,7 +1776,6 @@ where
         > + Intersect
         + FontRead<'a>
         + 'a,
-    Ext: ExtensionLookup<'a, T> + 'a,
 {
     type ArgsForSubset = T::ArgsForSubset;
     type Output = u16;
