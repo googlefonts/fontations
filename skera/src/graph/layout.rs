@@ -196,8 +196,8 @@ impl Graph {
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
         let subtable_idxes = lookup_v.child_idxes();
-        for subtable_idx in subtable_idxes {
-            self.make_subtable_extension(lookup_idx, subtable_idx, lookup_type, idx_map)?;
+        for subtable_idx in subtable_idxes.keys() {
+            self.make_subtable_extension(lookup_idx, *subtable_idx, lookup_type, idx_map)?;
         }
 
         let mut lookup_table = Lookup::from_graph(self, lookup_idx)?;

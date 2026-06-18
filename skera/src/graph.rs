@@ -229,8 +229,19 @@ impl Vertex {
         }
     }
 
-    pub(crate) fn child_idxes(&self) -> Vec<ObjIdx> {
-        self.real_links.values().map(|l| l.obj_idx()).collect()
+    pub(crate) fn child_idxes(&self) -> FnvHashMap<ObjIdx, u32> {
+        let mut out = FnvHashMap::default();
+        for (&pos, l) in &self.real_links {
+            let obj_idx = l.obj_idx();
+            out.entry(obj_idx)
+                .and_modify(|p| {
+                    if *p < pos {
+                        *p = pos
+                    }
+                })
+                .or_insert(pos);
+        }
+        out
     }
 
     pub(crate) fn remap_child(&mut self, pos: u32, new_child_idx: ObjIdx) {
