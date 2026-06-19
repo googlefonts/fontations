@@ -48,7 +48,7 @@ once_cell = { version = "1.21.4", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-read-fonts = { workspace = true, features = ["experimental_font_api"] }
+read-fonts = { path = ".", features = ["experimental_font_api"] }
 font-test-data = { workspace = true }
 criterion = { workspace = true }
 rand = "0.8.5"
