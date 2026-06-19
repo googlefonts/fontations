@@ -98,31 +98,29 @@ impl<'a> BitmapStrikes<'a> {
     ///
     /// In this case, "best" means a glyph of the exact size, nearest larger
     /// size, or nearest smaller size, in that order.
-    pub fn glyph_for_size(&self, size: Size, glyph_id: GlyphId) -> Option<BitmapGlyph<'a>> {
+    pub fn glyph_for_size(&'a self, size: Size, glyph_id: GlyphId) -> Option<BitmapGlyph<'a>> {
         // Return the largest size for an unscaled request
         let size = size.ppem().unwrap_or(f32::MAX);
         self.iter()
             .fold(None, |best: Option<BitmapGlyph<'a>>, entry| {
+                let mut best = best.or_else(|| entry.get(glyph_id))?;
+
                 let entry_size = entry.ppem();
-                if let Some(best) = best {
-                    let best_size = best.ppem_y;
-                    if (entry_size >= size && entry_size < best_size)
-                        || (best_size < size && entry_size > best_size)
-                    {
-                        entry.get(glyph_id).or(Some(best))
-                    } else {
-                        Some(best)
-                    }
-                } else {
-                    entry.get(glyph_id)
+                let best_size = best.ppem_y;
+
+                if (entry_size >= size && entry_size < best_size)
+                    || (best_size < size && entry_size > best_size)
+                {
+                    best = entry.get(glyph_id).unwrap_or(best);
                 }
+
+                Some(best)
             })
     }
 
     /// Returns an iterator over all available strikes.
-    pub fn iter(&self) -> impl Iterator<Item = BitmapStrike<'a>> + 'a + Clone {
-        let this = self.clone();
-        (0..this.len()).filter_map(move |ix| this.get(ix))
+    pub fn iter(&'a self) -> impl Iterator<Item = BitmapStrike<'a>> + Clone {
+        (0..self.len()).filter_map(move |ix| self.get(ix))
     }
 }
 
