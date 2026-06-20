@@ -385,15 +385,19 @@ fn merge_intersecting_entries<const RECORD_INTERSECTION: bool>(
 }
 
 #[derive(Clone, Default)]
-struct CacheEntries {
+struct EntryCaches {
+    // If the entry intersects or `None` if it has not been computing.
     intersects: Option<bool>,
+    // The coverage for the intersection or `None` if there is no subset.
     coverage: Option<SubsetDefinition>,
 }
 
 struct EntryIntersectionCache<'a> {
-    entries: &'a [Format2Entry],
     target_subset_definition: &'a SubsetDefinition,
-    cache: Vec<CacheEntries>,
+    // The entries that we are inspecting.
+    entries: &'a [Format2Entry],
+    // Storage for cached values for entries. Initialized to have the same length as `entries`.
+    cache: Vec<EntryCaches>,
 }
 
 impl<'a> EntryIntersectionCache<'a> {
@@ -402,15 +406,20 @@ impl<'a> EntryIntersectionCache<'a> {
         target_subset_definition: &'a SubsetDefinition,
     ) -> EntryIntersectionCache<'a> {
         EntryIntersectionCache {
-            entries,
             target_subset_definition,
-            cache: vec![CacheEntries::default(); entries.len()],
+            entries,
+            cache: vec![EntryCaches::default(); entries.len()],
         }
     }
 
     /// Returns true if the target_subset_definition intersects the entry at index.
+    ///
+    /// # TODO
+    ///
+    /// Determine what to do when `index` is invalid. This should not happen in well-formed fonts,
+    /// but `compute_intersection` may discover a child index that is out of bounds.
     fn intersects(&mut self, index: usize) -> bool {
-        if let Some(CacheEntries {
+        if let Some(EntryCaches {
             intersects: Some(result),
             ..
         }) = self.cache.get(index)
@@ -427,46 +436,6 @@ impl<'a> EntryIntersectionCache<'a> {
             cache.intersects = Some(result);
         }
         result
-    }
-
-    /// Returns the intersection of target_subset_definition and the union of entry and all of its descendants.
-    fn coverage_intersection(&mut self, index: usize) -> Result<&SubsetDefinition, ReadError> {
-        Self::coverage_intersection_impl(
-            self.entries,
-            self.target_subset_definition,
-            index,
-            &mut self.cache,
-        )
-        .ok_or(ReadError::OutOfBounds)
-    }
-
-    /// Returns None if `index` is out of range.
-    fn coverage_intersection_impl<'b>(
-        entries: &[Format2Entry],
-        target_subset_definition: &SubsetDefinition,
-        index: usize,
-        cache: &'b mut [CacheEntries],
-    ) -> Option<&'b SubsetDefinition> {
-        if cache.get(index)?.coverage.is_some() {
-            return cache[index].coverage.as_ref();
-        }
-
-        let entry = entries.get(index)?;
-
-        let mut self_intersection = entry
-            .subset_definition
-            .intersection(target_subset_definition);
-        for child_index in entry.child_indices.iter() {
-            let subset = Self::coverage_intersection_impl(
-                entries,
-                target_subset_definition,
-                *child_index,
-                cache,
-            )?;
-            self_intersection.union(subset);
-        }
-
-        Some(cache.get_mut(index)?.coverage.insert(self_intersection))
     }
 
     fn compute_intersection(&mut self, entry: &Format2Entry) -> bool {
@@ -502,6 +471,46 @@ impl<'a> EntryIntersectionCache<'a> {
             }
         }
         false
+    }
+
+    /// Returns the intersection of target_subset_definition and the union of entry and all of its descendants.
+    fn coverage_intersection(&mut self, index: usize) -> Result<&SubsetDefinition, ReadError> {
+        Self::coverage_intersection_impl(
+            self.entries,
+            self.target_subset_definition,
+            index,
+            &mut self.cache,
+        )
+        .ok_or(ReadError::OutOfBounds)
+    }
+
+    /// Returns None if `index` is out of range.
+    fn coverage_intersection_impl<'b>(
+        entries: &[Format2Entry],
+        target_subset_definition: &SubsetDefinition,
+        index: usize,
+        cache: &'b mut [EntryCaches],
+    ) -> Option<&'b SubsetDefinition> {
+        if cache.get(index)?.coverage.is_some() {
+            return cache[index].coverage.as_ref();
+        }
+
+        let entry = entries.get(index)?;
+
+        let mut self_intersection = entry
+            .subset_definition
+            .intersection(target_subset_definition);
+        for child_index in entry.child_indices.iter() {
+            let subset = Self::coverage_intersection_impl(
+                entries,
+                target_subset_definition,
+                *child_index,
+                cache,
+            )?;
+            self_intersection.union(subset);
+        }
+
+        Some(cache.get_mut(index)?.coverage.insert(self_intersection))
     }
 }
 
