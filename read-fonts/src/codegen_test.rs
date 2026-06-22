@@ -10,11 +10,13 @@
 
 pub mod records {
     include!("../generated/generated_test_records.rs");
+    #[allow(dead_code)]
     fn sanitize_data(_ctx: &mut SanitizeContext) -> Result<(), ReadError> {
         Ok(())
     }
 
     impl HasOffsetsWithArgs {
+        #[allow(dead_code)]
         fn sanitize_fake_offset(&self, ctx: &mut SanitizeContext) -> Result<(), ReadError> {
             self.fake_offset().sanitize_offset::<HasReadArgs>(ctx, 0)
         }

@@ -87,6 +87,7 @@ pub mod tables;
 #[cfg(feature = "experimental_traverse")]
 pub mod traversal;
 
+#[cfg(any(test, feature = "codegen_test"))]
 mod sanitize;
 
 #[cfg(any(test, feature = "codegen_test"))]
@@ -112,6 +113,7 @@ pub(crate) mod codegen_prelude {
     pub use crate::read::{
         ComputeSize, Discriminant, FontRead, Format, ReadArgs, ReadError, VarSize,
     };
+    #[cfg(any(test, feature = "codegen_test"))]
     pub(crate) use crate::sanitize::{Sanitize, SanitizeContext, SanitizeOffset, SanitizeStruct};
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;

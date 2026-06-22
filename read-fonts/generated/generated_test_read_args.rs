@@ -122,11 +122,11 @@ impl<'a> BaseArray<'a> {
     pub fn face_records_byte_range(&self) -> Range<usize> {
         let face_count = self.face_count();
         let start = self.face_count_byte_range().end;
-        start
-            ..start
-                + (transforms::to_usize(face_count)).saturating_mul(
-                    <FaceRecord as ComputeSize>::compute_size(self.mark_class_count()).unwrap_or(0),
-                )
+        let end = start
+            + (transforms::to_usize(face_count)).saturating_mul(
+                <FaceRecord as ComputeSize>::compute_size(self.mark_class_count()).unwrap_or(0),
+            );
+        start..end
     }
 }
 
@@ -313,7 +313,7 @@ impl<'a> FaceRecord<'a> {
 
 impl SanitizeStruct for FaceRecord<'_> {
     fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, args: u16) -> Result<(), ReadError> {
-        let mark_class_count = args;
+        let _mark_class_count = args;
         self.face_offsets().sanitize_offset::<Face>(ctx, ())?;
         ctx.finish()
     }
