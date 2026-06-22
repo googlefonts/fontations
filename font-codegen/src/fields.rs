@@ -149,7 +149,7 @@ impl Fields {
     }
 
     // used for validating lengths. handles both fields and 'virtual fields',
-    // e.g. arguments passed in FontReadWithArgs
+    // e.g. arguments passed in FontRead
     fn get_scalar_field_type(&self, name: &syn::Ident) -> &syn::Ident {
         self.iter()
             .find(|fld| &fld.name == name)
@@ -726,7 +726,7 @@ impl Field {
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args) #maybe_unwrap_or_def )
+            quote!( self.data.read_with_args(range, #get_args) #maybe_unwrap_or_def )
         } else if is_var_array {
             quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
         } else if is_array {
@@ -843,7 +843,7 @@ impl Field {
         let getter_name = self.offset_getter_name().unwrap();
         let target_is_generic =
             matches!(target, OffsetTarget::Table(ident) if Some(ident) == generic);
-        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
+        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a, Args = ()>));
         // if a record, data is passed in
         let input_data_if_needed = record.is_some().then(|| quote!(, data: FontData<'a>));
         let decl_lifetime_if_needed =
@@ -901,7 +901,7 @@ impl Field {
             }
             let resolve = match self.attrs.read_offset_args.as_deref() {
                 None => quote!(resolve(data)),
-                Some(_) => quote!(resolve_with_args(data, &args)),
+                Some(_) => quote!(resolve_with_args(data, args)),
             };
             let getter_impl = if self.is_conditional() {
                 // if this is nullable *and* version dependent we add a `?`
@@ -995,7 +995,7 @@ impl Field {
         };
 
         if let FieldType::Struct { typ } = &self.typ {
-            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args).unwrap_or(0) ));
+            return Some(quote!( <#typ as ComputeSize>::compute_size(#read_args).unwrap_or(0) ));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
             panic!("Should have resolved {self:?}")
@@ -1022,7 +1022,7 @@ impl Field {
                     }
                     FieldType::ComputedArray(array) => {
                         let inner = array.raw_inner_type();
-                        quote!( <#inner as ComputeSize>::compute_size(&#read_args).unwrap_or(0) )
+                        quote!( <#inner as ComputeSize>::compute_size(#read_args).unwrap_or(0) )
                     }
                     FieldType::VarLenArray(array) => {
                         let inner = array.raw_inner_type();
@@ -1072,7 +1072,7 @@ impl Field {
                     .unwrap()
                     .to_tokens_for_validation();
                 let count = self.attrs.count.as_ref().unwrap().count_expr();
-                quote!(cursor.read_computed_array(#count, &#args)?)
+                quote!(cursor.read_computed_array(#count, #args)?)
             }
             FieldType::Scalar { typ } => {
                 if typ == "u8" {
@@ -1089,7 +1089,7 @@ impl Field {
                 .as_deref()
                 .map(FieldReadArgs::to_tokens_for_validation)
             {
-                Some(args) => quote!(cursor.read_with_args(&#args)?),
+                Some(args) => quote!(cursor.read_with_args(#args)?),
                 None => quote!(cursor.read_be()?),
             },
         };

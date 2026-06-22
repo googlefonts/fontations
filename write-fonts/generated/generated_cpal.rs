@@ -132,8 +132,12 @@ impl<'a> FromObjRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {}
 
+impl ReadArgs for Cpal {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cpal {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cpal::Cpal as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

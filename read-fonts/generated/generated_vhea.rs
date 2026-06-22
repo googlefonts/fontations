@@ -20,8 +20,12 @@ impl TopLevelTable for Vhea<'_> {
     const TAG: Tag = Tag::new(b"vhea");
 }
 
+impl ReadArgs for Vhea<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Vhea<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

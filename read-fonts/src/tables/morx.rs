@@ -58,7 +58,7 @@ impl<'a> Subtable<'a> {
 
     /// Returns an enum representing the actual subtable data.
     pub fn kind(&self) -> Result<SubtableKind<'a>, ReadError> {
-        SubtableKind::read_with_args(FontData::new(self.data()), &self.coverage())
+        SubtableKind::read_with_args(FontData::new(self.data()), self.coverage())
     }
 }
 
@@ -76,10 +76,10 @@ impl ReadArgs for SubtableKind<'_> {
     type Args = u32;
 }
 
-impl<'a> FontReadWithArgs<'a> for SubtableKind<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for SubtableKind<'a> {
+    fn read_with_args(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
         // Format is low byte of coverage
-        let format = *args & 0xFF;
+        let format = args & 0xFF;
         match format {
             0 => Ok(Self::Rearrangement(ExtendedStateTable::read(data)?)),
             1 => Ok(Self::Contextual(ContextualSubtable::read(data)?)),
@@ -101,8 +101,12 @@ pub struct ContextualSubtable<'a> {
     pub lookups: ArrayOfOffsets<'a, LookupU16<'a>, Offset32>,
 }
 
+impl ReadArgs for ContextualSubtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ContextualSubtable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let state_table = ExtendedStateTable::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);
@@ -131,8 +135,12 @@ pub struct LigatureSubtable<'a> {
     pub ligatures: &'a [BigEndian<GlyphId16>],
 }
 
+impl ReadArgs for LigatureSubtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigatureSubtable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let state_table = ExtendedStateTable::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);
@@ -162,8 +170,12 @@ pub struct InsertionSubtable<'a> {
     pub glyphs: &'a [BigEndian<GlyphId16>],
 }
 
+impl ReadArgs for InsertionSubtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for InsertionSubtable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let state_table = ExtendedStateTable::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);

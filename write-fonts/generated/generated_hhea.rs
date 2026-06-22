@@ -126,8 +126,12 @@ impl<'a> FromObjRef<read_fonts::tables::hhea::Hhea<'a>> for Hhea {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::hhea::Hhea<'a>> for Hhea {}
 
+impl ReadArgs for Hhea {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Hhea {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::hhea::Hhea as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

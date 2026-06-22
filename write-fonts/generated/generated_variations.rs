@@ -184,8 +184,12 @@ impl<'a> FromTableRef<read_fonts::tables::variations::DeltaSetIndexMapFormat0<'a
 {
 }
 
+impl ReadArgs for DeltaSetIndexMapFormat0 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::DeltaSetIndexMapFormat0 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -254,8 +258,12 @@ impl<'a> FromTableRef<read_fonts::tables::variations::DeltaSetIndexMapFormat1<'a
 {
 }
 
+impl ReadArgs for DeltaSetIndexMapFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::DeltaSetIndexMapFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -331,8 +339,12 @@ impl FromObjRef<read_fonts::tables::variations::DeltaSetIndexMap<'_>> for DeltaS
 
 impl FromTableRef<read_fonts::tables::variations::DeltaSetIndexMap<'_>> for DeltaSetIndexMap {}
 
+impl ReadArgs for DeltaSetIndexMap {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMap {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::DeltaSetIndexMap as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -427,8 +439,12 @@ impl<'a> FromTableRef<read_fonts::tables::variations::VariationRegionList<'a>>
 {
 }
 
+impl ReadArgs for VariationRegionList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VariationRegionList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::VariationRegionList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -606,8 +622,12 @@ impl<'a> FromTableRef<read_fonts::tables::variations::ItemVariationStore<'a>>
 {
 }
 
+impl ReadArgs for ItemVariationStore {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ItemVariationStore {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::ItemVariationStore as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -689,8 +709,12 @@ impl<'a> FromObjRef<read_fonts::tables::variations::ItemVariationData<'a>> for I
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::variations::ItemVariationData<'a>> for ItemVariationData {}
 
+impl ReadArgs for ItemVariationData {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ItemVariationData {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::ItemVariationData as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

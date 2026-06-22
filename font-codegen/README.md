@@ -148,10 +148,10 @@ The following annotations are supported on top-level objects:
   processing before it can be compiled.
 - `#[skip_from_obj]`: if present, we will not generate a `FromObjRef`
   implementation for this type.
-- `#[read_args(name: type,+)]` if present, this type will be given an
-  implementation of `FontReadWithArgs`, expecting the provided arguments. The
-  provided names will be available to other attributes on this type, as if they
-  were fields on the type itself.
+- `#[read_args(name: type,+)]` if present, this type will be given a `FontRead`
+  implementation whose `Args` are the provided arguments. The provided names
+  will be available to other attributes on this type, as if they were fields on
+  the type itself.
 - `#[generic_offset(T)]` Indicate that this type contains an offset with a generic
   target, for which we will add a `PhantomData` field. This is is used for
   common tables that contain offsets which point to different concrete types
@@ -218,7 +218,7 @@ The following annotations are supported on top-level objects:
   `Default` for the containing type. Unlike with `#[compile]`, this value is set
   when the type is created, and can be manually modified by the user.
 - `#[read_with(args,+)]`: specify that this field's type needs to be read with
-  `FontReadWithArgs`, and passed the provided args. Args is a comma separated
+  `read_with_args`, and passed the provided args. Args is a comma separated
   list of fields or input args to the type.
 - `#[read_offset_with(args,+)]`: on offsets or arrays of offsets, indicates that
   the type referenced by this offset needs to be passed the provided args when

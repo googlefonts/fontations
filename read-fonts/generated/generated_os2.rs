@@ -373,8 +373,12 @@ impl TopLevelTable for Os2<'_> {
     const TAG: Tag = Tag::new(b"OS/2");
 }
 
+impl ReadArgs for Os2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Os2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

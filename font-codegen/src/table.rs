@@ -157,67 +157,67 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let generic = item.attrs.generic_offset.as_ref();
     let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
-    let error_if_phantom_and_read_args = generic.map(|_| {
-        quote!(compile_error!(
-            "ReadWithArgs not implemented for tables with phantom params."
-        );)
-    });
 
-    if let Some(read_args) = &item.attrs.read_args {
-        let args_type = read_args.args_type();
-        let destructure_pattern = read_args.destructure_pattern();
-        let constructor_args = read_args.constructor_args();
-        let args_from_constructor_args = read_args.read_args_from_constructor_args();
-        let arg_idents = read_args.idents();
-        Ok(quote! {
-            #error_if_phantom_and_read_args
-            impl ReadArgs for #name<'_> {
-                type Args = #args_type;
-            }
-
-            impl<'a> FontReadWithArgs<'a> for #name<'a> {
-                fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
-                    let #destructure_pattern = *args;
-                    #[allow(clippy::absurd_extreme_comparisons)] // if MIN_SIZE is 0
-                    if data.len() < Self::MIN_SIZE {
-                        return Err(ReadError::OutOfBounds);
-                    }
-                     Ok(
-                         Self {
-                             data,
-                             #( #arg_idents, )*
-                         }
-                     )
-                }
-            }
-
-            impl<'a> #name<'a> {
-                /// A constructor that requires additional arguments.
-                ///
-                /// This type requires some external state in order to be
-                /// parsed.
-                pub fn read(data: FontData<'a>, #( #constructor_args, )* ) -> Result<Self, ReadError> {
-                    let args = #args_from_constructor_args;
-                    Self::read_with_args(data, &args)
-                }
-            }
-        })
+    let read_args = match item.attrs.read_args.as_ref() {
+        Some(args) => args.attr.clone(),
+        None => Default::default(),
+    };
+    let error_if_phantom_and_read_args =
+        (generic.is_some() && !read_args.args.is_empty()).then(|| {
+            quote! { compile_error!("ReadWithArgs not implemented for tables with phantom params."); }
+        });
+    let args_type = read_args.args_type();
+    let destructure_pattern = read_args.destructure_pattern();
+    let constructor_args = read_args.constructor_args();
+    let args_from_constructor_args = read_args.read_args_from_constructor_args();
+    let arg_idents = read_args.idents();
+    let args_arg = if read_args.args.is_empty() {
+        quote!(_)
     } else {
-        Ok(quote! {
-            impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
-                fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                    #[allow(clippy::absurd_extreme_comparisons)]
-                    if data.len() < Self::MIN_SIZE {
-                        return Err(ReadError::OutOfBounds);
-                    }
-                    Ok(Self {
-                        data,
-                        #phantom
-                    })
-                }
+        quote!(args)
+    };
+
+    let maybe_custom_read_fn = (!read_args.args.is_empty()).then(|| quote! {
+
+        impl<'a> #name<'a> {
+            /// A constructor that requires additional arguments.
+            ///
+            /// This type requires some external state in order to be
+            /// parsed.
+            pub fn read(data: FontData<'a>, #( #constructor_args, )* ) -> Result<Self, ReadError> {
+                let args = #args_from_constructor_args;
+                Self::read_with_args(data, args)
             }
-        })
-    }
+        }
+    });
+    let read_args_impl_header = match generic {
+        Some(generic) => quote!(impl<#generic> ReadArgs for #name<'_, #generic>),
+        None => quote!(impl ReadArgs for #name<'_>),
+    };
+    Ok(quote! {
+        #error_if_phantom_and_read_args
+        #read_args_impl_header {
+            type Args = #args_type;
+        }
+
+        impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
+            fn read_with_args(data: FontData<'a>, #args_arg: #args_type) -> Result<Self, ReadError> {
+                #destructure_pattern
+                #[allow(clippy::absurd_extreme_comparisons)] // if MIN_SIZE is 0
+                if data.len() < Self::MIN_SIZE {
+                    return Err(ReadError::OutOfBounds);
+                }
+                 Ok(
+                     Self {
+                         data,
+                         #( #arg_idents, )*
+                         #phantom
+                     }
+                 )
+            }
+        }
+        #maybe_custom_read_fn
+    })
 }
 
 fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
@@ -226,7 +226,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
     let generic = item.attrs.generic_offset.as_ref();
     let generic_bounds = generic
         .is_some()
-        .then(|| quote!(: FontRead<'a> + SomeTable<'a> + 'a));
+        .then(|| quote!(: FontRead<'a, Args = ()> + SomeTable<'a> + 'a));
     let field_arms = item.fields.iter_field_traversal_match_arms(false);
     let attrs = item.fields.fields.is_empty().then(|| {
         quote! {
@@ -301,7 +301,7 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
     let where_clause = comp_generic.map(|t| {
         quote! {
             where
-                U: FontRead<'a>,
+                U: FontRead<'a, Args = ()>,
                 #t: FromTableRef<U> + Default + 'static,
         }
     });
@@ -309,8 +309,12 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
     let impl_font_read = item.attrs.read_args.is_none() && item.attrs.generic_offset.is_none();
     let maybe_font_read = impl_font_read.then(|| {
         quote! {
+            impl ReadArgs for #name {
+                type Args = ();
+            }
+
             impl<'a> FontRead<'a> for #name {
-                fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+                fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
                     <#parse_module :: #name as FontRead>::read(data)
                         .map(|x| x.to_owned_table())
                 }
@@ -518,10 +522,11 @@ impl TableReadArgs {
 
     pub(crate) fn destructure_pattern(&self) -> TokenStream {
         match self.args.as_slice() {
-            [TableReadArg { ident, .. }] => ident.to_token_stream(),
+            [] => Default::default(),
+            [TableReadArg { ident, .. }] => quote!(let #ident = args;),
             other => {
                 let idents = other.iter().map(|arg| &arg.ident);
-                quote!( ( #(#idents,)* ) )
+                quote!( let  ( #(#idents,)* ) = args; )
             }
         }
     }

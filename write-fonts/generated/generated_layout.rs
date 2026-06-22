@@ -58,8 +58,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ScriptList<'a>> for ScriptList {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ScriptList<'a>> for ScriptList {}
 
+impl ReadArgs for ScriptList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ScriptList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ScriptList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -175,8 +179,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::Script<'a>> for Script {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::Script<'a>> for Script {}
 
+impl ReadArgs for Script {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Script {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::Script as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -300,8 +308,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::LangSys<'a>> for LangSys {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::LangSys<'a>> for LangSys {}
 
+impl ReadArgs for LangSys {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LangSys {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::LangSys as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -358,8 +370,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::FeatureList<'a>> for FeatureList
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::FeatureList<'a>> for FeatureList {}
 
+impl ReadArgs for FeatureList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FeatureList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::FeatureList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -522,7 +538,7 @@ impl<T: Validate> Validate for LookupList<T> {
 
 impl<'a, T, U> FromObjRef<read_fonts::tables::layout::LookupList<'a, U>> for LookupList<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(obj: &read_fonts::tables::layout::LookupList<'a, U>, _: FontData) -> Self {
@@ -535,7 +551,7 @@ where
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T, U> FromTableRef<read_fonts::tables::layout::LookupList<'a, U>> for LookupList<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
 }
@@ -597,7 +613,7 @@ impl<T: Validate> Validate for Lookup<T> {
 
 impl<'a, T, U> FromObjRef<read_fonts::tables::layout::Lookup<'a, U>> for Lookup<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(obj: &read_fonts::tables::layout::Lookup<'a, U>, _: FontData) -> Self {
@@ -612,7 +628,7 @@ where
 #[allow(clippy::needless_lifetimes)]
 impl<'a, T, U> FromTableRef<read_fonts::tables::layout::Lookup<'a, U>> for Lookup<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
 }
@@ -668,8 +684,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat1<'a>> for Coverag
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat1<'a>> for CoverageFormat1 {}
 
+impl ReadArgs for CoverageFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CoverageFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::CoverageFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -727,8 +747,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat2<'a>> for Coverag
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat2<'a>> for CoverageFormat2 {}
 
+impl ReadArgs for CoverageFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CoverageFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::CoverageFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -848,8 +872,12 @@ impl FromObjRef<read_fonts::tables::layout::CoverageTable<'_>> for CoverageTable
 
 impl FromTableRef<read_fonts::tables::layout::CoverageTable<'_>> for CoverageTable {}
 
+impl ReadArgs for CoverageTable {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CoverageTable {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::CoverageTable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -925,8 +953,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ClassDefFormat1<'a>> for ClassDe
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ClassDefFormat1<'a>> for ClassDefFormat1 {}
 
+impl ReadArgs for ClassDefFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClassDefFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassDefFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -986,8 +1018,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ClassDefFormat2<'a>> for ClassDe
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ClassDefFormat2<'a>> for ClassDefFormat2 {}
 
+impl ReadArgs for ClassDefFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClassDefFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassDefFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1109,8 +1145,12 @@ impl FromObjRef<read_fonts::tables::layout::ClassDef<'_>> for ClassDef {
 
 impl FromTableRef<read_fonts::tables::layout::ClassDef<'_>> for ClassDef {}
 
+impl ReadArgs for ClassDef {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClassDef {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassDef as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1241,8 +1281,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat1<'a>>
 {
 }
 
+impl ReadArgs for SequenceContextFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SequenceContextFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceContextFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1301,8 +1345,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceRuleSet<'a>> for Sequenc
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::SequenceRuleSet<'a>> for SequenceRuleSet {}
 
+impl ReadArgs for SequenceRuleSet {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SequenceRuleSet {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1370,8 +1418,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceRule<'a>> for SequenceRu
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::SequenceRule<'a>> for SequenceRule {}
 
+impl ReadArgs for SequenceRule {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SequenceRule {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1461,8 +1513,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat2<'a>>
 {
 }
 
+impl ReadArgs for SequenceContextFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SequenceContextFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceContextFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1527,8 +1583,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::ClassSequenceRuleSet<'a>>
 {
 }
 
+impl ReadArgs for ClassSequenceRuleSet {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClassSequenceRuleSet {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassSequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1594,8 +1654,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ClassSequenceRule<'a>> for Class
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ClassSequenceRule<'a>> for ClassSequenceRule {}
 
+impl ReadArgs for ClassSequenceRule {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClassSequenceRule {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassSequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1679,8 +1743,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat3<'a>>
 {
 }
 
+impl ReadArgs for SequenceContextFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SequenceContextFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceContextFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1768,8 +1836,12 @@ impl FromObjRef<read_fonts::tables::layout::SequenceContext<'_>> for SequenceCon
 
 impl FromTableRef<read_fonts::tables::layout::SequenceContext<'_>> for SequenceContext {}
 
+impl ReadArgs for SequenceContext {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SequenceContext {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceContext as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1867,8 +1939,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat1<
 {
 }
 
+impl ReadArgs for ChainedSequenceContextFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceContextFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1935,8 +2011,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceRuleSet<'a>>
 {
 }
 
+impl ReadArgs for ChainedSequenceRuleSet {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ChainedSequenceRuleSet {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2031,8 +2111,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceRule<'a>> for Cha
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceRule<'a>> for ChainedSequenceRule {}
 
+impl ReadArgs for ChainedSequenceRule {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ChainedSequenceRule {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2145,8 +2229,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat2<
 {
 }
 
+impl ReadArgs for ChainedSequenceContextFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceContextFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2216,8 +2304,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::ChainedClassSequenceRuleSet<'a
 {
 }
 
+impl ReadArgs for ChainedClassSequenceRuleSet {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedClassSequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2318,8 +2410,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::ChainedClassSequenceRule<'a>>
 {
 }
 
+impl ReadArgs for ChainedClassSequenceRule {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ChainedClassSequenceRule {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedClassSequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2428,8 +2524,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat3<
 {
 }
 
+impl ReadArgs for ChainedSequenceContextFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceContextFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2537,8 +2637,12 @@ impl FromTableRef<read_fonts::tables::layout::ChainedSequenceContext<'_>>
 {
 }
 
+impl ReadArgs for ChainedSequenceContext {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ChainedSequenceContext {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ChainedSequenceContext as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2614,8 +2718,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::Device<'a>> for Device {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::Device<'a>> for Device {}
 
+impl ReadArgs for Device {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Device {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::Device as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -2670,8 +2778,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::VariationIndex<'a>> for Variatio
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::VariationIndex<'a>> for VariationIndex {}
 
+impl ReadArgs for VariationIndex {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VariationIndex {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::VariationIndex as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2779,8 +2891,12 @@ impl FromTableRef<read_fonts::tables::layout::DeviceOrVariationIndex<'_>>
 {
 }
 
+impl ReadArgs for DeviceOrVariationIndex {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeviceOrVariationIndex {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::DeviceOrVariationIndex as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2858,8 +2974,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::FeatureVariations<'a>> for Featu
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::FeatureVariations<'a>> for FeatureVariations {}
 
+impl ReadArgs for FeatureVariations {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FeatureVariations {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::FeatureVariations as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2980,8 +3100,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionSet<'a>> for ConditionS
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionSet<'a>> for ConditionSet {}
 
+impl ReadArgs for ConditionSet {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ConditionSet {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3094,8 +3218,12 @@ impl FromObjRef<read_fonts::tables::layout::Condition<'_>> for Condition {
 
 impl FromTableRef<read_fonts::tables::layout::Condition<'_>> for Condition {}
 
+impl ReadArgs for Condition {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Condition {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::Condition as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3190,8 +3318,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat1<'a>> for Condit
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat1<'a>> for ConditionFormat1 {}
 
+impl ReadArgs for ConditionFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ConditionFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3245,8 +3377,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat2<'a>> for Condit
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat2<'a>> for ConditionFormat2 {}
 
+impl ReadArgs for ConditionFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ConditionFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3309,8 +3445,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat3<'a>> for Condit
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat3<'a>> for ConditionFormat3 {}
 
+impl ReadArgs for ConditionFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ConditionFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3373,8 +3513,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat4<'a>> for Condit
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat4<'a>> for ConditionFormat4 {}
 
+impl ReadArgs for ConditionFormat4 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ConditionFormat4 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat4 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3429,8 +3573,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat5<'a>> for Condit
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat5<'a>> for ConditionFormat5 {}
 
+impl ReadArgs for ConditionFormat5 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ConditionFormat5 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat5 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3496,8 +3644,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::FeatureTableSubstitution<'a>>
 {
 }
 
+impl ReadArgs for FeatureTableSubstitution {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FeatureTableSubstitution {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::FeatureTableSubstitution as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3644,8 +3796,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SizeParams<'a>> for SizeParams {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::SizeParams<'a>> for SizeParams {}
 
+impl ReadArgs for SizeParams {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SizeParams {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SizeParams as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3698,8 +3854,12 @@ impl<'a> FromObjRef<read_fonts::tables::layout::StylisticSetParams<'a>> for Styl
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::layout::StylisticSetParams<'a>> for StylisticSetParams {}
 
+impl ReadArgs for StylisticSetParams {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for StylisticSetParams {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::StylisticSetParams as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3806,8 +3966,12 @@ impl<'a> FromTableRef<read_fonts::tables::layout::CharacterVariantParams<'a>>
 {
 }
 
+impl ReadArgs for CharacterVariantParams {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CharacterVariantParams {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::CharacterVariantParams as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

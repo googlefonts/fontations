@@ -20,8 +20,12 @@ impl TopLevelTable for Cpal<'_> {
     const TAG: Tag = Tag::new(b"CPAL");
 }
 
+impl ReadArgs for Cpal<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cpal<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -81,7 +85,7 @@ impl<'a> Cpal<'a> {
         let data = self.data;
         let args = self.num_color_records();
         self.color_records_array_offset()
-            .resolve_with_args(data, &args)
+            .resolve_with_args(data, args)
     }
 
     /// Index of each palette’s first color record in the combined
@@ -108,7 +112,7 @@ impl<'a> Cpal<'a> {
         let data = self.data;
         let args = self.num_palettes();
         self.palette_types_array_offset()
-            .map(|x| x.resolve_with_args(data, &args))?
+            .map(|x| x.resolve_with_args(data, args))?
     }
 
     /// Offset from the beginning of CPAL table to the [Palette Labels Array][].
@@ -130,7 +134,7 @@ impl<'a> Cpal<'a> {
         let data = self.data;
         let args = self.num_palettes();
         self.palette_labels_array_offset()
-            .map(|x| x.resolve_with_args(data, &args))?
+            .map(|x| x.resolve_with_args(data, args))?
     }
 
     /// Offset from the beginning of CPAL table to the [Palette Entry Labels Array][].
@@ -154,7 +158,7 @@ impl<'a> Cpal<'a> {
         let data = self.data;
         let args = self.num_palette_entries();
         self.palette_entry_labels_array_offset()
-            .map(|x| x.resolve_with_args(data, &args))?
+            .map(|x| x.resolve_with_args(data, args))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {

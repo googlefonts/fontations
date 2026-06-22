@@ -176,8 +176,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::read_args::Face<'a>> for Face {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::read_args::Face<'a>> for Face {}
 
+impl ReadArgs for Face {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Face {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::read_args::Face as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

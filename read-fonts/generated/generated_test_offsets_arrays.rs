@@ -15,8 +15,12 @@ impl<'a> MinByteRange<'a> for KindsOfOffsets<'a> {
     }
 }
 
+impl ReadArgs for KindsOfOffsets<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -86,7 +90,7 @@ impl<'a> KindsOfOffsets<'a> {
     pub fn array(&self) -> Result<&'a [BigEndian<u16>], ReadError> {
         let data = self.data;
         let args = self.array_offset_count();
-        self.array_offset().resolve_with_args(data, &args)
+        self.array_offset().resolve_with_args(data, args)
     }
 
     /// An offset to an array of records
@@ -99,7 +103,7 @@ impl<'a> KindsOfOffsets<'a> {
     pub fn record_array(&self) -> Result<&'a [Shmecord], ReadError> {
         let data = self.data;
         let args = self.array_offset_count();
-        self.record_array_offset().resolve_with_args(data, &args)
+        self.record_array_offset().resolve_with_args(data, args)
     }
 
     /// A nullable, versioned offset to an array of records
@@ -115,7 +119,7 @@ impl<'a> KindsOfOffsets<'a> {
         let data = self.data;
         let args = self.array_offset_count();
         self.versioned_nullable_record_array_offset()
-            .map(|x| x.resolve_with_args(data, &args))?
+            .map(|x| x.resolve_with_args(data, args))?
     }
 
     /// A normal offset that is versioned
@@ -287,8 +291,12 @@ impl<'a> MinByteRange<'a> for KindsOfArraysOfOffsets<'a> {
     }
 }
 
+impl ReadArgs for KindsOfArraysOfOffsets<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -480,8 +488,12 @@ impl<'a> MinByteRange<'a> for KindsOfArrays<'a> {
     }
 }
 
+impl ReadArgs for KindsOfArrays<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -645,8 +657,12 @@ impl<'a> MinByteRange<'a> for VarLenHaver<'a> {
     }
 }
 
+impl ReadArgs for VarLenHaver<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -747,8 +763,12 @@ impl<'a> MinByteRange<'a> for Dummy<'a> {
     }
 }
 
+impl ReadArgs for Dummy<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Dummy<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

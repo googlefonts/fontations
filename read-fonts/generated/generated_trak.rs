@@ -20,8 +20,12 @@ impl TopLevelTable for Trak<'_> {
     const TAG: Tag = Tag::new(b"trak");
 }
 
+impl ReadArgs for Trak<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Trak<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -157,8 +161,12 @@ impl<'a> MinByteRange<'a> for TrackData<'a> {
     }
 }
 
+impl ReadArgs for TrackData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for TrackData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

@@ -31,7 +31,7 @@ mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
 
-impl<'a, T: FontRead<'a>> Lookup<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
         self.resolve_offset(offset)
     }
@@ -46,7 +46,7 @@ impl<'a, T: FontRead<'a>> Lookup<'a, T> {
 ///
 /// This is necessary because GPOS and GSUB have different concrete types
 /// for their extension lookups.
-pub trait ExtensionLookup<'a, T: FontRead<'a>>: FontRead<'a> {
+pub trait ExtensionLookup<'a, T: FontRead<'a, Args = ()>>: FontRead<'a, Args = ()> {
     fn extension(&self) -> Result<T, ReadError>;
 }
 
@@ -54,12 +54,12 @@ pub trait ExtensionLookup<'a, T: FontRead<'a>>: FontRead<'a> {
 ///
 /// This is used to implement more ergonomic access to lookup subtables for
 /// GPOS & GSUB lookup tables.
-pub enum Subtables<'a, T: FontRead<'a>, Ext: ExtensionLookup<'a, T>> {
+pub enum Subtables<'a, T: FontRead<'a, Args = ()>, Ext: ExtensionLookup<'a, T>> {
     Subtable(ArrayOfOffsets<'a, T>),
     Extension(ArrayOfOffsets<'a, Ext>),
 }
 
-impl<'a, T: FontRead<'a> + 'a, Ext: ExtensionLookup<'a, T> + 'a> Subtables<'a, T, Ext> {
+impl<'a, T: FontRead<'a, Args = ()> + 'a, Ext: ExtensionLookup<'a, T> + 'a> Subtables<'a, T, Ext> {
     /// create a new subtables array given offsets to non-extension subtables
     pub(crate) fn new(offsets: &'a [BigEndian<Offset16>], data: FontData<'a>) -> Self {
         Subtables::Subtable(ArrayOfOffsets::new(offsets, data, ()))
@@ -116,9 +116,9 @@ impl ReadArgs for FeatureParams<'_> {
     type Args = Tag;
 }
 
-impl<'a> FontReadWithArgs<'a> for FeatureParams<'a> {
-    fn read_with_args(bytes: FontData<'a>, args: &Tag) -> Result<FeatureParams<'a>, ReadError> {
-        match *args {
+impl<'a> FontRead<'a> for FeatureParams<'a> {
+    fn read_with_args(bytes: FontData<'a>, args: Tag) -> Result<FeatureParams<'a>, ReadError> {
+        match args {
             t if t == Tag::new(b"size") => SizeParams::read(bytes).map(Self::Size),
             // to whoever is debugging this dumb bug I wrote: I'm sorry.
             t if &t.to_raw()[..2] == b"ss" => {
@@ -156,7 +156,7 @@ impl<'a> SomeTable<'a> for FeatureParams<'a> {
 impl FeatureTableSubstitutionRecord {
     pub fn alternate_feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         self.alternate_feature_offset()
-            .resolve_with_args(data, &Tag::new(b"NULL"))
+            .resolve_with_args(data, Tag::new(b"NULL"))
     }
 }
 

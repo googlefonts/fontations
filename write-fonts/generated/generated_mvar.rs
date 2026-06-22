@@ -73,8 +73,12 @@ impl<'a> FromObjRef<read_fonts::tables::mvar::Mvar<'a>> for Mvar {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::mvar::Mvar<'a>> for Mvar {}
 
+impl ReadArgs for Mvar {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Mvar {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::mvar::Mvar as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

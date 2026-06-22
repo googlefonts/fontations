@@ -21,8 +21,12 @@ impl<'a, T> MinByteRange<'a> for MyLookup<'a, T> {
     }
 }
 
+impl<T> ReadArgs for MyLookup<'_, T> {
+    type Args = ();
+}
+
 impl<'a, T> FontRead<'a> for MyLookup<'a, T> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -78,7 +82,7 @@ impl<'a, T> MyLookup<'a, T> {
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
     pub fn subtables(&self) -> ArrayOfOffsets<'a, T, Offset16>
     where
-        T: FontRead<'a>,
+        T: FontRead<'a, Args = ()>,
     {
         let data = self.data;
         let offsets = self.subtable_offsets();
@@ -115,7 +119,7 @@ impl<T> Default for MyLookup<'_, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for MyLookup<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for MyLookup<'a, T> {
     fn type_name(&self) -> &str {
         "MyLookup"
     }
@@ -134,7 +138,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for MyLookup<'a, T>
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for MyLookup<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug for MyLookup<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -170,8 +174,12 @@ impl<'a> MySubtable<'a> {
     }
 }
 
+impl ReadArgs for MySubtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MySubtable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             MySubtableFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -237,8 +245,12 @@ impl<'a> MinByteRange<'a> for MySubtableFormat1<'a> {
     }
 }
 
+impl ReadArgs for MySubtableFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MySubtableFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -326,8 +338,12 @@ impl<'a> MinByteRange<'a> for MySubtableFormat2<'a> {
     }
 }
 
+impl ReadArgs for MySubtableFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MySubtableFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -413,8 +429,12 @@ impl Default for MyLookupGroup<'_> {
     }
 }
 
+impl ReadArgs for MyLookupGroup<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MyLookupGroup<'a> {
-    fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(bytes: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let discriminant = MyLookup::read_discriminant(bytes)?;
         match discriminant {
             1 => Ok(MyLookupGroup::TypeOne(FontRead::read(bytes)?)),
@@ -474,8 +494,12 @@ impl<'a> MinByteRange<'a> for ContainsLookupGroup<'a> {
     }
 }
 
+impl ReadArgs for ContainsLookupGroup<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ContainsLookupGroup<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

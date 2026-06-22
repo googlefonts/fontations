@@ -131,8 +131,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::Colr<'a>> for Colr {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::Colr<'a>> for Colr {}
 
+impl ReadArgs for Colr {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Colr {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::Colr as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -285,8 +289,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::BaseGlyphList<'a>> for BaseGlyphLi
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::BaseGlyphList<'a>> for BaseGlyphList {}
 
+impl ReadArgs for BaseGlyphList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseGlyphList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::BaseGlyphList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -395,8 +403,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::LayerList<'a>> for LayerList {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::LayerList<'a>> for LayerList {}
 
+impl ReadArgs for LayerList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LayerList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::LayerList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -462,8 +474,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::ClipList<'a>> for ClipList {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::ClipList<'a>> for ClipList {}
 
+impl ReadArgs for ClipList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClipList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ClipList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -596,8 +612,12 @@ impl FromObjRef<read_fonts::tables::colr::ClipBox<'_>> for ClipBox {
 
 impl FromTableRef<read_fonts::tables::colr::ClipBox<'_>> for ClipBox {}
 
+impl ReadArgs for ClipBox {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClipBox {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ClipBox as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -672,8 +692,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::ClipBoxFormat1<'a>> for ClipBoxFor
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::ClipBoxFormat1<'a>> for ClipBoxFormat1 {}
 
+impl ReadArgs for ClipBoxFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClipBoxFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ClipBoxFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -748,8 +772,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::ClipBoxFormat2<'a>> for ClipBoxFor
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::ClipBoxFormat2<'a>> for ClipBoxFormat2 {}
 
+impl ReadArgs for ClipBoxFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClipBoxFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ClipBoxFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1012,8 +1040,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::ColorLine<'a>> for ColorLine {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::ColorLine<'a>> for ColorLine {}
 
+impl ReadArgs for ColorLine {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ColorLine {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::ColorLine as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1079,8 +1111,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::VarColorLine<'a>> for VarColorLine
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::VarColorLine<'a>> for VarColorLine {}
 
+impl ReadArgs for VarColorLine {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarColorLine {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::VarColorLine as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1657,8 +1693,12 @@ impl FromObjRef<read_fonts::tables::colr::Paint<'_>> for Paint {
 
 impl FromTableRef<read_fonts::tables::colr::Paint<'_>> for Paint {}
 
+impl ReadArgs for Paint {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Paint {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::Paint as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1903,8 +1943,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintColrLayers<'a>> for PaintColr
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintColrLayers<'a>> for PaintColrLayers {}
 
+impl ReadArgs for PaintColrLayers {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintColrLayers {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintColrLayers as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1958,8 +2002,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintSolid<'a>> for PaintSolid {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintSolid<'a>> for PaintSolid {}
 
+impl ReadArgs for PaintSolid {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintSolid {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintSolid as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -2017,8 +2065,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintVarSolid<'a>> for PaintVarSol
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarSolid<'a>> for PaintVarSolid {}
 
+impl ReadArgs for PaintVarSolid {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarSolid {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarSolid as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2111,8 +2163,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintLinearGradient<'a>> for Paint
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintLinearGradient<'a>> for PaintLinearGradient {}
 
+impl ReadArgs for PaintLinearGradient {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintLinearGradient {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintLinearGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2226,8 +2282,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarLinearGradient<'a>>
 {
 }
 
+impl ReadArgs for PaintVarLinearGradient {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarLinearGradient {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarLinearGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2320,8 +2380,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintRadialGradient<'a>> for Paint
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintRadialGradient<'a>> for PaintRadialGradient {}
 
+impl ReadArgs for PaintRadialGradient {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintRadialGradient {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintRadialGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2433,8 +2497,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarRadialGradient<'a>>
 {
 }
 
+impl ReadArgs for PaintVarRadialGradient {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarRadialGradient {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarRadialGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2517,8 +2585,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintSweepGradient<'a>> for PaintS
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintSweepGradient<'a>> for PaintSweepGradient {}
 
+impl ReadArgs for PaintSweepGradient {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintSweepGradient {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintSweepGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2615,8 +2687,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarSweepGradient<'a>>
 {
 }
 
+impl ReadArgs for PaintVarSweepGradient {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarSweepGradient {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarSweepGradient as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2676,8 +2752,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintGlyph<'a>> for PaintGlyph {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintGlyph<'a>> for PaintGlyph {}
 
+impl ReadArgs for PaintGlyph {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintGlyph {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintGlyph as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -2723,8 +2803,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintColrGlyph<'a>> for PaintColrG
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintColrGlyph<'a>> for PaintColrGlyph {}
 
+impl ReadArgs for PaintColrGlyph {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintColrGlyph {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintColrGlyph as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2787,8 +2871,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintTransform<'a>> for PaintTrans
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintTransform<'a>> for PaintTransform {}
 
+impl ReadArgs for PaintTransform {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintTransform {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintTransform as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2851,8 +2939,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintVarTransform<'a>> for PaintVa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarTransform<'a>> for PaintVarTransform {}
 
+impl ReadArgs for PaintVarTransform {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarTransform {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarTransform as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2924,8 +3016,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::Affine2x3<'a>> for Affine2x3 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::Affine2x3<'a>> for Affine2x3 {}
 
+impl ReadArgs for Affine2x3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Affine2x3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::Affine2x3 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3013,8 +3109,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::VarAffine2x3<'a>> for VarAffine2x3
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::VarAffine2x3<'a>> for VarAffine2x3 {}
 
+impl ReadArgs for VarAffine2x3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarAffine2x3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::VarAffine2x3 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3078,8 +3178,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintTranslate<'a>> for PaintTrans
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintTranslate<'a>> for PaintTranslate {}
 
+impl ReadArgs for PaintTranslate {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintTranslate {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintTranslate as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3149,8 +3253,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintVarTranslate<'a>> for PaintVa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarTranslate<'a>> for PaintVarTranslate {}
 
+impl ReadArgs for PaintVarTranslate {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarTranslate {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarTranslate as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3215,8 +3323,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintScale<'a>> for PaintScale {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintScale<'a>> for PaintScale {}
 
+impl ReadArgs for PaintScale {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintScale {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintScale as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3287,8 +3399,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintVarScale<'a>> for PaintVarSca
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarScale<'a>> for PaintVarScale {}
 
+impl ReadArgs for PaintVarScale {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarScale {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarScale as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3377,8 +3493,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintScaleAroundCenter<'a>>
 {
 }
 
+impl ReadArgs for PaintScaleAroundCenter {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintScaleAroundCenter {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintScaleAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3477,8 +3597,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarScaleAroundCenter<'a>>
 {
 }
 
+impl ReadArgs for PaintVarScaleAroundCenter {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarScaleAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3538,8 +3662,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintScaleUniform<'a>> for PaintSc
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintScaleUniform<'a>> for PaintScaleUniform {}
 
+impl ReadArgs for PaintScaleUniform {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintScaleUniform {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintScaleUniform as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3605,8 +3733,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintVarScaleUniform<'a>> for Pain
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarScaleUniform<'a>> for PaintVarScaleUniform {}
 
+impl ReadArgs for PaintVarScaleUniform {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarScaleUniform {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarScaleUniform as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3684,8 +3816,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintScaleUniformAroundCenter<'a
 {
 }
 
+impl ReadArgs for PaintScaleUniformAroundCenter {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintScaleUniformAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3777,8 +3913,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarScaleUniformAroundCenter
 {
 }
 
+impl ReadArgs for PaintVarScaleUniformAroundCenter {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarScaleUniformAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3839,8 +3979,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintRotate<'a>> for PaintRotate {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintRotate<'a>> for PaintRotate {}
 
+impl ReadArgs for PaintRotate {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintRotate {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintRotate as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -3905,8 +4049,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintVarRotate<'a>> for PaintVarRo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarRotate<'a>> for PaintVarRotate {}
 
+impl ReadArgs for PaintVarRotate {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarRotate {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarRotate as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -3985,8 +4133,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintRotateAroundCenter<'a>>
 {
 }
 
+impl ReadArgs for PaintRotateAroundCenter {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintRotateAroundCenter {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintRotateAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -4078,8 +4230,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarRotateAroundCenter<'a>>
 {
 }
 
+impl ReadArgs for PaintVarRotateAroundCenter {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarRotateAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -4146,8 +4302,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintSkew<'a>> for PaintSkew {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintSkew<'a>> for PaintSkew {}
 
+impl ReadArgs for PaintSkew {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintSkew {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintSkew as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -4225,8 +4385,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintVarSkew<'a>> for PaintVarSkew
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarSkew<'a>> for PaintVarSkew {}
 
+impl ReadArgs for PaintVarSkew {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarSkew {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarSkew as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -4314,8 +4478,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintSkewAroundCenter<'a>>
 {
 }
 
+impl ReadArgs for PaintSkewAroundCenter {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintSkewAroundCenter {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintSkewAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -4416,8 +4584,12 @@ impl<'a> FromTableRef<read_fonts::tables::colr::PaintVarSkewAroundCenter<'a>>
 {
 }
 
+impl ReadArgs for PaintVarSkewAroundCenter {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintVarSkewAroundCenter as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -4485,8 +4657,12 @@ impl<'a> FromObjRef<read_fonts::tables::colr::PaintComposite<'a>> for PaintCompo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::colr::PaintComposite<'a>> for PaintComposite {}
 
+impl ReadArgs for PaintComposite {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintComposite {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::colr::PaintComposite as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

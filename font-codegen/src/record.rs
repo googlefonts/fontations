@@ -103,16 +103,16 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
 
         impl ComputeSize for #name #anon_lifetime {
             #[allow(clippy::needless_question_mark)]
-            fn compute_size(args: &#args_type) -> Result<usize, ReadError> {
-                let #destructure_pattern = *args;
+            fn compute_size(args: #args_type) -> Result<usize, ReadError> {
+                #destructure_pattern
                 #comp_size_expr
             }
         }
 
-        impl<'a> FontReadWithArgs<'a> for #name #lifetime {
-            fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
+        impl<'a> FontRead<'a> for #name #lifetime {
+            fn read_with_args(data: FontData<'a>, args: #args_type) -> Result<Self, ReadError> {
                 let mut cursor = data.cursor();
-                let #destructure_pattern = *args;
+                #destructure_pattern
                 Ok(Self {
                     #( #field_inits, )*
                 })
@@ -128,7 +128,7 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
             /// parsed.
             pub fn read(data: FontData<'a>, #( #constructor_args, )* ) -> Result<Self, ReadError> {
                 let args = #args_from_constructor_args;
-                Self::read_with_args(data, &args)
+                Self::read_with_args(data, args)
             }
         }
     }

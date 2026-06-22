@@ -5,12 +5,12 @@
 use bytemuck::AnyBitPattern;
 use font_types::FixedSize;
 
-use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs, VarSize};
-use crate::{FontData, FontRead, ReadError};
+use crate::read::{ComputeSize, FontRead, ReadArgs, VarSize};
+use crate::{FontData, ReadError};
 
 /// An array whose items size is not known at compile time.
 ///
-/// This requires the inner type to implement [`FontReadWithArgs`] as well as
+/// This requires the inner type to implement [`FontRead`] as well as
 /// [`ComputeSize`].
 ///
 /// At runtime, `Args` are provided which will be used to compute the size
@@ -27,7 +27,7 @@ pub struct ComputedArray<'a, T: ReadArgs> {
 
 impl<'a, T: ComputeSize> ComputedArray<'a, T> {
     pub fn new(data: FontData<'a>, args: T::Args) -> Result<Self, ReadError> {
-        let item_len = T::compute_size(&args)?;
+        let item_len = T::compute_size(args)?;
         let len = data.len().checked_div(item_len).unwrap_or(0);
         Ok(ComputedArray {
             item_len,
@@ -51,13 +51,13 @@ impl<T: ReadArgs> ReadArgs for ComputedArray<'_, T> {
     type Args = T::Args;
 }
 
-impl<'a, T> FontReadWithArgs<'a> for ComputedArray<'a, T>
+impl<'a, T> FontRead<'a> for ComputedArray<'a, T>
 where
-    T: ComputeSize + FontReadWithArgs<'a>,
+    T: ComputeSize + FontRead<'a>,
     T::Args: Copy,
 {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
-        Self::new(data, *args)
+    fn read_with_args(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
+        Self::new(data, args)
     }
 }
 
@@ -78,7 +78,7 @@ where
 
 impl<'a, T> ComputedArray<'a, T>
 where
-    T: FontReadWithArgs<'a>,
+    T: FontRead<'a>,
     T::Args: Copy + 'static,
 {
     pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
@@ -95,7 +95,7 @@ where
             let item_start = item_len.checked_mul(i)?;
             i = i.checked_add(1)?;
             let data = data.split_off(item_start)?;
-            Some(T::read_with_args(data, &args))
+            Some(T::read_with_args(data, args))
         })
     }
 
@@ -107,7 +107,7 @@ where
         self.data
             .split_off(item_start)
             .ok_or(ReadError::OutOfBounds)
-            .and_then(|data| T::read_with_args(data, &self.args))
+            .and_then(|data| T::read_with_args(data, self.args))
     }
 }
 
@@ -128,7 +128,7 @@ pub struct VarLenArray<'a, T> {
     phantom: std::marker::PhantomData<*const T>,
 }
 
-impl<'a, T: FontRead<'a> + VarSize> VarLenArray<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()> + VarSize> VarLenArray<'a, T> {
     /// Return the item at the provided index.
     ///
     /// # Performance
@@ -177,8 +177,12 @@ impl<'a, T: FontRead<'a> + VarSize> VarLenArray<'a, T> {
     }
 }
 
+impl<T> ReadArgs for VarLenArray<'_, T> {
+    type Args = ();
+}
+
 impl<'a, T> FontRead<'a> for VarLenArray<'a, T> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         Ok(VarLenArray {
             data,
             phantom: core::marker::PhantomData,
@@ -199,9 +203,9 @@ impl<T: AnyBitPattern> ReadArgs for &[T] {
     type Args = u16;
 }
 
-impl<'a, T: AnyBitPattern + FixedSize> FontReadWithArgs<'a> for &'a [T] {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let len = (*args as usize)
+impl<'a, T: AnyBitPattern + FixedSize> FontRead<'a> for &'a [T] {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let len = (args as usize)
             .checked_mul(T::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         data.read_array(0..len)

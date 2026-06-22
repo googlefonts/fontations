@@ -361,8 +361,8 @@ impl GlyphClosure for SubstitutionSubtables<'_> {
     }
 }
 
-impl<'a, T: FontRead<'a> + GlyphClosure + 'a, Ext: ExtensionLookup<'a, T> + 'a> GlyphClosure
-    for Subtables<'a, T, Ext>
+impl<'a, T: FontRead<'a, Args = ()> + GlyphClosure + 'a, Ext: ExtensionLookup<'a, T> + 'a>
+    GlyphClosure for Subtables<'a, T, Ext>
 {
     fn closure_glyphs(
         &self,

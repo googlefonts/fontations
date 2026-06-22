@@ -107,8 +107,12 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
 
         #getters
 
+        impl ReadArgs for #name<'_> {
+            type Args = ();
+        }
+
         impl<'a> FontRead<'a> for #name<'a> {
-            fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+            fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
                 let format: #format = data.read_at(#format_offset)?;
                 #maybe_allow_lint
                 match format {
@@ -404,8 +408,12 @@ fn generate_from_obj(item: &TableFormat, parse_module: &syn::Path) -> syn::Resul
 
         impl FromTableRef<#parse_module::#name<'_>> for #name {}
 
+        impl ReadArgs for #name {
+            type Args = ();
+        }
+
         impl<'a> FontRead<'a> for #name {
-            fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+            fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
                 <#parse_module :: #name as FontRead>::read(data)
                     .map(|x| x.to_owned_table())
             }

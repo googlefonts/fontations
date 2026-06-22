@@ -86,8 +86,12 @@ impl<'a> FromObjRef<read_fonts::tables::stat::Stat<'a>> for Stat {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::Stat<'a>> for Stat {}
 
+impl ReadArgs for Stat {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Stat {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::Stat as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -316,8 +320,12 @@ impl FromObjRef<read_fonts::tables::stat::AxisValue<'_>> for AxisValue {
 
 impl FromTableRef<read_fonts::tables::stat::AxisValue<'_>> for AxisValue {}
 
+impl ReadArgs for AxisValue {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValue {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValue as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -412,8 +420,12 @@ impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueFormat1<'a>> for AxisValu
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::AxisValueFormat1<'a>> for AxisValueFormat1 {}
 
+impl ReadArgs for AxisValueFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValueFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -499,8 +511,12 @@ impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueFormat2<'a>> for AxisValu
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::AxisValueFormat2<'a>> for AxisValueFormat2 {}
 
+impl ReadArgs for AxisValueFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValueFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -578,8 +594,12 @@ impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueFormat3<'a>> for AxisValu
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::AxisValueFormat3<'a>> for AxisValueFormat3 {}
 
+impl ReadArgs for AxisValueFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValueFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -655,8 +675,12 @@ impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueFormat4<'a>> for AxisValu
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::stat::AxisValueFormat4<'a>> for AxisValueFormat4 {}
 
+impl ReadArgs for AxisValueFormat4 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat4 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::stat::AxisValueFormat4 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

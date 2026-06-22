@@ -380,8 +380,12 @@ impl<'a> FromObjRef<read_fonts::tables::os2::Os2<'a>> for Os2 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::os2::Os2<'a>> for Os2 {}
 
+impl ReadArgs for Os2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Os2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::os2::Os2 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

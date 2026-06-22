@@ -20,8 +20,12 @@ impl TopLevelTable for Cbdt<'_> {
     const TAG: Tag = Tag::new(b"CBDT");
 }
 
+impl ReadArgs for Cbdt<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cbdt<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

@@ -7,7 +7,7 @@ use crate::{
 };
 
 use kurbo::BezPath;
-use read_fonts::{tables::glyf::SimpleGlyphFlags, FontRead};
+use read_fonts::{tables::glyf::SimpleGlyphFlags, FontRead, ReadArgs};
 
 pub use read_fonts::tables::glyf::CurvePoint;
 
@@ -257,8 +257,15 @@ impl FromObjRef<read_fonts::tables::glyf::SimpleGlyph<'_>> for SimpleGlyph {
 
 impl FromTableRef<read_fonts::tables::glyf::SimpleGlyph<'_>> for SimpleGlyph {}
 
+impl ReadArgs for SimpleGlyph {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SimpleGlyph {
-    fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {
+    fn read_with_args(
+        data: read_fonts::FontData<'a>,
+        _: (),
+    ) -> Result<Self, read_fonts::ReadError> {
         read_fonts::tables::glyf::SimpleGlyph::read(data).map(|g| g.to_owned_table())
     }
 }

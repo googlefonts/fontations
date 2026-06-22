@@ -191,8 +191,12 @@ impl<'a> FromObjRef<read_fonts::tables::sbix::GlyphData<'a>> for GlyphData {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::sbix::GlyphData<'a>> for GlyphData {}
 
+impl ReadArgs for GlyphData {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphData {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::sbix::GlyphData as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

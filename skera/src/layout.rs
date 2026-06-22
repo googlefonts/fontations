@@ -1515,7 +1515,7 @@ impl SubsetTable<'_> for FeatureParams<'_> {
 
 impl<
         'a,
-        T: FontRead<'a>
+        T: FontRead<'a, Args = ()>
             + SubsetTable<
                 'a,
                 ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
@@ -1775,7 +1775,7 @@ where
             'a,
             ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
         > + Intersect
-        + FontRead<'a>
+        + FontRead<'a, Args = ()>
         + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {

@@ -2,9 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use read_fonts::{
-    ArrayOfNullableOffsets, ArrayOfOffsets, FontData, FontReadWithArgs, Offset, ReadArgs, ReadError,
-};
+use read_fonts::{ArrayOfNullableOffsets, ArrayOfOffsets, FontData, FontRead, Offset, ReadError};
 use types::{BigEndian, Scalar};
 
 use crate::{NullableOffsetMarker, OffsetMarker};
@@ -171,7 +169,7 @@ impl<T: FromTableRef<U>, U, const N: usize> FromTableRef<Option<Result<U, ReadEr
 impl<'a, T, U, O, const N: usize> FromObjRef<ArrayOfOffsets<'a, U, O>> for Vec<OffsetMarker<T, N>>
 where
     T: FromObjRef<U> + Default,
-    U: ReadArgs + FontReadWithArgs<'a>,
+    U: FontRead<'a>,
     U::Args: 'static,
     O: Scalar + Offset,
 {
@@ -186,7 +184,7 @@ impl<'a, T, U, O, const N: usize> FromObjRef<ArrayOfNullableOffsets<'a, U, O>>
     for Vec<NullableOffsetMarker<T, N>>
 where
     T: FromObjRef<U> + Default,
-    U: ReadArgs + FontReadWithArgs<'a>,
+    U: FontRead<'a>,
     U::Args: 'static,
     O: Scalar + Offset,
 {
@@ -200,7 +198,7 @@ where
 impl<'a, T, U, O, const N: usize> FromTableRef<ArrayOfOffsets<'a, U, O>> for Vec<OffsetMarker<T, N>>
 where
     T: FromTableRef<U> + Default,
-    U: ReadArgs + FontReadWithArgs<'a>,
+    U: FontRead<'a>,
     U::Args: 'static,
     O: Scalar + Offset,
 {
@@ -210,7 +208,7 @@ impl<'a, T, U, O, const N: usize> FromTableRef<ArrayOfNullableOffsets<'a, U, O>>
     for Vec<NullableOffsetMarker<T, N>>
 where
     T: FromObjRef<U> + Default,
-    U: ReadArgs + FontReadWithArgs<'a>,
+    U: FontRead<'a>,
     U::Args: 'static,
     O: Scalar + Offset,
 {

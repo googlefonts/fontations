@@ -130,8 +130,12 @@ impl TopLevelTable for Cff<'_> {
     const TAG: Tag = Tag::new(b"CFF ");
 }
 
+impl ReadArgs for Cff<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cff<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let header = CffHeader::read(data)?;
         let mut data = FontData::new(header.trailing_data());
         let names = Index::read(data)?;

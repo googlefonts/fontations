@@ -95,8 +95,12 @@ impl<'a> FromObjRef<read_fonts::tables::varc::Varc<'a>> for Varc {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::varc::Varc<'a>> for Varc {}
 
+impl ReadArgs for Varc {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Varc {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::Varc as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -176,8 +180,12 @@ impl<'a> FromTableRef<read_fonts::tables::varc::MultiItemVariationStore<'a>>
 {
 }
 
+impl ReadArgs for MultiItemVariationStore {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MultiItemVariationStore {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::MultiItemVariationStore as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -243,8 +251,12 @@ impl<'a> FromTableRef<read_fonts::tables::varc::SparseVariationRegionList<'a>>
 {
 }
 
+impl ReadArgs for SparseVariationRegionList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SparseVariationRegionList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::SparseVariationRegionList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -309,8 +321,12 @@ impl<'a> FromTableRef<read_fonts::tables::varc::SparseVariationRegion<'a>>
 {
 }
 
+impl ReadArgs for SparseVariationRegion {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SparseVariationRegion {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::SparseVariationRegion as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -435,8 +451,12 @@ impl<'a> FromTableRef<read_fonts::tables::varc::MultiItemVariationData<'a>>
 {
 }
 
+impl ReadArgs for MultiItemVariationData {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MultiItemVariationData {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::MultiItemVariationData as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -494,8 +514,12 @@ impl<'a> FromObjRef<read_fonts::tables::varc::ConditionList<'a>> for ConditionLi
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::varc::ConditionList<'a>> for ConditionList {}
 
+impl ReadArgs for ConditionList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ConditionList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::ConditionList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

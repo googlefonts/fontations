@@ -73,8 +73,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::records::BasicTable<'a>> for Basic
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::records::BasicTable<'a>> for BasicTable {}
 
+impl ReadArgs for BasicTable {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BasicTable {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::records::BasicTable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -259,8 +263,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::records::VarLenItem<'a>> for VarLe
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::records::VarLenItem<'a>> for VarLenItem {}
 
+impl ReadArgs for VarLenItem {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarLenItem {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::records::VarLenItem as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

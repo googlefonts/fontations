@@ -115,8 +115,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::Gdef<'a>> for Gdef {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::Gdef<'a>> for Gdef {}
 
+impl ReadArgs for Gdef {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gdef {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::Gdef as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -189,8 +193,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::AttachList<'a>> for AttachList {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::AttachList<'a>> for AttachList {}
 
+impl ReadArgs for AttachList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AttachList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::AttachList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -245,8 +253,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::AttachPoint<'a>> for AttachPoint {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::AttachPoint<'a>> for AttachPoint {}
 
+impl ReadArgs for AttachPoint {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AttachPoint {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::AttachPoint as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -312,8 +324,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::LigCaretList<'a>> for LigCaretList
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::LigCaretList<'a>> for LigCaretList {}
 
+impl ReadArgs for LigCaretList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigCaretList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::LigCaretList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -371,8 +387,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::LigGlyph<'a>> for LigGlyph {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::LigGlyph<'a>> for LigGlyph {}
 
+impl ReadArgs for LigGlyph {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigGlyph {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::LigGlyph as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -449,8 +469,12 @@ impl FromObjRef<read_fonts::tables::gdef::CaretValue<'_>> for CaretValue {
 
 impl FromTableRef<read_fonts::tables::gdef::CaretValue<'_>> for CaretValue {}
 
+impl ReadArgs for CaretValue {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValue {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValue as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -514,8 +538,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::CaretValueFormat1<'a>> for CaretVa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::CaretValueFormat1<'a>> for CaretValueFormat1 {}
 
+impl ReadArgs for CaretValueFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValueFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValueFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -564,8 +592,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::CaretValueFormat2<'a>> for CaretVa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::CaretValueFormat2<'a>> for CaretValueFormat2 {}
 
+impl ReadArgs for CaretValueFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValueFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValueFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -627,8 +659,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::CaretValueFormat3<'a>> for CaretVa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::CaretValueFormat3<'a>> for CaretValueFormat3 {}
 
+impl ReadArgs for CaretValueFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValueFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValueFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -688,8 +724,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::MarkGlyphSets<'a>> for MarkGlyphSe
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::MarkGlyphSets<'a>> for MarkGlyphSets {}
 
+impl ReadArgs for MarkGlyphSets {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkGlyphSets {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::MarkGlyphSets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

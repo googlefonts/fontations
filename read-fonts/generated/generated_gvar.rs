@@ -20,8 +20,12 @@ impl TopLevelTable for Gvar<'_> {
     const TAG: Tag = Tag::new(b"gvar");
 }
 
+impl ReadArgs for Gvar<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gvar<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -79,7 +83,7 @@ impl<'a> Gvar<'a> {
     pub fn shared_tuples(&self) -> Result<SharedTuples<'a>, ReadError> {
         let data = self.data;
         let args = (self.shared_tuple_count(), self.axis_count());
-        self.shared_tuples_offset().resolve_with_args(data, &args)
+        self.shared_tuples_offset().resolve_with_args(data, args)
     }
 
     /// The number of glyphs in this font. This must match the number
@@ -109,7 +113,7 @@ impl<'a> Gvar<'a> {
     pub fn glyph_variation_data_offsets(&self) -> ComputedArray<'a, U16Or32> {
         let range = self.glyph_variation_data_offsets_byte_range();
         self.data
-            .read_with_args(range, &self.flags())
+            .read_with_args(range, self.flags())
             .unwrap_or_default()
     }
 
@@ -154,7 +158,7 @@ impl<'a> Gvar<'a> {
         start
             ..start
                 + (transforms::add(glyph_count, 1_usize)).saturating_mul(
-                    <U16Or32 as ComputeSize>::compute_size(&self.flags()).unwrap_or(0),
+                    <U16Or32 as ComputeSize>::compute_size(self.flags()).unwrap_or(0),
                 )
     }
 }
@@ -521,9 +525,9 @@ impl ReadArgs for SharedTuples<'_> {
     type Args = (u16, u16);
 }
 
-impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
-        let (shared_tuple_count, axis_count) = *args;
+impl<'a> FontRead<'a> for SharedTuples<'a> {
+    fn read_with_args(data: FontData<'a>, args: (u16, u16)) -> Result<Self, ReadError> {
+        let (shared_tuple_count, axis_count) = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -548,7 +552,7 @@ impl<'a> SharedTuples<'a> {
         axis_count: u16,
     ) -> Result<Self, ReadError> {
         let args = (shared_tuple_count, axis_count);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -568,7 +572,7 @@ impl<'a> SharedTuples<'a> {
     pub fn tuples(&self) -> ComputedArray<'a, Tuple<'a>> {
         let range = self.tuples_byte_range();
         self.data
-            .read_with_args(range, &self.axis_count())
+            .read_with_args(range, self.axis_count())
             .unwrap_or_default()
     }
 
@@ -586,7 +590,7 @@ impl<'a> SharedTuples<'a> {
         start
             ..start
                 + (transforms::to_usize(shared_tuple_count)).saturating_mul(
-                    <Tuple as ComputeSize>::compute_size(&self.axis_count()).unwrap_or(0),
+                    <Tuple as ComputeSize>::compute_size(self.axis_count()).unwrap_or(0),
                 )
     }
 }
@@ -638,8 +642,12 @@ impl<'a> MinByteRange<'a> for GlyphVariationDataHeader<'a> {
     }
 }
 
+impl ReadArgs for GlyphVariationDataHeader<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

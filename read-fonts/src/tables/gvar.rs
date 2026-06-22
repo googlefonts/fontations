@@ -23,7 +23,7 @@ impl ReadArgs for U16Or32 {
 }
 
 impl ComputeSize for U16Or32 {
-    fn compute_size(args: &GvarFlags) -> Result<usize, ReadError> {
+    fn compute_size(args: GvarFlags) -> Result<usize, ReadError> {
         Ok(if args.contains(GvarFlags::LONG_OFFSETS) {
             4
         } else {
@@ -32,8 +32,8 @@ impl ComputeSize for U16Or32 {
     }
 }
 
-impl FontReadWithArgs<'_> for U16Or32 {
-    fn read_with_args(data: FontData<'_>, args: &Self::Args) -> Result<Self, ReadError> {
+impl FontRead<'_> for U16Or32 {
+    fn read_with_args(data: FontData<'_>, args: Self::Args) -> Result<Self, ReadError> {
         if args.contains(GvarFlags::LONG_OFFSETS) {
             data.read_at::<u32>(0).map(Self)
         } else {

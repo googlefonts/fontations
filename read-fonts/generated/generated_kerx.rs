@@ -20,8 +20,12 @@ impl TopLevelTable for Kerx<'_> {
     const TAG: Tag = Tag::new(b"kerx");
 }
 
+impl ReadArgs for Kerx<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Kerx<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -133,8 +137,12 @@ impl<'a> MinByteRange<'a> for Subtable<'a> {
     }
 }
 
+impl ReadArgs for Subtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Subtable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -243,8 +251,12 @@ impl<'a> MinByteRange<'a> for Subtable0<'a> {
     }
 }
 
+impl ReadArgs for Subtable0<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Subtable0<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);

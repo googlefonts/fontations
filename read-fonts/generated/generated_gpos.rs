@@ -20,8 +20,12 @@ impl TopLevelTable for Gpos<'_> {
     const TAG: Tag = Tag::new(b"GPOS");
 }
 
+impl ReadArgs for Gpos<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gpos<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -198,8 +202,12 @@ impl Default for PositionLookup<'_> {
     }
 }
 
+impl ReadArgs for PositionLookup<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PositionLookup<'a> {
-    fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(bytes: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let discriminant = Lookup::read_discriminant(bytes)?;
         match discriminant {
             1 => Ok(PositionLookup::Single(FontRead::read(bytes)?)),
@@ -666,8 +674,12 @@ impl<'a> AnchorTable<'a> {
     }
 }
 
+impl ReadArgs for AnchorTable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorTable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             AnchorFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -737,8 +749,12 @@ impl<'a> MinByteRange<'a> for AnchorFormat1<'a> {
     }
 }
 
+impl ReadArgs for AnchorFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -839,8 +855,12 @@ impl<'a> MinByteRange<'a> for AnchorFormat2<'a> {
     }
 }
 
+impl ReadArgs for AnchorFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -944,8 +964,12 @@ impl<'a> MinByteRange<'a> for AnchorFormat3<'a> {
     }
 }
 
+impl ReadArgs for AnchorFormat3<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorFormat3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1082,8 +1106,12 @@ impl<'a> MinByteRange<'a> for MarkArray<'a> {
     }
 }
 
+impl ReadArgs for MarkArray<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkArray<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1267,8 +1295,12 @@ impl<'a> SinglePos<'a> {
     }
 }
 
+impl ReadArgs for SinglePos<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SinglePos<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             SinglePosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -1334,8 +1366,12 @@ impl<'a> MinByteRange<'a> for SinglePosFormat1<'a> {
     }
 }
 
+impl ReadArgs for SinglePosFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1385,7 +1421,7 @@ impl<'a> SinglePosFormat1<'a> {
     pub fn value_record(&self) -> ValueRecord {
         let range = self.value_record_byte_range();
         self.data
-            .read_with_args(range, &self.value_format())
+            .read_with_args(range, self.value_format())
             .unwrap_or_default()
     }
 
@@ -1406,7 +1442,7 @@ impl<'a> SinglePosFormat1<'a> {
 
     pub fn value_record_byte_range(&self) -> Range<usize> {
         let start = self.value_format_byte_range().end;
-        start..start + <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap_or(0)
+        start..start + <ValueRecord as ComputeSize>::compute_size(self.value_format()).unwrap_or(0)
     }
 }
 
@@ -1466,8 +1502,12 @@ impl<'a> MinByteRange<'a> for SinglePosFormat2<'a> {
     }
 }
 
+impl ReadArgs for SinglePosFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1525,7 +1565,7 @@ impl<'a> SinglePosFormat2<'a> {
     pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
         let range = self.value_records_byte_range();
         self.data
-            .read_with_args(range, &self.value_format())
+            .read_with_args(range, self.value_format())
             .unwrap_or_default()
     }
 
@@ -1555,7 +1595,7 @@ impl<'a> SinglePosFormat2<'a> {
         start
             ..start
                 + (transforms::to_usize(value_count)).saturating_mul(
-                    <ValueRecord as ComputeSize>::compute_size(&self.value_format()).unwrap_or(0),
+                    <ValueRecord as ComputeSize>::compute_size(self.value_format()).unwrap_or(0),
                 )
     }
 }
@@ -1652,8 +1692,12 @@ impl<'a> PairPos<'a> {
     }
 }
 
+impl ReadArgs for PairPos<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PairPos<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             PairPosFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -1719,8 +1763,12 @@ impl<'a> MinByteRange<'a> for PairPosFormat1<'a> {
     }
 }
 
+impl ReadArgs for PairPosFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PairPosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1885,12 +1933,12 @@ impl ReadArgs for PairSet<'_> {
     type Args = (ValueFormat, ValueFormat);
 }
 
-impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
+impl<'a> FontRead<'a> for PairSet<'a> {
     fn read_with_args(
         data: FontData<'a>,
-        args: &(ValueFormat, ValueFormat),
+        args: (ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
-        let (value_format1, value_format2) = *args;
+        let (value_format1, value_format2) = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -1915,7 +1963,7 @@ impl<'a> PairSet<'a> {
         value_format2: ValueFormat,
     ) -> Result<Self, ReadError> {
         let args = (value_format1, value_format2);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1943,7 +1991,7 @@ impl<'a> PairSet<'a> {
     pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
         let range = self.pair_value_records_byte_range();
         self.data
-            .read_with_args(range, &(self.value_format1(), self.value_format2()))
+            .read_with_args(range, (self.value_format1(), self.value_format2()))
             .unwrap_or_default()
     }
 
@@ -1966,7 +2014,7 @@ impl<'a> PairSet<'a> {
         start
             ..start
                 + (transforms::to_usize(pair_value_count)).saturating_mul(
-                    <PairValueRecord as ComputeSize>::compute_size(&(
+                    <PairValueRecord as ComputeSize>::compute_size((
                         self.value_format1(),
                         self.value_format2(),
                     ))
@@ -2052,33 +2100,33 @@ impl ReadArgs for PairValueRecord {
 
 impl ComputeSize for PairValueRecord {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &(ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
-        let (value_format1, value_format2) = *args;
+    fn compute_size(args: (ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
+        let (value_format1, value_format2) = args;
         let mut result = 0usize;
         result = result
             .checked_add(GlyphId16::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         result = result
-            .checked_add(<ValueRecord as ComputeSize>::compute_size(&value_format1).unwrap_or(0))
+            .checked_add(<ValueRecord as ComputeSize>::compute_size(value_format1).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         result = result
-            .checked_add(<ValueRecord as ComputeSize>::compute_size(&value_format2).unwrap_or(0))
+            .checked_add(<ValueRecord as ComputeSize>::compute_size(value_format2).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         Ok(result)
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for PairValueRecord {
+impl<'a> FontRead<'a> for PairValueRecord {
     fn read_with_args(
         data: FontData<'a>,
-        args: &(ValueFormat, ValueFormat),
+        args: (ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let (value_format1, value_format2) = *args;
+        let (value_format1, value_format2) = args;
         Ok(Self {
             second_glyph: cursor.read_be()?,
-            value_record1: cursor.read_with_args(&value_format1)?,
-            value_record2: cursor.read_with_args(&value_format2)?,
+            value_record1: cursor.read_with_args(value_format1)?,
+            value_record2: cursor.read_with_args(value_format2)?,
         })
     }
 }
@@ -2095,7 +2143,7 @@ impl<'a> PairValueRecord {
         value_format2: ValueFormat,
     ) -> Result<Self, ReadError> {
         let args = (value_format1, value_format2);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -2135,8 +2183,12 @@ impl<'a> MinByteRange<'a> for PairPosFormat2<'a> {
     }
 }
 
+impl ReadArgs for PairPosFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PairPosFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2239,7 +2291,7 @@ impl<'a> PairPosFormat2<'a> {
         self.data
             .read_with_args(
                 range,
-                &(
+                (
                     self.class2_count(),
                     self.value_format1(),
                     self.value_format2(),
@@ -2294,7 +2346,7 @@ impl<'a> PairPosFormat2<'a> {
         start
             ..start
                 + (transforms::to_usize(class1_count)).saturating_mul(
-                    <Class1Record as ComputeSize>::compute_size(&(
+                    <Class1Record as ComputeSize>::compute_size((
                         self.class2_count(),
                         self.value_format1(),
                         self.value_format2(),
@@ -2369,26 +2421,26 @@ impl ReadArgs for Class1Record<'_> {
 
 impl ComputeSize for Class1Record<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &(u16, ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
-        let (class2_count, value_format1, value_format2) = *args;
+    fn compute_size(args: (u16, ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
+        let (class2_count, value_format1, value_format2) = args;
         Ok((transforms::to_usize(class2_count)).saturating_mul(
-            <Class2Record as ComputeSize>::compute_size(&(value_format1, value_format2))
+            <Class2Record as ComputeSize>::compute_size((value_format1, value_format2))
                 .unwrap_or(0),
         ))
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
+impl<'a> FontRead<'a> for Class1Record<'a> {
     fn read_with_args(
         data: FontData<'a>,
-        args: &(u16, ValueFormat, ValueFormat),
+        args: (u16, ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let (class2_count, value_format1, value_format2) = *args;
+        let (class2_count, value_format1, value_format2) = args;
         Ok(Self {
             class2_records: cursor.read_computed_array(
                 transforms::to_usize(class2_count),
-                &(value_format1, value_format2),
+                (value_format1, value_format2),
             )?,
         })
     }
@@ -2407,7 +2459,7 @@ impl<'a> Class1Record<'a> {
         value_format2: ValueFormat,
     ) -> Result<Self, ReadError> {
         let args = (class2_count, value_format1, value_format2);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -2459,29 +2511,29 @@ impl ReadArgs for Class2Record {
 
 impl ComputeSize for Class2Record {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &(ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
-        let (value_format1, value_format2) = *args;
+    fn compute_size(args: (ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
+        let (value_format1, value_format2) = args;
         let mut result = 0usize;
         result = result
-            .checked_add(<ValueRecord as ComputeSize>::compute_size(&value_format1).unwrap_or(0))
+            .checked_add(<ValueRecord as ComputeSize>::compute_size(value_format1).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         result = result
-            .checked_add(<ValueRecord as ComputeSize>::compute_size(&value_format2).unwrap_or(0))
+            .checked_add(<ValueRecord as ComputeSize>::compute_size(value_format2).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         Ok(result)
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for Class2Record {
+impl<'a> FontRead<'a> for Class2Record {
     fn read_with_args(
         data: FontData<'a>,
-        args: &(ValueFormat, ValueFormat),
+        args: (ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let (value_format1, value_format2) = *args;
+        let (value_format1, value_format2) = args;
         Ok(Self {
-            value_record1: cursor.read_with_args(&value_format1)?,
-            value_record2: cursor.read_with_args(&value_format2)?,
+            value_record1: cursor.read_with_args(value_format1)?,
+            value_record2: cursor.read_with_args(value_format2)?,
         })
     }
 }
@@ -2498,7 +2550,7 @@ impl<'a> Class2Record {
         value_format2: ValueFormat,
     ) -> Result<Self, ReadError> {
         let args = (value_format1, value_format2);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -2537,8 +2589,12 @@ impl<'a> MinByteRange<'a> for CursivePosFormat1<'a> {
     }
 }
 
+impl ReadArgs for CursivePosFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CursivePosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2749,8 +2805,12 @@ impl<'a> MinByteRange<'a> for MarkBasePosFormat1<'a> {
     }
 }
 
+impl ReadArgs for MarkBasePosFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkBasePosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2837,7 +2897,7 @@ impl<'a> MarkBasePosFormat1<'a> {
     pub fn base_array(&self) -> Result<BaseArray<'a>, ReadError> {
         let data = self.data;
         let args = self.mark_class_count();
-        self.base_array_offset().resolve_with_args(data, &args)
+        self.base_array_offset().resolve_with_args(data, args)
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -2935,9 +2995,9 @@ impl ReadArgs for BaseArray<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
+impl<'a> FontRead<'a> for BaseArray<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mark_class_count = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -2957,7 +3017,7 @@ impl<'a> BaseArray<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -2983,7 +3043,7 @@ impl<'a> BaseArray<'a> {
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
         let range = self.base_records_byte_range();
         self.data
-            .read_with_args(range, &self.mark_class_count())
+            .read_with_args(range, self.mark_class_count())
             .unwrap_or_default()
     }
 
@@ -3002,8 +3062,7 @@ impl<'a> BaseArray<'a> {
         start
             ..start
                 + (transforms::to_usize(base_count)).saturating_mul(
-                    <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count())
-                        .unwrap_or(0),
+                    <BaseRecord as ComputeSize>::compute_size(self.mark_class_count()).unwrap_or(0),
                 )
     }
 }
@@ -3086,16 +3145,16 @@ impl ReadArgs for BaseRecord<'_> {
 
 impl ComputeSize for BaseRecord<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let mark_class_count = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let mark_class_count = args;
         Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset16::RAW_BYTE_LEN))
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for BaseRecord<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let mark_class_count = *args;
+        let mark_class_count = args;
         Ok(Self {
             base_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
@@ -3110,7 +3169,7 @@ impl<'a> BaseRecord<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -3145,8 +3204,12 @@ impl<'a> MinByteRange<'a> for MarkLigPosFormat1<'a> {
     }
 }
 
+impl ReadArgs for MarkLigPosFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkLigPosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3233,7 +3296,7 @@ impl<'a> MarkLigPosFormat1<'a> {
     pub fn ligature_array(&self) -> Result<LigatureArray<'a>, ReadError> {
         let data = self.data;
         let args = self.mark_class_count();
-        self.ligature_array_offset().resolve_with_args(data, &args)
+        self.ligature_array_offset().resolve_with_args(data, args)
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -3331,9 +3394,9 @@ impl ReadArgs for LigatureArray<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
+impl<'a> FontRead<'a> for LigatureArray<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mark_class_count = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -3353,7 +3416,7 @@ impl<'a> LigatureArray<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -3457,9 +3520,9 @@ impl ReadArgs for LigatureAttach<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
+impl<'a> FontRead<'a> for LigatureAttach<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mark_class_count = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -3479,7 +3542,7 @@ impl<'a> LigatureAttach<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -3505,7 +3568,7 @@ impl<'a> LigatureAttach<'a> {
     pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
         let range = self.component_records_byte_range();
         self.data
-            .read_with_args(range, &self.mark_class_count())
+            .read_with_args(range, self.mark_class_count())
             .unwrap_or_default()
     }
 
@@ -3524,7 +3587,7 @@ impl<'a> LigatureAttach<'a> {
         start
             ..start
                 + (transforms::to_usize(component_count)).saturating_mul(
-                    <ComponentRecord as ComputeSize>::compute_size(&self.mark_class_count())
+                    <ComponentRecord as ComputeSize>::compute_size(self.mark_class_count())
                         .unwrap_or(0),
                 )
     }
@@ -3608,16 +3671,16 @@ impl ReadArgs for ComponentRecord<'_> {
 
 impl ComputeSize for ComponentRecord<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let mark_class_count = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let mark_class_count = args;
         Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset16::RAW_BYTE_LEN))
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for ComponentRecord<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let mark_class_count = *args;
+        let mark_class_count = args;
         Ok(Self {
             ligature_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
@@ -3632,7 +3695,7 @@ impl<'a> ComponentRecord<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -3667,8 +3730,12 @@ impl<'a> MinByteRange<'a> for MarkMarkPosFormat1<'a> {
     }
 }
 
+impl ReadArgs for MarkMarkPosFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkMarkPosFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3755,7 +3822,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
     pub fn mark2_array(&self) -> Result<Mark2Array<'a>, ReadError> {
         let data = self.data;
         let args = self.mark_class_count();
-        self.mark2_array_offset().resolve_with_args(data, &args)
+        self.mark2_array_offset().resolve_with_args(data, args)
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -3853,9 +3920,9 @@ impl ReadArgs for Mark2Array<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
+impl<'a> FontRead<'a> for Mark2Array<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let mark_class_count = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -3875,7 +3942,7 @@ impl<'a> Mark2Array<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -3901,7 +3968,7 @@ impl<'a> Mark2Array<'a> {
     pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
         let range = self.mark2_records_byte_range();
         self.data
-            .read_with_args(range, &self.mark_class_count())
+            .read_with_args(range, self.mark_class_count())
             .unwrap_or_default()
     }
 
@@ -3920,7 +3987,7 @@ impl<'a> Mark2Array<'a> {
         start
             ..start
                 + (transforms::to_usize(mark2_count)).saturating_mul(
-                    <Mark2Record as ComputeSize>::compute_size(&self.mark_class_count())
+                    <Mark2Record as ComputeSize>::compute_size(self.mark_class_count())
                         .unwrap_or(0),
                 )
     }
@@ -4004,16 +4071,16 @@ impl ReadArgs for Mark2Record<'_> {
 
 impl ComputeSize for Mark2Record<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let mark_class_count = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let mark_class_count = args;
         Ok((transforms::to_usize(mark_class_count)).saturating_mul(Offset16::RAW_BYTE_LEN))
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for Mark2Record<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let mark_class_count = *args;
+        let mark_class_count = args;
         Ok(Self {
             mark2_anchor_offsets: cursor.read_array(transforms::to_usize(mark_class_count))?,
         })
@@ -4028,7 +4095,7 @@ impl<'a> Mark2Record<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -4069,8 +4136,12 @@ impl<'a, T> MinByteRange<'a> for ExtensionPosFormat1<'a, T> {
     }
 }
 
+impl<T> ReadArgs for ExtensionPosFormat1<'_, T> {
+    type Args = ();
+}
+
 impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4129,7 +4200,7 @@ impl<'a, T> ExtensionPosFormat1<'a, T> {
     /// Attempt to resolve [`extension_offset`][Self::extension_offset].
     pub fn extension(&self) -> Result<T, ReadError>
     where
-        T: FontRead<'a>,
+        T: FontRead<'a, Args = ()>,
     {
         let data = self.data;
         self.extension_offset().resolve(data)
@@ -4165,7 +4236,9 @@ impl<T> Default for ExtensionPosFormat1<'_, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionPosFormat1<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a>
+    for ExtensionPosFormat1<'a, T>
+{
     fn type_name(&self) -> &str {
         "ExtensionPosFormat1"
     }
@@ -4187,7 +4260,9 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionPosFor
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionPosFormat1<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug
+    for ExtensionPosFormat1<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -4211,8 +4286,12 @@ impl Default for ExtensionSubtable<'_> {
     }
 }
 
+impl ReadArgs for ExtensionSubtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
-    fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(bytes: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let discriminant = ExtensionPosFormat1::read_discriminant(bytes)?;
         match discriminant {
             1 => Ok(ExtensionSubtable::Single(FontRead::read(bytes)?)),

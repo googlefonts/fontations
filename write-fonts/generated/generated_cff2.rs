@@ -84,8 +84,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v2::Cff2Header<'a>> for Cff2Header {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v2::Cff2Header<'a>> for Cff2Header {}
 
+impl ReadArgs for Cff2Header {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cff2Header {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v2::Cff2Header as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -147,8 +151,12 @@ impl<'a> FromObjRef<read_fonts::ps::cff::v2::Index<'a>> for Index {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::ps::cff::v2::Index<'a>> for Index {}
 
+impl ReadArgs for Index {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Index {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::ps::cff::v2::Index as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
