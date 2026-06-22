@@ -93,8 +93,8 @@ impl Fields {
         self.fields.iter()
     }
 
-    pub(crate) fn find(&self, ident: &syn::Ident) -> Option<&Field> {
-        self.iter().find(|fld| &fld.name == ident)
+    pub(crate) fn find(&self, mut f: impl FnMut(&Field) -> bool) -> Option<&Field> {
+        self.iter().find(|fld| f(fld))
     }
 
     pub(crate) fn iter_compile_decls(&self) -> impl Iterator<Item = TokenStream> + '_ {
@@ -296,6 +296,13 @@ impl Condition {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
+        }
+    }
+
+    pub(crate) fn condition_tokens_for_sanitize(&self) -> TokenStream {
+        match self {
+            Condition::SinceVersion(version) => quote!(version.compatible(#version)),
+            Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
         }
     }
 }
@@ -554,6 +561,13 @@ impl Field {
         self.attrs.conditional.is_some()
     }
 
+    pub(crate) fn is_versioned(&self) -> bool {
+        matches!(
+            self.attrs.conditional.as_deref(),
+            Some(Condition::SinceVersion(_))
+        )
+    }
+
     /// Sanity check we are in a sane state for the end of phase
     fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         check_resolution(phase, &self.typ)?;
@@ -598,6 +612,18 @@ impl Field {
                 }
                 _ => (),
             }
+        }
+
+        if self.attrs.sanitize_len_only.is_some()
+            && !matches!(
+                self.typ,
+                FieldType::Array { .. } | FieldType::ComputedArray(_) | FieldType::VarLenArray(_)
+            )
+        {
+            return Err(logged_syn_error(
+                self.name.span(),
+                "#[sanitize_len_only] is only valid on array fields",
+            ));
         }
 
         if let Some(comp_attr) = &self.attrs.compile_with {
@@ -926,7 +952,7 @@ impl Field {
         self.attrs.count.is_some()
     }
 
-    fn is_offset_or_array_of_offsets(&self) -> bool {
+    pub(crate) fn is_offset_or_array_of_offsets(&self) -> bool {
         match &self.typ {
             FieldType::Offset { .. } => true,
             FieldType::Array { inner_typ }
@@ -1331,6 +1357,217 @@ impl Field {
             _ => quote!(compile_error!("requires custom to_owned impl")),
         };
         Some(quote!( #name: #init_stmt ))
+    }
+
+    /// Generate the sanitize statement for this field.
+    ///
+    /// `needed` is the set of field names that must be bound to local variables
+    /// (because they're referenced by later fields). `generic` is the generic
+    /// offset type parameter, if any.
+    pub(crate) fn sanitize_stmt(
+        &self,
+        needed: &std::collections::HashSet<syn::Ident>,
+        generic: Option<&syn::Ident>,
+    ) -> syn::Result<TokenStream> {
+        let is_needed = needed.contains(&self.name);
+        let inner = self.sanitize_stmt_inner(is_needed, generic);
+
+        if let Some(condition) = &self.attrs.conditional {
+            let cond_tokens = condition.attr.condition_tokens_for_sanitize();
+            Ok(quote! {
+                if #cond_tokens {
+                    #inner
+                }
+            })
+        } else {
+            Ok(inner)
+        }
+    }
+
+    fn sanitize_stmt_inner(&self, is_needed: bool, _generic: Option<&syn::Ident>) -> TokenStream {
+        if let Some(sanitize_fn) = &self.attrs.sanitize_with {
+            let fn_name = &sanitize_fn.attr.fn_name;
+            let args = &sanitize_fn.attr.inputs;
+            if args.is_empty() {
+                return quote!(#fn_name(ctx)?;);
+            } else {
+                return quote!(#fn_name(ctx, #( #args ),*)?;);
+            }
+        }
+        match &self.typ {
+            FieldType::Scalar { typ } if is_needed => {
+                let name = &self.name;
+                quote!(let #name = ctx.read::<#typ>()?;)
+            }
+            FieldType::Scalar { typ } => quote!(ctx.advance::<#typ>();),
+            FieldType::Offset { typ, target } => match target {
+                OffsetTarget::Table(target_table) => {
+                    let args = self.sanitize_offset_args();
+                    quote!(ctx.sanitize_offset::<#typ, #target_table>(#args)?;)
+                }
+                OffsetTarget::Array(inner) => {
+                    let inner_t = match inner.deref() {
+                        FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
+                        FieldType::Struct { typ } => quote!(#typ),
+                        _ => panic!("should have errored before now"),
+                    };
+                    let args = self.attrs.read_offset_args.as_ref().unwrap();
+                    let args = args.to_tokens_for_validation();
+                    let len_only = self.attrs.sanitize_len_only.is_some();
+                    let recurse_fn =
+                        if matches!(inner.deref(), FieldType::Scalar { .. }) || len_only {
+                            quote!(|_, _| Ok(()))
+                        } else {
+                            quote!(|t, ctx| t.sanitize_struct(ctx, ()))
+                        };
+                    quote!(ctx.sanitize_offset_to_array::<#typ, #inner_t, _>(#args, #len_only, #recurse_fn)?;)
+                }
+            },
+            FieldType::Struct { .. } => quote!(compile_error!("struct field needs sanitize_with");),
+            FieldType::Array { inner_typ } => {
+                let count = self.attrs.count.as_ref().expect("array has count");
+                if matches!(&count.attr, Count::All(_)) {
+                    return quote!(compile_error!("#[count(..)] fields require #[sanitize(fn)] attribute"););
+                }
+                let count_expr = count.count_expr();
+                match inner_typ.as_ref() {
+                    FieldType::Scalar { typ } => {
+                        quote!(ctx.sanitize_array::<#typ>(#count_expr)?;)
+                    }
+                    FieldType::Offset {
+                        typ: offset_typ,
+                        target: OffsetTarget::Table(target_table),
+                    } => {
+                        let args = self.sanitize_offset_args();
+                        quote!(ctx.sanitize_array_of_offsets::<#offset_typ, #target_table>(#count_expr, #args)?;)
+                    }
+                    FieldType::Offset { .. } => {
+                        quote!(compile_error!("sanitize not impl'd for array of offsets to arrays");)
+                    }
+                    FieldType::Struct { typ } if self.attrs.sanitize_len_only.is_some() => {
+                        quote!(ctx.sanitize_array::<#typ>(#count_expr)?;)
+                    }
+                    FieldType::Struct { typ } => {
+                        let args = self.sanitize_read_with_args_or_unit();
+                        quote!(ctx.sanitize_array_of_structs::<#typ>(#count_expr, #args)?;)
+                    }
+                    _ => quote!(compile_error!("unexpected inner type for sanitize")),
+                }
+            }
+
+            FieldType::ComputedArray(array) => {
+                let inner = array.raw_inner_type();
+                let Some(count) = self.attrs.count.as_ref().unwrap().single_field() else {
+                    return quote!(compile_error!(
+                        "computed array should always have simple count attr"
+                    ));
+                };
+                let args = self.attrs.read_with_args.as_ref().unwrap();
+                let args = args.to_tokens_for_validation();
+                let recurse = self.attrs.sanitize_len_only.is_none();
+                quote! {
+                    ctx.sanitize_computed_array::<#inner>(#count as _, #args, #recurse)?;
+                }
+            }
+            FieldType::VarLenArray(array) => {
+                let inner = array.raw_inner_type();
+                let count = self.attrs.count.as_ref().and_then(|c| c.single_field());
+                let Some(count) = count else {
+                    return quote!(compile_error!(
+                        "var len array needs a simple count field for sanitize"
+                    ));
+                };
+                let recurse = self.attrs.sanitize_len_only.is_none();
+                quote! {
+                    ctx.sanitize_var_len_array::<#inner>(#count as _, #recurse)?;
+                }
+            }
+
+            FieldType::PendingResolution { .. } => {
+                panic!("should have been resolved before sanitize codegen")
+            }
+        }
+    }
+
+    fn sanitize_offset_args(&self) -> TokenStream {
+        match &self.attrs.read_offset_args {
+            Some(args) => args.attr.to_tokens_for_validation(),
+            None => quote!(()),
+        }
+    }
+
+    fn sanitize_read_with_args_or_unit(&self) -> TokenStream {
+        match &self.attrs.read_with_args {
+            Some(args) => args.to_tokens_for_validation(),
+            None => quote!(()),
+        }
+    }
+
+    /// Generate a sanitize statement for this field in a record context.
+    ///
+    /// Returns `None` for non-offset fields (nothing to recurse into).
+    pub(crate) fn sanitize_record_stmt(&self) -> Option<TokenStream> {
+        if let Some(sanitize_fn) = &self.attrs.sanitize_with {
+            let fn_name = &sanitize_fn.attr.fn_name;
+            let args = &sanitize_fn.attr.inputs;
+            if args.is_empty() {
+                return Some(quote!(self.#fn_name(ctx)?;));
+            } else {
+                return Some(quote!(self.#fn_name(ctx, #( self.#args() ),*)?;));
+            }
+        }
+        let name = &self.name;
+        let args = match &self.attrs.read_offset_args {
+            Some(args) => args.attr.to_tokens_for_table_getter(),
+            None => quote!(()),
+        };
+        match &self.typ {
+            FieldType::Offset {
+                target: OffsetTarget::Table(target),
+                ..
+            } => Some(quote!(self.#name().sanitize_offset::<#target>(ctx, #args)?;)),
+
+            FieldType::Offset {
+                target: OffsetTarget::Array(inner),
+                ..
+            } => {
+                let inner_t = match inner.deref() {
+                    FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
+                    FieldType::Struct { typ } => quote!(#typ),
+                    _ => panic!("should have errored before now"),
+                };
+                let args = self.attrs.read_offset_args.as_ref().unwrap();
+                let args = args.to_tokens_for_table_getter();
+                let len_only = self.attrs.sanitize_len_only.is_some();
+                let recurse_fn = match inner.deref() {
+                    _ if len_only => quote!(|_, _| Ok(())),
+                    FieldType::Scalar { .. } => quote!(|_, _| Ok(())),
+                    FieldType::Struct { .. } => quote!(|t, ctx| t.sanitize_struct(ctx, ())),
+                    _ => unreachable!("would panic above"),
+                };
+                Some(
+                    quote!(ctx.sanitize_resolved_offset_to_array::<_, #inner_t, _>(self.#name(), #args, #len_only, #recurse_fn)?;),
+                )
+            }
+
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset {
+                    target: OffsetTarget::Table(target),
+                    ..
+                } => Some(quote!(self.#name().sanitize_offset::<#target>(ctx, #args)?;)),
+
+                FieldType::Offset {
+                    target: OffsetTarget::Array(_),
+                    ..
+                } => Some(quote!(compile_error!(
+                    "sanitize impl missing for array of offsets to arrays"
+                ))),
+
+                _ => None,
+            },
+
+            _ => None,
+        }
     }
 }
 

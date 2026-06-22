@@ -29,6 +29,20 @@ impl<'a> FontRead<'a> for MajorMinorVersion<'a> {
     }
 }
 
+impl Sanitize for MajorMinorVersion<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let version = ctx.read::<MajorMinor>()?;
+        ctx.advance::<u16>();
+        if version.compatible((1u16, 1u16)) {
+            ctx.advance::<u16>();
+        }
+        if version.compatible((2u16, 0u16)) {
+            ctx.advance::<u32>();
+        }
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct MajorMinorVersion<'a> {
     data: FontData<'a>,
@@ -456,6 +470,20 @@ impl<'a> FontRead<'a> for FlagDay<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for FlagDay<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let flags = ctx.read::<GotFlags>()?;
+        if flags.contains(GotFlags::FOO) {
+            ctx.advance::<u16>();
+        }
+        if flags.contains(GotFlags::BAR) {
+            ctx.advance::<u16>();
+        }
+        ctx.finish()
     }
 }
 

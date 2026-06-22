@@ -95,6 +95,10 @@ pub(crate) struct FieldAttrs {
     pub(crate) validate: Option<Attr<FieldValidation>>,
     /// Marks this field as the discriminant for a generic offset type.
     pub(crate) discriminant: Option<syn::Path>,
+    /// During sanitize, only check the length of this field (don't recurse).
+    pub(crate) sanitize_len_only: Option<syn::Path>,
+    /// Custom sanitize fn, like compile_with but for sanitize.
+    pub(crate) sanitize_with: Option<Attr<SanitizeWith>>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -123,6 +127,12 @@ pub(crate) struct TableReadArg {
 
 #[derive(Debug, Clone)]
 pub(crate) struct FieldReadArgs {
+    pub(crate) inputs: Vec<syn::Ident>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SanitizeWith {
+    pub(crate) fn_name: syn::Ident,
     pub(crate) inputs: Vec<syn::Ident>,
 }
 
@@ -279,6 +289,8 @@ static TRAVERSE_WITH: &str = "traverse_with";
 static TO_OWNED: &str = "to_owned";
 static VALIDATE: &str = "validate";
 static DISCRIMINANT: &str = "discriminant";
+static SANITIZE_LEN_ONLY: &str = "sanitize_len_only";
+static SANITIZE_WITH: &str = "sanitize_with";
 
 static MATCH_IF: &str = "match_if";
 static WRITE_FONTS_ONLY: &str = "write_fonts_only";
@@ -349,6 +361,10 @@ impl Parse for FieldAttrs {
                 this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(&attr)?))
             } else if ident == DISCRIMINANT {
                 this.discriminant = Some(attr.path().clone());
+            } else if ident == SANITIZE_LEN_ONLY {
+                this.sanitize_len_only = Some(attr.path().clone());
+            } else if ident == SANITIZE_WITH {
+                this.sanitize_with = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else {
                 return Err(logged_syn_error(
                     ident.span(),
@@ -495,6 +511,19 @@ impl Parse for FieldReadArgs {
             }
         }
         Ok(FieldReadArgs { inputs })
+    }
+}
+
+impl Parse for SanitizeWith {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let fn_name = input.parse::<syn::Ident>()?;
+        let mut inputs = Vec::new();
+        while !input.is_empty() {
+            input.parse::<Token![,]>()?;
+            input.parse::<Token![$]>()?;
+            inputs.push(input.parse::<syn::Ident>()?);
+        }
+        Ok(SanitizeWith { fn_name, inputs })
     }
 }
 
@@ -868,4 +897,36 @@ fn parse_if_flag(attr: &syn::Attribute) -> syn::Result<Condition> {
                 format!("expected #[if_flag($field_name, FlagType::SOME_FLAG)]: '{e}'"),
             )
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_field_attrs(input: &str) -> syn::Result<FieldAttrs> {
+        syn::parse_str(input)
+    }
+
+    #[test]
+    fn parse_sanitize_with() {
+        let attrs = parse_field_attrs("#[sanitize_with(my_custom_sanitize)]").unwrap();
+        let sanitize = attrs.sanitize_with.expect("should have sanitize_with");
+        assert_eq!(sanitize.attr.fn_name.to_string(), "my_custom_sanitize");
+        assert!(sanitize.attr.inputs.is_empty());
+    }
+
+    #[test]
+    fn parse_sanitize_with_args() {
+        let attrs =
+            parse_field_attrs("#[sanitize_with(my_custom_sanitize, $value_format)]").unwrap();
+        let sanitize = attrs.sanitize_with.expect("should have sanitize_with");
+        assert_eq!(sanitize.attr.fn_name.to_string(), "my_custom_sanitize");
+        assert_eq!(sanitize.attr.inputs.len(), 1);
+        assert_eq!(sanitize.attr.inputs[0].to_string(), "value_format");
+    }
+
+    #[test]
+    fn sanitize_with_requires_arg() {
+        assert!(parse_field_attrs("#[sanitize_with]").is_err());
+    }
 }

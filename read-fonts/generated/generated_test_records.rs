@@ -29,6 +29,21 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
     }
 }
 
+impl Sanitize for BasicTable<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let simple_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<SimpleRecord>(transforms::to_usize(simple_count), ())?;
+        let arrays_inner_count = ctx.read::<u16>()?;
+        let array_records_count = ctx.read::<u32>()?;
+        ctx.sanitize_computed_array::<ContainsArrays>(
+            array_records_count as _,
+            arrays_inner_count,
+            true,
+        )?;
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct BasicTable<'a> {
     data: FontData<'a>,
@@ -175,6 +190,19 @@ impl FixedSize for SimpleRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for SimpleRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for SimpleRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SimpleRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -250,6 +278,15 @@ impl<'a> ContainsArrays<'a> {
     }
 }
 
+impl SanitizeStruct for ContainsArrays<'_> {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: u16) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ContainsArrays<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -314,6 +351,23 @@ impl FixedSize for ContainsOffsets {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for ContainsOffsets {
+    type Args = ();
+}
+
+impl SanitizeStruct for ContainsOffsets {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.sanitize_resolved_offset_to_array::<_, SimpleRecord, _>(
+            self.array_offset(),
+            self.off_array_count(),
+            false,
+            |t, ctx| t.sanitize_struct(ctx, ()),
+        )?;
+        self.other_offset().sanitize_offset::<BasicTable>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ContainsOffsets {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -362,6 +416,14 @@ impl<'a> FontRead<'a> for VarLenItem<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for VarLenItem<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u32>();
+        sanitize_data(ctx)?;
+        ctx.finish()
     }
 }
 
@@ -423,6 +485,197 @@ impl<'a> SomeTable<'a> for VarLenItem<'a> {
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
 impl<'a> std::fmt::Debug for VarLenItem<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct HasOffsetsWithArgs {
+    pub merp_len: BigEndian<u16>,
+    /// Read an offset that takes an argument, in a record
+    pub feature_offset: BigEndian<Offset16>,
+    /// custom offset getter in a record
+    pub fake_offset: BigEndian<Offset16>,
+}
+
+impl HasOffsetsWithArgs {
+    pub fn merp_len(&self) -> u16 {
+        self.merp_len.get()
+    }
+
+    /// Read an offset that takes an argument, in a record
+    pub fn feature_offset(&self) -> Offset16 {
+        self.feature_offset.get()
+    }
+
+    /// Read an offset that takes an argument, in a record
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
+    pub fn feature<'a>(&self, data: FontData<'a>) -> Result<HasReadArgs<'a>, ReadError> {
+        let args = self.merp_len();
+        self.feature_offset().resolve_with_args(data, args)
+    }
+
+    /// custom offset getter in a record
+    pub fn fake_offset(&self) -> Offset16 {
+        self.fake_offset.get()
+    }
+}
+
+impl FixedSize for HasOffsetsWithArgs {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl ReadArgs for HasOffsetsWithArgs {
+    type Args = ();
+}
+
+impl SanitizeStruct for HasOffsetsWithArgs {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        self.feature_offset()
+            .sanitize_offset::<HasReadArgs>(ctx, self.merp_len())?;
+        self.sanitize_fake_offset(ctx)?;
+        ctx.finish()
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeRecord<'a> for HasOffsetsWithArgs {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "HasOffsetsWithArgs",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("merp_len", self.merp_len())),
+                1usize => Some(Field::new(
+                    "feature_offset",
+                    FieldType::offset(self.feature_offset(), self.feature(_data)),
+                )),
+                2usize => Some(Field::new(
+                    "fake_offset",
+                    FieldType::offset(self.fake_offset(), self.fake(_data)),
+                )),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
+impl<'a> MinByteRange<'a> for HasReadArgs<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.merps_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for HasReadArgs<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontRead<'a> for HasReadArgs<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let merp_len = args;
+
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data, merp_len })
+    }
+}
+
+impl<'a> HasReadArgs<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, merp_len: u16) -> Result<Self, ReadError> {
+        let args = merp_len;
+        Self::read_with_args(data, args)
+    }
+}
+
+impl Sanitize for HasReadArgs<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+        let merp_len = args;
+        ctx.advance::<u16>();
+        ctx.sanitize_array::<i16>(transforms::to_usize(merp_len))?;
+        ctx.finish()
+    }
+}
+
+#[derive(Clone)]
+pub struct HasReadArgs<'a> {
+    data: FontData<'a>,
+    merp_len: u16,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> HasReadArgs<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    pub fn derp(&self) -> u16 {
+        let range = self.derp_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn merps(&self) -> &'a [BigEndian<i16>] {
+        let range = self.merps_byte_range();
+        self.data.read_array(range).ok().unwrap_or_default()
+    }
+
+    pub(crate) fn merp_len(&self) -> u16 {
+        self.merp_len
+    }
+
+    pub fn derp_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+
+    pub fn merps_byte_range(&self) -> Range<usize> {
+        let merp_len = self.merp_len();
+        let start = self.derp_byte_range().end;
+        start..start + (transforms::to_usize(merp_len)).saturating_mul(i16::RAW_BYTE_LEN)
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(HasReadArgs::MIN_SIZE));
+
+impl Default for HasReadArgs<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            merp_len: Default::default(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for HasReadArgs<'a> {
+    fn type_name(&self) -> &str {
+        "HasReadArgs"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("derp", self.derp())),
+            1usize => Some(Field::new("merps", self.merps())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for HasReadArgs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

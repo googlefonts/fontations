@@ -29,6 +29,39 @@ impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
     }
 }
 
+impl Sanitize for KindsOfOffsets<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let version = ctx.read::<MajorMinor>()?;
+        ctx.sanitize_offset::<Offset16, Dummy>(())?;
+        ctx.sanitize_offset::<Offset16, Dummy>(())?;
+        let array_offset_count = ctx.read::<u16>()?;
+        ctx.sanitize_offset_to_array::<Offset16, BigEndian<u16>, _>(
+            array_offset_count,
+            false,
+            |_, _| Ok(()),
+        )?;
+        ctx.sanitize_offset_to_array::<Offset16, Shmecord, _>(
+            array_offset_count,
+            false,
+            |t, ctx| t.sanitize_struct(ctx, ()),
+        )?;
+        if version.compatible((1u16, 1u16)) {
+            ctx.sanitize_offset_to_array::<Offset16, Shmecord, _>(
+                array_offset_count,
+                false,
+                |t, ctx| t.sanitize_struct(ctx, ()),
+            )?;
+        }
+        if version.compatible((1u16, 1u16)) {
+            ctx.sanitize_offset::<Offset16, Dummy>(())?;
+        }
+        if version.compatible((1u16, 1u16)) {
+            ctx.sanitize_offset::<Offset32, Dummy>(())?;
+        }
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct KindsOfOffsets<'a> {
     data: FontData<'a>,
@@ -305,6 +338,22 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
     }
 }
 
+impl Sanitize for KindsOfArraysOfOffsets<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let version = ctx.read::<MajorMinor>()?;
+        let count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
+        ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
+        if version.compatible((1u16, 1u16)) {
+            ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
+        }
+        if version.compatible((1u16, 1u16)) {
+            ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
+        }
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct KindsOfArraysOfOffsets<'a> {
     data: FontData<'a>,
@@ -502,6 +551,22 @@ impl<'a> FontRead<'a> for KindsOfArrays<'a> {
     }
 }
 
+impl Sanitize for KindsOfArrays<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let version = ctx.read::<u16>()?;
+        let count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(count))?;
+        ctx.sanitize_array_of_structs::<Shmecord>(transforms::to_usize(count), ())?;
+        if version.compatible(1u16) {
+            ctx.sanitize_array::<u16>(transforms::to_usize(count))?;
+        }
+        if version.compatible(1u16) {
+            ctx.sanitize_array_of_structs::<Shmecord>(transforms::to_usize(count), ())?;
+        }
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct KindsOfArrays<'a> {
     data: FontData<'a>,
@@ -671,6 +736,15 @@ impl<'a> FontRead<'a> for VarLenHaver<'a> {
     }
 }
 
+impl Sanitize for VarLenHaver<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let count = ctx.read::<u16>()?;
+        ctx.sanitize_var_len_array::<VarSizeDummy>(count as _, false)?;
+        ctx.advance::<u32>();
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct VarLenHaver<'a> {
     data: FontData<'a>,
@@ -777,6 +851,14 @@ impl<'a> FontRead<'a> for Dummy<'a> {
     }
 }
 
+impl Sanitize for Dummy<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct Dummy<'a> {
     data: FontData<'a>,
@@ -854,6 +936,19 @@ impl Shmecord {
 
 impl FixedSize for Shmecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
+impl ReadArgs for Shmecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for Shmecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
