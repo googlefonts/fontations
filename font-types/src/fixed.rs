@@ -606,4 +606,38 @@ mod tests {
         assert_eq!(F26Dot6::ONE / F26Dot6::ZERO, F26Dot6(0x7FFFFFFF));
         assert_eq!(-F26Dot6::ONE / F26Dot6::ZERO, F26Dot6(-0x7FFFFFFF));
     }
+
+    #[cfg(feature = "serde")]
+    mod serde {
+        use super::*;
+
+        macro_rules! roundtrip_one {
+            ($fixed:ident) => {{
+                let before = <$fixed>::ONE;
+                let serialized = ::serde_json::to_string(&before).expect("should serialize");
+                assert_eq!(
+                    &serialized,
+                    "1.0",
+                    "{}::ONE didn't serialize to 1.0",
+                    ::std::stringify!($fixed),
+                );
+                let after = ::serde_json::from_str(&serialized).expect("should deserialize");
+                assert_eq!(
+                    before,
+                    after,
+                    "{}::ONE doesn't round-trip",
+                    ::std::stringify!($fixed),
+                );
+            }};
+        }
+
+        #[test]
+        fn one_is_one() {
+            roundtrip_one!(F2Dot14);
+            roundtrip_one!(F4Dot12);
+            roundtrip_one!(F6Dot10);
+            roundtrip_one!(Fixed);
+            roundtrip_one!(F26Dot6);
+        }
+    }
 }
