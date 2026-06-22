@@ -288,7 +288,7 @@ macro_rules! float_conv {
     // explicitly opt out of Display/Default (for types that get both f32 & f64)
     ($name:ident, $to:ident, $from:ident, $ty:ty, no_fmt) => {
         impl $name {
-            #[doc = concat!("Creates a fixed point value from a", stringify!($ty), ".")]
+            #[doc = concat!("Creates a fixed point value from a ", stringify!($ty), ".")]
             ///
             /// This operation is lossy; the float will be rounded to the nearest
             /// representable value.
