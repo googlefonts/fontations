@@ -4,7 +4,6 @@
 //! resolving individual offsets as they are accessed.
 
 use crate::offset::ResolveNullableOffset;
-#[cfg(any(test, feature = "codegen_test"))]
 use crate::sanitize::{FastResolveNullableOffset, FastResolveOffset, Sanitize};
 use font_types::{BigEndian, Nullable, Offset16, Scalar};
 
@@ -165,7 +164,6 @@ where
 ///
 /// This is identical to [`ArrayOfOffsets`], except that each offset is resolved
 /// using `fast_resolve` instead of `resolve_with_args`, skipping re-validation.
-#[cfg(any(test, feature = "codegen_test"))]
 #[derive(Clone)]
 pub struct SanitizedArrayOfOffsets<'a, T: ReadArgs, O: Scalar = Offset16> {
     offsets: &'a [BigEndian<O>],
@@ -178,7 +176,6 @@ pub struct SanitizedArrayOfOffsets<'a, T: ReadArgs, O: Scalar = Offset16> {
 /// This is identical to [`ArrayOfNullableOffsets`], except that each offset is
 /// resolved using `fast_resolve` instead of `resolve_with_args`, skipping
 /// re-validation.
-#[cfg(any(test, feature = "codegen_test"))]
 #[derive(Clone)]
 pub struct SanitizedArrayOfNullableOffsets<'a, T: ReadArgs, O: Scalar = Offset16> {
     offsets: &'a [BigEndian<Nullable<O>>],
@@ -186,7 +183,6 @@ pub struct SanitizedArrayOfNullableOffsets<'a, T: ReadArgs, O: Scalar = Offset16
     args: T::Args,
 }
 
-#[cfg(any(test, feature = "codegen_test"))]
 impl<'a, T, O> SanitizedArrayOfOffsets<'a, T, O>
 where
     O: Scalar,
@@ -201,7 +197,6 @@ where
     }
 }
 
-#[cfg(any(test, feature = "codegen_test"))]
 impl<'a, T, O> SanitizedArrayOfOffsets<'a, T, O>
 where
     O: Scalar + Offset,
@@ -238,9 +233,20 @@ where
         let data = self.data;
         std::iter::from_fn(move || iter.next().map(|off| off.get().fast_resolve(data, args)))
     }
+
+    /// Iterate over all of the offset targets.
+    ///
+    /// Offset is treated as nullable and each offset will be resolved as it is encountered.
+    pub(crate) fn iter_as_nullable(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<T, ReadError>>> + 'a {
+        self.iter().map(|off| match off {
+            Err(ReadError::NullOffset) => None,
+            other => Some(other),
+        })
+    }
 }
 
-#[cfg(any(test, feature = "codegen_test"))]
 impl<'a, T, O> SanitizedArrayOfNullableOffsets<'a, T, O>
 where
     O: Scalar + Offset,
@@ -259,7 +265,6 @@ where
     }
 }
 
-#[cfg(any(test, feature = "codegen_test"))]
 impl<'a, T, O> SanitizedArrayOfNullableOffsets<'a, T, O>
 where
     O: Scalar + Offset,
@@ -347,7 +352,7 @@ where
     }
 }
 
-#[cfg(all(feature = "experimental_traverse", any(test, feature = "codegen_test")))]
+#[cfg(feature = "experimental_traverse")]
 impl<'a, T, O> crate::traversal::SomeArray<'a> for SanitizedArrayOfOffsets<'a, T, O>
 where
     O: Scalar + Offset + Into<crate::traversal::OffsetType>,
@@ -371,7 +376,7 @@ where
     }
 }
 
-#[cfg(all(feature = "experimental_traverse", any(test, feature = "codegen_test")))]
+#[cfg(feature = "experimental_traverse")]
 impl<'a, T, O> crate::traversal::SomeArray<'a> for SanitizedArrayOfNullableOffsets<'a, T, O>
 where
     O: Scalar + Offset + Into<crate::traversal::OffsetType> + Clone,
