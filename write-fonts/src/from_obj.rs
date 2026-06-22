@@ -3,8 +3,8 @@
 use std::collections::BTreeSet;
 
 use read_fonts::{
-    ArrayOfNullableOffsets, ArrayOfOffsets, FontData, FontRead, Offset, ReadArgs, ReadError,
-    Sanitize, SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets,
+    ArrayOfOffsets, FontData, FontRead, Offset, ReadArgs, ReadError, Sanitize,
+    SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets,
 };
 use types::{BigEndian, Scalar};
 
@@ -183,34 +183,9 @@ where
     }
 }
 
-impl<'a, T, U, O, const N: usize> FromObjRef<ArrayOfNullableOffsets<'a, U, O>>
-    for Vec<NullableOffsetMarker<T, N>>
-where
-    T: FromObjRef<U> + Default,
-    U: FontRead<'a>,
-    U::Args: 'static,
-    O: Scalar + Offset,
-{
-    fn from_obj_ref(from: &ArrayOfNullableOffsets<'a, U, O>, data: FontData) -> Self {
-        from.iter()
-            .map(|x| NullableOffsetMarker::from_obj_ref(&x, data))
-            .collect()
-    }
-}
-
 impl<'a, T, U, O, const N: usize> FromTableRef<ArrayOfOffsets<'a, U, O>> for Vec<OffsetMarker<T, N>>
 where
     T: FromTableRef<U> + Default,
-    U: FontRead<'a>,
-    U::Args: 'static,
-    O: Scalar + Offset,
-{
-}
-
-impl<'a, T, U, O, const N: usize> FromTableRef<ArrayOfNullableOffsets<'a, U, O>>
-    for Vec<NullableOffsetMarker<T, N>>
-where
-    T: FromObjRef<U> + Default,
     U: FontRead<'a>,
     U::Args: 'static,
     O: Scalar + Offset,

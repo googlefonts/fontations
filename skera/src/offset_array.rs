@@ -2,7 +2,7 @@
 use crate::{offset::SerializeSubset, Plan, SerializeErrorFlags, Serializer, SubsetTable};
 use write_fonts::{
     read::{
-        ArrayOfNullableOffsets, ArrayOfOffsets, FontRead, Offset, ReadArgs, ReadError, Sanitize,
+        ArrayOfOffsets, FontRead, Offset, ReadArgs, ReadError, Sanitize,
         SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets,
     },
     types::{FixedSize, Scalar},
@@ -45,38 +45,6 @@ where
         }
 
         Ok(())
-    }
-}
-
-impl<'a, T, O> SubsetOffsetArray<'a, T> for ArrayOfNullableOffsets<'a, T, O>
-where
-    O: Scalar + Offset + FixedSize + SerializeSubset,
-    T: FontRead<'a> + SubsetTable<'a>,
-    T::Args: Copy + 'static,
-{
-    fn subset_offset(
-        &self,
-        idx: usize,
-        s: &mut Serializer,
-        plan: &Plan,
-        args: T::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags> {
-        match self.get(idx) {
-            Some(Ok(t)) => {
-                let snap = s.snapshot();
-                let offset_pos = s.allocate_size(O::RAW_BYTE_LEN, true)?;
-
-                match O::serialize_subset(&t, s, plan, args, offset_pos) {
-                    Ok(_) => Ok(()),
-                    Err(e) => {
-                        s.revert_snapshot(snap);
-                        Err(e)
-                    }
-                }
-            }
-            None => Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY),
-            Some(Err(_)) => Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)),
-        }
     }
 }
 
