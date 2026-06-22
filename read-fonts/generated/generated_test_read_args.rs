@@ -311,7 +311,7 @@ impl<'a> FaceRecord<'a> {
 
 impl SanitizeStruct for FaceRecord<'_> {
     fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, args: u16) -> Result<(), ReadError> {
-        let mark_class_count = args;
+        let _mark_class_count = args;
         self.face_offsets().sanitize_offset::<Face>(ctx, ())?;
         ctx.finish()
     }

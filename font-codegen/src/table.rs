@@ -233,10 +233,12 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
 
 fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     let name = item.raw_name();
-    let (args_typ, args_arg, destructure_args) = match item.attrs.read_args.as_ref() {
+    let stmts = item.iter_sanitze_statements()?;
+    let body = quote!( #( #stmts )* );
+    let (args_type, args_arg, destructure_args) = match item.attrs.read_args.as_ref() {
         Some(args) => {
             let typ = args.args_type();
-            let destructure = args.destructure_pattern();
+            let destructure = args.destructure_pattern_for_sanitize(&body);
             let args_args = quote!(args: #typ);
             (typ, args_args, Some(destructure))
         }
@@ -244,9 +246,7 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     };
 
     let generic = item.attrs.generic_offset.as_ref();
-    let generic_bounds = generic.map(|t| quote!(#t: Sanitize<Args = #args_typ>));
-
-    let stmts = item.iter_sanitze_statements()?;
+    let generic_bounds = generic.map(|t| quote!(#t: Sanitize<Args = #args_type>));
 
     Ok(quote! {
         impl<#generic_bounds> Sanitize for #name<'_, #generic> {
@@ -620,6 +620,39 @@ impl TableReadArgs {
         }
     }
 
+    /// Like [`destructure_pattern`], but for use in sanitize bodies.
+    ///
+    /// A sanitize body only references the subset of read args that participate
+    /// in sanitization, so any arg ident that does not appear in `body` is bound
+    /// with a leading underscore to avoid an `unused_variables` warning. ("Used"
+    /// is derived from the emitted body, so it can never drift from what we
+    /// generate; an `_`-prefixed binding is still usable, so a false "unused"
+    /// verdict can never break compilation.)
+    ///
+    /// [`destructure_pattern`]: Self::destructure_pattern
+    pub(crate) fn destructure_pattern_for_sanitize(&self, body: &TokenStream) -> TokenStream {
+        let mut used = HashSet::new();
+        collect_idents(body, &mut used);
+        let bind = |ident: &syn::Ident| -> syn::Ident {
+            if used.contains(&ident.to_string()) {
+                ident.clone()
+            } else {
+                quote::format_ident!("_{}", ident)
+            }
+        };
+        match self.args.as_slice() {
+            [] => Default::default(),
+            [TableReadArg { ident, .. }] => {
+                let binding = bind(ident);
+                quote!(let #binding = args;)
+            }
+            other => {
+                let bindings = other.iter().map(|arg| bind(&arg.ident));
+                quote!( let  ( #(#bindings,)* ) = args; )
+            }
+        }
+    }
+
     pub(crate) fn constructor_args(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.args
             .iter()
@@ -649,5 +682,18 @@ impl TableReadArgs {
                 }
             }
         })
+    }
+}
+
+/// Recursively collect the string form of every identifier in `tokens`.
+fn collect_idents(tokens: &TokenStream, out: &mut HashSet<String>) {
+    for tt in tokens.clone() {
+        match tt {
+            proc_macro2::TokenTree::Ident(id) => {
+                out.insert(id.to_string());
+            }
+            proc_macro2::TokenTree::Group(g) => collect_idents(&g.stream(), out),
+            _ => {}
+        }
     }
 }
