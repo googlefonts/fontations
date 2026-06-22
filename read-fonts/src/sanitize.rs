@@ -13,7 +13,7 @@ use crate::{
 /// This is bundled together because we need to update the shared state as we
 /// navigate the bytes.
 pub struct SanitizeContext<'a, 's> {
-    cursor: Cursor<'a>,
+    pub(crate) cursor: Cursor<'a>,
     state: &'s mut SanitizeState,
 }
 
@@ -125,6 +125,7 @@ impl<'a> SanitizeContext<'a, '_> {
     ///
     /// this has a slightly funny signature because it needs to handle both
     /// scalar and struct members, and the structs might need to be recursed
+    #[expect(dead_code)] // not yet used in a real table
     pub(crate) fn sanitize_offset_to_array<O, T, F>(
         &mut self,
         count: u16,
@@ -152,6 +153,7 @@ impl<'a> SanitizeContext<'a, '_> {
     ///
     /// Used in records, where the offset is accessed via a getter rather than
     /// read from the cursor.
+    #[expect(dead_code)] // not yet used in a real table
     pub(crate) fn sanitize_resolved_offset_to_array<O, T, F>(
         &mut self,
         offset: O,
@@ -210,6 +212,7 @@ impl<'a> SanitizeContext<'a, '_> {
         }
     }
 
+    #[expect(dead_code)] // not yet used in a real table
     pub(crate) fn sanitize_var_len_array<T>(
         &mut self,
         count: usize,
