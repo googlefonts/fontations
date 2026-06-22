@@ -6,7 +6,6 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssi
 macro_rules! fixed_impl {
     ($name:ident, $bits:literal, $fract_bits:literal, $ty:ty) => {
         #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         #[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern, bytemuck::NoUninit))]
         #[repr(transparent)]
         #[doc = concat!(stringify!($bits), "-bit signed fixed point number with ", stringify!($fract_bits), " bits of fraction." )]
@@ -268,7 +267,7 @@ macro_rules! fixed_mul_div_assign {
 /// We convert to different float types in order to ensure we can roundtrip
 /// without floating point error.
 macro_rules! float_conv {
-    // default invocation: we will impl Display/Default
+    // default invocation: we will impl Display/Default/Serialize/Deserialize
     ($name:ident, $to:ident, $from:ident, $ty:ty) => {
         float_conv!($name, $to, $from, $ty, no_fmt);
 
@@ -284,8 +283,29 @@ macro_rules! float_conv {
                 self.$to().fmt(f)
             }
         }
+
+        #[cfg(feature = "serde")]
+        impl ::serde::Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: ::serde::Serializer,
+            {
+                <$ty>::serialize(&$name::$to(*self), serializer)
+            }
+        }
+
+        #[cfg(feature = "serde")]
+        impl<'de> ::serde::Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: ::serde::Deserializer<'de>,
+            {
+                <$ty>::deserialize(deserializer).map($name::$from)
+            }
+        }
     };
-    // explicitly opt out of Display/Default (for types that get both f32 & f64)
+    // explicitly opt out of Display/Default/Serialize/Deserialize
+    // (for types that get both f32 & f64)
     ($name:ident, $to:ident, $from:ident, $ty:ty, no_fmt) => {
         impl $name {
             #[doc = concat!("Creates a fixed point value from a ", stringify!($ty), ".")]
