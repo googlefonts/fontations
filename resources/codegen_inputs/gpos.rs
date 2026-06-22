@@ -1,5 +1,6 @@
 // path (from compile crate) to the generated parse module for this table.
 #![parse_module(read_fonts::tables::gpos)]
+#![sanitize]
 
 extern record ValueRecord;
 
@@ -150,6 +151,7 @@ table SinglePosFormat1 {
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
     #[read_with($value_format)]
+    #[sanitize_with(sanitize_value_record, $value_format)]
     value_record: ValueRecord,
 }
 
