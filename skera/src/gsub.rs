@@ -287,7 +287,7 @@ where
             'a,
             ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
             Output = (),
-        > + FontRead<'a>,
+        > + FontRead<'a, Args = ()>,
 {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
     type Output = ();
