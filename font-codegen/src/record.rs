@@ -144,11 +144,18 @@ fn generate_sanitize(item: &Record, needs_read_args: bool) -> syn::Result<TokenS
     let lifetime = item.lifetime.is_some().then(|| quote!(<'_>));
     let has_offsets = item.fields.iter().any(Field::is_offset_or_array_of_offsets);
 
+    let stmts: Vec<_> = item
+        .fields
+        .iter()
+        .filter_map(Field::sanitize_record_stmt)
+        .collect();
+    let body = quote!( #( #stmts )* );
+
     let (args_arg, destructure_args) = match item.attrs.read_args.as_ref() {
         Some(args) => {
             let typ = args.args_type();
             if has_offsets {
-                let destructure = args.destructure_pattern();
+                let destructure = args.destructure_pattern_for_sanitize(&body);
                 let args_args = quote!(args: #typ);
                 (args_args, Some(destructure))
             } else {
@@ -172,8 +179,6 @@ fn generate_sanitize(item: &Record, needs_read_args: bool) -> syn::Result<TokenS
             }
         }
     });
-
-    let stmts = item.fields.iter().filter_map(Field::sanitize_record_stmt);
 
     Ok(quote! {
         #read_args
