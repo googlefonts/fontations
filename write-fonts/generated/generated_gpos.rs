@@ -2219,7 +2219,7 @@ impl<T: Validate> Validate for ExtensionPosFormat1<T> {
 impl<'a, T, U> FromObjRef<read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>>
     for ExtensionPosFormat1<T>
 where
-    U: FontRead<'a, Args = ()>,
+    U: Sanitize<'a, Args = ()> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
@@ -2237,7 +2237,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>>
     for ExtensionPosFormat1<T>
 where
-    U: FontRead<'a, Args = ()>,
+    U: Sanitize<'a, Args = ()> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
 }

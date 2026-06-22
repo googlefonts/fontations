@@ -1,4 +1,5 @@
 #![parse_module(read_fonts::tables::gdef)]
+#![sanitize]
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 #[tag = "GDEF"]
