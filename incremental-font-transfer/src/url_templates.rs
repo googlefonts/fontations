@@ -69,25 +69,45 @@ impl TryFrom<u8> for Variable {
     }
 }
 
-fn encode_id32(patch_id: &PatchId) -> String {
-    match patch_id {
-        PatchId::Numeric(id) => {
-            let id = id.to_be_bytes();
-            let id = &id[count_leading_zeroes(&id)..];
-            BASE32HEX_NO_PADDING.encode(id)
-        }
-        PatchId::String(id) => BASE32HEX_NO_PADDING.encode(id),
-    }
+struct CachedEncoder<'a> {
+    patch_id: &'a PatchId,
+    id32: Option<String>,
+    id64: Option<String>,
 }
 
-fn encode_id64(patch_id: &PatchId) -> String {
-    match patch_id {
-        PatchId::Numeric(id) => {
-            let id = id.to_be_bytes();
-            let id = &id[count_leading_zeroes(&id)..];
-            BASE64URL.encode(id)
+impl<'a> CachedEncoder<'a> {
+    fn new(patch_id: &'a PatchId) -> Self {
+        CachedEncoder {
+            patch_id,
+            id32: None,
+            id64: None,
         }
-        PatchId::String(id) => BASE64URL.encode(id),
+    }
+
+    fn encode_id32(&mut self) -> &str {
+        self.id32
+            .get_or_insert_with(|| match self.patch_id {
+                PatchId::Numeric(id) => {
+                    let id = id.to_be_bytes();
+                    let id = &id[count_leading_zeroes(&id)..];
+                    BASE32HEX_NO_PADDING.encode(id)
+                }
+                PatchId::String(id) => BASE32HEX_NO_PADDING.encode(id),
+            })
+            .as_str()
+    }
+
+    fn encode_id64(&mut self) -> &str {
+        self.id64
+            .get_or_insert_with(|| match self.patch_id {
+                PatchId::Numeric(id) => {
+                    let id = id.to_be_bytes();
+                    let id = &id[count_leading_zeroes(&id)..];
+                    BASE64URL.encode(id)
+                }
+                PatchId::String(id) => BASE64URL.encode(id),
+            })
+            .as_str()
     }
 }
 
@@ -109,15 +129,7 @@ pub(crate) fn expand_template(
     mut template_bytes: &[u8],
     patch_id: &PatchId,
 ) -> Result<String, UrlTemplateError> {
-    let mut id32: (Option<String>, fn(&PatchId) -> String) = (None, encode_id32);
-    let mut id64: (Option<String>, fn(&PatchId) -> String) = (None, encode_id64);
-    // Usage: cached_encode!(id32|id64) -> &str
-    macro_rules! cached_encode {
-        ($expr:expr) => {
-            $expr.0.get_or_insert_with(|| $expr.1(patch_id)).as_str()
-        };
-    }
-
+    let mut cached_encoder = CachedEncoder::new(patch_id);
     let mut output_buffer = String::new();
     while let Some((opcode, rest)) = template_bytes.split_first() {
         template_bytes = rest;
@@ -131,13 +143,17 @@ pub(crate) fn expand_template(
                     core::str::from_utf8(literals).map_err(|_| UrlTemplateError::InvalidUtf8)?;
                 output_buffer.push_str(literals);
             }
-            OpCode::InsertVariable(Variable::Id32) => output_buffer.push_str(cached_encode!(id32)),
+            OpCode::InsertVariable(Variable::Id32) => {
+                output_buffer.push_str(cached_encoder.encode_id32())
+            }
             OpCode::InsertVariable(Variable::Digit(digit)) => {
-                output_buffer.push(id_digit(cached_encode!(id32), digit))
+                output_buffer.push(id_digit(cached_encoder.encode_id32(), digit))
             }
             OpCode::InsertVariable(Variable::Id64) => {
-                for ch in cached_encode!(id64).chars() {
+                for ch in cached_encoder.encode_id64().chars() {
                     match ch {
+                        // Its more performant to do the replacement here than in encode_id64. A
+                        // replacement in encode_id64 always leads to an extra string allocation.
                         '=' => output_buffer.push_str("%3D"),
                         ch => output_buffer.push(ch),
                     }
