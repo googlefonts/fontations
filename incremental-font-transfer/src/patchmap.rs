@@ -14,7 +14,6 @@ use std::ops::RangeInclusive;
 use font_types::Fixed;
 use font_types::Int24;
 use font_types::Tag;
-
 use read_fonts::{
     collections::{IntSet, RangeSet},
     tables::ift::{
@@ -24,8 +23,8 @@ use read_fonts::{
     types::Uint24,
     FontData, FontRead, FontRef, ReadError, TableProvider,
 };
-
 use skrifa::charmap::Charmap;
+use smol_str::SmolStr;
 
 use crate::url_templates;
 use crate::url_templates::UrlTemplateError;
@@ -1010,14 +1009,22 @@ impl PatchMapEntry {
 
 /// An expanded PatchUrl string which identifies where a patch is located.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct PatchUrl(pub String);
+pub struct PatchUrl(SmolStr);
 
 impl PatchUrl {
+    pub fn new(s: &str) -> Self {
+        PatchUrl(SmolStr::from(s))
+    }
+
     pub(crate) fn expand_template(
         template_string: &[u8],
         patch_id: &PatchId,
     ) -> Result<Self, UrlTemplateError> {
-        url_templates::expand_template(template_string, patch_id).map(Self)
+        url_templates::expand_template(template_string, patch_id).map(PatchUrl)
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
     }
 
     pub(crate) fn into_format_1_entry(

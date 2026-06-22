@@ -709,15 +709,9 @@ mod tests {
     const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();
     const TABLE_2_FINAL_STATE: &[u8] = "foobarbaz foobarbaz foobarbaz\n".as_bytes();
 
-    impl PatchUrl {
-        fn new(url: &str) -> Self {
-            Self(url.to_string())
-        }
-    }
-
     impl OrderedPatchUrl {
-        fn url(order: usize, url: &str) -> Self {
-            OrderedPatchUrl(order, PatchUrl(url.to_string()))
+        fn from_url(order: usize, url: &str) -> Self {
+            OrderedPatchUrl(order, PatchUrl::new(url))
         }
     }
 
@@ -1292,11 +1286,11 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1321,11 +1315,11 @@ mod tests {
                 ift: ScopedGroup::NoInvalidation(Default::default()),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([
                     (
-                        OrderedPatchUrl::url(0, "//foo.bar/0K"),
+                        OrderedPatchUrl::from_url(0, "//foo.bar/0K"),
                         NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                     ),
                     (
-                        OrderedPatchUrl::url(0, "//foo.bar/0G"),
+                        OrderedPatchUrl::from_url(0, "//foo.bar/0G"),
                         NoInvalidationPatch(patch_info_iftx("//foo.bar/0G"))
                     )
                 ]))
@@ -1368,11 +1362,11 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1401,7 +1395,7 @@ mod tests {
                     "//foo.bar/08"
                 ),)),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1421,7 +1415,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1510,7 +1504,7 @@ mod tests {
                     "//foo.bar/08"
                 ),)),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )]))
             }
@@ -1533,7 +1527,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -1623,7 +1617,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::new()),
@@ -1644,11 +1638,11 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )])),
             }
@@ -1693,7 +1687,7 @@ mod tests {
                     "//foo.bar/08"
                 ))),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0K"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0K"),
                     NoInvalidationPatch(patch_info_iftx("//foo.bar/0K"))
                 )])),
             }
@@ -1712,7 +1706,7 @@ mod tests {
             group,
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "//foo.bar/0G"),
+                    OrderedPatchUrl::from_url(0, "//foo.bar/0G"),
                     NoInvalidationPatch(patch_info_ift("//foo.bar/0G"))
                 )])),
                 iftx: ScopedGroup::PartialInvalidation(PartialInvalidationPatch(patch_info_iftx(
@@ -2303,7 +2297,7 @@ mod tests {
             CompatibleGroup::Mixed {
                 ift: ScopedGroup::NoInvalidation(Default::default()),
                 iftx: ScopedGroup::NoInvalidation(BTreeMap::from([(
-                    OrderedPatchUrl::url(0, "foo/04"),
+                    OrderedPatchUrl::from_url(0, "foo/04"),
                     NoInvalidationPatch(info)
                 )])),
             }

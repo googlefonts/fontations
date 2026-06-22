@@ -33,6 +33,7 @@ data-encoding = "2.6.0"
 data-encoding-macro = "0.1.15"
 clap = { version = "4.5.4", features = ["derive"], optional = true }
 regex = { version = "1.11.1", optional = true }
+smol_str = "0.3.6"
 
 [dev-dependencies]
 brotlic = {version = "0.8.2"}
