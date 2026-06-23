@@ -353,20 +353,12 @@ fn build_segments(outline: &mut Outline, axis: &mut Axis) -> bool {
                     state.max_on_coord = state.max_on_coord.max(point.v);
                 }
                 if point.out_dir != segment_dir || point_ix == last_ix {
-                    if prev_segment_ix.is_none()
-                        || axis.segments[segment_ix].first_ix
-                            != axis.segments[prev_segment_ix.unwrap()].last_ix
-                    {
-                        // The points are different signifying that we are
-                        // leaving an edge, so create a new segment
-                        let segment = &mut axis.segments[segment_ix];
-                        segment.last_ix = point_ix as u16;
-                        state.apply_to_segment(segment, flat_threshold);
-                        prev_segment_ix = Some(segment_ix);
-                        prev_state = state;
-                    } else {
+                    prev_segment_ix.take_if(|idx| {
+                        axis.segments[segment_ix].first_ix != axis.segments[*idx].last_ix
+                    });
+                    if let Some(prev_segment_ix) = prev_segment_ix {
                         // The points are the same, so merge the segments
-                        let prev_segment = &mut axis.segments[prev_segment_ix.unwrap()];
+                        let prev_segment = &mut axis.segments[prev_segment_ix];
                         if prev_segment.last_point(points).in_dir == point.in_dir {
                             // We have identical directions; unify segments
                             // and update constraints
@@ -405,12 +397,20 @@ fn build_segments(outline: &mut Outline, axis: &mut Axis) -> bool {
                                 let mut segment = axis.segments[segment_ix];
                                 segment.last_ix = point_ix as u16;
                                 state.apply_to_segment(&mut segment, flat_threshold);
-                                axis.segments[prev_segment_ix.unwrap()] = segment;
+                                axis.segments[prev_segment_ix] = segment;
                                 prev_state = state;
                             }
                         }
                         axis.segments.pop();
-                    }
+                    } else {
+                        // The points are different signifying that we are
+                        // leaving an edge, so create a new segment
+                        let segment = &mut axis.segments[segment_ix];
+                        segment.last_ix = point_ix as u16;
+                        state.apply_to_segment(segment, flat_threshold);
+                        prev_segment_ix = Some(segment_ix);
+                        prev_state = state;
+                    };
                     on_edge = false;
                 }
             }
