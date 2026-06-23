@@ -202,6 +202,8 @@ pub(crate) mod codegen_prelude {
     pub use std::collections::BTreeSet;
     pub use types::*;
 
+    #[cfg(test)]
+    pub use read_fonts::Sanitize;
     pub use read_fonts::{FontData, FontRead, ReadArgs, ReadError, ResolveOffset, TopLevelTable};
 
     /// checked conversion to u16

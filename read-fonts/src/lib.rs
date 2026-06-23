@@ -99,6 +99,8 @@ pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
 #[cfg(any(test, feature = "codegen_test"))]
 pub use offset_array::{SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets};
 pub use read::{ComputeSize, FontRead, ReadArgs, ReadError, VarSize};
+#[cfg(any(test, feature = "codegen_test"))]
+pub use sanitize::Sanitize;
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::MinByteRange;
 
