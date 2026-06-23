@@ -40,28 +40,28 @@ jobs:
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85
+          toolchain: 1.89
       - run: rustup component add clippy
 
-      - name: cargo clippy font-types (1.85)
+      - name: cargo clippy font-types (1.89)
         run: cargo clippy -p font-types --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy read-fonts (1.85)
+      - name: cargo clippy read-fonts (1.89)
         run: cargo clippy -p read-fonts --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy write-fonts (1.85)
+      - name: cargo clippy write-fonts (1.89)
         run: cargo clippy -p write-fonts --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy skrifa (1.85)
+      - name: cargo clippy skrifa (1.89)
         run: cargo clippy -p skrifa --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy skera (1.85)
+      - name: cargo clippy skera (1.89)
         run: cargo clippy -p skera --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy fauntlet (1.85)
+      - name: cargo clippy fauntlet (1.89)
         run: cargo clippy -p fauntlet --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy incremental-font-transfer (1.85)
+      - name: cargo clippy incremental-font-transfer (1.89)
         run: cargo clippy -p incremental-font-transfer --all-features --all-targets -- -D warnings
 
   test-stable:
@@ -160,7 +160,7 @@ jobs:
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.85
+          toolchain: 1.89
           # Use a target without `std` to make sure we don't link to `std`
           target: thumbv7em-none-eabihf
 
@@ -185,7 +185,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           target: wasm32-unknown-unknown
-          toolchain: 1.85
+          toolchain: 1.89
 
       - name: cargo build font-types
         run: cargo build -p font-types --target wasm32-unknown-unknown

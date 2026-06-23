@@ -71,11 +71,6 @@ impl FontData<'static> {
     }
 
     /// Return `true` if our default data can represent a table `n_bytes` long
-    ///
-    /// This is used in codegen'd asserts
-    // only used to evaluate anonymous const items (const_: () = ...) which isn't
-    // visible to the dead_code lint
-    #[expect(dead_code)]
     pub(crate) const fn default_data_long_enough(n_bytes: usize) -> bool {
         n_bytes <= Self::NULL_POOL_SIZE
     }
