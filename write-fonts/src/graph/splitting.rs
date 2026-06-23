@@ -12,10 +12,7 @@
 use std::collections::HashMap;
 
 use font_types::GlyphId16;
-use read_fonts::tables::{
-    gpos::{self as rgpos},
-    layout as rlayout,
-};
+use read_fonts::tables::layout as rlayout;
 
 use super::Graph;
 use crate::{
@@ -40,10 +37,10 @@ fn split_subtables(
     split_fn: fn(&mut Graph, ObjectId) -> Option<Vec<ObjectId>>,
 ) {
     let data = graph.objects.remove(&lookup).unwrap();
-    debug_assert!(
-        data.reparse::<rgpos::PositionLookup>().is_ok(),
-        "table splitting is only relevant for GPOS?"
-    );
+    //debug_assert!(
+    //data.reparse::<rgpos::PositionLookup>().is_ok(),
+    //"table splitting is only relevant for GPOS?"
+    //);
     log::debug!("trying to split subtables in '{}'", data.type_);
 
     let mut new_subtables = HashMap::new();
@@ -70,7 +67,7 @@ fn split_subtables(
 
     let n_total_subtables: u16 = (data.offsets.len() + n_new_subtables).try_into().unwrap();
     // we just want the lookup type/flag/etc, but we need a generic FontRead type
-    let generic_lookup: rlayout::Lookup<()> = data.reparse().unwrap();
+    let generic_lookup: rlayout::Lookup<()> = data.reparse();
     let mut new_data = TableData::new(data.type_);
     new_data.write(generic_lookup.lookup_type());
     new_data.write(generic_lookup.lookup_flag());

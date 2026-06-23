@@ -22,7 +22,6 @@ fn split_mark_to_base_subtable(graph: &mut Graph, subtable: ObjectId) -> Option<
     let data = &graph.objects[&subtable];
     let base_coverage_id = data.offsets[1].object;
     let base_coverage_size = graph.objects[&base_coverage_id].bytes.len();
-    debug_assert!(data.reparse::<rgpos::MarkBasePosFormat1>().is_ok());
 
     let min_subtable_size = BASE_SIZE + base_coverage_size;
     let class_info = get_class_info(graph, subtable);
@@ -93,7 +92,7 @@ fn split_off_mark_pos(
 ) -> TableData {
     let mark_coverage_id = graph.objects[&subtable].offsets.first().unwrap().object;
     let mark_coverage = &graph.objects[&mark_coverage_id];
-    let mark_coverage = mark_coverage.reparse::<rlayout::CoverageTable>().unwrap();
+    let mark_coverage = mark_coverage.reparse::<rlayout::CoverageTable>();
     let data = &graph.objects[&subtable];
     let base_coverage_id = data.offsets[1].object;
     let mark_array_id = data.offsets[2].object;
@@ -135,7 +134,7 @@ fn split_off_mark_array(
     first_class: u16,
     mark_glyph_coverage_ids: &HashSet<usize>,
 ) -> TableData {
-    let mark_array = old_mark_array.reparse::<rgpos::MarkArray>().unwrap();
+    let mark_array = old_mark_array.reparse::<rgpos::MarkArray>();
     let mark_count = mark_glyph_coverage_ids.len() as u16;
 
     let mut new_mark_array = TableData::new(old_mark_array.type_);
@@ -169,9 +168,8 @@ fn split_off_base_array(
     // for each base, we want to prune the marks to only include those
     // in the range (start..end).
 
-    let base_array: rgpos::BaseArray = old_base_array
-        .reparse_with_args(old_mark_class_count as u16)
-        .unwrap();
+    let base_array: rgpos::BaseArray =
+        old_base_array.reparse_with_args(old_mark_class_count as u16);
 
     let mut next_offset_idx = 0;
     // because offsets may be null, and there is no pattern, we visit each one
@@ -251,7 +249,7 @@ fn get_class_info(graph: &Graph, subtable: ObjectId) -> Vec<Mark2BaseClassInfo> 
     let mark_array_off = &data.offsets[2];
     assert_eq!(mark_array_off.pos, 8);
     let mark_array_data = &graph.objects[&mark_array_off.object];
-    let mark_array = mark_array_data.reparse::<rgpos::MarkArray>().unwrap();
+    let mark_array = mark_array_data.reparse::<rgpos::MarkArray>();
     // okay so:
     // - there is one mark record for each mark glyph
     // - there may be multiple mark glyphs with the same class
@@ -613,7 +611,7 @@ mod tests {
             GLYPHS_PER_CLASS as usize * SPLIT_CLASS_RANGE.len()
         );
 
-        let reparsed = result.reparse::<rgpos::MarkArray>().unwrap();
+        let reparsed = result.reparse::<rgpos::MarkArray>();
         // ensure classes are correct
         for (i, rec) in reparsed.mark_records().iter().enumerate() {
             let exp_class = i as u16 / GLYPHS_PER_CLASS;
@@ -626,7 +624,7 @@ mod tests {
             let gid = i as u16 + gid_delta;
             let anchor_val = u16_to_i16(gid);
             let anchor_table = &graph.objects[&offset.object];
-            let anchor_table = anchor_table.reparse::<rgpos::AnchorFormat1>().unwrap();
+            let anchor_table = anchor_table.reparse::<rgpos::AnchorFormat1>();
             assert_eq!(anchor_table.x_coordinate(), anchor_val);
         }
     }
@@ -657,7 +655,7 @@ mod tests {
                     // anchor table is non-null
                     let anchor_id = result.offsets[idx].object;
                     let anchor = &graph.objects[&anchor_id];
-                    let anchor = anchor.reparse::<rgpos::AnchorFormat1>().unwrap();
+                    let anchor = anchor.reparse::<rgpos::AnchorFormat1>();
 
                     let exp_val = u16_to_i16((base * N_CLASSES) + original_mark_class);
                     assert_eq!(
