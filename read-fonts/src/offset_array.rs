@@ -88,10 +88,6 @@ pub struct SanitizedArrayOfOffsets<'a, T: ReadArgs, O: Scalar = Offset16> {
 }
 
 /// An array of nullable offsets that resolves using `read_fast` (post-sanitize).
-///
-/// This is identical to [`ArrayOfNullableOffsets`], except that each offset is
-/// resolved using `fast_resolve` instead of `resolve_with_args`, skipping
-/// re-validation.
 #[derive(Clone)]
 pub struct SanitizedArrayOfNullableOffsets<'a, T: ReadArgs, O: Scalar = Offset16> {
     offsets: &'a [BigEndian<Nullable<O>>],
