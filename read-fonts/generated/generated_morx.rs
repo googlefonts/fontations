@@ -63,27 +63,31 @@ impl<'a> Morx<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn unused_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn n_chains_byte_range(&self) -> Range<usize> {
         let start = self.unused_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn chains_byte_range(&self) -> Range<usize> {
         let n_chains = self.n_chains();
         let start = self.n_chains_byte_range().end;
-        start..start + {
+        let end = start + {
             let data = self.data.split_off(start).unwrap_or_default();
             <Chain as VarSize>::total_len_for_count(data, transforms::to_usize(n_chains))
                 .unwrap_or(0)
-        }
+        };
+        start..end
     }
 }
 
@@ -196,40 +200,45 @@ impl<'a> Chain<'a> {
 
     pub fn default_flags_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn chain_length_byte_range(&self) -> Range<usize> {
         let start = self.default_flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn n_feature_entries_byte_range(&self) -> Range<usize> {
         let start = self.chain_length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn n_subtables_byte_range(&self) -> Range<usize> {
         let start = self.n_feature_entries_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn features_byte_range(&self) -> Range<usize> {
         let n_feature_entries = self.n_feature_entries();
         let start = self.n_subtables_byte_range().end;
-        start
-            ..start
-                + (transforms::to_usize(n_feature_entries)).saturating_mul(Feature::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(n_feature_entries)).saturating_mul(Feature::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn subtables_byte_range(&self) -> Range<usize> {
         let n_subtables = self.n_subtables();
         let start = self.features_byte_range().end;
-        start..start + {
+        let end = start + {
             let data = self.data.split_off(start).unwrap_or_default();
             <Subtable as VarSize>::total_len_for_count(data, transforms::to_usize(n_subtables))
                 .unwrap_or(0)
-        }
+        };
+        start..end
     }
 }
 
@@ -395,22 +404,27 @@ impl<'a> Subtable<'a> {
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn sub_feature_flags_byte_range(&self) -> Range<usize> {
         let start = self.coverage_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.sub_feature_flags_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
     }
 }
 

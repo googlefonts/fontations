@@ -135,43 +135,52 @@ impl<'a> Gdef<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_class_def_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn attach_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.glyph_class_def_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn lig_caret_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.attach_list_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn mark_attach_class_def_offset_byte_range(&self) -> Range<usize> {
         let start = self.lig_caret_list_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn mark_glyph_sets_def_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_attach_class_def_offset_byte_range().end;
-        start
-            ..(self.version().compatible((1u16, 2u16)))
-                .then(|| start + Offset16::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible((1u16, 2u16)) {
+            start + Offset16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn item_var_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.mark_glyph_sets_def_offset_byte_range().end;
-        start
-            ..(self.version().compatible((1u16, 3u16)))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible((1u16, 3u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 }
 
@@ -350,18 +359,22 @@ impl<'a> AttachList<'a> {
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn attach_point_offsets_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (transforms::to_usize(glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -449,13 +462,15 @@ impl<'a> AttachPoint<'a> {
 
     pub fn point_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn point_indices_byte_range(&self) -> Range<usize> {
         let point_count = self.point_count();
         let start = self.point_count_byte_range().end;
-        start..start + (transforms::to_usize(point_count)).saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(point_count)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -556,19 +571,22 @@ impl<'a> LigCaretList<'a> {
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn lig_glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn lig_glyph_offsets_byte_range(&self) -> Range<usize> {
         let lig_glyph_count = self.lig_glyph_count();
         let start = self.lig_glyph_count_byte_range().end;
-        start
-            ..start + (transforms::to_usize(lig_glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(lig_glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -664,13 +682,16 @@ impl<'a> LigGlyph<'a> {
 
     pub fn caret_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn caret_value_offsets_byte_range(&self) -> Range<usize> {
         let caret_count = self.caret_count();
         let start = self.caret_count_byte_range().end;
-        start..start + (transforms::to_usize(caret_count)).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(caret_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -849,12 +870,14 @@ impl<'a> CaretValueFormat1<'a> {
 
     pub fn caret_value_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -941,12 +964,14 @@ impl<'a> CaretValueFormat2<'a> {
 
     pub fn caret_value_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn caret_value_point_index_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -1038,17 +1063,20 @@ impl<'a> CaretValueFormat3<'a> {
 
     pub fn caret_value_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.caret_value_format_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn device_offset_byte_range(&self) -> Range<usize> {
         let start = self.coordinate_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -1141,21 +1169,22 @@ impl<'a> MarkGlyphSets<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn mark_glyph_set_count_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_offsets_byte_range(&self) -> Range<usize> {
         let mark_glyph_set_count = self.mark_glyph_set_count();
         let start = self.mark_glyph_set_count_byte_range().end;
-        start
-            ..start
-                + (transforms::to_usize(mark_glyph_set_count))
-                    .saturating_mul(Offset32::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(mark_glyph_set_count)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
     }
 }
 

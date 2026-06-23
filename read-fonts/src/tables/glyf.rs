@@ -891,7 +891,7 @@ mod tests {
     }
 
     // Test helper to enumerate all TrueType glyphs in the given font
-    fn all_glyphs(font_data: &[u8]) -> impl Iterator<Item = Option<Glyph>> {
+    fn all_glyphs(font_data: &[u8]) -> impl Iterator<Item = Option<Glyph<'_>>> {
         let font = FontRef::new(font_data).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();

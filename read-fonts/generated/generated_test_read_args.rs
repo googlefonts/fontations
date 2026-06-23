@@ -88,34 +88,34 @@ impl<'a> BaseArray<'a> {
 
     pub fn base_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_records_byte_range(&self) -> Range<usize> {
         let base_count = self.base_count();
         let start = self.base_count_byte_range().end;
-        start
-            ..start
-                + (transforms::to_usize(base_count)).saturating_mul(
-                    <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count())
-                        .unwrap_or(0),
-                )
+        let end = start
+            + (transforms::to_usize(base_count)).saturating_mul(
+                <BaseRecord as ComputeSize>::compute_size(&self.mark_class_count()).unwrap_or(0),
+            );
+        start..end
     }
 
     pub fn face_count_byte_range(&self) -> Range<usize> {
         let start = self.base_records_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn face_records_byte_range(&self) -> Range<usize> {
         let base_count = self.base_count();
         let start = self.face_count_byte_range().end;
-        start
-            ..start
-                + (transforms::to_usize(base_count)).saturating_mul(
-                    <FaceRecord as ComputeSize>::compute_size(&self.mark_class_count())
-                        .unwrap_or(0),
-                )
+        let end = start
+            + (transforms::to_usize(base_count)).saturating_mul(
+                <FaceRecord as ComputeSize>::compute_size(&self.mark_class_count()).unwrap_or(0),
+            );
+        start..end
     }
 }
 
@@ -345,7 +345,8 @@ impl<'a> Face<'a> {
 
     pub fn field_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 }
 
