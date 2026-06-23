@@ -163,49 +163,61 @@ impl<'a> SimpleGlyph<'a> {
 
     pub fn number_of_contours_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.number_of_contours_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn end_pts_of_contours_byte_range(&self) -> Range<usize> {
         let number_of_contours = self.number_of_contours();
         let start = self.y_max_byte_range().end;
-        start..start + (transforms::to_usize(number_of_contours)).saturating_mul(u16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(number_of_contours)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn instruction_length_byte_range(&self) -> Range<usize> {
         let start = self.end_pts_of_contours_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn instructions_byte_range(&self) -> Range<usize> {
         let instruction_length = self.instruction_length();
         let start = self.instruction_length_byte_range().end;
-        start..start + (transforms::to_usize(instruction_length)).saturating_mul(u8::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(instruction_length)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn glyph_data_byte_range(&self) -> Range<usize> {
         let start = self.instructions_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -725,32 +737,39 @@ impl<'a> CompositeGlyph<'a> {
 
     pub fn number_of_contours_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.number_of_contours_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn component_data_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
     }
 }
 

@@ -387,8 +387,7 @@ impl Table {
 
             let end_expr = if let Some(condition) = condition {
                 quote! {
-                    (#condition).then(|| start + #len_expr)
-                        .unwrap_or(start)
+                    if #condition { start + #len_expr } else { start }
                 }
             } else {
                 quote!( start + #len_expr)
@@ -397,7 +396,8 @@ impl Table {
                 pub fn #fn_name(&self) -> Range<usize> {
                     #( #required_field_decls )*
                     let start = #prev_field_end_expr;
-                    start..#end_expr
+                    let end = #end_expr;
+                    start..end
                 }
             };
             prev_field_end_expr = quote!( self.#fn_name().end );

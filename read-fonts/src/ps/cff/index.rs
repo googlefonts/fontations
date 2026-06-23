@@ -342,7 +342,7 @@ mod tests {
         }
         // Now the data
         for i in 0..count {
-            buf = buf.extend(std::iter::repeat(i as u8).take((i + 1) * 10));
+            buf = buf.extend(std::iter::repeat_n(i as u8, (i + 1) * 10));
         }
         buf
     }

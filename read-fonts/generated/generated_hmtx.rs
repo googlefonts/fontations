@@ -83,15 +83,16 @@ impl<'a> Hmtx<'a> {
     pub fn h_metrics_byte_range(&self) -> Range<usize> {
         let number_of_h_metrics = self.number_of_h_metrics();
         let start = 0;
-        start
-            ..start
-                + (transforms::to_usize(number_of_h_metrics))
-                    .saturating_mul(LongMetric::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(number_of_h_metrics)).saturating_mul(LongMetric::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn left_side_bearings_byte_range(&self) -> Range<usize> {
         let start = self.h_metrics_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
+        start..end
     }
 }
 

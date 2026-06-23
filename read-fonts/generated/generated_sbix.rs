@@ -407,23 +407,28 @@ impl<'a> Sbix<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + HeaderFlags::RAW_BYTE_LEN
+        let end = start + HeaderFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_strikes_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn strike_offsets_byte_range(&self) -> Range<usize> {
         let num_strikes = self.num_strikes();
         let start = self.num_strikes_byte_range().end;
-        start..start + (transforms::to_usize(num_strikes)).saturating_mul(Offset32::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(num_strikes)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -538,18 +543,21 @@ impl<'a> Strike<'a> {
 
     pub fn ppem_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ppi_byte_range(&self) -> Range<usize> {
         let start = self.ppem_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
         let num_glyphs = self.num_glyphs();
         let start = self.ppi_byte_range().end;
-        start..start + (transforms::add(num_glyphs, 1_usize)).saturating_mul(u32::RAW_BYTE_LEN)
+        let end = start + (transforms::add(num_glyphs, 1_usize)).saturating_mul(u32::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -644,22 +652,27 @@ impl<'a> GlyphData<'a> {
 
     pub fn origin_offset_x_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn origin_offset_y_byte_range(&self) -> Range<usize> {
         let start = self.origin_offset_x_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn graphic_type_byte_range(&self) -> Range<usize> {
         let start = self.origin_offset_y_byte_range().end;
-        start..start + Tag::RAW_BYTE_LEN
+        let end = start + Tag::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.graphic_type_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
     }
 }
 

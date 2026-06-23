@@ -1405,8 +1405,8 @@ mod tests {
 
     #[test]
     fn repeatable_flags_repeats() {
-        let some_dupes = std::iter::repeat(SimpleGlyphFlags::ON_CURVE_POINT).take(4);
-        let many_dupes = std::iter::repeat(SimpleGlyphFlags::Y_SHORT_VECTOR).take(257);
+        let some_dupes = std::iter::repeat_n(SimpleGlyphFlags::ON_CURVE_POINT, 4);
+        let many_dupes = std::iter::repeat_n(SimpleGlyphFlags::Y_SHORT_VECTOR, 257);
         let repeatable =
             RepeatableFlag::iter_from_flags(some_dupes.chain(many_dupes)).collect::<Vec<_>>();
         assert_eq!(repeatable.len(), 3);

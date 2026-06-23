@@ -535,7 +535,7 @@ impl RowShape {
             "we can only pack 128 bits"
         );
 
-        let has_long_word = self.0.iter().any(|bits| *bits == ColumnBits::Four);
+        let has_long_word = self.0.contains(&ColumnBits::Four);
         let mut chars = 0;
         let mut i = 1;
 

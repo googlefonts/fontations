@@ -69,26 +69,29 @@ impl<'a> Vorg<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
         let start = self.default_vert_origin_y_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
         let num_vert_origin_y_metrics = self.num_vert_origin_y_metrics();
         let start = self.num_vert_origin_y_metrics_byte_range().end;
-        start
-            ..start
-                + (transforms::to_usize(num_vert_origin_y_metrics))
-                    .saturating_mul(VertOriginYMetrics::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_vert_origin_y_metrics))
+                .saturating_mul(VertOriginYMetrics::RAW_BYTE_LEN);
+        start..end
     }
 }
 
