@@ -50,15 +50,15 @@ pub(crate) fn generate(item: &Table, items: &Items) -> syn::Result<TokenStream> 
         }
     });
 
-    let table_ref_getters = item.iter_table_ref_getters();
+    let table_ref_getters = item.iter_table_ref_getters(items.sanitize);
     let optional_format_trait_impl = item.impl_format_trait();
     let optional_discriminant_trait_impl = item.impl_discriminant_trait();
-    let font_read = generate_font_read(item)?;
+    let font_read = generate_font_read(item, items.sanitize)?;
     let sanitize = items
         .sanitize
         .then(|| generate_sanitize(item))
         .transpose()?;
-    let debug = generate_debug(item)?;
+    let debug = generate_debug(item, items.sanitize)?;
     let top_level = item.attrs.tag.as_ref().map(|tag| {
         let tag_str = tag.value();
         let doc = format!(" `{tag_str}`");
@@ -164,7 +164,7 @@ pub(crate) fn generate(item: &Table, items: &Items) -> syn::Result<TokenStream> 
     })
 }
 
-fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
+fn generate_font_read(item: &Table, sanitize: bool) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let generic = item.attrs.generic_offset.as_ref();
     let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
@@ -205,6 +205,34 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         Some(generic) => quote!(impl<#generic> ReadArgs for #name<'_, #generic>),
         None => quote!(impl ReadArgs for #name<'_>),
     };
+    // For sanitizable, non-generic tables, reading routes through the sanitize
+    // machinery: `read_checked` validates via `sanitize` then constructs via
+    // `read_fast`. Generic tables keep the plain bounds-check, since their
+    // `FontRead` bound on the offset type doesn't imply `Sanitize`.
+    let use_sanitize = sanitize && generic.is_none();
+    let read_args_value = if read_args.args.is_empty() {
+        quote!(())
+    } else {
+        quote!(args)
+    };
+    let read_with_args_body = if use_sanitize {
+        quote! {
+            Self::read_checked(data, #read_args_value)
+        }
+    } else {
+        quote! {
+            #destructure_pattern
+            #[allow(clippy::absurd_extreme_comparisons)] // if MIN_SIZE is 0
+            if data.len() < Self::MIN_SIZE {
+                return Err(ReadError::OutOfBounds);
+            }
+            Ok(Self {
+                data,
+                #( #arg_idents, )*
+                #phantom
+            })
+        }
+    };
     Ok(quote! {
         #error_if_phantom_and_read_args
         #read_args_impl_header {
@@ -213,18 +241,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
 
         impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
             fn read_with_args(data: FontData<'a>, #args_arg: #args_type) -> Result<Self, ReadError> {
-                #destructure_pattern
-                #[allow(clippy::absurd_extreme_comparisons)] // if MIN_SIZE is 0
-                if data.len() < Self::MIN_SIZE {
-                    return Err(ReadError::OutOfBounds);
-                }
-                 Ok(
-                     Self {
-                         data,
-                         #( #arg_idents, )*
-                         #phantom
-                     }
-                 )
+                #read_with_args_body
             }
         }
         #maybe_custom_read_fn
@@ -246,26 +263,55 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     };
 
     let generic = item.attrs.generic_offset.as_ref();
-    let generic_bounds = generic.map(|t| quote!(#t: Sanitize<Args = #args_type>));
+    let generic_bounds = generic.map(|t| quote!(#t: Sanitize<'a, Args = #args_type>));
+    let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
+
+    // `read_fast` is a required method on `Sanitize`: it constructs the table
+    // without any validation, and is only sound once the bytes have already been
+    // sanitized (which `read_checked`, and thus `FontRead`, guarantees).
+    let read_fast = match item.attrs.read_args.as_ref() {
+        Some(args) => {
+            let typ = args.args_type();
+            let destructure_pattern = args.destructure_pattern();
+            let arg_idents = args.idents();
+            quote! {
+                fn read_fast(data: FontData<'a>, args: #typ) -> Self {
+                    #destructure_pattern
+                    Self { data, #( #arg_idents, )* }
+                }
+            }
+        }
+        None => quote! {
+            fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+                Self { data, #phantom }
+            }
+        },
+    };
 
     Ok(quote! {
-        impl<#generic_bounds> Sanitize for #name<'_, #generic> {
-            fn sanitize(ctx: &mut SanitizeContext, #args_arg) -> Result<(), ReadError> {
+        impl<'a, #generic_bounds> Sanitize<'a> for #name<'a, #generic> {
+            fn sanitize(ctx: &mut SanitizeContext<'a, '_>, #args_arg) -> Result<(), ReadError> {
                 #destructure_args
                 #( #stmts )*
                 ctx.finish()
             }
+
+            #read_fast
         }
     })
 }
 
-fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
+fn generate_debug(item: &Table, sanitize: bool) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let name_str = name.to_string();
     let generic = item.attrs.generic_offset.as_ref();
-    let generic_bounds = generic
-        .is_some()
-        .then(|| quote!(: FontRead<'a, Args = ()> + SomeTable<'a> + 'a));
+    let generic_bounds = generic.is_some().then(|| {
+        if sanitize {
+            quote!(: Sanitize<'a, Args = ()> + Default + SomeTable<'a> + 'a)
+        } else {
+            quote!(: FontRead<'a, Args = ()> + SomeTable<'a> + 'a)
+        }
+    });
     let field_arms = item.fields.iter_field_traversal_match_arms(false);
     let attrs = item.fields.fields.is_empty().then(|| {
         quote! {
@@ -300,7 +346,11 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
     })
 }
 
-pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::Result<TokenStream> {
+pub(crate) fn generate_compile(
+    item: &Table,
+    parse_module: &syn::Path,
+    sanitize: bool,
+) -> syn::Result<TokenStream> {
     let decl = super::record::generate_compile_impl(item.raw_name(), &item.attrs, &item.fields)?;
     if decl.is_empty() {
         return Ok(decl);
@@ -310,7 +360,7 @@ pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::R
         .attrs
         .skip_from_obj
         .is_none()
-        .then(|| generate_to_owned_impl(item, parse_module))
+        .then(|| generate_to_owned_impl(item, parse_module, sanitize))
         .transpose()?;
     let top_level = item.attrs.tag.as_ref().map(|tag| {
         let name = item.raw_name();
@@ -328,7 +378,11 @@ pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::R
     })
 }
 
-fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result<TokenStream> {
+fn generate_to_owned_impl(
+    item: &Table,
+    parse_module: &syn::Path,
+    sanitize: bool,
+) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let field_to_owned_stmts = item.fields.iter_from_obj_ref_stmts(false);
     let comp_generic = item.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
@@ -337,10 +391,13 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
         .then(|| syn::Ident::new("U", Span::call_site()));
     let impl_generics = comp_generic.into_iter().chain(parse_generic.as_ref());
     let impl_generics2 = impl_generics.clone();
+    // In sanitize modules, generic-offset accessors resolve via `fast_resolve` /
+    // `SanitizedArrayOfOffsets`, which require the parse type to be `Sanitize + Default`.
+    let sanitize_bounds = sanitize.then(|| quote!(+ Sanitize<'a> + Default));
     let where_clause = comp_generic.map(|t| {
         quote! {
             where
-                U: FontRead<'a, Args = ()>,
+                U: FontRead<'a, Args = ()> #sanitize_bounds,
                 #t: FromTableRef<U> + Default + 'static,
         }
     });
@@ -499,11 +556,11 @@ impl Table {
         })
     }
 
-    fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
+    fn iter_table_ref_getters(&self, sanitize: bool) -> impl Iterator<Item = TokenStream> + '_ {
         let generic = self.attrs.generic_offset.as_ref().map(|attr| &attr.attr);
         self.fields
             .iter()
-            .filter_map(move |fld| fld.table_getter(generic))
+            .filter_map(move |fld| fld.table_getter(generic, sanitize))
             .chain(
                 self.attrs
                     .read_args

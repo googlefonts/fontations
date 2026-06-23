@@ -21,16 +21,7 @@ impl ReadArgs for BaseArray<'_> {
 
 impl<'a> FontRead<'a> for BaseArray<'a> {
     fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
-        let mark_class_count = args;
-
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self {
-            data,
-            mark_class_count,
-        })
+        Self::read_checked(data, args)
     }
 }
 
@@ -45,14 +36,21 @@ impl<'a> BaseArray<'a> {
     }
 }
 
-impl Sanitize for BaseArray<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for BaseArray<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, args: u16) -> Result<(), ReadError> {
         let mark_class_count = args;
         let base_count = ctx.read::<u16>()?;
         ctx.sanitize_computed_array::<BaseRecord>(base_count as _, mark_class_count, false)?;
         let face_count = ctx.read::<u16>()?;
         ctx.sanitize_computed_array::<FaceRecord>(face_count as _, mark_class_count, true)?;
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, args: u16) -> Self {
+        let mark_class_count = args;
+        Self {
+            data,
+            mark_class_count,
+        }
     }
 }
 
@@ -233,7 +231,7 @@ impl SanitizeStruct for BaseRecord<'_> {
     fn can_skip() -> bool {
         true
     }
-    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: u16) -> Result<(), ReadError> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: u16) -> Result<(), ReadError> {
         ctx.finish()
     }
 }
@@ -269,9 +267,12 @@ impl<'a> FaceRecord<'a> {
     ///
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
-    pub fn faces(&self, data: FontData<'a>) -> ArrayOfNullableOffsets<'a, Face<'a>, Offset16> {
+    pub fn faces(
+        &self,
+        data: FontData<'a>,
+    ) -> SanitizedArrayOfNullableOffsets<'a, Face<'a>, Offset16> {
         let offsets = self.face_offsets();
-        ArrayOfNullableOffsets::new(offsets, data, ())
+        SanitizedArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -310,7 +311,7 @@ impl<'a> FaceRecord<'a> {
 }
 
 impl SanitizeStruct for FaceRecord<'_> {
-    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, args: u16) -> Result<(), ReadError> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
         let _mark_class_count = args;
         self.face_offsets().sanitize_offset::<Face>(ctx, ())?;
         ctx.finish()
@@ -350,18 +351,17 @@ impl ReadArgs for Face<'_> {
 
 impl<'a> FontRead<'a> for Face<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for Face<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for Face<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 

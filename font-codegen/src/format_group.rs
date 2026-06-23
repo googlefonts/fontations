@@ -89,6 +89,21 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
 
     let sanitize = items.sanitize.then(|| generate_sanitize(item));
 
+    let font_read_body = if items.sanitize {
+        quote! {
+            Self::read_checked(data, ())
+        }
+    } else {
+        quote! {
+            let format: #format = data.read_at(#format_offset)?;
+            #maybe_allow_lint
+            match format {
+                #( #match_arms ),*
+                other => Err(ReadError::InvalidFormat(other.into())),
+            }
+        }
+    };
+
     Ok(quote! {
         #( #docs )*
         #[derive(Clone)]
@@ -111,12 +126,7 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
 
         impl<'a> FontRead<'a> for #name<'a> {
             fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-                let format: #format = data.read_at(#format_offset)?;
-                #maybe_allow_lint
-                match format {
-                    #( #match_arms ),*
-                    other => Err(ReadError::InvalidFormat(other.into())),
-                }
+                #font_read_body
             }
         }
 
@@ -169,11 +179,15 @@ fn generate_sanitize(item: &TableFormat) -> TokenStream {
     let format = &item.format;
     let format_offset = item.format_offset();
 
-    let mut has_any_match_stmt = false;
-    let match_arms: Vec<_> = item
+    let non_write_only: Vec<_> = item
         .variants
         .iter()
         .filter(|v| v.attrs.write_only.is_none())
+        .collect();
+
+    let mut has_any_match_stmt = false;
+    let match_arms: Vec<_> = non_write_only
+        .iter()
         .map(|variant| {
             let typ = variant.type_name();
             let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
@@ -187,16 +201,48 @@ fn generate_sanitize(item: &TableFormat) -> TokenStream {
         })
         .collect();
 
+    // `read_fast` dispatches on the format like `sanitize`, but constructs the
+    // matched variant via its own `read_fast` (no validation). Soundness relies on
+    // the bytes having already been sanitized.
+    let fast_read_arms: Vec<_> = non_write_only
+        .iter()
+        .map(|variant| {
+            let var_name = &variant.name;
+            let typ = variant.type_name();
+            let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
+                let expr = &expr.expr;
+                quote!(format if #expr)
+            } else {
+                quote!(#typ::FORMAT)
+            };
+            quote!(#lhs => #name::#var_name(#typ::read_fast(data, ())),)
+        })
+        .collect();
+
+    // soundness: `non_write_only` must be non-empty for the enum to make sense.
+    let _ = non_write_only.first().expect("format group needs variants");
+
     let maybe_allow_lint = has_any_match_stmt.then(|| quote!(#[allow(clippy::redundant_guards)]));
 
     quote! {
-        impl Sanitize for #name<'_> {
-            fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        impl<'a> Sanitize<'a> for #name<'a> {
+            fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
                 let format: #format = ctx.peek_at(#format_offset)?;
                 #maybe_allow_lint
                 match format {
                     #( #match_arms )*
                     other => Err(ReadError::InvalidFormat(other.into())),
+                }
+            }
+
+            fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+                let Ok(format) = data.read_at::<#format>(#format_offset) else {
+                    return #name::default();
+                };
+                #maybe_allow_lint
+                match format {
+                    #( #fast_read_arms )*
+                    _ => #name::default(),
                 }
             }
         }

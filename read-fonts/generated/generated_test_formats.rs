@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 impl Format<u16> for Table1<'_> {
-    const FORMAT: u16 = 1;
+    const FORMAT: u16 = 0;
 }
 
 impl<'a> MinByteRange<'a> for Table1<'a> {
@@ -25,20 +25,19 @@ impl ReadArgs for Table1<'_> {
 
 impl<'a> FontRead<'a> for Table1<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for Table1<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for Table1<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         ctx.advance::<u32>();
         ctx.advance::<u16>();
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -88,7 +87,7 @@ const _: () = assert!(FontData::default_data_long_enough(Table1::MIN_SIZE));
 impl Default for Table1<'_> {
     fn default() -> Self {
         Self {
-            data: FontData::default_format_1_u16_table_data(),
+            data: FontData::default_table_data(),
         }
     }
 }
@@ -136,20 +135,19 @@ impl ReadArgs for Table2<'_> {
 
 impl<'a> FontRead<'a> for Table2<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for Table2<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for Table2<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         let value_count = ctx.read::<u16>()?;
         ctx.sanitize_array::<u16>(transforms::to_usize(value_count))?;
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -238,19 +236,18 @@ impl ReadArgs for Table3<'_> {
 
 impl<'a> FontRead<'a> for Table3<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for Table3<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for Table3<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         ctx.advance::<u16>();
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -345,13 +342,7 @@ impl ReadArgs for MyTable<'_> {
 
 impl<'a> FontRead<'a> for MyTable<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            Table1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            Table2::FORMAT => Ok(Self::MyFormat22(FontRead::read(data)?)),
-            Table3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        Self::read_checked(data, ())
     }
 }
 
@@ -372,14 +363,25 @@ impl<'a> MinByteRange<'a> for MyTable<'a> {
     }
 }
 
-impl Sanitize for MyTable<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for MyTable<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         let format: u16 = ctx.peek_at(0usize)?;
         match format {
             Table1::FORMAT => Table1::sanitize(ctx, ()),
             Table2::FORMAT => Table2::sanitize(ctx, ()),
             Table3::FORMAT => Table3::sanitize(ctx, ()),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        let Ok(format) = data.read_at::<u16>(0usize) else {
+            return MyTable::default();
+        };
+        match format {
+            Table1::FORMAT => MyTable::Format1(Table1::read_fast(data, ())),
+            Table2::FORMAT => MyTable::MyFormat22(Table2::read_fast(data, ())),
+            Table3::FORMAT => MyTable::Format3(Table3::read_fast(data, ())),
+            _ => MyTable::default(),
         }
     }
 }
