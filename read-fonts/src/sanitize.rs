@@ -1,6 +1,5 @@
 //! the traits we'll need to generate for sanitize
 
-#![allow(dead_code)] // just until sanitize P.2 lands
 use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Nullable, Scalar};
 

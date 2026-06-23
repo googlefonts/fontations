@@ -48,7 +48,7 @@ impl<T: Validate> Validate for MyLookup<T> {
 
 impl<'a, T, U> FromObjRef<read_fonts::codegen_test::generic_group::MyLookup<'a, U>> for MyLookup<T>
 where
-    U: FontRead<'a, Args = ()>,
+    U: FontRead<'a, Args = ()> + Sanitize<'a> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
@@ -67,7 +67,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::codegen_test::generic_group::MyLookup<'a, U>>
     for MyLookup<T>
 where
-    U: FontRead<'a, Args = ()>,
+    U: FontRead<'a, Args = ()> + Sanitize<'a> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
 }
