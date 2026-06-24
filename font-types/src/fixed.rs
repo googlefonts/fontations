@@ -632,11 +632,27 @@ mod tests {
         }
 
         #[test]
-        fn one_is_one() {
+        fn one_is_one_f2dot14() {
             roundtrip_one!(F2Dot14);
+        }
+
+        #[test]
+        fn one_is_one_f4dot12() {
             roundtrip_one!(F4Dot12);
+        }
+
+        #[test]
+        fn one_is_one_f6dot10() {
             roundtrip_one!(F6Dot10);
+        }
+
+        #[test]
+        fn one_is_one_fixed() {
             roundtrip_one!(Fixed);
+        }
+
+        #[test]
+        fn one_is_one_f26dot6() {
             roundtrip_one!(F26Dot6);
         }
     }
