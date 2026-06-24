@@ -417,7 +417,12 @@ mod tests {
 
         let varc_roundtrip = read_fonts::tables::varc::Varc::read(FontData::new(&bytes))
             .expect("Failed to read varc table");
-        let glyphs: Vec<GlyphId16> = varc_roundtrip.coverage().unwrap().iter().collect();
+        let glyphs: Vec<GlyphId16> = varc_roundtrip
+            .coverage()
+            .unwrap()
+            .iter()
+            .map(|gid| GlyphId16::try_from(gid).unwrap())
+            .collect();
         assert_eq!(glyphs, vec![GlyphId16::new(1)]);
         assert!(varc_roundtrip.multi_var_store().is_none());
         assert!(varc_roundtrip.condition_list().is_none());
@@ -466,7 +471,12 @@ mod tests {
         let bytes = dump_table(&varc).expect("Failed to dump varc table");
         let varc_roundtrip = read_fonts::tables::varc::Varc::read(FontData::new(&bytes))
             .expect("Failed to read varc table");
-        let glyphs: Vec<GlyphId16> = varc_roundtrip.coverage().unwrap().iter().collect();
+        let glyphs: Vec<GlyphId16> = varc_roundtrip
+            .coverage()
+            .unwrap()
+            .iter()
+            .map(|gid| GlyphId16::try_from(gid).unwrap())
+            .collect();
         assert_eq!(glyphs, vec![GlyphId16::new(2)]);
         assert!(varc_roundtrip.multi_var_store().is_none());
         assert!(varc_roundtrip.condition_list().is_none());
@@ -554,7 +564,12 @@ mod tests {
 
         let varc_roundtrip = read_fonts::tables::varc::Varc::read(FontData::new(&bytes))
             .expect("Failed to read varc table");
-        let glyphs: Vec<GlyphId16> = varc_roundtrip.coverage().unwrap().iter().collect();
+        let glyphs: Vec<GlyphId16> = varc_roundtrip
+            .coverage()
+            .unwrap()
+            .iter()
+            .map(|gid| GlyphId16::try_from(gid).unwrap())
+            .collect();
         assert_eq!(glyphs, vec![GlyphId16::new(3)]);
 
         // Verify the multi var store exists and has expected structure

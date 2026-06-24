@@ -164,29 +164,384 @@ fn bit_storage(v: u32) -> u32 {
     u32::BITS - v.leading_zeros()
 }
 
-impl<'a> CoverageTable<'a> {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + 'a {
-        // all one expression so that we have a single return type
-        let (iter1, iter2) = match self {
-            CoverageTable::Format1(t) => (Some(t.glyph_array().iter().map(|g| g.get())), None),
-            CoverageTable::Format2(t) => {
-                let iter = t.range_records().iter().flat_map(RangeRecord::iter);
-                (None, Some(iter))
+trait ClassDefArrayFormat<'a> {
+    fn start_gid_u32(&self) -> u32;
+    fn glyph_count_u32(&self) -> u32;
+    fn class_value_array(&self) -> &'a [BigEndian<u16>];
+}
+
+fn classdef_array_get<'a, T>(table: &T, gid: impl Into<GlyphId>) -> u16
+where
+    T: ClassDefArrayFormat<'a> + 'a,
+{
+    let Some(idx) = gid.into().to_u32().checked_sub(table.start_gid_u32()) else {
+        return 0;
+    };
+    table
+        .class_value_array()
+        .get(idx as usize)
+        .map(|x| x.get())
+        .unwrap_or(0)
+}
+
+fn classdef_array_population<'a, T>(table: &T) -> usize
+where
+    T: ClassDefArrayFormat<'a> + 'a,
+{
+    table.glyph_count_u32() as usize
+}
+
+fn classdef_array_cost<'a, T>(_table: &T) -> u32
+where
+    T: ClassDefArrayFormat<'a> + 'a,
+{
+    1
+}
+
+#[cfg(feature = "std")]
+fn classdef_array_intersect_classes<'a, T>(table: &T, glyphs: &IntSet<GlyphId>) -> IntSet<u16>
+where
+    T: ClassDefArrayFormat<'a> + 'a,
+{
+    let mut out = IntSet::empty();
+    if glyphs.is_empty() {
+        return out;
+    }
+
+    let start_glyph = table.start_gid_u32();
+    let glyph_count = table.glyph_count_u32();
+    if glyph_count == 0 {
+        out.insert(0);
+        return out;
+    }
+    let end_glyph = start_glyph + glyph_count - 1;
+    if glyphs.first().unwrap().to_u32() < start_glyph || glyphs.last().unwrap().to_u32() > end_glyph
+    {
+        out.insert(0);
+    }
+
+    let class_values = table.class_value_array();
+    if glyphs.contains(GlyphId::from(start_glyph)) {
+        let Some(start_glyph_class) = class_values.first() else {
+            return out;
+        };
+        out.insert(start_glyph_class.get());
+    }
+
+    for g in glyphs.iter_after(GlyphId::from(start_glyph)) {
+        let g = g.to_u32();
+        if g > end_glyph {
+            break;
+        }
+
+        let idx = g - start_glyph;
+        let Some(class) = class_values.get(idx as usize) else {
+            break;
+        };
+        out.insert(class.get());
+    }
+    out
+}
+
+#[cfg(feature = "std")]
+fn classdef_array_intersected_class_glyphs<'a, T>(
+    table: &T,
+    glyphs: &IntSet<GlyphId>,
+    class: u16,
+) -> IntSet<GlyphId>
+where
+    T: ClassDefArrayFormat<'a> + 'a,
+{
+    let mut out = IntSet::empty();
+    if glyphs.is_empty() {
+        return out;
+    }
+
+    let start_glyph = table.start_gid_u32();
+    let glyph_count = table.glyph_count_u32();
+    if glyph_count == 0 {
+        if class == 0 {
+            return glyphs.clone();
+        }
+        return out;
+    }
+    let end_glyph = start_glyph + glyph_count - 1;
+    if class == 0 {
+        let first = glyphs.first().unwrap();
+        if first.to_u32() < start_glyph {
+            out.extend(glyphs.range(first..GlyphId::from(start_glyph)));
+        }
+
+        let last = glyphs.last().unwrap();
+        if last.to_u32() > end_glyph {
+            out.extend(glyphs.range(GlyphId::from(end_glyph + 1)..=last));
+        }
+        return out;
+    }
+
+    let class_values = table.class_value_array();
+    for g in glyphs.range(GlyphId::from(start_glyph)..=GlyphId::from(end_glyph)) {
+        let idx = g.to_u32() - start_glyph;
+        let Some(c) = class_values.get(idx as usize) else {
+            break;
+        };
+        if c.get() == class {
+            out.insert(g);
+        }
+    }
+    out
+}
+
+trait ClassRangeRecordLike {
+    fn start_gid(&self) -> GlyphId;
+    fn end_gid(&self) -> GlyphId;
+    fn class(&self) -> u16;
+    fn population(&self) -> usize;
+}
+
+impl ClassRangeRecordLike for ClassRangeRecord {
+    fn start_gid(&self) -> GlyphId {
+        GlyphId::from(self.start_glyph_id())
+    }
+
+    fn end_gid(&self) -> GlyphId {
+        GlyphId::from(self.end_glyph_id())
+    }
+
+    fn class(&self) -> u16 {
+        self.class()
+    }
+
+    fn population(&self) -> usize {
+        self::ClassRangeRecord::population(self)
+    }
+}
+
+impl ClassRangeRecordLike for ClassRangeRecord2 {
+    fn start_gid(&self) -> GlyphId {
+        GlyphId::from(self.start_glyph_id())
+    }
+
+    fn end_gid(&self) -> GlyphId {
+        GlyphId::from(self.end_glyph_id())
+    }
+
+    fn class(&self) -> u16 {
+        self.class()
+    }
+
+    fn population(&self) -> usize {
+        ClassRangeRecord2::population(self)
+    }
+}
+
+trait ClassDefRangeFormat<'a> {
+    type Record: ClassRangeRecordLike;
+
+    fn class_range_count_u32(&self) -> u32;
+    fn class_range_records(&self) -> &'a [Self::Record];
+}
+
+fn classdef_range_get<'a, T>(table: &T, gid: impl Into<GlyphId>) -> u16
+where
+    T: ClassDefRangeFormat<'a> + 'a,
+{
+    let gid = gid.into().to_u32();
+    let records = table.class_range_records();
+    let ix = match records.binary_search_by(|rec| rec.start_gid().to_u32().cmp(&gid)) {
+        Ok(ix) => ix,
+        Err(ix) => ix.saturating_sub(1),
+    };
+    if let Some(record) = records.get(ix) {
+        if (record.start_gid().to_u32()..=record.end_gid().to_u32()).contains(&gid) {
+            return record.class();
+        }
+    }
+    0
+}
+
+fn classdef_range_population<'a, T>(table: &T) -> usize
+where
+    T: ClassDefRangeFormat<'a> + 'a,
+{
+    table
+        .class_range_records()
+        .iter()
+        .fold(0, |acc, record| acc + record.population())
+}
+
+fn classdef_range_cost<'a, T>(table: &T) -> u32
+where
+    T: ClassDefRangeFormat<'a> + 'a,
+{
+    bit_storage(table.class_range_count_u32())
+}
+
+#[cfg(feature = "std")]
+fn classdef_range_intersect_classes<'a, T>(table: &T, glyphs: &IntSet<GlyphId>) -> IntSet<u16>
+where
+    T: ClassDefRangeFormat<'a> + 'a,
+{
+    let mut out = IntSet::empty();
+    if glyphs.is_empty() {
+        return out;
+    }
+
+    if table.class_range_count_u32() == 0 {
+        out.insert(0);
+        return out;
+    }
+
+    let range_records = table.class_range_records();
+    let first_record = &range_records[0];
+
+    if glyphs.first().unwrap() < first_record.start_gid() {
+        out.insert(0);
+    } else {
+        let mut glyph = first_record.end_gid();
+        for record in range_records.iter().skip(1) {
+            let Some(g) = glyphs.iter_after(glyph).next() else {
+                break;
+            };
+
+            if g < record.start_gid() {
+                out.insert(0);
+                break;
             }
+            glyph = record.end_gid();
+        }
+        if glyphs.iter_after(glyph).next().is_some() {
+            out.insert(0);
+        }
+    }
+
+    if table.class_range_count_u32() as u64 > glyphs.len() * classdef_range_cost(table) as u64 {
+        for g in glyphs.iter() {
+            let class = classdef_range_get(table, g);
+            if class != 0 {
+                out.insert(class);
+            }
+        }
+    } else {
+        for record in range_records {
+            if glyphs.intersects_range(record.start_gid()..=record.end_gid()) {
+                out.insert(record.class());
+            }
+        }
+    }
+    out
+}
+
+#[cfg(feature = "std")]
+fn classdef_range_intersected_class_glyphs<'a, T>(
+    table: &T,
+    glyphs: &IntSet<GlyphId>,
+    class: u16,
+) -> IntSet<GlyphId>
+where
+    T: ClassDefRangeFormat<'a> + 'a,
+{
+    let mut out = IntSet::empty();
+    if glyphs.is_empty() {
+        return out;
+    }
+
+    let first = glyphs.first().unwrap().to_u32();
+    let last = glyphs.last().unwrap().to_u32();
+    if class == 0 {
+        let mut start = first;
+        for range in table.class_range_records() {
+            let range_start = range.start_gid().to_u32();
+            if start < range_start {
+                out.extend(glyphs.range(GlyphId::from(start)..GlyphId::from(range_start)));
+            }
+
+            let range_end = range.end_gid().to_u32();
+            if range_end >= last {
+                break;
+            }
+            start = range_end + 1;
+        }
+
+        if start <= last {
+            out.extend(glyphs.range(GlyphId::from(start)..=GlyphId::from(last)));
+        }
+        return out;
+    }
+
+    if table.class_range_count_u32() as u64 > glyphs.len() * classdef_range_cost(table) as u64 {
+        for g in glyphs.iter() {
+            let c = classdef_range_get(table, g);
+            if c == class {
+                out.insert(g);
+            }
+        }
+    } else {
+        for range in table.class_range_records() {
+            let range_start = range.start_gid().to_u32();
+            let range_end = range.end_gid().to_u32();
+            if range_start > last {
+                break;
+            }
+            if range.class() != class || range.end_gid().to_u32() < first {
+                continue;
+            }
+            out.extend(glyphs.range(GlyphId::from(range_start)..=GlyphId::from(range_end)));
+        }
+    }
+    out
+}
+
+impl<'a> CoverageTable<'a> {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + 'a {
+        // all one expression so that we have a single return type
+        let iter1 = match self {
+            CoverageTable::Format1(t) => {
+                Some(t.glyph_array().iter().map(|g| GlyphId::from(g.get())))
+            }
+            _ => None,
+        };
+        let iter2 = match self {
+            CoverageTable::Format2(t) => Some(
+                t.range_records()
+                    .iter()
+                    .flat_map(RangeRecord::iter)
+                    .map(GlyphId::from),
+            ),
+            _ => None,
+        };
+        let iter3 = match self {
+            CoverageTable::Format3(t) => {
+                Some(t.glyph_array().iter().map(|g| GlyphId::from(g.get())))
+            }
+            _ => None,
+        };
+        let iter4 = match self {
+            CoverageTable::Format4(t) => Some(
+                t.range_records()
+                    .iter()
+                    .flat_map(RangeRecord2::iter)
+                    .map(GlyphId::from),
+            ),
+            _ => None,
         };
 
         iter1
             .into_iter()
             .flatten()
             .chain(iter2.into_iter().flatten())
+            .chain(iter3.into_iter().flatten())
+            .chain(iter4.into_iter().flatten())
     }
 
     /// If this glyph is in the coverage table, returns its index
     #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
         match self {
             CoverageTable::Format1(sub) => sub.get(gid),
             CoverageTable::Format2(sub) => sub.get(gid),
+            CoverageTable::Format3(sub) => sub.get(gid),
+            CoverageTable::Format4(sub) => sub.get(gid),
         }
     }
 
@@ -196,6 +551,8 @@ impl<'a> CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.intersects(glyphs),
             CoverageTable::Format2(sub) => sub.intersects(glyphs),
+            CoverageTable::Format3(sub) => sub.intersects(glyphs),
+            CoverageTable::Format4(sub) => sub.intersects(glyphs),
         }
     }
 
@@ -205,6 +562,8 @@ impl<'a> CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.intersect_set(glyphs),
             CoverageTable::Format2(sub) => sub.intersect_set(glyphs),
+            CoverageTable::Format3(sub) => sub.intersect_set(glyphs),
+            CoverageTable::Format4(sub) => sub.intersect_set(glyphs),
         }
     }
 
@@ -213,6 +572,8 @@ impl<'a> CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.population(),
             CoverageTable::Format2(sub) => sub.population(),
+            CoverageTable::Format3(sub) => sub.population(),
+            CoverageTable::Format4(sub) => sub.population(),
         }
     }
 
@@ -221,6 +582,8 @@ impl<'a> CoverageTable<'a> {
         match self {
             CoverageTable::Format1(sub) => sub.cost(),
             CoverageTable::Format2(sub) => sub.cost(),
+            CoverageTable::Format3(sub) => sub.cost(),
+            CoverageTable::Format4(sub) => sub.cost(),
         }
     }
 }
@@ -228,13 +591,13 @@ impl<'a> CoverageTable<'a> {
 impl CoverageFormat1<'_> {
     /// If this glyph is in the coverage table, returns its index
     #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
         let gid16: GlyphId16 = gid.into().try_into().ok()?;
         let be_glyph: BigEndian<GlyphId16> = gid16.into();
         self.glyph_array()
             .binary_search(&be_glyph)
             .ok()
-            .map(|idx| idx as _)
+            .map(|idx| idx as u32)
     }
 
     /// Returns if this table contains at least one glyph in the 'glyphs' set.
@@ -282,7 +645,7 @@ impl CoverageFormat1<'_> {
 impl CoverageFormat2<'_> {
     /// If this glyph is in the coverage table, returns its index
     #[inline]
-    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u16> {
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
         let gid: GlyphId16 = gid.into().try_into().ok()?;
         self.range_records()
             .binary_search_by(|rec| {
@@ -297,7 +660,7 @@ impl CoverageFormat2<'_> {
             .ok()
             .map(|idx| {
                 let rec = &self.range_records()[idx];
-                rec.start_coverage_index() + gid.to_u16() - rec.start_glyph_id().to_u16()
+                (rec.start_coverage_index() + gid.to_u16() - rec.start_glyph_id().to_u16()) as u32
             })
     }
 
@@ -364,9 +727,174 @@ impl CoverageFormat2<'_> {
     }
 }
 
+impl CoverageFormat3<'_> {
+    /// If this glyph is in the coverage table, returns its index
+    #[inline]
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
+        let gid24: GlyphId24 = gid.into().try_into().ok()?;
+        let be_glyph: BigEndian<GlyphId24> = gid24.into();
+        self.glyph_array()
+            .binary_search(&be_glyph)
+            .ok()
+            .map(|idx| idx as u32)
+    }
+
+    /// Returns if this table contains at least one glyph in the 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
+        let glyph_count = self.glyph_count().to_u32();
+        if glyph_count as u64 > glyphs.len() * self.cost() as u64 {
+            glyphs.iter().any(|g| self.get(g).is_some())
+        } else {
+            self.glyph_array()
+                .iter()
+                .any(|g| glyphs.contains(GlyphId::from(g.get())))
+        }
+    }
+
+    /// Returns the intersection of this table and input 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersect_set(&self, glyphs: &IntSet<GlyphId>) -> IntSet<GlyphId> {
+        let glyph_count = self.glyph_count().to_u32();
+        if glyph_count as u64 > glyphs.len() * self.cost() as u64 {
+            glyphs
+                .iter()
+                .filter_map(|g| self.get(g).map(|_| g))
+                .collect()
+        } else {
+            self.glyph_array()
+                .iter()
+                .filter(|g| glyphs.contains(GlyphId::from(g.get())))
+                .map(|g| GlyphId::from(g.get()))
+                .collect()
+        }
+    }
+
+    /// Return the number of glyphs in this table
+    pub fn population(&self) -> usize {
+        usize::from(self.glyph_count())
+    }
+
+    /// Return the cost of looking up a glyph in this table
+    pub fn cost(&self) -> u32 {
+        bit_storage(self.glyph_count().to_u32())
+    }
+}
+
+impl CoverageFormat4<'_> {
+    /// If this glyph is in the coverage table, returns its index
+    #[inline]
+    pub fn get(&self, gid: impl Into<GlyphId>) -> Option<u32> {
+        let gid = gid.into().to_u32();
+        self.range_records()
+            .binary_search_by(|rec| {
+                if rec.end_glyph_id().to_u32() < gid {
+                    Ordering::Less
+                } else if rec.start_glyph_id().to_u32() > gid {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            .ok()
+            .and_then(|idx| {
+                let rec = &self.range_records()[idx];
+                rec.start_coverage_index()
+                    .to_u32()
+                    .checked_add(gid - rec.start_glyph_id().to_u32())
+            })
+    }
+
+    /// Returns if this table contains at least one glyph in the 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
+        let range_count = self.range_count().to_u32();
+        if range_count as u64 > glyphs.len() * self.cost() as u64 {
+            glyphs.iter().any(|g| self.get(g).is_some())
+        } else {
+            self.range_records()
+                .iter()
+                .any(|record| record.intersects(glyphs))
+        }
+    }
+
+    /// Returns the intersection of this table and input 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersect_set(&self, glyphs: &IntSet<GlyphId>) -> IntSet<GlyphId> {
+        let range_count = self.range_count().to_u32();
+        if range_count as u64 > glyphs.len() * self.cost() as u64 {
+            glyphs
+                .iter()
+                .filter_map(|g| self.get(g).map(|_| g))
+                .collect()
+        } else {
+            let mut out = IntSet::empty();
+            let mut last = GlyphId::from(0u32);
+            for record in self.range_records() {
+                // break out of loop for overlapping/broken tables
+                let start_glyph = GlyphId::from(record.start_glyph_id());
+                if start_glyph < last {
+                    break;
+                }
+                let end = GlyphId::from(record.end_glyph_id());
+                last = end;
+
+                if glyphs.contains(start_glyph) {
+                    out.insert(start_glyph);
+                }
+
+                for g in glyphs.iter_after(start_glyph) {
+                    if g > end {
+                        break;
+                    }
+                    out.insert(g);
+                }
+            }
+            out
+        }
+    }
+
+    /// Return the number of glyphs in this table
+    pub fn population(&self) -> usize {
+        self.range_records()
+            .iter()
+            .fold(0, |acc, record| acc + record.population())
+    }
+
+    /// Return the cost of looking up a glyph in this table
+    pub fn cost(&self) -> u32 {
+        bit_storage(self.range_count().to_u32())
+    }
+}
+
 impl RangeRecord {
     pub fn iter(&self) -> impl Iterator<Item = GlyphId16> + '_ {
         (self.start_glyph_id().to_u16()..=self.end_glyph_id().to_u16()).map(GlyphId16::new)
+    }
+
+    /// Returns if this table contains at least one glyph in the 'glyphs' set.
+    #[cfg(feature = "std")]
+    pub fn intersects(&self, glyphs: &IntSet<GlyphId>) -> bool {
+        glyphs.intersects_range(
+            GlyphId::from(self.start_glyph_id())..=GlyphId::from(self.end_glyph_id()),
+        )
+    }
+
+    /// Return the number of glyphs in this record
+    pub fn population(&self) -> usize {
+        let start = self.start_glyph_id().to_u32() as usize;
+        let end = self.end_glyph_id().to_u32() as usize;
+        if start > end {
+            0
+        } else {
+            end - start + 1
+        }
+    }
+}
+
+impl RangeRecord2 {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId24> + '_ {
+        (self.start_glyph_id().to_u32()..=self.end_glyph_id().to_u32()).map(GlyphId24::new)
     }
 
     /// Returns if this table contains at least one glyph in the 'glyphs' set.
@@ -413,120 +941,71 @@ impl From<DeltaFormat> for i64 {
     }
 }
 
+impl<'a> ClassDefArrayFormat<'a> for ClassDefFormat1<'a> {
+    fn start_gid_u32(&self) -> u32 {
+        self.start_glyph_id().to_u32()
+    }
+
+    fn glyph_count_u32(&self) -> u32 {
+        self.glyph_count() as u32
+    }
+
+    fn class_value_array(&self) -> &'a [BigEndian<u16>] {
+        self.class_value_array()
+    }
+}
+
 impl<'a> ClassDefFormat1<'a> {
     /// Get the class for this glyph id
     #[inline]
     pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
-        let Some(idx) = gid
-            .into()
-            .to_u32()
-            .checked_sub(self.start_glyph_id().to_u32())
-        else {
-            return 0;
-        };
-        self.class_value_array()
-            .get(idx as usize)
-            .map(|x| x.get())
-            .unwrap_or(0)
+        classdef_array_get(self, gid)
     }
 
     /// Iterate over each glyph and its class.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
         let start = self.start_glyph_id();
         self.class_value_array()
             .iter()
             .enumerate()
             .map(move |(i, val)| {
                 let gid = start.to_u16().saturating_add(i as u16);
-                (GlyphId16::new(gid), val.get())
+                (GlyphId::from(gid as u32), val.get())
             })
     }
 
     /// Return the number of glyphs explicitly assigned to a class in this table
     pub fn population(&self) -> usize {
-        self.glyph_count() as usize
+        classdef_array_population(self)
     }
 
     /// Return the cost of looking up a glyph in this table
     pub fn cost(&self) -> u32 {
-        1
+        classdef_array_cost(self)
     }
 
     /// Returns class values for the intersected glyphs of this table and input 'glyphs' set.
     #[cfg(feature = "std")]
     fn intersect_classes(&self, glyphs: &IntSet<GlyphId>) -> IntSet<u16> {
-        let mut out = IntSet::empty();
-        if glyphs.is_empty() {
-            return out;
-        }
-
-        let start_glyph = self.start_glyph_id().to_u32();
-        let glyph_count = self.glyph_count();
-        let end_glyph = start_glyph + glyph_count as u32 - 1;
-        if glyphs.first().unwrap().to_u32() < start_glyph
-            || glyphs.last().unwrap().to_u32() > end_glyph
-        {
-            out.insert(0);
-        }
-
-        let class_values = self.class_value_array();
-        if glyphs.contains(GlyphId::from(start_glyph)) {
-            let Some(start_glyph_class) = class_values.first() else {
-                return out;
-            };
-            out.insert(start_glyph_class.get());
-        }
-
-        for g in glyphs.iter_after(GlyphId::from(start_glyph)) {
-            let g = g.to_u32();
-            if g > end_glyph {
-                break;
-            }
-
-            let idx = g - start_glyph;
-            let Some(class) = class_values.get(idx as usize) else {
-                break;
-            };
-            out.insert(class.get());
-        }
-        out
+        classdef_array_intersect_classes(self, glyphs)
     }
 
     /// Returns intersected glyphs of this table and input 'glyphs' set that are assigned to input class value.
     #[cfg(feature = "std")]
     fn intersected_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u16) -> IntSet<GlyphId> {
-        let mut out = IntSet::empty();
-        if glyphs.is_empty() {
-            return out;
-        }
+        classdef_array_intersected_class_glyphs(self, glyphs, class)
+    }
+}
 
-        let start_glyph = self.start_glyph_id().to_u32();
-        let glyph_count = self.glyph_count();
-        let end_glyph = start_glyph + glyph_count as u32 - 1;
-        if class == 0 {
-            let first = glyphs.first().unwrap();
-            if first.to_u32() < start_glyph {
-                out.extend(glyphs.range(first..GlyphId::from(start_glyph)));
-            }
+impl<'a> ClassDefRangeFormat<'a> for ClassDefFormat2<'a> {
+    type Record = ClassRangeRecord;
 
-            let last = glyphs.last().unwrap();
-            if last.to_u32() > end_glyph {
-                out.extend(glyphs.range(GlyphId::from(end_glyph + 1)..=last));
-            }
-            return out;
-        }
+    fn class_range_count_u32(&self) -> u32 {
+        self.class_range_count() as u32
+    }
 
-        let class_values = self.class_value_array();
-        for g in glyphs.range(GlyphId::from(start_glyph)..=GlyphId::from(end_glyph)) {
-            let idx = g.to_u32() - start_glyph;
-            let Some(c) = class_values.get(idx as usize) else {
-                break;
-            };
-            if c.get() == class {
-                out.insert(g);
-            }
-        }
-        out
+    fn class_range_records(&self) -> &'a [Self::Record] {
+        self.class_range_records()
     }
 }
 
@@ -534,154 +1013,159 @@ impl<'a> ClassDefFormat2<'a> {
     /// Get the class for this glyph id
     #[inline]
     pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
-        let gid = gid.into().to_u32();
-        let records = self.class_range_records();
-        let ix = match records.binary_search_by(|rec| rec.start_glyph_id().to_u32().cmp(&gid)) {
-            Ok(ix) => ix,
-            Err(ix) => ix.saturating_sub(1),
-        };
-        if let Some(record) = records.get(ix) {
-            if (record.start_glyph_id().to_u32()..=record.end_glyph_id().to_u32()).contains(&gid) {
-                return record.class();
-            }
-        }
-        0
+        classdef_range_get(self, gid)
     }
 
     /// Iterate over each glyph and its class.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
         self.class_range_records().iter().flat_map(|range| {
             let start = range.start_glyph_id().to_u16();
             let end = range.end_glyph_id().to_u16();
-            (start..=end).map(|gid| (GlyphId16::new(gid), range.class()))
+            (start..=end).map(|gid| (GlyphId::from(gid as u32), range.class()))
         })
     }
 
     /// Return the number of glyphs explicitly assigned to a class in this table
     pub fn population(&self) -> usize {
-        self.class_range_records()
-            .iter()
-            .fold(0, |acc, record| acc + record.population())
+        classdef_range_population(self)
     }
 
     /// Return the cost of looking up a glyph in this table
     pub fn cost(&self) -> u32 {
-        bit_storage(self.class_range_count() as u32)
+        classdef_range_cost(self)
     }
 
     /// Returns class values for the intersected glyphs of this table and input 'glyphs' set.
     #[cfg(feature = "std")]
     fn intersect_classes(&self, glyphs: &IntSet<GlyphId>) -> IntSet<u16> {
-        let mut out = IntSet::empty();
-        if glyphs.is_empty() {
-            return out;
-        }
+        classdef_range_intersect_classes(self, glyphs)
+    }
 
-        if self.class_range_count() == 0 {
-            out.insert(0);
-            return out;
-        }
+    /// Returns intersected glyphs of this table and input 'glyphs' set that are assigned to input class value.
+    #[cfg(feature = "std")]
+    fn intersected_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u16) -> IntSet<GlyphId> {
+        classdef_range_intersected_class_glyphs(self, glyphs, class)
+    }
+}
 
-        let range_records = self.class_range_records();
-        let first_record = range_records[0];
+impl<'a> ClassDefArrayFormat<'a> for ClassDefFormat3<'a> {
+    fn start_gid_u32(&self) -> u32 {
+        self.start_glyph_id().to_u32()
+    }
 
-        if glyphs.first().unwrap() < first_record.start_glyph_id() {
-            out.insert(0);
-        } else {
-            let mut glyph = GlyphId::from(first_record.end_glyph_id());
-            for record in range_records.iter().skip(1) {
-                let Some(g) = glyphs.iter_after(glyph).next() else {
-                    break;
-                };
+    fn glyph_count_u32(&self) -> u32 {
+        self.glyph_count().to_u32()
+    }
 
-                if g < record.start_glyph_id() {
-                    out.insert(0);
-                    break;
-                }
-                glyph = GlyphId::from(record.end_glyph_id());
-            }
-            if glyphs.iter_after(glyph).next().is_some() {
-                out.insert(0);
-            }
-        }
+    fn class_value_array(&self) -> &'a [BigEndian<u16>] {
+        self.class_value_array()
+    }
+}
 
-        let num_ranges = self.class_range_count();
-        if num_ranges as u64 > glyphs.len() * self.cost() as u64 {
-            for g in glyphs.iter() {
-                let class = self.get(g);
-                if class != 0 {
-                    out.insert(class);
-                }
-            }
-        } else {
-            for record in range_records {
-                if glyphs.intersects_range(
-                    GlyphId::from(record.start_glyph_id())..=GlyphId::from(record.end_glyph_id()),
-                ) {
-                    out.insert(record.class());
-                }
-            }
-        }
-        out
+impl<'a> ClassDefFormat3<'a> {
+    /// Get the class for this glyph id
+    #[inline]
+    pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
+        classdef_array_get(self, gid)
+    }
+
+    /// Iterate over each glyph and its class.
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
+        let start = self.start_glyph_id().to_u32();
+        self.class_value_array()
+            .iter()
+            .enumerate()
+            .map(move |(i, val)| (GlyphId::from(start + i as u32), val.get()))
+    }
+
+    /// Return the number of glyphs explicitly assigned to a class in this table
+    pub fn population(&self) -> usize {
+        classdef_array_population(self)
+    }
+
+    /// Return the cost of looking up a glyph in this table
+    pub fn cost(&self) -> u32 {
+        classdef_array_cost(self)
+    }
+
+    /// Returns class values for the intersected glyphs of this table and input 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersect_classes(&self, glyphs: &IntSet<GlyphId>) -> IntSet<u16> {
+        classdef_array_intersect_classes(self, glyphs)
+    }
+
+    /// Returns intersected glyphs of this table and input 'glyphs' set that are assigned to input class value.
+    #[cfg(feature = "std")]
+    fn intersected_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u16) -> IntSet<GlyphId> {
+        classdef_array_intersected_class_glyphs(self, glyphs, class)
+    }
+}
+
+impl<'a> ClassDefRangeFormat<'a> for ClassDefFormat4<'a> {
+    type Record = ClassRangeRecord2;
+
+    fn class_range_count_u32(&self) -> u32 {
+        self.class_range_count().to_u32()
+    }
+
+    fn class_range_records(&self) -> &'a [Self::Record] {
+        self.class_range_records()
+    }
+}
+
+impl<'a> ClassDefFormat4<'a> {
+    /// Get the class for this glyph id
+    #[inline]
+    pub fn get(&self, gid: impl Into<GlyphId>) -> u16 {
+        classdef_range_get(self, gid)
+    }
+
+    /// Iterate over each glyph and its class.
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
+        self.class_range_records().iter().flat_map(|range| {
+            let start = range.start_glyph_id().to_u32();
+            let end = range.end_glyph_id().to_u32();
+            (start..=end).map(|gid| (GlyphId::from(gid), range.class()))
+        })
+    }
+
+    /// Return the number of glyphs explicitly assigned to a class in this table
+    pub fn population(&self) -> usize {
+        classdef_range_population(self)
+    }
+
+    /// Return the cost of looking up a glyph in this table
+    pub fn cost(&self) -> u32 {
+        classdef_range_cost(self)
+    }
+
+    /// Returns class values for the intersected glyphs of this table and input 'glyphs' set.
+    #[cfg(feature = "std")]
+    fn intersect_classes(&self, glyphs: &IntSet<GlyphId>) -> IntSet<u16> {
+        classdef_range_intersect_classes(self, glyphs)
     }
 
     /// Returns intersected glyphs of this table and input 'glyphs' set that are assgiend to input class value.
     #[cfg(feature = "std")]
     fn intersected_class_glyphs(&self, glyphs: &IntSet<GlyphId>, class: u16) -> IntSet<GlyphId> {
-        let mut out = IntSet::empty();
-        if glyphs.is_empty() {
-            return out;
-        }
-
-        let first = glyphs.first().unwrap().to_u32();
-        let last = glyphs.last().unwrap().to_u32();
-        if class == 0 {
-            let mut start = first;
-            for range in self.class_range_records() {
-                let range_start = range.start_glyph_id().to_u32();
-                if start < range_start {
-                    out.extend(glyphs.range(GlyphId::from(start)..GlyphId::from(range_start)));
-                }
-
-                let range_end = range.end_glyph_id().to_u32();
-                if range_end >= last {
-                    break;
-                }
-                start = range_end + 1;
-            }
-
-            if start <= last {
-                out.extend(glyphs.range(GlyphId::from(start)..=GlyphId::from(last)));
-            }
-            return out;
-        }
-
-        let num_ranges = self.class_range_count();
-        if num_ranges as u64 > glyphs.len() * self.cost() as u64 {
-            for g in glyphs.iter() {
-                let c = self.get(g);
-                if c == class {
-                    out.insert(g);
-                }
-            }
-        } else {
-            for range in self.class_range_records() {
-                let range_start = range.start_glyph_id().to_u32();
-                let range_end = range.end_glyph_id().to_u32();
-                if range_start > last {
-                    break;
-                }
-                if range.class() != class || range.end_glyph_id().to_u32() < first {
-                    continue;
-                }
-                out.extend(glyphs.range(GlyphId::from(range_start)..=GlyphId::from(range_end)));
-            }
-        }
-        out
+        classdef_range_intersected_class_glyphs(self, glyphs, class)
     }
 }
 
 impl ClassRangeRecord {
+    /// Return the number of glyphs explicitly assigned to a class in this table
+    pub fn population(&self) -> usize {
+        let start = self.start_glyph_id().to_u32() as usize;
+        let end = self.end_glyph_id().to_u32() as usize;
+        if start > end {
+            0
+        } else {
+            end - start + 1
+        }
+    }
+}
+
+impl ClassRangeRecord2 {
     /// Return the number of glyphs explicitly assigned to a class in this table
     pub fn population(&self) -> usize {
         let start = self.start_glyph_id().to_u32() as usize;
@@ -701,18 +1185,36 @@ impl ClassDef<'_> {
         match self {
             ClassDef::Format1(table) => table.get(gid),
             ClassDef::Format2(table) => table.get(gid),
+            ClassDef::Format3(table) => table.get(gid),
+            ClassDef::Format4(table) => table.get(gid),
         }
     }
 
     /// Iterate over each glyph and its class.
     ///
     /// This will not include class 0 unless it has been explicitly assigned.
-    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, u16)> + '_ {
-        let (one, two) = match self {
-            ClassDef::Format1(inner) => (Some(inner.iter()), None),
-            ClassDef::Format2(inner) => (None, Some(inner.iter())),
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+        let one = match self {
+            ClassDef::Format1(inner) => Some(inner.iter()),
+            _ => None,
         };
-        one.into_iter().flatten().chain(two.into_iter().flatten())
+        let two = match self {
+            ClassDef::Format2(inner) => Some(inner.iter()),
+            _ => None,
+        };
+        let three = match self {
+            ClassDef::Format3(inner) => Some(inner.iter()),
+            _ => None,
+        };
+        let four = match self {
+            ClassDef::Format4(inner) => Some(inner.iter()),
+            _ => None,
+        };
+        one.into_iter()
+            .flatten()
+            .chain(two.into_iter().flatten())
+            .chain(three.into_iter().flatten())
+            .chain(four.into_iter().flatten())
     }
 
     /// Return the number of glyphs explicitly assigned to a class in this table
@@ -720,6 +1222,8 @@ impl ClassDef<'_> {
         match self {
             ClassDef::Format1(table) => table.population(),
             ClassDef::Format2(table) => table.population(),
+            ClassDef::Format3(table) => table.population(),
+            ClassDef::Format4(table) => table.population(),
         }
     }
 
@@ -728,6 +1232,8 @@ impl ClassDef<'_> {
         match self {
             ClassDef::Format1(sub) => sub.cost(),
             ClassDef::Format2(sub) => sub.cost(),
+            ClassDef::Format3(sub) => sub.cost(),
+            ClassDef::Format4(sub) => sub.cost(),
         }
     }
 
@@ -737,6 +1243,8 @@ impl ClassDef<'_> {
         match self {
             ClassDef::Format1(table) => table.intersect_classes(glyphs),
             ClassDef::Format2(table) => table.intersect_classes(glyphs),
+            ClassDef::Format3(table) => table.intersect_classes(glyphs),
+            ClassDef::Format4(table) => table.intersect_classes(glyphs),
         }
     }
 
@@ -750,6 +1258,8 @@ impl ClassDef<'_> {
         match self {
             ClassDef::Format1(table) => table.intersected_class_glyphs(glyphs, class),
             ClassDef::Format2(table) => table.intersected_class_glyphs(glyphs, class),
+            ClassDef::Format3(table) => table.intersected_class_glyphs(glyphs, class),
+            ClassDef::Format4(table) => table.intersected_class_glyphs(glyphs, class),
         }
     }
 }
@@ -868,6 +1378,36 @@ mod tests {
     }
 
     #[test]
+    fn coverage_get_format3() {
+        // manually generated, corresponding to glyphs (1, 65536, 65538).
+        const COV3_DATA: FontData = FontData::new(&[0, 3, 0, 0, 3, 0, 0, 1, 1, 0, 0, 1, 0, 2]);
+
+        let coverage = CoverageFormat3::read(COV3_DATA).unwrap();
+        assert_eq!(coverage.get(GlyphId::new(1)), Some(0));
+        assert_eq!(coverage.get(GlyphId::new(65536)), Some(1));
+        assert_eq!(coverage.get(GlyphId::new(65537)), None);
+        assert_eq!(coverage.get(GlyphId::new(65538)), Some(2));
+    }
+
+    #[test]
+    fn coverage_get_format4() {
+        // manually generated, corresponding to glyphs (65536..65538) and
+        // (131072..131076).
+        const COV4_DATA: FontData = FontData::new(&[
+            0, 4, 0, 0, 2, 1, 0, 0, 1, 0, 2, 0, 0, 0, 2, 0, 0, 2, 0, 4, 0, 0, 3,
+        ]);
+
+        let coverage = CoverageFormat4::read(COV4_DATA).unwrap();
+        assert_eq!(coverage.get(GlyphId::new(65535)), None);
+        assert_eq!(coverage.get(GlyphId::new(65536)), Some(0));
+        assert_eq!(coverage.get(GlyphId::new(65538)), Some(2));
+        assert_eq!(coverage.get(GlyphId::new(65539)), None);
+        assert_eq!(coverage.get(GlyphId::new(131072)), Some(3));
+        assert_eq!(coverage.get(GlyphId::new(131076)), Some(7));
+        assert_eq!(coverage.get(GlyphId::new(131077)), None);
+    }
+
+    #[test]
     fn classdef_get_format2() {
         let classdef = ClassDef::read(FontData::new(
             font_test_data::gdef::MARKATTACHCLASSDEF_TABLE,
@@ -893,6 +1433,36 @@ mod tests {
         for (gid, class) in classdef.iter() {
             assert_eq!(classdef.get(gid), class);
         }
+    }
+
+    #[test]
+    fn classdef_get_format3() {
+        const CLASSDEF3_DATA: FontData = FontData::new(&[0, 3, 1, 0, 0, 0, 0, 3, 0, 5, 0, 0, 0, 7]);
+
+        let classdef = ClassDef::read(CLASSDEF3_DATA).unwrap();
+        assert!(matches!(classdef, ClassDef::Format3(..)));
+        assert_eq!(classdef.get(GlyphId::new(0xffff)), 0);
+        assert_eq!(classdef.get(GlyphId::new(0x1_0000)), 5);
+        assert_eq!(classdef.get(GlyphId::new(0x1_0001)), 0);
+        assert_eq!(classdef.get(GlyphId::new(0x1_0002)), 7);
+        assert_eq!(classdef.get(GlyphId::new(0x1_0003)), 0);
+    }
+
+    #[test]
+    fn classdef_get_format4() {
+        const CLASSDEF4_DATA: FontData = FontData::new(&[
+            0, 4, 0, 0, 2, 1, 0, 0, 1, 0, 2, 0, 4, 2, 0, 0, 2, 0, 1, 0, 7,
+        ]);
+
+        let classdef = ClassDef::read(CLASSDEF4_DATA).unwrap();
+        assert!(matches!(classdef, ClassDef::Format4(..)));
+        assert_eq!(classdef.get(GlyphId::new(0xffff)), 0);
+        assert_eq!(classdef.get(GlyphId::new(0x1_0000)), 4);
+        assert_eq!(classdef.get(GlyphId::new(0x1_0002)), 4);
+        assert_eq!(classdef.get(GlyphId::new(0x1_0003)), 0);
+        assert_eq!(classdef.get(GlyphId::new(0x2_0000)), 7);
+        assert_eq!(classdef.get(GlyphId::new(0x2_0001)), 7);
+        assert_eq!(classdef.get(GlyphId::new(0x2_0002)), 0);
     }
 
     #[test]

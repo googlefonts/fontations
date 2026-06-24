@@ -117,6 +117,14 @@ fn split_coverage(coverage: &rlayout::CoverageTable, start: u16, end: u16) -> Ta
                 data.write(record.start_coverage_index);
             }
         }
+        rlayout::CoverageTable::Format3(_) | rlayout::CoverageTable::Format4(_) => {
+            let coverage = coverage
+                .iter()
+                .skip(start as usize)
+                .take(len as usize)
+                .collect::<wlayout::CoverageTable>();
+            return make_table_data(&coverage);
+        }
     }
     data
 }

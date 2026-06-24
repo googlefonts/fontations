@@ -258,6 +258,7 @@ impl<'a> PrettyPrinter<'a> {
             FieldType::Fixed(val) => self.print_hex(&val.to_be_bytes())?,
             FieldType::LongDateTime(val) => self.print_hex(&val.to_be_bytes())?,
             FieldType::GlyphId16(val) => self.print_hex(&val.to_be_bytes())?,
+            FieldType::GlyphId24(val) => self.print_hex(&val.to_be_bytes())?,
             FieldType::BareOffset(offset) => self.print_offset_hex(*offset)?,
             _ => (),
         }

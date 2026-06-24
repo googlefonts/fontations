@@ -82,6 +82,7 @@ fn pairposformat2() {
                 GlyphId16::new(0x6A)
             );
         }
+        ClassDef::Format3(_) | ClassDef::Format4(_) => panic!("expected format2"),
     }
 }
 
