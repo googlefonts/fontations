@@ -1132,46 +1132,6 @@ impl Graph {
         made_changes
     }
 
-    // Creates a copy of child and re-assigns the link from parent to the clone.
-    // The copy is a shallow copy, objects linked from child are not duplicated.
-    // Returns the index of the newly created duplicate.
-    // If the child_idx only has incoming edges from parent_idx, duplication isn't possible and this will return None
-    #[allow(dead_code)]
-    fn duplicate_child(
-        &mut self,
-        parent_idx: ObjIdx,
-        child_idx: ObjIdx,
-    ) -> Result<Option<ObjIdx>, RepackError> {
-        self.update_parents()?;
-
-        let child_v = &self.vertices[child_idx];
-        if child_v.incoming_edges() <= child_v.incoming_edges_from_parent(parent_idx) as usize
-            || child_v.has_incoming_virtual_edges
-        {
-            return Ok(None);
-        }
-
-        let clone_idx = self.duplicate_vertex(child_idx)?;
-        let mut old_to_new_idx_parents = Vec::new();
-        for l in self.vertices[parent_idx].real_links.values_mut() {
-            if l.obj_idx() != child_idx {
-                continue;
-            }
-            l.update_obj_idx(clone_idx);
-            old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, false));
-        }
-
-        for l in self.vertices[parent_idx].virtual_links.iter_mut() {
-            if l.obj_idx() != child_idx {
-                continue;
-            }
-            l.update_obj_idx(clone_idx);
-            old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, true));
-        }
-        self.reassign_parents(&old_to_new_idx_parents)?;
-        Ok(Some(clone_idx))
-    }
-
     // Creates a copy of child and re-assigns the link from parents to the clone.
     // The copy is a shallow copy, objects linked from child are not duplicated.
     // Returns the index of the newly created duplicate.
@@ -1221,6 +1181,36 @@ impl Graph {
             }
         }
         self.reassign_parents(&old_to_new_idx_parents)?;
+        Ok(Some(clone_idx))
+    }
+
+    // Creates a copy of child and re-assigns the link at specified position from parent to the clone.
+    // The copy is a shallow copy, objects linked from child are not duplicated.
+    // Returns the index of the newly created duplicate.
+    fn duplicate_child_at_position(
+        &mut self,
+        parent_idx: ObjIdx,
+        child_idx: ObjIdx,
+        pos: u32,
+    ) -> Result<Option<ObjIdx>, RepackError> {
+        let clone_idx = self.duplicate_vertex(child_idx)?;
+        self.mut_vertex(child_idx)
+            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+            .remove_parent(parent_idx, false);
+
+        self.mut_vertex(clone_idx)
+            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+            .add_parent(parent_idx, false);
+
+        let Some(l) = self
+            .mut_vertex(parent_idx)
+            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+            .real_links
+            .get_mut(&pos)
+        else {
+            return Ok(None);
+        };
+        l.update_obj_idx(clone_idx);
         Ok(Some(clone_idx))
     }
 
@@ -1810,7 +1800,6 @@ pub(crate) mod test {
         let mut a = Serializer::new(buf_size);
         populate_serializer_complex_2(&mut a);
         let mut graph = Graph::from_serializer(&a).unwrap();
-        graph.duplicate_child(4, 1).unwrap();
         graph.normalize();
 
         let mut e = Serializer::new(buf_size);
@@ -1847,7 +1836,7 @@ pub(crate) mod test {
         let mut c = Serializer::new(buf_size);
         populate_serializer_complex_3(&mut c);
         let mut graph = Graph::from_serializer(&c).unwrap();
-        graph.duplicate_child(3, 2).unwrap();
+        graph.duplicate_child_at_position(3, 2, 3).unwrap();
 
         let data_bytes = &graph.data;
         let obj_6 = &graph.vertices[6];

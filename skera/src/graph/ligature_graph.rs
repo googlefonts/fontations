@@ -31,6 +31,7 @@ pub(crate) fn split_ligature_subst(
         return Ok(Vec::new());
     }
 
+    duplicate_shared_liga_sets(graph, table_idx)?;
     let cov_glyphs = coverage_glyphs(graph, coverage_idx)?;
     let mut out: Vec<usize> = Vec::with_capacity(split_points.len() + 1);
     for i in 0..split_points.len() {
@@ -58,6 +59,25 @@ pub(crate) fn split_ligature_subst(
 
     shrink(graph, table_idx, coverage_idx, &cov_glyphs, split_points[0])?;
     Ok(out)
+}
+
+fn duplicate_shared_liga_sets(graph: &mut Graph, table_idx: ObjIdx) -> Result<(), RepackError> {
+    let table_v = graph
+        .vertex(table_idx)
+        .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
+    let mut visited = IntSet::empty();
+    let mut duplicates = Vec::new();
+    for (pos, l) in table_v.real_links() {
+        let obj_idx = l.obj_idx();
+        if !visited.insert(obj_idx as u32) {
+            duplicates.push((*pos, obj_idx));
+        }
+    }
+
+    for (pos, obj_idx) in duplicates {
+        graph.duplicate_child_at_position(table_idx, obj_idx, pos)?;
+    }
+    Ok(())
 }
 
 // ref:<https://github.com/harfbuzz/harfbuzz/blob/e1f2565db09823794e3d8ed404c47dae0f0cd3c9/src/graph/ligature-graph.hh#L124>
