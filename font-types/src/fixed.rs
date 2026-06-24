@@ -655,5 +655,57 @@ mod tests {
         fn one_is_one_f26dot6() {
             roundtrip_one!(F26Dot6);
         }
+
+        macro_rules! roundtrip_all {
+            ($fixed:ident, $ty:ty) => {
+                for raw in <$ty>::MIN..=<$ty>::MAX {
+                    let fixed = $fixed(raw);
+                    let fixed_float = fixed.to_f64();
+
+                    let json_value = ::serde_json::to_value(&fixed).expect("should serialize");
+                    let Some(json_float) = json_value.as_f64() else {
+                        panic!(
+                            "serde didn't serialize {} as a float",
+                            ::std::stringify!($fixed)
+                        );
+                    };
+
+                    // Normally directly comparing floats is flawed, but these
+                    // should have been converted to float using the exact same
+                    // method each, so I wouldn't expect them to be different
+                    assert_eq!(
+                        fixed_float, json_float,
+                        "failed on {raw}: {json_float} != {fixed_float}"
+                    );
+                }
+            };
+        }
+
+        #[test]
+        fn roundtrip_all_f2dot14() {
+            roundtrip_all!(F2Dot14, i16);
+        }
+
+        #[test]
+        fn roundtrip_all_f4dot12() {
+            roundtrip_all!(F4Dot12, i16);
+        }
+
+        #[test]
+        fn roundtrip_all_f6dot10() {
+            roundtrip_all!(F6Dot10, i16);
+        }
+
+        #[test]
+        #[ignore = "enumerating all i32 values takes a while"]
+        fn roundtrip_all_fixed() {
+            roundtrip_all!(Fixed, i32);
+        }
+
+        #[test]
+        #[ignore = "enumerating all i32 values takes a while"]
+        fn roundtrip_all_f26dot6() {
+            roundtrip_all!(F26Dot6, i32);
+        }
     }
 }
