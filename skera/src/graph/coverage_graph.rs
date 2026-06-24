@@ -53,7 +53,7 @@ pub(crate) fn add_new_coverage(
     link_width: LinkWidth,
     position: u32,
 ) -> Result<(), RepackError> {
-    let new_coverage_idx = graph.new_vertex(0);
+    let new_coverage_idx = graph.new_vertex(0)?;
     let mut s = Serializer::new(glyphs.len() * 6 + 4);
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;

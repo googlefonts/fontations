@@ -15,6 +15,9 @@ pub(crate) mod ligature_graph;
 pub(crate) mod markbasepos_graph;
 pub(crate) mod pairpos_graph;
 
+const MAX_SPACES: usize = 8000;
+const MAX_VERTICES: usize = 100000;
+
 #[derive(Debug)]
 pub(crate) enum RepackError {
     GraphErrorOrphanedNodes,
@@ -27,6 +30,7 @@ pub(crate) enum RepackError {
     ErrorReadTable,
     ErrorSplitSubtable,
     ErrorNoResolution,
+    ErrorMaxOperationsExceeded,
 }
 
 pub(crate) struct Overflow(u64);
@@ -53,7 +57,7 @@ pub(crate) struct Vertex {
     virtual_links: Vec<Link>,
 
     distance: u64,
-    space: u32,
+    space: usize,
     priority: u8,
     start: usize,
     end: usize,
@@ -496,8 +500,8 @@ impl Graph {
                     link.link_width() as u8
                 };
 
-                let child_weight = child_v.tail - child_v.head
-                    + (1 << (link_width * 8)) * (child_v.space as usize + 1);
+                let child_weight =
+                    child_v.tail - child_v.head + (1 << (link_width * 8)) * (child_v.space + 1);
                 let child_distance = next_distance + child_weight as u64;
                 if child_distance < child_v.distance {
                     distance_map[child_idx] = child_distance;
@@ -683,7 +687,10 @@ impl Graph {
             );
 
             self.isolate_subgraph(&mut connected_roots)?;
-            let next_space = self.next_space() as u32;
+            let next_space = self.next_space();
+            if next_space >= MAX_SPACES {
+                return Err(RepackError::ErrorMaxOperationsExceeded);
+            }
 
             self.num_roots_for_space
                 .push(connected_roots.len() as usize);
@@ -993,10 +1000,13 @@ impl Graph {
 
     /// Creates a copy of the specified vertex and returns the new vertex idx.
     fn duplicate_vertex(&mut self, obj_idx: ObjIdx) -> Result<ObjIdx, RepackError> {
+        let clone_idx = self.vertices.len();
+        if clone_idx >= MAX_VERTICES {
+            return Err(RepackError::ErrorMaxOperationsExceeded);
+        }
         self.positions_invalid = true;
         self.distance_invalid = true;
 
-        let clone_idx = self.vertices.len();
         self.ordering.push(clone_idx);
 
         let v = self
@@ -1085,7 +1095,7 @@ impl Graph {
         }
 
         self.isolate_subgraph(&mut roots_to_isolate)?;
-        self.move_to_new_space(&roots_to_isolate, space);
+        self.move_to_new_space(&roots_to_isolate, space)?;
         Ok(true)
     }
 
@@ -1094,7 +1104,7 @@ impl Graph {
             return Err(RepackError::GraphErrorInvalidObjIndex);
         };
         if v.space > 0 {
-            return Ok((v.space as usize, obj_idx));
+            return Ok((v.space, obj_idx));
         }
 
         let Some(parent_idx) = v.parents.keys().nth(0) else {
@@ -1103,8 +1113,15 @@ impl Graph {
         self.find_root_and_space(*parent_idx)
     }
 
-    fn move_to_new_space(&mut self, indices: &IntSet<u32>, old_space: usize) {
-        let new_space = self.num_roots_for_space.len() as u32;
+    fn move_to_new_space(
+        &mut self,
+        indices: &IntSet<u32>,
+        old_space: usize,
+    ) -> Result<(), RepackError> {
+        let new_space = self.num_roots_for_space.len();
+        if new_space >= MAX_SPACES {
+            return Err(RepackError::ErrorMaxOperationsExceeded);
+        }
         let vertices = &mut self.vertices;
         for idx in indices.iter() {
             vertices[idx as usize].space = new_space;
@@ -1115,6 +1132,7 @@ impl Graph {
         self.num_roots_for_space.push(num_indices);
         self.distance_invalid = true;
         self.positions_invalid = true;
+        Ok(())
     }
 
     fn raise_childrens_priority(&mut self, parent_idx: ObjIdx) -> bool {
@@ -1278,7 +1296,12 @@ impl Graph {
     }
 
     //  Adds a new vertex to the graph, not connected to anything.
-    fn new_vertex(&mut self, size: usize) -> ObjIdx {
+    fn new_vertex(&mut self, size: usize) -> Result<ObjIdx, RepackError> {
+        let new_idx = self.vertices.len();
+        if new_idx >= MAX_VERTICES {
+            return Err(RepackError::ErrorMaxOperationsExceeded);
+        }
+
         self.positions_invalid = true;
         self.distance_invalid = true;
 
@@ -1295,11 +1318,10 @@ impl Graph {
             ..Default::default()
         };
 
-        let new_idx = self.vertices.len();
         self.vertices.push(new_vertex);
         self.ordering.push(new_idx);
 
-        new_idx
+        Ok(new_idx)
     }
 
     // Finds the object idx of the object pointed to by the offset at specified 'position'

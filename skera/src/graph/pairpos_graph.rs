@@ -77,9 +77,9 @@ fn clone_range_format1(
 ) -> Result<ObjIdx, RepackError> {
     let new_pair_set_count = end - start;
     let new_table_size = PairPosFormat1::MIN_SIZE + new_pair_set_count * Offset16::RAW_BYTE_LEN;
-    let new_table_idx = graph.new_vertex(new_table_size);
+    let new_table_idx = graph.new_vertex(new_table_size)?;
 
-    let new_coverage_idx = graph.new_vertex(0);
+    let new_coverage_idx = graph.new_vertex(0)?;
     make_coverage(graph, new_coverage_idx, coverage_glyphs, start..end)?;
 
     graph.add_parent_child_link(
@@ -362,7 +362,7 @@ fn clone_range_format2(
     let num_new_class1 = end - start;
     let new_table_size =
         PairPosFormat2::MIN_SIZE + (num_new_class1 as usize) * table_info.class1_record_size;
-    let new_table_idx = graph.new_vertex(new_table_size);
+    let new_table_idx = graph.new_vertex(new_table_size)?;
 
     let mut new_table = PairPosFormat2::from_graph(graph, new_table_idx)?;
     new_table.set_format(2);
@@ -861,7 +861,7 @@ fn add_new_class_def(
     glyph_classes: &[(u16, u16)],
     position: u32,
 ) -> Result<ObjIdx, RepackError> {
-    let new_class_def_idx = graph.new_vertex(0);
+    let new_class_def_idx = graph.new_vertex(0)?;
     make_class_def(graph, new_class_def_idx, glyph_classes)?;
 
     graph.add_parent_child_link(
