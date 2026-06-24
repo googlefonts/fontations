@@ -144,11 +144,11 @@ fn clone_range(
     // the final size until we process it but we also need it to exist while we're processing
     // so that nodes can be moved to it as needed.
     let prime_size = LigatureSubstFormat1::MIN_SIZE + lig_set_count * Offset16::RAW_BYTE_LEN;
-    let new_lig_subst_idx = graph.new_vertex(prime_size);
+    let new_lig_subst_idx = graph.new_vertex(prime_size)?;
 
     // Create a place holder coverage prime id since we need to add virtual links to it while
     // generating liga and liga sets. Afterwards it will be updated to have the correct coverage.
-    let new_coverage_idx = graph.new_vertex(0);
+    let new_coverage_idx = graph.new_vertex(0)?;
     graph.add_parent_child_link(
         new_lig_subst_idx,
         new_coverage_idx,
@@ -381,7 +381,7 @@ fn fix_coverage_links(
         return Ok(coverage_idx);
     }
 
-    let new_coverage_idx = graph.new_vertex(0);
+    let new_coverage_idx = graph.new_vertex(0)?;
     lig_idxes.remove(table_idx as u32);
     lig_idxes.remove(coverage_idx as u32);
 
@@ -398,7 +398,7 @@ fn fix_coverage_links(
 
 fn create_new_ligature_set(graph: &mut Graph, num_liga: u16) -> Result<ObjIdx, RepackError> {
     let table_size = LigatureSet::MIN_SIZE + num_liga as usize * 2;
-    let table_idx = graph.new_vertex(table_size);
+    let table_idx = graph.new_vertex(table_size)?;
 
     let table_head = graph
         .vertex(table_idx)

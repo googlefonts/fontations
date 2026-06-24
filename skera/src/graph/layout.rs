@@ -138,7 +138,7 @@ impl Graph {
         subtable_idx: ObjIdx,
         lookup_type: u16,
     ) -> Result<ObjIdx, RepackError> {
-        let ext_idx = self.new_vertex(EXTENSION_TABLE_SIZE);
+        let ext_idx = self.new_vertex(EXTENSION_TABLE_SIZE)?;
         let mut ext_subtable = ExtensionSubtable::from_graph(self, ext_idx)?;
 
         ext_subtable.reset(lookup_type);

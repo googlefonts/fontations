@@ -199,7 +199,7 @@ fn clone_range(
     end: u16,
     org_mark_cov_glyphs: &[GlyphId],
 ) -> Result<ObjIdx, RepackError> {
-    let new_markbase_pos_idx = graph.new_vertex(MarkBasePosFormat1::MIN_SIZE);
+    let new_markbase_pos_idx = graph.new_vertex(MarkBasePosFormat1::MIN_SIZE)?;
     let new_mark_class_count = end - start;
 
     let mut new_markbase_pos = MarkBasePosFormat1::from_graph(graph, new_markbase_pos_idx)?;
@@ -265,7 +265,7 @@ fn add_new_mark_array(
 ) -> Result<(), RepackError> {
     let new_mark_count = org_mark_idx_classes.len();
     let new_mark_array_size = MarkArray::MIN_SIZE + 4 * new_mark_count;
-    let new_mark_array_idx = graph.new_vertex(new_mark_array_size);
+    let new_mark_array_idx = graph.new_vertex(new_mark_array_size)?;
 
     let mut new_mark_array = MarkArray::from_graph(graph, new_mark_array_idx)?;
     new_mark_array.set_mark_count(new_mark_count as u16);
@@ -307,7 +307,7 @@ fn add_base_array(
     let base_count = table_info.base_count;
 
     let new_base_array_size = BaseArray::MIN_SIZE + 2 * base_count * new_class_count;
-    let new_base_array_idx = graph.new_vertex(new_base_array_size);
+    let new_base_array_idx = graph.new_vertex(new_base_array_size)?;
 
     let mut new_base_array = BaseArray::from_graph(graph, new_base_array_idx, new_class_count)?;
     new_base_array.set_base_count(base_count as u16);

@@ -23,6 +23,7 @@ use write_fonts::{
     types::{FixedSize, Offset16, Tag},
 };
 
+const MAX_ITERATIONS: u16 = 500;
 //TODO: add more functionality, serialize output etc.
 pub(crate) fn resolve_overflows(
     s: &Serializer,
@@ -72,8 +73,10 @@ pub(crate) fn resolve_graph_overflows(
     }
 
     let mut round = 0;
+    let mut total_iterations = 0;
     let mut overflows = graph.overflows();
-    while !overflows.is_empty() && round < max_round {
+    while !overflows.is_empty() && round < max_round && total_iterations < MAX_ITERATIONS {
+        total_iterations += 1;
         if !graph.try_isolating_subgraphs(&overflows)? {
             round += 1;
             if !graph.process_overflows(&overflows)? {
