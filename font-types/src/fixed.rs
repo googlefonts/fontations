@@ -674,8 +674,10 @@ mod tests {
                     // should have been converted to float using the exact same
                     // method each, so I wouldn't expect them to be different
                     assert_eq!(
-                        fixed_float, json_float,
-                        "failed on {raw}: {json_float} != {fixed_float}"
+                        fixed_float,
+                        json_float,
+                        "failed on {raw} ({fixed_type}({raw:#X})): {json_float} != {fixed_float}",
+                        fixed_type = ::std::stringify!($fixed),
                     );
                 }
             };
