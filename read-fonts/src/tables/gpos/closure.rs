@@ -1,11 +1,12 @@
 //! support closure for GPOS
 
 use super::{
-    CursivePosFormat1, Gpos, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1, PairPos,
-    PairPosFormat1, PairPosFormat2, PairSet, PositionLookup, PositionLookupList, PositionSubtables,
-    SinglePos, SinglePosFormat1, SinglePosFormat2,
+    CursivePosFormat1, ExtensionPosFormat1, ExtensionSubtable, Gpos, MarkBasePosFormat1,
+    MarkLigPosFormat1, MarkMarkPosFormat1, PairPos, PairPosFormat1, PairPosFormat2, PairSet,
+    PositionLookup, PositionLookupList, PositionSubtables, SinglePos, SinglePosFormat1,
+    SinglePosFormat2,
 };
-use crate::{collections::IntSet, GlyphId, ReadError, Tag};
+use crate::{collections::IntSet, FontRead, GlyphId, ReadError, Tag};
 
 #[cfg(feature = "std")]
 use crate::tables::layout::{Intersect, LayoutLookupList, LookupClosure, LookupClosureCtx};
@@ -105,12 +106,6 @@ impl LookupClosure for PositionLookup<'_> {
     }
 }
 
-impl Intersect for PositionLookup<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
-        self.subtables()?.intersects(glyph_set)
-    }
-}
-
 impl LookupClosure for PositionSubtables<'_> {
     fn closure_lookups(&self, c: &mut LookupClosureCtx, arg: u16) -> Result<(), ReadError> {
         match self {
@@ -121,19 +116,46 @@ impl LookupClosure for PositionSubtables<'_> {
     }
 }
 
-impl Intersect for PositionSubtables<'_> {
+impl Intersect for PositionLookup<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         match self {
-            PositionSubtables::Single(subtables) => subtables.intersects(glyph_set),
-            PositionSubtables::Pair(subtables) => subtables.intersects(glyph_set),
-            PositionSubtables::Cursive(subtables) => subtables.intersects(glyph_set),
-            PositionSubtables::MarkToBase(subtables) => subtables.intersects(glyph_set),
-            PositionSubtables::MarkToLig(subtables) => subtables.intersects(glyph_set),
-            PositionSubtables::MarkToMark(subtables) => subtables.intersects(glyph_set),
-            PositionSubtables::Contextual(subtables) => subtables.intersects(glyph_set),
-            PositionSubtables::ChainContextual(subtables) => subtables.intersects(glyph_set),
-            PositionSubtables::EmptyExtension => Ok(false),
+            PositionLookup::Single(inner) => inner.subtables().intersects(glyph_set),
+            PositionLookup::Pair(inner) => inner.subtables().intersects(glyph_set),
+            PositionLookup::Cursive(inner) => inner.subtables().intersects(glyph_set),
+            PositionLookup::MarkToBase(inner) => inner.subtables().intersects(glyph_set),
+            PositionLookup::MarkToLig(inner) => inner.subtables().intersects(glyph_set),
+            PositionLookup::MarkToMark(inner) => inner.subtables().intersects(glyph_set),
+            PositionLookup::Contextual(inner) => inner.subtables().intersects(glyph_set),
+            PositionLookup::ChainContextual(inner) => inner.subtables().intersects(glyph_set),
+            PositionLookup::Extension(inner) => inner.subtables().intersects(glyph_set),
         }
+    }
+}
+
+impl Intersect for ExtensionSubtable<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            ExtensionSubtable::Single(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Pair(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Cursive(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::MarkToBase(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::MarkToLig(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::MarkToMark(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Contextual(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::ChainContextual(inner) => inner.intersects(glyph_set),
+        }
+    }
+}
+
+impl<'a, T> Intersect for ExtensionPosFormat1<'a, T>
+where
+    T: Intersect + FontRead<'a>,
+{
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if self.extension_offset().is_null() {
+            return Ok(false);
+        }
+        self.extension()?.intersects(glyph_set)
     }
 }
 

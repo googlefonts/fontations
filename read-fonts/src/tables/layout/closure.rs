@@ -1,6 +1,6 @@
 //! Support Layout Closure
 
-use types::{BigEndian, GlyphId16};
+use types::{BigEndian, GlyphId16, Offset16};
 
 use super::{
     ArrayOfOffsets, ChainedClassSequenceRule, ChainedClassSequenceRuleSet, ChainedSequenceContext,
@@ -462,10 +462,9 @@ where
     }
 }
 
-impl<'a, T, Ext> Intersect for Subtables<'a, T, Ext>
+impl<'a, T> Intersect for ArrayOfOffsets<'a, T, Offset16>
 where
-    T: Intersect + FontRead<'a> + 'a,
-    Ext: ExtensionLookup<'a, T> + 'a,
+    T: Intersect + FontRead<'a>,
 {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         for t in self.iter().filter_map(|table| match table {

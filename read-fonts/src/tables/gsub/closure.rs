@@ -11,10 +11,10 @@ use crate::{
 };
 
 use super::{
-    AlternateSubstFormat1, ChainedSequenceContext, Gsub, Ligature, LigatureSet,
-    LigatureSubstFormat1, MultipleSubstFormat1, ReverseChainSingleSubstFormat1, SequenceContext,
-    SingleSubst, SingleSubstFormat1, SingleSubstFormat2, SubstitutionLookup,
-    SubstitutionLookupList, SubstitutionSubtables,
+    AlternateSubstFormat1, ChainedSequenceContext, ExtensionSubstFormat1, ExtensionSubtable, Gsub,
+    Ligature, LigatureSet, LigatureSubstFormat1, MultipleSubstFormat1,
+    ReverseChainSingleSubstFormat1, SequenceContext, SingleSubst, SingleSubstFormat1,
+    SingleSubstFormat2, SubstitutionLookup, SubstitutionLookupList, SubstitutionSubtables,
 };
 
 #[cfg(feature = "std")]
@@ -1014,7 +1014,42 @@ impl LookupClosure for SubstitutionLookup<'_> {
 
 impl Intersect for SubstitutionLookup<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
-        self.subtables()?.intersects(glyph_set)
+        match self {
+            SubstitutionLookup::Single(inner) => inner.subtables().intersects(glyph_set),
+            SubstitutionLookup::Multiple(inner) => inner.subtables().intersects(glyph_set),
+            SubstitutionLookup::Alternate(inner) => inner.subtables().intersects(glyph_set),
+            SubstitutionLookup::Ligature(inner) => inner.subtables().intersects(glyph_set),
+            SubstitutionLookup::Contextual(inner) => inner.subtables().intersects(glyph_set),
+            SubstitutionLookup::ChainContextual(inner) => inner.subtables().intersects(glyph_set),
+            SubstitutionLookup::Extension(inner) => inner.subtables().intersects(glyph_set),
+            SubstitutionLookup::Reverse(inner) => inner.subtables().intersects(glyph_set),
+        }
+    }
+}
+
+impl Intersect for ExtensionSubtable<'_> {
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        match self {
+            ExtensionSubtable::Single(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Multiple(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Alternate(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Ligature(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Contextual(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::ChainContextual(inner) => inner.intersects(glyph_set),
+            ExtensionSubtable::Reverse(inner) => inner.intersects(glyph_set),
+        }
+    }
+}
+
+impl<'a, T> Intersect for ExtensionSubstFormat1<'a, T>
+where
+    T: Intersect + FontRead<'a>,
+{
+    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
+        if self.extension_offset().is_null() {
+            return Ok(false);
+        }
+        self.extension()?.intersects(glyph_set)
     }
 }
 
@@ -1024,21 +1059,6 @@ impl LookupClosure for SubstitutionSubtables<'_> {
             SubstitutionSubtables::ChainContextual(subtables) => subtables.closure_lookups(c, arg),
             SubstitutionSubtables::Contextual(subtables) => subtables.closure_lookups(c, arg),
             _ => Ok(()),
-        }
-    }
-}
-
-impl Intersect for SubstitutionSubtables<'_> {
-    fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
-        match self {
-            SubstitutionSubtables::Single(subtables) => subtables.intersects(glyph_set),
-            SubstitutionSubtables::Multiple(subtables) => subtables.intersects(glyph_set),
-            SubstitutionSubtables::Alternate(subtables) => subtables.intersects(glyph_set),
-            SubstitutionSubtables::Ligature(subtables) => subtables.intersects(glyph_set),
-            SubstitutionSubtables::Contextual(subtables) => subtables.intersects(glyph_set),
-            SubstitutionSubtables::ChainContextual(subtables) => subtables.intersects(glyph_set),
-            SubstitutionSubtables::Reverse(subtables) => subtables.intersects(glyph_set),
-            SubstitutionSubtables::EmptyExtension => Ok(false),
         }
     }
 }
