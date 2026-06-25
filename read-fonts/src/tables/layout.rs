@@ -297,7 +297,8 @@ impl CoverageFormat2<'_> {
             .ok()
             .map(|idx| {
                 let rec = &self.range_records()[idx];
-                rec.start_coverage_index() + gid.to_u16() - rec.start_glyph_id().to_u16()
+                // subtract first to avoid u16 overflow (https://github.com/googlefonts/fontations/issues/1887)
+                rec.start_coverage_index() + (gid.to_u16() - rec.start_glyph_id().to_u16())
             })
     }
 
@@ -865,6 +866,21 @@ mod tests {
         assert_eq!(coverage.get(GlyphId::new(32)), Some(7));
         assert_eq!(coverage.get(GlyphId::new(39)), Some(14));
         assert_eq!(coverage.get(GlyphId::new(40)), None);
+    }
+
+    // <https://github.com/googlefonts/fontations/issues/1887>
+    #[test]
+    fn coverage_get_format2_no_u16_overflow() {
+        // A single range covering glyphs 40000..=40010 with a high
+        // start_coverage_index, as occurs in large CJK fonts, and which
+        // was causing an overflow.
+        const COV2_DATA: FontData =
+            FontData::new(&[0, 2, 0, 1, 0x9c, 0x40, 0x9c, 0x4a, 0x9c, 0x40]);
+        let coverage = CoverageFormat2::read(COV2_DATA).unwrap();
+        assert_eq!(coverage.get(GlyphId::new(40000)), Some(40000));
+        assert_eq!(coverage.get(GlyphId::new(40005)), Some(40005));
+        assert_eq!(coverage.get(GlyphId::new(40010)), Some(40010));
+        assert_eq!(coverage.get(GlyphId::new(40011)), None);
     }
 
     #[test]
