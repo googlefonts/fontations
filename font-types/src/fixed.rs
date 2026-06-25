@@ -615,19 +615,9 @@ mod tests {
             ($fixed:ident) => {{
                 let before = <$fixed>::ONE;
                 let serialized = ::serde_json::to_string(&before).expect("should serialize");
-                assert_eq!(
-                    &serialized,
-                    "1.0",
-                    "{}::ONE didn't serialize to 1.0",
-                    ::std::stringify!($fixed),
-                );
+                assert_eq!(&serialized, "1.0");
                 let after = ::serde_json::from_str(&serialized).expect("should deserialize");
-                assert_eq!(
-                    before,
-                    after,
-                    "{}::ONE doesn't round-trip",
-                    ::std::stringify!($fixed),
-                );
+                assert_eq!(before, after);
             }};
         }
 
@@ -663,12 +653,9 @@ mod tests {
                     let fixed_float = fixed.to_f64();
 
                     let json_value = ::serde_json::to_value(&fixed).expect("should serialize");
-                    let Some(json_float) = json_value.as_f64() else {
-                        panic!(
-                            "serde didn't serialize {} as a float",
-                            ::std::stringify!($fixed)
-                        );
-                    };
+                    let json_float = json_value
+                        .as_f64()
+                        .expect("serde didn't serialize the value to a float");
 
                     // Normally directly comparing floats is flawed, but these
                     // should have been converted to float using the exact same
