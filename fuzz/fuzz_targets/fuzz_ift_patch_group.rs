@@ -102,10 +102,10 @@ fuzz_target!(|input: FuzzInput| {
     let mut url_map: HashMap<PatchUrl, UrlStatus> = input
         .patches
         .into_iter()
-        .map(|(url, data)| (PatchUrl(url), UrlStatus::Pending(data)))
+        .map(|(url, data)| (PatchUrl::new(&url), UrlStatus::Pending(data)))
         .collect();
     for url in input.applied_patches {
-        url_map.insert(PatchUrl(url), UrlStatus::Applied);
+        url_map.insert(PatchUrl::new(&url), UrlStatus::Applied);
     }
 
     // When running under a fuzzer disable brotli decoding and instead just pass through the input data.
