@@ -1,7 +1,7 @@
 //! Table validation, caching and access.
 
 use super::{super::once::Once, FontBlob, FontSource};
-use crate::{tables, types::Tag, FontRead, ReadError, TableProvider, TopLevelTable};
+use crate::{tables, types::Tag, FontRead, ReadError, Sanitize, TableProvider, TopLevelTable};
 use alloc::{boxed::Box, sync::Arc};
 use core::sync::atomic::{AtomicU8, Ordering};
 
@@ -182,6 +182,20 @@ impl FontTables {
         )
     }
 
+    fn load_sanitized_table<
+        'a,
+        T: TopLevelTable + FontRead<'a, Args = ()> + Sanitize<'a, Args = ()>,
+    >(
+        &'a self,
+        state: Option<TableState<'a>>,
+    ) -> Result<T, ReadError> {
+        let state = state.ok_or(ReadError::TableIsMissing(T::TAG))?;
+        state.try_load(
+            |data| FontRead::read(data.into()),
+            |data| Ok(T::read_fast(data.into(), ())),
+        )
+    }
+
     fn load_table_with_args<'a, T: TopLevelTable + FontRead<'a>>(
         &'a self,
         state: Option<TableState<'a>>,
@@ -319,15 +333,15 @@ impl<'a> TableProvider<'a> for &'a FontTables {
     }
 
     fn gdef(&self) -> Result<tables::gdef::Gdef<'a>, ReadError> {
-        self.load_table(self.gdef_state())
+        self.load_sanitized_table(self.gdef_state())
     }
 
     fn gpos(&self) -> Result<tables::gpos::Gpos<'a>, ReadError> {
-        self.load_table(self.gpos_state())
+        self.load_sanitized_table(self.gpos_state())
     }
 
     fn gsub(&self) -> Result<tables::gsub::Gsub<'a>, ReadError> {
-        self.load_table(self.gsub_state())
+        self.load_sanitized_table(self.gsub_state())
     }
 
     fn feat(&self) -> Result<tables::feat::Feat<'a>, ReadError> {
@@ -425,6 +439,8 @@ impl<'a> TableProvider<'a> for &'a FontTables {
 
 #[cfg(test)]
 mod tests {
+    use core::sync::atomic::{AtomicUsize, Ordering};
+
     use crate::FontRef;
 
     use super::*;
@@ -455,5 +471,67 @@ mod tests {
             let font_ref_data = font.data_for_tag(Tag::new(tag)).map(|d| d.as_bytes());
             assert_eq!(data, font_ref_data);
         }
+    }
+
+    #[test]
+    fn sanitized_table_uses_fast_load_after_validation() {
+        static READS: AtomicUsize = AtomicUsize::new(0);
+        static SANITIZES: AtomicUsize = AtomicUsize::new(0);
+        static FAST_READS: AtomicUsize = AtomicUsize::new(0);
+
+        #[allow(dead_code)]
+        struct CountingTable<'a>(crate::FontData<'a>);
+
+        impl crate::ReadArgs for CountingTable<'_> {
+            type Args = ();
+        }
+
+        impl TopLevelTable for CountingTable<'_> {
+            const TAG: Tag = Tag::new(b"test");
+        }
+
+        impl<'a> FontRead<'a> for CountingTable<'a> {
+            fn read_with_args(data: crate::FontData<'a>, args: ()) -> Result<Self, ReadError> {
+                READS.fetch_add(1, Ordering::Relaxed);
+                Self::read_checked(data, args)
+            }
+        }
+
+        impl<'a> Sanitize<'a> for CountingTable<'a> {
+            fn sanitize(
+                _ctx: &mut crate::sanitize::SanitizeContext<'a, '_>,
+                _args: (),
+            ) -> Result<(), ReadError> {
+                SANITIZES.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            }
+
+            fn read_fast(data: crate::FontData<'a>, _args: ()) -> Self {
+                FAST_READS.fetch_add(1, Ordering::Relaxed);
+                Self(data)
+            }
+        }
+
+        READS.store(0, Ordering::Relaxed);
+        SANITIZES.store(0, Ordering::Relaxed);
+        FAST_READS.store(0, Ordering::Relaxed);
+
+        let flag = AtomicU8::new(TableState::UNCHECKED);
+        let table_bytes = [0u8; 4];
+        let state = TableState {
+            flag: &flag,
+            data: &table_bytes,
+        };
+
+        EMPTY_FONT_TABLES
+            .load_sanitized_table::<CountingTable>(Some(state))
+            .unwrap();
+        EMPTY_FONT_TABLES
+            .load_sanitized_table::<CountingTable>(Some(state))
+            .unwrap();
+
+        assert_eq!(READS.load(Ordering::Relaxed), 1);
+        assert_eq!(SANITIZES.load(Ordering::Relaxed), 1);
+        assert_eq!(FAST_READS.load(Ordering::Relaxed), 2);
     }
 }
