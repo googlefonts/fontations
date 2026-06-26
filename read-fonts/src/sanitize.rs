@@ -3,17 +3,17 @@
 use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Nullable, Scalar};
 
-use crate::{
-    array::VarLenArray, font_data::Cursor, read::VarSize, ComputeSize, FontData, FontRead, Offset,
-    ReadArgs, ReadError, ResolveOffset,
-};
+use crate::{font_data::Cursor, ComputeSize, FontData, FontRead, Offset, ReadArgs, ReadError};
+
+#[cfg(any(test, feature = "codegen_test"))]
+use crate::ResolveOffset;
 
 /// The bytes of the current table being sanitized, along with shared sanitize state.
 ///
 /// This is bundled together because we need to update the shared state as we
 /// navigate the bytes.
 pub struct SanitizeContext<'a, 's> {
-    cursor: Cursor<'a>,
+    pub(crate) cursor: Cursor<'a>,
     state: &'s mut SanitizeState,
 }
 
@@ -125,6 +125,7 @@ impl<'a> SanitizeContext<'a, '_> {
     ///
     /// this has a slightly funny signature because it needs to handle both
     /// scalar and struct members, and the structs might need to be recursed
+    #[cfg(any(test, feature = "codegen_test"))]
     pub(crate) fn sanitize_offset_to_array<O, T, F>(
         &mut self,
         count: u16,
@@ -152,6 +153,7 @@ impl<'a> SanitizeContext<'a, '_> {
     ///
     /// Used in records, where the offset is accessed via a getter rather than
     /// read from the cursor.
+    #[cfg(any(test, feature = "codegen_test"))]
     pub(crate) fn sanitize_resolved_offset_to_array<O, T, F>(
         &mut self,
         offset: O,
@@ -210,19 +212,20 @@ impl<'a> SanitizeContext<'a, '_> {
         }
     }
 
+    #[cfg(any(test, feature = "codegen_test"))]
     pub(crate) fn sanitize_var_len_array<T>(
         &mut self,
         count: usize,
         recurse: bool,
     ) -> Result<(), ReadError>
     where
-        T: VarSize + SanitizeStruct<Args = ()> + FontRead<'a>,
+        T: crate::VarSize + SanitizeStruct<Args = ()> + FontRead<'a>,
     {
         let remaining = self.cursor.remaining().ok_or(ReadError::OutOfBounds)?;
         let total_len = T::total_len_for_count(remaining, count)?;
         // FIXME: do we actually ever recurse here?
         if recurse {
-            let array = VarLenArray::<T>::read(remaining)?;
+            let array = crate::VarLenArray::<T>::read(remaining)?;
             for item in array.iter().take(count) {
                 item?.sanitize_struct(self, ())?;
             }
@@ -286,6 +289,17 @@ pub trait SanitizeStruct: ReadArgs {
     /// Sanitize `self`, recursing into any offsets
     fn sanitize_struct(&self, ctx: &mut SanitizeContext, args: Self::Args)
         -> Result<(), ReadError>;
+}
+
+impl ReadArgs for () {
+    type Args = ();
+}
+impl<'a> Sanitize<'a> for () {
+    fn sanitize(_ctx: &mut SanitizeContext<'a, '_>, _args: Self::Args) -> Result<(), ReadError> {
+        Ok(())
+    }
+
+    fn read_fast(_data: FontData<'a>, _args: Self::Args) -> Self {}
 }
 
 /// Recursively sanitize the table pointed at by an offset.

@@ -2,9 +2,10 @@
 
 use std::collections::BTreeSet;
 
-use read_fonts::{ArrayOfNullableOffsets, ArrayOfOffsets, FontData, FontRead, Offset, ReadError};
-#[cfg(test)]
-use read_fonts::{Sanitize, SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets};
+use read_fonts::{
+    ArrayOfOffsets, FontData, FontRead, Offset, ReadArgs, ReadError, Sanitize,
+    SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets,
+};
 use types::{BigEndian, Scalar};
 
 use crate::{NullableOffsetMarker, OffsetMarker};
@@ -182,21 +183,6 @@ where
     }
 }
 
-impl<'a, T, U, O, const N: usize> FromObjRef<ArrayOfNullableOffsets<'a, U, O>>
-    for Vec<NullableOffsetMarker<T, N>>
-where
-    T: FromObjRef<U> + Default,
-    U: FontRead<'a>,
-    U::Args: 'static,
-    O: Scalar + Offset,
-{
-    fn from_obj_ref(from: &ArrayOfNullableOffsets<'a, U, O>, data: FontData) -> Self {
-        from.iter()
-            .map(|x| NullableOffsetMarker::from_obj_ref(&x, data))
-            .collect()
-    }
-}
-
 impl<'a, T, U, O, const N: usize> FromTableRef<ArrayOfOffsets<'a, U, O>> for Vec<OffsetMarker<T, N>>
 where
     T: FromTableRef<U> + Default,
@@ -206,21 +192,13 @@ where
 {
 }
 
-impl<'a, T, U, O, const N: usize> FromTableRef<ArrayOfNullableOffsets<'a, U, O>>
-    for Vec<NullableOffsetMarker<T, N>>
-where
-    T: FromObjRef<U> + Default,
-    U: FontRead<'a>,
-    U::Args: 'static,
-    O: Scalar + Offset,
-{
-}
-#[cfg(test)]
+// impls for converting sanitized arrays:
 impl<'a, T, U, O, const N: usize> FromObjRef<SanitizedArrayOfOffsets<'a, U, O>>
     for Vec<OffsetMarker<T, N>>
 where
     T: FromObjRef<U> + Default,
-    U: FontRead<'a, Args = ()> + Sanitize<'a, Args = ()> + Default,
+    U: ReadArgs + Sanitize<'a> + Default,
+    U::Args: Copy + 'static,
     O: Scalar + Offset,
 {
     fn from_obj_ref(from: &SanitizedArrayOfOffsets<'a, U, O>, data: FontData) -> Self {
@@ -230,13 +208,12 @@ where
     }
 }
 
-#[cfg(test)]
 impl<'a, T, U, O, const N: usize> FromObjRef<SanitizedArrayOfNullableOffsets<'a, U, O>>
     for Vec<NullableOffsetMarker<T, N>>
 where
     T: FromObjRef<U> + Default,
-    U: FontRead<'a, Args = ()> + Sanitize<'a, Args = ()> + Default,
-    U::Args: 'static,
+    U: ReadArgs + Sanitize<'a> + Default,
+    U::Args: Copy + 'static,
     O: Scalar + Offset,
 {
     fn from_obj_ref(from: &SanitizedArrayOfNullableOffsets<'a, U, O>, data: FontData) -> Self {
@@ -246,23 +223,22 @@ where
     }
 }
 
-#[cfg(test)]
 impl<'a, T, U, O, const N: usize> FromTableRef<SanitizedArrayOfOffsets<'a, U, O>>
     for Vec<OffsetMarker<T, N>>
 where
-    T: FromObjRef<U> + Default,
-    U: FontRead<'a, Args = ()> + Sanitize<'a, Args = ()> + Default,
+    T: FromTableRef<U> + Default,
+    U: ReadArgs + Sanitize<'a> + Default,
+    U::Args: Copy + 'static,
     O: Scalar + Offset,
 {
 }
 
-#[cfg(test)]
 impl<'a, T, U, O, const N: usize> FromTableRef<SanitizedArrayOfNullableOffsets<'a, U, O>>
     for Vec<NullableOffsetMarker<T, N>>
 where
     T: FromObjRef<U> + Default,
-    U: FontRead<'a, Args = ()> + Sanitize<'a, Args = ()> + Default,
-    U::Args: 'static,
+    U: ReadArgs + Sanitize<'a> + Default,
+    U::Args: Copy + 'static,
     O: Scalar + Offset,
 {
 }

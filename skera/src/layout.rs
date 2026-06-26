@@ -26,7 +26,7 @@ use write_fonts::{
             },
         },
         types::{GlyphId, GlyphId16, NameId},
-        FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
+        FontData, FontRef, MinByteRange, ReadError, Sanitize, TopLevelTable,
     },
     types::{FixedSize, Offset16, Offset32, Tag},
 };
@@ -1515,7 +1515,8 @@ impl SubsetTable<'_> for FeatureParams<'_> {
 
 impl<
         'a,
-        T: FontRead<'a, Args = ()>
+        T: Sanitize<'a, Args = ()>
+            + Default
             + SubsetTable<
                 'a,
                 ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
@@ -1775,7 +1776,8 @@ where
             'a,
             ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
         > + Intersect
-        + FontRead<'a, Args = ()>
+        + Sanitize<'a, Args = ()>
+        + Default
         + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {

@@ -1,4 +1,5 @@
 #![parse_module(read_fonts::tables::variations)]
+#![sanitize]
 
 extern scalar TupleIndex;
 

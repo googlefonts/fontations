@@ -21,13 +21,7 @@ impl ReadArgs for TupleVariationHeader<'_> {
 
 impl<'a> FontRead<'a> for TupleVariationHeader<'a> {
     fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
-        let axis_count = args;
-
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data, axis_count })
+        Self::read_checked(data, args)
     }
 }
 
@@ -39,6 +33,22 @@ impl<'a> TupleVariationHeader<'a> {
     pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
         let args = axis_count;
         Self::read_with_args(data, args)
+    }
+}
+
+impl<'a> Sanitize<'a> for TupleVariationHeader<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, args: u16) -> Result<(), ReadError> {
+        let axis_count = args;
+        ctx.advance::<u16>();
+        let tuple_index = ctx.read::<TupleIndex>()?;
+        ctx.sanitize_array::<F2Dot14>(TupleIndex::tuple_len(tuple_index, axis_count, 0_usize))?;
+        ctx.sanitize_array::<F2Dot14>(TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))?;
+        ctx.sanitize_array::<F2Dot14>(TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, args: u16) -> Self {
+        let axis_count = args;
+        Self { data, axis_count }
     }
 }
 
@@ -209,6 +219,15 @@ impl<'a> Tuple<'a> {
     }
 }
 
+impl SanitizeStruct for Tuple<'_> {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: u16) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for Tuple<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -243,11 +262,20 @@ impl ReadArgs for DeltaSetIndexMapFormat0<'_> {
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for DeltaSetIndexMapFormat0<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u8>();
+        let entry_format = ctx.read::<EntryFormat>()?;
+        let map_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u8>(EntryFormat::map_size(entry_format, map_count))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -368,11 +396,20 @@ impl ReadArgs for DeltaSetIndexMapFormat1<'_> {
 
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for DeltaSetIndexMapFormat1<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u8>();
+        let entry_format = ctx.read::<EntryFormat>()?;
+        let map_count = ctx.read::<u32>()?;
+        ctx.sanitize_array::<u8>(EntryFormat::map_size(entry_format, map_count))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -527,12 +564,7 @@ impl ReadArgs for DeltaSetIndexMap<'_> {
 
 impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        let format: u8 = data.read_at(0usize)?;
-        match format {
-            DeltaSetIndexMapFormat0::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
-            DeltaSetIndexMapFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        Self::read_checked(data, ())
     }
 }
 
@@ -547,6 +579,31 @@ impl<'a> MinByteRange<'a> for DeltaSetIndexMap<'a> {
         match self {
             Self::Format0(item) => item.min_table_bytes(),
             Self::Format1(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for DeltaSetIndexMap<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let format: u8 = ctx.peek_at(0usize)?;
+        match format {
+            DeltaSetIndexMapFormat0::FORMAT => DeltaSetIndexMapFormat0::sanitize(ctx, ()),
+            DeltaSetIndexMapFormat1::FORMAT => DeltaSetIndexMapFormat1::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        let Ok(format) = data.read_at::<u8>(0usize) else {
+            return DeltaSetIndexMap::default();
+        };
+        match format {
+            DeltaSetIndexMapFormat0::FORMAT => {
+                DeltaSetIndexMap::Format0(DeltaSetIndexMapFormat0::read_fast(data, ()))
+            }
+            DeltaSetIndexMapFormat1::FORMAT => {
+                DeltaSetIndexMap::Format1(DeltaSetIndexMapFormat1::read_fast(data, ()))
+            }
+            _ => DeltaSetIndexMap::default(),
         }
     }
 }
@@ -905,11 +962,19 @@ impl ReadArgs for VariationRegionList<'_> {
 
 impl<'a> FontRead<'a> for VariationRegionList<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for VariationRegionList<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let axis_count = ctx.read::<u16>()?;
+        let region_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<VariationRegion>(region_count as _, axis_count, true)?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1059,6 +1124,15 @@ impl<'a> VariationRegion<'a> {
     }
 }
 
+impl SanitizeStruct for VariationRegion<'_> {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: u16) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for VariationRegion<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1115,6 +1189,19 @@ impl FixedSize for RegionAxisCoordinates {
         F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for RegionAxisCoordinates {
+    type Args = ();
+}
+
+impl SanitizeStruct for RegionAxisCoordinates {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for RegionAxisCoordinates {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1147,11 +1234,23 @@ impl ReadArgs for ItemVariationStore<'_> {
 
 impl<'a> FontRead<'a> for ItemVariationStore<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ItemVariationStore<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset32, VariationRegionList>(())?;
+        let item_variation_data_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset32, ItemVariationData>(
+            transforms::to_usize(item_variation_data_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1182,7 +1281,7 @@ impl<'a> ItemVariationStore<'a> {
     /// Attempt to resolve [`variation_region_list_offset`][Self::variation_region_list_offset].
     pub fn variation_region_list(&self) -> Result<VariationRegionList<'a>, ReadError> {
         let data = self.data;
-        self.variation_region_list_offset().resolve(data)
+        self.variation_region_list_offset().fast_resolve(data, ())
     }
 
     /// The number of item variation data subtables.
@@ -1201,10 +1300,10 @@ impl<'a> ItemVariationStore<'a> {
     /// A dynamically resolving wrapper for [`item_variation_data_offsets`][Self::item_variation_data_offsets].
     pub fn item_variation_data(
         &self,
-    ) -> ArrayOfNullableOffsets<'a, ItemVariationData<'a>, Offset32> {
+    ) -> SanitizedArrayOfNullableOffsets<'a, ItemVariationData<'a>, Offset32> {
         let data = self.data;
         let offsets = self.item_variation_data_offsets();
-        ArrayOfNullableOffsets::new(offsets, data, ())
+        SanitizedArrayOfNullableOffsets::new(offsets, data, ())
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1296,11 +1395,25 @@ impl ReadArgs for ItemVariationData<'_> {
 
 impl<'a> FontRead<'a> for ItemVariationData<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ItemVariationData<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let item_count = ctx.read::<u16>()?;
+        let word_delta_count = ctx.read::<u16>()?;
+        let region_index_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(region_index_count))?;
+        ctx.sanitize_array::<u8>(ItemVariationData::delta_sets_len(
+            item_count,
+            word_delta_count,
+            region_index_count,
+        ))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 

@@ -21,11 +21,18 @@ impl ReadArgs for ScriptList<'_> {
 
 impl<'a> FontRead<'a> for ScriptList<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ScriptList<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let script_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<ScriptRecord>(transforms::to_usize(script_count), ())?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -132,12 +139,23 @@ impl ScriptRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn script<'a>(&self, data: FontData<'a>) -> Result<Script<'a>, ReadError> {
-        self.script_offset().resolve(data)
+        self.script_offset().fast_resolve(data, ())
     }
 }
 
 impl FixedSize for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl ReadArgs for ScriptRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for ScriptRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        self.script_offset().sanitize_offset::<Script>(ctx, ())?;
+        ctx.finish()
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -174,11 +192,19 @@ impl ReadArgs for Script<'_> {
 
 impl<'a> FontRead<'a> for Script<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for Script<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.sanitize_offset::<Offset16, LangSys>(())?;
+        let lang_sys_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<LangSysRecord>(transforms::to_usize(lang_sys_count), ())?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -203,7 +229,7 @@ impl<'a> Script<'a> {
     /// Attempt to resolve [`default_lang_sys_offset`][Self::default_lang_sys_offset].
     pub fn default_lang_sys(&self) -> Option<Result<LangSys<'a>, ReadError>> {
         let data = self.data;
-        self.default_lang_sys_offset().resolve(data)
+        self.default_lang_sys_offset().fast_resolve(data, ())
     }
 
     /// Number of LangSysRecords for this script — excluding the
@@ -307,12 +333,23 @@ impl LangSysRecord {
     /// The `data` argument should be retrieved from the parent table
     /// By calling its `offset_data` method.
     pub fn lang_sys<'a>(&self, data: FontData<'a>) -> Result<LangSys<'a>, ReadError> {
-        self.lang_sys_offset().resolve(data)
+        self.lang_sys_offset().fast_resolve(data, ())
     }
 }
 
 impl FixedSize for LangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl ReadArgs for LangSysRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for LangSysRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        self.lang_sys_offset().sanitize_offset::<LangSys>(ctx, ())?;
+        ctx.finish()
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -349,11 +386,20 @@ impl ReadArgs for LangSys<'_> {
 
 impl<'a> FontRead<'a> for LangSys<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for LangSys<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        let feature_index_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(feature_index_count))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -465,11 +511,18 @@ impl ReadArgs for FeatureList<'_> {
 
 impl<'a> FontRead<'a> for FeatureList<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for FeatureList<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let feature_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<FeatureRecord>(transforms::to_usize(feature_count), ())?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -578,12 +631,24 @@ impl FeatureRecord {
     /// By calling its `offset_data` method.
     pub fn feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         let args = self.feature_tag();
-        self.feature_offset().resolve_with_args(data, args)
+        self.feature_offset().fast_resolve(data, args)
     }
 }
 
 impl FixedSize for FeatureRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl ReadArgs for FeatureRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for FeatureRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        self.feature_offset()
+            .sanitize_offset::<Feature>(ctx, self.feature_tag())?;
+        ctx.finish()
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -620,13 +685,7 @@ impl ReadArgs for Feature<'_> {
 
 impl<'a> FontRead<'a> for Feature<'a> {
     fn read_with_args(data: FontData<'a>, args: Tag) -> Result<Self, ReadError> {
-        let feature_tag = args;
-
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data, feature_tag })
+        Self::read_checked(data, args)
     }
 }
 
@@ -638,6 +697,20 @@ impl<'a> Feature<'a> {
     pub fn read(data: FontData<'a>, feature_tag: Tag) -> Result<Self, ReadError> {
         let args = feature_tag;
         Self::read_with_args(data, args)
+    }
+}
+
+impl<'a> Sanitize<'a> for Feature<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, args: Tag) -> Result<(), ReadError> {
+        let feature_tag = args;
+        ctx.sanitize_offset::<Offset16, FeatureParams>(feature_tag)?;
+        let lookup_index_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(lookup_index_count))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, args: Tag) -> Self {
+        let feature_tag = args;
+        Self { data, feature_tag }
     }
 }
 
@@ -663,7 +736,7 @@ impl<'a> Feature<'a> {
     pub fn feature_params(&self) -> Option<Result<FeatureParams<'a>, ReadError>> {
         let data = self.data;
         let args = self.feature_tag();
-        self.feature_params_offset().resolve_with_args(data, args)
+        self.feature_params_offset().fast_resolve(data, args)
     }
 
     /// Number of LookupList indices for this feature
@@ -778,6 +851,20 @@ impl<'a, T> LookupList<'a, T> {
     }
 }
 
+impl<'a, T: Sanitize<'a, Args = ()>> Sanitize<'a> for LookupList<'a, T> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, T>(transforms::to_usize(lookup_count), ())?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self {
+            data,
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 #[derive(Clone)]
 pub struct LookupList<'a, T = ()> {
@@ -804,13 +891,13 @@ impl<'a, T> LookupList<'a, T> {
     }
 
     /// A dynamically resolving wrapper for [`lookup_offsets`][Self::lookup_offsets].
-    pub fn lookups(&self) -> ArrayOfOffsets<'a, T, Offset16>
+    pub fn lookups(&self) -> SanitizedArrayOfOffsets<'a, T, Offset16>
     where
-        T: FontRead<'a, Args = ()>,
+        T: Sanitize<'a, Args = ()> + Default,
     {
         let data = self.data;
         let offsets = self.lookup_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn lookup_count_byte_range(&self) -> Range<usize> {
@@ -839,7 +926,9 @@ impl<T> Default for LookupList<'_, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, T> {
+impl<'a, T: Sanitize<'a, Args = ()> + Default + SomeTable<'a> + 'a> SomeTable<'a>
+    for LookupList<'a, T>
+{
     fn type_name(&self) -> &str {
         "LookupList"
     }
@@ -857,7 +946,9 @@ impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for Look
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a, T> {
+impl<'a, T: Sanitize<'a, Args = ()> + Default + SomeTable<'a> + 'a> std::fmt::Debug
+    for LookupList<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -907,6 +998,25 @@ impl<'a, T> Lookup<'a, T> {
     }
 }
 
+impl<'a, T: Sanitize<'a, Args = ()>> Sanitize<'a> for Lookup<'a, T> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let lookup_flag = ctx.read::<LookupFlag>()?;
+        let sub_table_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, T>(transforms::to_usize(sub_table_count), ())?;
+        if lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET) {
+            ctx.advance::<u16>();
+        }
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self {
+            data,
+            offset_type: std::marker::PhantomData,
+        }
+    }
+}
+
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
 #[derive(Clone)]
 pub struct Lookup<'a, T = ()> {
@@ -945,13 +1055,13 @@ impl<'a, T> Lookup<'a, T> {
     }
 
     /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
-    pub fn subtables(&self) -> ArrayOfOffsets<'a, T, Offset16>
+    pub fn subtables(&self) -> SanitizedArrayOfOffsets<'a, T, Offset16>
     where
-        T: FontRead<'a, Args = ()>,
+        T: Sanitize<'a, Args = ()> + Default,
     {
         let data = self.data;
         let offsets = self.subtable_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Index (base 0) into GDEF mark glyph sets structure. This field
@@ -1009,7 +1119,9 @@ impl<T> Default for Lookup<'_, T> {
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
+impl<'a, T: Sanitize<'a, Args = ()> + Default + SomeTable<'a> + 'a> SomeTable<'a>
+    for Lookup<'a, T>
+{
     fn type_name(&self) -> &str {
         "Lookup"
     }
@@ -1039,7 +1151,9 @@ impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for Look
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug for Lookup<'a, T> {
+impl<'a, T: Sanitize<'a, Args = ()> + Default + SomeTable<'a> + 'a> std::fmt::Debug
+    for Lookup<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -1065,11 +1179,19 @@ impl ReadArgs for CoverageFormat1<'_> {
 
 impl<'a> FontRead<'a> for CoverageFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for CoverageFormat1<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(transforms::to_usize(glyph_count))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1174,11 +1296,19 @@ impl ReadArgs for CoverageFormat2<'_> {
 
 impl<'a> FontRead<'a> for CoverageFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for CoverageFormat2<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let range_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<RangeRecord>(transforms::to_usize(range_count), ())?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1293,6 +1423,19 @@ impl FixedSize for RangeRecord {
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for RangeRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for RangeRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for RangeRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1349,12 +1492,7 @@ impl ReadArgs for CoverageTable<'_> {
 
 impl<'a> FontRead<'a> for CoverageTable<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            CoverageFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            CoverageFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        Self::read_checked(data, ())
     }
 }
 
@@ -1369,6 +1507,27 @@ impl<'a> MinByteRange<'a> for CoverageTable<'a> {
         match self {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for CoverageTable<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            CoverageFormat1::FORMAT => CoverageFormat1::sanitize(ctx, ()),
+            CoverageFormat2::FORMAT => CoverageFormat2::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        let Ok(format) = data.read_at::<u16>(0usize) else {
+            return CoverageTable::default();
+        };
+        match format {
+            CoverageFormat1::FORMAT => CoverageTable::Format1(CoverageFormat1::read_fast(data, ())),
+            CoverageFormat2::FORMAT => CoverageTable::Format2(CoverageFormat2::read_fast(data, ())),
+            _ => CoverageTable::default(),
         }
     }
 }
@@ -1420,11 +1579,20 @@ impl ReadArgs for ClassDefFormat1<'_> {
 
 impl<'a> FontRead<'a> for ClassDefFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ClassDefFormat1<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<GlyphId16>();
+        let glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(glyph_count))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1541,11 +1709,22 @@ impl ReadArgs for ClassDefFormat2<'_> {
 
 impl<'a> FontRead<'a> for ClassDefFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ClassDefFormat2<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let class_range_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<ClassRangeRecord>(
+            transforms::to_usize(class_range_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1663,6 +1842,19 @@ impl FixedSize for ClassRangeRecord {
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for ClassRangeRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for ClassRangeRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ClassRangeRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1716,12 +1908,7 @@ impl ReadArgs for ClassDef<'_> {
 
 impl<'a> FontRead<'a> for ClassDef<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            ClassDefFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            ClassDefFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        Self::read_checked(data, ())
     }
 }
 
@@ -1736,6 +1923,27 @@ impl<'a> MinByteRange<'a> for ClassDef<'a> {
         match self {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for ClassDef<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            ClassDefFormat1::FORMAT => ClassDefFormat1::sanitize(ctx, ()),
+            ClassDefFormat2::FORMAT => ClassDefFormat2::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        let Ok(format) = data.read_at::<u16>(0usize) else {
+            return ClassDef::default();
+        };
+        match format {
+            ClassDefFormat1::FORMAT => ClassDef::Format1(ClassDefFormat1::read_fast(data, ())),
+            ClassDefFormat2::FORMAT => ClassDef::Format2(ClassDefFormat2::read_fast(data, ())),
+            _ => ClassDef::default(),
         }
     }
 }
@@ -1794,6 +2002,19 @@ impl FixedSize for SequenceLookupRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for SequenceLookupRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for SequenceLookupRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for SequenceLookupRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1829,11 +2050,23 @@ impl ReadArgs for SequenceContextFormat1<'_> {
 
 impl<'a> FontRead<'a> for SequenceContextFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceContextFormat1<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let seq_rule_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, SequenceRuleSet>(
+            transforms::to_usize(seq_rule_set_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -1864,7 +2097,7 @@ impl<'a> SequenceContextFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Number of SequenceRuleSet tables
@@ -1881,10 +2114,12 @@ impl<'a> SequenceContextFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
-    pub fn seq_rule_sets(&self) -> ArrayOfNullableOffsets<'a, SequenceRuleSet<'a>, Offset16> {
+    pub fn seq_rule_sets(
+        &self,
+    ) -> SanitizedArrayOfNullableOffsets<'a, SequenceRuleSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.seq_rule_set_offsets();
-        ArrayOfNullableOffsets::new(offsets, data, ())
+        SanitizedArrayOfNullableOffsets::new(offsets, data, ())
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1969,11 +2204,21 @@ impl ReadArgs for SequenceRuleSet<'_> {
 
 impl<'a> FontRead<'a> for SequenceRuleSet<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceRuleSet<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let seq_rule_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, SequenceRule>(
+            transforms::to_usize(seq_rule_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -2002,10 +2247,10 @@ impl<'a> SequenceRuleSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_offsets`][Self::seq_rule_offsets].
-    pub fn seq_rules(&self) -> ArrayOfOffsets<'a, SequenceRule<'a>, Offset16> {
+    pub fn seq_rules(&self) -> SanitizedArrayOfOffsets<'a, SequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.seq_rule_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn seq_rule_count_byte_range(&self) -> Range<usize> {
@@ -2073,11 +2318,23 @@ impl ReadArgs for SequenceRule<'_> {
 
 impl<'a> FontRead<'a> for SequenceRule<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceRule<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let glyph_count = ctx.read::<u16>()?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(transforms::subtract(glyph_count, 1_usize))?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(
+            transforms::to_usize(seq_lookup_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -2206,11 +2463,24 @@ impl ReadArgs for SequenceContextFormat2<'_> {
 
 impl<'a> FontRead<'a> for SequenceContextFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceContextFormat2<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        let class_seq_rule_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ClassSequenceRuleSet>(
+            transforms::to_usize(class_seq_rule_set_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -2242,7 +2512,7 @@ impl<'a> SequenceContextFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Offset to ClassDef table, from beginning of
@@ -2255,7 +2525,7 @@ impl<'a> SequenceContextFormat2<'a> {
     /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
     pub fn class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.class_def_offset().resolve(data)
+        self.class_def_offset().fast_resolve(data, ())
     }
 
     /// Number of ClassSequenceRuleSet tables
@@ -2274,10 +2544,10 @@ impl<'a> SequenceContextFormat2<'a> {
     /// A dynamically resolving wrapper for [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
     pub fn class_seq_rule_sets(
         &self,
-    ) -> ArrayOfNullableOffsets<'a, ClassSequenceRuleSet<'a>, Offset16> {
+    ) -> SanitizedArrayOfNullableOffsets<'a, ClassSequenceRuleSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.class_seq_rule_set_offsets();
-        ArrayOfNullableOffsets::new(offsets, data, ())
+        SanitizedArrayOfNullableOffsets::new(offsets, data, ())
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -2363,11 +2633,21 @@ impl ReadArgs for ClassSequenceRuleSet<'_> {
 
 impl<'a> FontRead<'a> for ClassSequenceRuleSet<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ClassSequenceRuleSet<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let class_seq_rule_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ClassSequenceRule>(
+            transforms::to_usize(class_seq_rule_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -2396,10 +2676,10 @@ impl<'a> ClassSequenceRuleSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
-    pub fn class_seq_rules(&self) -> ArrayOfOffsets<'a, ClassSequenceRule<'a>, Offset16> {
+    pub fn class_seq_rules(&self) -> SanitizedArrayOfOffsets<'a, ClassSequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.class_seq_rule_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn class_seq_rule_count_byte_range(&self) -> Range<usize> {
@@ -2473,11 +2753,23 @@ impl ReadArgs for ClassSequenceRule<'_> {
 
 impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ClassSequenceRule<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let glyph_count = ctx.read::<u16>()?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::subtract(glyph_count, 1_usize))?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(
+            transforms::to_usize(seq_lookup_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -2607,11 +2899,27 @@ impl ReadArgs for SequenceContextFormat3<'_> {
 
 impl<'a> FontRead<'a> for SequenceContextFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceContextFormat3<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let glyph_count = ctx.read::<u16>()?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(
+            transforms::to_usize(glyph_count),
+            (),
+        )?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(
+            transforms::to_usize(seq_lookup_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -2652,10 +2960,10 @@ impl<'a> SequenceContextFormat3<'a> {
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
-    pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+    pub fn coverages(&self) -> SanitizedArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.coverage_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Array of SequenceLookupRecords
@@ -2769,13 +3077,7 @@ impl ReadArgs for SequenceContext<'_> {
 
 impl<'a> FontRead<'a> for SequenceContext<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            SequenceContextFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            SequenceContextFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            SequenceContextFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        Self::read_checked(data, ())
     }
 }
 
@@ -2792,6 +3094,35 @@ impl<'a> MinByteRange<'a> for SequenceContext<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
             Self::Format3(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for SequenceContext<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            SequenceContextFormat1::FORMAT => SequenceContextFormat1::sanitize(ctx, ()),
+            SequenceContextFormat2::FORMAT => SequenceContextFormat2::sanitize(ctx, ()),
+            SequenceContextFormat3::FORMAT => SequenceContextFormat3::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        let Ok(format) = data.read_at::<u16>(0usize) else {
+            return SequenceContext::default();
+        };
+        match format {
+            SequenceContextFormat1::FORMAT => {
+                SequenceContext::Format1(SequenceContextFormat1::read_fast(data, ()))
+            }
+            SequenceContextFormat2::FORMAT => {
+                SequenceContext::Format2(SequenceContextFormat2::read_fast(data, ()))
+            }
+            SequenceContextFormat3::FORMAT => {
+                SequenceContext::Format3(SequenceContextFormat3::read_fast(data, ()))
+            }
+            _ => SequenceContext::default(),
         }
     }
 }
@@ -2844,11 +3175,23 @@ impl ReadArgs for ChainedSequenceContextFormat1<'_> {
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceContextFormat1<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        let chained_seq_rule_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ChainedSequenceRuleSet>(
+            transforms::to_usize(chained_seq_rule_set_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -2879,7 +3222,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Number of ChainedSequenceRuleSet tables
@@ -2898,10 +3241,10 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     /// A dynamically resolving wrapper for [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
     pub fn chained_seq_rule_sets(
         &self,
-    ) -> ArrayOfNullableOffsets<'a, ChainedSequenceRuleSet<'a>, Offset16> {
+    ) -> SanitizedArrayOfNullableOffsets<'a, ChainedSequenceRuleSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.chained_seq_rule_set_offsets();
-        ArrayOfNullableOffsets::new(offsets, data, ())
+        SanitizedArrayOfNullableOffsets::new(offsets, data, ())
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -2990,11 +3333,21 @@ impl ReadArgs for ChainedSequenceRuleSet<'_> {
 
 impl<'a> FontRead<'a> for ChainedSequenceRuleSet<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceRuleSet<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let chained_seq_rule_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ChainedSequenceRule>(
+            transforms::to_usize(chained_seq_rule_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -3023,10 +3376,12 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
-    pub fn chained_seq_rules(&self) -> ArrayOfOffsets<'a, ChainedSequenceRule<'a>, Offset16> {
+    pub fn chained_seq_rules(
+        &self,
+    ) -> SanitizedArrayOfOffsets<'a, ChainedSequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.chained_seq_rule_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn chained_seq_rule_count_byte_range(&self) -> Range<usize> {
@@ -3100,11 +3455,27 @@ impl ReadArgs for ChainedSequenceRule<'_> {
 
 impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceRule<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let backtrack_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(transforms::to_usize(backtrack_glyph_count))?;
+        let input_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(transforms::subtract(input_glyph_count, 1_usize))?;
+        let lookahead_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<GlyphId16>(transforms::to_usize(lookahead_glyph_count))?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(
+            transforms::to_usize(seq_lookup_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -3298,11 +3669,26 @@ impl ReadArgs for ChainedSequenceContextFormat2<'_> {
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceContextFormat2<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset16, CoverageTable>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        ctx.sanitize_offset::<Offset16, ClassDef>(())?;
+        let chained_class_seq_rule_set_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ChainedClassSequenceRuleSet>(
+            transforms::to_usize(chained_class_seq_rule_set_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -3338,7 +3724,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let data = self.data;
-        self.coverage_offset().resolve(data)
+        self.coverage_offset().fast_resolve(data, ())
     }
 
     /// Offset to ClassDef table containing backtrack sequence context,
@@ -3351,7 +3737,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
     pub fn backtrack_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.backtrack_class_def_offset().resolve(data)
+        self.backtrack_class_def_offset().fast_resolve(data, ())
     }
 
     /// Offset to ClassDef table containing input sequence context,
@@ -3364,7 +3750,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
     pub fn input_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.input_class_def_offset().resolve(data)
+        self.input_class_def_offset().fast_resolve(data, ())
     }
 
     /// Offset to ClassDef table containing lookahead sequence context,
@@ -3377,7 +3763,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
     pub fn lookahead_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
         let data = self.data;
-        self.lookahead_class_def_offset().resolve(data)
+        self.lookahead_class_def_offset().fast_resolve(data, ())
     }
 
     /// Number of ChainedClassSequenceRuleSet tables
@@ -3396,10 +3782,10 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
     pub fn chained_class_seq_rule_sets(
         &self,
-    ) -> ArrayOfNullableOffsets<'a, ChainedClassSequenceRuleSet<'a>, Offset16> {
+    ) -> SanitizedArrayOfNullableOffsets<'a, ChainedClassSequenceRuleSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.chained_class_seq_rule_set_offsets();
-        ArrayOfNullableOffsets::new(offsets, data, ())
+        SanitizedArrayOfNullableOffsets::new(offsets, data, ())
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -3509,11 +3895,21 @@ impl ReadArgs for ChainedClassSequenceRuleSet<'_> {
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedClassSequenceRuleSet<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let chained_class_seq_rule_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, ChainedClassSequenceRule>(
+            transforms::to_usize(chained_class_seq_rule_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -3544,10 +3940,10 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
     pub fn chained_class_seq_rules(
         &self,
-    ) -> ArrayOfOffsets<'a, ChainedClassSequenceRule<'a>, Offset16> {
+    ) -> SanitizedArrayOfOffsets<'a, ChainedClassSequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.chained_class_seq_rule_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn chained_class_seq_rule_count_byte_range(&self) -> Range<usize> {
@@ -3621,11 +4017,27 @@ impl ReadArgs for ChainedClassSequenceRule<'_> {
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedClassSequenceRule<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let backtrack_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(backtrack_glyph_count))?;
+        let input_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::subtract(input_glyph_count, 1_usize))?;
+        let lookahead_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(lookahead_glyph_count))?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(
+            transforms::to_usize(seq_lookup_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -3818,11 +4230,37 @@ impl ReadArgs for ChainedSequenceContextFormat3<'_> {
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceContextFormat3<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let backtrack_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(
+            transforms::to_usize(backtrack_glyph_count),
+            (),
+        )?;
+        let input_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(
+            transforms::to_usize(input_glyph_count),
+            (),
+        )?;
+        let lookahead_glyph_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset16, CoverageTable>(
+            transforms::to_usize(lookahead_glyph_count),
+            (),
+        )?;
+        let seq_lookup_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<SequenceLookupRecord>(
+            transforms::to_usize(seq_lookup_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -3860,10 +4298,10 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+    pub fn backtrack_coverages(&self) -> SanitizedArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.backtrack_coverage_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of glyphs in the input sequence
@@ -3879,10 +4317,10 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// A dynamically resolving wrapper for [`input_coverage_offsets`][Self::input_coverage_offsets].
-    pub fn input_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+    pub fn input_coverages(&self) -> SanitizedArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.input_coverage_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of glyphs in the lookahead sequence
@@ -3898,10 +4336,10 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
+    pub fn lookahead_coverages(&self) -> SanitizedArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.lookahead_coverage_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of SequenceLookupRecords
@@ -4067,13 +4505,7 @@ impl ReadArgs for ChainedSequenceContext<'_> {
 
 impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            ChainedSequenceContextFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
-            ChainedSequenceContextFormat2::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            ChainedSequenceContextFormat3::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        Self::read_checked(data, ())
     }
 }
 
@@ -4090,6 +4522,41 @@ impl<'a> MinByteRange<'a> for ChainedSequenceContext<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
             Self::Format3(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for ChainedSequenceContext<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            ChainedSequenceContextFormat1::FORMAT => {
+                ChainedSequenceContextFormat1::sanitize(ctx, ())
+            }
+            ChainedSequenceContextFormat2::FORMAT => {
+                ChainedSequenceContextFormat2::sanitize(ctx, ())
+            }
+            ChainedSequenceContextFormat3::FORMAT => {
+                ChainedSequenceContextFormat3::sanitize(ctx, ())
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        let Ok(format) = data.read_at::<u16>(0usize) else {
+            return ChainedSequenceContext::default();
+        };
+        match format {
+            ChainedSequenceContextFormat1::FORMAT => {
+                ChainedSequenceContext::Format1(ChainedSequenceContextFormat1::read_fast(data, ()))
+            }
+            ChainedSequenceContextFormat2::FORMAT => {
+                ChainedSequenceContext::Format2(ChainedSequenceContextFormat2::read_fast(data, ()))
+            }
+            ChainedSequenceContextFormat3::FORMAT => {
+                ChainedSequenceContext::Format3(ChainedSequenceContextFormat3::read_fast(data, ()))
+            }
+            _ => ChainedSequenceContext::default(),
         }
     }
 }
@@ -4192,11 +4659,20 @@ impl ReadArgs for Device<'_> {
 
 impl<'a> FontRead<'a> for Device<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for Device<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let start_size = ctx.read::<u16>()?;
+        let end_size = ctx.read::<u16>()?;
+        let delta_format = ctx.read::<DeltaFormat>()?;
+        ctx.sanitize_array::<u16>(DeltaFormat::value_count(delta_format, start_size, end_size))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -4312,11 +4788,19 @@ impl ReadArgs for VariationIndex<'_> {
 
 impl<'a> FontRead<'a> for VariationIndex<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for VariationIndex<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<DeltaFormat>();
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -4435,18 +4919,7 @@ impl ReadArgs for DeviceOrVariationIndex<'_> {
 
 impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        let format: DeltaFormat = data.read_at(4usize)?;
-
-        #[allow(clippy::redundant_guards)]
-        match format {
-            format if format != DeltaFormat::VariationIndex => {
-                Ok(Self::Device(FontRead::read(data)?))
-            }
-            format if format == DeltaFormat::VariationIndex => {
-                Ok(Self::VariationIndex(FontRead::read(data)?))
-            }
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        Self::read_checked(data, ())
     }
 }
 
@@ -4461,6 +4934,35 @@ impl<'a> MinByteRange<'a> for DeviceOrVariationIndex<'a> {
         match self {
             Self::Device(item) => item.min_table_bytes(),
             Self::VariationIndex(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for DeviceOrVariationIndex<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let format: DeltaFormat = ctx.peek_at(4usize)?;
+
+        #[allow(clippy::redundant_guards)]
+        match format {
+            format if format != DeltaFormat::VariationIndex => Device::sanitize(ctx, ()),
+            format if format == DeltaFormat::VariationIndex => VariationIndex::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        let Ok(format) = data.read_at::<DeltaFormat>(4usize) else {
+            return DeviceOrVariationIndex::default();
+        };
+
+        #[allow(clippy::redundant_guards)]
+        match format {
+            format if format != DeltaFormat::VariationIndex => {
+                DeviceOrVariationIndex::Device(Device::read_fast(data, ()))
+            }
+            format if format == DeltaFormat::VariationIndex => {
+                DeviceOrVariationIndex::VariationIndex(VariationIndex::read_fast(data, ()))
+            }
+            _ => DeviceOrVariationIndex::default(),
         }
     }
 }
@@ -4508,11 +5010,22 @@ impl ReadArgs for FeatureVariations<'_> {
 
 impl<'a> FontRead<'a> for FeatureVariations<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for FeatureVariations<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<MajorMinor>();
+        let feature_variation_record_count = ctx.read::<u32>()?;
+        ctx.sanitize_array_of_structs::<FeatureVariationRecord>(
+            transforms::to_usize(feature_variation_record_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -4638,7 +5151,7 @@ impl FeatureVariationRecord {
         &self,
         data: FontData<'a>,
     ) -> Option<Result<ConditionSet<'a>, ReadError>> {
-        self.condition_set_offset().resolve(data)
+        self.condition_set_offset().fast_resolve(data, ())
     }
 
     /// Offset to a feature table substitution table, from beginning of
@@ -4656,12 +5169,27 @@ impl FeatureVariationRecord {
         &self,
         data: FontData<'a>,
     ) -> Option<Result<FeatureTableSubstitution<'a>, ReadError>> {
-        self.feature_table_substitution_offset().resolve(data)
+        self.feature_table_substitution_offset()
+            .fast_resolve(data, ())
     }
 }
 
 impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl ReadArgs for FeatureVariationRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for FeatureVariationRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        self.condition_set_offset()
+            .sanitize_offset::<ConditionSet>(ctx, ())?;
+        self.feature_table_substitution_offset()
+            .sanitize_offset::<FeatureTableSubstitution>(ctx, ())?;
+        ctx.finish()
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -4704,11 +5232,21 @@ impl ReadArgs for ConditionSet<'_> {
 
 impl<'a> FontRead<'a> for ConditionSet<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ConditionSet<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let condition_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_offsets::<Offset32, Condition>(
+            transforms::to_usize(condition_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -4737,10 +5275,10 @@ impl<'a> ConditionSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset32> {
+    pub fn conditions(&self) -> SanitizedArrayOfOffsets<'a, Condition<'a>, Offset32> {
         let data = self.data;
         let offsets = self.condition_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn condition_count_byte_range(&self) -> Range<usize> {
@@ -4840,15 +5378,7 @@ impl ReadArgs for Condition<'_> {
 
 impl<'a> FontRead<'a> for Condition<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0usize)?;
-        match format {
-            ConditionFormat1::FORMAT => Ok(Self::Format1AxisRange(FontRead::read(data)?)),
-            ConditionFormat2::FORMAT => Ok(Self::Format2VariableValue(FontRead::read(data)?)),
-            ConditionFormat3::FORMAT => Ok(Self::Format3And(FontRead::read(data)?)),
-            ConditionFormat4::FORMAT => Ok(Self::Format4Or(FontRead::read(data)?)),
-            ConditionFormat5::FORMAT => Ok(Self::Format5Negate(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other.into())),
-        }
+        Self::read_checked(data, ())
     }
 }
 
@@ -4869,6 +5399,41 @@ impl<'a> MinByteRange<'a> for Condition<'a> {
             Self::Format3And(item) => item.min_table_bytes(),
             Self::Format4Or(item) => item.min_table_bytes(),
             Self::Format5Negate(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+impl<'a> Sanitize<'a> for Condition<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            ConditionFormat1::FORMAT => ConditionFormat1::sanitize(ctx, ()),
+            ConditionFormat2::FORMAT => ConditionFormat2::sanitize(ctx, ()),
+            ConditionFormat3::FORMAT => ConditionFormat3::sanitize(ctx, ()),
+            ConditionFormat4::FORMAT => ConditionFormat4::sanitize(ctx, ()),
+            ConditionFormat5::FORMAT => ConditionFormat5::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        let Ok(format) = data.read_at::<u16>(0usize) else {
+            return Condition::default();
+        };
+        match format {
+            ConditionFormat1::FORMAT => {
+                Condition::Format1AxisRange(ConditionFormat1::read_fast(data, ()))
+            }
+            ConditionFormat2::FORMAT => {
+                Condition::Format2VariableValue(ConditionFormat2::read_fast(data, ()))
+            }
+            ConditionFormat3::FORMAT => {
+                Condition::Format3And(ConditionFormat3::read_fast(data, ()))
+            }
+            ConditionFormat4::FORMAT => Condition::Format4Or(ConditionFormat4::read_fast(data, ())),
+            ConditionFormat5::FORMAT => {
+                Condition::Format5Negate(ConditionFormat5::read_fast(data, ()))
+            }
+            _ => Condition::default(),
         }
     }
 }
@@ -4923,11 +5488,20 @@ impl ReadArgs for ConditionFormat1<'_> {
 
 impl<'a> FontRead<'a> for ConditionFormat1<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ConditionFormat1<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<F2Dot14>();
+        ctx.advance::<F2Dot14>();
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -5053,11 +5627,19 @@ impl ReadArgs for ConditionFormat2<'_> {
 
 impl<'a> FontRead<'a> for ConditionFormat2<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ConditionFormat2<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<i16>();
+        ctx.advance::<u32>();
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -5149,11 +5731,22 @@ impl ReadArgs for ConditionFormat3<'_> {
 
 impl<'a> FontRead<'a> for ConditionFormat3<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ConditionFormat3<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let condition_count = ctx.read::<u8>()?;
+        ctx.sanitize_array_of_offsets::<Offset24, Condition>(
+            transforms::to_usize(condition_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -5187,10 +5780,10 @@ impl<'a> ConditionFormat3<'a> {
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset24> {
+    pub fn conditions(&self) -> SanitizedArrayOfOffsets<'a, Condition<'a>, Offset24> {
         let data = self.data;
         let offsets = self.condition_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -5257,11 +5850,22 @@ impl ReadArgs for ConditionFormat4<'_> {
 
 impl<'a> FontRead<'a> for ConditionFormat4<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ConditionFormat4<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let condition_count = ctx.read::<u8>()?;
+        ctx.sanitize_array_of_offsets::<Offset24, Condition>(
+            transforms::to_usize(condition_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -5295,10 +5899,10 @@ impl<'a> ConditionFormat4<'a> {
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset24> {
+    pub fn conditions(&self) -> SanitizedArrayOfOffsets<'a, Condition<'a>, Offset24> {
         let data = self.data;
         let offsets = self.condition_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -5365,11 +5969,18 @@ impl ReadArgs for ConditionFormat5<'_> {
 
 impl<'a> FontRead<'a> for ConditionFormat5<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for ConditionFormat5<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.sanitize_offset::<Offset24, Condition>(())?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -5399,7 +6010,7 @@ impl<'a> ConditionFormat5<'a> {
     /// Attempt to resolve [`condition_offset`][Self::condition_offset].
     pub fn condition(&self) -> Result<Condition<'a>, ReadError> {
         let data = self.data;
-        self.condition_offset().resolve(data)
+        self.condition_offset().fast_resolve(data, ())
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -5454,11 +6065,22 @@ impl ReadArgs for FeatureTableSubstitution<'_> {
 
 impl<'a> FontRead<'a> for FeatureTableSubstitution<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for FeatureTableSubstitution<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<MajorMinor>();
+        let substitution_count = ctx.read::<u16>()?;
+        ctx.sanitize_array_of_structs::<FeatureTableSubstitutionRecord>(
+            transforms::to_usize(substitution_count),
+            (),
+        )?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -5582,6 +6204,17 @@ impl FixedSize for FeatureTableSubstitutionRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for FeatureTableSubstitutionRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for FeatureTableSubstitutionRecord {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        self.sanitize_alternate_feature_offset(ctx)?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FeatureTableSubstitutionRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -5619,11 +6252,21 @@ impl ReadArgs for SizeParams<'_> {
 
 impl<'a> FontRead<'a> for SizeParams<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for SizeParams<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -5768,11 +6411,18 @@ impl ReadArgs for StylisticSetParams<'_> {
 
 impl<'a> FontRead<'a> for StylisticSetParams<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for StylisticSetParams<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<NameId>();
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -5870,11 +6520,24 @@ impl ReadArgs for CharacterVariantParams<'_> {
 
 impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
+    }
+}
+
+impl<'a> Sanitize<'a> for CharacterVariantParams<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<NameId>();
+        ctx.advance::<NameId>();
+        ctx.advance::<NameId>();
+        ctx.advance::<u16>();
+        ctx.advance::<NameId>();
+        let char_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<Uint24>(transforms::to_usize(char_count))?;
+        ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
