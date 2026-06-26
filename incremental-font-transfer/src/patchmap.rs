@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 use std::io::Read;
 use std::ops::RangeInclusive;
+use std::str::Utf8Error;
 
 use font_types::Fixed;
 use font_types::Int24;
@@ -27,6 +28,7 @@ use read_fonts::{
 
 use skrifa::charmap::Charmap;
 
+use crate::byte_buffer::BytesBuffer;
 use crate::url_templates;
 use crate::url_templates::UrlTemplateError;
 
@@ -1010,14 +1012,38 @@ impl PatchMapEntry {
 
 /// An expanded PatchUrl string which identifies where a patch is located.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub struct PatchUrl(pub String);
+pub struct PatchUrl(BytesBuffer);
+
+#[cold]
+fn utf_validation_failed(_: Utf8Error) -> &'static str {
+    "patch-invalid-utf8"
+}
 
 impl PatchUrl {
+    /// Creates a new `PatchUrl` from a URL string.
+    pub fn new(url: &str) -> PatchUrl {
+        PatchUrl(url.into())
+    }
+
+    /// Expands a URL template using the given patch ID.
     pub(crate) fn expand_template(
         template_string: &[u8],
         patch_id: &PatchId,
     ) -> Result<Self, UrlTemplateError> {
-        url_templates::expand_template(template_string, patch_id).map(Self)
+        let buffer = url_templates::expand_template(template_string, patch_id)?;
+        // Validate early to avoid returning a bad result on `PatchUrl::as_str`.
+        std::str::from_utf8(buffer.as_slice()).map_err(|_| UrlTemplateError::InvalidUtf8)?;
+        Ok(Self(buffer))
+    }
+
+    /// Returns the URL as a string slice.
+    pub fn as_str(&self) -> &str {
+        let utf_bytes: &[u8] = self.0.as_slice();
+        // TODO: Consider avoiding utf8 validation here if it can be guaranteed at construction.
+        match std::str::from_utf8(utf_bytes) {
+            Ok(s) => s,
+            Err(err) => utf_validation_failed(err),
+        }
     }
 
     pub(crate) fn into_format_1_entry(
@@ -1056,7 +1082,7 @@ impl PatchUrl {
 
 impl AsRef<str> for PatchUrl {
     fn as_ref(&self) -> &str {
-        &self.0
+        self.as_str()
     }
 }
 
@@ -2739,7 +2765,7 @@ mod tests {
 
         let e = patches
             .into_iter()
-            .find(|p| &p.url().0 == "foo/0S")
+            .find(|p| p.url().as_str() == "foo/0S")
             .unwrap();
 
         let mut expected_info = IntersectionInfo::new(3, 2, 6);

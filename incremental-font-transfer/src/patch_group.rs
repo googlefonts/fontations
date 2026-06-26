@@ -709,15 +709,9 @@ mod tests {
     const TABLE_1_FINAL_STATE: &[u8] = "hijkabcdeflmnohijkabcdeflmno\n".as_bytes();
     const TABLE_2_FINAL_STATE: &[u8] = "foobarbaz foobarbaz foobarbaz\n".as_bytes();
 
-    impl PatchUrl {
-        fn new(url: &str) -> Self {
-            Self(url.to_string())
-        }
-    }
-
     impl OrderedPatchUrl {
         fn url(order: usize, url: &str) -> Self {
-            OrderedPatchUrl(order, PatchUrl(url.to_string()))
+            OrderedPatchUrl(order, PatchUrl::new(url))
         }
     }
 

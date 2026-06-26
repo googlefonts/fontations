@@ -17,6 +17,7 @@ pub mod patch_group;
 pub mod patchmap;
 pub mod table_keyed;
 pub mod url_templates;
+pub(crate) mod byte_buffer;
 
 #[cfg(test)]
 mod testdata {
