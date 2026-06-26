@@ -5,6 +5,7 @@
 //! URL templates in IFT use an series of one byte opcodes to insert literals or expand template variables.
 use data_encoding::BASE64URL;
 use data_encoding_macro::new_encoding;
+use smol_str::{format_smolstr, SmolStr, SmolStrBuilder};
 
 use crate::patchmap::PatchId;
 
@@ -71,8 +72,8 @@ impl TryFrom<u8> for Variable {
 
 struct CachedEncoder<'a> {
     patch_id: &'a PatchId,
-    id32: Option<String>,
-    id64: Option<String>,
+    id32: Option<SmolStr>,
+    id64: Option<SmolStr>,
 }
 
 impl<'a> CachedEncoder<'a> {
@@ -90,9 +91,11 @@ impl<'a> CachedEncoder<'a> {
                 PatchId::Numeric(id) => {
                     let id = id.to_be_bytes();
                     let id = &id[count_leading_zeroes(&id)..];
-                    BASE32HEX_NO_PADDING.encode(id)
+                    format_smolstr!("{}", BASE32HEX_NO_PADDING.encode_display(id))
                 }
-                PatchId::String(id) => BASE32HEX_NO_PADDING.encode(id),
+                PatchId::String(id) => {
+                    format_smolstr!("{}", BASE32HEX_NO_PADDING.encode_display(id))
+                }
             })
             .as_str()
     }
@@ -103,9 +106,11 @@ impl<'a> CachedEncoder<'a> {
                 PatchId::Numeric(id) => {
                     let id = id.to_be_bytes();
                     let id = &id[count_leading_zeroes(&id)..];
-                    BASE64URL.encode(id)
+                    format_smolstr!("{}", BASE64URL.encode_display(id))
                 }
-                PatchId::String(id) => BASE64URL.encode(id),
+                PatchId::String(id) => {
+                    format_smolstr!("{}", BASE64URL.encode_display(id))
+                }
             })
             .as_str()
     }
@@ -128,9 +133,9 @@ impl std::error::Error for UrlTemplateError {}
 pub(crate) fn expand_template(
     mut template_bytes: &[u8],
     patch_id: &PatchId,
-) -> Result<String, UrlTemplateError> {
+) -> Result<SmolStr, UrlTemplateError> {
     let mut cached_encoder = CachedEncoder::new(patch_id);
-    let mut output_buffer = String::new();
+    let mut output_buffer = SmolStrBuilder::new();
     while let Some((opcode, rest)) = template_bytes.split_first() {
         template_bytes = rest;
         match OpCode::try_from(*opcode)? {
@@ -161,7 +166,7 @@ pub(crate) fn expand_template(
             }
         }
     }
-    Ok(output_buffer)
+    Ok(output_buffer.finish())
 }
 
 const BASE32HEX_NO_PADDING: data_encoding::Encoding = new_encoding! {
@@ -182,14 +187,14 @@ pub(crate) mod tests {
     fn check_numeric(bytes: &[u8], id: u32, expected: &str) {
         assert_eq!(
             expand_template(bytes, &PatchId::Numeric(id),),
-            Ok(expected.to_string())
+            Ok(expected.into())
         );
     }
 
     fn check_string(bytes: &[u8], id: &[u8], expected: &str) {
         assert_eq!(
             expand_template(bytes, &PatchId::String(Vec::from(id)),),
-            Ok(expected.to_string())
+            Ok(expected.into())
         );
     }
 
