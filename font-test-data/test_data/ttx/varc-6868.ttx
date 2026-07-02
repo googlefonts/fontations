@@ -33,7 +33,7 @@
     <lowestRecPPEM value="3"/>
     <fontDirectionHint value="2"/>
     <indexToLocFormat value="0"/>
-    <glyphDataFormat value="1"/>
+    <glyphDataFormat value="0"/>
   </head>
 
   <hhea>
