@@ -213,20 +213,22 @@ impl<'a> VarcComponent<'a> {
                 transform.scale_x
             };
         }
-        if flags.intersects(VarcFlags::HAVE_TCENTER_X | VarcFlags::HAVE_TCENTER_Y) {
-            if flags.contains(VarcFlags::HAVE_TCENTER_X) {
-                transform.center_x = cursor.read::<FWord>()?.to_i16() as f32
-            }
-            if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
-                transform.center_y = cursor.read::<FWord>()?.to_i16() as f32
-            }
-        }
+        // Per the spec, SkewX/SkewY are encoded before TCenterX/TCenterY.
+        // https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md#variable-component-record
         if flags.intersects(VarcFlags::HAVE_SKEW_X | VarcFlags::HAVE_SKEW_Y) {
             if flags.contains(VarcFlags::HAVE_SKEW_X) {
                 transform.skew_x = cursor.read::<F4Dot12>()?.to_f32()
             }
             if flags.contains(VarcFlags::HAVE_SKEW_Y) {
                 transform.skew_y = cursor.read::<F4Dot12>()?.to_f32()
+            }
+        }
+        if flags.intersects(VarcFlags::HAVE_TCENTER_X | VarcFlags::HAVE_TCENTER_Y) {
+            if flags.contains(VarcFlags::HAVE_TCENTER_X) {
+                transform.center_x = cursor.read::<FWord>()?.to_i16() as f32
+            }
+            if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
+                transform.center_y = cursor.read::<FWord>()?.to_i16() as f32
             }
         }
 
