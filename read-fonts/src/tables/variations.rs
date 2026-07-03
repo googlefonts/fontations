@@ -1554,7 +1554,8 @@ pub struct FloatItemDelta(f64);
 impl FloatItemDelta {
     pub const ZERO: Self = Self(0.0);
 
-    pub(crate) fn to_f64(self) -> f64 {
+    /// Returns the (unrounded) delta value as a 64-bit float.
+    pub fn to_f64(self) -> f64 {
         self.0
     }
 }
