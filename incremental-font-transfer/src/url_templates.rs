@@ -3,9 +3,6 @@
 //! Context: <https://w3c.github.io/IFT/Overview.html#url-templates>
 //!
 //! URL templates in IFT use an series of one byte opcodes to insert literals or expand template variables.
-use data_encoding::BASE64URL;
-use data_encoding_macro::new_encoding;
-
 use crate::patchmap::PatchId;
 
 /// Indicates a malformed URI template was encountered.
@@ -90,9 +87,9 @@ impl<'a> CachedEncoder<'a> {
                 PatchId::Numeric(id) => {
                     let id = id.to_be_bytes();
                     let id = &id[count_leading_zeroes(&id)..];
-                    BASE32HEX_NO_PADDING.encode(id)
+                    BASE32HEX_ENCODER.encode(id)
                 }
-                PatchId::String(id) => BASE32HEX_NO_PADDING.encode(id),
+                PatchId::String(id) => BASE32HEX_ENCODER.encode(id),
             })
             .as_str()
     }
@@ -103,9 +100,9 @@ impl<'a> CachedEncoder<'a> {
                 PatchId::Numeric(id) => {
                     let id = id.to_be_bytes();
                     let id = &id[count_leading_zeroes(&id)..];
-                    BASE64URL.encode(id)
+                    BASE64URL_PADDED_ENCODER.encode(id)
                 }
-                PatchId::String(id) => BASE64URL.encode(id),
+                PatchId::String(id) => BASE64URL_PADDED_ENCODER.encode(id),
             })
             .as_str()
     }
@@ -150,26 +147,90 @@ pub(crate) fn expand_template(
                 output_buffer.push(id_digit(cached_encoder.encode_id32(), digit))
             }
             OpCode::InsertVariable(Variable::Id64) => {
-                for ch in cached_encoder.encode_id64().chars() {
-                    match ch {
-                        // Its more performant to do the replacement here than in encode_id64. A
-                        // replacement in encode_id64 always leads to an extra string allocation.
-                        '=' => output_buffer.push_str("%3D"),
-                        ch => output_buffer.push(ch),
-                    }
-                }
+                output_buffer.push_str(cached_encoder.encode_id64())
             }
         }
     }
     Ok(output_buffer)
 }
 
-const BASE32HEX_NO_PADDING: data_encoding::Encoding = new_encoding! {
-    symbols: "0123456789ABCDEFGHIJKLMNOPQRSTUV",
-};
-
 fn count_leading_zeroes(id: &[u8]) -> usize {
     id.iter().take_while(|b| **b == 0).count().min(id.len() - 1)
+}
+
+struct Encoder<const N: usize> {
+    // The alphabet to encode to.
+    alphabet: &'static [u8; N],
+    // The alignment of the input. If the input is not a multiple of `input_block_size`, then the
+    // space will be filled with `padding_str`.
+    input_block_size: usize,
+    // The output padding to meet the input padding requirements.
+    padding_str: &'static str,
+}
+
+const BASE64URL_PADDED_ENCODER: Encoder<64> = Encoder {
+    alphabet: b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
+    padding_str: "%3D",
+    input_block_size: 3,
+};
+
+const BASE32HEX_ENCODER: Encoder<32> = Encoder {
+    alphabet: b"0123456789ABCDEFGHIJKLMNOPQRSTUV",
+    padding_str: "",
+    input_block_size: 1,
+};
+
+impl<const N: usize> Encoder<N> {
+    const BITS_PER_BYTE: usize = Self::compute_bits_per_byte().unwrap();
+
+    const fn compute_bits_per_byte() -> Option<usize> {
+        let bits_per_byte = N.ilog2() as usize;
+        if N == (1 << bits_per_byte) {
+            Some(bits_per_byte)
+        } else {
+            None
+        }
+    }
+
+    fn encode(&self, input: &[u8]) -> String {
+        // unwrap ok, validated with compile-time assertions.
+        // Create a mask to extract the next N bits.
+        // Example, for 6 bits: (1 << 6) - 1 = 64 - 1 = 63 = 0x3F
+        let next_bit_mask: u32 = (1 << Self::BITS_PER_BYTE) - 1;
+        let input_bits = input.len() * 8;
+        let padding_count = if self.input_block_size > 1 {
+            let padding_remainder = input.len() % self.input_block_size;
+            (self.input_block_size - padding_remainder) % self.input_block_size
+        } else {
+            0
+        };
+        let encoded_chars = input_bits.div_ceil(Self::BITS_PER_BYTE);
+        let output_len = encoded_chars + (self.padding_str.len() * padding_count);
+
+        let mut output = String::with_capacity(output_len);
+        let mut bits: u32 = 0;
+        let mut bits_in_buffer = 0;
+        for byte in input.iter().copied() {
+            bits = (bits << 8) | byte as u32;
+            bits_in_buffer += 8;
+            while bits_in_buffer >= Self::BITS_PER_BYTE {
+                bits_in_buffer -= Self::BITS_PER_BYTE;
+                let next_byte = bits >> bits_in_buffer;
+                let index = next_byte & next_bit_mask;
+                output.push(self.alphabet[index as usize] as char);
+            }
+        }
+        if bits_in_buffer > 0 {
+            let next_byte = bits << (Self::BITS_PER_BYTE - bits_in_buffer);
+            let index = next_byte & next_bit_mask;
+            output.push(self.alphabet[index as usize] as char);
+        }
+
+        for _ in 0..padding_count {
+            output.push_str(self.padding_str);
+        }
+        output
+    }
 }
 
 #[cfg(test)]
@@ -177,7 +238,7 @@ pub(crate) mod tests {
     use crate::patchmap::PatchId;
     use crate::url_templates::UrlTemplateError;
 
-    use super::expand_template;
+    use super::{expand_template, BASE32HEX_ENCODER, BASE64URL_PADDED_ENCODER};
 
     fn check_numeric(bytes: &[u8], id: u32, expected: &str) {
         assert_eq!(
@@ -329,5 +390,72 @@ pub(crate) mod tests {
     #[test]
     fn expansion_only() {
         check_numeric(&[128, 133], 123, "FCew%3D%3D");
+    }
+
+    #[test]
+    fn base64url_empty_input_returns_empty_string() {
+        assert_eq!(BASE64URL_PADDED_ENCODER.encode(&[]), "");
+    }
+
+    #[test]
+    fn base64url_input_length_multiple_of_3_returns_unpadded_string() {
+        assert_eq!(BASE64URL_PADDED_ENCODER.encode(&[1, 2, 3]), "AQID");
+    }
+
+    #[test]
+    fn base64url_input_length_remainder_returns_padded_string() {
+        assert_eq!(BASE64URL_PADDED_ENCODER.encode(&[1, 2]), "AQI%3D");
+        assert_eq!(BASE64URL_PADDED_ENCODER.encode(&[1]), "AQ%3D%3D");
+    }
+
+    #[test]
+    fn base64url_returns_correct_encoding() {
+        assert_eq!(BASE64URL_PADDED_ENCODER.encode(&[0, 0, 0]), "AAAA");
+        assert_eq!(BASE64URL_PADDED_ENCODER.encode(&[10, 20, 100]), "ChRk");
+        assert_eq!(BASE64URL_PADDED_ENCODER.encode(&[255, 255, 255]), "____");
+        assert_eq!(
+            BASE64URL_PADDED_ENCODER.encode(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+            "AQIDBAUGBwgJCg%3D%3D"
+        );
+    }
+
+    #[test]
+    fn base32hex_empty_input_returns_empty_string() {
+        assert_eq!(BASE32HEX_ENCODER.encode(&[]), "");
+    }
+
+    #[test]
+    fn base32hex_multi_byte_input_returns_unpadded_string() {
+        assert_eq!(BASE32HEX_ENCODER.encode(&[0, 0]), "0000");
+        assert_eq!(BASE32HEX_ENCODER.encode(&[255, 255]), "VVVG");
+        assert_eq!(BASE32HEX_ENCODER.encode(&[255]), "VS");
+        assert_eq!(BASE32HEX_ENCODER.encode(&[1, 2]), "0410");
+        assert_eq!(
+            BASE32HEX_ENCODER.encode(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+            "041061050O3GG28A"
+        );
+    }
+
+    #[test]
+    fn base64url_full_alphabet() {
+        assert_eq!(
+            BASE64URL_PADDED_ENCODER.encode(&[
+                0, 16, 131, 16, 81, 135, 32, 146, 139, 48, 211, 143, 65, 20, 147, 81, 85, 151, 97,
+                150, 155, 113, 215, 159, 130, 24, 163, 146, 89, 167, 162, 154, 171, 178, 219, 175,
+                195, 28, 179, 211, 93, 183, 227, 158, 187, 243, 223, 191
+            ]),
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+        );
+    }
+
+    #[test]
+    fn base32hex_full_alphabet() {
+        assert_eq!(
+            BASE32HEX_ENCODER.encode(&[
+                0, 68, 50, 20, 199, 66, 84, 182, 53, 207, 132, 101, 58, 86, 215, 198, 117, 190,
+                119, 223
+            ]),
+            "0123456789ABCDEFGHIJKLMNOPQRSTUV"
+        );
     }
 }
