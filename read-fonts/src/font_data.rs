@@ -53,6 +53,14 @@ impl FontData<'static> {
     /// This is checked by an assert at compile time, and can be increased as needed.
     const NULL_POOL_SIZE: usize = 262;
 
+    // this is only used in const eval contexts, which are not visible to the
+    // dead_code lint https://github.com/rust-lang/rust/issues/101532
+    #[allow(dead_code)]
+    /// Return `true` if our default data can represent a table `n_bytes` long
+    pub(crate) const fn default_data_long_enough(n_bytes: usize) -> bool {
+        n_bytes <= Self::NULL_POOL_SIZE
+    }
+
     /// Return all zeroes suitable for the default impl of a table.
     pub(crate) fn default_table_data() -> Self {
         FontData::new(&EMPTY_TABLE_BYTES[2..])
@@ -68,11 +76,6 @@ impl FontData<'static> {
     /// of a format 1 table with u8 format.
     pub(crate) fn default_format_1_u8_table_data() -> Self {
         FontData::new(&EMPTY_TABLE_BYTES[1..])
-    }
-
-    /// Return `true` if our default data can represent a table `n_bytes` long
-    pub(crate) const fn default_data_long_enough(n_bytes: usize) -> bool {
-        n_bytes <= Self::NULL_POOL_SIZE
     }
 }
 
