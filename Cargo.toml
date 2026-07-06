@@ -50,8 +50,8 @@ read-fonts = { version = "0.41.0", path = "read-fonts", default-features = false
 skrifa = { version = "0.44.0", path = "skrifa", default-features = false, features = ["std"] }
 write-fonts = { version = "0.50.0", path = "write-fonts", default-features = false }
 shared-brotli-patch-decoder = { version = "0.1.4", path = "shared-brotli-patch-decoder", default-features = false }
-incremental-font-transfer = { version = "0.4.1", path = "incremental-font-transfer" }
-skera = { version = "0.3.0", path = "skera" }
+incremental-font-transfer = { version = "0.5.0", path = "incremental-font-transfer" }
+skera = { version = "0.4.0", path = "skera" }
 
 [workspace.metadata.release]
 allow-branch = ["main"]
