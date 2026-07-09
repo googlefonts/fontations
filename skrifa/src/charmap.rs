@@ -485,10 +485,9 @@ mod tests {
     fn map_format_13() {
         let font = FontRef::new(font_test_data::TOFU).unwrap();
         let charmap = font.charmap();
-        // This maps all codepoints (starting at U+0002) to gid 1,
-        // so take a sample.
-        for ch in 0..char::MAX as u32 / 16 {
-            assert_eq!(charmap.map(ch * 16 + 2), Some(GlyphId::new(1)));
+        // This font maps U+0002..U+007E to gid 1
+        for ch in 2..0x7F_u32 {
+            assert_eq!(charmap.map(ch), Some(GlyphId::new(1)));
         }
     }
 

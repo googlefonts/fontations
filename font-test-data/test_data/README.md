@@ -143,6 +143,7 @@ Describes the provenance, usage and generation procedures for font data used for
   * source: https://github.com/googlefonts/tofu
   * license: [Apache 2][Apache2]
   * usage: testing cmap format 13
+  * subset: manually subset to ASCII to reduce ttx size
 
 * type1/notoserif-regular.subset.pfa
   * font: Noto Serif Regular
