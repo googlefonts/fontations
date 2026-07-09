@@ -218,6 +218,9 @@ impl<'a> SimpleGlyph<'a> {
         if points.len() != n_points || flags.len() != n_points {
             return Err(ReadError::InvalidArrayLen);
         }
+        if n_points == 0 {
+            return Ok(());
+        }
         let mut cursor = FontData::new(self.glyph_data()).cursor();
         // The flag run can use two bytes per point (a flag plus its repeat
         // count), so the encoded flags may be longer than n_points; read over
@@ -1125,5 +1128,20 @@ mod tests {
         let actual: Vec<_> = points.iter().map(|p| (p.x, p.y)).collect();
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn read_points_fast_does_not_panic_on_empty_glyph_with_padding() {
+        let glyph_bytes: &[u8] = &[
+            0x00, 0x00, // numberOfContours = 0
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // bbox
+            0x00, 0x00, // instructionLength = 0
+            0x00, // trailing pad byte
+        ];
+        let glyph = SimpleGlyph::read(FontData::new(glyph_bytes)).expect("parses");
+        assert_eq!(glyph.num_points(), 0);
+        let mut points: Vec<Point<f32>> = vec![];
+        let mut flags: Vec<PointFlags> = vec![];
+        assert!(glyph.read_points_fast(&mut points, &mut flags).is_ok());
     }
 }
