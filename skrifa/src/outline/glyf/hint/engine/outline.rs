@@ -626,15 +626,15 @@ impl Engine<'_> {
             let z = gs.zp0();
             [z.point(b0)?, z.point(b1)?].map(|p| p.map(F26Dot6::to_bits))
         };
-        let dbx = pb1.x - pb0.x;
-        let dby = pb1.y - pb0.y;
-        let dax = pa1.x - pa0.x;
-        let day = pa1.y - pa0.y;
-        let dx = pb0.x - pa0.x;
-        let dy = pb0.y - pa0.y;
+        let dbx = pb1.x.wrapping_sub(pb0.x);
+        let dby = pb1.y.wrapping_sub(pb0.y);
+        let dax = pa1.x.wrapping_sub(pa0.x);
+        let day = pa1.y.wrapping_sub(pa0.y);
+        let dx = pb0.x.wrapping_sub(pa0.x);
+        let dy = pb0.y.wrapping_sub(pa0.y);
         use math::mul_div;
-        let discriminant = mul_div(dax, -dby, 0x40) + mul_div(day, dbx, 0x40);
-        let dotproduct = mul_div(dax, dbx, 0x40) + mul_div(day, dby, 0x40);
+        let discriminant = mul_div(dax, -dby, 0x40).wrapping_add(mul_div(day, dbx, 0x40));
+        let dotproduct = mul_div(dax, dbx, 0x40).wrapping_add(mul_div(day, dby, 0x40));
         // Useful context from FreeType:
         //
         // "The discriminant above is actually a cross product of vectors
@@ -647,17 +647,29 @@ impl Engine<'_> {
         // thresholding abs(tan(angle)) at 1/19, corresponding to 3 degrees."
         //
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5986>
-        if discriminant.wrapping_abs().wrapping_mul(19) > dotproduct.abs() {
-            let v = mul_div(dx, -dby, 0x40) + mul_div(dy, dbx, 0x40);
+        if discriminant.wrapping_abs().wrapping_mul(19) > dotproduct.wrapping_abs() {
+            let v = mul_div(dx, -dby, 0x40).wrapping_add(mul_div(dy, dbx, 0x40));
             let x = mul_div(v, dax, discriminant);
             let y = mul_div(v, day, discriminant);
             let point = gs.zp2_mut().point_mut(point_ix)?;
-            point.x = F26Dot6::from_bits(pa0.x + x);
-            point.y = F26Dot6::from_bits(pa0.y + y);
+            point.x = F26Dot6::from_bits(pa0.x.wrapping_add(x));
+            point.y = F26Dot6::from_bits(pa0.y.wrapping_add(y));
         } else {
             let point = gs.zp2_mut().point_mut(point_ix)?;
-            point.x = F26Dot6::from_bits((pa0.x + pa1.x + pb0.x + pb1.x) / 4);
-            point.y = F26Dot6::from_bits((pa0.y + pa1.y + pb0.y + pb1.y) / 4);
+            point.x = F26Dot6::from_bits(
+                (pa0.x
+                    .wrapping_add(pa1.x)
+                    .wrapping_add(pb0.x)
+                    .wrapping_add(pb1.x))
+                    / 4,
+            );
+            point.y = F26Dot6::from_bits(
+                (pa0.y
+                    .wrapping_add(pa1.y)
+                    .wrapping_add(pb0.y)
+                    .wrapping_add(pb1.y))
+                    / 4,
+            );
         }
         gs.zp2_mut().touch(point_ix, CoordAxis::Both)?;
         Ok(())
@@ -1330,6 +1342,25 @@ mod tests {
         engine.op_isect().unwrap();
         let point = engine.graphics.zones[1].point(4).unwrap();
         assert_eq!(point.map(F26Dot6::to_bits), Point::new(50, 50));
+    }
+
+    #[test]
+    fn isect_does_not_panic_with_extreme_coords() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        engine.graphics.zp0 = ZonePointer::Glyph;
+        engine.graphics.zp1 = ZonePointer::Glyph;
+        engine.graphics.zp2 = ZonePointer::Glyph;
+        // Set two lines with extreme coordinates to stress the wrapping math.
+        engine.set_point_f26dot6(1, 0, (i32::MIN, i32::MAX));
+        engine.set_point_f26dot6(1, 1, (i32::MAX, i32::MIN));
+        engine.set_point_f26dot6(1, 2, (i32::MAX, i32::MAX));
+        engine.set_point_f26dot6(1, 3, (i32::MIN, i32::MIN));
+        for ix in [4, 0, 1, 2, 3] {
+            engine.value_stack.push(ix).unwrap();
+        }
+        // Don't panic on overflow!
+        engine.op_isect().unwrap();
     }
 
     #[test]
