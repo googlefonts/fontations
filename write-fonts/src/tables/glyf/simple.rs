@@ -19,6 +19,9 @@ pub struct SimpleGlyph {
     pub bbox: Bbox,
     pub contours: Vec<Contour>,
     pub instructions: Vec<u8>,
+    /// If set, the contours of the glyph overlap
+    ///
+    /// The OVERLAP_SIMPLE bit will be set on the first point of the first contour if this is true.
     pub overlaps: bool,
 }
 
