@@ -16,8 +16,8 @@
 
 use read_fonts::{
     tables::cmap::{
-        self, Cmap, Cmap12, Cmap12Iter, Cmap14, Cmap14Iter, Cmap4, Cmap4Iter, CmapIterLimits,
-        CmapSubtable, EncodingRecord, PlatformId,
+        self, Cmap, Cmap12, Cmap12Iter, Cmap13, Cmap13Iter, Cmap14, Cmap14Iter, Cmap4, Cmap4Iter,
+        CmapIterLimits, CmapSubtable, EncodingRecord, PlatformId,
     },
     types::GlyphId,
     FontData, FontRef, TableProvider,
@@ -56,7 +56,7 @@ pub use read_fonts::tables::cmap::MapVariant;
 pub struct Charmap<'a> {
     codepoint_subtable: Option<CodepointSubtable<'a>>,
     variant_subtable: Option<Cmap14<'a>>,
-    cmap12_limits: CmapIterLimits,
+    cmap_limits: CmapIterLimits,
 }
 
 impl<'a> Charmap<'a> {
@@ -74,7 +74,7 @@ impl<'a> Charmap<'a> {
                     is_symbol: selection.mapping_index.codepoint_subtable_is_symbol,
                 }),
             variant_subtable: selection.variant_subtable,
-            cmap12_limits: selection.mapping_index.cmap12_limits,
+            cmap_limits: selection.mapping_index.cmap_limits,
         }
     }
 
@@ -112,7 +112,10 @@ impl<'a> Charmap<'a> {
                 Mappings(match &subtable.subtable {
                     SupportedSubtable::Format4(cmap4) => MappingsInner::Format4(cmap4.iter()),
                     SupportedSubtable::Format12(cmap12) => {
-                        MappingsInner::Format12(cmap12.iter_with_limits(self.cmap12_limits))
+                        MappingsInner::Format12(cmap12.iter_with_limits(self.cmap_limits))
+                    }
+                    SupportedSubtable::Format13(cmap13) => {
+                        MappingsInner::Format13(cmap13.iter_with_limits(self.cmap_limits))
                     }
                 })
             })
@@ -149,7 +152,7 @@ pub struct MappingIndex {
     /// Index of Unicode variation selector subtable.
     variant_subtable: Option<u16>,
     /// Limits for iterating a cmap format 12 subtable.
-    cmap12_limits: CmapIterLimits,
+    cmap_limits: CmapIterLimits,
 }
 
 impl MappingIndex {
@@ -188,7 +191,7 @@ impl MappingIndex {
                     CmapSubtable::Format14(cmap14) => Some(cmap14),
                     _ => None,
                 }),
-            cmap12_limits: self.cmap12_limits,
+            cmap_limits: self.cmap_limits,
         }
     }
 }
@@ -209,6 +212,7 @@ impl Iterator for Mappings<'_> {
                 MappingsInner::None => None,
                 MappingsInner::Format4(iter) => iter.next(),
                 MappingsInner::Format12(iter) => iter.next(),
+                MappingsInner::Format13(iter) => iter.next(),
             }?;
             if item.1 != GlyphId::NOTDEF {
                 return Some(item);
@@ -222,6 +226,7 @@ enum MappingsInner<'a> {
     None,
     Format4(Cmap4Iter<'a>),
     Format12(Cmap12Iter<'a>),
+    Format13(Cmap13Iter<'a>),
 }
 
 /// Iterator over all mappings of character and variation selector to
@@ -278,6 +283,7 @@ impl CodepointSubtable<'_> {
         let gid = match &self.subtable {
             SupportedSubtable::Format4(subtable) => subtable.map_codepoint(codepoint),
             SupportedSubtable::Format12(subtable) => subtable.map_codepoint(codepoint),
+            SupportedSubtable::Format13(subtable) => subtable.map_codepoint(codepoint),
         }?;
         (gid != GlyphId::NOTDEF).then_some(gid)
     }
@@ -287,6 +293,7 @@ impl CodepointSubtable<'_> {
 enum SupportedSubtable<'a> {
     Format4(Cmap4<'a>),
     Format12(Cmap12<'a>),
+    Format13(Cmap13<'a>),
 }
 
 impl<'a> SupportedSubtable<'a> {
@@ -294,6 +301,7 @@ impl<'a> SupportedSubtable<'a> {
         Some(match subtable {
             CmapSubtable::Format4(cmap4) => Self::Format4(cmap4),
             CmapSubtable::Format12(cmap12) => Self::Format12(cmap12),
+            CmapSubtable::Format13(cmap13) => Self::Format13(cmap13),
             _ => return None,
         })
     }
@@ -395,7 +403,7 @@ impl<'a> MappingSelection<'a> {
                 _ => {}
             }
         }
-        mapping_index.cmap12_limits = CmapIterLimits::default_for_font(font);
+        mapping_index.cmap_limits = CmapIterLimits::default_for_font(font);
         Self {
             mapping_index,
             codepoint_subtable,
@@ -417,6 +425,16 @@ mod tests {
         assert!(matches!(
             charmap.codepoint_subtable.unwrap().subtable,
             SupportedSubtable::Format12(..)
+        ));
+    }
+
+    #[test]
+    fn choose_format_13_over_4() {
+        let font = FontRef::new(font_test_data::TOFU).unwrap();
+        let charmap = font.charmap();
+        assert!(matches!(
+            charmap.codepoint_subtable.unwrap().subtable,
+            SupportedSubtable::Format13(..)
         ));
     }
 
@@ -464,6 +482,16 @@ mod tests {
     }
 
     #[test]
+    fn map_format_13() {
+        let font = FontRef::new(font_test_data::TOFU).unwrap();
+        let charmap = font.charmap();
+        // This font maps U+0002..U+007E to gid 1
+        for ch in 2..0x7F_u32 {
+            assert_eq!(charmap.map(ch), Some(GlyphId::new(1)));
+        }
+    }
+
+    #[test]
     fn map_symbol_pua() {
         let font = FontRef::new(font_test_data::CMAP4_SYMBOL_PUA).unwrap();
         let charmap = font.charmap();
@@ -506,6 +534,7 @@ mod tests {
             font_test_data::CMAP12_FONT1,
             font_test_data::SIMPLE_GLYF,
             font_test_data::CMAP4_SYMBOL_PUA,
+            font_test_data::TOFU,
         ] {
             let font = FontRef::new(font_data).unwrap();
             let charmap = font.charmap();

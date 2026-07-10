@@ -1,0 +1,478 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ttFont sfntVersion="\x00\x01\x00\x00" ttLibVersion="4.41">
+
+  <GlyphOrder>
+    <!-- The 'id' attribute is only for humans; it is ignored when parsed. -->
+    <GlyphID id="0" name=".notdef"/>
+    <GlyphID id="1" name="tofu"/>
+  </GlyphOrder>
+
+  <head>
+    <!-- Most of this table will be recalculated by the compiler -->
+    <tableVersion value="1.0"/>
+    <fontRevision value="1.0"/>
+    <checkSumAdjustment value="0x86dee81e"/>
+    <magicNumber value="0x5f0f3cf5"/>
+    <flags value="00000000 00000011"/>
+    <unitsPerEm value="1024"/>
+    <created value="Tue Feb 25 01:03:44 2025"/>
+    <modified value="Tue Feb 25 01:03:44 2025"/>
+    <xMin value="92"/>
+    <yMin value="-245"/>
+    <xMax value="1182"/>
+    <yMax value="950"/>
+    <macStyle value="00000000 00000000"/>
+    <lowestRecPPEM value="6"/>
+    <fontDirectionHint value="2"/>
+    <indexToLocFormat value="0"/>
+    <glyphDataFormat value="0"/>
+  </head>
+
+  <hhea>
+    <tableVersion value="0x00010000"/>
+    <ascent value="950"/>
+    <descent value="-250"/>
+    <lineGap value="0"/>
+    <advanceWidthMax value="1275"/>
+    <minLeftSideBearing value="92"/>
+    <minRightSideBearing value="93"/>
+    <xMaxExtent value="1182"/>
+    <caretSlopeRise value="1024"/>
+    <caretSlopeRun value="0"/>
+    <caretOffset value="0"/>
+    <reserved0 value="0"/>
+    <reserved1 value="0"/>
+    <reserved2 value="0"/>
+    <reserved3 value="0"/>
+    <metricDataFormat value="0"/>
+    <numberOfHMetrics value="1"/>
+  </hhea>
+
+  <maxp>
+    <!-- Most of this table will be recalculated by the compiler -->
+    <tableVersion value="0x10000"/>
+    <numGlyphs value="2"/>
+    <maxPoints value="142"/>
+    <maxContours value="4"/>
+    <maxCompositePoints value="0"/>
+    <maxCompositeContours value="0"/>
+    <maxZones value="1"/>
+    <maxTwilightPoints value="0"/>
+    <maxStorage value="0"/>
+    <maxFunctionDefs value="0"/>
+    <maxInstructionDefs value="0"/>
+    <maxStackElements value="0"/>
+    <maxSizeOfInstructions value="0"/>
+    <maxComponentElements value="0"/>
+    <maxComponentDepth value="0"/>
+  </maxp>
+
+  <OS_2>
+    <!-- The fields 'usFirstCharIndex' and 'usLastCharIndex'
+         will be recalculated by the compiler -->
+    <version value="4"/>
+    <xAvgCharWidth value="1275"/>
+    <usWeightClass value="400"/>
+    <usWidthClass value="5"/>
+    <fsType value="00000000 00000100"/>
+    <ySubscriptXSize value="666"/>
+    <ySubscriptYSize value="614"/>
+    <ySubscriptXOffset value="0"/>
+    <ySubscriptYOffset value="77"/>
+    <ySuperscriptXSize value="666"/>
+    <ySuperscriptYSize value="614"/>
+    <ySuperscriptXOffset value="0"/>
+    <ySuperscriptYOffset value="358"/>
+    <yStrikeoutSize value="51"/>
+    <yStrikeoutPosition value="307"/>
+    <sFamilyClass value="0"/>
+    <panose>
+      <bFamilyType value="0"/>
+      <bSerifStyle value="0"/>
+      <bWeight value="0"/>
+      <bProportion value="0"/>
+      <bContrast value="0"/>
+      <bStrokeVariation value="0"/>
+      <bArmStyle value="0"/>
+      <bLetterForm value="0"/>
+      <bMidline value="0"/>
+      <bXHeight value="0"/>
+    </panose>
+    <ulUnicodeRange1 value="00000000 00000000 00000000 00000001"/>
+    <ulUnicodeRange2 value="00000000 00000000 00000000 00000000"/>
+    <ulUnicodeRange3 value="00000000 00000000 00000000 00000000"/>
+    <ulUnicodeRange4 value="00000000 00000000 00000000 00000000"/>
+    <achVendID value="NONE"/>
+    <fsSelection value="00000000 11000000"/>
+    <usFirstCharIndex value="0"/>
+    <usLastCharIndex value="32"/>
+    <sTypoAscender value="950"/>
+    <sTypoDescender value="-250"/>
+    <sTypoLineGap value="0"/>
+    <usWinAscent value="950"/>
+    <usWinDescent value="250"/>
+    <ulCodePageRange1 value="00000000 00000000 00000000 00000001"/>
+    <ulCodePageRange2 value="00000000 00000000 00000000 00000000"/>
+    <sxHeight value="512"/>
+    <sCapHeight value="717"/>
+    <usDefaultChar value="0"/>
+    <usBreakChar value="32"/>
+    <usMaxContext value="0"/>
+  </OS_2>
+
+  <hmtx>
+    <mtx name=".notdef" width="1275" lsb="51"/>
+    <mtx name="tofu" width="1275" lsb="92"/>
+  </hmtx>
+
+  <cmap>
+    <tableVersion version="0"/>
+    <cmap_format_4 platformID="0" platEncID="3" language="0">
+      <map code="0x1" name="tofu"/><!-- ???? -->
+    </cmap_format_4>
+    <cmap_format_4 platformID="3" platEncID="1" language="0">
+      <map code="0x1" name="tofu"/><!-- ???? -->
+    </cmap_format_4>
+    <cmap_format_13 platformID="3" platEncID="10" format="13" reserved="0" length="40" language="0" nGroups="2">
+      <map code="0x2" name="tofu"/><!-- ???? -->
+      <map code="0x3" name="tofu"/><!-- ???? -->
+      <map code="0x4" name="tofu"/><!-- ???? -->
+      <map code="0x5" name="tofu"/><!-- ???? -->
+      <map code="0x6" name="tofu"/><!-- ???? -->
+      <map code="0x7" name="tofu"/><!-- ???? -->
+      <map code="0x8" name="tofu"/><!-- ???? -->
+      <map code="0x9" name="tofu"/><!-- ???? -->
+      <map code="0xa" name="tofu"/><!-- ???? -->
+      <map code="0xb" name="tofu"/><!-- ???? -->
+      <map code="0xc" name="tofu"/><!-- ???? -->
+      <map code="0xd" name="tofu"/><!-- ???? -->
+      <map code="0xe" name="tofu"/><!-- ???? -->
+      <map code="0xf" name="tofu"/><!-- ???? -->
+      <map code="0x10" name="tofu"/><!-- ???? -->
+      <map code="0x11" name="tofu"/><!-- ???? -->
+      <map code="0x12" name="tofu"/><!-- ???? -->
+      <map code="0x13" name="tofu"/><!-- ???? -->
+      <map code="0x14" name="tofu"/><!-- ???? -->
+      <map code="0x15" name="tofu"/><!-- ???? -->
+      <map code="0x16" name="tofu"/><!-- ???? -->
+      <map code="0x17" name="tofu"/><!-- ???? -->
+      <map code="0x18" name="tofu"/><!-- ???? -->
+      <map code="0x19" name="tofu"/><!-- ???? -->
+      <map code="0x1a" name="tofu"/><!-- ???? -->
+      <map code="0x1b" name="tofu"/><!-- ???? -->
+      <map code="0x1c" name="tofu"/><!-- ???? -->
+      <map code="0x1d" name="tofu"/><!-- ???? -->
+      <map code="0x1e" name="tofu"/><!-- ???? -->
+      <map code="0x1f" name="tofu"/><!-- ???? -->
+      <map code="0x20" name="tofu"/><!-- SPACE -->
+      <map code="0x21" name="tofu"/><!-- EXCLAMATION MARK -->
+      <map code="0x22" name="tofu"/><!-- QUOTATION MARK -->
+      <map code="0x23" name="tofu"/><!-- NUMBER SIGN -->
+      <map code="0x24" name="tofu"/><!-- DOLLAR SIGN -->
+      <map code="0x25" name="tofu"/><!-- PERCENT SIGN -->
+      <map code="0x26" name="tofu"/><!-- AMPERSAND -->
+      <map code="0x27" name="tofu"/><!-- APOSTROPHE -->
+      <map code="0x28" name="tofu"/><!-- LEFT PARENTHESIS -->
+      <map code="0x29" name="tofu"/><!-- RIGHT PARENTHESIS -->
+      <map code="0x2a" name="tofu"/><!-- ASTERISK -->
+      <map code="0x2b" name="tofu"/><!-- PLUS SIGN -->
+      <map code="0x2c" name="tofu"/><!-- COMMA -->
+      <map code="0x2d" name="tofu"/><!-- HYPHEN-MINUS -->
+      <map code="0x2e" name="tofu"/><!-- FULL STOP -->
+      <map code="0x2f" name="tofu"/><!-- SOLIDUS -->
+      <map code="0x30" name="tofu"/><!-- DIGIT ZERO -->
+      <map code="0x31" name="tofu"/><!-- DIGIT ONE -->
+      <map code="0x32" name="tofu"/><!-- DIGIT TWO -->
+      <map code="0x33" name="tofu"/><!-- DIGIT THREE -->
+      <map code="0x34" name="tofu"/><!-- DIGIT FOUR -->
+      <map code="0x35" name="tofu"/><!-- DIGIT FIVE -->
+      <map code="0x36" name="tofu"/><!-- DIGIT SIX -->
+      <map code="0x37" name="tofu"/><!-- DIGIT SEVEN -->
+      <map code="0x38" name="tofu"/><!-- DIGIT EIGHT -->
+      <map code="0x39" name="tofu"/><!-- DIGIT NINE -->
+      <map code="0x3a" name="tofu"/><!-- COLON -->
+      <map code="0x3b" name="tofu"/><!-- SEMICOLON -->
+      <map code="0x3c" name="tofu"/><!-- LESS-THAN SIGN -->
+      <map code="0x3d" name="tofu"/><!-- EQUALS SIGN -->
+      <map code="0x3e" name="tofu"/><!-- GREATER-THAN SIGN -->
+      <map code="0x3f" name="tofu"/><!-- QUESTION MARK -->
+      <map code="0x40" name="tofu"/><!-- COMMERCIAL AT -->
+      <map code="0x41" name="tofu"/><!-- LATIN CAPITAL LETTER A -->
+      <map code="0x42" name="tofu"/><!-- LATIN CAPITAL LETTER B -->
+      <map code="0x43" name="tofu"/><!-- LATIN CAPITAL LETTER C -->
+      <map code="0x44" name="tofu"/><!-- LATIN CAPITAL LETTER D -->
+      <map code="0x45" name="tofu"/><!-- LATIN CAPITAL LETTER E -->
+      <map code="0x46" name="tofu"/><!-- LATIN CAPITAL LETTER F -->
+      <map code="0x47" name="tofu"/><!-- LATIN CAPITAL LETTER G -->
+      <map code="0x48" name="tofu"/><!-- LATIN CAPITAL LETTER H -->
+      <map code="0x49" name="tofu"/><!-- LATIN CAPITAL LETTER I -->
+      <map code="0x4a" name="tofu"/><!-- LATIN CAPITAL LETTER J -->
+      <map code="0x4b" name="tofu"/><!-- LATIN CAPITAL LETTER K -->
+      <map code="0x4c" name="tofu"/><!-- LATIN CAPITAL LETTER L -->
+      <map code="0x4d" name="tofu"/><!-- LATIN CAPITAL LETTER M -->
+      <map code="0x4e" name="tofu"/><!-- LATIN CAPITAL LETTER N -->
+      <map code="0x4f" name="tofu"/><!-- LATIN CAPITAL LETTER O -->
+      <map code="0x50" name="tofu"/><!-- LATIN CAPITAL LETTER P -->
+      <map code="0x51" name="tofu"/><!-- LATIN CAPITAL LETTER Q -->
+      <map code="0x52" name="tofu"/><!-- LATIN CAPITAL LETTER R -->
+      <map code="0x53" name="tofu"/><!-- LATIN CAPITAL LETTER S -->
+      <map code="0x54" name="tofu"/><!-- LATIN CAPITAL LETTER T -->
+      <map code="0x55" name="tofu"/><!-- LATIN CAPITAL LETTER U -->
+      <map code="0x56" name="tofu"/><!-- LATIN CAPITAL LETTER V -->
+      <map code="0x57" name="tofu"/><!-- LATIN CAPITAL LETTER W -->
+      <map code="0x58" name="tofu"/><!-- LATIN CAPITAL LETTER X -->
+      <map code="0x59" name="tofu"/><!-- LATIN CAPITAL LETTER Y -->
+      <map code="0x5a" name="tofu"/><!-- LATIN CAPITAL LETTER Z -->
+      <map code="0x5b" name="tofu"/><!-- LEFT SQUARE BRACKET -->
+      <map code="0x5c" name="tofu"/><!-- REVERSE SOLIDUS -->
+      <map code="0x5d" name="tofu"/><!-- RIGHT SQUARE BRACKET -->
+      <map code="0x5e" name="tofu"/><!-- CIRCUMFLEX ACCENT -->
+      <map code="0x5f" name="tofu"/><!-- LOW LINE -->
+      <map code="0x60" name="tofu"/><!-- GRAVE ACCENT -->
+      <map code="0x61" name="tofu"/><!-- LATIN SMALL LETTER A -->
+      <map code="0x62" name="tofu"/><!-- LATIN SMALL LETTER B -->
+      <map code="0x63" name="tofu"/><!-- LATIN SMALL LETTER C -->
+      <map code="0x64" name="tofu"/><!-- LATIN SMALL LETTER D -->
+      <map code="0x65" name="tofu"/><!-- LATIN SMALL LETTER E -->
+      <map code="0x66" name="tofu"/><!-- LATIN SMALL LETTER F -->
+      <map code="0x67" name="tofu"/><!-- LATIN SMALL LETTER G -->
+      <map code="0x68" name="tofu"/><!-- LATIN SMALL LETTER H -->
+      <map code="0x69" name="tofu"/><!-- LATIN SMALL LETTER I -->
+      <map code="0x6a" name="tofu"/><!-- LATIN SMALL LETTER J -->
+      <map code="0x6b" name="tofu"/><!-- LATIN SMALL LETTER K -->
+      <map code="0x6c" name="tofu"/><!-- LATIN SMALL LETTER L -->
+      <map code="0x6d" name="tofu"/><!-- LATIN SMALL LETTER M -->
+      <map code="0x6e" name="tofu"/><!-- LATIN SMALL LETTER N -->
+      <map code="0x6f" name="tofu"/><!-- LATIN SMALL LETTER O -->
+      <map code="0x70" name="tofu"/><!-- LATIN SMALL LETTER P -->
+      <map code="0x71" name="tofu"/><!-- LATIN SMALL LETTER Q -->
+      <map code="0x72" name="tofu"/><!-- LATIN SMALL LETTER R -->
+      <map code="0x73" name="tofu"/><!-- LATIN SMALL LETTER S -->
+      <map code="0x74" name="tofu"/><!-- LATIN SMALL LETTER T -->
+      <map code="0x75" name="tofu"/><!-- LATIN SMALL LETTER U -->
+      <map code="0x76" name="tofu"/><!-- LATIN SMALL LETTER V -->
+      <map code="0x77" name="tofu"/><!-- LATIN SMALL LETTER W -->
+      <map code="0x78" name="tofu"/><!-- LATIN SMALL LETTER X -->
+      <map code="0x79" name="tofu"/><!-- LATIN SMALL LETTER Y -->
+      <map code="0x7a" name="tofu"/><!-- LATIN SMALL LETTER Z -->
+      <map code="0x7b" name="tofu"/><!-- LEFT CURLY BRACKET -->
+      <map code="0x7c" name="tofu"/><!-- VERTICAL LINE -->
+      <map code="0x7d" name="tofu"/><!-- RIGHT CURLY BRACKET -->
+      <map code="0x7e" name="tofu"/><!-- TILDE -->
+    </cmap_format_13>
+  </cmap>
+
+  <loca>
+    <!-- The 'loca' table will be calculated by the compiler -->
+  </loca>
+
+  <glyf>
+
+    <!-- The xMin, yMin, xMax and yMax values
+         will be recalculated by the compiler. -->
+
+    <TTGlyph name=".notdef"/><!-- contains no outline data -->
+
+    <TTGlyph name="tofu" xMin="92" yMin="-245" xMax="1182" yMax="950">
+      <contour>
+        <pt x="92" y="604" on="1"/>
+        <pt x="92" y="533" on="0"/>
+        <pt x="147" y="402" on="0"/>
+        <pt x="198" y="353" on="1"/>
+        <pt x="149" y="304" on="0"/>
+        <pt x="96" y="178" on="0"/>
+        <pt x="93" y="42" on="0"/>
+        <pt x="119" y="-23" on="1"/>
+        <pt x="144" y="-88" on="0"/>
+        <pt x="239" y="-186" on="0"/>
+        <pt x="363" y="-242" on="0"/>
+        <pt x="433" y="-245" on="1"/>
+        <pt x="842" y="-245" on="1"/>
+        <pt x="912" y="-242" on="0"/>
+        <pt x="1036" y="-186" on="0"/>
+        <pt x="1131" y="-88" on="0"/>
+        <pt x="1156" y="-23" on="1"/>
+        <pt x="1182" y="42" on="0"/>
+        <pt x="1179" y="178" on="0"/>
+        <pt x="1126" y="304" on="0"/>
+        <pt x="1077" y="353" on="1"/>
+        <pt x="1126" y="402" on="0"/>
+        <pt x="1179" y="527" on="0"/>
+        <pt x="1182" y="664" on="0"/>
+        <pt x="1156" y="729" on="1"/>
+        <pt x="1131" y="794" on="0"/>
+        <pt x="1036" y="892" on="0"/>
+        <pt x="912" y="948" on="0"/>
+        <pt x="842" y="950" on="1"/>
+        <pt x="433" y="950" on="1"/>
+        <pt x="362" y="950" on="0"/>
+        <pt x="239" y="896" on="0"/>
+        <pt x="145" y="801" on="0"/>
+        <pt x="92" y="675" on="0"/>
+      </contour>
+      <contour>
+        <pt x="267" y="405" on="1"/>
+        <pt x="225" y="442" on="0"/>
+        <pt x="179" y="545" on="0"/>
+        <pt x="179" y="601" on="1"/>
+        <pt x="179" y="672" on="0"/>
+        <pt x="247" y="790" on="0"/>
+        <pt x="362" y="860" on="0"/>
+        <pt x="433" y="860" on="1"/>
+        <pt x="842" y="860" on="1"/>
+        <pt x="913" y="860" on="0"/>
+        <pt x="1028" y="790" on="0"/>
+        <pt x="1096" y="672" on="0"/>
+        <pt x="1096" y="601" on="1"/>
+        <pt x="1096" y="543" on="0"/>
+        <pt x="1049" y="441" on="0"/>
+        <pt x="965" y="367" on="0"/>
+        <pt x="910" y="350" on="1"/>
+        <pt x="966" y="334" on="0"/>
+        <pt x="1052" y="260" on="0"/>
+        <pt x="1101" y="158" on="0"/>
+        <pt x="1101" y="99" on="1"/>
+        <pt x="1101" y="28" on="0"/>
+        <pt x="1032" y="-90" on="0"/>
+        <pt x="916" y="-160" on="0"/>
+        <pt x="845" y="-160" on="1"/>
+        <pt x="436" y="-160" on="1"/>
+        <pt x="371" y="-159" on="0"/>
+        <pt x="261" y="-100" on="0"/>
+        <pt x="189" y="2" on="0"/>
+        <pt x="180" y="66" on="1"/>
+        <pt x="171" y="130" on="0"/>
+        <pt x="213" y="247" on="0"/>
+        <pt x="303" y="334" on="0"/>
+        <pt x="365" y="353" on="1"/>
+        <pt x="336" y="361" on="0"/>
+        <pt x="286" y="387" on="0"/>
+        <pt x="264" y="407" on="1"/>
+      </contour>
+      <contour>
+        <pt x="646" y="623" on="1"/>
+        <pt x="646" y="625" on="1"/>
+        <pt x="613" y="625" on="0"/>
+        <pt x="566" y="610" on="0"/>
+        <pt x="548" y="598" on="1"/>
+        <pt x="505" y="577" on="0"/>
+        <pt x="493" y="535" on="1"/>
+        <pt x="479" y="503" on="1"/>
+        <pt x="520" y="489" on="1"/>
+        <pt x="561" y="473" on="1"/>
+        <pt x="569" y="500" on="1"/>
+        <pt x="575" y="508" on="0"/>
+        <pt x="588" y="523" on="0"/>
+        <pt x="597" y="527" on="1"/>
+        <pt x="603" y="533" on="0"/>
+        <pt x="625" y="538" on="0"/>
+        <pt x="638" y="538" on="1"/>
+        <pt x="656" y="538" on="0"/>
+        <pt x="679" y="530" on="0"/>
+        <pt x="689" y="522" on="1"/>
+        <pt x="708" y="504" on="0"/>
+        <pt x="706" y="478" on="1"/>
+        <pt x="706" y="460" on="0"/>
+        <pt x="695" y="445" on="1"/>
+        <pt x="691" y="437" on="0"/>
+        <pt x="671" y="416" on="0"/>
+        <pt x="657" y="402" on="1"/>
+        <pt x="640" y="385" on="0"/>
+        <pt x="614" y="360" on="0"/>
+        <pt x="608" y="347" on="1"/>
+        <pt x="599" y="335" on="0"/>
+        <pt x="594" y="307" on="0"/>
+        <pt x="594" y="293" on="1"/>
+        <pt x="594" y="257" on="1"/>
+        <pt x="689" y="257" on="1"/>
+        <pt x="689" y="285" on="1"/>
+        <pt x="689" y="295" on="0"/>
+        <pt x="694" y="315" on="0"/>
+        <pt x="700" y="323" on="1"/>
+        <pt x="736" y="361" on="1"/>
+        <pt x="754" y="377" on="0"/>
+        <pt x="782" y="407" on="0"/>
+        <pt x="790" y="421" on="1"/>
+        <pt x="807" y="454" on="0"/>
+        <pt x="807" y="486" on="1"/>
+        <pt x="807" y="517" on="0"/>
+        <pt x="783" y="564" on="0"/>
+        <pt x="760" y="585" on="1"/>
+        <pt x="718" y="623" on="0"/>
+      </contour>
+      <contour>
+        <pt x="706" y="143" on="1"/>
+        <pt x="708" y="143" on="1"/>
+        <pt x="709" y="162" on="0"/>
+        <pt x="687" y="195" on="0"/>
+        <pt x="669" y="202" on="1"/>
+        <pt x="651" y="210" on="0"/>
+        <pt x="613" y="201" on="0"/>
+        <pt x="599" y="186" on="1"/>
+        <pt x="589" y="178" on="0"/>
+        <pt x="580" y="155" on="0"/>
+        <pt x="580" y="143" on="1"/>
+        <pt x="580" y="130" on="0"/>
+        <pt x="589" y="107" on="0"/>
+        <pt x="599" y="99" on="1"/>
+        <pt x="608" y="89" on="0"/>
+        <pt x="631" y="80" on="0"/>
+        <pt x="643" y="80" on="1"/>
+        <pt x="655" y="80" on="0"/>
+        <pt x="678" y="89" on="0"/>
+        <pt x="687" y="99" on="1"/>
+        <pt x="697" y="107" on="0"/>
+        <pt x="706" y="130" on="0"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+  </glyf>
+
+  <name>
+    <namerecord nameID="1" platformID="3" platEncID="1" langID="0x409">
+      Tofu
+    </namerecord>
+    <namerecord nameID="2" platformID="3" platEncID="1" langID="0x409">
+      Regular
+    </namerecord>
+    <namerecord nameID="3" platformID="3" platEncID="1" langID="0x409">
+      1.000;NONE;Tofu-Regular
+    </namerecord>
+    <namerecord nameID="4" platformID="3" platEncID="1" langID="0x409">
+      Tofu Regular
+    </namerecord>
+    <namerecord nameID="5" platformID="3" platEncID="1" langID="0x409">
+      Version 1.000
+    </namerecord>
+    <namerecord nameID="6" platformID="3" platEncID="1" langID="0x409">
+      Tofu-Regular
+    </namerecord>
+  </name>
+
+  <post>
+    <formatType value="2.0"/>
+    <italicAngle value="0.0"/>
+    <underlinePosition value="0"/>
+    <underlineThickness value="0"/>
+    <isFixedPitch value="0"/>
+    <minMemType42 value="0"/>
+    <maxMemType42 value="0"/>
+    <minMemType1 value="0"/>
+    <maxMemType1 value="0"/>
+    <psNames>
+      <!-- This file uses unique glyph names based on the information
+           found in the 'post' table. Since these names might not be unique,
+           we have to invent artificial names in case of clashes. In order to
+           be able to retain the original information, we need a name to
+           ps name mapping for those cases where they differ. That's what
+           you see below.
+            -->
+    </psNames>
+    <extraNames>
+      <!-- following are the name that are not taken from the standard Mac glyph order -->
+      <psName name="tofu"/>
+    </extraNames>
+  </post>
+
+</ttFont>

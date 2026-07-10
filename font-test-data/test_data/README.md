@@ -138,6 +138,13 @@ Describes the provenance, usage and generation procedures for font data used for
   * font: Hand rolled cmap 10 subtable
   * usage: testing cmap format 10 mapping and iteration
 
+* _tofu_
+  * font: Tofu
+  * source: https://github.com/googlefonts/tofu
+  * license: [Apache 2][Apache2]
+  * usage: testing cmap format 13
+  * subset: manually subset to ASCII to reduce ttx size
+
 * type1/notoserif-regular.subset.pfa
   * font: Noto Serif Regular
   * source: https://fonts.google.com/noto/specimen/Noto+Serif
