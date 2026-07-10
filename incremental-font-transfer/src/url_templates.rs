@@ -4,6 +4,7 @@
 //!
 //! URL templates in IFT use an series of one byte opcodes to insert literals or expand template variables.
 use crate::patchmap::PatchId;
+use crate::short_string::{ShortString, ShortStringBuilder};
 
 /// Indicates a malformed URI template was encountered.
 #[derive(Debug, PartialEq, Eq)]
@@ -68,8 +69,8 @@ impl TryFrom<u8> for Variable {
 
 struct CachedEncoder<'a> {
     patch_id: &'a PatchId,
-    id32: Option<String>,
-    id64: Option<String>,
+    id32: Option<ShortString>,
+    id64: Option<ShortString>,
 }
 
 impl<'a> CachedEncoder<'a> {
@@ -113,8 +114,8 @@ fn id_digit(id_value: &str, digit: u8) -> char {
         .len()
         .checked_sub(digit.into())
         .and_then(|index| id_value.as_bytes().get(index).copied())
-        .unwrap_or(b'_')
-        .into()
+        .map(|b| b as char)
+        .unwrap_or('_')
 }
 
 impl std::error::Error for UrlTemplateError {}
@@ -125,9 +126,9 @@ impl std::error::Error for UrlTemplateError {}
 pub(crate) fn expand_template(
     mut template_bytes: &[u8],
     patch_id: &PatchId,
-) -> Result<String, UrlTemplateError> {
+) -> Result<ShortString, UrlTemplateError> {
     let mut cached_encoder = CachedEncoder::new(patch_id);
-    let mut output_buffer = String::new();
+    let mut output_buffer = ShortStringBuilder::default();
     while let Some((opcode, rest)) = template_bytes.split_first() {
         template_bytes = rest;
         match OpCode::try_from(*opcode)? {
@@ -136,9 +137,8 @@ pub(crate) fn expand_template(
                     .split_at_checked(count as usize)
                     .ok_or(UrlTemplateError::UnexpectedEndOfBuffer(*opcode))?;
                 template_bytes = rest;
-                let literals =
-                    core::str::from_utf8(literals).map_err(|_| UrlTemplateError::InvalidUtf8)?;
-                output_buffer.push_str(literals);
+                let s = std::str::from_utf8(literals).map_err(|_| UrlTemplateError::InvalidUtf8)?;
+                output_buffer.push_str(s);
             }
             OpCode::InsertVariable(Variable::Id32) => {
                 output_buffer.push_str(cached_encoder.encode_id32())
@@ -151,7 +151,9 @@ pub(crate) fn expand_template(
             }
         }
     }
-    Ok(output_buffer)
+    let bytes_buffer = output_buffer.build();
+
+    Ok(bytes_buffer)
 }
 
 fn count_leading_zeroes(id: &[u8]) -> usize {
@@ -192,7 +194,7 @@ impl<const N: usize> Encoder<N> {
         }
     }
 
-    fn encode(&self, input: &[u8]) -> String {
+    fn encode(&self, input: &[u8]) -> ShortString {
         // unwrap ok, validated with compile-time assertions.
         // Create a mask to extract the next N bits.
         // Example, for 6 bits: (1 << 6) - 1 = 64 - 1 = 63 = 0x3F
@@ -207,7 +209,7 @@ impl<const N: usize> Encoder<N> {
         let encoded_chars = input_bits.div_ceil(Self::BITS_PER_BYTE);
         let output_len = encoded_chars + (self.padding_str.len() * padding_count);
 
-        let mut output = String::with_capacity(output_len);
+        let mut output = ShortStringBuilder::with_capacity(output_len);
         let mut bits: u32 = 0;
         let mut bits_in_buffer = 0;
         for byte in input.iter().copied() {
@@ -229,7 +231,7 @@ impl<const N: usize> Encoder<N> {
         for _ in 0..padding_count {
             output.push_str(self.padding_str);
         }
-        output
+        output.build()
     }
 }
 
@@ -243,14 +245,14 @@ pub(crate) mod tests {
     fn check_numeric(bytes: &[u8], id: u32, expected: &str) {
         assert_eq!(
             expand_template(bytes, &PatchId::Numeric(id),),
-            Ok(expected.to_string())
+            Ok(expected.into())
         );
     }
 
     fn check_string(bytes: &[u8], id: &[u8], expected: &str) {
         assert_eq!(
             expand_template(bytes, &PatchId::String(Vec::from(id)),),
-            Ok(expected.to_string())
+            Ok(expected.into())
         );
     }
 
