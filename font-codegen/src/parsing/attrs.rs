@@ -835,15 +835,6 @@ fn replace_field_with_compile_field(captures: &Captures) -> String {
 // ── Helper functions ────────────────────────────────────────────────
 
 fn parse_attr_eq_value<T: Parse>(attr: &syn::Attribute) -> syn::Result<T> {
-    /// the tokens '= T' where 'T' is any `Parse`
-    struct EqualsThing<T>(T);
-
-    impl<T: Parse> Parse for EqualsThing<T> {
-        fn parse(input: ParseStream) -> syn::Result<Self> {
-            input.parse::<Token![=]>()?;
-            input.parse().map(EqualsThing)
-        }
-    }
     let tokens = attr.meta.require_name_value()?.value.to_token_stream();
     syn::parse2::<T>(tokens).map_err(|err| syn::Error::new(attr.meta.span(), err.to_string()))
 }

@@ -101,8 +101,13 @@ impl SetMember for GlyphId {
 /// for testing inverted sets to avoid causing excessively long running operations
 /// and memory usage on the btree set kept along side the IntSet.
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+// Used only by the fuzz_int_set binary; dead in other binaries that share this
+// module (e.g. fuzz_sparse_bit_set_encode). #[expect] can't be used here because
+// it would be unfulfilled in fuzz_int_set where the type is live.
+#[allow(dead_code)]
 pub struct SmallInt(u32);
 
+#[allow(dead_code)]
 impl SmallInt {
     const MAX_VALUE: u32 = 4 * 512 - 1;
 
@@ -171,8 +176,10 @@ impl Domain for SmallInt {
 /// This is an even integer in the domain of [0, 2048). It's used by the fuzzer
 /// for testing inverted sets + discontinuous domains.
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[allow(dead_code)] // see SmallInt above
 pub struct SmallEvenInt(u32);
 
+#[allow(dead_code)]
 impl SmallEvenInt {
     const MAX_VALUE: u32 = 4 * 512 - 2;
 

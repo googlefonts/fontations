@@ -402,9 +402,11 @@ fn traversal_arm_for_field(
             // if we are in a record, we pass in empty data. This lets us
             // avoid a special case in the single instance where this happens, in
             // Class1Record
-            let data = in_record
-                .then(|| quote!(FontData::new(&[])))
-                .unwrap_or_else(|| fld.offset_getter_data_src());
+            let data = if in_record {
+                quote!(FontData::new(&[]))
+            } else {
+                fld.offset_getter_data_src()
+            };
             // in a record we return things by value, so clone
             let maybe_clone = in_record.then(|| quote!(.clone()));
             let typ_str = arr.raw_inner_type().to_string();
