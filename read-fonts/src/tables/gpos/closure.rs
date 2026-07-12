@@ -6,7 +6,7 @@ use super::{
     PositionLookup, PositionLookupList, PositionSubtables, SinglePos, SinglePosFormat1,
     SinglePosFormat2,
 };
-use crate::{collections::IntSet, FontRead, GlyphId, ReadError, Tag};
+use crate::{collections::IntSet, sanitize::Sanitize, GlyphId, ReadError, Tag};
 
 #[cfg(feature = "std")]
 use crate::tables::layout::{Intersect, LayoutLookupList, LookupClosure, LookupClosureCtx};
@@ -149,7 +149,7 @@ impl Intersect for ExtensionSubtable<'_> {
 
 impl<'a, T> Intersect for ExtensionPosFormat1<'a, T>
 where
-    T: Intersect + FontRead<'a, Args = ()>,
+    T: Intersect + Sanitize<'a, Args = ()> + Default,
 {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
         if self.extension_offset().is_null() {

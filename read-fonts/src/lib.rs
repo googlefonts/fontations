@@ -87,7 +87,6 @@ pub mod tables;
 #[cfg(feature = "experimental_traverse")]
 pub mod traversal;
 
-#[cfg(any(test, feature = "codegen_test"))]
 mod sanitize;
 
 #[cfg(any(test, feature = "codegen_test"))]
@@ -95,11 +94,8 @@ pub mod codegen_test;
 
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
-pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
-#[cfg(any(test, feature = "codegen_test"))]
-pub use offset_array::{SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets};
+pub use offset_array::{ArrayOfOffsets, SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets};
 pub use read::{ComputeSize, FontRead, ReadArgs, ReadError, VarSize};
-#[cfg(any(test, feature = "codegen_test"))]
 pub use sanitize::Sanitize;
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::MinByteRange;
@@ -113,13 +109,12 @@ pub(crate) mod codegen_prelude {
     pub use crate::array::{ComputedArray, VarLenArray};
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
-    pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
-    #[cfg(any(test, feature = "codegen_test"))]
-    pub use crate::offset_array::{SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets};
+    pub use crate::offset_array::{
+        ArrayOfOffsets, SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets,
+    };
     pub use crate::read::{
         ComputeSize, Discriminant, FontRead, Format, ReadArgs, ReadError, VarSize,
     };
-    #[cfg(any(test, feature = "codegen_test"))]
     pub(crate) use crate::sanitize::{
         FastResolveNullableOffset, FastResolveOffset, Sanitize, SanitizeContext, SanitizeOffset,
         SanitizeStruct,
@@ -206,6 +201,13 @@ pub(crate) mod codegen_prelude {
                 offset: O,
             ) -> Result<R, ReadError> {
                 offset.resolve(self.data)
+            }
+
+            pub fn fast_resolve<O: Offset, R: Sanitize<'a, Args = ()> + Default>(
+                &self,
+                offset: O,
+            ) -> Result<R, ReadError> {
+                offset.fast_resolve(self.data, ())
             }
 
             /// Return a reference to this table's raw data.
