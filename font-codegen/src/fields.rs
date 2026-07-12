@@ -733,7 +733,11 @@ impl Field {
             Some(return_type)
         }
     }
-    pub(crate) fn table_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
+    pub(crate) fn table_getter(
+        &self,
+        generic: Option<&syn::Ident>,
+        sanitize: bool,
+    ) -> Option<TokenStream> {
         let return_type = self.table_getter_return_type()?;
         let name = &self.name;
         let is_array = self.is_array();
@@ -767,7 +771,7 @@ impl Field {
         }
 
         let docs = &self.attrs.docs;
-        let offset_getter = self.typed_offset_field_getter(generic, None);
+        let offset_getter = self.typed_offset_field_getter(generic, None, sanitize);
 
         Some(quote! {
             #( #docs )*
@@ -780,7 +784,7 @@ impl Field {
         })
     }
 
-    pub(crate) fn record_getter(&self, record: &Record) -> Option<TokenStream> {
+    pub(crate) fn record_getter(&self, record: &Record, sanitize: bool) -> Option<TokenStream> {
         if !self.has_getter() {
             return None;
         }
@@ -813,7 +817,7 @@ impl Field {
             }
         };
 
-        let offset_getter = self.typed_offset_field_getter(None, Some(record));
+        let offset_getter = self.typed_offset_field_getter(None, Some(record), sanitize);
         Some(quote! {
             #(#docs)*
             pub fn #name(&self) -> #add_borrow_just_for_record #return_type {
@@ -856,6 +860,7 @@ impl Field {
         &self,
         generic: Option<&syn::Ident>,
         record: Option<&Record>,
+        sanitize: bool,
     ) -> Option<TokenStream> {
         let (offset_type, target) = match &self.typ {
             _ if self.attrs.offset_getter.is_some() => return None,
@@ -871,7 +876,13 @@ impl Field {
         let getter_name = self.offset_getter_name().unwrap();
         let target_is_generic =
             matches!(target, OffsetTarget::Table(ident) if Some(ident) == generic);
-        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a, Args = ()>));
+        let where_read_clause = target_is_generic.then(|| {
+            if sanitize {
+                quote!(where T: Sanitize<'a, Args = ()> + Default)
+            } else {
+                quote!(where T: FontRead<'a, Args = ()>)
+            }
+        });
         // if a record, data is passed in
         let input_data_if_needed = record.is_some().then(|| quote!(, data: FontData<'a>));
         let decl_lifetime_if_needed =
@@ -890,10 +901,11 @@ impl Field {
             let OffsetTarget::Table(target_ident) = target else {
                 panic!("I don't think arrays of offsets to arrays are in the spec?");
             };
-            let array_type = if self.is_nullable() {
-                quote!(ArrayOfNullableOffsets)
-            } else {
-                quote!(ArrayOfOffsets)
+            let array_type = match (self.is_nullable(), sanitize) {
+                (true, true) => quote!(SanitizedArrayOfNullableOffsets),
+                (true, false) => quote!(ArrayOfNullableOffsets),
+                (false, true) => quote!(SanitizedArrayOfOffsets),
+                (false, false) => quote!(ArrayOfOffsets),
             };
 
             let target_lifetime = (!target_is_generic).then(|| quote!(<'a>));
@@ -923,11 +935,15 @@ impl Field {
                 }
             })
         } else {
+            let use_fast_resolve = sanitize && matches!(target, OffsetTarget::Table(_));
+
             let mut return_type = target.getter_return_type(target_is_generic);
             if self.is_nullable() || self.attrs.conditional.is_some() {
                 return_type = quote!(Option<#return_type>);
             }
             let resolve = match self.attrs.read_offset_args.as_deref() {
+                None if use_fast_resolve => quote!(fast_resolve(data, ())),
+                Some(_) if use_fast_resolve => quote!(fast_resolve(data, args)),
                 None => quote!(resolve(data)),
                 Some(_) => quote!(resolve_with_args(data, args)),
             };

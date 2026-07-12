@@ -21,16 +21,12 @@ impl ReadArgs for KindsOfOffsets<'_> {
 
 impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for KindsOfOffsets<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for KindsOfOffsets<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         let version = ctx.read::<MajorMinor>()?;
         ctx.sanitize_offset::<Offset16, Dummy>(())?;
         ctx.sanitize_offset::<Offset16, Dummy>(())?;
@@ -59,6 +55,9 @@ impl Sanitize for KindsOfOffsets<'_> {
             ctx.sanitize_offset::<Offset32, Dummy>(())?;
         }
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -92,7 +91,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`nonnullable_offset`][Self::nonnullable_offset].
     pub fn nonnullable(&self) -> Result<Dummy<'a>, ReadError> {
         let data = self.data;
-        self.nonnullable_offset().resolve(data)
+        self.nonnullable_offset().fast_resolve(data, ())
     }
 
     /// An offset that is nullable, but always present
@@ -104,7 +103,7 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`nullable_offset`][Self::nullable_offset].
     pub fn nullable(&self) -> Option<Result<Dummy<'a>, ReadError>> {
         let data = self.data;
-        self.nullable_offset().resolve(data)
+        self.nullable_offset().fast_resolve(data, ())
     }
 
     /// count of the array at array_offset
@@ -166,7 +165,8 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`versioned_nonnullable_offset`][Self::versioned_nonnullable_offset].
     pub fn versioned_nonnullable(&self) -> Option<Result<Dummy<'a>, ReadError>> {
         let data = self.data;
-        self.versioned_nonnullable_offset().map(|x| x.resolve(data))
+        self.versioned_nonnullable_offset()
+            .map(|x| x.fast_resolve(data, ()))
     }
 
     /// An offset that is nullable and versioned
@@ -180,7 +180,8 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`versioned_nullable_offset`][Self::versioned_nullable_offset].
     pub fn versioned_nullable(&self) -> Option<Result<Dummy<'a>, ReadError>> {
         let data = self.data;
-        self.versioned_nullable_offset().map(|x| x.resolve(data))?
+        self.versioned_nullable_offset()
+            .map(|x| x.fast_resolve(data, ()))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -342,16 +343,12 @@ impl ReadArgs for KindsOfArraysOfOffsets<'_> {
 
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for KindsOfArraysOfOffsets<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for KindsOfArraysOfOffsets<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         let version = ctx.read::<MajorMinor>()?;
         let count = ctx.read::<u16>()?;
         ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
@@ -363,6 +360,9 @@ impl Sanitize for KindsOfArraysOfOffsets<'_> {
             ctx.sanitize_array_of_offsets::<Offset16, Dummy>(transforms::to_usize(count), ())?;
         }
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -395,10 +395,10 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// A dynamically resolving wrapper for [`nonnullable_offsets`][Self::nonnullable_offsets].
-    pub fn nonnullables(&self) -> ArrayOfOffsets<'a, Dummy<'a>, Offset16> {
+    pub fn nonnullables(&self) -> SanitizedArrayOfOffsets<'a, Dummy<'a>, Offset16> {
         let data = self.data;
         let offsets = self.nonnullable_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
+        SanitizedArrayOfOffsets::new(offsets, data, ())
     }
 
     /// An offset that is nullable, but always present
@@ -408,10 +408,10 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// A dynamically resolving wrapper for [`nullable_offsets`][Self::nullable_offsets].
-    pub fn nullables(&self) -> ArrayOfNullableOffsets<'a, Dummy<'a>, Offset16> {
+    pub fn nullables(&self) -> SanitizedArrayOfNullableOffsets<'a, Dummy<'a>, Offset16> {
         let data = self.data;
         let offsets = self.nullable_offsets();
-        ArrayOfNullableOffsets::new(offsets, data, ())
+        SanitizedArrayOfNullableOffsets::new(offsets, data, ())
     }
 
     /// A normal offset that is versioned
@@ -423,10 +423,12 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// A dynamically resolving wrapper for [`versioned_nonnullable_offsets`][Self::versioned_nonnullable_offsets].
-    pub fn versioned_nonnullables(&self) -> Option<ArrayOfOffsets<'a, Dummy<'a>, Offset16>> {
+    pub fn versioned_nonnullables(
+        &self,
+    ) -> Option<SanitizedArrayOfOffsets<'a, Dummy<'a>, Offset16>> {
         let data = self.data;
         let offsets = self.versioned_nonnullable_offsets();
-        offsets.map(|offsets| ArrayOfOffsets::new(offsets, data, ()))
+        offsets.map(|offsets| SanitizedArrayOfOffsets::new(offsets, data, ()))
     }
 
     /// An offset that is nullable and versioned
@@ -438,10 +440,12 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// A dynamically resolving wrapper for [`versioned_nullable_offsets`][Self::versioned_nullable_offsets].
-    pub fn versioned_nullables(&self) -> Option<ArrayOfNullableOffsets<'a, Dummy<'a>, Offset16>> {
+    pub fn versioned_nullables(
+        &self,
+    ) -> Option<SanitizedArrayOfNullableOffsets<'a, Dummy<'a>, Offset16>> {
         let data = self.data;
         let offsets = self.versioned_nullable_offsets();
-        offsets.map(|offsets| ArrayOfNullableOffsets::new(offsets, data, ()))
+        offsets.map(|offsets| SanitizedArrayOfNullableOffsets::new(offsets, data, ()))
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -559,16 +563,12 @@ impl ReadArgs for KindsOfArrays<'_> {
 
 impl<'a> FontRead<'a> for KindsOfArrays<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for KindsOfArrays<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for KindsOfArrays<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         let version = ctx.read::<u16>()?;
         let count = ctx.read::<u16>()?;
         ctx.sanitize_array::<u16>(transforms::to_usize(count))?;
@@ -580,6 +580,9 @@ impl Sanitize for KindsOfArrays<'_> {
             ctx.sanitize_array_of_structs::<Shmecord>(transforms::to_usize(count), ())?;
         }
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -750,20 +753,19 @@ impl ReadArgs for VarLenHaver<'_> {
 
 impl<'a> FontRead<'a> for VarLenHaver<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for VarLenHaver<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for VarLenHaver<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         let count = ctx.read::<u16>()?;
         ctx.sanitize_var_len_array::<VarSizeDummy>(count as _, false)?;
         ctx.advance::<u32>();
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -868,19 +870,18 @@ impl ReadArgs for Dummy<'_> {
 
 impl<'a> FontRead<'a> for Dummy<'a> {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        #[allow(clippy::absurd_extreme_comparisons)]
-        if data.len() < Self::MIN_SIZE {
-            return Err(ReadError::OutOfBounds);
-        }
-        Ok(Self { data })
+        Self::read_checked(data, ())
     }
 }
 
-impl Sanitize for Dummy<'_> {
-    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+impl<'a> Sanitize<'a> for Dummy<'a> {
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
         ctx.advance::<u16>();
         ctx.advance::<u16>();
         ctx.finish()
+    }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
+        Self { data }
     }
 }
 
@@ -973,7 +974,7 @@ impl SanitizeStruct for Shmecord {
     fn can_skip() -> bool {
         true
     }
-    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
         ctx.finish()
     }
 }

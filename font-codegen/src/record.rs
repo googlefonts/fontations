@@ -24,7 +24,10 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
         let docs = &fld.attrs.docs;
         quote!( #( #docs )* )
     });
-    let getters = item.fields.iter().map(|fld| fld.record_getter(item));
+    let getters = item
+        .fields
+        .iter()
+        .map(|fld| fld.record_getter(item, all_items.sanitize));
     let traversal_impl = generate_traversal(item)?;
 
     let lifetime = &item.lifetime;
@@ -186,7 +189,7 @@ fn generate_sanitize(item: &Record, needs_read_args: bool) -> syn::Result<TokenS
         impl SanitizeStruct for #name #lifetime {
             #can_skip
 
-            fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, #args_arg) -> Result<(), ReadError> {
+            fn sanitize_struct(&self, ctx: &mut SanitizeContext, #args_arg) -> Result<(), ReadError> {
                 #destructure_args
                 #( #stmts )*
                 ctx.finish()
