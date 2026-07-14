@@ -14,7 +14,15 @@ pub use tables::{FontTableFunction, FontTables};
 pub mod interop;
 
 use super::once::Once;
-use crate::{ps::type1::Type1Font, types::Tag, ReadError};
+use crate::{
+    ps::{
+        cff::{CffFontAccel, CffFontRef},
+        charmap::Charmap as PsCharmap,
+        type1::Type1Font,
+    },
+    types::Tag,
+    ReadError,
+};
 use alloc::{boxed::Box, sync::Arc};
 use core::any::Any;
 
@@ -57,11 +65,22 @@ impl Font {
     pub fn new(source: impl Into<FontSource>, index: u32) -> Result<Self, ReadError> {
         let source = source.into();
         let kind = if let Ok(tables) = FontTables::new(source.clone(), index) {
-            Some(FontKind::OpenType(tables, index))
+            Some(FontKindRepr::OpenType(tables, index))
         } else if let FontSource::Blob(blob) = &source {
             match FontFormat::new(blob) {
-                Some(FontFormat::Type1) => Type1Font::new(blob).ok().map(FontKind::Type1),
-                // TODO: pure CFF fonts
+                Some(FontFormat::Type1) => Type1Font::new(blob).ok().map(FontKindRepr::Type1),
+                Some(FontFormat::Cff(_)) => CffFontAccel::new(blob, index, None)
+                    .ok()
+                    .and_then(|accel| Some((accel.clone(), accel.materialize(&blob).ok()?)))
+                    .map(|(accel, _cff)| {
+                        #[cfg(feature = "agl")]
+                        let charmap = Some(PsCharmap::from_glyph_names(charset.iter().filter_map(
+                            |(gid, sid)| Some((gid, core::str::from_utf8(_cff.string(sid)?).ok()?)),
+                        )));
+                        #[cfg(not(feature = "agl"))]
+                        let charmap = PsCharmap::default();
+                        FontKindRepr::Cff(blob.clone(), index, accel, charmap)
+                    }),
                 _ => None,
             }
         } else {
@@ -82,14 +101,21 @@ impl Font {
     }
 
     /// Returns the underlying kind of the font.
-    pub fn kind(&self) -> &FontKind {
-        &self.0.kind
+    pub fn kind(&self) -> FontKind<'_> {
+        match &self.0.kind {
+            FontKindRepr::OpenType(tables, index) => FontKind::OpenType(tables, *index),
+            FontKindRepr::Type1(font) => FontKind::Type1(font),
+            FontKindRepr::Cff(blob, index, accel, _charmap) => {
+                // Unwrap is safe because we materialized the font on creation
+                FontKind::Cff(accel.materialize(blob).unwrap(), *index)
+            }
+        }
     }
 
     /// If this is a table based (i.e. OpenType) font, then returns an object
     /// that provides access to the individual tables.
     pub fn tables(&self) -> Option<&FontTables> {
-        if let FontKind::OpenType(tables, _) = &self.0.kind {
+        if let FontKindRepr::OpenType(tables, _) = &self.0.kind {
             Some(tables)
         } else {
             None
@@ -99,16 +125,24 @@ impl Font {
 
 struct FontInner {
     source: FontSource,
-    kind: FontKind,
+    kind: FontKindRepr,
     // Storage cell for lazily loaded HarfRust shaping data.
     shaping_data: Once<Box<dyn Any + Send + Sync>>,
 }
 
-/// The underlying type of a font.
 #[allow(clippy::large_enum_variant)]
-pub enum FontKind {
-    /// An OpenType font represented by a set of tables and an index.
+enum FontKindRepr {
     OpenType(FontTables, u32),
-    /// An Adobe Type1 font.
     Type1(Type1Font),
+    Cff(FontBlob, u32, CffFontAccel, PsCharmap),
+}
+
+/// The underlying type of a font.
+pub enum FontKind<'a> {
+    /// An OpenType font represented by a set of tables and an index.
+    OpenType(&'a FontTables, u32),
+    /// An Adobe Type1 font.
+    Type1(&'a Type1Font),
+    /// A CFF font with an associated index.
+    Cff(CffFontRef<'a>, u32),
 }

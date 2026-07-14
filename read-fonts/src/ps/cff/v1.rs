@@ -16,6 +16,9 @@ pub struct Cff<'a> {
     top_dicts: Index<'a>,
     strings: Index<'a>,
     global_subrs: Index<'a>,
+    names_offset: u32,
+    strings_offset: u32,
+    global_subrs_offset: u32,
 }
 
 impl<'a> Cff<'a> {
@@ -25,6 +28,11 @@ impl<'a> Cff<'a> {
 
     pub fn header(&self) -> CffHeader<'a> {
         self.header.clone()
+    }
+
+    /// Returns the byte offset of the name index.
+    pub fn names_offset(&self) -> u32 {
+        self.names_offset
     }
 
     /// Returns the name index.
@@ -52,6 +60,11 @@ impl<'a> Cff<'a> {
         self.top_dicts.clone()
     }
 
+    /// Returns the byte offset of the strings index.
+    pub fn strings_offset(&self) -> u32 {
+        self.strings_offset
+    }
+
     /// Returns the string index.
     ///
     /// This contains all of the strings used by fonts within the font set.
@@ -72,6 +85,11 @@ impl<'a> Cff<'a> {
             Ok(name) => Some(name),
             Err(ix) => self.strings.get(ix).ok(),
         }
+    }
+
+    /// Returns the byte offset of the global subroutine index.
+    pub fn global_subrs_offset(&self) -> u32 {
+        self.global_subrs_offset
     }
 
     /// Returns the global subroutine index.
@@ -134,18 +152,24 @@ impl<'a> FontRead<'a> for Cff<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let header = CffHeader::read(data)?;
         let mut data = FontData::new(header.trailing_data());
+        let mut offset = header.trailing_data_byte_range().start as u32;
+        let names_offset = offset;
         let names = Index::read(data)?;
-        data = data
-            .split_off(names.size_in_bytes()?)
-            .ok_or(ReadError::OutOfBounds)?;
+        let names_size = names.size_in_bytes()?;
+        offset += names_size as u32;
+        data = data.split_off(names_size).ok_or(ReadError::OutOfBounds)?;
         let top_dicts = Index::read(data)?;
+        let top_dicts_size = top_dicts.size_in_bytes()?;
         data = data
-            .split_off(top_dicts.size_in_bytes()?)
+            .split_off(top_dicts_size)
             .ok_or(ReadError::OutOfBounds)?;
+        offset += top_dicts_size as u32;
+        let strings_offset = offset;
         let strings = Index::read(data)?;
-        data = data
-            .split_off(strings.size_in_bytes()?)
-            .ok_or(ReadError::OutOfBounds)?;
+        let strings_size = strings.size_in_bytes()?;
+        data = data.split_off(strings_size).ok_or(ReadError::OutOfBounds)?;
+        offset += strings_size as u32;
+        let global_subrs_offset = offset;
         let global_subrs = Index::read(data)?;
         Ok(Self {
             header,
@@ -153,6 +177,9 @@ impl<'a> FontRead<'a> for Cff<'a> {
             top_dicts,
             strings,
             global_subrs,
+            names_offset,
+            strings_offset,
+            global_subrs_offset,
         })
     }
 }

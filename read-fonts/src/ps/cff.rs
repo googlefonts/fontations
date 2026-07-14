@@ -12,4 +12,5 @@ pub mod v2;
 
 mod font;
 
+pub(crate) use font::CffFontAccel;
 pub use font::{CffFontRef, Encoding, Metadata, Subfont};

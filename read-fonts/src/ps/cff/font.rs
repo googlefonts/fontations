@@ -29,9 +29,9 @@ pub struct CffFontRef<'a> {
     data: &'a [u8],
     is_cff2: bool,
     upem: i32,
+    strings: MaybeOffset,
     global_subrs: Index<'a>,
     top_dict: TopDict<'a>,
-    top_dict_index: u16,
 }
 
 impl<'a> CffFontRef<'a> {
@@ -43,12 +43,7 @@ impl<'a> CffFontRef<'a> {
     /// For CFF blobs embedded in an OpenType font, the upem should be taken
     /// from the `head` table. Otherwise, 1000 will be assumed.
     pub fn new(data: &'a [u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
-        let version: u8 = FontData::new(data).read_at(0)?;
-        match version {
-            1 => Self::new_cff(data, top_dict_index, upem),
-            2 => Self::new_cff2(data, upem),
-            _ => Err(Error::InvalidFontFormat),
-        }
+        CffFontAccel::new(data, top_dict_index, upem)?.materialize(data)
     }
 
     /// Creates a new font for the given CFF data.
@@ -56,20 +51,7 @@ impl<'a> CffFontRef<'a> {
     /// For CFF blobs embedded in an OpenType font, the upem should be taken
     /// from the `head` table. Otherwise, 1000 will be assumed.
     pub fn new_cff(data: &'a [u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
-        let cff = cff::Cff::read(data.into())?;
-        let top_dict_data = cff.top_dicts().get(top_dict_index as usize)?;
-        let top_dict_index: u16 = top_dict_index
-            .try_into()
-            .map_err(|_| ReadError::OutOfBounds)?;
-        Self::new_impl(
-            data,
-            false,
-            upem,
-            top_dict_data,
-            top_dict_index,
-            cff.strings().into(),
-            cff.global_subrs().into(),
-        )
+        CffFontAccel::new_cff(data, top_dict_index, upem)?.materialize(data)
     }
 
     /// Creates a new font for the given CFF2 data.
@@ -77,37 +59,7 @@ impl<'a> CffFontRef<'a> {
     /// For CFF blobs embedded in an OpenType font, the upem should be taken
     /// from the `head` table. Otherwise, 1000 will be assumed.
     pub fn new_cff2(data: &'a [u8], upem: Option<i32>) -> Result<Self, Error> {
-        let cff = cff2::Cff2::read(data.into())?;
-        Self::new_impl(
-            data,
-            true,
-            upem,
-            cff.top_dict_data(),
-            0,
-            Index::Empty,
-            cff.global_subrs().into(),
-        )
-    }
-
-    fn new_impl(
-        data: &'a [u8],
-        is_cff2: bool,
-        upem: Option<i32>,
-        top_dict_data: &'a [u8],
-        top_dict_index: u16,
-        strings: Index<'a>,
-        global_subrs: Index<'a>,
-    ) -> Result<Self, Error> {
-        let top_dict = TopDict::new(data, top_dict_data, strings, is_cff2)?;
-        let top_upem = top_dict.matrix.map(|mat| mat.scale).unwrap_or(1000);
-        Ok(Self {
-            data,
-            is_cff2,
-            upem: upem.unwrap_or(top_upem),
-            global_subrs,
-            top_dict,
-            top_dict_index,
-        })
+        CffFontAccel::new_cff2(data, upem)?.materialize(data)
     }
 
     /// Returns the raw CFF blob.
@@ -126,7 +78,7 @@ impl<'a> CffFontRef<'a> {
 
     /// Returns additional metadata such as font names and metrics.
     pub fn metadata(&self) -> Option<Metadata<'a>> {
-        Metadata::new(self.data, self.top_dict_index)
+        Metadata::new(self)
     }
 
     /// Returns true if this is a CID-keyed font.
@@ -150,11 +102,8 @@ impl<'a> CffFontRef<'a> {
     }
 
     /// Returns the string index.
-    pub fn strings(&self) -> Option<&Index<'a>> {
-        match &self.top_dict.kind {
-            CffFontKind::Sid { strings, .. } => Some(strings),
-            _ => None,
-        }
+    pub fn strings(&self) -> Option<Index<'a>> {
+        Index::new(self.data.get(self.strings.get()?..)?, self.is_cff2).ok()
     }
 
     /// Returns the string for the given identifier.
@@ -163,6 +112,56 @@ impl<'a> CffFontRef<'a> {
             Ok(s) => Some(s),
             Err(idx) => self.strings()?.get(idx).ok(),
         }
+    }
+
+    /// Returns the PostScript name.
+    pub fn name(&self) -> Option<&'a str> {
+        self.string_as_str(self.top_dict.info.name)
+    }
+
+    /// Returns the full font name.
+    pub fn full_name(&self) -> Option<&'a str> {
+        self.string_as_str(self.top_dict.info.full_name)
+    }
+
+    /// Returns the font family name.
+    pub fn family_name(&self) -> Option<&'a str> {
+        self.string_as_str(self.top_dict.info.family_name)
+    }
+
+    /// Returns the weight or style name.
+    pub fn weight(&self) -> Option<&'a str> {
+        self.string_as_str(self.top_dict.info.weight)
+    }
+
+    fn string_as_str(&self, sid: Option<Sid>) -> Option<&'a str> {
+        sid.and_then(|s| self.string(s))
+            .and_then(|s| core::str::from_utf8(s).ok())
+    }
+
+    /// Returns the italic angle.
+    pub fn italic_angle(&self) -> Fixed {
+        self.top_dict.info.italic_angle
+    }
+
+    /// Returns true if the glyphs in this font have the same width.
+    pub fn is_fixed_pitch(&self) -> bool {
+        self.top_dict.info.is_fixed_pitch
+    }
+
+    /// Returns the position of the top of an underline decoration.
+    pub fn underline_position(&self) -> Fixed {
+        self.top_dict.info.underline_position
+    }
+
+    /// Returns the suggested size for an underline decoration.
+    pub fn underline_thickness(&self) -> Fixed {
+        self.top_dict.info.underline_thickness
+    }
+
+    /// Returns the font bounding box.
+    pub fn bbox(&self) -> BoundingBox<Fixed> {
+        self.top_dict.info.bbox
     }
 
     /// Returns the mapping for glyph identifiers.
@@ -428,8 +427,6 @@ impl<'a> Encoding<'a> {
 enum CffFontKind<'a> {
     /// A CFF font.
     Sid {
-        /// Index for resolving glyph names.
-        strings: Index<'a>,
         /// Byte range of the private dict from the base of the font data.
         private_dict: Range<u32>,
     },
@@ -572,7 +569,7 @@ impl Subfont {
 }
 
 /// Use in-band signaling for missing offsets to keep the struct size small.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct MaybeOffset(u32);
 
 impl MaybeOffset {
@@ -589,111 +586,13 @@ impl Default for MaybeOffset {
 
 #[derive(Clone)]
 struct TopDict<'a> {
+    info: Info,
     charstrings: Index<'a>,
     charset_offset: MaybeOffset,
     encoding_offset: MaybeOffset,
     matrix: Option<ScaledFontMatrix>,
     var_store: Option<ItemVariationStore<'a>>,
     kind: CffFontKind<'a>,
-}
-
-impl<'a> TopDict<'a> {
-    fn new(
-        cff_data: &'a [u8],
-        top_dict_data: &[u8],
-        strings: Index<'a>,
-        is_cff2: bool,
-    ) -> Result<Self, Error> {
-        let mut has_ros = false;
-        let mut charstrings = None;
-        let [mut charset_offset, mut encoding_offset] = if is_cff2 {
-            // CFF2 fonts use the cmap table but grab the encoding and
-            // charset if one is provided
-            [MaybeOffset::default(); 2]
-        } else {
-            // CFF fonts have a default charset and encoding offset of 0
-            // which selects the standard Adobe encoding
-            [MaybeOffset(0); 2]
-        };
-        let mut fd_array = None;
-        let mut fd_select = None;
-        let mut private_dict_range = 0..0;
-        let mut matrix = None;
-        let mut var_store = None;
-        for entry in dict::entries(top_dict_data, None).filter_map(|e| e.ok()) {
-            match entry {
-                dict::Entry::Ros { .. } => has_ros = true,
-                dict::Entry::CharstringsOffset(offset) => {
-                    charstrings = cff_data
-                        .get(offset..)
-                        .and_then(|data| Index::new(data, is_cff2).ok());
-                }
-                dict::Entry::Charset(offset) => charset_offset = MaybeOffset(offset as u32),
-                dict::Entry::Encoding(offset) => encoding_offset = MaybeOffset(offset as u32),
-                dict::Entry::FdArrayOffset(offset) => {
-                    fd_array = cff_data
-                        .get(offset..)
-                        .and_then(|data| Index::new(data, is_cff2).ok());
-                }
-                dict::Entry::FdSelectOffset(offset) => {
-                    fd_select = cff_data
-                        .get(offset..)
-                        .and_then(|data| FdSelect::read(data.into()).ok());
-                }
-                dict::Entry::PrivateDictRange(range) => {
-                    // Fail early if our private dictionary is out of bounds
-                    let _ = cff_data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
-                    private_dict_range = range;
-                }
-                dict::Entry::FontMatrix(font_matrix) => {
-                    // FreeType always normalizes this and the scaling factor
-                    // is dynamic so it won't make a difference to our users
-                    matrix = Some(font_matrix.normalize());
-                }
-                dict::Entry::VariationStoreOffset(offset) if is_cff2 => {
-                    // IVS is preceded by a 2 byte length, but ensure that
-                    // we don't overflow
-                    // See <https://github.com/googlefonts/fontations/issues/1223>
-                    let offset = offset.checked_add(2).ok_or(ReadError::OutOfBounds)?;
-                    var_store = Some(ItemVariationStore::read(
-                        cff_data.get(offset..).unwrap_or_default().into(),
-                    )?);
-                }
-                _ => {}
-            }
-        }
-        let charstrings = charstrings.ok_or(Error::MissingCharstrings)?;
-        let kind = if let Some(fd_array) = fd_array {
-            if is_cff2 {
-                CffFontKind::Cff2 {
-                    fd_array,
-                    fd_select,
-                }
-            } else {
-                CffFontKind::Cid {
-                    fd_array,
-                    fd_select,
-                }
-            }
-        } else {
-            if has_ros || is_cff2 {
-                // The font dict array is required for CID-keyed and CFF2 fonts
-                return Err(Error::MissingFdArray);
-            }
-            CffFontKind::Sid {
-                strings,
-                private_dict: private_dict_range.start as u32..private_dict_range.end as u32,
-            }
-        };
-        Ok(Self {
-            charset_offset,
-            encoding_offset,
-            charstrings,
-            matrix,
-            kind,
-            var_store,
-        })
-    }
 }
 
 #[derive(Default)]
@@ -724,6 +623,36 @@ impl FontDict {
     }
 }
 
+/// Accelerator for metadata in a CFF font.
+#[derive(Clone, Debug)]
+pub(crate) struct Info {
+    name: Option<Sid>,
+    full_name: Option<Sid>,
+    family_name: Option<Sid>,
+    weight: Option<Sid>,
+    bbox: BoundingBox<Fixed>,
+    italic_angle: Fixed,
+    is_fixed_pitch: bool,
+    underline_position: Fixed,
+    underline_thickness: Fixed,
+}
+
+impl Default for Info {
+    fn default() -> Self {
+        Self {
+            name: None,
+            full_name: None,
+            family_name: None,
+            weight: None,
+            bbox: BoundingBox::default(),
+            italic_angle: Fixed::ZERO,
+            is_fixed_pitch: false,
+            underline_position: Fixed::from_i32(-100),
+            underline_thickness: Fixed::from_i32(50),
+        }
+    }
+}
+
 /// Extra metadata for a CFF font.
 ///
 /// This is accessed separately because this information is redundant when a
@@ -742,45 +671,18 @@ pub struct Metadata<'a> {
 }
 
 impl<'a> Metadata<'a> {
-    fn new(data: &'a [u8], top_dict_index: u16) -> Option<Self> {
-        let cff = cff::Cff::read(FontData::new(data)).ok()?;
-        let strings = cff.strings();
-        let get_str = |sid: Sid| {
-            let bytes = match sid.resolve_standard() {
-                Ok(bytes) => bytes,
-                Err(idx) => strings.get(idx).ok()?,
-            };
-            core::str::from_utf8(bytes).ok()
-        };
-        let top_dict_data = cff.top_dicts().get(top_dict_index as usize).ok()?;
-        let name = cff
-            .name(top_dict_index as usize)
-            .and_then(|bytes| core::str::from_utf8(bytes).ok());
-        let mut meta = Metadata {
-            name,
-            ..Default::default()
-        };
-        for entry in dict::entries(top_dict_data, None).filter_map(|e| e.ok()) {
-            match entry {
-                dict::Entry::FullName(sid) => meta.full_name = get_str(sid),
-                dict::Entry::FamilyName(sid) => meta.family_name = get_str(sid),
-                dict::Entry::Weight(sid) => meta.weight = get_str(sid),
-                dict::Entry::FontBbox([x_min, y_min, x_max, y_max]) => {
-                    meta.bbox = BoundingBox {
-                        x_min,
-                        x_max,
-                        y_min,
-                        y_max,
-                    }
-                }
-                dict::Entry::ItalicAngle(angle) => meta.italic_angle = angle,
-                dict::Entry::IsFixedPitch(fixed_pitch) => meta.is_fixed_pitch = fixed_pitch,
-                dict::Entry::UnderlinePosition(pos) => meta.underline_position = pos,
-                dict::Entry::UnderlineThickness(size) => meta.underline_thickness = size,
-                _ => {}
-            }
-        }
-        Some(meta)
+    fn new(font: &CffFontRef<'a>) -> Option<Self> {
+        Some(Self {
+            name: font.name(),
+            full_name: font.full_name(),
+            family_name: font.family_name(),
+            weight: font.weight(),
+            bbox: font.bbox(),
+            italic_angle: font.italic_angle(),
+            is_fixed_pitch: font.is_fixed_pitch(),
+            underline_position: font.underline_position(),
+            underline_thickness: font.underline_thickness(),
+        })
     }
 
     /// Returns the PostScript name.
@@ -843,6 +745,309 @@ impl Default for Metadata<'_> {
             underline_thickness: Fixed::from_i32(50),
         }
     }
+}
+
+/// Blueprint for constructing a CFF font with minimal reparsing.
+#[derive(Clone, Debug)]
+pub struct CffFontAccel {
+    upem: i32,
+    strings: MaybeOffset,
+    global_subrs: u32,
+    top_dict: TopDictAccel,
+}
+
+impl CffFontAccel {
+    /// Creates a new accelerator for the given CFF or CFF2 data.
+    ///
+    /// Tries to determine the CFF version by reading the first word of the
+    /// header.
+    ///
+    /// For CFF blobs embedded in an OpenType font, the upem should be taken
+    /// from the `head` table. Otherwise, 1000 will be assumed.
+    pub fn new(data: &[u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
+        let version: u8 = FontData::new(data).read_at(0)?;
+        match version {
+            1 => Self::new_cff(data, top_dict_index, upem),
+            2 => Self::new_cff2(data, upem),
+            _ => Err(Error::InvalidFontFormat),
+        }
+    }
+
+    /// Creates a new accelerator for the given CFF data.
+    ///
+    /// For CFF blobs embedded in an OpenType font, the upem should be taken
+    /// from the `head` table. Otherwise, 1000 will be assumed.
+    pub fn new_cff(data: &[u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
+        let cff = cff::Cff::read(data.into())?;
+        let top_dict_data = cff.top_dicts().get(top_dict_index as usize)?;
+        Self::new_impl(
+            data,
+            false,
+            upem,
+            top_dict_data,
+            MaybeOffset(cff.strings_offset()),
+            cff.global_subrs_offset(),
+        )
+    }
+
+    /// Creates a new accelerator for the given CFF2 data.
+    ///
+    /// For CFF blobs embedded in an OpenType font, the upem should be taken
+    /// from the `head` table. Otherwise, 1000 will be assumed.
+    pub fn new_cff2(data: &[u8], upem: Option<i32>) -> Result<Self, Error> {
+        let cff = cff2::Cff2::read(data.into())?;
+        Self::new_impl(
+            data,
+            true,
+            upem,
+            cff.top_dict_data(),
+            MaybeOffset::default(),
+            cff.header().trailing_data_byte_range().start as u32,
+        )
+    }
+
+    fn new_impl(
+        data: &[u8],
+        is_cff2: bool,
+        upem: Option<i32>,
+        top_dict_data: &[u8],
+        strings: MaybeOffset,
+        global_subrs: u32,
+    ) -> Result<Self, Error> {
+        let top_dict = TopDictAccel::new(data, top_dict_data, is_cff2)?;
+        let top_upem = top_dict.matrix.map(|mat| mat.scale).unwrap_or(1000);
+        Ok(Self {
+            upem: upem.unwrap_or(top_upem),
+            strings,
+            global_subrs,
+            top_dict,
+        })
+    }
+
+    /// Creates a new CFF font for the given CFF or CFF2 data blob using the
+    /// information in this accelerator to minimize cost of reparsing.
+    pub fn materialize<'a>(&self, data: &'a [u8]) -> Result<CffFontRef<'a>, Error> {
+        let top_dict = self.top_dict.materialize(data)?;
+        let is_cff2 = self.top_dict.is_cff2;
+        let global_subrs = Index::new(
+            data.get(self.global_subrs as usize..)
+                .ok_or(ReadError::OutOfBounds)?,
+            is_cff2,
+        )?;
+        Ok(CffFontRef {
+            data,
+            is_cff2,
+            upem: self.upem,
+            strings: self.strings,
+            global_subrs,
+            top_dict,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+struct TopDictAccel {
+    is_cff2: bool,
+    info: Info,
+    charstrings: MaybeOffset,
+    charset: MaybeOffset,
+    encoding: MaybeOffset,
+    matrix: Option<ScaledFontMatrix>,
+    var_store: MaybeOffset,
+    kind: FontKindAccel,
+}
+
+impl TopDictAccel {
+    fn new(cff_data: &[u8], top_dict_data: &[u8], is_cff2: bool) -> Result<Self, Error> {
+        let mut has_ros = false;
+        let mut charstrings = MaybeOffset::default();
+        let [mut charset, mut encoding] = if is_cff2 {
+            // CFF2 fonts use the cmap table but grab the encoding and
+            // charset if one is provided
+            [MaybeOffset::default(); 2]
+        } else {
+            // CFF fonts have a default charset and encoding offset of 0
+            // which selects the standard Adobe encoding
+            [MaybeOffset(0); 2]
+        };
+        let mut fd_array = MaybeOffset::default();
+        let mut fd_select = MaybeOffset::default();
+        let mut private_dict_range = 0..0;
+        let mut matrix = None;
+        let mut var_store = MaybeOffset::default();
+        let mut info = Info::default();
+        for entry in dict::entries(top_dict_data, None).filter_map(|e| e.ok()) {
+            match entry {
+                dict::Entry::Ros { .. } => has_ros = true,
+                dict::Entry::CharstringsOffset(offset) => {
+                    charstrings = MaybeOffset(offset as u32);
+                }
+                dict::Entry::Charset(offset) => charset = MaybeOffset(offset as u32),
+                dict::Entry::Encoding(offset) => encoding = MaybeOffset(offset as u32),
+                dict::Entry::FdArrayOffset(offset) => {
+                    fd_array = MaybeOffset(offset as u32);
+                }
+                dict::Entry::FdSelectOffset(offset) => {
+                    fd_select = MaybeOffset(offset as u32);
+                }
+                dict::Entry::PrivateDictRange(range) => {
+                    // Fail early if our private dictionary is out of bounds
+                    let _ = cff_data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
+                    private_dict_range = range;
+                }
+                dict::Entry::FontMatrix(font_matrix) => {
+                    // FreeType always normalizes this and the scaling factor
+                    // is dynamic so it won't make a difference to our users
+                    matrix = Some(font_matrix.normalize());
+                }
+                dict::Entry::VariationStoreOffset(offset) if is_cff2 => {
+                    // IVS is preceded by a 2 byte length, but ensure that
+                    // we don't overflow
+                    // See <https://github.com/googlefonts/fontations/issues/1223>
+                    var_store =
+                        MaybeOffset(offset.checked_add(2).ok_or(ReadError::OutOfBounds)? as u32);
+                }
+                dict::Entry::FullName(sid) => info.full_name = Some(sid),
+                dict::Entry::FamilyName(sid) => info.family_name = Some(sid),
+                dict::Entry::Weight(sid) => info.weight = Some(sid),
+                dict::Entry::FontBbox([x_min, y_min, x_max, y_max]) => {
+                    info.bbox = BoundingBox {
+                        x_min,
+                        x_max,
+                        y_min,
+                        y_max,
+                    }
+                }
+                dict::Entry::ItalicAngle(angle) => info.italic_angle = angle,
+                dict::Entry::IsFixedPitch(fixed_pitch) => info.is_fixed_pitch = fixed_pitch,
+                dict::Entry::UnderlinePosition(pos) => info.underline_position = pos,
+                dict::Entry::UnderlineThickness(size) => info.underline_thickness = size,
+                _ => {}
+            }
+        }
+        if !charstrings.get().is_some() {
+            return Err(Error::MissingCharstrings);
+        }
+        let kind = if let Some(fd_array) = fd_array.get() {
+            let fd_array = fd_array as u32;
+            if is_cff2 {
+                FontKindAccel::Cff2 {
+                    fd_array,
+                    fd_select,
+                }
+            } else {
+                FontKindAccel::Cid {
+                    fd_array,
+                    fd_select,
+                }
+            }
+        } else {
+            if has_ros || is_cff2 {
+                // The font dict array is required for CID-keyed and CFF2 fonts
+                return Err(Error::MissingFdArray);
+            }
+            FontKindAccel::Sid {
+                private_dict: private_dict_range.start as u32..private_dict_range.end as u32,
+            }
+        };
+        Ok(Self {
+            is_cff2,
+            info,
+            charstrings,
+            charset,
+            encoding,
+            matrix,
+            kind,
+            var_store,
+        })
+    }
+
+    fn materialize<'a>(&self, cff_data: &'a [u8]) -> Result<TopDict<'a>, Error> {
+        let charstrings_data = self
+            .charstrings
+            .get()
+            .and_then(|offset| cff_data.get(offset..))
+            .ok_or(ReadError::OutOfBounds)?;
+        let charstrings = Index::new(charstrings_data, self.is_cff2)?;
+        let var_store = if let Some(offset) = self.var_store.get() {
+            let var_store_data = cff_data.get(offset..).ok_or(ReadError::OutOfBounds)?;
+            Some(ItemVariationStore::read(var_store_data.into())?)
+        } else {
+            None
+        };
+        let handle_fds = |fd_array: &u32, fd_select: &MaybeOffset| -> Result<_, Error> {
+            let fd_array = Index::new(
+                cff_data
+                    .get(*fd_array as usize..)
+                    .ok_or(ReadError::OutOfBounds)?,
+                self.is_cff2,
+            )?;
+            let fd_select = if let Some(offset) = fd_select.get() {
+                let fd_select_data = cff_data.get(offset..).ok_or(ReadError::OutOfBounds)?;
+                Some(FdSelect::read(fd_select_data.into())?)
+            } else {
+                None
+            };
+            Ok((fd_array, fd_select))
+        };
+        let kind = match &self.kind {
+            FontKindAccel::Sid { private_dict } => CffFontKind::Sid {
+                private_dict: private_dict.clone(),
+            },
+            FontKindAccel::Cid {
+                fd_array,
+                fd_select,
+            } => {
+                let (fd_array, fd_select) = handle_fds(fd_array, fd_select)?;
+                CffFontKind::Cid {
+                    fd_select,
+                    fd_array,
+                }
+            }
+            FontKindAccel::Cff2 {
+                fd_array,
+                fd_select,
+            } => {
+                let (fd_array, fd_select) = handle_fds(fd_array, fd_select)?;
+                CffFontKind::Cff2 {
+                    fd_select,
+                    fd_array,
+                }
+            }
+        };
+        Ok(TopDict {
+            info: self.info.clone(),
+            charstrings,
+            charset_offset: self.charset,
+            encoding_offset: self.encoding,
+            matrix: self.matrix,
+            var_store,
+            kind,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+enum FontKindAccel {
+    /// A CFF font.
+    Sid {
+        /// Byte range of the private dict from the base of the font data.
+        private_dict: Range<u32>,
+    },
+    /// A CFF font with an externally defined encoding.
+    Cid {
+        /// Maps from glyph identifiers to font dict indices.
+        fd_select: MaybeOffset,
+        /// Offset to the index containing font dicts.
+        fd_array: u32,
+    },
+    /// A CFF2 font.
+    Cff2 {
+        /// Maps from glyph identifiers to font dict indices.
+        fd_select: MaybeOffset,
+        /// Offset to the index containing font dicts.
+        fd_array: u32,
+    },
 }
 
 #[cfg(test)]
@@ -980,7 +1185,7 @@ mod tests {
             .push(24u8) // var store offset operator
             .to_vec();
         // Just don't panic with overflow
-        assert!(TopDict::new(&[], &top_dict, Index::Empty, true).is_err());
+        assert!(TopDictAccel::new(&[], &top_dict, true).is_err());
     }
 
     /// Fuzzer caught add with overflow when computing subrs offset.
