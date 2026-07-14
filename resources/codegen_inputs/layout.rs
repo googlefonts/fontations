@@ -116,6 +116,7 @@ table LookupList {
 table Lookup {
     /// Different enumerations for GSUB and GPOS
     #[compile(skip)]
+    #[discriminant]
     lookup_type: u16,
     /// Lookup qualifiers
     #[traverse_with(traverse_lookup_flag)]

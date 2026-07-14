@@ -37,8 +37,6 @@ struct PerTableData<T> {
     eblc: T,
     /// Font feature table.
     feat: T,
-    /// Font metrics table.
-    fmtx: T,
     /// Font program table.
     fpgm: T,
     /// Font variations table.
@@ -136,7 +134,6 @@ impl<T> PerTableData<T> {
         f(Tag::new(b"EBDT"), &mut self.ebdt);
         f(Tag::new(b"EBLC"), &mut self.eblc);
         f(Tag::new(b"feat"), &mut self.feat);
-        f(Tag::new(b"fmtx"), &mut self.fmtx);
         f(Tag::new(b"fpgm"), &mut self.fpgm);
         f(Tag::new(b"fvar"), &mut self.fvar);
         f(Tag::new(b"gasp"), &mut self.gasp);
@@ -246,10 +243,6 @@ trait TableDataProvider<'a> where Self: 'a {
 
     fn feat(&self) -> Option<TableState<'a>> {
         self.table_state(Tag::new(b"feat"), &self.tables().feat)
-    }
-
-    fn fmtx(&self) -> Option<TableState<'a>> {
-        self.table_state(Tag::new(b"fmtx"), &self.tables().fmtx)
     }
 
     fn fpgm(&self) -> Option<TableState<'a>> {
@@ -416,6 +409,7 @@ impl FontTables {
 
     fn ankr_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.ankr(),
             TableSource::Function(func) => func.ankr(),
         }
@@ -430,6 +424,7 @@ impl FontTables {
 
     fn avar_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.avar(),
             TableSource::Function(func) => func.avar(),
         }
@@ -444,6 +439,7 @@ impl FontTables {
 
     fn base_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.base(),
             TableSource::Function(func) => func.base(),
         }
@@ -458,6 +454,7 @@ impl FontTables {
 
     fn cff_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.cff(),
             TableSource::Function(func) => func.cff(),
         }
@@ -472,6 +469,7 @@ impl FontTables {
 
     fn cff2_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.cff2(),
             TableSource::Function(func) => func.cff2(),
         }
@@ -486,6 +484,7 @@ impl FontTables {
 
     fn cbdt_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.cbdt(),
             TableSource::Function(func) => func.cbdt(),
         }
@@ -500,6 +499,7 @@ impl FontTables {
 
     fn cblc_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.cblc(),
             TableSource::Function(func) => func.cblc(),
         }
@@ -514,6 +514,7 @@ impl FontTables {
 
     fn colr_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.colr(),
             TableSource::Function(func) => func.colr(),
         }
@@ -528,6 +529,7 @@ impl FontTables {
 
     fn cpal_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.cpal(),
             TableSource::Function(func) => func.cpal(),
         }
@@ -542,6 +544,7 @@ impl FontTables {
 
     fn cmap_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.cmap(),
             TableSource::Function(func) => func.cmap(),
         }
@@ -556,6 +559,7 @@ impl FontTables {
 
     fn cvar_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.cvar(),
             TableSource::Function(func) => func.cvar(),
         }
@@ -570,6 +574,7 @@ impl FontTables {
 
     fn cvt_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.cvt(),
             TableSource::Function(func) => func.cvt(),
         }
@@ -584,6 +589,7 @@ impl FontTables {
 
     fn dsig_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.dsig(),
             TableSource::Function(func) => func.dsig(),
         }
@@ -598,6 +604,7 @@ impl FontTables {
 
     fn ebdt_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.ebdt(),
             TableSource::Function(func) => func.ebdt(),
         }
@@ -612,6 +619,7 @@ impl FontTables {
 
     fn eblc_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.eblc(),
             TableSource::Function(func) => func.eblc(),
         }
@@ -626,22 +634,9 @@ impl FontTables {
 
     fn feat_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.feat(),
             TableSource::Function(func) => func.feat(),
-        }
-    }
-
-    /// Font metrics table data.
-    ///
-    /// See the [fmtx](https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6fmtx.html) specification.
-    pub fn fmtx_data(&self) -> Option<&'_ [u8]> {
-        self.fmtx_state().map(|state| state.data)
-    }
-
-    fn fmtx_state(&self) -> Option<TableState<'_>> {
-        match &self.0 {
-            TableSource::Blob(blob) => blob.fmtx(),
-            TableSource::Function(func) => func.fmtx(),
         }
     }
 
@@ -654,6 +649,7 @@ impl FontTables {
 
     fn fpgm_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.fpgm(),
             TableSource::Function(func) => func.fpgm(),
         }
@@ -668,6 +664,7 @@ impl FontTables {
 
     fn fvar_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.fvar(),
             TableSource::Function(func) => func.fvar(),
         }
@@ -682,6 +679,7 @@ impl FontTables {
 
     fn gasp_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.gasp(),
             TableSource::Function(func) => func.gasp(),
         }
@@ -696,6 +694,7 @@ impl FontTables {
 
     fn gdef_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.gdef(),
             TableSource::Function(func) => func.gdef(),
         }
@@ -710,6 +709,7 @@ impl FontTables {
 
     fn glyf_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.glyf(),
             TableSource::Function(func) => func.glyf(),
         }
@@ -724,6 +724,7 @@ impl FontTables {
 
     fn gpos_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.gpos(),
             TableSource::Function(func) => func.gpos(),
         }
@@ -738,6 +739,7 @@ impl FontTables {
 
     fn gsub_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.gsub(),
             TableSource::Function(func) => func.gsub(),
         }
@@ -752,6 +754,7 @@ impl FontTables {
 
     fn gvar_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.gvar(),
             TableSource::Function(func) => func.gvar(),
         }
@@ -766,6 +769,7 @@ impl FontTables {
 
     fn hdmx_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.hdmx(),
             TableSource::Function(func) => func.hdmx(),
         }
@@ -780,6 +784,7 @@ impl FontTables {
 
     fn head_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.head(),
             TableSource::Function(func) => func.head(),
         }
@@ -794,6 +799,7 @@ impl FontTables {
 
     fn hhea_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.hhea(),
             TableSource::Function(func) => func.hhea(),
         }
@@ -808,6 +814,7 @@ impl FontTables {
 
     fn hmtx_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.hmtx(),
             TableSource::Function(func) => func.hmtx(),
         }
@@ -822,6 +829,7 @@ impl FontTables {
 
     fn hvar_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.hvar(),
             TableSource::Function(func) => func.hvar(),
         }
@@ -836,6 +844,7 @@ impl FontTables {
 
     fn ift_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.ift(),
             TableSource::Function(func) => func.ift(),
         }
@@ -850,6 +859,7 @@ impl FontTables {
 
     fn iftx_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.iftx(),
             TableSource::Function(func) => func.iftx(),
         }
@@ -864,6 +874,7 @@ impl FontTables {
 
     fn jstf_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.jstf(),
             TableSource::Function(func) => func.jstf(),
         }
@@ -878,6 +889,7 @@ impl FontTables {
 
     fn kern_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.kern(),
             TableSource::Function(func) => func.kern(),
         }
@@ -892,6 +904,7 @@ impl FontTables {
 
     fn kerx_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.kerx(),
             TableSource::Function(func) => func.kerx(),
         }
@@ -906,6 +919,7 @@ impl FontTables {
 
     fn loca_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.loca(),
             TableSource::Function(func) => func.loca(),
         }
@@ -920,6 +934,7 @@ impl FontTables {
 
     fn ltag_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.ltag(),
             TableSource::Function(func) => func.ltag(),
         }
@@ -934,6 +949,7 @@ impl FontTables {
 
     fn math_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.math(),
             TableSource::Function(func) => func.math(),
         }
@@ -948,6 +964,7 @@ impl FontTables {
 
     fn maxp_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.maxp(),
             TableSource::Function(func) => func.maxp(),
         }
@@ -962,6 +979,7 @@ impl FontTables {
 
     fn meta_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.meta(),
             TableSource::Function(func) => func.meta(),
         }
@@ -976,6 +994,7 @@ impl FontTables {
 
     fn morx_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.morx(),
             TableSource::Function(func) => func.morx(),
         }
@@ -990,6 +1009,7 @@ impl FontTables {
 
     fn mvar_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.mvar(),
             TableSource::Function(func) => func.mvar(),
         }
@@ -1004,6 +1024,7 @@ impl FontTables {
 
     fn name_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.name(),
             TableSource::Function(func) => func.name(),
         }
@@ -1018,6 +1039,7 @@ impl FontTables {
 
     fn os2_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.os2(),
             TableSource::Function(func) => func.os2(),
         }
@@ -1032,6 +1054,7 @@ impl FontTables {
 
     fn post_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.post(),
             TableSource::Function(func) => func.post(),
         }
@@ -1046,6 +1069,7 @@ impl FontTables {
 
     fn prep_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.prep(),
             TableSource::Function(func) => func.prep(),
         }
@@ -1060,6 +1084,7 @@ impl FontTables {
 
     fn sbix_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.sbix(),
             TableSource::Function(func) => func.sbix(),
         }
@@ -1074,6 +1099,7 @@ impl FontTables {
 
     fn stat_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.stat(),
             TableSource::Function(func) => func.stat(),
         }
@@ -1088,6 +1114,7 @@ impl FontTables {
 
     fn svg_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.svg(),
             TableSource::Function(func) => func.svg(),
         }
@@ -1102,6 +1129,7 @@ impl FontTables {
 
     fn trak_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.trak(),
             TableSource::Function(func) => func.trak(),
         }
@@ -1116,6 +1144,7 @@ impl FontTables {
 
     fn varc_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.varc(),
             TableSource::Function(func) => func.varc(),
         }
@@ -1130,6 +1159,7 @@ impl FontTables {
 
     fn vhea_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.vhea(),
             TableSource::Function(func) => func.vhea(),
         }
@@ -1144,6 +1174,7 @@ impl FontTables {
 
     fn vmtx_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.vmtx(),
             TableSource::Function(func) => func.vmtx(),
         }
@@ -1158,6 +1189,7 @@ impl FontTables {
 
     fn vorg_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.vorg(),
             TableSource::Function(func) => func.vorg(),
         }
@@ -1172,6 +1204,7 @@ impl FontTables {
 
     fn vvar_state(&self) -> Option<TableState<'_>> {
         match &self.0 {
+            TableSource::None => None,
             TableSource::Blob(blob) => blob.vvar(),
             TableSource::Function(func) => func.vvar(),
         }

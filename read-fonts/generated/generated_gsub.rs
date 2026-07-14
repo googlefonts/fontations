@@ -20,8 +20,12 @@ impl TopLevelTable for Gsub<'_> {
     const TAG: Tag = Tag::new(b"GSUB");
 }
 
+impl ReadArgs for Gsub<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gsub<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -103,30 +107,46 @@ impl<'a> Gsub<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn script_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn feature_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.script_list_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn lookup_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.feature_list_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn feature_variations_offset_byte_range(&self) -> Range<usize> {
         let start = self.lookup_list_offset_byte_range().end;
-        start
-            ..(self.version().compatible((1u16, 1u16)))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible((1u16, 1u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Gsub::MIN_SIZE));
+
+impl Default for Gsub<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -182,18 +202,28 @@ pub enum SubstitutionLookup<'a> {
     Reverse(Lookup<'a, ReverseChainSingleSubstFormat1<'a>>),
 }
 
+impl Default for SubstitutionLookup<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
+impl ReadArgs for SubstitutionLookup<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SubstitutionLookup<'a> {
-    fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-        let untyped = Lookup::read(bytes)?;
-        match untyped.lookup_type() {
-            1 => Ok(SubstitutionLookup::Single(untyped.into_concrete())),
-            2 => Ok(SubstitutionLookup::Multiple(untyped.into_concrete())),
-            3 => Ok(SubstitutionLookup::Alternate(untyped.into_concrete())),
-            4 => Ok(SubstitutionLookup::Ligature(untyped.into_concrete())),
-            5 => Ok(SubstitutionLookup::Contextual(untyped.into_concrete())),
-            6 => Ok(SubstitutionLookup::ChainContextual(untyped.into_concrete())),
-            7 => Ok(SubstitutionLookup::Extension(untyped.into_concrete())),
-            8 => Ok(SubstitutionLookup::Reverse(untyped.into_concrete())),
+    fn read_with_args(bytes: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let discriminant = Lookup::read_discriminant(bytes)?;
+        match discriminant {
+            1 => Ok(SubstitutionLookup::Single(FontRead::read(bytes)?)),
+            2 => Ok(SubstitutionLookup::Multiple(FontRead::read(bytes)?)),
+            3 => Ok(SubstitutionLookup::Alternate(FontRead::read(bytes)?)),
+            4 => Ok(SubstitutionLookup::Ligature(FontRead::read(bytes)?)),
+            5 => Ok(SubstitutionLookup::Contextual(FontRead::read(bytes)?)),
+            6 => Ok(SubstitutionLookup::ChainContextual(FontRead::read(bytes)?)),
+            7 => Ok(SubstitutionLookup::Extension(FontRead::read(bytes)?)),
+            8 => Ok(SubstitutionLookup::Reverse(FontRead::read(bytes)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -258,6 +288,12 @@ pub enum SingleSubst<'a> {
     Format2(SingleSubstFormat2<'a>),
 }
 
+impl Default for SingleSubst<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl<'a> SingleSubst<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -285,8 +321,12 @@ impl<'a> SingleSubst<'a> {
     }
 }
 
+impl ReadArgs for SingleSubst<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SingleSubst<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             SingleSubstFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -352,8 +392,12 @@ impl<'a> MinByteRange<'a> for SingleSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for SingleSubstFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -400,17 +444,32 @@ impl<'a> SingleSubstFormat1<'a> {
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.subst_format_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn delta_glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    SingleSubstFormat1::MIN_SIZE
+));
+
+impl Default for SingleSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -454,8 +513,12 @@ impl<'a> MinByteRange<'a> for SingleSubstFormat2<'a> {
     }
 }
 
+impl ReadArgs for SingleSubstFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -508,23 +571,28 @@ impl<'a> SingleSubstFormat2<'a> {
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.subst_format_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -572,8 +640,12 @@ impl<'a> MinByteRange<'a> for MultipleSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for MultipleSubstFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -634,23 +706,40 @@ impl<'a> MultipleSubstFormat1<'a> {
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.subst_format_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn sequence_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn sequence_offsets_byte_range(&self) -> Range<usize> {
         let sequence_count = self.sequence_count();
         let start = self.sequence_count_byte_range().end;
-        start..start + (sequence_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(sequence_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    MultipleSubstFormat1::MIN_SIZE
+));
+
+impl Default for MultipleSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -667,20 +756,10 @@ impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             2usize => Some(Field::new("sequence_count", self.sequence_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "sequence_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Sequence>(),
-                        self.sequence_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Sequence>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "sequence_offsets",
+                FieldType::from(self.sequences()),
+            )),
             _ => None,
         }
     }
@@ -704,8 +783,12 @@ impl<'a> MinByteRange<'a> for Sequence<'a> {
     }
 }
 
+impl ReadArgs for Sequence<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Sequence<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -740,13 +823,26 @@ impl<'a> Sequence<'a> {
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Sequence::MIN_SIZE));
+
+impl Default for Sequence<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -789,8 +885,12 @@ impl<'a> MinByteRange<'a> for AlternateSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for AlternateSubstFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -851,23 +951,40 @@ impl<'a> AlternateSubstFormat1<'a> {
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.subst_format_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn alternate_set_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn alternate_set_offsets_byte_range(&self) -> Range<usize> {
         let alternate_set_count = self.alternate_set_count();
         let start = self.alternate_set_count_byte_range().end;
-        start..start + (alternate_set_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(alternate_set_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    AlternateSubstFormat1::MIN_SIZE
+));
+
+impl Default for AlternateSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -887,20 +1004,10 @@ impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
                 "alternate_set_count",
                 self.alternate_set_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "alternate_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<AlternateSet>(),
-                        self.alternate_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<AlternateSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "alternate_set_offsets",
+                FieldType::from(self.alternate_sets()),
+            )),
             _ => None,
         }
     }
@@ -924,8 +1031,12 @@ impl<'a> MinByteRange<'a> for AlternateSet<'a> {
     }
 }
 
+impl ReadArgs for AlternateSet<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AlternateSet<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -959,13 +1070,26 @@ impl<'a> AlternateSet<'a> {
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn alternate_glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(AlternateSet::MIN_SIZE));
+
+impl Default for AlternateSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1008,8 +1132,12 @@ impl<'a> MinByteRange<'a> for LigatureSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for LigatureSubstFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1070,23 +1198,40 @@ impl<'a> LigatureSubstFormat1<'a> {
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.subst_format_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ligature_set_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ligature_set_offsets_byte_range(&self) -> Range<usize> {
         let ligature_set_count = self.ligature_set_count();
         let start = self.ligature_set_count_byte_range().end;
-        start..start + (ligature_set_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(ligature_set_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    LigatureSubstFormat1::MIN_SIZE
+));
+
+impl Default for LigatureSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -1103,20 +1248,10 @@ impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             2usize => Some(Field::new("ligature_set_count", self.ligature_set_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "ligature_set_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<LigatureSet>(),
-                        self.ligature_set_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<LigatureSet>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "ligature_set_offsets",
+                FieldType::from(self.ligature_sets()),
+            )),
             _ => None,
         }
     }
@@ -1140,8 +1275,12 @@ impl<'a> MinByteRange<'a> for LigatureSet<'a> {
     }
 }
 
+impl ReadArgs for LigatureSet<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigatureSet<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1183,13 +1322,26 @@ impl<'a> LigatureSet<'a> {
 
     pub fn ligature_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ligature_offsets_byte_range(&self) -> Range<usize> {
         let ligature_count = self.ligature_count();
         let start = self.ligature_count_byte_range().end;
-        start..start + (ligature_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(ligature_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(LigatureSet::MIN_SIZE));
+
+impl Default for LigatureSet<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1201,20 +1353,10 @@ impl<'a> SomeTable<'a> for LigatureSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "ligature_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Ligature>(),
-                        self.ligature_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Ligature>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "ligature_offsets",
+                FieldType::from(self.ligatures()),
+            )),
             _ => None,
         }
     }
@@ -1238,8 +1380,12 @@ impl<'a> MinByteRange<'a> for Ligature<'a> {
     }
 }
 
+impl ReadArgs for Ligature<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Ligature<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1280,21 +1426,33 @@ impl<'a> Ligature<'a> {
 
     pub fn ligature_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + GlyphId16::RAW_BYTE_LEN
+        let end = start + GlyphId16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn component_count_byte_range(&self) -> Range<usize> {
         let start = self.ligature_glyph_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn component_glyph_ids_byte_range(&self) -> Range<usize> {
         let component_count = self.component_count();
         let start = self.component_count_byte_range().end;
-        start
-            ..start
-                + (transforms::subtract(component_count, 1_usize))
-                    .saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::subtract(component_count, 1_usize))
+                .saturating_mul(GlyphId16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Ligature::MIN_SIZE));
+
+impl Default for Ligature<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1328,6 +1486,12 @@ impl Format<u16> for ExtensionSubstFormat1<'_> {
     const FORMAT: u16 = 1;
 }
 
+impl Discriminant for ExtensionSubstFormat1<'_, ()> {
+    fn read_discriminant(data: FontData<'_>) -> Result<u16, ReadError> {
+        data.read_at(u16::RAW_BYTE_LEN)
+    }
+}
+
 impl<'a, T> MinByteRange<'a> for ExtensionSubstFormat1<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.extension_offset_byte_range().end
@@ -1338,8 +1502,12 @@ impl<'a, T> MinByteRange<'a> for ExtensionSubstFormat1<'a, T> {
     }
 }
 
+impl<T> ReadArgs for ExtensionSubstFormat1<'_, T> {
+    type Args = ();
+}
+
 impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1348,16 +1516,6 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
             data,
             offset_type: std::marker::PhantomData,
         })
-    }
-}
-
-impl<'a> ExtensionSubstFormat1<'a, ()> {
-    #[allow(dead_code)]
-    pub(crate) fn into_concrete<T>(self) -> ExtensionSubstFormat1<'a, T> {
-        ExtensionSubstFormat1 {
-            data: self.data,
-            offset_type: std::marker::PhantomData,
-        }
     }
 }
 
@@ -1408,7 +1566,7 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
     /// Attempt to resolve [`extension_offset`][Self::extension_offset].
     pub fn extension(&self) -> Result<T, ReadError>
     where
-        T: FontRead<'a>,
+        T: FontRead<'a, Args = ()>,
     {
         let data = self.data;
         self.extension_offset().resolve(data)
@@ -1416,22 +1574,40 @@ impl<'a, T> ExtensionSubstFormat1<'a, T> {
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn extension_lookup_type_byte_range(&self) -> Range<usize> {
         let start = self.subst_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn extension_offset_byte_range(&self) -> Range<usize> {
         let start = self.extension_lookup_type_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ExtensionSubstFormat1::<()>::MIN_SIZE
+));
+
+impl<T> Default for ExtensionSubstFormat1<'_, T> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+            offset_type: std::marker::PhantomData,
+        }
     }
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstFormat1<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a>
+    for ExtensionSubstFormat1<'a, T>
+{
     fn type_name(&self) -> &str {
         "ExtensionSubstFormat1"
     }
@@ -1453,7 +1629,9 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionSubstF
 
 #[cfg(feature = "experimental_traverse")]
 #[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionSubstFormat1<'a, T> {
+impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug
+    for ExtensionSubstFormat1<'a, T>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -1470,17 +1648,27 @@ pub enum ExtensionSubtable<'a> {
     Reverse(ExtensionSubstFormat1<'a, ReverseChainSingleSubstFormat1<'a>>),
 }
 
+impl Default for ExtensionSubtable<'_> {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
+impl ReadArgs for ExtensionSubtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
-    fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
-        let untyped = ExtensionSubstFormat1::read(bytes)?;
-        match untyped.extension_lookup_type() {
-            1 => Ok(ExtensionSubtable::Single(untyped.into_concrete())),
-            2 => Ok(ExtensionSubtable::Multiple(untyped.into_concrete())),
-            3 => Ok(ExtensionSubtable::Alternate(untyped.into_concrete())),
-            4 => Ok(ExtensionSubtable::Ligature(untyped.into_concrete())),
-            5 => Ok(ExtensionSubtable::Contextual(untyped.into_concrete())),
-            6 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
-            8 => Ok(ExtensionSubtable::Reverse(untyped.into_concrete())),
+    fn read_with_args(bytes: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        let discriminant = ExtensionSubstFormat1::read_discriminant(bytes)?;
+        match discriminant {
+            1 => Ok(ExtensionSubtable::Single(FontRead::read(bytes)?)),
+            2 => Ok(ExtensionSubtable::Multiple(FontRead::read(bytes)?)),
+            3 => Ok(ExtensionSubtable::Alternate(FontRead::read(bytes)?)),
+            4 => Ok(ExtensionSubtable::Ligature(FontRead::read(bytes)?)),
+            5 => Ok(ExtensionSubtable::Contextual(FontRead::read(bytes)?)),
+            6 => Ok(ExtensionSubtable::ChainContextual(FontRead::read(bytes)?)),
+            8 => Ok(ExtensionSubtable::Reverse(FontRead::read(bytes)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
@@ -1550,8 +1738,12 @@ impl<'a> MinByteRange<'a> for ReverseChainSingleSubstFormat1<'a> {
     }
 }
 
+impl ReadArgs for ReverseChainSingleSubstFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1648,45 +1840,68 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
 
     pub fn subst_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_offset_byte_range(&self) -> Range<usize> {
         let start = self.subst_format_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn backtrack_glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.coverage_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn backtrack_coverage_offsets_byte_range(&self) -> Range<usize> {
         let backtrack_glyph_count = self.backtrack_glyph_count();
         let start = self.backtrack_glyph_count_byte_range().end;
-        start..start + (backtrack_glyph_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(backtrack_glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn lookahead_glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.backtrack_coverage_offsets_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn lookahead_coverage_offsets_byte_range(&self) -> Range<usize> {
         let lookahead_glyph_count = self.lookahead_glyph_count();
         let start = self.lookahead_glyph_count_byte_range().end;
-        start..start + (lookahead_glyph_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(lookahead_glyph_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.lookahead_coverage_offsets_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn substitute_glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.glyph_count_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ReverseChainSingleSubstFormat1::MIN_SIZE
+));
+
+impl Default for ReverseChainSingleSubstFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -1706,38 +1921,18 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                 "backtrack_glyph_count",
                 self.backtrack_glyph_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "backtrack_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.backtrack_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "backtrack_coverage_offsets",
+                FieldType::from(self.backtrack_coverages()),
+            )),
             4usize => Some(Field::new(
                 "lookahead_glyph_count",
                 self.lookahead_glyph_count(),
             )),
-            5usize => Some({
-                let data = self.data;
-                Field::new(
-                    "lookahead_coverage_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<CoverageTable>(),
-                        self.lookahead_coverage_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<CoverageTable>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            5usize => Some(Field::new(
+                "lookahead_coverage_offsets",
+                FieldType::from(self.lookahead_coverages()),
+            )),
             6usize => Some(Field::new("glyph_count", self.glyph_count())),
             7usize => Some(Field::new(
                 "substitute_glyph_ids",

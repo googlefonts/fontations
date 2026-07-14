@@ -5,24 +5,24 @@ mod multiple_subst;
 mod reverse_chain_single_subst;
 mod single_subst;
 
+use crate::fnv::FnvHashMap;
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
     serialize::{SerializeErrorFlags, Serializer},
-    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError,
+    LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset, SubsetError, SubsetFlags,
     SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
         tables::{
-            gsub::{Gsub, SubstitutionLookup, SubstitutionSubtables},
+            gsub::{ExtensionSubstFormat1, ExtensionSubtable, Gsub, SubstitutionLookup},
             layout::LookupFlag,
         },
         types::{MajorMinor, Offset16, Offset32, Tag},
-        FontRef, TopLevelTable,
+        FontRead, FontRef, TopLevelTable,
     },
     FontBuilder,
 };
@@ -97,14 +97,22 @@ impl LayoutClosure for Gsub<'_> {
         else {
             return;
         };
-
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
-        let Ok(_) = self.closure_glyphs(&lookup_indices, &mut plan.glyphset_gsub) else {
+        if !plan
+            .subset_flags
+            .contains(SubsetFlags::SUBSET_FLAGS_NO_LAYOUT_CLOSURE)
+            && self
+                .closure_glyphs(&lookup_indices, &mut plan.glyphset_gsub)
+                .is_err()
+        {
             return;
         };
-        let Ok(_) = self.closure_lookups(&plan.glyphset_gsub, &mut lookup_indices) else {
+        if self
+            .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
+            .is_err()
+        {
             return;
         };
 
@@ -144,36 +152,41 @@ fn subset_gsub(
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
     let version_pos = s.embed(gsub.version())?;
-
+    let mut c = SubsetLayoutContext::new(Gsub::TAG);
     // script_list
     let script_list_offset_pos = s.embed(0_u16)?;
 
-    let script_list = gsub
-        .script_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+    if !gsub.script_list_offset().is_null() {
+        let script_list = gsub
+            .script_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-    let mut c = SubsetLayoutContext::new(Gsub::TAG);
-    Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+        Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+    }
 
     // feature list
     let feature_list_offset_pos = s.embed(0_u16)?;
-    let feature_list = gsub
-        .feature_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    if !gsub.feature_list_offset().is_null() {
+        let feature_list = gsub
+            .feature_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    }
 
     // lookup list
     let lookup_list_offset_pos = s.embed(0_u16)?;
-    let lookup_list = gsub
-        .lookup_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(
-        &lookup_list,
-        s,
-        plan,
-        (state, font, &plan.gsub_lookups),
-        lookup_list_offset_pos,
-    )?;
+    if !gsub.lookup_list_offset().is_null() {
+        let lookup_list = gsub
+            .lookup_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(
+            &lookup_list,
+            s,
+            plan,
+            (state, font, &plan.gsub_lookups),
+            lookup_list_offset_pos,
+        )?;
+    }
 
     if let Some(feature_variations) = gsub
         .feature_variations()
@@ -210,24 +223,26 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let subtables = self
-            .subtables()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let lookup_type: u16 = match subtables {
-            SubstitutionSubtables::Single(_) => 1,
-            SubstitutionSubtables::Multiple(_) => 2,
-            SubstitutionSubtables::Alternate(_) => 3,
-            SubstitutionSubtables::Ligature(_) => 4,
-            SubstitutionSubtables::Contextual(_) => 5,
-            SubstitutionSubtables::ChainContextual(_) => 6,
-            SubstitutionSubtables::Reverse(_) => 8,
-        };
+        let lookup_type = self.lookup_type();
         s.embed(lookup_type)?;
 
         let lookup_flag = self.lookup_flag();
         let lookup_flag_pos = s.embed(lookup_flag)?;
         let lookup_count_pos = s.embed(0_u16)?;
-        let lookup_count = subtables.subset(plan, s, args)?;
+
+        //subset subtables
+        let lookup_count = match self {
+            SubstitutionLookup::Single(inner) => inner.subtables().subset(plan, s, args)?,
+            SubstitutionLookup::Multiple(inner) => inner.subtables().subset(plan, s, args)?,
+            SubstitutionLookup::Alternate(inner) => inner.subtables().subset(plan, s, args)?,
+            SubstitutionLookup::Ligature(inner) => inner.subtables().subset(plan, s, args)?,
+            SubstitutionLookup::Contextual(inner) => inner.subtables().subset(plan, s, args)?,
+            SubstitutionLookup::ChainContextual(inner) => {
+                inner.subtables().subset(plan, s, args)?
+            }
+            SubstitutionLookup::Extension(inner) => inner.subtables().subset(plan, s, args)?,
+            SubstitutionLookup::Reverse(inner) => inner.subtables().subset(plan, s, args)?,
+        };
         s.copy_assign(lookup_count_pos, lookup_count);
 
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/a790c38b782f9d8e6f0299d2837229e5726fc669/src/hb-ot-layout-common.hh#L1385>
@@ -244,25 +259,57 @@ impl<'a> SubsetTable<'a> for SubstitutionLookup<'_> {
     }
 }
 
-// TODO: support extension lookup type
-impl<'a> SubsetTable<'a> for SubstitutionSubtables<'a> {
+impl<'a> SubsetTable<'a> for ExtensionSubtable<'a> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
-    type Output = u16;
+    type Output = ();
+
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
         args: Self::ArgsForSubset,
-    ) -> Result<u16, SerializeErrorFlags> {
+    ) -> Result<Self::Output, SerializeErrorFlags> {
         match self {
-            SubstitutionSubtables::Single(subtables) => subtables.subset(plan, s, args),
-            SubstitutionSubtables::Multiple(subtables) => subtables.subset(plan, s, args),
-            SubstitutionSubtables::Alternate(subtables) => subtables.subset(plan, s, args),
-            SubstitutionSubtables::Ligature(subtables) => subtables.subset(plan, s, args),
-            SubstitutionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
-            SubstitutionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
-            SubstitutionSubtables::Reverse(subtables) => subtables.subset(plan, s, args),
+            ExtensionSubtable::Single(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::Multiple(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::Alternate(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::Ligature(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::Contextual(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::ChainContextual(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::Reverse(inner) => inner.subset(plan, s, args),
         }
+    }
+}
+
+impl<'a, T> SubsetTable<'a> for ExtensionSubstFormat1<'a, T>
+where
+    T: SubsetTable<
+            'a,
+            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+            Output = (),
+        > + FontRead<'a, Args = ()>,
+{
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type Output = ();
+
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.extension_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        s.embed(self.subst_format())?;
+        s.embed(self.extension_lookup_type())?;
+
+        let offset_pos = s.embed(0_u32)?;
+        let subtable = self
+            .extension()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        Offset32::serialize_subset(&subtable, s, plan, args, offset_pos)
     }
 }
 

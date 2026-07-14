@@ -244,8 +244,12 @@ impl<'a> FromObjRef<read_fonts::tables::maxp::Maxp<'a>> for Maxp {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::maxp::Maxp<'a>> for Maxp {}
 
+impl ReadArgs for Maxp {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Maxp {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::maxp::Maxp as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

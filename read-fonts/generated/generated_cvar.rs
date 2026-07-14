@@ -20,8 +20,12 @@ impl TopLevelTable for Cvar<'_> {
     const TAG: Tag = Tag::new(b"cvar");
 }
 
+impl ReadArgs for Cvar<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cvar<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -80,22 +84,36 @@ impl<'a> Cvar<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn tuple_variation_count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + TupleVariationCount::RAW_BYTE_LEN
+        let end = start + TupleVariationCount::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn data_offset_byte_range(&self) -> Range<usize> {
         let start = self.tuple_variation_count_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
         let start = self.data_offset_byte_range().end;
-        start..start + self.data.len().saturating_sub(start)
+        let end = start + self.data.len().saturating_sub(start);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Cvar::MIN_SIZE));
+
+impl Default for Cvar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

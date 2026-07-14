@@ -40,13 +40,13 @@ impl Validate for BasicTable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BasicTable", |ctx| {
             ctx.in_field("simple_records", |ctx| {
-                if self.simple_records.len() > (u16::MAX as usize) {
+                if self.simple_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.simple_records.validate_impl(ctx);
             });
             ctx.in_field("array_records", |ctx| {
-                if self.array_records.len() > (u32::MAX as usize) {
+                if self.array_records.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.array_records.validate_impl(ctx);
@@ -73,8 +73,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::records::BasicTable<'a>> for Basic
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::records::BasicTable<'a>> for BasicTable {}
 
+impl ReadArgs for BasicTable {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BasicTable {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::records::BasicTable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -145,12 +149,12 @@ impl Validate for ContainsArrays {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ContainsArrays", |ctx| {
             ctx.in_field("scalars", |ctx| {
-                if self.scalars.len() > (u16::MAX as usize) {
+                if self.scalars.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("records", |ctx| {
-                if self.records.len() > (u16::MAX as usize) {
+                if self.records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.records.validate_impl(ctx);
@@ -259,8 +263,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::records::VarLenItem<'a>> for VarLe
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::records::VarLenItem<'a>> for VarLenItem {}
 
+impl ReadArgs for VarLenItem {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarLenItem {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::records::VarLenItem as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

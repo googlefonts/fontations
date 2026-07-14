@@ -5,11 +5,14 @@ use crate::{FileRef, FontRead};
 /// Format for a blob of font data.
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum FontFormat {
-    /// An OpenType font in an sfnt container.
+    /// An [SFNT](https://en.wikipedia.org/wiki/SFNT)-based font, which includes
+    /// TrueType and OpenType fonts.
+    ///
+    /// This is the most common format for fonts.
     ///
     /// The field contains the number of available fonts. This is always 1 for
     /// .ttf and .otf files and usually greater than 1 for .ttc and .otc files.
-    OpenType(u32),
+    Sfnt(u32),
     /// A Type1 font.
     Type1,
     /// A pure CFF font.
@@ -23,8 +26,8 @@ impl FontFormat {
     pub fn new(data: &[u8]) -> Option<Self> {
         if let Ok(file) = FileRef::new(data) {
             let format = match file {
-                FileRef::Collection(collection) => Self::OpenType(collection.len()),
-                FileRef::Font(_) => Self::OpenType(1),
+                FileRef::Collection(collection) => Self::Sfnt(collection.len()),
+                FileRef::Font(_) => Self::Sfnt(1),
             };
             Some(format)
         } else if check_type1(data) {
@@ -36,15 +39,15 @@ impl FontFormat {
         }
     }
 
-    /// Returns true if this is an OpenType font.
-    pub fn is_opentype(&self) -> bool {
-        matches!(self, Self::OpenType(_))
+    /// Returns true if this is an SFNT-based font.
+    pub fn is_sfnt(&self) -> bool {
+        matches!(self, Self::Sfnt(_))
     }
 
     /// Returns the number of available fonts.
     pub fn num_fonts(&self) -> u32 {
         match self {
-            Self::OpenType(n) | Self::Cff(n) => *n,
+            Self::Sfnt(n) | Self::Cff(n) => *n,
             _ => 1,
         }
     }
@@ -73,10 +76,10 @@ mod tests {
         use FontFormat::*;
         #[rustfmt::skip]
         let pairs = [
-            (font_test_data::CANTARELL_VF_TRIMMED, OpenType(1)),
-            (font_test_data::TINOS_SUBSET, OpenType(1)),
+            (font_test_data::CANTARELL_VF_TRIMMED, Sfnt(1)),
+            (font_test_data::TINOS_SUBSET, Sfnt(1)),
             (pure_cff, Cff(1)),
-            (font_test_data::ttc::TTC, OpenType(2)),
+            (font_test_data::ttc::TTC, Sfnt(2)),
             (font_test_data::type1::NOTO_SERIF_REGULAR_SUBSET_PFA, Type1),
         ];
         for (data, expected_format) in pairs {

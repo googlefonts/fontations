@@ -7,7 +7,7 @@ use crate::{
 };
 
 use kurbo::BezPath;
-use read_fonts::{tables::glyf::SimpleGlyphFlags, FontRead};
+use read_fonts::{tables::glyf::SimpleGlyphFlags, FontRead, ReadArgs};
 
 pub use read_fonts::tables::glyf::CurvePoint;
 
@@ -19,6 +19,10 @@ pub struct SimpleGlyph {
     pub bbox: Bbox,
     pub contours: Vec<Contour>,
     pub instructions: Vec<u8>,
+    /// If set, the contours of the glyph overlap
+    ///
+    /// The OVERLAP_SIMPLE bit will be set on the first point of the first contour if this is true.
+    pub overlaps: bool,
 }
 
 /// A single contour, comprising only line and quadratic bezier segments
@@ -251,14 +255,22 @@ impl FromObjRef<read_fonts::tables::glyf::SimpleGlyph<'_>> for SimpleGlyph {
             bbox,
             contours,
             instructions: from.instructions().to_owned(),
+            overlaps: from.has_overlapping_contours(),
         }
     }
 }
 
 impl FromTableRef<read_fonts::tables::glyf::SimpleGlyph<'_>> for SimpleGlyph {}
 
+impl ReadArgs for SimpleGlyph {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SimpleGlyph {
-    fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {
+    fn read_with_args(
+        data: read_fonts::FontData<'a>,
+        _: (),
+    ) -> Result<Self, read_fonts::ReadError> {
         read_fonts::tables::glyf::SimpleGlyph::read(data).map(|g| g.to_owned_table())
     }
 }
@@ -283,7 +295,12 @@ impl FontWrite for SimpleGlyph {
         (self.instructions.len() as u16).write_into(writer);
         self.instructions.write_into(writer);
 
-        let deltas = self.compute_point_deltas().collect::<Vec<_>>();
+        let mut deltas = self.compute_point_deltas().collect::<Vec<_>>();
+        if self.overlaps {
+            if let Some((flags, _, _)) = deltas.first_mut() {
+                flags.insert(SimpleGlyphFlags::OVERLAP_SIMPLE);
+            }
+        }
         RepeatableFlag::iter_from_flags(deltas.iter().map(|(flag, _, _)| *flag))
             .for_each(|flag| flag.write_into(writer));
         deltas.iter().for_each(|(_, x, _)| x.write_into(writer));
@@ -612,6 +629,7 @@ fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, Malfo
             bbox: path.control_box().into(),
             contours,
             instructions: Default::default(),
+            overlaps: false,
         })
     }
 
@@ -1405,8 +1423,8 @@ mod tests {
 
     #[test]
     fn repeatable_flags_repeats() {
-        let some_dupes = std::iter::repeat(SimpleGlyphFlags::ON_CURVE_POINT).take(4);
-        let many_dupes = std::iter::repeat(SimpleGlyphFlags::Y_SHORT_VECTOR).take(257);
+        let some_dupes = std::iter::repeat_n(SimpleGlyphFlags::ON_CURVE_POINT, 4);
+        let many_dupes = std::iter::repeat_n(SimpleGlyphFlags::Y_SHORT_VECTOR, 257);
         let repeatable =
             RepeatableFlag::iter_from_flags(some_dupes.chain(many_dupes)).collect::<Vec<_>>();
         assert_eq!(repeatable.len(), 3);

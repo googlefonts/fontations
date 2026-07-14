@@ -20,8 +20,12 @@ impl TopLevelTable for Stat<'_> {
     const TAG: Tag = Tag::new(b"STAT");
 }
 
+impl ReadArgs for Stat<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Stat<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -80,7 +84,7 @@ impl<'a> Stat<'a> {
     pub fn design_axes(&self) -> Result<&'a [AxisRecord], ReadError> {
         let data = self.data;
         let args = self.design_axis_count();
-        self.design_axes_offset().resolve_with_args(data, &args)
+        self.design_axes_offset().resolve_with_args(data, args)
     }
 
     /// The number of axis value tables.
@@ -103,7 +107,7 @@ impl<'a> Stat<'a> {
         let data = self.data;
         let args = self.axis_value_count();
         self.offset_to_axis_value_offsets()
-            .resolve_with_args(data, &args)
+            .resolve_with_args(data, args)
     }
 
     /// Name ID used as fallback when projection of names into a
@@ -118,40 +122,58 @@ impl<'a> Stat<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn design_axis_size_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn design_axis_count_byte_range(&self) -> Range<usize> {
         let start = self.design_axis_size_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn design_axes_offset_byte_range(&self) -> Range<usize> {
         let start = self.design_axis_count_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn axis_value_count_byte_range(&self) -> Range<usize> {
         let start = self.design_axes_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn offset_to_axis_value_offsets_byte_range(&self) -> Range<usize> {
         let start = self.axis_value_count_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn elided_fallback_name_id_byte_range(&self) -> Range<usize> {
         let start = self.offset_to_axis_value_offsets_byte_range().end;
-        start
-            ..(self.version().compatible((1u16, 1u16)))
-                .then(|| start + NameId::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible((1u16, 1u16)) {
+            start + NameId::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Stat::MIN_SIZE));
+
+impl Default for Stat<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -269,9 +291,9 @@ impl ReadArgs for AxisValueArray<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let axis_value_count = *args;
+impl<'a> FontRead<'a> for AxisValueArray<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let axis_value_count = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -291,7 +313,7 @@ impl<'a> AxisValueArray<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, axis_value_count: u16) -> Result<Self, ReadError> {
         let args = axis_value_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -328,7 +350,21 @@ impl<'a> AxisValueArray<'a> {
     pub fn axis_value_offsets_byte_range(&self) -> Range<usize> {
         let axis_value_count = self.axis_value_count();
         let start = 0;
-        start..start + (axis_value_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(axis_value_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(AxisValueArray::MIN_SIZE));
+
+impl Default for AxisValueArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            axis_value_count: Default::default(),
+        }
     }
 }
 
@@ -339,20 +375,10 @@ impl<'a> SomeTable<'a> for AxisValueArray<'a> {
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
-            0usize => Some({
-                let data = self.data;
-                Field::new(
-                    "axis_value_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<AxisValue>(),
-                        self.axis_value_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<AxisValue>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            0usize => Some(Field::new(
+                "axis_value_offsets",
+                FieldType::from(self.axis_values()),
+            )),
             _ => None,
         }
     }
@@ -373,6 +399,12 @@ pub enum AxisValue<'a> {
     Format2(AxisValueFormat2<'a>),
     Format3(AxisValueFormat3<'a>),
     Format4(AxisValueFormat4<'a>),
+}
+
+impl Default for AxisValue<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
 }
 
 impl<'a> AxisValue<'a> {
@@ -418,8 +450,12 @@ impl<'a> AxisValue<'a> {
     }
 }
 
+impl ReadArgs for AxisValue<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValue<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             AxisValueFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -493,8 +529,12 @@ impl<'a> MinByteRange<'a> for AxisValueFormat1<'a> {
     }
 }
 
+impl ReadArgs for AxisValueFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -553,27 +593,44 @@ impl<'a> AxisValueFormat1<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn axis_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.axis_index_byte_range().end;
-        start..start + AxisValueTableFlags::RAW_BYTE_LEN
+        let end = start + AxisValueTableFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + NameId::RAW_BYTE_LEN
+        let end = start + NameId::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    AxisValueFormat1::MIN_SIZE
+));
+
+impl Default for AxisValueFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -616,8 +673,12 @@ impl<'a> MinByteRange<'a> for AxisValueFormat2<'a> {
     }
 }
 
+impl ReadArgs for AxisValueFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -692,37 +753,44 @@ impl<'a> AxisValueFormat2<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn axis_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.axis_index_byte_range().end;
-        start..start + AxisValueTableFlags::RAW_BYTE_LEN
+        let end = start + AxisValueTableFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + NameId::RAW_BYTE_LEN
+        let end = start + NameId::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn nominal_value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn range_min_value_byte_range(&self) -> Range<usize> {
         let start = self.nominal_value_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn range_max_value_byte_range(&self) -> Range<usize> {
         let start = self.range_min_value_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -767,8 +835,12 @@ impl<'a> MinByteRange<'a> for AxisValueFormat3<'a> {
     }
 }
 
+impl ReadArgs for AxisValueFormat3<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -834,32 +906,38 @@ impl<'a> AxisValueFormat3<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn axis_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.axis_index_byte_range().end;
-        start..start + AxisValueTableFlags::RAW_BYTE_LEN
+        let end = start + AxisValueTableFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + NameId::RAW_BYTE_LEN
+        let end = start + NameId::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn linked_value_byte_range(&self) -> Range<usize> {
         let start = self.value_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -903,8 +981,12 @@ impl<'a> MinByteRange<'a> for AxisValueFormat4<'a> {
     }
 }
 
+impl ReadArgs for AxisValueFormat4<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -962,28 +1044,34 @@ impl<'a> AxisValueFormat4<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.axis_count_byte_range().end;
-        start..start + AxisValueTableFlags::RAW_BYTE_LEN
+        let end = start + AxisValueTableFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + NameId::RAW_BYTE_LEN
+        let end = start + NameId::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn axis_values_byte_range(&self) -> Range<usize> {
         let axis_count = self.axis_count();
         let start = self.value_name_id_byte_range().end;
-        start..start + (axis_count as usize).saturating_mul(AxisValueRecord::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(axis_count)).saturating_mul(AxisValueRecord::RAW_BYTE_LEN);
+        start..end
     }
 }
 

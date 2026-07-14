@@ -162,17 +162,19 @@ mod tests {
 
     #[test]
     fn brotli_decode_without_shared_dict() {
-        let base = "".as_bytes();
-
         assert_eq!(
             Ok(TARGET.to_vec()),
             BuiltInBrotliDecoder.decode(&NO_DICT_PATCH, None, TARGET.len())
         );
+    }
 
-        // Check that empty base is handled the same as no base.
+    #[test]
+    fn brotli_decode_with_empty_shared_dict() {
+        // An empty shared dictionary used to behave similarly to a `None`, but it is now invalid as
+        // of https://github.com/google/brotli/pull/1479
         assert_eq!(
-            Ok(TARGET.to_vec()),
-            BuiltInBrotliDecoder.decode(&NO_DICT_PATCH, Some(base), TARGET.len())
+            Err(DecodeError::InvalidDictionary),
+            BuiltInBrotliDecoder.decode(&NO_DICT_PATCH, Some(b""), TARGET.len())
         );
     }
 

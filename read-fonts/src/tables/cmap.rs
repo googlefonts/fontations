@@ -358,9 +358,12 @@ impl Iterator for Cmap4Iter<'_> {
                 // This prevents timeout and bizarre results in the face of numerous overlapping ranges
                 // https://github.com/googlefonts/fontations/issues/1100
                 // cmap4 ranges are u16 so no need to stress about values past char::MAX
+                // Clamp only the iteration range; the segment's real start code
+                // is still needed by lookup_glyph_id to index the glyph id array.
+                let start_code = next_range.start as u16;
                 self.cur_range = next_range.start.max(self.cur_range.end)
                     ..next_range.end.max(self.cur_range.end);
-                self.cur_start_code = self.cur_range.start as u16;
+                self.cur_start_code = start_code;
             }
         }
     }
@@ -1137,6 +1140,73 @@ mod tests {
             .map(|(ch, gid)| (ch, gid.to_u32()))
             .collect::<Vec<_>>();
         assert_eq!(mappings, &[(259, 236), (262, 326), (65535, 0)]);
+    }
+
+    // When two segments overlap, the iterator clamps the *iteration* range of
+    // the later segment to avoid emitting duplicate codepoints, but it must
+    // still use that segment's real start code when indexing the glyph id
+    // array. Otherwise codepoints in the clamped tail resolve to the wrong
+    // glyph. See the overlap handling in the format 12/13 iterator for the
+    // correct shape.
+    #[test]
+    fn cmap4_iter_overlapping_range_offset_segment() {
+        #[rustfmt::skip]
+        let cmap4_data: &[u16] = &[
+            // format, length, lang
+            4, 0, 0,
+            // segCountX2
+            6,
+            // bin search data (searchRange, entrySelector, rangeShift)
+            0, 0, 0,
+            // end code
+            20, 25, 0xFFFF,
+            // reserved pad
+            0,
+            // start code (segment 1 overlaps segment 0: 15 <= 20)
+            10, 15, 0xFFFF,
+            // id delta
+            0, 0, 1,
+            // id range offset (segment 1 maps via the glyph id array)
+            0, 8, 0,
+            // glyph id array
+            100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112,
+        ];
+        let mut buf = BeBuffer::new();
+        for &word in cmap4_data {
+            buf = buf.push(word);
+        }
+        let cmap4 = Cmap4::read(FontData::new(&buf)).unwrap();
+        let mappings = cmap4
+            .iter()
+            .map(|(ch, gid)| (ch, gid.to_u32()))
+            .collect::<Vec<_>>();
+
+        // Codepoints 21..=25 live only in segment 1, so they are resolved
+        // through its glyph id array using start code 15. With start code 15
+        // the indices land on glyph ids 108..=112; using the clamped value 21
+        // instead would (incorrectly) yield 102..=106.
+        assert_eq!(
+            mappings,
+            &[
+                (10, 10),
+                (11, 11),
+                (12, 12),
+                (13, 13),
+                (14, 14),
+                (15, 15),
+                (16, 16),
+                (17, 17),
+                (18, 18),
+                (19, 19),
+                (20, 20),
+                (21, 108),
+                (22, 109),
+                (23, 110),
+                (24, 111),
+                (25, 112),
+                (65535, 0),
+            ]
+        );
     }
 
     const CMAP6_PAIRS: &[(u32, u32)] = &[

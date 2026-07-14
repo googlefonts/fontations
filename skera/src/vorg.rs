@@ -7,7 +7,7 @@ use write_fonts::{
     FontBuilder,
 };
 
-use fnv::FnvHashMap;
+use crate::fnv::FnvHashMap;
 
 // reference: subset() for VORG in harfbuzz
 // <https://github.com/harfbuzz/harfbuzz/blob/22fbc7568828b9acfd116be44b2d77d56d2d448b/src/hb-ot-vorg-table.hh#L90>

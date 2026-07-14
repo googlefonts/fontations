@@ -44,7 +44,7 @@ impl Validate for Mvar {
                 self.item_variation_store.validate_impl(ctx);
             });
             ctx.in_field("value_records", |ctx| {
-                if self.value_records.len() > (u16::MAX as usize) {
+                if self.value_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.value_records.validate_impl(ctx);
@@ -73,8 +73,12 @@ impl<'a> FromObjRef<read_fonts::tables::mvar::Mvar<'a>> for Mvar {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::mvar::Mvar<'a>> for Mvar {}
 
+impl ReadArgs for Mvar {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Mvar {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::mvar::Mvar as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

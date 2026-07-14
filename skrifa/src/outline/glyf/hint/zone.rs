@@ -165,7 +165,7 @@ impl<'a> Zone<'a> {
             let mut end_point = self.contour(i)? as usize;
             let first_point = point;
             if end_point >= self.points.len() {
-                end_point = self.points.len() - 1;
+                end_point = self.points.len().saturating_sub(1);
             }
             while point <= end_point && !self.is_touched(point, axis)? {
                 point += 1;
@@ -335,7 +335,7 @@ impl<'a> GraphicsState<'a> {
     /// all accesses would be valid.
     pub fn in_bounds<const N: usize>(&self, pairs: [(ZonePointer, usize); N]) -> bool {
         for (zp, index) in pairs {
-            if index > self.zone(zp).points.len() {
+            if index >= self.zone(zp).points.len() {
                 return false;
             }
         }
@@ -639,6 +639,19 @@ mod tests {
     }
 
     #[test]
+    fn iup_does_not_panic_with_empty_points() {
+        let mut zone = Zone {
+            unscaled: &[],
+            original: &mut [],
+            points: &mut [],
+            contours: &[0],
+            flags: &mut [],
+        };
+        let _ = zone.iup(CoordAxis::X);
+        let _ = zone.iup(CoordAxis::Y);
+    }
+
+    #[test]
     fn move_point_x() {
         let mut mock = MockGraphicsState::new();
         let mut gs = mock.graphics_state(100, 0);
@@ -784,6 +797,15 @@ mod tests {
         );
     }
 
+    #[test]
+    fn in_bounds_rejects_index_equal_to_len() {
+        let mut mock = MockGraphicsState::new();
+        let gs = mock.graphics_state(100, 50);
+        let len = gs.zones[ZonePointer::Glyph as usize].points.len();
+        assert!(!gs.in_bounds([(ZonePointer::Glyph, len)]));
+        assert!(gs.in_bounds([(ZonePointer::Glyph, len.saturating_sub(1))]));
+    }
+
     struct MockGraphicsState {
         points: [Point<F26Dot6>; 3],
         original: [Point<F26Dot6>; 3],
@@ -801,7 +823,7 @@ mod tests {
             }
         }
 
-        fn graphics_state(&mut self, fv_x: i32, fv_y: i32) -> GraphicsState {
+        fn graphics_state(&mut self, fv_x: i32, fv_y: i32) -> GraphicsState<'_> {
             let glyph = Zone {
                 unscaled: &mut [],
                 original: &mut self.original,

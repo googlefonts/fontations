@@ -20,8 +20,12 @@ impl TopLevelTable for Dsig<'_> {
     const TAG: Tag = Tag::new(b"DSIG");
 }
 
+impl ReadArgs for Dsig<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Dsig<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -68,23 +72,38 @@ impl<'a> Dsig<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_signatures_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.num_signatures_byte_range().end;
-        start..start + PermissionFlags::RAW_BYTE_LEN
+        let end = start + PermissionFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn signature_records_byte_range(&self) -> Range<usize> {
         let num_signatures = self.num_signatures();
         let start = self.flags_byte_range().end;
-        start..start + (num_signatures as usize).saturating_mul(SignatureRecord::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_signatures)).saturating_mul(SignatureRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Dsig::MIN_SIZE));
+
+impl Default for Dsig<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -486,8 +505,12 @@ impl<'a> MinByteRange<'a> for SignatureBlockFormat1<'a> {
     }
 }
 
+impl ReadArgs for SignatureBlockFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SignatureBlockFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -521,23 +544,39 @@ impl<'a> SignatureBlockFormat1<'a> {
 
     pub fn _reserved1_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved2_byte_range(&self) -> Range<usize> {
         let start = self._reserved1_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn signature_length_byte_range(&self) -> Range<usize> {
         let start = self._reserved2_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn signature_byte_range(&self) -> Range<usize> {
         let signature_length = self.signature_length();
         let start = self.signature_length_byte_range().end;
-        start..start + (signature_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(signature_length)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    SignatureBlockFormat1::MIN_SIZE
+));
+
+impl Default for SignatureBlockFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

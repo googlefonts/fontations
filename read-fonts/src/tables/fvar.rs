@@ -143,8 +143,14 @@ impl<'a> Fvar<'a> {
         let var_store = avar.var_store();
         let var_index_map = avar.axis_index_map();
 
-        let mut coords_2dot14 = [F2Dot14::ZERO; MAX_INLINE_AVAR2_AXES];
-        let coords_2dot14 = &mut coords_2dot14[..actual_len];
+        let mut stack_coords_2dot14 = [F2Dot14::ZERO; MAX_INLINE_AVAR2_AXES];
+        let mut heap_coords_2dot14 = Vec::new();
+        let coords_2dot14 = if actual_len > MAX_INLINE_AVAR2_AXES {
+            heap_coords_2dot14.resize(actual_len, F2Dot14::ZERO);
+            heap_coords_2dot14.as_mut_slice()
+        } else {
+            &mut stack_coords_2dot14[..actual_len]
+        };
         for (coord_2dot14, coord) in coords_2dot14.iter_mut().zip(fixed_coords.iter()) {
             *coord_2dot14 = coord.to_f2dot14();
         }

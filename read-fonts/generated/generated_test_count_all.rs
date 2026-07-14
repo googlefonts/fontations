@@ -15,8 +15,12 @@ impl<'a> MinByteRange<'a> for CountAll16<'a> {
     }
 }
 
+impl ReadArgs for CountAll16<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CountAll16<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -47,12 +51,25 @@ impl<'a> CountAll16<'a> {
 
     pub fn some_field_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn remainder_byte_range(&self) -> Range<usize> {
         let start = self.some_field_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(CountAll16::MIN_SIZE));
+
+impl Default for CountAll16<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -88,8 +105,12 @@ impl<'a> MinByteRange<'a> for CountAll32<'a> {
     }
 }
 
+impl ReadArgs for CountAll32<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CountAll32<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -120,12 +141,25 @@ impl<'a> CountAll32<'a> {
 
     pub fn some_field_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn remainder_byte_range(&self) -> Range<usize> {
         let start = self.some_field_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u32::RAW_BYTE_LEN * u32::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(CountAll32::MIN_SIZE));
+
+impl Default for CountAll32<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

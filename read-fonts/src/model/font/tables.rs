@@ -1,9 +1,7 @@
 //! Table validation, caching and access.
 
 use super::{super::once::Once, FontBlob, FontSource};
-use crate::{
-    tables, types::Tag, FontRead, FontReadWithArgs, ReadError, TableProvider, TopLevelTable,
-};
+use crate::{tables, types::Tag, FontRead, ReadError, TableProvider, TopLevelTable};
 use alloc::{boxed::Box, sync::Arc};
 use core::sync::atomic::{AtomicU8, Ordering};
 
@@ -82,6 +80,7 @@ impl<'a> TableDataProvider<'a> for &'a FontTableFunction {
 
 /// Source for a set of font tables.
 enum TableSource {
+    None,
     Blob(BlobTables),
     Function(FontTableFunction),
 }
@@ -120,7 +119,7 @@ impl<'a> TableState<'a> {
     }
 }
 
-/// OpenType table access.
+/// Individual font table access.
 pub struct FontTables(TableSource);
 
 impl FontTables {
@@ -164,14 +163,14 @@ impl FontTables {
 }
 
 impl FontTables {
-    fn load_table<'a, T: TopLevelTable + FontRead<'a>>(
+    fn load_table<'a, T: TopLevelTable + FontRead<'a, Args = ()>>(
         &'a self,
         state: Option<TableState<'a>>,
     ) -> Result<T, ReadError> {
         self.load_table_with_tag(state, T::TAG)
     }
 
-    fn load_table_with_tag<'a, T: FontRead<'a>>(
+    fn load_table_with_tag<'a, T: FontRead<'a, Args = ()>>(
         &'a self,
         state: Option<TableState<'a>>,
         tag: Tag,
@@ -183,18 +182,20 @@ impl FontTables {
         )
     }
 
-    fn load_table_with_args<'a, T: TopLevelTable + FontReadWithArgs<'a>>(
+    fn load_table_with_args<'a, T: TopLevelTable + FontRead<'a>>(
         &'a self,
         state: Option<TableState<'a>>,
-        args: &T::Args,
+        args: T::Args,
     ) -> Result<T, ReadError> {
         let state = state.ok_or(ReadError::TableIsMissing(T::TAG))?;
         state.try_load(
-            |data| FontReadWithArgs::read_with_args(data.into(), args),
-            |data| FontReadWithArgs::read_with_args(data.into(), args),
+            |data| FontRead::read_with_args(data.into(), args),
+            |data| FontRead::read_with_args(data.into(), args),
         )
     }
 }
+
+pub(super) static EMPTY_FONT_TABLES: FontTables = FontTables(TableSource::None);
 
 impl<'a> TableProvider<'a> for &'a FontTables {
     fn data_for_tag(&self, _tag: Tag) -> Option<crate::FontData<'a>> {
@@ -220,18 +221,18 @@ impl<'a> TableProvider<'a> for &'a FontTables {
     fn hmtx(&self) -> Result<tables::hmtx::Hmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
-        self.load_table_with_args(self.hmtx_state(), &number_of_h_metrics)
+        self.load_table_with_args(self.hmtx_state(), number_of_h_metrics)
     }
 
     fn hdmx(&self) -> Result<tables::hdmx::Hdmx<'a>, ReadError> {
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
-        self.load_table_with_args(self.hdmx_state(), &num_glyphs)
+        self.load_table_with_args(self.hdmx_state(), num_glyphs)
     }
 
     fn vmtx(&self) -> Result<tables::vmtx::Vmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
-        self.load_table_with_args(self.vmtx_state(), &number_of_v_metrics)
+        self.load_table_with_args(self.vmtx_state(), number_of_v_metrics)
     }
 
     fn vorg(&self) -> Result<tables::vorg::Vorg<'a>, ReadError> {
@@ -280,7 +281,7 @@ impl<'a> TableProvider<'a> for &'a FontTables {
             Some(val) => val,
             None => self.head()?.index_to_loc_format() == 1,
         };
-        self.load_table_with_args(self.loca_state(), &is_long)
+        self.load_table_with_args(self.loca_state(), is_long)
     }
 
     fn glyf(&self) -> Result<tables::glyf::Glyf<'a>, ReadError> {
@@ -384,7 +385,7 @@ impl<'a> TableProvider<'a> for &'a FontTables {
     fn sbix(&self) -> Result<tables::sbix::Sbix<'a>, ReadError> {
         // should we make the user pass this in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
-        self.load_table_with_args(self.sbix_state(), &num_glyphs)
+        self.load_table_with_args(self.sbix_state(), num_glyphs)
     }
 
     fn stat(&self) -> Result<tables::stat::Stat<'a>, ReadError> {

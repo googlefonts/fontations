@@ -109,14 +109,14 @@ impl ReadArgs for U8Or16 {
 }
 
 impl ComputeSize for U8Or16 {
-    fn compute_size(max_entry_index: &u16) -> Result<usize, ReadError> {
-        Ok(if *max_entry_index < 256 { 1 } else { 2 })
+    fn compute_size(max_entry_index: u16) -> Result<usize, ReadError> {
+        Ok(if max_entry_index < 256 { 1 } else { 2 })
     }
 }
 
-impl FontReadWithArgs<'_> for U8Or16 {
-    fn read_with_args(data: FontData<'_>, max_entry_index: &Self::Args) -> Result<Self, ReadError> {
-        if *max_entry_index < 256 {
+impl FontRead<'_> for U8Or16 {
+    fn read_with_args(data: FontData<'_>, max_entry_index: Self::Args) -> Result<Self, ReadError> {
+        if max_entry_index < 256 {
             data.read_at::<u8>(0).map(|v| Self(v as u16))
         } else {
             data.read_at::<u16>(0).map(Self)
@@ -139,7 +139,7 @@ impl ReadArgs for U16Or24 {
 }
 
 impl ComputeSize for U16Or24 {
-    fn compute_size(flags: &GlyphKeyedFlags) -> Result<usize, ReadError> {
+    fn compute_size(flags: GlyphKeyedFlags) -> Result<usize, ReadError> {
         // See: https://w3c.github.io/IFT/Overview.html#glyph-keyed-patch-flags
         Ok(if flags.contains(GlyphKeyedFlags::WIDE_GLYPH_IDS) {
             3
@@ -149,8 +149,8 @@ impl ComputeSize for U16Or24 {
     }
 }
 
-impl FontReadWithArgs<'_> for U16Or24 {
-    fn read_with_args(data: FontData<'_>, flags: &Self::Args) -> Result<Self, ReadError> {
+impl FontRead<'_> for U16Or24 {
+    fn read_with_args(data: FontData<'_>, flags: Self::Args) -> Result<Self, ReadError> {
         if flags.contains(GlyphKeyedFlags::WIDE_GLYPH_IDS) {
             data.read_at::<Uint24>(0).map(|v| Self(v.to_u32()))
         } else {

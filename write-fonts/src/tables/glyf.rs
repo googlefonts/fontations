@@ -8,7 +8,7 @@ use crate::{
 
 use font_types::Tag;
 use kurbo::Rect;
-use read_fonts::{FontRead, TopLevelTable};
+use read_fonts::{FontRead, ReadArgs, TopLevelTable};
 
 mod composite;
 mod glyf_loca_builder;
@@ -119,8 +119,15 @@ impl<'a> FromObjRef<read_fonts::tables::glyf::Glyph<'a>> for Glyph {
 
 impl FromTableRef<read_fonts::tables::glyf::Glyph<'_>> for Glyph {}
 
+impl ReadArgs for Glyph {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Glyph {
-    fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {
+    fn read_with_args(
+        data: read_fonts::FontData<'a>,
+        _: (),
+    ) -> Result<Self, read_fonts::ReadError> {
         read_fonts::tables::glyf::Glyph::read(data).map(|g| Glyph::from_table_ref(&g))
     }
 }

@@ -9,7 +9,7 @@ use read_fonts::{
         cff::{blend::BlendState, dict, fd_select::FdSelect, index::Index},
         cs::{self, CommandSink, NopFilterSink, TransformSink},
         error::Error,
-        transform::{self, FontMatrix, ScaledFontMatrix},
+        transform::{self, FontMatrix, ScaledFontMatrix, Transform},
     },
     tables::variations::ItemVariationStore,
     types::{F2Dot14, Fixed, GlyphId},
@@ -227,6 +227,8 @@ impl<'a> Outlines<'a> {
             hint_state,
             store_index: private_dict.store_index,
             font_matrix,
+            default_width: private_dict.default_width,
+            nominal_width: private_dict.nominal_width,
         })
     }
 
@@ -248,7 +250,7 @@ impl<'a> Outlines<'a> {
         coords: &[F2Dot14],
         hint: bool,
         pen: &mut impl OutlinePen,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<f32>, Error> {
         let cff_data = self.offset_data.as_bytes();
         let charstrings = self.top_dict.charstrings.clone();
         let charstring_data = charstrings.get(glyph_id.to_u32() as usize)?;
@@ -266,34 +268,64 @@ impl<'a> Outlines<'a> {
         let apply_hinting = hint && subfont.scale_requested;
         let mut pen_sink = PenSink::new(pen);
         let mut simplifying_adapter = NopFilterSink::new(&mut pen_sink);
-        if let Some(matrix) = subfont.font_matrix {
+        let mut transform = Transform {
+            matrix: FontMatrix::IDENTITY,
+            scale: subfont.scale,
+        };
+        let maybe_width = if let Some(matrix) = subfont.font_matrix {
+            transform.matrix = matrix;
             if apply_hinting {
                 let mut transform_sink =
                     HintedTransformingSink::new(&mut simplifying_adapter, matrix);
                 let mut hinting_adapter =
                     HintingSink::new(&subfont.hint_state, &mut transform_sink);
-                cs_eval.evaluate(&mut hinting_adapter)?;
+                cs_eval.evaluate(&mut hinting_adapter)
             } else {
                 let mut transform_sink = TransformSink::from_matrix_scale(
                     &mut simplifying_adapter,
                     matrix,
                     subfont.scale,
                 );
-                cs_eval.evaluate(&mut transform_sink)?;
+                cs_eval.evaluate(&mut transform_sink)
             }
         } else if apply_hinting {
             let mut hinting_adapter =
                 HintingSink::new(&subfont.hint_state, &mut simplifying_adapter);
-            cs_eval.evaluate(&mut hinting_adapter)?;
+            cs_eval.evaluate(&mut hinting_adapter)
         } else {
             let mut scaling_adapter = TransformSink::from_matrix_scale(
                 &mut simplifying_adapter,
                 FontMatrix::IDENTITY,
                 subfont.scale,
             );
-            cs_eval.evaluate(&mut scaling_adapter)?;
-        }
-        Ok(())
+            cs_eval.evaluate(&mut scaling_adapter)
+        }?;
+        Ok(maybe_width
+            // If charstring eval returned a width, add the nominal width
+            // from the Private DICT
+            .map(|w| w + subfont.nominal_width)
+            // Otherwise, try the default width from the Private DICT
+            .or(subfont.default_width)
+            // If all else fails, fall back to hmtx/HVAR tables
+            .or_else(|| {
+                Some(Fixed::from_i32(
+                    self.glyph_metrics.advance_width(glyph_id, coords),
+                ))
+            })
+            .map(|w| {
+                let w = transform.transform_h_metric(w);
+                if hint {
+                    w.round().to_f32()
+                } else {
+                    w.to_f32()
+                }
+            })
+            // Some fonts can generate weird negative advance widths.
+            // FreeType casts these to unsigned values resulting in
+            // large positive advances. Since this advance is optional,
+            // we can just filter these out and let the client deal
+            // with it, falling back to linear metrics.
+            .filter(|w| *w >= 0.0))
     }
 
     fn parse_font_dict(&self, subfont_index: u32) -> Result<FontDict, Error> {
@@ -359,6 +391,8 @@ pub(crate) struct Subfont {
     pub(crate) hint_state: HintState,
     store_index: u16,
     font_matrix: Option<FontMatrix>,
+    default_width: Option<Fixed>,
+    nominal_width: Fixed,
 }
 
 impl Subfont {
@@ -395,6 +429,8 @@ struct PrivateDict {
     hint_params: HintParams,
     subrs_offset: Option<usize>,
     store_index: u16,
+    default_width: Option<Fixed>,
+    nominal_width: Fixed,
 }
 
 impl PrivateDict {
@@ -408,6 +444,9 @@ impl PrivateDict {
         for entry in dict::entries(private_dict_data, blend_state) {
             use dict::Entry::*;
             match entry? {
+                // FreeType truncates the width values to int on read
+                DefaultWidthX(width) => dict.default_width = Some(width.floor()),
+                NominalWidthX(width) => dict.nominal_width = width.floor(),
                 BlueValues(values) => dict.hint_params.blues = values,
                 FamilyBlues(values) => dict.hint_params.family_blues = values,
                 OtherBlues(values) => dict.hint_params.other_blues = values,

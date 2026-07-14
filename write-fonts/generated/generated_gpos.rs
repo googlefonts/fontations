@@ -91,8 +91,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {}
 
+impl ReadArgs for Gpos {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gpos {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::Gpos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -342,8 +346,12 @@ impl FromObjRef<read_fonts::tables::gpos::AnchorTable<'_>> for AnchorTable {
 
 impl FromTableRef<read_fonts::tables::gpos::AnchorTable<'_>> for AnchorTable {}
 
+impl ReadArgs for AnchorTable {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorTable {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorTable as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -414,8 +422,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat1<'a>> for AnchorForma
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat1<'a>> for AnchorFormat1 {}
 
+impl ReadArgs for AnchorFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -474,8 +486,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat2<'a>> for AnchorForma
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat2<'a>> for AnchorFormat2 {}
 
+impl ReadArgs for AnchorFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -557,8 +573,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat3<'a>> for AnchorForma
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat3<'a>> for AnchorFormat3 {}
 
+impl ReadArgs for AnchorFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AnchorFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::AnchorFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -595,7 +615,7 @@ impl Validate for MarkArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkArray", |ctx| {
             ctx.in_field("mark_records", |ctx| {
-                if self.mark_records.len() > (u16::MAX as usize) {
+                if self.mark_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.mark_records.validate_impl(ctx);
@@ -616,8 +636,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkArray<'a>> for MarkArray {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkArray<'a>> for MarkArray {}
 
+impl ReadArgs for MarkArray {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkArray {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkArray as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -733,8 +757,12 @@ impl FromObjRef<read_fonts::tables::gpos::SinglePos<'_>> for SinglePos {
 
 impl FromTableRef<read_fonts::tables::gpos::SinglePos<'_>> for SinglePos {}
 
+impl ReadArgs for SinglePos {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SinglePos {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::SinglePos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -808,8 +836,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat1<'a>> for SinglePo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat1<'a>> for SinglePosFormat1 {}
 
+impl ReadArgs for SinglePosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SinglePosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::SinglePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -856,7 +888,7 @@ impl Validate for SinglePosFormat2 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("value_records", |ctx| {
-                if self.value_records.len() > (u16::MAX as usize) {
+                if self.value_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.value_records.validate_impl(ctx);
@@ -882,8 +914,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat2<'a>> for SinglePo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat2<'a>> for SinglePosFormat2 {}
 
+impl ReadArgs for SinglePosFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SinglePosFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::SinglePosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -961,8 +997,12 @@ impl FromObjRef<read_fonts::tables::gpos::PairPos<'_>> for PairPos {
 
 impl FromTableRef<read_fonts::tables::gpos::PairPos<'_>> for PairPos {}
 
+impl ReadArgs for PairPos {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PairPos {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1022,7 +1062,7 @@ impl Validate for PairPosFormat1 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("pair_sets", |ctx| {
-                if self.pair_sets.len() > (u16::MAX as usize) {
+                if self.pair_sets.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.check_format_consistency(ctx);
@@ -1043,8 +1083,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFor
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFormat1 {}
 
+impl ReadArgs for PairPosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PairPosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1081,7 +1125,7 @@ impl Validate for PairSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PairSet", |ctx| {
             ctx.in_field("pair_value_records", |ctx| {
-                if self.pair_value_records.len() > (u16::MAX as usize) {
+                if self.pair_value_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.pair_value_records.validate_impl(ctx);
@@ -1226,7 +1270,7 @@ impl Validate for PairPosFormat2 {
                 self.class_def2.validate_impl(ctx);
             });
             ctx.in_field("class1_records", |ctx| {
-                if self.class1_records.len() > (u16::MAX as usize) {
+                if self.class1_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.class1_records.validate_impl(ctx);
@@ -1255,8 +1299,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat2<'a>> for PairPosFor
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat2<'a>> for PairPosFormat2 {}
 
+impl ReadArgs for PairPosFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PairPosFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1290,7 +1338,7 @@ impl Validate for Class1Record {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Class1Record", |ctx| {
             ctx.in_field("class2_records", |ctx| {
-                if self.class2_records.len() > (u16::MAX as usize) {
+                if self.class2_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.class2_records.validate_impl(ctx);
@@ -1394,7 +1442,7 @@ impl Validate for CursivePosFormat1 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("entry_exit_record", |ctx| {
-                if self.entry_exit_record.len() > (u16::MAX as usize) {
+                if self.entry_exit_record.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.entry_exit_record.validate_impl(ctx);
@@ -1416,8 +1464,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::CursivePosFormat1<'a>> for Cursive
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::CursivePosFormat1<'a>> for CursivePosFormat1 {}
 
+impl ReadArgs for CursivePosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CursivePosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::CursivePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1563,8 +1615,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkBasePosFormat1<'a>> for MarkBa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkBasePosFormat1<'a>> for MarkBasePosFormat1 {}
 
+impl ReadArgs for MarkBasePosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkBasePosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkBasePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1600,7 +1656,7 @@ impl Validate for BaseArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseArray", |ctx| {
             ctx.in_field("base_records", |ctx| {
-                if self.base_records.len() > (u16::MAX as usize) {
+                if self.base_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.base_records.validate_impl(ctx);
@@ -1657,7 +1713,7 @@ impl Validate for BaseRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseRecord", |ctx| {
             ctx.in_field("base_anchors", |ctx| {
-                if self.base_anchors.len() > (u16::MAX as usize) {
+                if self.base_anchors.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.base_anchors.validate_impl(ctx);
@@ -1757,8 +1813,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkLigPosFormat1<'a>> for MarkLig
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkLigPosFormat1<'a>> for MarkLigPosFormat1 {}
 
+impl ReadArgs for MarkLigPosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkLigPosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkLigPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1798,7 +1858,7 @@ impl Validate for LigatureArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureArray", |ctx| {
             ctx.in_field("ligature_attaches", |ctx| {
-                if self.ligature_attaches.len() > (u16::MAX as usize) {
+                if self.ligature_attaches.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.ligature_attaches.validate_impl(ctx);
@@ -1848,7 +1908,7 @@ impl Validate for LigatureAttach {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureAttach", |ctx| {
             ctx.in_field("component_records", |ctx| {
-                if self.component_records.len() > (u16::MAX as usize) {
+                if self.component_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.component_records.validate_impl(ctx);
@@ -1905,7 +1965,7 @@ impl Validate for ComponentRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ComponentRecord", |ctx| {
             ctx.in_field("ligature_anchors", |ctx| {
-                if self.ligature_anchors.len() > (u16::MAX as usize) {
+                if self.ligature_anchors.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.ligature_anchors.validate_impl(ctx);
@@ -2008,8 +2068,12 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkMarkPosFormat1<'a>> for MarkMa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gpos::MarkMarkPosFormat1<'a>> for MarkMarkPosFormat1 {}
 
+impl ReadArgs for MarkMarkPosFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkMarkPosFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::MarkMarkPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -2045,7 +2109,7 @@ impl Validate for Mark2Array {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Mark2Array", |ctx| {
             ctx.in_field("mark2_records", |ctx| {
-                if self.mark2_records.len() > (u16::MAX as usize) {
+                if self.mark2_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.mark2_records.validate_impl(ctx);
@@ -2102,7 +2166,7 @@ impl Validate for Mark2Record {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Mark2Record", |ctx| {
             ctx.in_field("mark2_anchors", |ctx| {
-                if self.mark2_anchors.len() > (u16::MAX as usize) {
+                if self.mark2_anchors.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.mark2_anchors.validate_impl(ctx);
@@ -2155,7 +2219,7 @@ impl<T: Validate> Validate for ExtensionPosFormat1<T> {
 impl<'a, T, U> FromObjRef<read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>>
     for ExtensionPosFormat1<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
@@ -2173,7 +2237,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>>
     for ExtensionPosFormat1<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
 }

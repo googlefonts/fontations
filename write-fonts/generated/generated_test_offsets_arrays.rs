@@ -127,8 +127,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'
 {
 }
 
+impl ReadArgs for KindsOfOffsets {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfOffsets {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::KindsOfOffsets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -178,13 +182,13 @@ impl Validate for KindsOfArraysOfOffsets {
         ctx.in_table("KindsOfArraysOfOffsets", |ctx| {
             let version: MajorMinor = MajorMinor::VERSION_1_1;
             ctx.in_field("nonnullables", |ctx| {
-                if self.nonnullables.len() > (u16::MAX as usize) {
+                if self.nonnullables.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.nonnullables.validate_impl(ctx);
             });
             ctx.in_field("nullables", |ctx| {
-                if self.nullables.len() > (u16::MAX as usize) {
+                if self.nullables.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.nullables.validate_impl(ctx);
@@ -194,7 +198,7 @@ impl Validate for KindsOfArraysOfOffsets {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_nonnullables.is_some()
-                    && self.versioned_nonnullables.as_ref().unwrap().len() > (u16::MAX as usize)
+                    && self.versioned_nonnullables.as_ref().unwrap().len() > to_usize(u16::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }
@@ -205,7 +209,7 @@ impl Validate for KindsOfArraysOfOffsets {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_nullables.is_some()
-                    && self.versioned_nullables.as_ref().unwrap().len() > (u16::MAX as usize)
+                    && self.versioned_nullables.as_ref().unwrap().len() > to_usize(u16::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }
@@ -237,8 +241,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfO
 {
 }
 
+impl ReadArgs for KindsOfArraysOfOffsets {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOffsets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -301,12 +309,12 @@ impl Validate for KindsOfArrays {
         ctx.in_table("KindsOfArrays", |ctx| {
             let version = self.version;
             ctx.in_field("scalars", |ctx| {
-                if self.scalars.len() > (u16::MAX as usize) {
+                if self.scalars.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("records", |ctx| {
-                if self.records.len() > (u16::MAX as usize) {
+                if self.records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.records.validate_impl(ctx);
@@ -316,7 +324,7 @@ impl Validate for KindsOfArrays {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_scalars.is_some()
-                    && self.versioned_scalars.as_ref().unwrap().len() > (u16::MAX as usize)
+                    && self.versioned_scalars.as_ref().unwrap().len() > to_usize(u16::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }
@@ -326,7 +334,7 @@ impl Validate for KindsOfArrays {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_records.is_some()
-                    && self.versioned_records.as_ref().unwrap().len() > (u16::MAX as usize)
+                    && self.versioned_records.as_ref().unwrap().len() > to_usize(u16::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }
@@ -358,8 +366,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfArrays<'a
 {
 }
 
+impl ReadArgs for KindsOfArrays {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for KindsOfArrays {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::KindsOfArrays as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -388,7 +400,7 @@ impl Validate for VarLenHaver {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VarLenHaver", |ctx| {
             ctx.in_field("var_len", |ctx| {
-                if self.var_len.len() > (u16::MAX as usize) {
+                if self.var_len.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.var_len.validate_impl(ctx);
@@ -418,8 +430,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::VarLenHaver<'a>> f
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::VarLenHaver<'a>> for VarLenHaver {}
 
+impl ReadArgs for VarLenHaver {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarLenHaver {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::VarLenHaver as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -458,8 +474,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::Dummy<'a>> for Dum
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::Dummy<'a>> for Dummy {}
 
+impl ReadArgs for Dummy {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Dummy {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::offsets_arrays::Dummy as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

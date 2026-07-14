@@ -5,7 +5,7 @@ use crate::{
     FontWrite,
 };
 
-use read_fonts::{tables::glyf::CompositeGlyphFlags, types::GlyphId16, FontRead};
+use read_fonts::{tables::glyf::CompositeGlyphFlags, types::GlyphId16, FontRead, ReadArgs};
 
 use super::Bbox;
 
@@ -16,7 +16,7 @@ pub use read_fonts::tables::glyf::{Anchor, Transform};
 pub struct CompositeGlyph {
     pub bbox: Bbox,
     components: Vec<Component>,
-    _instructions: Vec<u8>,
+    instructions: Vec<u8>,
 }
 
 /// A single component glyph (part of a [`CompositeGlyph`]).
@@ -76,7 +76,7 @@ impl FromObjRef<read_fonts::tables::glyf::CompositeGlyph<'_>> for CompositeGlyph
         Self {
             bbox,
             components,
-            _instructions: from
+            instructions: from
                 .instructions()
                 .map(|v| v.to_owned())
                 .unwrap_or_default(),
@@ -86,8 +86,15 @@ impl FromObjRef<read_fonts::tables::glyf::CompositeGlyph<'_>> for CompositeGlyph
 
 impl FromTableRef<read_fonts::tables::glyf::CompositeGlyph<'_>> for CompositeGlyph {}
 
+impl ReadArgs for CompositeGlyph {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CompositeGlyph {
-    fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {
+    fn read_with_args(
+        data: read_fonts::FontData<'a>,
+        _: (),
+    ) -> Result<Self, read_fonts::ReadError> {
         read_fonts::tables::glyf::CompositeGlyph::read(data).map(|g| g.to_owned_table())
     }
 }
@@ -148,7 +155,7 @@ impl CompositeGlyph {
         Self {
             bbox: bbox.into(),
             components: vec![component],
-            _instructions: Default::default(),
+            instructions: Default::default(),
         }
     }
 
@@ -182,13 +189,25 @@ impl CompositeGlyph {
             Ok(CompositeGlyph {
                 bbox: union_box.unwrap(),
                 components,
-                _instructions: Default::default(),
+                instructions: Default::default(),
             })
         }
     }
 
     pub fn components(&self) -> &[Component] {
         &self.components
+    }
+
+    pub fn components_mut(&mut self) -> &mut [Component] {
+        &mut self.components
+    }
+
+    pub fn set_instructions(&mut self, instructions: &[u8]) {
+        self.instructions = instructions.to_vec();
+    }
+
+    pub fn instructions(&self) -> &[u8] {
+        &self.instructions
     }
 }
 
@@ -204,16 +223,16 @@ impl FontWrite for CompositeGlyph {
         for comp in rest {
             comp.write_into(writer, CompositeGlyphFlags::MORE_COMPONENTS);
         }
-        let last_flags = if self._instructions.is_empty() {
+        let last_flags = if self.instructions.is_empty() {
             CompositeGlyphFlags::empty()
         } else {
             CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS
         };
         last.write_into(writer, last_flags);
 
-        if !self._instructions.is_empty() {
-            (self._instructions.len() as u16).write_into(writer);
-            self._instructions.write_into(writer);
+        if !self.instructions.is_empty() {
+            (self.instructions.len() as u16).write_into(writer);
+            self.instructions.write_into(writer);
         }
         writer.pad_to_2byte_aligned();
     }
@@ -224,7 +243,7 @@ impl crate::validate::Validate for CompositeGlyph {
         if self.components.is_empty() {
             ctx.report("composite glyph must have components");
         }
-        if self._instructions.len() > u16::MAX as usize {
+        if self.instructions.len() > u16::MAX as usize {
             ctx.report("instructions len overflows");
         }
     }
@@ -328,7 +347,7 @@ mod tests {
             .map(|comp| Component::new(comp.glyph, comp.anchor, comp.transform, comp.flags));
         let mut composite = CompositeGlyph::new(iter.next().unwrap(), bbox);
         composite.add_component(iter.next().unwrap(), bbox);
-        composite._instructions = orig.instructions().unwrap_or_default().to_vec();
+        composite.instructions = orig.instructions().unwrap_or_default().to_vec();
         assert!(iter.next().is_none());
         let bytes = crate::dump_table(&composite).unwrap();
         let ours = read_fonts::tables::glyf::CompositeGlyph::read(FontData::new(&bytes)).unwrap();

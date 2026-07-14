@@ -15,8 +15,12 @@ impl<'a> MinByteRange<'a> for TableDirectory<'a> {
     }
 }
 
+impl ReadArgs for TableDirectory<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for TableDirectory<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -75,33 +79,50 @@ impl<'a> TableDirectory<'a> {
 
     pub fn sfnt_version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_tables_byte_range(&self) -> Range<usize> {
         let start = self.sfnt_version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.num_tables_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn table_records_byte_range(&self) -> Range<usize> {
         let num_tables = self.num_tables();
         let start = self.range_shift_byte_range().end;
-        start..start + (num_tables as usize).saturating_mul(TableRecord::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(num_tables)).saturating_mul(TableRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(TableDirectory::MIN_SIZE));
+
+impl Default for TableDirectory<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -207,8 +228,12 @@ impl<'a> MinByteRange<'a> for TTCHeader<'a> {
     }
 }
 
+impl ReadArgs for TTCHeader<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for TTCHeader<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -278,47 +303,67 @@ impl<'a> TTCHeader<'a> {
 
     pub fn ttc_tag_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Tag::RAW_BYTE_LEN
+        let end = start + Tag::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = self.ttc_tag_byte_range().end;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_fonts_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn table_directory_offsets_byte_range(&self) -> Range<usize> {
         let num_fonts = self.num_fonts();
         let start = self.num_fonts_byte_range().end;
-        start..start + (num_fonts as usize).saturating_mul(u32::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(num_fonts)).saturating_mul(u32::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn dsig_tag_byte_range(&self) -> Range<usize> {
         let start = self.table_directory_offsets_byte_range().end;
-        start
-            ..(self.version().compatible((2u16, 0u16)))
-                .then(|| start + u32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible((2u16, 0u16)) {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn dsig_length_byte_range(&self) -> Range<usize> {
         let start = self.dsig_tag_byte_range().end;
-        start
-            ..(self.version().compatible((2u16, 0u16)))
-                .then(|| start + u32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible((2u16, 0u16)) {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn dsig_offset_byte_range(&self) -> Range<usize> {
         let start = self.dsig_length_byte_range().end;
-        start
-            ..(self.version().compatible((2u16, 0u16)))
-                .then(|| start + u32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible((2u16, 0u16)) {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(TTCHeader::MIN_SIZE));
+
+impl Default for TTCHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

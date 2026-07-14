@@ -90,8 +90,12 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::Gsub<'a>> for Gsub {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::Gsub<'a>> for Gsub {}
 
+impl ReadArgs for Gsub {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gsub {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::Gsub as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -304,8 +308,12 @@ impl FromObjRef<read_fonts::tables::gsub::SingleSubst<'_>> for SingleSubst {
 
 impl FromTableRef<read_fonts::tables::gsub::SingleSubst<'_>> for SingleSubst {}
 
+impl ReadArgs for SingleSubst {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SingleSubst {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::SingleSubst as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -377,8 +385,12 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::SingleSubstFormat1<'a>> for Single
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::SingleSubstFormat1<'a>> for SingleSubstFormat1 {}
 
+impl ReadArgs for SingleSubstFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SingleSubstFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::SingleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -425,7 +437,7 @@ impl Validate for SingleSubstFormat2 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("substitute_glyph_ids", |ctx| {
-                if self.substitute_glyph_ids.len() > (u16::MAX as usize) {
+                if self.substitute_glyph_ids.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -446,8 +458,12 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::SingleSubstFormat2<'a>> for Single
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::SingleSubstFormat2<'a>> for SingleSubstFormat2 {}
 
+impl ReadArgs for SingleSubstFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SingleSubstFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::SingleSubstFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -495,7 +511,7 @@ impl Validate for MultipleSubstFormat1 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("sequences", |ctx| {
-                if self.sequences.len() > (u16::MAX as usize) {
+                if self.sequences.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.sequences.validate_impl(ctx);
@@ -516,8 +532,12 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::MultipleSubstFormat1<'a>> for Mult
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::MultipleSubstFormat1<'a>> for MultipleSubstFormat1 {}
 
+impl ReadArgs for MultipleSubstFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MultipleSubstFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::MultipleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -555,7 +575,7 @@ impl Validate for Sequence {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Sequence", |ctx| {
             ctx.in_field("substitute_glyph_ids", |ctx| {
-                if self.substitute_glyph_ids.len() > (u16::MAX as usize) {
+                if self.substitute_glyph_ids.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -575,8 +595,12 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::Sequence<'a>> for Sequence {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::Sequence<'a>> for Sequence {}
 
+impl ReadArgs for Sequence {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Sequence {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::Sequence as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -623,7 +647,7 @@ impl Validate for AlternateSubstFormat1 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("alternate_sets", |ctx| {
-                if self.alternate_sets.len() > (u16::MAX as usize) {
+                if self.alternate_sets.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.alternate_sets.validate_impl(ctx);
@@ -650,8 +674,12 @@ impl<'a> FromTableRef<read_fonts::tables::gsub::AlternateSubstFormat1<'a>>
 {
 }
 
+impl ReadArgs for AlternateSubstFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AlternateSubstFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::AlternateSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -689,7 +717,7 @@ impl Validate for AlternateSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AlternateSet", |ctx| {
             ctx.in_field("alternate_glyph_ids", |ctx| {
-                if self.alternate_glyph_ids.len() > (u16::MAX as usize) {
+                if self.alternate_glyph_ids.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -709,8 +737,12 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::AlternateSet<'a>> for AlternateSet
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::AlternateSet<'a>> for AlternateSet {}
 
+impl ReadArgs for AlternateSet {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AlternateSet {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::AlternateSet as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -757,7 +789,7 @@ impl Validate for LigatureSubstFormat1 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("ligature_sets", |ctx| {
-                if self.ligature_sets.len() > (u16::MAX as usize) {
+                if self.ligature_sets.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.ligature_sets.validate_impl(ctx);
@@ -778,8 +810,12 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSubstFormat1<'a>> for Liga
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::LigatureSubstFormat1<'a>> for LigatureSubstFormat1 {}
 
+impl ReadArgs for LigatureSubstFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigatureSubstFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::LigatureSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -818,7 +854,7 @@ impl Validate for LigatureSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureSet", |ctx| {
             ctx.in_field("ligatures", |ctx| {
-                if self.ligatures.len() > (u16::MAX as usize) {
+                if self.ligatures.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.ligatures.validate_impl(ctx);
@@ -838,8 +874,12 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSet<'a>> for LigatureSet {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::LigatureSet<'a>> for LigatureSet {}
 
+impl ReadArgs for LigatureSet {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigatureSet {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::LigatureSet as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -894,8 +934,12 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::Ligature<'a>> for Ligature {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gsub::Ligature<'a>> for Ligature {}
 
+impl ReadArgs for Ligature {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Ligature {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::Ligature as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -936,7 +980,7 @@ impl<T: Validate> Validate for ExtensionSubstFormat1<T> {
 impl<'a, T, U> FromObjRef<read_fonts::tables::gsub::ExtensionSubstFormat1<'a, U>>
     for ExtensionSubstFormat1<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
@@ -954,7 +998,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::tables::gsub::ExtensionSubstFormat1<'a, U>>
     for ExtensionSubstFormat1<T>
 where
-    U: FontRead<'a>,
+    U: FontRead<'a, Args = ()>,
     T: FromTableRef<U> + Default + 'static,
 {
 }
@@ -1150,19 +1194,19 @@ impl Validate for ReverseChainSingleSubstFormat1 {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("backtrack_coverages", |ctx| {
-                if self.backtrack_coverages.len() > (u16::MAX as usize) {
+                if self.backtrack_coverages.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.backtrack_coverages.validate_impl(ctx);
             });
             ctx.in_field("lookahead_coverages", |ctx| {
-                if self.lookahead_coverages.len() > (u16::MAX as usize) {
+                if self.lookahead_coverages.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.lookahead_coverages.validate_impl(ctx);
             });
             ctx.in_field("substitute_glyph_ids", |ctx| {
-                if self.substitute_glyph_ids.len() > (u16::MAX as usize) {
+                if self.substitute_glyph_ids.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -1193,8 +1237,12 @@ impl<'a> FromTableRef<read_fonts::tables::gsub::ReverseChainSingleSubstFormat1<'
 {
 }
 
+impl ReadArgs for ReverseChainSingleSubstFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gsub::ReverseChainSingleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

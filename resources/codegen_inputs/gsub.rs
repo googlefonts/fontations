@@ -22,7 +22,7 @@ table Gsub {
 }
 
 /// A [GSUB Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsubLookupTypeEnum) subtable.
- group SubstitutionLookup(Lookup, $lookup_type) {
+ group SubstitutionLookup(Lookup) {
     1 => Single(SingleSubst),
     2 => Multiple(MultipleSubstFormat1),
     3 => Alternate(AlternateSubstFormat1),
@@ -172,6 +172,7 @@ table ExtensionSubstFormat1 {
     subst_format: u16,
     /// Lookup type of subtable referenced by extensionOffset (that is,
     /// the extension subtable).
+    #[discriminant]
     extension_lookup_type: u16,
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
@@ -180,7 +181,7 @@ table ExtensionSubstFormat1 {
 }
 
 /// A [GSUB Extension Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#ES) subtable
- group ExtensionSubtable(ExtensionSubstFormat1, $extension_lookup_type) {
+ group ExtensionSubtable(ExtensionSubstFormat1) {
     1 => Single(SingleSubst),
     2 => Multiple(MultipleSubstFormat1),
     3 => Alternate(AlternateSubstFormat1),

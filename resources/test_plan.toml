@@ -70,3 +70,13 @@ target = "read-fonts/generated/generated_test_read_args.rs"
 mode = "compile"
 source = "resources/codegen_inputs/test_read_args.rs"
 target = "write-fonts/generated/generated_test_read_args.rs"
+
+[[generate]]
+mode = "parse"
+source = "resources/codegen_inputs/test_generic_group.rs"
+target = "read-fonts/generated/generated_test_generic_group.rs"
+
+[[generate]]
+mode = "compile"
+source = "resources/codegen_inputs/test_generic_group.rs"
+target = "write-fonts/generated/generated_test_generic_group.rs"

@@ -23,7 +23,7 @@ table Gpos {
 }
 
 /// A [GPOS Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#gsubLookupTypeEnum) subtable.
- group PositionLookup(Lookup, $lookup_type) {
+ group PositionLookup(Lookup) {
     1 => Single(SinglePos),
     2 => Pair(PairPos),
     3 => Cursive(CursivePosFormat1),
@@ -486,6 +486,7 @@ table ExtensionPosFormat1 {
     pos_format: u16,
     /// Lookup type of subtable referenced by extensionOffset (i.e. the
     /// extension subtable).
+    #[discriminant]
     extension_lookup_type: u16,
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
@@ -494,7 +495,7 @@ table ExtensionPosFormat1 {
 }
 
 /// A [GPOS Extension Positioning](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#lookuptype-9-extension-positioning) subtable
- group ExtensionSubtable(ExtensionPosFormat1, $extension_lookup_type) {
+ group ExtensionSubtable(ExtensionPosFormat1) {
     1 => Single(SinglePos),
     2 => Pair(PairPos),
     3 => Cursive(CursivePosFormat1),

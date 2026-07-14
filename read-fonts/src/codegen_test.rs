@@ -37,8 +37,12 @@ pub mod offsets_arrays {
         type Size = u16;
     }
 
+    impl ReadArgs for VarSizeDummy<'_> {
+        type Args = ();
+    }
+
     impl<'a> FontRead<'a> for VarSizeDummy<'a> {
-        fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
             let count: u16 = data.read_at(0)?;
             let bytes = data
                 .as_bytes()
@@ -294,5 +298,72 @@ pub mod conditions {
         let table = FlagDay::read(data.data().into()).unwrap();
         assert_eq!(table.foo(), Some(0xf00));
         assert_eq!(table.bar(), Some(0xba4));
+    }
+}
+
+pub mod generic_group {
+    include!("../generated/generated_test_generic_group.rs");
+
+    #[cfg(test)]
+    use font_test_data::bebuffer::BeBuffer;
+
+    /// Build bytes for a MyLookup with one subtable offset pointing at data
+    /// immediately after the header.
+    /// Layout: [lookup_type: u16, sub_table_count: u16, offset0: Offset16, ...subtable data]
+    #[cfg(test)]
+    fn make_lookup_with_format1(lookup_type: u16) -> BeBuffer {
+        BeBuffer::new()
+            .push(lookup_type) // lookup_type
+            .push(1u16) // sub_table_count
+            .push(6u16) // offset to subtable (6 bytes from start)
+            // subtable data (MySubtableFormat1): format=1, value=42
+            .push(1u16)
+            .push(42u16)
+    }
+
+    #[test]
+    fn parse_lookup_group_type_one() {
+        let buf = make_lookup_with_format1(1);
+        let group = MyLookupGroup::read(buf.data().into()).unwrap();
+        assert!(matches!(group, MyLookupGroup::TypeOne(_)));
+        let lookup = group.of_unit_type();
+        assert_eq!(lookup.lookup_type(), 1);
+        assert_eq!(lookup.sub_table_count(), 1);
+    }
+
+    #[test]
+    fn parse_lookup_group_type_two() {
+        let buf = make_lookup_with_format1(2);
+        let group = MyLookupGroup::read(buf.data().into()).unwrap();
+        assert!(matches!(group, MyLookupGroup::TypeTwo(_)));
+    }
+
+    #[test]
+    fn parse_lookup_group_invalid_type() {
+        let buf = make_lookup_with_format1(99);
+        let result = MyLookupGroup::read(buf.data().into());
+        assert!(matches!(result, Err(ReadError::InvalidFormat(99))))
+    }
+
+    #[test]
+    fn parse_subtable_format_dispatch() {
+        // Format 1
+        let buf = BeBuffer::new().push(1u16).push(42u16);
+        let sub = MySubtable::read(buf.data().into()).unwrap();
+        assert!(matches!(sub, MySubtable::Format1(_)));
+        if let MySubtable::Format1(f1) = sub {
+            assert_eq!(f1.value(), 42);
+        }
+
+        // Format 2
+        let buf = BeBuffer::new()
+            .push(2u16) // format
+            .push(2u16) // count
+            .extend([10u16, 20]);
+        let sub = MySubtable::read(buf.data().into()).unwrap();
+        assert!(matches!(sub, MySubtable::Format2(_)));
+        if let MySubtable::Format2(f2) = sub {
+            assert_eq!(f2.count(), 2);
+        }
     }
 }

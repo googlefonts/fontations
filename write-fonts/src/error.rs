@@ -2,7 +2,22 @@
 
 use std::sync::Arc;
 
+use types::Tag;
+
 use crate::{graph::Graph, validate::ValidationReport};
+
+/// An error returned when attempting to add a table to the builder.
+///
+/// This wraps a compilation error, adding the tag of the table where it was
+/// encountered.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct BuilderError {
+    /// The tag of the root table where the error occurred
+    pub tag: Tag,
+    /// The underlying error
+    pub inner: Error,
+}
 
 /// A packing could not be found that satisfied all offsets
 ///
@@ -43,6 +58,18 @@ impl PackingError {
     #[cfg(feature = "dot2")]
     pub fn write_graph_viz(&self, path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
         self.graph.write_graph_viz(path)
+    }
+}
+
+impl std::fmt::Display for BuilderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "failed to build '{}' table: '{}'", self.tag, self.inner)
+    }
+}
+
+impl std::error::Error for BuilderError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.inner)
     }
 }
 

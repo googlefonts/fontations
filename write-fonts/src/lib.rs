@@ -137,28 +137,49 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod collections;
+#[cfg(feature = "tables")]
 pub mod error;
 mod font_builder;
+#[cfg(feature = "tables")]
 pub mod from_obj;
+#[cfg(feature = "tables")]
 mod graph;
+mod object;
 mod offsets;
+#[cfg(feature = "tables")]
 pub mod ps;
+#[cfg(feature = "tables")]
 mod round;
+mod search_range;
 mod table_type;
+#[cfg(feature = "tables")]
 pub mod tables;
+#[cfg(feature = "tables")]
 mod util;
+#[cfg(feature = "tables")]
 pub mod validate;
+#[cfg(not(feature = "tables"))]
+mod validate;
 mod write;
 
-#[cfg(test)]
+#[cfg(all(feature = "tables", test))]
 mod codegen_test;
-#[cfg(test)]
+#[cfg(all(feature = "tables", test))]
 mod hex_diff;
 
-pub use font_builder::{BuilderError, FontBuilder};
+#[cfg(feature = "tables")]
+pub use error::BuilderError;
+pub use font_builder::FontBuilder;
+#[cfg(feature = "tables")]
 pub use offsets::{NullableOffsetMarker, OffsetMarker};
+#[cfg(feature = "tables")]
 pub use round::OtRound;
-pub use write::{dump_table, FontWrite, TableWriter};
+#[cfg(feature = "tables")]
+pub use write::dump_table;
+#[cfg(feature = "tables")]
+pub use write::FontWrite;
+#[cfg(feature = "tables")]
+pub use write::TableWriter;
 
 /// Rexport of the common font types
 pub extern crate font_types as types;
@@ -171,7 +192,9 @@ pub extern crate read_fonts as read;
 pub(crate) mod codegen_prelude {
     use std::num::TryFromIntError;
 
+    #[cfg(feature = "tables")]
     pub use super::from_obj::{FromObjRef, FromTableRef, ToOwnedObj, ToOwnedTable};
+    #[allow(dead_code)]
     pub use super::offsets::{NullableOffsetMarker, OffsetMarker, WIDTH_16, WIDTH_24, WIDTH_32};
     pub use super::table_type::TableType;
     pub use super::validate::{Validate, ValidationCtx};
@@ -179,15 +202,18 @@ pub(crate) mod codegen_prelude {
     pub use std::collections::BTreeSet;
     pub use types::*;
 
-    pub use read_fonts::{
-        FontData, FontRead, FontReadWithArgs, ReadArgs, ReadError, ResolveOffset, TopLevelTable,
-    };
+    pub use read_fonts::{FontData, FontRead, ReadArgs, ReadError, ResolveOffset, TopLevelTable};
 
     /// checked conversion to u16
     pub fn array_len<T: super::collections::HasLen>(s: &T) -> usize {
         s.len()
     }
 
+    pub fn to_usize<T: TryInto<usize>>(value: T) -> usize {
+        value.try_into().unwrap_or_default()
+    }
+
+    #[cfg(feature = "tables")]
     pub fn plus_one(val: &usize) -> usize {
         val.saturating_add(1)
     }

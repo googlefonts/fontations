@@ -95,8 +95,12 @@ impl<'a> FromObjRef<read_fonts::tables::varc::Varc<'a>> for Varc {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::varc::Varc<'a>> for Varc {}
 
+impl ReadArgs for Varc {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Varc {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::Varc as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -146,7 +150,7 @@ impl Validate for MultiItemVariationStore {
                 self.region_list.validate_impl(ctx);
             });
             ctx.in_field("variation_data", |ctx| {
-                if self.variation_data.len() > (u16::MAX as usize) {
+                if self.variation_data.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.variation_data.validate_impl(ctx);
@@ -176,8 +180,12 @@ impl<'a> FromTableRef<read_fonts::tables::varc::MultiItemVariationStore<'a>>
 {
 }
 
+impl ReadArgs for MultiItemVariationStore {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MultiItemVariationStore {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::MultiItemVariationStore as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -214,7 +222,7 @@ impl Validate for SparseVariationRegionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SparseVariationRegionList", |ctx| {
             ctx.in_field("regions", |ctx| {
-                if self.regions.len() > (u16::MAX as usize) {
+                if self.regions.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.regions.validate_impl(ctx);
@@ -243,8 +251,12 @@ impl<'a> FromTableRef<read_fonts::tables::varc::SparseVariationRegionList<'a>>
 {
 }
 
+impl ReadArgs for SparseVariationRegionList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SparseVariationRegionList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::SparseVariationRegionList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -281,7 +293,7 @@ impl Validate for SparseVariationRegion {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SparseVariationRegion", |ctx| {
             ctx.in_field("region_axes", |ctx| {
-                if self.region_axes.len() > (u16::MAX as usize) {
+                if self.region_axes.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.region_axes.validate_impl(ctx);
@@ -309,8 +321,12 @@ impl<'a> FromTableRef<read_fonts::tables::varc::SparseVariationRegion<'a>>
 {
 }
 
+impl ReadArgs for SparseVariationRegion {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SparseVariationRegion {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::SparseVariationRegion as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -405,7 +421,7 @@ impl Validate for MultiItemVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MultiItemVariationData", |ctx| {
             ctx.in_field("region_indices", |ctx| {
-                if self.region_indices.len() > (u16::MAX as usize) {
+                if self.region_indices.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -435,8 +451,12 @@ impl<'a> FromTableRef<read_fonts::tables::varc::MultiItemVariationData<'a>>
 {
 }
 
+impl ReadArgs for MultiItemVariationData {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MultiItemVariationData {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::MultiItemVariationData as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -473,7 +493,7 @@ impl Validate for ConditionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionList", |ctx| {
             ctx.in_field("conditions", |ctx| {
-                if self.conditions.len() > (u32::MAX as usize) {
+                if self.conditions.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.conditions.validate_impl(ctx);
@@ -494,8 +514,12 @@ impl<'a> FromObjRef<read_fonts::tables::varc::ConditionList<'a>> for ConditionLi
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::varc::ConditionList<'a>> for ConditionList {}
 
+impl ReadArgs for ConditionList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ConditionList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::varc::ConditionList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

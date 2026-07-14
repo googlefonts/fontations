@@ -20,8 +20,12 @@ impl TopLevelTable for Vorg<'_> {
     const TAG: Tag = Tag::new(b"VORG");
 }
 
+impl ReadArgs for Vorg<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Vorg<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -69,26 +73,39 @@ impl<'a> Vorg<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn default_vert_origin_y_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
         let start = self.default_vert_origin_y_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn vert_origin_y_metrics_byte_range(&self) -> Range<usize> {
         let num_vert_origin_y_metrics = self.num_vert_origin_y_metrics();
         let start = self.num_vert_origin_y_metrics_byte_range().end;
-        start
-            ..start
-                + (num_vert_origin_y_metrics as usize)
-                    .saturating_mul(VertOriginYMetrics::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_vert_origin_y_metrics))
+                .saturating_mul(VertOriginYMetrics::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Vorg::MIN_SIZE));
+
+impl Default for Vorg<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

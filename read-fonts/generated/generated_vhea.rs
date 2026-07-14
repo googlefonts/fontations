@@ -20,8 +20,12 @@ impl TopLevelTable for Vhea<'_> {
     const TAG: Tag = Tag::new(b"vhea");
 }
 
+impl ReadArgs for Vhea<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Vhea<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -142,87 +146,114 @@ impl<'a> Vhea<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Version16Dot16::RAW_BYTE_LEN
+        let end = start + Version16Dot16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ascender_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn descender_byte_range(&self) -> Range<usize> {
         let start = self.ascender_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn line_gap_byte_range(&self) -> Range<usize> {
         let start = self.descender_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn advance_height_max_byte_range(&self) -> Range<usize> {
         let start = self.line_gap_byte_range().end;
-        start..start + UfWord::RAW_BYTE_LEN
+        let end = start + UfWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn min_top_side_bearing_byte_range(&self) -> Range<usize> {
         let start = self.advance_height_max_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn min_bottom_side_bearing_byte_range(&self) -> Range<usize> {
         let start = self.min_top_side_bearing_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_max_extent_byte_range(&self) -> Range<usize> {
         let start = self.min_bottom_side_bearing_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn caret_slope_rise_byte_range(&self) -> Range<usize> {
         let start = self.y_max_extent_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn caret_slope_run_byte_range(&self) -> Range<usize> {
         let start = self.caret_slope_rise_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn caret_offset_byte_range(&self) -> Range<usize> {
         let start = self.caret_slope_run_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved1_byte_range(&self) -> Range<usize> {
         let start = self.caret_offset_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved2_byte_range(&self) -> Range<usize> {
         let start = self.reserved1_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved3_byte_range(&self) -> Range<usize> {
         let start = self.reserved2_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved4_byte_range(&self) -> Range<usize> {
         let start = self.reserved3_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn metric_data_format_byte_range(&self) -> Range<usize> {
         let start = self.reserved4_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn number_of_long_ver_metrics_byte_range(&self) -> Range<usize> {
         let start = self.metric_data_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Vhea::MIN_SIZE));
+
+impl Default for Vhea<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

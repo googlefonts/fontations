@@ -1,9 +1,9 @@
 //! Read layout tables in a graph
+use crate::fnv::FnvHashMap;
 use crate::{
     graph::{Graph, RepackError},
     serialize::{Link, LinkWidth, ObjIdx},
 };
-use fnv::FnvHashMap;
 use write_fonts::types::{FixedSize, Offset16, Scalar};
 
 pub(super) struct DataBytes<'a> {
@@ -138,7 +138,7 @@ impl Graph {
         subtable_idx: ObjIdx,
         lookup_type: u16,
     ) -> Result<ObjIdx, RepackError> {
-        let ext_idx = self.new_vertex(EXTENSION_TABLE_SIZE);
+        let ext_idx = self.new_vertex(EXTENSION_TABLE_SIZE)?;
         let mut ext_subtable = ExtensionSubtable::from_graph(self, ext_idx)?;
 
         ext_subtable.reset(lookup_type);
@@ -196,8 +196,8 @@ impl Graph {
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
         let subtable_idxes = lookup_v.child_idxes();
-        for subtable_idx in subtable_idxes {
-            self.make_subtable_extension(lookup_idx, subtable_idx, lookup_type, idx_map)?;
+        for subtable_idx in subtable_idxes.keys() {
+            self.make_subtable_extension(lookup_idx, *subtable_idx, lookup_type, idx_map)?;
         }
 
         let mut lookup_table = Lookup::from_graph(self, lookup_idx)?;

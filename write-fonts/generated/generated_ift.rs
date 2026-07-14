@@ -114,8 +114,12 @@ impl FromObjRef<read_fonts::tables::ift::Ift<'_>> for Ift {
 
 impl FromTableRef<read_fonts::tables::ift::Ift<'_>> for Ift {}
 
+impl ReadArgs for Ift {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Ift {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::Ift as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -246,7 +250,7 @@ impl Validate for PatchMapFormat1 {
                 self.feature_map.validate_impl(ctx);
             });
             ctx.in_field("url_template", |ctx| {
-                if self.url_template.len() > (u16::MAX as usize) {
+                if self.url_template.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -316,8 +320,12 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFormat1 {}
 
+impl ReadArgs for PatchMapFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PatchMapFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::PatchMapFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -563,7 +571,7 @@ impl Validate for PatchMapFormat2 {
                 self.entry_id_string_data.validate_impl(ctx);
             });
             ctx.in_field("url_template", |ctx| {
-                if self.url_template.len() > (u16::MAX as usize) {
+                if self.url_template.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -630,8 +638,12 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFo
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFormat2 {}
 
+impl ReadArgs for PatchMapFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PatchMapFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::PatchMapFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -675,8 +687,12 @@ impl<'a> FromObjRef<read_fonts::tables::ift::MappingEntries<'a>> for MappingEntr
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::MappingEntries<'a>> for MappingEntries {}
 
+impl ReadArgs for MappingEntries {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MappingEntries {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::MappingEntries as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -791,7 +807,7 @@ impl Validate for EntryData {
                     ctx.report("FEATURES_AND_DESIGN_SPACE is set but 'feature_tags' is None")
                 }
                 if self.feature_tags.is_some()
-                    && self.feature_tags.as_ref().unwrap().len() > (u8::MAX as usize)
+                    && self.feature_tags.as_ref().unwrap().len() > to_usize(u8::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }
@@ -834,7 +850,7 @@ impl Validate for EntryData {
                     )
                 }
                 if self.design_space_segments.is_some()
-                    && self.design_space_segments.as_ref().unwrap().len() > (u16::MAX as usize)
+                    && self.design_space_segments.as_ref().unwrap().len() > to_usize(u16::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }
@@ -874,8 +890,12 @@ impl<'a> FromObjRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::EntryData<'a>> for EntryData {}
 
+impl ReadArgs for EntryData {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for EntryData {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::EntryData as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -968,8 +988,12 @@ impl<'a> FromObjRef<read_fonts::tables::ift::IdStringData<'a>> for IdStringData 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::IdStringData<'a>> for IdStringData {}
 
+impl ReadArgs for IdStringData {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for IdStringData {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::IdStringData as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1040,8 +1064,12 @@ impl<'a> FromObjRef<read_fonts::tables::ift::TableKeyedPatch<'a>> for TableKeyed
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::TableKeyedPatch<'a>> for TableKeyedPatch {}
 
+impl ReadArgs for TableKeyedPatch {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for TableKeyedPatch {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::TableKeyedPatch as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1105,8 +1133,12 @@ impl<'a> FromObjRef<read_fonts::tables::ift::TablePatch<'a>> for TablePatch {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::TablePatch<'a>> for TablePatch {}
 
+impl ReadArgs for TablePatch {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for TablePatch {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::TablePatch as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1182,8 +1214,12 @@ impl<'a> FromObjRef<read_fonts::tables::ift::GlyphKeyedPatch<'a>> for GlyphKeyed
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::GlyphKeyedPatch<'a>> for GlyphKeyedPatch {}
 
+impl ReadArgs for GlyphKeyedPatch {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphKeyedPatch {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::GlyphKeyedPatch as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -1239,7 +1275,7 @@ impl Validate for GlyphPatches {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("GlyphPatches", |ctx| {
             ctx.in_field("tables", |ctx| {
-                if self.tables.len() > (u8::MAX as usize) {
+                if self.tables.len() > to_usize(u8::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -1303,8 +1339,12 @@ impl<'a> FromObjRef<read_fonts::tables::ift::GlyphData<'a>> for GlyphData {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::ift::GlyphData<'a>> for GlyphData {}
 
+impl ReadArgs for GlyphData {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphData {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::ift::GlyphData as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

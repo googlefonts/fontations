@@ -3,6 +3,7 @@
 
 use std::cmp::Ordering;
 
+use crate::fnv::FnvHashMap;
 use crate::{
     graph::{
         layout::{ExtensionSubtable, Lookup, EXTENSION_TABLE_SIZE},
@@ -13,7 +14,6 @@ use crate::{
     },
     serialize::{ObjIdx, Serializer},
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -23,6 +23,7 @@ use write_fonts::{
     types::{FixedSize, Offset16, Tag},
 };
 
+const MAX_ITERATIONS: u16 = 500;
 //TODO: add more functionality, serialize output etc.
 pub(crate) fn resolve_overflows(
     s: &Serializer,
@@ -56,6 +57,13 @@ pub(crate) fn resolve_graph_overflows(
             let mut visited = FnvHashMap::default();
             presplit_subtables_if_needed(graph, tag, &lookup_indices, &mut visited)?;
             promote_extensions_if_needed(graph, lookup_list_idx, &lookup_indices, tag)?;
+
+            // an additional sorting is needed before assign_spaces (),
+            // which requires correct topological ordering to find space roots
+            graph.sort_shortest_distance_if_needed()?;
+            if graph.overflows().is_empty() {
+                return Ok(());
+            }
         }
         if graph.assign_spaces()? {
             graph.sort_shortest_distance()?;
@@ -65,8 +73,10 @@ pub(crate) fn resolve_graph_overflows(
     }
 
     let mut round = 0;
+    let mut total_iterations = 0;
     let mut overflows = graph.overflows();
-    while !overflows.is_empty() && round < max_round {
+    while !overflows.is_empty() && round < max_round && total_iterations < MAX_ITERATIONS {
+        total_iterations += 1;
         if !graph.try_isolating_subgraphs(&overflows)? {
             round += 1;
             if !graph.process_overflows(&overflows)? {
@@ -92,10 +102,10 @@ pub(crate) fn resolve_graph_overflows(
 fn presplit_subtables_if_needed(
     graph: &mut Graph,
     table_tag: Tag,
-    lookup_indices: &Vec<ObjIdx>,
+    lookup_indices: &FnvHashMap<ObjIdx, u32>,
     visited: &mut FnvHashMap<ObjIdx, Vec<ObjIdx>>,
 ) -> Result<(), RepackError> {
-    for lookup_idx in lookup_indices {
+    for lookup_idx in lookup_indices.keys() {
         split_lookup_subtables_if_needed(graph, table_tag, *lookup_idx, visited)?;
     }
     Ok(())
@@ -197,11 +207,12 @@ fn splitting_supported_lookup_type(lookup_type: u16, table_tag: Tag) -> bool {
 fn promote_extensions_if_needed(
     graph: &mut Graph,
     lookup_list_idx: ObjIdx,
-    lookups: &[ObjIdx],
+    lookups: &FnvHashMap<ObjIdx, u32>,
     table_tag: Tag,
 ) -> Result<(), RepackError> {
     struct LookupSize {
         obj_idx: ObjIdx,
+        lookup_pos: u32,
         lookup_size: usize,
         subgraph_size: usize,
         subtable_count: usize,
@@ -218,14 +229,14 @@ fn promote_extensions_if_needed(
             } else if bytes_per_subtable_b > bytes_per_subtable_a {
                 Ordering::Greater
             } else {
-                Ordering::Equal
+                other.lookup_pos.cmp(&self.lookup_pos)
             }
         }
     }
     let mut total_lookup_table_sizes = 0;
     let mut lookup_sizes = Vec::with_capacity(lookups.len());
     let mut visited = IntSet::empty();
-    for lookup_idx in lookups {
+    for (lookup_idx, &lookup_pos) in lookups {
         let lookup_v = graph
             .vertex(*lookup_idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
@@ -241,6 +252,7 @@ fn promote_extensions_if_needed(
         let subgraph_size = graph.find_subgraph_size(*lookup_idx, &mut visited, u16::MAX)?;
         lookup_sizes.push(LookupSize {
             obj_idx: *lookup_idx,
+            lookup_pos,
             lookup_size: table_size,
             subgraph_size,
             subtable_count: subtable_count as usize,
@@ -316,7 +328,7 @@ fn extension_type(table_tag: Tag) -> Option<u16> {
     }
 }
 
-fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, Vec<ObjIdx>), RepackError> {
+fn find_lookup_indices(graph: &Graph) -> Result<(ObjIdx, FnvHashMap<ObjIdx, u32>), RepackError> {
     // pos=8: lookup list position in GSUB/GPOS table
     let lookup_list_idx = graph
         .index_for_position(graph.root_idx(), 8)

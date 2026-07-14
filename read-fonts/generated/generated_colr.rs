@@ -20,8 +20,12 @@ impl TopLevelTable for Colr<'_> {
     const TAG: Tag = Tag::new(b"COLR");
 }
 
+impl ReadArgs for Colr<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Colr<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -68,7 +72,7 @@ impl<'a> Colr<'a> {
         let data = self.data;
         let args = self.num_base_glyph_records();
         self.base_glyph_records_offset()
-            .resolve_with_args(data, &args)
+            .resolve_with_args(data, args)
     }
 
     /// Offset to layerRecords array (may be NULL).
@@ -81,7 +85,7 @@ impl<'a> Colr<'a> {
     pub fn layer_records(&self) -> Option<Result<&'a [Layer], ReadError>> {
         let data = self.data;
         let args = self.num_layer_records();
-        self.layer_records_offset().resolve_with_args(data, &args)
+        self.layer_records_offset().resolve_with_args(data, args)
     }
 
     /// Number of Layer records; may be 0 in a version 1 table.
@@ -163,67 +167,92 @@ impl<'a> Colr<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_base_glyph_records_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_glyph_records_offset_byte_range(&self) -> Range<usize> {
         let start = self.num_base_glyph_records_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn layer_records_offset_byte_range(&self) -> Range<usize> {
         let start = self.base_glyph_records_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_layer_records_byte_range(&self) -> Range<usize> {
         let start = self.layer_records_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_glyph_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.num_layer_records_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn layer_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.base_glyph_list_offset_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn clip_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.layer_list_offset_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn var_index_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.clip_list_offset_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.var_index_map_offset_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Colr::MIN_SIZE));
+
+impl Default for Colr<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -399,8 +428,12 @@ impl<'a> MinByteRange<'a> for BaseGlyphList<'a> {
     }
 }
 
+impl ReadArgs for BaseGlyphList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseGlyphList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -432,16 +465,27 @@ impl<'a> BaseGlyphList<'a> {
 
     pub fn num_base_glyph_paint_records_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_glyph_paint_records_byte_range(&self) -> Range<usize> {
         let num_base_glyph_paint_records = self.num_base_glyph_paint_records();
         let start = self.num_base_glyph_paint_records_byte_range().end;
-        start
-            ..start
-                + (num_base_glyph_paint_records as usize)
-                    .saturating_mul(BaseGlyphPaint::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_base_glyph_paint_records))
+                .saturating_mul(BaseGlyphPaint::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(BaseGlyphList::MIN_SIZE));
+
+impl Default for BaseGlyphList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -540,8 +584,12 @@ impl<'a> MinByteRange<'a> for LayerList<'a> {
     }
 }
 
+impl ReadArgs for LayerList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LayerList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -581,13 +629,25 @@ impl<'a> LayerList<'a> {
 
     pub fn num_layers_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offsets_byte_range(&self) -> Range<usize> {
         let num_layers = self.num_layers();
         let start = self.num_layers_byte_range().end;
-        start..start + (num_layers as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(num_layers)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(LayerList::MIN_SIZE));
+
+impl Default for LayerList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -599,20 +659,7 @@ impl<'a> SomeTable<'a> for LayerList<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("num_layers", self.num_layers())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "paint_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Paint>(),
-                        self.paint_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<Paint>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new("paint_offsets", FieldType::from(self.paints()))),
             _ => None,
         }
     }
@@ -636,8 +683,12 @@ impl<'a> MinByteRange<'a> for ClipList<'a> {
     }
 }
 
+impl ReadArgs for ClipList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClipList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -677,18 +728,31 @@ impl<'a> ClipList<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_clips_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn clips_byte_range(&self) -> Range<usize> {
         let num_clips = self.num_clips();
         let start = self.num_clips_byte_range().end;
-        start..start + (num_clips as usize).saturating_mul(Clip::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(num_clips)).saturating_mul(Clip::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(ClipList::MIN_SIZE));
+
+impl Default for ClipList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -791,6 +855,12 @@ pub enum ClipBox<'a> {
     Format2(ClipBoxFormat2<'a>),
 }
 
+impl Default for ClipBox<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl<'a> ClipBox<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -841,8 +911,12 @@ impl<'a> ClipBox<'a> {
     }
 }
 
+impl ReadArgs for ClipBox<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClipBox<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             ClipBoxFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -908,8 +982,12 @@ impl<'a> MinByteRange<'a> for ClipBoxFormat1<'a> {
     }
 }
 
+impl ReadArgs for ClipBoxFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClipBoxFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -965,27 +1043,42 @@ impl<'a> ClipBoxFormat1<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(ClipBoxFormat1::MIN_SIZE));
+
+impl Default for ClipBoxFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
     }
 }
 
@@ -1028,8 +1121,12 @@ impl<'a> MinByteRange<'a> for ClipBoxFormat2<'a> {
     }
 }
 
+impl ReadArgs for ClipBoxFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ClipBoxFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1092,32 +1189,38 @@ impl<'a> ClipBoxFormat2<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_min_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_min_byte_range(&self) -> Range<usize> {
         let start = self.x_min_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_max_byte_range(&self) -> Range<usize> {
         let start = self.y_min_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_max_byte_range(&self) -> Range<usize> {
         let start = self.x_max_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -1358,8 +1461,12 @@ impl<'a> MinByteRange<'a> for ColorLine<'a> {
     }
 }
 
+impl ReadArgs for ColorLine<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ColorLine<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1398,18 +1505,31 @@ impl<'a> ColorLine<'a> {
 
     pub fn extend_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Extend::RAW_BYTE_LEN
+        let end = start + Extend::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_stops_byte_range(&self) -> Range<usize> {
         let start = self.extend_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_stops_byte_range(&self) -> Range<usize> {
         let num_stops = self.num_stops();
         let start = self.num_stops_byte_range().end;
-        start..start + (num_stops as usize).saturating_mul(ColorStop::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(num_stops)).saturating_mul(ColorStop::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(ColorLine::MIN_SIZE));
+
+impl Default for ColorLine<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1453,8 +1573,12 @@ impl<'a> MinByteRange<'a> for VarColorLine<'a> {
     }
 }
 
+impl ReadArgs for VarColorLine<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarColorLine<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1494,18 +1618,32 @@ impl<'a> VarColorLine<'a> {
 
     pub fn extend_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Extend::RAW_BYTE_LEN
+        let end = start + Extend::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_stops_byte_range(&self) -> Range<usize> {
         let start = self.extend_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_stops_byte_range(&self) -> Range<usize> {
         let num_stops = self.num_stops();
         let start = self.num_stops_byte_range().end;
-        start..start + (num_stops as usize).saturating_mul(VarColorStop::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(num_stops)).saturating_mul(VarColorStop::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(VarColorLine::MIN_SIZE));
+
+impl Default for VarColorLine<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1623,6 +1761,12 @@ pub enum Paint<'a> {
     Composite(PaintComposite<'a>),
 }
 
+impl Default for Paint<'_> {
+    fn default() -> Self {
+        Self::ColrLayers(Default::default())
+    }
+}
+
 impl<'a> Paint<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -1701,8 +1845,12 @@ impl<'a> Paint<'a> {
     }
 }
 
+impl ReadArgs for Paint<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Paint<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             PaintColrLayers::FORMAT => Ok(Self::ColrLayers(FontRead::read(data)?)),
@@ -1898,8 +2046,12 @@ impl<'a> MinByteRange<'a> for PaintColrLayers<'a> {
     }
 }
 
+impl ReadArgs for PaintColrLayers<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintColrLayers<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1939,17 +2091,32 @@ impl<'a> PaintColrLayers<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_layers_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn first_layer_index_byte_range(&self) -> Range<usize> {
         let start = self.num_layers_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    PaintColrLayers::MIN_SIZE
+));
+
+impl Default for PaintColrLayers<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
     }
 }
 
@@ -1990,8 +2157,12 @@ impl<'a> MinByteRange<'a> for PaintSolid<'a> {
     }
 }
 
+impl ReadArgs for PaintSolid<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintSolid<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2031,17 +2202,20 @@ impl<'a> PaintSolid<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn palette_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn alpha_byte_range(&self) -> Range<usize> {
         let start = self.palette_index_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -2082,8 +2256,12 @@ impl<'a> MinByteRange<'a> for PaintVarSolid<'a> {
     }
 }
 
+impl ReadArgs for PaintVarSolid<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarSolid<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2130,22 +2308,26 @@ impl<'a> PaintVarSolid<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn palette_index_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn alpha_byte_range(&self) -> Range<usize> {
         let start = self.palette_index_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.alpha_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -2187,8 +2369,12 @@ impl<'a> MinByteRange<'a> for PaintLinearGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintLinearGradient<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintLinearGradient<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2271,42 +2457,50 @@ impl<'a> PaintLinearGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x0_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y0_byte_range(&self) -> Range<usize> {
         let start = self.x0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x1_byte_range(&self) -> Range<usize> {
         let start = self.y0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y1_byte_range(&self) -> Range<usize> {
         let start = self.x1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x2_byte_range(&self) -> Range<usize> {
         let start = self.y1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y2_byte_range(&self) -> Range<usize> {
         let start = self.x2_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -2355,8 +2549,12 @@ impl<'a> MinByteRange<'a> for PaintVarLinearGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintVarLinearGradient<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarLinearGradient<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2452,47 +2650,56 @@ impl<'a> PaintVarLinearGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x0_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y0_byte_range(&self) -> Range<usize> {
         let start = self.x0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x1_byte_range(&self) -> Range<usize> {
         let start = self.y0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y1_byte_range(&self) -> Range<usize> {
         let start = self.x1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x2_byte_range(&self) -> Range<usize> {
         let start = self.y1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y2_byte_range(&self) -> Range<usize> {
         let start = self.x2_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.y2_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -2542,8 +2749,12 @@ impl<'a> MinByteRange<'a> for PaintRadialGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintRadialGradient<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintRadialGradient<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2626,42 +2837,50 @@ impl<'a> PaintRadialGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x0_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y0_byte_range(&self) -> Range<usize> {
         let start = self.x0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn radius0_byte_range(&self) -> Range<usize> {
         let start = self.y0_byte_range().end;
-        start..start + UfWord::RAW_BYTE_LEN
+        let end = start + UfWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x1_byte_range(&self) -> Range<usize> {
         let start = self.radius0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y1_byte_range(&self) -> Range<usize> {
         let start = self.x1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn radius1_byte_range(&self) -> Range<usize> {
         let start = self.y1_byte_range().end;
-        start..start + UfWord::RAW_BYTE_LEN
+        let end = start + UfWord::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -2710,8 +2929,12 @@ impl<'a> MinByteRange<'a> for PaintVarRadialGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintVarRadialGradient<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarRadialGradient<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2805,47 +3028,56 @@ impl<'a> PaintVarRadialGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x0_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y0_byte_range(&self) -> Range<usize> {
         let start = self.x0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn radius0_byte_range(&self) -> Range<usize> {
         let start = self.y0_byte_range().end;
-        start..start + UfWord::RAW_BYTE_LEN
+        let end = start + UfWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x1_byte_range(&self) -> Range<usize> {
         let start = self.radius0_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y1_byte_range(&self) -> Range<usize> {
         let start = self.x1_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn radius1_byte_range(&self) -> Range<usize> {
         let start = self.y1_byte_range().end;
-        start..start + UfWord::RAW_BYTE_LEN
+        let end = start + UfWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.radius1_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -2895,8 +3127,12 @@ impl<'a> MinByteRange<'a> for PaintSweepGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintSweepGradient<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintSweepGradient<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2967,32 +3203,38 @@ impl<'a> PaintSweepGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn start_angle_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn end_angle_byte_range(&self) -> Range<usize> {
         let start = self.start_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -3039,8 +3281,12 @@ impl<'a> MinByteRange<'a> for PaintVarSweepGradient<'a> {
     }
 }
 
+impl ReadArgs for PaintVarSweepGradient<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarSweepGradient<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3120,37 +3366,44 @@ impl<'a> PaintVarSweepGradient<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_line_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.color_line_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn start_angle_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn end_angle_byte_range(&self) -> Range<usize> {
         let start = self.start_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.end_angle_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -3198,8 +3451,12 @@ impl<'a> MinByteRange<'a> for PaintGlyph<'a> {
     }
 }
 
+impl ReadArgs for PaintGlyph<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintGlyph<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3246,17 +3503,20 @@ impl<'a> PaintGlyph<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + GlyphId16::RAW_BYTE_LEN
+        let end = start + GlyphId16::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -3300,8 +3560,12 @@ impl<'a> MinByteRange<'a> for PaintColrGlyph<'a> {
     }
 }
 
+impl ReadArgs for PaintColrGlyph<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3335,12 +3599,14 @@ impl<'a> PaintColrGlyph<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + GlyphId16::RAW_BYTE_LEN
+        let end = start + GlyphId16::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -3380,8 +3646,12 @@ impl<'a> MinByteRange<'a> for PaintTransform<'a> {
     }
 }
 
+impl ReadArgs for PaintTransform<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintTransform<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3434,17 +3704,20 @@ impl<'a> PaintTransform<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn transform_offset_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -3491,8 +3764,12 @@ impl<'a> MinByteRange<'a> for PaintVarTransform<'a> {
     }
 }
 
+impl ReadArgs for PaintVarTransform<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarTransform<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3545,17 +3822,20 @@ impl<'a> PaintVarTransform<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn transform_offset_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -3598,8 +3878,12 @@ impl<'a> MinByteRange<'a> for Affine2x3<'a> {
     }
 }
 
+impl ReadArgs for Affine2x3<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Affine2x3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3662,32 +3946,48 @@ impl<'a> Affine2x3<'a> {
 
     pub fn xx_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn yx_byte_range(&self) -> Range<usize> {
         let start = self.xx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn xy_byte_range(&self) -> Range<usize> {
         let start = self.yx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn yy_byte_range(&self) -> Range<usize> {
         let start = self.xy_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn dx_byte_range(&self) -> Range<usize> {
         let start = self.yy_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn dy_byte_range(&self) -> Range<usize> {
         let start = self.dx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Affine2x3::MIN_SIZE));
+
+impl Default for Affine2x3<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -3727,8 +4027,12 @@ impl<'a> MinByteRange<'a> for VarAffine2x3<'a> {
     }
 }
 
+impl ReadArgs for VarAffine2x3<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VarAffine2x3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3802,37 +4106,54 @@ impl<'a> VarAffine2x3<'a> {
 
     pub fn xx_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn yx_byte_range(&self) -> Range<usize> {
         let start = self.xx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn xy_byte_range(&self) -> Range<usize> {
         let start = self.yx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn yy_byte_range(&self) -> Range<usize> {
         let start = self.xy_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn dx_byte_range(&self) -> Range<usize> {
         let start = self.yy_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn dy_byte_range(&self) -> Range<usize> {
         let start = self.dx_byte_range().end;
-        start..start + Fixed::RAW_BYTE_LEN
+        let end = start + Fixed::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.dy_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(VarAffine2x3::MIN_SIZE));
+
+impl Default for VarAffine2x3<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -3877,8 +4198,12 @@ impl<'a> MinByteRange<'a> for PaintTranslate<'a> {
     }
 }
 
+impl ReadArgs for PaintTranslate<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintTranslate<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3931,22 +4256,26 @@ impl<'a> PaintTranslate<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn dx_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn dy_byte_range(&self) -> Range<usize> {
         let start = self.dx_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -3991,8 +4320,12 @@ impl<'a> MinByteRange<'a> for PaintVarTranslate<'a> {
     }
 }
 
+impl ReadArgs for PaintVarTranslate<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarTranslate<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4054,27 +4387,32 @@ impl<'a> PaintVarTranslate<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn dx_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn dy_byte_range(&self) -> Range<usize> {
         let start = self.dx_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.dy_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -4120,8 +4458,12 @@ impl<'a> MinByteRange<'a> for PaintScale<'a> {
     }
 }
 
+impl ReadArgs for PaintScale<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintScale<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4174,22 +4516,26 @@ impl<'a> PaintScale<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_x_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_y_byte_range(&self) -> Range<usize> {
         let start = self.scale_x_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -4234,8 +4580,12 @@ impl<'a> MinByteRange<'a> for PaintVarScale<'a> {
     }
 }
 
+impl ReadArgs for PaintVarScale<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarScale<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4299,27 +4649,32 @@ impl<'a> PaintVarScale<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_x_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_y_byte_range(&self) -> Range<usize> {
         let start = self.scale_x_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.scale_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -4365,8 +4720,12 @@ impl<'a> MinByteRange<'a> for PaintScaleAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintScaleAroundCenter<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintScaleAroundCenter<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4435,32 +4794,38 @@ impl<'a> PaintScaleAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_x_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_y_byte_range(&self) -> Range<usize> {
         let start = self.scale_x_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.scale_y_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -4507,8 +4872,12 @@ impl<'a> MinByteRange<'a> for PaintVarScaleAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintVarScaleAroundCenter<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarScaleAroundCenter<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4588,37 +4957,44 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_x_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_y_byte_range(&self) -> Range<usize> {
         let start = self.scale_x_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.scale_y_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -4666,8 +5042,12 @@ impl<'a> MinByteRange<'a> for PaintScaleUniform<'a> {
     }
 }
 
+impl ReadArgs for PaintScaleUniform<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintScaleUniform<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4713,17 +5093,20 @@ impl<'a> PaintScaleUniform<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -4767,8 +5150,12 @@ impl<'a> MinByteRange<'a> for PaintVarScaleUniform<'a> {
     }
 }
 
+impl ReadArgs for PaintVarScaleUniform<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarScaleUniform<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4822,22 +5209,26 @@ impl<'a> PaintVarScaleUniform<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.scale_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -4882,8 +5273,12 @@ impl<'a> MinByteRange<'a> for PaintScaleUniformAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintScaleUniformAroundCenter<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintScaleUniformAroundCenter<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -4945,27 +5340,32 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.scale_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -5011,8 +5411,12 @@ impl<'a> MinByteRange<'a> for PaintVarScaleUniformAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintVarScaleUniformAroundCenter<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarScaleUniformAroundCenter<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5084,32 +5488,38 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn scale_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.scale_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -5156,8 +5566,12 @@ impl<'a> MinByteRange<'a> for PaintRotate<'a> {
     }
 }
 
+impl ReadArgs for PaintRotate<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintRotate<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5204,17 +5618,20 @@ impl<'a> PaintRotate<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -5258,8 +5675,12 @@ impl<'a> MinByteRange<'a> for PaintVarRotate<'a> {
     }
 }
 
+impl ReadArgs for PaintVarRotate<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarRotate<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5313,22 +5734,26 @@ impl<'a> PaintVarRotate<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.angle_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -5373,8 +5798,12 @@ impl<'a> MinByteRange<'a> for PaintRotateAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintRotateAroundCenter<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintRotateAroundCenter<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5437,27 +5866,32 @@ impl<'a> PaintRotateAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.angle_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -5503,8 +5937,12 @@ impl<'a> MinByteRange<'a> for PaintVarRotateAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintVarRotateAroundCenter<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarRotateAroundCenter<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5576,32 +6014,38 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.angle_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -5648,8 +6092,12 @@ impl<'a> MinByteRange<'a> for PaintSkew<'a> {
     }
 }
 
+impl ReadArgs for PaintSkew<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintSkew<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5704,22 +6152,26 @@ impl<'a> PaintSkew<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.x_skew_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -5764,8 +6216,12 @@ impl<'a> MinByteRange<'a> for PaintVarSkew<'a> {
     }
 }
 
+impl ReadArgs for PaintVarSkew<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarSkew<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5831,27 +6287,32 @@ impl<'a> PaintVarSkew<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.x_skew_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.y_skew_angle_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -5897,8 +6358,12 @@ impl<'a> MinByteRange<'a> for PaintSkewAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintSkewAroundCenter<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintSkewAroundCenter<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -5969,32 +6434,38 @@ impl<'a> PaintSkewAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.x_skew_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.y_skew_angle_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -6041,8 +6512,12 @@ impl<'a> MinByteRange<'a> for PaintVarSkewAroundCenter<'a> {
     }
 }
 
+impl ReadArgs for PaintVarSkewAroundCenter<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintVarSkewAroundCenter<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -6124,37 +6599,44 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_skew_angle_byte_range(&self) -> Range<usize> {
         let start = self.x_skew_angle_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
+        let end = start + F2Dot14::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_x_byte_range(&self) -> Range<usize> {
         let start = self.y_skew_angle_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn center_y_byte_range(&self) -> Range<usize> {
         let start = self.center_x_byte_range().end;
-        start..start + FWord::RAW_BYTE_LEN
+        let end = start + FWord::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_index_base_byte_range(&self) -> Range<usize> {
         let start = self.center_y_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -6202,8 +6684,12 @@ impl<'a> MinByteRange<'a> for PaintComposite<'a> {
     }
 }
 
+impl ReadArgs for PaintComposite<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PaintComposite<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -6264,22 +6750,26 @@ impl<'a> PaintComposite<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn source_paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn composite_mode_byte_range(&self) -> Range<usize> {
         let start = self.source_paint_offset_byte_range().end;
-        start..start + CompositeMode::RAW_BYTE_LEN
+        let end = start + CompositeMode::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn backdrop_paint_offset_byte_range(&self) -> Range<usize> {
         let start = self.composite_mode_byte_range().end;
-        start..start + Offset24::RAW_BYTE_LEN
+        let end = start + Offset24::RAW_BYTE_LEN;
+        start..end
     }
 }
 

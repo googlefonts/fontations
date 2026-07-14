@@ -753,9 +753,9 @@ impl ReadArgs for IndexSubtableList<'_> {
     type Args = u32;
 }
 
-impl<'a> FontReadWithArgs<'a> for IndexSubtableList<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u32) -> Result<Self, ReadError> {
-        let number_of_index_subtables = *args;
+impl<'a> FontRead<'a> for IndexSubtableList<'a> {
+    fn read_with_args(data: FontData<'a>, args: u32) -> Result<Self, ReadError> {
+        let number_of_index_subtables = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -775,7 +775,7 @@ impl<'a> IndexSubtableList<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, number_of_index_subtables: u32) -> Result<Self, ReadError> {
         let args = number_of_index_subtables;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -804,10 +804,24 @@ impl<'a> IndexSubtableList<'a> {
     pub fn index_subtable_records_byte_range(&self) -> Range<usize> {
         let number_of_index_subtables = self.number_of_index_subtables();
         let start = 0;
-        start
-            ..start
-                + (number_of_index_subtables as usize)
-                    .saturating_mul(IndexSubtableRecord::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(number_of_index_subtables))
+                .saturating_mul(IndexSubtableRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(
+    IndexSubtableList::MIN_SIZE
+));
+
+impl Default for IndexSubtableList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            number_of_index_subtables: Default::default(),
+        }
     }
 }
 
@@ -873,7 +887,7 @@ impl IndexSubtableRecord {
     /// By calling its `offset_data` method.
     pub fn index_subtable<'a>(&self, data: FontData<'a>) -> Result<IndexSubtable<'a>, ReadError> {
         let args = (self.last_glyph_index(), self.first_glyph_index());
-        self.index_subtable_offset().resolve_with_args(data, &args)
+        self.index_subtable_offset().resolve_with_args(data, args)
     }
 }
 
@@ -919,12 +933,9 @@ impl ReadArgs for IndexSubtable1<'_> {
     type Args = (GlyphId16, GlyphId16);
 }
 
-impl<'a> FontReadWithArgs<'a> for IndexSubtable1<'a> {
-    fn read_with_args(
-        data: FontData<'a>,
-        args: &(GlyphId16, GlyphId16),
-    ) -> Result<Self, ReadError> {
-        let (last_glyph_index, first_glyph_index) = *args;
+impl<'a> FontRead<'a> for IndexSubtable1<'a> {
+    fn read_with_args(data: FontData<'a>, args: (GlyphId16, GlyphId16)) -> Result<Self, ReadError> {
+        let (last_glyph_index, first_glyph_index) = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -949,7 +960,7 @@ impl<'a> IndexSubtable1<'a> {
         first_glyph_index: GlyphId16,
     ) -> Result<Self, ReadError> {
         let args = (last_glyph_index, first_glyph_index);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -999,27 +1010,42 @@ impl<'a> IndexSubtable1<'a> {
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
         let last_glyph_index = self.last_glyph_index();
         let first_glyph_index = self.first_glyph_index();
         let start = self.image_data_offset_byte_range().end;
-        start
-            ..start
-                + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
-                    .saturating_mul(u32::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
+                .saturating_mul(u32::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(IndexSubtable1::MIN_SIZE));
+
+impl Default for IndexSubtable1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+            last_glyph_index: Default::default(),
+            first_glyph_index: Default::default(),
+        }
     }
 }
 
@@ -1061,8 +1087,12 @@ impl<'a> MinByteRange<'a> for IndexSubtable2<'a> {
     }
 }
 
+impl ReadArgs for IndexSubtable2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for IndexSubtable2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1115,27 +1145,32 @@ impl<'a> IndexSubtable2<'a> {
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_size_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn big_metrics_byte_range(&self) -> Range<usize> {
         let start = self.image_size_byte_range().end;
-        start..start + BigGlyphMetrics::RAW_BYTE_LEN
+        let end = start + BigGlyphMetrics::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -1189,12 +1224,9 @@ impl ReadArgs for IndexSubtable3<'_> {
     type Args = (GlyphId16, GlyphId16);
 }
 
-impl<'a> FontReadWithArgs<'a> for IndexSubtable3<'a> {
-    fn read_with_args(
-        data: FontData<'a>,
-        args: &(GlyphId16, GlyphId16),
-    ) -> Result<Self, ReadError> {
-        let (last_glyph_index, first_glyph_index) = *args;
+impl<'a> FontRead<'a> for IndexSubtable3<'a> {
+    fn read_with_args(data: FontData<'a>, args: (GlyphId16, GlyphId16)) -> Result<Self, ReadError> {
+        let (last_glyph_index, first_glyph_index) = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -1219,7 +1251,7 @@ impl<'a> IndexSubtable3<'a> {
         first_glyph_index: GlyphId16,
     ) -> Result<Self, ReadError> {
         let args = (last_glyph_index, first_glyph_index);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1269,27 +1301,30 @@ impl<'a> IndexSubtable3<'a> {
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn sbit_offsets_byte_range(&self) -> Range<usize> {
         let last_glyph_index = self.last_glyph_index();
         let first_glyph_index = self.first_glyph_index();
         let start = self.image_data_offset_byte_range().end;
-        start
-            ..start
-                + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
-                    .saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::subtract_add_two(last_glyph_index, first_glyph_index))
+                .saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -1331,8 +1366,12 @@ impl<'a> MinByteRange<'a> for IndexSubtable4<'a> {
     }
 }
 
+impl ReadArgs for IndexSubtable4<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for IndexSubtable4<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1385,31 +1424,35 @@ impl<'a> IndexSubtable4<'a> {
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let num_glyphs = self.num_glyphs();
         let start = self.num_glyphs_byte_range().end;
-        start
-            ..start
-                + (transforms::add(num_glyphs, 1_usize))
-                    .saturating_mul(GlyphIdOffsetPair::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::add(num_glyphs, 1_usize))
+                .saturating_mul(GlyphIdOffsetPair::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -1501,8 +1544,12 @@ impl<'a> MinByteRange<'a> for IndexSubtable5<'a> {
     }
 }
 
+impl ReadArgs for IndexSubtable5<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for IndexSubtable5<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1570,38 +1617,46 @@ impl<'a> IndexSubtable5<'a> {
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_format_byte_range(&self) -> Range<usize> {
         let start = self.index_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.image_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn image_size_byte_range(&self) -> Range<usize> {
         let start = self.image_data_offset_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn big_metrics_byte_range(&self) -> Range<usize> {
         let start = self.image_size_byte_range().end;
-        start..start + BigGlyphMetrics::RAW_BYTE_LEN
+        let end = start + BigGlyphMetrics::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.big_metrics_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_array_byte_range(&self) -> Range<usize> {
         let num_glyphs = self.num_glyphs();
         let start = self.num_glyphs_byte_range().end;
-        start..start + (num_glyphs as usize).saturating_mul(GlyphId16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(num_glyphs)).saturating_mul(GlyphId16::RAW_BYTE_LEN);
+        start..end
     }
 }
 

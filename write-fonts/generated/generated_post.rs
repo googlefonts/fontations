@@ -148,7 +148,7 @@ impl Validate for Post {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.glyph_name_index.is_some()
-                    && self.glyph_name_index.as_ref().unwrap().len() > (u16::MAX as usize)
+                    && self.glyph_name_index.as_ref().unwrap().len() > to_usize(u16::MAX)
                 {
                     ctx.report("array exceeds max length");
                 }
@@ -188,8 +188,12 @@ impl<'a> FromObjRef<read_fonts::tables::post::Post<'a>> for Post {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::post::Post<'a>> for Post {}
 
+impl ReadArgs for Post {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Post {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::post::Post as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

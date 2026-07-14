@@ -24,9 +24,9 @@ impl ReadArgs for Hmtx<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let number_of_h_metrics = *args;
+impl<'a> FontRead<'a> for Hmtx<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let number_of_h_metrics = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -46,7 +46,7 @@ impl<'a> Hmtx<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, number_of_h_metrics: u16) -> Result<Self, ReadError> {
         let args = number_of_h_metrics;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -83,12 +83,28 @@ impl<'a> Hmtx<'a> {
     pub fn h_metrics_byte_range(&self) -> Range<usize> {
         let number_of_h_metrics = self.number_of_h_metrics();
         let start = 0;
-        start..start + (number_of_h_metrics as usize).saturating_mul(LongMetric::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(number_of_h_metrics)).saturating_mul(LongMetric::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn left_side_bearings_byte_range(&self) -> Range<usize> {
         let start = self.h_metrics_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / i16::RAW_BYTE_LEN * i16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(Hmtx::MIN_SIZE));
+
+impl Default for Hmtx<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            number_of_h_metrics: Default::default(),
+        }
     }
 }
 

@@ -105,7 +105,7 @@ impl Validate for Tuple {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Tuple", |ctx| {
             ctx.in_field("values", |ctx| {
-                if self.values.len() > (u16::MAX as usize) {
+                if self.values.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -184,8 +184,12 @@ impl<'a> FromTableRef<read_fonts::tables::variations::DeltaSetIndexMapFormat0<'a
 {
 }
 
+impl ReadArgs for DeltaSetIndexMapFormat0 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::DeltaSetIndexMapFormat0 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -254,8 +258,12 @@ impl<'a> FromTableRef<read_fonts::tables::variations::DeltaSetIndexMapFormat1<'a
 {
 }
 
+impl ReadArgs for DeltaSetIndexMapFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::DeltaSetIndexMapFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -331,8 +339,12 @@ impl FromObjRef<read_fonts::tables::variations::DeltaSetIndexMap<'_>> for DeltaS
 
 impl FromTableRef<read_fonts::tables::variations::DeltaSetIndexMap<'_>> for DeltaSetIndexMap {}
 
+impl ReadArgs for DeltaSetIndexMap {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMap {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::DeltaSetIndexMap as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -393,7 +405,7 @@ impl Validate for VariationRegionList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VariationRegionList", |ctx| {
             ctx.in_field("variation_regions", |ctx| {
-                if self.variation_regions.len() > (u16::MAX as usize) {
+                if self.variation_regions.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.variation_regions.validate_impl(ctx);
@@ -427,8 +439,12 @@ impl<'a> FromTableRef<read_fonts::tables::variations::VariationRegionList<'a>>
 {
 }
 
+impl ReadArgs for VariationRegionList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VariationRegionList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::VariationRegionList as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -463,7 +479,7 @@ impl Validate for VariationRegion {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("VariationRegion", |ctx| {
             ctx.in_field("region_axes", |ctx| {
-                if self.region_axes.len() > (u16::MAX as usize) {
+                if self.region_axes.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.region_axes.validate_impl(ctx);
@@ -579,7 +595,7 @@ impl Validate for ItemVariationStore {
                 self.variation_region_list.validate_impl(ctx);
             });
             ctx.in_field("item_variation_data", |ctx| {
-                if self.item_variation_data.len() > (u16::MAX as usize) {
+                if self.item_variation_data.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.item_variation_data.validate_impl(ctx);
@@ -606,8 +622,12 @@ impl<'a> FromTableRef<read_fonts::tables::variations::ItemVariationStore<'a>>
 {
 }
 
+impl ReadArgs for ItemVariationStore {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ItemVariationStore {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::ItemVariationStore as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -663,7 +683,7 @@ impl Validate for ItemVariationData {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ItemVariationData", |ctx| {
             ctx.in_field("region_indexes", |ctx| {
-                if self.region_indexes.len() > (u16::MAX as usize) {
+                if self.region_indexes.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -689,8 +709,12 @@ impl<'a> FromObjRef<read_fonts::tables::variations::ItemVariationData<'a>> for I
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::variations::ItemVariationData<'a>> for ItemVariationData {}
 
+impl ReadArgs for ItemVariationData {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ItemVariationData {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::variations::ItemVariationData as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

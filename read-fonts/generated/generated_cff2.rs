@@ -15,8 +15,12 @@ impl<'a> MinByteRange<'a> for Cff2Header<'a> {
     }
 }
 
+impl ReadArgs for Cff2Header<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cff2Header<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -81,39 +85,58 @@ impl<'a> Cff2Header<'a> {
 
     pub fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn minor_version_byte_range(&self) -> Range<usize> {
         let start = self.major_version_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn header_size_byte_range(&self) -> Range<usize> {
         let start = self.minor_version_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn top_dict_length_byte_range(&self) -> Range<usize> {
         let start = self.header_size_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _padding_byte_range(&self) -> Range<usize> {
         let header_size = self.header_size();
         let start = self.top_dict_length_byte_range().end;
-        start..start + (transforms::subtract(header_size, 5_usize)).saturating_mul(u8::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::subtract(header_size, 5_usize)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn top_dict_data_byte_range(&self) -> Range<usize> {
         let top_dict_length = self.top_dict_length();
         let start = self._padding_byte_range().end;
-        start..start + (top_dict_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(top_dict_length)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self.top_dict_data_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Cff2Header::MIN_SIZE));
+
+impl Default for Cff2Header<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -154,8 +177,12 @@ impl<'a> MinByteRange<'a> for Index<'a> {
     }
 }
 
+impl ReadArgs for Index<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Index<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -201,27 +228,40 @@ impl<'a> Index<'a> {
 
     pub fn count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn off_size_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn offsets_byte_range(&self) -> Range<usize> {
         let count = self.count();
         let off_size = self.off_size();
         let start = self.off_size_byte_range().end;
-        start
-            ..start
-                + (transforms::add_multiply(count, 1_usize, off_size))
-                    .saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::add_multiply(count, 1_usize, off_size)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.offsets_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Index::MIN_SIZE));
+
+impl Default for Index<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

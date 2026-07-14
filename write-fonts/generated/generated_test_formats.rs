@@ -47,8 +47,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::formats::Table1<'a>> for Table1 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::formats::Table1<'a>> for Table1 {}
 
+impl ReadArgs for Table1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Table1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::formats::Table1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -83,7 +87,7 @@ impl Validate for Table2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Table2", |ctx| {
             ctx.in_field("values", |ctx| {
-                if self.values.len() > (u16::MAX as usize) {
+                if self.values.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -103,8 +107,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::formats::Table2<'a>> for Table2 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::formats::Table2<'a>> for Table2 {}
 
+impl ReadArgs for Table2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Table2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::formats::Table2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -142,8 +150,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::formats::Table3<'a>> for Table3 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::formats::Table3<'a>> for Table3 {}
 
+impl ReadArgs for Table3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Table3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::formats::Table3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -215,8 +227,12 @@ impl FromObjRef<read_fonts::codegen_test::formats::MyTable<'_>> for MyTable {
 
 impl FromTableRef<read_fonts::codegen_test::formats::MyTable<'_>> for MyTable {}
 
+impl ReadArgs for MyTable {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MyTable {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::formats::MyTable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

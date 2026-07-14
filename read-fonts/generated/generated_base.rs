@@ -20,8 +20,12 @@ impl TopLevelTable for Base<'_> {
     const TAG: Tag = Tag::new(b"BASE");
 }
 
+impl ReadArgs for Base<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Base<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -88,25 +92,40 @@ impl<'a> Base<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn horiz_axis_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn vert_axis_offset_byte_range(&self) -> Range<usize> {
         let start = self.horiz_axis_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn item_var_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.vert_axis_offset_byte_range().end;
-        start
-            ..(self.version().compatible((1u16, 1u16)))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible((1u16, 1u16)) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Base::MIN_SIZE));
+
+impl Default for Base<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -153,8 +172,12 @@ impl<'a> MinByteRange<'a> for Axis<'a> {
     }
 }
 
+impl ReadArgs for Axis<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Axis<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -201,12 +224,24 @@ impl<'a> Axis<'a> {
 
     pub fn base_tag_list_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_script_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.base_tag_list_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Axis::MIN_SIZE));
+
+impl Default for Axis<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -248,8 +283,12 @@ impl<'a> MinByteRange<'a> for BaseTagList<'a> {
     }
 }
 
+impl ReadArgs for BaseTagList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseTagList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -285,13 +324,25 @@ impl<'a> BaseTagList<'a> {
 
     pub fn base_tag_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn baseline_tags_byte_range(&self) -> Range<usize> {
         let base_tag_count = self.base_tag_count();
         let start = self.base_tag_count_byte_range().end;
-        start..start + (base_tag_count as usize).saturating_mul(Tag::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(base_tag_count)).saturating_mul(Tag::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(BaseTagList::MIN_SIZE));
+
+impl Default for BaseTagList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -327,8 +378,12 @@ impl<'a> MinByteRange<'a> for BaseScriptList<'a> {
     }
 }
 
+impl ReadArgs for BaseScriptList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseScriptList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -363,13 +418,27 @@ impl<'a> BaseScriptList<'a> {
 
     pub fn base_script_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_script_records_byte_range(&self) -> Range<usize> {
         let base_script_count = self.base_script_count();
         let start = self.base_script_count_byte_range().end;
-        start..start + (base_script_count as usize).saturating_mul(BaseScriptRecord::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(base_script_count))
+                .saturating_mul(BaseScriptRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(BaseScriptList::MIN_SIZE));
+
+impl Default for BaseScriptList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -465,8 +534,12 @@ impl<'a> MinByteRange<'a> for BaseScript<'a> {
     }
 }
 
+impl ReadArgs for BaseScript<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseScript<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -526,24 +599,39 @@ impl<'a> BaseScript<'a> {
 
     pub fn base_values_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn default_min_max_offset_byte_range(&self) -> Range<usize> {
         let start = self.base_values_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_lang_sys_count_byte_range(&self) -> Range<usize> {
         let start = self.default_min_max_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_lang_sys_records_byte_range(&self) -> Range<usize> {
         let base_lang_sys_count = self.base_lang_sys_count();
         let start = self.base_lang_sys_count_byte_range().end;
-        start
-            ..start + (base_lang_sys_count as usize).saturating_mul(BaseLangSysRecord::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(base_lang_sys_count))
+                .saturating_mul(BaseLangSysRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(BaseScript::MIN_SIZE));
+
+impl Default for BaseScript<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -650,8 +738,12 @@ impl<'a> MinByteRange<'a> for BaseValues<'a> {
     }
 }
 
+impl ReadArgs for BaseValues<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseValues<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -703,18 +795,32 @@ impl<'a> BaseValues<'a> {
 
     pub fn default_baseline_index_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_coord_count_byte_range(&self) -> Range<usize> {
         let start = self.default_baseline_index_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_coord_offsets_byte_range(&self) -> Range<usize> {
         let base_coord_count = self.base_coord_count();
         let start = self.base_coord_count_byte_range().end;
-        start..start + (base_coord_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(base_coord_count)).saturating_mul(Offset16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(BaseValues::MIN_SIZE));
+
+impl Default for BaseValues<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -730,20 +836,10 @@ impl<'a> SomeTable<'a> for BaseValues<'a> {
                 self.default_baseline_index(),
             )),
             1usize => Some(Field::new("base_coord_count", self.base_coord_count())),
-            2usize => Some({
-                let data = self.data;
-                Field::new(
-                    "base_coord_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<BaseCoord>(),
-                        self.base_coord_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<BaseCoord>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            2usize => Some(Field::new(
+                "base_coord_offsets",
+                FieldType::from(self.base_coords()),
+            )),
             _ => None,
         }
     }
@@ -767,8 +863,12 @@ impl<'a> MinByteRange<'a> for MinMax<'a> {
     }
 }
 
+impl ReadArgs for MinMax<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MinMax<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -830,23 +930,39 @@ impl<'a> MinMax<'a> {
 
     pub fn min_coord_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn max_coord_offset_byte_range(&self) -> Range<usize> {
         let start = self.min_coord_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn feat_min_max_count_byte_range(&self) -> Range<usize> {
         let start = self.max_coord_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn feat_min_max_records_byte_range(&self) -> Range<usize> {
         let feat_min_max_count = self.feat_min_max_count();
         let start = self.feat_min_max_count_byte_range().end;
-        start..start + (feat_min_max_count as usize).saturating_mul(FeatMinMaxRecord::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(feat_min_max_count))
+                .saturating_mul(FeatMinMaxRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(MinMax::MIN_SIZE));
+
+impl Default for MinMax<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -974,6 +1090,12 @@ pub enum BaseCoord<'a> {
     Format3(BaseCoordFormat3<'a>),
 }
 
+impl Default for BaseCoord<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl<'a> BaseCoord<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -1003,8 +1125,12 @@ impl<'a> BaseCoord<'a> {
     }
 }
 
+impl ReadArgs for BaseCoord<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoord<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             BaseCoordFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -1074,8 +1200,12 @@ impl<'a> MinByteRange<'a> for BaseCoordFormat1<'a> {
     }
 }
 
+impl ReadArgs for BaseCoordFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoordFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1109,12 +1239,26 @@ impl<'a> BaseCoordFormat1<'a> {
 
     pub fn base_coord_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.base_coord_format_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    BaseCoordFormat1::MIN_SIZE
+));
+
+impl Default for BaseCoordFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u16_table_data(),
+        }
     }
 }
 
@@ -1154,8 +1298,12 @@ impl<'a> MinByteRange<'a> for BaseCoordFormat2<'a> {
     }
 }
 
+impl ReadArgs for BaseCoordFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoordFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1202,22 +1350,26 @@ impl<'a> BaseCoordFormat2<'a> {
 
     pub fn base_coord_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.base_coord_format_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reference_glyph_byte_range(&self) -> Range<usize> {
         let start = self.coordinate_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn base_coord_point_byte_range(&self) -> Range<usize> {
         let start = self.reference_glyph_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -1259,8 +1411,12 @@ impl<'a> MinByteRange<'a> for BaseCoordFormat3<'a> {
     }
 }
 
+impl ReadArgs for BaseCoordFormat3<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for BaseCoordFormat3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1308,17 +1464,20 @@ impl<'a> BaseCoordFormat3<'a> {
 
     pub fn base_coord_format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coordinate_byte_range(&self) -> Range<usize> {
         let start = self.base_coord_format_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn device_offset_byte_range(&self) -> Range<usize> {
         let start = self.coordinate_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 }
 

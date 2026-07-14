@@ -45,7 +45,7 @@ impl Validate for Gasp {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gasp", |ctx| {
             ctx.in_field("gasp_ranges", |ctx| {
-                if self.gasp_ranges.len() > (u16::MAX as usize) {
+                if self.gasp_ranges.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.gasp_ranges.validate_impl(ctx);
@@ -72,8 +72,12 @@ impl<'a> FromObjRef<read_fonts::tables::gasp::Gasp<'a>> for Gasp {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gasp::Gasp<'a>> for Gasp {}
 
+impl ReadArgs for Gasp {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gasp {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gasp::Gasp as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

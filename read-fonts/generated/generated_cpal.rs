@@ -20,8 +20,12 @@ impl TopLevelTable for Cpal<'_> {
     const TAG: Tag = Tag::new(b"CPAL");
 }
 
+impl ReadArgs for Cpal<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cpal<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -81,7 +85,7 @@ impl<'a> Cpal<'a> {
         let data = self.data;
         let args = self.num_color_records();
         self.color_records_array_offset()
-            .resolve_with_args(data, &args)
+            .resolve_with_args(data, args)
     }
 
     /// Index of each palette’s first color record in the combined
@@ -108,7 +112,7 @@ impl<'a> Cpal<'a> {
         let data = self.data;
         let args = self.num_palettes();
         self.palette_types_array_offset()
-            .map(|x| x.resolve_with_args(data, &args))?
+            .map(|x| x.resolve_with_args(data, args))?
     }
 
     /// Offset from the beginning of CPAL table to the [Palette Labels Array][].
@@ -130,7 +134,7 @@ impl<'a> Cpal<'a> {
         let data = self.data;
         let args = self.num_palettes();
         self.palette_labels_array_offset()
-            .map(|x| x.resolve_with_args(data, &args))?
+            .map(|x| x.resolve_with_args(data, args))?
     }
 
     /// Offset from the beginning of CPAL table to the [Palette Entry Labels Array][].
@@ -154,62 +158,84 @@ impl<'a> Cpal<'a> {
         let data = self.data;
         let args = self.num_palette_entries();
         self.palette_entry_labels_array_offset()
-            .map(|x| x.resolve_with_args(data, &args))?
+            .map(|x| x.resolve_with_args(data, args))?
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_palette_entries_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_palettes_byte_range(&self) -> Range<usize> {
         let start = self.num_palette_entries_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_color_records_byte_range(&self) -> Range<usize> {
         let start = self.num_palettes_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_records_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.num_color_records_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn color_record_indices_byte_range(&self) -> Range<usize> {
         let num_palettes = self.num_palettes();
         let start = self.color_records_array_offset_byte_range().end;
-        start..start + (num_palettes as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(num_palettes)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn palette_types_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.color_record_indices_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn palette_labels_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.palette_types_array_offset_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn palette_entry_labels_array_offset_byte_range(&self) -> Range<usize> {
         let start = self.palette_labels_array_offset_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + Offset32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + Offset32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Cpal::MIN_SIZE));
+
+impl Default for Cpal<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

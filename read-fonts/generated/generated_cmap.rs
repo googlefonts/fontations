@@ -20,8 +20,12 @@ impl TopLevelTable for Cmap<'_> {
     const TAG: Tag = Tag::new(b"cmap");
 }
 
+impl ReadArgs for Cmap<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -60,18 +64,32 @@ impl<'a> Cmap<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_tables_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn encoding_records_byte_range(&self) -> Range<usize> {
         let num_tables = self.num_tables();
         let start = self.num_tables_byte_range().end;
-        start..start + (num_tables as usize).saturating_mul(EncodingRecord::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(num_tables)).saturating_mul(EncodingRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Cmap::MIN_SIZE));
+
+impl Default for Cmap<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -235,6 +253,12 @@ pub enum CmapSubtable<'a> {
     Format14(Cmap14<'a>),
 }
 
+impl Default for CmapSubtable<'_> {
+    fn default() -> Self {
+        Self::Format0(Default::default())
+    }
+}
+
 impl<'a> CmapSubtable<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -267,8 +291,12 @@ impl<'a> CmapSubtable<'a> {
     }
 }
 
+impl ReadArgs for CmapSubtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CmapSubtable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
         match format {
             Cmap0::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
@@ -362,8 +390,12 @@ impl<'a> MinByteRange<'a> for Cmap0<'a> {
     }
 }
 
+impl ReadArgs for Cmap0<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap0<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -411,22 +443,36 @@ impl<'a> Cmap0<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
-        start..start + (256_usize).saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start + (256_usize).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Cmap0::MIN_SIZE));
+
+impl Default for Cmap0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -468,8 +514,12 @@ impl<'a> MinByteRange<'a> for Cmap2<'a> {
     }
 }
 
+impl ReadArgs for Cmap2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -518,22 +568,26 @@ impl<'a> Cmap2<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn sub_header_keys_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
-        start..start + (256_usize).saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start + (256_usize).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -634,8 +688,12 @@ impl<'a> MinByteRange<'a> for Cmap4<'a> {
     }
 }
 
+impl ReadArgs for Cmap4<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap4<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -741,71 +799,85 @@ impl<'a> Cmap4<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn seg_count_x2_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.seg_count_x2_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn end_code_byte_range(&self) -> Range<usize> {
         let seg_count_x2 = self.seg_count_x2();
         let start = self.range_shift_byte_range().end;
-        start..start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn reserved_pad_byte_range(&self) -> Range<usize> {
         let start = self.end_code_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn start_code_byte_range(&self) -> Range<usize> {
         let seg_count_x2 = self.seg_count_x2();
         let start = self.reserved_pad_byte_range().end;
-        start..start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn id_delta_byte_range(&self) -> Range<usize> {
         let seg_count_x2 = self.seg_count_x2();
         let start = self.start_code_byte_range().end;
-        start..start + (transforms::half(seg_count_x2)).saturating_mul(i16::RAW_BYTE_LEN)
+        let end = start + (transforms::half(seg_count_x2)).saturating_mul(i16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn id_range_offsets_byte_range(&self) -> Range<usize> {
         let seg_count_x2 = self.seg_count_x2();
         let start = self.id_delta_byte_range().end;
-        start..start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start + (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let start = self.id_range_offsets_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
+        start..end
     }
 }
 
@@ -855,8 +927,12 @@ impl<'a> MinByteRange<'a> for Cmap6<'a> {
     }
 }
 
+impl ReadArgs for Cmap6<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap6<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -919,33 +995,39 @@ impl<'a> Cmap6<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn first_code_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entry_count_byte_range(&self) -> Range<usize> {
         let start = self.first_code_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let entry_count = self.entry_count();
         let start = self.entry_count_byte_range().end;
-        start..start + (entry_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(entry_count)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -989,8 +1071,12 @@ impl<'a> MinByteRange<'a> for Cmap8<'a> {
     }
 }
 
+impl ReadArgs for Cmap8<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap8<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1056,38 +1142,46 @@ impl<'a> Cmap8<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn is32_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
-        start..start + (8192_usize).saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start + (8192_usize).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn num_groups_byte_range(&self) -> Range<usize> {
         let start = self.is32_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn groups_byte_range(&self) -> Range<usize> {
         let num_groups = self.num_groups();
         let start = self.num_groups_byte_range().end;
-        start..start + (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_groups)).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -1196,8 +1290,12 @@ impl<'a> MinByteRange<'a> for Cmap10<'a> {
     }
 }
 
+impl ReadArgs for Cmap10<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap10<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1261,38 +1359,45 @@ impl<'a> Cmap10<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn start_char_code_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_chars_byte_range(&self) -> Range<usize> {
         let start = self.start_char_code_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_id_array_byte_range(&self) -> Range<usize> {
         let num_chars = self.num_chars();
         let start = self.num_chars_byte_range().end;
-        start..start + (num_chars as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(num_chars)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -1336,8 +1441,12 @@ impl<'a> MinByteRange<'a> for Cmap12<'a> {
     }
 }
 
+impl ReadArgs for Cmap12<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap12<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1394,33 +1503,40 @@ impl<'a> Cmap12<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_groups_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn groups_byte_range(&self) -> Range<usize> {
         let num_groups = self.num_groups();
         let start = self.num_groups_byte_range().end;
-        start..start + (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_groups)).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -1470,8 +1586,12 @@ impl<'a> MinByteRange<'a> for Cmap13<'a> {
     }
 }
 
+impl ReadArgs for Cmap13<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap13<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1528,33 +1648,40 @@ impl<'a> Cmap13<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn language_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_groups_byte_range(&self) -> Range<usize> {
         let start = self.language_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn groups_byte_range(&self) -> Range<usize> {
         let num_groups = self.num_groups();
         let start = self.num_groups_byte_range().end;
-        start..start + (num_groups as usize).saturating_mul(ConstantMapGroup::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_groups)).saturating_mul(ConstantMapGroup::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -1656,8 +1783,12 @@ impl<'a> MinByteRange<'a> for Cmap14<'a> {
     }
 }
 
+impl ReadArgs for Cmap14<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap14<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1703,26 +1834,29 @@ impl<'a> Cmap14<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_var_selector_records_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn var_selector_byte_range(&self) -> Range<usize> {
         let num_var_selector_records = self.num_var_selector_records();
         let start = self.num_var_selector_records_byte_range().end;
-        start
-            ..start
-                + (num_var_selector_records as usize)
-                    .saturating_mul(VariationSelector::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_var_selector_records))
+                .saturating_mul(VariationSelector::RAW_BYTE_LEN);
+        start..end
     }
 }
 
@@ -1852,8 +1986,12 @@ impl<'a> MinByteRange<'a> for DefaultUvs<'a> {
     }
 }
 
+impl ReadArgs for DefaultUvs<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DefaultUvs<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1887,14 +2025,27 @@ impl<'a> DefaultUvs<'a> {
 
     pub fn num_unicode_value_ranges_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ranges_byte_range(&self) -> Range<usize> {
         let num_unicode_value_ranges = self.num_unicode_value_ranges();
         let start = self.num_unicode_value_ranges_byte_range().end;
-        start
-            ..start + (num_unicode_value_ranges as usize).saturating_mul(UnicodeRange::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_unicode_value_ranges))
+                .saturating_mul(UnicodeRange::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(DefaultUvs::MIN_SIZE));
+
+impl Default for DefaultUvs<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1940,8 +2091,12 @@ impl<'a> MinByteRange<'a> for NonDefaultUvs<'a> {
     }
 }
 
+impl ReadArgs for NonDefaultUvs<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1973,13 +2128,26 @@ impl<'a> NonDefaultUvs<'a> {
 
     pub fn num_uvs_mappings_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn uvs_mapping_byte_range(&self) -> Range<usize> {
         let num_uvs_mappings = self.num_uvs_mappings();
         let start = self.num_uvs_mappings_byte_range().end;
-        start..start + (num_uvs_mappings as usize).saturating_mul(UvsMapping::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_uvs_mappings)).saturating_mul(UvsMapping::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(NonDefaultUvs::MIN_SIZE));
+
+impl Default for NonDefaultUvs<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

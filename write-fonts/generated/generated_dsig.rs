@@ -44,7 +44,7 @@ impl Validate for Dsig {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Dsig", |ctx| {
             ctx.in_field("signature_records", |ctx| {
-                if self.signature_records.len() > (u16::MAX as usize) {
+                if self.signature_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.signature_records.validate_impl(ctx);
@@ -70,8 +70,12 @@ impl<'a> FromObjRef<read_fonts::tables::dsig::Dsig<'a>> for Dsig {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::dsig::Dsig<'a>> for Dsig {}
 
+impl ReadArgs for Dsig {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Dsig {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::dsig::Dsig as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -164,7 +168,7 @@ impl Validate for SignatureBlockFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SignatureBlockFormat1", |ctx| {
             ctx.in_field("signature", |ctx| {
-                if self.signature.len() > (u32::MAX as usize) {
+                if self.signature.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -190,8 +194,12 @@ impl<'a> FromTableRef<read_fonts::tables::dsig::SignatureBlockFormat1<'a>>
 {
 }
 
+impl ReadArgs for SignatureBlockFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SignatureBlockFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::dsig::SignatureBlockFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

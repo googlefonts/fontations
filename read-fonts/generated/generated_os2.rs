@@ -373,8 +373,12 @@ impl TopLevelTable for Os2<'_> {
     const TAG: Tag = Tag::new(b"OS/2");
 }
 
+impl ReadArgs for Os2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Os2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -717,224 +721,282 @@ impl<'a> Os2<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn x_avg_char_width_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn us_weight_class_byte_range(&self) -> Range<usize> {
         let start = self.x_avg_char_width_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn us_width_class_byte_range(&self) -> Range<usize> {
         let start = self.us_weight_class_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn fs_type_byte_range(&self) -> Range<usize> {
         let start = self.us_width_class_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_subscript_x_size_byte_range(&self) -> Range<usize> {
         let start = self.fs_type_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_subscript_y_size_byte_range(&self) -> Range<usize> {
         let start = self.y_subscript_x_size_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_subscript_x_offset_byte_range(&self) -> Range<usize> {
         let start = self.y_subscript_y_size_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_subscript_y_offset_byte_range(&self) -> Range<usize> {
         let start = self.y_subscript_x_offset_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_superscript_x_size_byte_range(&self) -> Range<usize> {
         let start = self.y_subscript_y_offset_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_superscript_y_size_byte_range(&self) -> Range<usize> {
         let start = self.y_superscript_x_size_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_superscript_x_offset_byte_range(&self) -> Range<usize> {
         let start = self.y_superscript_y_size_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_superscript_y_offset_byte_range(&self) -> Range<usize> {
         let start = self.y_superscript_x_offset_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_strikeout_size_byte_range(&self) -> Range<usize> {
         let start = self.y_superscript_y_offset_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn y_strikeout_position_byte_range(&self) -> Range<usize> {
         let start = self.y_strikeout_size_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn s_family_class_byte_range(&self) -> Range<usize> {
         let start = self.y_strikeout_position_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn panose_10_byte_range(&self) -> Range<usize> {
         let start = self.s_family_class_byte_range().end;
-        start..start + (10_usize).saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start + (10_usize).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn ul_unicode_range_1_byte_range(&self) -> Range<usize> {
         let start = self.panose_10_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ul_unicode_range_2_byte_range(&self) -> Range<usize> {
         let start = self.ul_unicode_range_1_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ul_unicode_range_3_byte_range(&self) -> Range<usize> {
         let start = self.ul_unicode_range_2_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ul_unicode_range_4_byte_range(&self) -> Range<usize> {
         let start = self.ul_unicode_range_3_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ach_vend_id_byte_range(&self) -> Range<usize> {
         let start = self.ul_unicode_range_4_byte_range().end;
-        start..start + Tag::RAW_BYTE_LEN
+        let end = start + Tag::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn fs_selection_byte_range(&self) -> Range<usize> {
         let start = self.ach_vend_id_byte_range().end;
-        start..start + SelectionFlags::RAW_BYTE_LEN
+        let end = start + SelectionFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn us_first_char_index_byte_range(&self) -> Range<usize> {
         let start = self.fs_selection_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn us_last_char_index_byte_range(&self) -> Range<usize> {
         let start = self.us_first_char_index_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn s_typo_ascender_byte_range(&self) -> Range<usize> {
         let start = self.us_last_char_index_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn s_typo_descender_byte_range(&self) -> Range<usize> {
         let start = self.s_typo_ascender_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn s_typo_line_gap_byte_range(&self) -> Range<usize> {
         let start = self.s_typo_descender_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn us_win_ascent_byte_range(&self) -> Range<usize> {
         let start = self.s_typo_line_gap_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn us_win_descent_byte_range(&self) -> Range<usize> {
         let start = self.us_win_ascent_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ul_code_page_range_1_byte_range(&self) -> Range<usize> {
         let start = self.us_win_descent_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + u32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn ul_code_page_range_2_byte_range(&self) -> Range<usize> {
         let start = self.ul_code_page_range_1_byte_range().end;
-        start
-            ..(self.version().compatible(1u16))
-                .then(|| start + u32::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(1u16) {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn sx_height_byte_range(&self) -> Range<usize> {
         let start = self.ul_code_page_range_2_byte_range().end;
-        start
-            ..(self.version().compatible(2u16))
-                .then(|| start + i16::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(2u16) {
+            start + i16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn s_cap_height_byte_range(&self) -> Range<usize> {
         let start = self.sx_height_byte_range().end;
-        start
-            ..(self.version().compatible(2u16))
-                .then(|| start + i16::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(2u16) {
+            start + i16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn us_default_char_byte_range(&self) -> Range<usize> {
         let start = self.s_cap_height_byte_range().end;
-        start
-            ..(self.version().compatible(2u16))
-                .then(|| start + u16::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(2u16) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn us_break_char_byte_range(&self) -> Range<usize> {
         let start = self.us_default_char_byte_range().end;
-        start
-            ..(self.version().compatible(2u16))
-                .then(|| start + u16::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(2u16) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn us_max_context_byte_range(&self) -> Range<usize> {
         let start = self.us_break_char_byte_range().end;
-        start
-            ..(self.version().compatible(2u16))
-                .then(|| start + u16::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(2u16) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn us_lower_optical_point_size_byte_range(&self) -> Range<usize> {
         let start = self.us_max_context_byte_range().end;
-        start
-            ..(self.version().compatible(5u16))
-                .then(|| start + u16::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(5u16) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn us_upper_optical_point_size_byte_range(&self) -> Range<usize> {
         let start = self.us_lower_optical_point_size_byte_range().end;
-        start
-            ..(self.version().compatible(5u16))
-                .then(|| start + u16::RAW_BYTE_LEN)
-                .unwrap_or(start)
+        let end = if self.version().compatible(5u16) {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Os2::MIN_SIZE));
+
+impl Default for Os2<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

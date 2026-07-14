@@ -1,12 +1,12 @@
 //! impl subset() for LigatureSubst subtable
+use crate::fnv::FnvHashMap;
 use crate::{
     layout::intersected_glyphs_and_indices,
-    offset::SerializeSerialize,
-    offset_array::SubsetOffsetArray,
+    offset::{SerializeSerialize, SerializeSubset},
+    offset_array::{IterNullableHelper, SubsetOffsetArray},
     serialize::{ObjIdx, SerializeErrorFlags, Serializer},
     Plan, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use skrifa::raw::tables::layout::Intersect;
 use write_fonts::{
     read::{
@@ -18,7 +18,7 @@ use write_fonts::{
         types::GlyphId,
         FontRef, ReadError,
     },
-    types::Offset16,
+    types::{FixedSize, Offset16},
 };
 
 impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
@@ -30,6 +30,9 @@ impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let coverage = self
             .coverage()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
@@ -50,9 +53,11 @@ impl<'a> SubsetTable<'a> for LigatureSubstFormat1<'_> {
         let mut retained_cov_glyphs = Vec::with_capacity(cap);
         let mut retained_lig_set_idxes = Vec::with_capacity(cap);
         for (g, idx) in cov_glyphs.iter().zip(lig_set_idxes.iter()) {
-            let lig_set = lig_sets
-                .get(idx as usize)
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            let lig_set = match lig_sets.get(idx as usize) {
+                Err(ReadError::NullOffset) => continue,
+                Err(_) => return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)),
+                Ok(lig_set) => lig_set,
+            };
 
             if !intersects_lig_glyph(&lig_set, glyph_set)
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
@@ -110,11 +115,18 @@ impl SubsetTable<'_> for LigatureSet<'_> {
         let mut lig_count = 0_u16;
 
         let ligs = self.ligatures();
-        let org_lig_count = self.ligature_count();
-        for idx in 0..org_lig_count as usize {
-            match ligs.subset_offset(idx, s, plan, coverage_idx) {
+        for lig in ligs.iter_as_nullable() {
+            let Some(lig) = lig
+                .transpose()
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            else {
+                continue;
+            };
+            let snap = s.snapshot();
+            let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
+            match Offset16::serialize_subset(&lig, s, plan, coverage_idx, offset_pos) {
                 Ok(()) => lig_count += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
                 Err(e) => return Err(e),
             }
         }
@@ -159,8 +171,10 @@ fn intersects_lig_glyph(
     lig_set: &LigatureSet,
     glyphs: &IntSet<GlyphId>,
 ) -> Result<bool, ReadError> {
-    for lig in lig_set.ligatures().iter() {
-        let lig = lig?;
+    for lig in lig_set.ligatures().iter_as_nullable() {
+        let Some(lig) = lig.transpose()? else {
+            continue;
+        };
         let lig_glyph = lig.ligature_glyph();
         if glyphs.contains(GlyphId::from(lig_glyph)) && lig.intersects(glyphs)? {
             return Ok(true);

@@ -1,11 +1,11 @@
 //! Define a graph struct that represents a serialized table
 //! Implement methods to modify and reorder the graph
 
+use crate::fnv::FnvHashMap;
 use crate::{
     priority_queue::PriorityQueue,
     serialize::{Link, LinkWidth, ObjIdx, Object, OffsetWhence, SerializeErrorFlags, Serializer},
 };
-use fnv::FnvHashMap;
 use std::collections::BTreeMap;
 use write_fonts::{read::collections::IntSet, types::Uint24};
 
@@ -14,6 +14,9 @@ pub(crate) mod layout;
 pub(crate) mod ligature_graph;
 pub(crate) mod markbasepos_graph;
 pub(crate) mod pairpos_graph;
+
+const MAX_SPACES: usize = 8000;
+const MAX_VERTICES: usize = 100000;
 
 #[derive(Debug)]
 pub(crate) enum RepackError {
@@ -27,6 +30,7 @@ pub(crate) enum RepackError {
     ErrorReadTable,
     ErrorSplitSubtable,
     ErrorNoResolution,
+    ErrorMaxOperationsExceeded,
 }
 
 pub(crate) struct Overflow(u64);
@@ -53,7 +57,7 @@ pub(crate) struct Vertex {
     virtual_links: Vec<Link>,
 
     distance: u64,
-    space: u32,
+    space: usize,
     priority: u8,
     start: usize,
     end: usize,
@@ -229,8 +233,19 @@ impl Vertex {
         }
     }
 
-    pub(crate) fn child_idxes(&self) -> Vec<ObjIdx> {
-        self.real_links.values().map(|l| l.obj_idx()).collect()
+    pub(crate) fn child_idxes(&self) -> FnvHashMap<ObjIdx, u32> {
+        let mut out = FnvHashMap::default();
+        for (&pos, l) in &self.real_links {
+            let obj_idx = l.obj_idx();
+            out.entry(obj_idx)
+                .and_modify(|p| {
+                    if *p < pos {
+                        *p = pos
+                    }
+                })
+                .or_insert(pos);
+        }
+        out
     }
 
     pub(crate) fn remap_child(&mut self, pos: u32, new_child_idx: ObjIdx) {
@@ -485,8 +500,8 @@ impl Graph {
                     link.link_width() as u8
                 };
 
-                let child_weight = child_v.tail - child_v.head
-                    + (1 << (link_width * 8)) * (child_v.space as usize + 1);
+                let child_weight =
+                    child_v.tail - child_v.head + (1 << (link_width * 8)) * (child_v.space + 1);
                 let child_distance = next_distance + child_weight as u64;
                 if child_distance < child_v.distance {
                     distance_map[child_idx] = child_distance;
@@ -672,7 +687,10 @@ impl Graph {
             );
 
             self.isolate_subgraph(&mut connected_roots)?;
-            let next_space = self.next_space() as u32;
+            let next_space = self.next_space();
+            if next_space >= MAX_SPACES {
+                return Err(RepackError::ErrorMaxOperationsExceeded);
+            }
 
             self.num_roots_for_space
                 .push(connected_roots.len() as usize);
@@ -982,10 +1000,13 @@ impl Graph {
 
     /// Creates a copy of the specified vertex and returns the new vertex idx.
     fn duplicate_vertex(&mut self, obj_idx: ObjIdx) -> Result<ObjIdx, RepackError> {
+        let clone_idx = self.vertices.len();
+        if clone_idx >= MAX_VERTICES {
+            return Err(RepackError::ErrorMaxOperationsExceeded);
+        }
         self.positions_invalid = true;
         self.distance_invalid = true;
 
-        let clone_idx = self.vertices.len();
         self.ordering.push(clone_idx);
 
         let v = self
@@ -1074,7 +1095,7 @@ impl Graph {
         }
 
         self.isolate_subgraph(&mut roots_to_isolate)?;
-        self.move_to_new_space(&roots_to_isolate, space);
+        self.move_to_new_space(&roots_to_isolate, space)?;
         Ok(true)
     }
 
@@ -1083,7 +1104,7 @@ impl Graph {
             return Err(RepackError::GraphErrorInvalidObjIndex);
         };
         if v.space > 0 {
-            return Ok((v.space as usize, obj_idx));
+            return Ok((v.space, obj_idx));
         }
 
         let Some(parent_idx) = v.parents.keys().nth(0) else {
@@ -1092,8 +1113,15 @@ impl Graph {
         self.find_root_and_space(*parent_idx)
     }
 
-    fn move_to_new_space(&mut self, indices: &IntSet<u32>, old_space: usize) {
-        let new_space = self.num_roots_for_space.len() as u32;
+    fn move_to_new_space(
+        &mut self,
+        indices: &IntSet<u32>,
+        old_space: usize,
+    ) -> Result<(), RepackError> {
+        let new_space = self.num_roots_for_space.len();
+        if new_space >= MAX_SPACES {
+            return Err(RepackError::ErrorMaxOperationsExceeded);
+        }
         let vertices = &mut self.vertices;
         for idx in indices.iter() {
             vertices[idx as usize].space = new_space;
@@ -1104,6 +1132,7 @@ impl Graph {
         self.num_roots_for_space.push(num_indices);
         self.distance_invalid = true;
         self.positions_invalid = true;
+        Ok(())
     }
 
     fn raise_childrens_priority(&mut self, parent_idx: ObjIdx) -> bool {
@@ -1119,46 +1148,6 @@ impl Graph {
             made_changes |= self.vertices[obj_idx].raise_priority();
         }
         made_changes
-    }
-
-    // Creates a copy of child and re-assigns the link from parent to the clone.
-    // The copy is a shallow copy, objects linked from child are not duplicated.
-    // Returns the index of the newly created duplicate.
-    // If the child_idx only has incoming edges from parent_idx, duplication isn't possible and this will return None
-    #[allow(dead_code)]
-    fn duplicate_child(
-        &mut self,
-        parent_idx: ObjIdx,
-        child_idx: ObjIdx,
-    ) -> Result<Option<ObjIdx>, RepackError> {
-        self.update_parents()?;
-
-        let child_v = &self.vertices[child_idx];
-        if child_v.incoming_edges() <= child_v.incoming_edges_from_parent(parent_idx) as usize
-            || child_v.has_incoming_virtual_edges
-        {
-            return Ok(None);
-        }
-
-        let clone_idx = self.duplicate_vertex(child_idx)?;
-        let mut old_to_new_idx_parents = Vec::new();
-        for l in self.vertices[parent_idx].real_links.values_mut() {
-            if l.obj_idx() != child_idx {
-                continue;
-            }
-            l.update_obj_idx(clone_idx);
-            old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, false));
-        }
-
-        for l in self.vertices[parent_idx].virtual_links.iter_mut() {
-            if l.obj_idx() != child_idx {
-                continue;
-            }
-            l.update_obj_idx(clone_idx);
-            old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, true));
-        }
-        self.reassign_parents(&old_to_new_idx_parents)?;
-        Ok(Some(clone_idx))
     }
 
     // Creates a copy of child and re-assigns the link from parents to the clone.
@@ -1210,6 +1199,36 @@ impl Graph {
             }
         }
         self.reassign_parents(&old_to_new_idx_parents)?;
+        Ok(Some(clone_idx))
+    }
+
+    // Creates a copy of child and re-assigns the link at specified position from parent to the clone.
+    // The copy is a shallow copy, objects linked from child are not duplicated.
+    // Returns the index of the newly created duplicate.
+    fn duplicate_child_at_position(
+        &mut self,
+        parent_idx: ObjIdx,
+        child_idx: ObjIdx,
+        pos: u32,
+    ) -> Result<Option<ObjIdx>, RepackError> {
+        let clone_idx = self.duplicate_vertex(child_idx)?;
+        self.mut_vertex(child_idx)
+            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+            .remove_parent(parent_idx, false);
+
+        self.mut_vertex(clone_idx)
+            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+            .add_parent(parent_idx, false);
+
+        let Some(l) = self
+            .mut_vertex(parent_idx)
+            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+            .real_links
+            .get_mut(&pos)
+        else {
+            return Ok(None);
+        };
+        l.update_obj_idx(clone_idx);
         Ok(Some(clone_idx))
     }
 
@@ -1277,7 +1296,12 @@ impl Graph {
     }
 
     //  Adds a new vertex to the graph, not connected to anything.
-    fn new_vertex(&mut self, size: usize) -> ObjIdx {
+    fn new_vertex(&mut self, size: usize) -> Result<ObjIdx, RepackError> {
+        let new_idx = self.vertices.len();
+        if new_idx >= MAX_VERTICES {
+            return Err(RepackError::ErrorMaxOperationsExceeded);
+        }
+
         self.positions_invalid = true;
         self.distance_invalid = true;
 
@@ -1294,11 +1318,10 @@ impl Graph {
             ..Default::default()
         };
 
-        let new_idx = self.vertices.len();
         self.vertices.push(new_vertex);
         self.ordering.push(new_idx);
 
-        new_idx
+        Ok(new_idx)
     }
 
     // Finds the object idx of the object pointed to by the offset at specified 'position'
@@ -1799,7 +1822,6 @@ pub(crate) mod test {
         let mut a = Serializer::new(buf_size);
         populate_serializer_complex_2(&mut a);
         let mut graph = Graph::from_serializer(&a).unwrap();
-        graph.duplicate_child(4, 1).unwrap();
         graph.normalize();
 
         let mut e = Serializer::new(buf_size);
@@ -1836,7 +1858,7 @@ pub(crate) mod test {
         let mut c = Serializer::new(buf_size);
         populate_serializer_complex_3(&mut c);
         let mut graph = Graph::from_serializer(&c).unwrap();
-        graph.duplicate_child(3, 2).unwrap();
+        graph.duplicate_child_at_position(3, 2, 3).unwrap();
 
         let data_bytes = &graph.data;
         let obj_6 = &graph.vertices[6];

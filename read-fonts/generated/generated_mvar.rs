@@ -20,8 +20,12 @@ impl TopLevelTable for Mvar<'_> {
     const TAG: Tag = Tag::new(b"MVAR");
 }
 
+impl ReadArgs for Mvar<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Mvar<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -84,33 +88,50 @@ impl<'a> Mvar<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn value_record_size_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn value_record_count_byte_range(&self) -> Range<usize> {
         let start = self.value_record_size_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.value_record_count_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn value_records_byte_range(&self) -> Range<usize> {
         let value_record_count = self.value_record_count();
         let start = self.item_variation_store_offset_byte_range().end;
-        start..start + (value_record_count as usize).saturating_mul(ValueRecord::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(value_record_count)).saturating_mul(ValueRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Mvar::MIN_SIZE));
+
+impl Default for Mvar<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

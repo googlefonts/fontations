@@ -1,12 +1,12 @@
 //! impl subset() for CursivePos subtable
 
+use crate::fnv::FnvHashMap;
 use crate::{
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
     offset::{SerializeSerialize, SerializeSubset},
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -28,6 +28,9 @@ impl<'a> SubsetTable<'a> for CursivePosFormat1<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.coverage_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         s.embed(self.pos_format())?;
 
         //cov offset

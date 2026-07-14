@@ -20,8 +20,12 @@ impl TopLevelTable for Svg<'_> {
     const TAG: Tag = Tag::new(b"SVG ");
 }
 
+impl ReadArgs for Svg<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Svg<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -62,17 +66,30 @@ impl<'a> Svg<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn svg_document_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.svg_document_list_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Svg::MIN_SIZE));
+
+impl Default for Svg<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -111,8 +128,12 @@ impl<'a> MinByteRange<'a> for SVGDocumentList<'a> {
     }
 }
 
+impl ReadArgs for SVGDocumentList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for SVGDocumentList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -146,13 +167,28 @@ impl<'a> SVGDocumentList<'a> {
 
     pub fn num_entries_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn document_records_byte_range(&self) -> Range<usize> {
         let num_entries = self.num_entries();
         let start = self.num_entries_byte_range().end;
-        start..start + (num_entries as usize).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(num_entries)).saturating_mul(SVGDocumentRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    SVGDocumentList::MIN_SIZE
+));
+
+impl Default for SVGDocumentList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

@@ -20,8 +20,12 @@ impl TopLevelTable for Ankr<'_> {
     const TAG: Tag = Tag::new(b"ankr");
 }
 
+impl ReadArgs for Ankr<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Ankr<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -76,22 +80,36 @@ impl<'a> Ankr<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn lookup_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_data_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.lookup_table_offset_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Ankr::MIN_SIZE));
+
+impl Default for Ankr<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -135,8 +153,12 @@ impl<'a> MinByteRange<'a> for GlyphDataEntry<'a> {
     }
 }
 
+impl ReadArgs for GlyphDataEntry<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphDataEntry<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -169,13 +191,26 @@ impl<'a> GlyphDataEntry<'a> {
 
     pub fn num_points_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn anchor_points_byte_range(&self) -> Range<usize> {
         let num_points = self.num_points();
         let start = self.num_points_byte_range().end;
-        start..start + (num_points as usize).saturating_mul(AnchorPoint::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(num_points)).saturating_mul(AnchorPoint::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(GlyphDataEntry::MIN_SIZE));
+
+impl Default for GlyphDataEntry<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

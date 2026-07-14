@@ -20,8 +20,12 @@ impl TopLevelTable for Trak<'_> {
     const TAG: Tag = Tag::new(b"trak");
 }
 
+impl ReadArgs for Trak<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Trak<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -83,27 +87,42 @@ impl<'a> Trak<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn horiz_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn vert_offset_byte_range(&self) -> Range<usize> {
         let start = self.horiz_offset_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        let end = start + Offset16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.vert_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Trak::MIN_SIZE));
+
+impl Default for Trak<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -147,8 +166,12 @@ impl<'a> MinByteRange<'a> for TrackData<'a> {
     }
 }
 
+impl ReadArgs for TrackData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for TrackData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -194,23 +217,38 @@ impl<'a> TrackData<'a> {
 
     pub fn n_tracks_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn n_sizes_byte_range(&self) -> Range<usize> {
         let start = self.n_tracks_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn size_table_offset_byte_range(&self) -> Range<usize> {
         let start = self.n_sizes_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn track_table_byte_range(&self) -> Range<usize> {
         let n_tracks = self.n_tracks();
         let start = self.size_table_offset_byte_range().end;
-        start..start + (n_tracks as usize).saturating_mul(TrackTableEntry::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(n_tracks)).saturating_mul(TrackTableEntry::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(TrackData::MIN_SIZE));
+
+impl Default for TrackData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

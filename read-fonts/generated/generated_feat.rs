@@ -20,8 +20,12 @@ impl TopLevelTable for Feat<'_> {
     const TAG: Tag = Tag::new(b"feat");
 }
 
+impl ReadArgs for Feat<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Feat<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -63,28 +67,44 @@ impl<'a> Feat<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn feature_name_count_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved1_byte_range(&self) -> Range<usize> {
         let start = self.feature_name_count_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved2_byte_range(&self) -> Range<usize> {
         let start = self._reserved1_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn names_byte_range(&self) -> Range<usize> {
         let feature_name_count = self.feature_name_count();
         let start = self._reserved2_byte_range().end;
-        start..start + (feature_name_count as usize).saturating_mul(FeatureName::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(feature_name_count)).saturating_mul(FeatureName::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Feat::MIN_SIZE));
+
+impl Default for Feat<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -163,7 +183,7 @@ impl FeatureName {
     /// By calling its `offset_data` method.
     pub fn setting_table<'a>(&self, data: FontData<'a>) -> Result<SettingNameArray<'a>, ReadError> {
         let args = self.n_settings();
-        self.setting_table_offset().resolve_with_args(data, &args)
+        self.setting_table_offset().resolve_with_args(data, args)
     }
 
     /// Flags associated with the feature type.
@@ -220,9 +240,9 @@ impl ReadArgs for SettingNameArray<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for SettingNameArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let n_settings = *args;
+impl<'a> FontRead<'a> for SettingNameArray<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let n_settings = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -239,7 +259,7 @@ impl<'a> SettingNameArray<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, n_settings: u16) -> Result<Self, ReadError> {
         let args = n_settings;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -267,7 +287,23 @@ impl<'a> SettingNameArray<'a> {
     pub fn settings_byte_range(&self) -> Range<usize> {
         let n_settings = self.n_settings();
         let start = 0;
-        start..start + (n_settings as usize).saturating_mul(SettingName::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(n_settings)).saturating_mul(SettingName::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(
+    SettingNameArray::MIN_SIZE
+));
+
+impl Default for SettingNameArray<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            n_settings: Default::default(),
+        }
     }
 }
 

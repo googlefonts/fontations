@@ -11,6 +11,12 @@ pub enum Ift<'a> {
     Format2(PatchMapFormat2<'a>),
 }
 
+impl Default for Ift<'_> {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl<'a> Ift<'a> {
     ///Return the `FontData` used to resolve offsets for this table.
     pub fn offset_data(&self) -> FontData<'a> {
@@ -72,8 +78,12 @@ impl<'a> Ift<'a> {
     }
 }
 
+impl ReadArgs for Ift<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Ift<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             PatchMapFormat1::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -444,8 +454,12 @@ impl<'a> MinByteRange<'a> for PatchMapFormat1<'a> {
     }
 }
 
+impl ReadArgs for PatchMapFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PatchMapFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -521,7 +535,7 @@ impl<'a> PatchMapFormat1<'a> {
     pub fn glyph_map(&self) -> Result<GlyphMap<'a>, ReadError> {
         let data = self.data;
         let args = (self.glyph_count(), self.max_entry_index());
-        self.glyph_map_offset().resolve_with_args(data, &args)
+        self.glyph_map_offset().resolve_with_args(data, args)
     }
 
     /// Sub table that maps feature and glyph ids to entry indices.
@@ -534,7 +548,7 @@ impl<'a> PatchMapFormat1<'a> {
     pub fn feature_map(&self) -> Option<Result<FeatureMap<'a>, ReadError>> {
         let data = self.data;
         let args = self.max_entry_index();
-        self.feature_map_offset().resolve_with_args(data, &args)
+        self.feature_map_offset().resolve_with_args(data, args)
     }
 
     pub fn applied_entries_bitmap(&self) -> &'a [u8] {
@@ -574,102 +588,134 @@ impl<'a> PatchMapFormat1<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_0_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_1_byte_range(&self) -> Range<usize> {
         let start = self._reserved_0_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_2_byte_range(&self) -> Range<usize> {
         let start = self._reserved_1_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn field_flags_byte_range(&self) -> Range<usize> {
         let start = self._reserved_2_byte_range().end;
-        start..start + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+        let end = start + PatchMapFieldPresenceFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self.field_flags_byte_range().end;
-        start..start + CompatibilityId::RAW_BYTE_LEN
+        let end = start + CompatibilityId::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn max_entry_index_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn max_glyph_map_entry_index_byte_range(&self) -> Range<usize> {
         let start = self.max_entry_index_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.max_glyph_map_entry_index_byte_range().end;
-        start..start + Uint24::RAW_BYTE_LEN
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn feature_map_offset_byte_range(&self) -> Range<usize> {
         let start = self.glyph_map_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn applied_entries_bitmap_byte_range(&self) -> Range<usize> {
         let max_entry_index = self.max_entry_index();
         let start = self.feature_map_offset_byte_range().end;
-        start
-            ..start
-                + (transforms::max_value_bitmap_len(max_entry_index))
-                    .saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::max_value_bitmap_len(max_entry_index)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn url_template_length_byte_range(&self) -> Range<usize> {
         let start = self.applied_entries_bitmap_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn url_template_byte_range(&self) -> Range<usize> {
         let url_template_length = self.url_template_length();
         let start = self.url_template_length_byte_range().end;
-        start..start + (url_template_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(url_template_length)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn patch_format_byte_range(&self) -> Range<usize> {
         let start = self.url_template_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn cff_charstrings_offset_byte_range(&self) -> Range<usize> {
         let start = self.patch_format_byte_range().end;
-        start
-            ..(self
-                .field_flags()
-                .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
-            .then(|| start + u32::RAW_BYTE_LEN)
-            .unwrap_or(start)
+        let end = if self
+            .field_flags()
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
+        {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn cff2_charstrings_offset_byte_range(&self) -> Range<usize> {
         let start = self.cff_charstrings_offset_byte_range().end;
-        start
-            ..(self
-                .field_flags()
-                .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
-            .then(|| start + u32::RAW_BYTE_LEN)
-            .unwrap_or(start)
+        let end = if self
+            .field_flags()
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
+        {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    PatchMapFormat1::MIN_SIZE
+));
+
+impl Default for PatchMapFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
     }
 }
 
@@ -757,9 +803,9 @@ impl ReadArgs for GlyphMap<'_> {
     type Args = (Uint24, u16);
 }
 
-impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(Uint24, u16)) -> Result<Self, ReadError> {
-        let (glyph_count, max_entry_index) = *args;
+impl<'a> FontRead<'a> for GlyphMap<'a> {
+    fn read_with_args(data: FontData<'a>, args: (Uint24, u16)) -> Result<Self, ReadError> {
+        let (glyph_count, max_entry_index) = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -784,7 +830,7 @@ impl<'a> GlyphMap<'a> {
         max_entry_index: u16,
     ) -> Result<Self, ReadError> {
         let args = (glyph_count, max_entry_index);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -808,7 +854,7 @@ impl<'a> GlyphMap<'a> {
     pub fn entry_index(&self) -> ComputedArray<'a, U8Or16> {
         let range = self.entry_index_byte_range();
         self.data
-            .read_with_args(range, &self.max_entry_index())
+            .read_with_args(range, self.max_entry_index())
             .unwrap_or_default()
     }
 
@@ -822,18 +868,31 @@ impl<'a> GlyphMap<'a> {
 
     pub fn first_mapped_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entry_index_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let first_mapped_glyph = self.first_mapped_glyph();
         let start = self.first_mapped_glyph_byte_range().end;
-        start
-            ..start
-                + (transforms::subtract(glyph_count, first_mapped_glyph)).saturating_mul(
-                    <U8Or16 as ComputeSize>::compute_size(&self.max_entry_index()).unwrap_or(0),
-                )
+        let end = start
+            + (transforms::subtract(glyph_count, first_mapped_glyph)).saturating_mul(
+                <U8Or16 as ComputeSize>::compute_size(self.max_entry_index()).unwrap_or(0),
+            );
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(GlyphMap::MIN_SIZE));
+
+impl Default for GlyphMap<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            glyph_count: Default::default(),
+            max_entry_index: Default::default(),
+        }
     }
 }
 
@@ -873,9 +932,9 @@ impl ReadArgs for FeatureMap<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for FeatureMap<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let max_entry_index = *args;
+impl<'a> FontRead<'a> for FeatureMap<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let max_entry_index = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -895,7 +954,7 @@ impl<'a> FeatureMap<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
         let args = max_entry_index;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -918,7 +977,7 @@ impl<'a> FeatureMap<'a> {
     pub fn feature_records(&self) -> ComputedArray<'a, FeatureRecord> {
         let range = self.feature_records_byte_range();
         self.data
-            .read_with_args(range, &self.max_entry_index())
+            .read_with_args(range, self.max_entry_index())
             .unwrap_or_default()
     }
 
@@ -933,23 +992,36 @@ impl<'a> FeatureMap<'a> {
 
     pub fn feature_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn feature_records_byte_range(&self) -> Range<usize> {
         let feature_count = self.feature_count();
         let start = self.feature_count_byte_range().end;
-        start
-            ..start
-                + (feature_count as usize).saturating_mul(
-                    <FeatureRecord as ComputeSize>::compute_size(&self.max_entry_index())
-                        .unwrap_or(0),
-                )
+        let end = start
+            + (transforms::to_usize(feature_count)).saturating_mul(
+                <FeatureRecord as ComputeSize>::compute_size(self.max_entry_index()).unwrap_or(0),
+            );
+        start..end
     }
 
     pub fn entry_map_data_byte_range(&self) -> Range<usize> {
         let start = self.feature_records_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(FeatureMap::MIN_SIZE));
+
+impl Default for FeatureMap<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            max_entry_index: Default::default(),
+        }
     }
 }
 
@@ -1003,30 +1075,30 @@ impl ReadArgs for FeatureRecord {
 
 impl ComputeSize for FeatureRecord {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let max_entry_index = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let max_entry_index = args;
         let mut result = 0usize;
         result = result
             .checked_add(Tag::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
         result = result
-            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index).unwrap_or(0))
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(max_entry_index).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         result = result
-            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index).unwrap_or(0))
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(max_entry_index).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         Ok(result)
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for FeatureRecord {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for FeatureRecord {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let max_entry_index = *args;
+        let max_entry_index = args;
         Ok(Self {
             feature_tag: cursor.read_be()?,
-            first_new_entry_index: cursor.read_with_args(&max_entry_index)?,
-            entry_map_count: cursor.read_with_args(&max_entry_index)?,
+            first_new_entry_index: cursor.read_with_args(max_entry_index)?,
+            entry_map_count: cursor.read_with_args(max_entry_index)?,
         })
     }
 }
@@ -1039,7 +1111,7 @@ impl<'a> FeatureRecord {
     /// parsed.
     pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
         let args = max_entry_index;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1084,26 +1156,26 @@ impl ReadArgs for EntryMapRecord {
 
 impl ComputeSize for EntryMapRecord {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let max_entry_index = *args;
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let max_entry_index = args;
         let mut result = 0usize;
         result = result
-            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index).unwrap_or(0))
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(max_entry_index).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         result = result
-            .checked_add(<U8Or16 as ComputeSize>::compute_size(&max_entry_index).unwrap_or(0))
+            .checked_add(<U8Or16 as ComputeSize>::compute_size(max_entry_index).unwrap_or(0))
             .ok_or(ReadError::OutOfBounds)?;
         Ok(result)
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for EntryMapRecord {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for EntryMapRecord {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let max_entry_index = *args;
+        let max_entry_index = args;
         Ok(Self {
-            first_entry_index: cursor.read_with_args(&max_entry_index)?,
-            last_entry_index: cursor.read_with_args(&max_entry_index)?,
+            first_entry_index: cursor.read_with_args(max_entry_index)?,
+            last_entry_index: cursor.read_with_args(max_entry_index)?,
         })
     }
 }
@@ -1116,7 +1188,7 @@ impl<'a> EntryMapRecord {
     /// parsed.
     pub fn read(data: FontData<'a>, max_entry_index: u16) -> Result<Self, ReadError> {
         let args = max_entry_index;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1155,8 +1227,12 @@ impl<'a> MinByteRange<'a> for PatchMapFormat2<'a> {
     }
 }
 
+impl ReadArgs for PatchMapFormat2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for PatchMapFormat2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1262,83 +1338,102 @@ impl<'a> PatchMapFormat2<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_0_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_1_byte_range(&self) -> Range<usize> {
         let start = self._reserved_0_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_2_byte_range(&self) -> Range<usize> {
         let start = self._reserved_1_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn field_flags_byte_range(&self) -> Range<usize> {
         let start = self._reserved_2_byte_range().end;
-        start..start + PatchMapFieldPresenceFlags::RAW_BYTE_LEN
+        let end = start + PatchMapFieldPresenceFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self.field_flags_byte_range().end;
-        start..start + CompatibilityId::RAW_BYTE_LEN
+        let end = start + CompatibilityId::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn default_patch_format_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entry_count_byte_range(&self) -> Range<usize> {
         let start = self.default_patch_format_byte_range().end;
-        start..start + Uint24::RAW_BYTE_LEN
+        let end = start + Uint24::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entries_offset_byte_range(&self) -> Range<usize> {
         let start = self.entry_count_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entry_id_string_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.entries_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn url_template_length_byte_range(&self) -> Range<usize> {
         let start = self.entry_id_string_data_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn url_template_byte_range(&self) -> Range<usize> {
         let url_template_length = self.url_template_length();
         let start = self.url_template_length_byte_range().end;
-        start..start + (url_template_length as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(url_template_length)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn cff_charstrings_offset_byte_range(&self) -> Range<usize> {
         let start = self.url_template_byte_range().end;
-        start
-            ..(self
-                .field_flags()
-                .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
-            .then(|| start + u32::RAW_BYTE_LEN)
-            .unwrap_or(start)
+        let end = if self
+            .field_flags()
+            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
+        {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn cff2_charstrings_offset_byte_range(&self) -> Range<usize> {
         let start = self.cff_charstrings_offset_byte_range().end;
-        start
-            ..(self
-                .field_flags()
-                .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
-            .then(|| start + u32::RAW_BYTE_LEN)
-            .unwrap_or(start)
+        let end = if self
+            .field_flags()
+            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
+        {
+            start + u32::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 }
 
@@ -1419,8 +1514,12 @@ impl<'a> MinByteRange<'a> for MappingEntries<'a> {
     }
 }
 
+impl ReadArgs for MappingEntries<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MappingEntries<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1446,7 +1545,20 @@ impl<'a> MappingEntries<'a> {
 
     pub fn entry_data_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(MappingEntries::MIN_SIZE));
+
+impl Default for MappingEntries<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1481,8 +1593,12 @@ impl<'a> MinByteRange<'a> for EntryData<'a> {
     }
 }
 
+impl ReadArgs for EntryData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for EntryData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1550,82 +1666,109 @@ impl<'a> EntryData<'a> {
 
     pub fn format_flags_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + EntryFormatFlags::RAW_BYTE_LEN
+        let end = start + EntryFormatFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn feature_count_byte_range(&self) -> Range<usize> {
         let start = self.format_flags_byte_range().end;
-        start
-            ..(self
-                .format_flags()
-                .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
-            .then(|| start + u8::RAW_BYTE_LEN)
-            .unwrap_or(start)
+        let end = if self
+            .format_flags()
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+        {
+            start + u8::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn feature_tags_byte_range(&self) -> Range<usize> {
         let feature_count = self.feature_count().unwrap_or_default();
         let start = self.feature_count_byte_range().end;
-        start
-            ..(self
-                .format_flags()
-                .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
-            .then(|| start + (feature_count as usize).saturating_mul(Tag::RAW_BYTE_LEN))
-            .unwrap_or(start)
+        let end = if self
+            .format_flags()
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+        {
+            start + (transforms::to_usize(feature_count)).saturating_mul(Tag::RAW_BYTE_LEN)
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn design_space_count_byte_range(&self) -> Range<usize> {
         let start = self.feature_tags_byte_range().end;
-        start
-            ..(self
-                .format_flags()
-                .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
-            .then(|| start + u16::RAW_BYTE_LEN)
-            .unwrap_or(start)
+        let end = if self
+            .format_flags()
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+        {
+            start + u16::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn design_space_segments_byte_range(&self) -> Range<usize> {
         let design_space_count = self.design_space_count().unwrap_or_default();
         let start = self.design_space_count_byte_range().end;
-        start
-            ..(self
-                .format_flags()
-                .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE))
-            .then(|| {
-                start
-                    + (design_space_count as usize).saturating_mul(DesignSpaceSegment::RAW_BYTE_LEN)
-            })
-            .unwrap_or(start)
+        let end = if self
+            .format_flags()
+            .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE)
+        {
+            start
+                + (transforms::to_usize(design_space_count))
+                    .saturating_mul(DesignSpaceSegment::RAW_BYTE_LEN)
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn match_mode_and_count_byte_range(&self) -> Range<usize> {
         let start = self.design_space_segments_byte_range().end;
-        start
-            ..(self
-                .format_flags()
-                .contains(EntryFormatFlags::CHILD_INDICES))
-            .then(|| start + MatchModeAndCount::RAW_BYTE_LEN)
-            .unwrap_or(start)
+        let end = if self
+            .format_flags()
+            .contains(EntryFormatFlags::CHILD_INDICES)
+        {
+            start + MatchModeAndCount::RAW_BYTE_LEN
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn child_indices_byte_range(&self) -> Range<usize> {
         let match_mode_and_count = self.match_mode_and_count().unwrap_or_default();
         let start = self.match_mode_and_count_byte_range().end;
-        start
-            ..(self
-                .format_flags()
-                .contains(EntryFormatFlags::CHILD_INDICES))
-            .then(|| {
-                start
-                    + (usize::try_from(match_mode_and_count).unwrap_or_default())
-                        .saturating_mul(Uint24::RAW_BYTE_LEN)
-            })
-            .unwrap_or(start)
+        let end = if self
+            .format_flags()
+            .contains(EntryFormatFlags::CHILD_INDICES)
+        {
+            start
+                + (transforms::to_usize(match_mode_and_count)).saturating_mul(Uint24::RAW_BYTE_LEN)
+        } else {
+            start
+        };
+        start..end
     }
 
     pub fn trailing_data_byte_range(&self) -> Range<usize> {
         let start = self.child_indices_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(EntryData::MIN_SIZE));
+
+impl Default for EntryData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -2088,8 +2231,12 @@ impl<'a> MinByteRange<'a> for IdStringData<'a> {
     }
 }
 
+impl ReadArgs for IdStringData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for IdStringData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2115,7 +2262,20 @@ impl<'a> IdStringData<'a> {
 
     pub fn id_data_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(IdStringData::MIN_SIZE));
+
+impl Default for IdStringData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -2150,8 +2310,12 @@ impl<'a> MinByteRange<'a> for TableKeyedPatch<'a> {
     }
 }
 
+impl ReadArgs for TableKeyedPatch<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for TableKeyedPatch<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2202,30 +2366,46 @@ impl<'a> TableKeyedPatch<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Tag::RAW_BYTE_LEN
+        let end = start + Tag::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        start..start + CompatibilityId::RAW_BYTE_LEN
+        let end = start + CompatibilityId::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn patches_count_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn patch_offsets_byte_range(&self) -> Range<usize> {
         let patches_count = self.patches_count();
         let start = self.patches_count_byte_range().end;
-        start
-            ..start
-                + (transforms::add(patches_count, 1_usize)).saturating_mul(Offset32::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::add(patches_count, 1_usize)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    TableKeyedPatch::MIN_SIZE
+));
+
+impl Default for TableKeyedPatch<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -2242,20 +2422,7 @@ impl<'a> SomeTable<'a> for TableKeyedPatch<'a> {
                 traversal::FieldType::Unknown,
             )),
             2usize => Some(Field::new("patches_count", self.patches_count())),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "patch_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<TablePatch>(),
-                        self.patch_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<TablePatch>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new("patch_offsets", FieldType::from(self.patches()))),
             _ => None,
         }
     }
@@ -2279,8 +2446,12 @@ impl<'a> MinByteRange<'a> for TablePatch<'a> {
     }
 }
 
+impl ReadArgs for TablePatch<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for TablePatch<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2323,22 +2494,37 @@ impl<'a> TablePatch<'a> {
 
     pub fn tag_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Tag::RAW_BYTE_LEN
+        let end = start + Tag::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.tag_byte_range().end;
-        start..start + TablePatchFlags::RAW_BYTE_LEN
+        let end = start + TablePatchFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(TablePatch::MIN_SIZE));
+
+impl Default for TablePatch<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -2684,8 +2870,12 @@ impl<'a> MinByteRange<'a> for GlyphKeyedPatch<'a> {
     }
 }
 
+impl ReadArgs for GlyphKeyedPatch<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphKeyedPatch<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -2736,32 +2926,51 @@ impl<'a> GlyphKeyedPatch<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Tag::RAW_BYTE_LEN
+        let end = start + Tag::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self._reserved_byte_range().end;
-        start..start + GlyphKeyedFlags::RAW_BYTE_LEN
+        let end = start + GlyphKeyedFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn compatibility_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + CompatibilityId::RAW_BYTE_LEN
+        let end = start + CompatibilityId::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn max_uncompressed_length_byte_range(&self) -> Range<usize> {
         let start = self.compatibility_id_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn brotli_stream_byte_range(&self) -> Range<usize> {
         let start = self.max_uncompressed_length_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    GlyphKeyedPatch::MIN_SIZE
+));
+
+impl Default for GlyphKeyedPatch<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -3115,9 +3324,9 @@ impl ReadArgs for GlyphPatches<'_> {
     type Args = GlyphKeyedFlags;
 }
 
-impl<'a> FontReadWithArgs<'a> for GlyphPatches<'a> {
-    fn read_with_args(data: FontData<'a>, args: &GlyphKeyedFlags) -> Result<Self, ReadError> {
-        let flags = *args;
+impl<'a> FontRead<'a> for GlyphPatches<'a> {
+    fn read_with_args(data: FontData<'a>, args: GlyphKeyedFlags) -> Result<Self, ReadError> {
+        let flags = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -3134,7 +3343,7 @@ impl<'a> GlyphPatches<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, flags: GlyphKeyedFlags) -> Result<Self, ReadError> {
         let args = flags;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -3163,7 +3372,7 @@ impl<'a> GlyphPatches<'a> {
     pub fn glyph_ids(&self) -> ComputedArray<'a, U16Or24> {
         let range = self.glyph_ids_byte_range();
         self.data
-            .read_with_args(range, &self.flags())
+            .read_with_args(range, self.flags())
             .unwrap_or_default()
     }
 
@@ -3190,38 +3399,51 @@ impl<'a> GlyphPatches<'a> {
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn table_count_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_ids_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.table_count_byte_range().end;
-        start
-            ..start
-                + (glyph_count as usize).saturating_mul(
-                    <U16Or24 as ComputeSize>::compute_size(&self.flags()).unwrap_or(0),
-                )
+        let end = start
+            + (transforms::to_usize(glyph_count))
+                .saturating_mul(<U16Or24 as ComputeSize>::compute_size(self.flags()).unwrap_or(0));
+        start..end
     }
 
     pub fn tables_byte_range(&self) -> Range<usize> {
         let table_count = self.table_count();
         let start = self.glyph_ids_byte_range().end;
-        start..start + (table_count as usize).saturating_mul(Tag::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(table_count)).saturating_mul(Tag::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let table_count = self.table_count();
         let start = self.tables_byte_range().end;
-        start
-            ..start
-                + (transforms::multiply_add(glyph_count, table_count, 1_usize))
-                    .saturating_mul(Offset32::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::multiply_add(glyph_count, table_count, 1_usize))
+                .saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(GlyphPatches::MIN_SIZE));
+
+impl Default for GlyphPatches<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            flags: Default::default(),
+        }
     }
 }
 
@@ -3236,20 +3458,10 @@ impl<'a> SomeTable<'a> for GlyphPatches<'a> {
             1usize => Some(Field::new("table_count", self.table_count())),
             2usize => Some(Field::new("glyph_ids", traversal::FieldType::Unknown)),
             3usize => Some(Field::new("tables", self.tables())),
-            4usize => Some({
-                let data = self.data;
-                Field::new(
-                    "glyph_data_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<GlyphData>(),
-                        self.glyph_data_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<GlyphData>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            4usize => Some(Field::new(
+                "glyph_data_offsets",
+                FieldType::from(self.glyph_data()),
+            )),
             _ => None,
         }
     }
@@ -3273,8 +3485,12 @@ impl<'a> MinByteRange<'a> for GlyphData<'a> {
     }
 }
 
+impl ReadArgs for GlyphData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -3300,7 +3516,20 @@ impl<'a> GlyphData<'a> {
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+#[allow(clippy::absurd_extreme_comparisons)]
+const _: () = assert!(FontData::default_data_long_enough(GlyphData::MIN_SIZE));
+
+impl Default for GlyphData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

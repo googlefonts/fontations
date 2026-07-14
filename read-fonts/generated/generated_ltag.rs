@@ -20,8 +20,12 @@ impl TopLevelTable for Ltag<'_> {
     const TAG: Tag = Tag::new(b"ltag");
 }
 
+impl ReadArgs for Ltag<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Ltag<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -67,23 +71,38 @@ impl<'a> Ltag<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_tags_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn tag_ranges_byte_range(&self) -> Range<usize> {
         let num_tags = self.num_tags();
         let start = self.num_tags_byte_range().end;
-        start..start + (num_tags as usize).saturating_mul(FTStringRange::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(num_tags)).saturating_mul(FTStringRange::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Ltag::MIN_SIZE));
+
+impl Default for Ltag<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

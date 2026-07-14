@@ -44,7 +44,7 @@ impl Validate for Vorg {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Vorg", |ctx| {
             ctx.in_field("vert_origin_y_metrics", |ctx| {
-                if self.vert_origin_y_metrics.len() > (u16::MAX as usize) {
+                if self.vert_origin_y_metrics.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.vert_origin_y_metrics.validate_impl(ctx);
@@ -70,8 +70,12 @@ impl<'a> FromObjRef<read_fonts::tables::vorg::Vorg<'a>> for Vorg {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::vorg::Vorg<'a>> for Vorg {}
 
+impl ReadArgs for Vorg {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Vorg {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::vorg::Vorg as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

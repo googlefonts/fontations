@@ -15,6 +15,7 @@ pub mod font_patch;
 pub mod glyph_keyed;
 pub mod patch_group;
 pub mod patchmap;
+mod short_string;
 pub mod table_keyed;
 pub mod url_templates;
 

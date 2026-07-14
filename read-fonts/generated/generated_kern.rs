@@ -15,8 +15,12 @@ impl<'a> MinByteRange<'a> for OtKern<'a> {
     }
 }
 
+impl ReadArgs for OtKern<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for OtKern<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -56,17 +60,31 @@ impl<'a> OtKern<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn n_tables_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn subtable_data_byte_range(&self) -> Range<usize> {
         let start = self.n_tables_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(OtKern::MIN_SIZE));
+
+impl Default for OtKern<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -103,8 +121,12 @@ impl<'a> MinByteRange<'a> for AatKern<'a> {
     }
 }
 
+impl ReadArgs for AatKern<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AatKern<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -144,17 +166,31 @@ impl<'a> AatKern<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        let end = start + MajorMinor::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn n_tables_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn subtable_data_byte_range(&self) -> Range<usize> {
         let start = self.n_tables_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(AatKern::MIN_SIZE));
+
+impl Default for AatKern<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -191,8 +227,12 @@ impl<'a> MinByteRange<'a> for OtSubtable<'a> {
     }
 }
 
+impl ReadArgs for OtSubtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for OtSubtable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -238,22 +278,37 @@ impl<'a> OtSubtable<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.coverage_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(OtSubtable::MIN_SIZE));
+
+impl Default for OtSubtable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -291,8 +346,12 @@ impl<'a> MinByteRange<'a> for AatSubtable<'a> {
     }
 }
 
+impl ReadArgs for AatSubtable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AatSubtable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -338,22 +397,37 @@ impl<'a> AatSubtable<'a> {
 
     pub fn length_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn coverage_byte_range(&self) -> Range<usize> {
         let start = self.length_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn tuple_index_byte_range(&self) -> Range<usize> {
         let start = self.coverage_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.tuple_index_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(AatSubtable::MIN_SIZE));
+
+impl Default for AatSubtable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -391,8 +465,12 @@ impl<'a> MinByteRange<'a> for Subtable0<'a> {
     }
 }
 
+impl ReadArgs for Subtable0<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Subtable0<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -445,28 +523,44 @@ impl<'a> Subtable0<'a> {
 
     pub fn n_pairs_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn search_range_byte_range(&self) -> Range<usize> {
         let start = self.n_pairs_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entry_selector_byte_range(&self) -> Range<usize> {
         let start = self.search_range_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn range_shift_byte_range(&self) -> Range<usize> {
         let start = self.entry_selector_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn pairs_byte_range(&self) -> Range<usize> {
         let n_pairs = self.n_pairs();
         let start = self.range_shift_byte_range().end;
-        start..start + (n_pairs as usize).saturating_mul(Subtable0Pair::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(n_pairs)).saturating_mul(Subtable0Pair::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Subtable0::MIN_SIZE));
+
+impl Default for Subtable0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -512,8 +606,12 @@ impl<'a> MinByteRange<'a> for Subtable2ClassTable<'a> {
     }
 }
 
+impl ReadArgs for Subtable2ClassTable<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Subtable2ClassTable<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -553,18 +651,33 @@ impl<'a> Subtable2ClassTable<'a> {
 
     pub fn first_glyph_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + GlyphId16::RAW_BYTE_LEN
+        let end = start + GlyphId16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn n_glyphs_byte_range(&self) -> Range<usize> {
         let start = self.first_glyph_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn offsets_byte_range(&self) -> Range<usize> {
         let n_glyphs = self.n_glyphs();
         let start = self.n_glyphs_byte_range().end;
-        start..start + (n_glyphs as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(n_glyphs)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    Subtable2ClassTable::MIN_SIZE
+));
+
+impl Default for Subtable2ClassTable<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -601,8 +714,12 @@ impl<'a> MinByteRange<'a> for Subtable3<'a> {
     }
 }
 
+impl ReadArgs for Subtable3<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Subtable3<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -682,55 +799,74 @@ impl<'a> Subtable3<'a> {
 
     pub fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn kern_value_count_byte_range(&self) -> Range<usize> {
         let start = self.glyph_count_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn left_class_count_byte_range(&self) -> Range<usize> {
         let start = self.kern_value_count_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn right_class_count_byte_range(&self) -> Range<usize> {
         let start = self.left_class_count_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.right_class_count_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn kern_value_byte_range(&self) -> Range<usize> {
         let kern_value_count = self.kern_value_count();
         let start = self.flags_byte_range().end;
-        start..start + (kern_value_count as usize).saturating_mul(i16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(kern_value_count)).saturating_mul(i16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn left_class_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.kern_value_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(glyph_count)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn right_class_byte_range(&self) -> Range<usize> {
         let glyph_count = self.glyph_count();
         let start = self.left_class_byte_range().end;
-        start..start + (glyph_count as usize).saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start + (transforms::to_usize(glyph_count)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn kern_index_byte_range(&self) -> Range<usize> {
         let left_class_count = self.left_class_count();
         let right_class_count = self.right_class_count();
         let start = self.right_class_byte_range().end;
-        start
-            ..start
-                + (transforms::add_multiply(left_class_count, 0_usize, right_class_count))
-                    .saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::add_multiply(left_class_count, 0_usize, right_class_count))
+                .saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Subtable3::MIN_SIZE));
+
+impl Default for Subtable3<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

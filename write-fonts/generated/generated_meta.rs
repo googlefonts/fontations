@@ -38,7 +38,7 @@ impl Validate for Meta {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Meta", |ctx| {
             ctx.in_field("data_maps", |ctx| {
-                if self.data_maps.len() > (u32::MAX as usize) {
+                if self.data_maps.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.data_maps.validate_impl(ctx);
@@ -63,8 +63,12 @@ impl<'a> FromObjRef<read_fonts::tables::meta::Meta<'a>> for Meta {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::meta::Meta<'a>> for Meta {}
 
+impl ReadArgs for Meta {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Meta {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::meta::Meta as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

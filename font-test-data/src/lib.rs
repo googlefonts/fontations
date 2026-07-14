@@ -19,6 +19,8 @@ pub static CMAP6: &[u8] = include_bytes!("../test_data/ttf/cmap6.ttf");
 
 pub static CMAP10: &[u8] = include_bytes!("../test_data/ttf/cmap10.ttf");
 
+pub static TOFU: &[u8] = include_bytes!("../test_data/ttf/tofu.ttf");
+
 pub static COLR_GRADIENT_RECT: &[u8] =
     include_bytes!("../test_data/ttf/linear_gradient_rect_colr_1.ttf");
 

@@ -1,12 +1,14 @@
 //!  A builder for top-level font objects
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::{borrow::Cow, fmt::Display};
 
 use read_fonts::{FontRef, TableProvider};
 use types::{Tag, TT_SFNT_VERSION};
 
-use crate::util::SearchRange;
+#[cfg(feature = "tables")]
+use crate::error::BuilderError;
+use crate::search_range::SearchRange;
 
 include!("../generated/generated_font.rs");
 
@@ -18,19 +20,6 @@ const CFF2: Tag = Tag::new(b"CFF2");
 #[derive(Debug, Clone, Default)]
 pub struct FontBuilder<'a> {
     tables: BTreeMap<Tag, Cow<'a, [u8]>>,
-}
-
-/// An error returned when attempting to add a table to the builder.
-///
-/// This wraps a compilation error, adding the tag of the table where it was
-/// encountered.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct BuilderError {
-    /// The tag of the root table where the error occurred
-    pub tag: Tag,
-    /// The underlying error
-    pub inner: crate::error::Error,
 }
 
 impl TableDirectory {
@@ -103,6 +92,7 @@ impl<'a> FontBuilder<'a> {
     /// The table can be any top-level table defined in this crate. This function
     /// will attempt to compile the table and then add it to the builder if
     /// successful, returning an error otherwise.
+    #[cfg(feature = "tables")]
     pub fn add_table<T>(&mut self, table: &T) -> Result<&mut Self, BuilderError>
     where
         T: FontWrite + Validate + TopLevelTable,
@@ -261,20 +251,9 @@ fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
 }
 
 impl TTCHeader {
+    #[allow(dead_code)] // compute_version is required by codegen even though sometimes unused
     fn compute_version(&self) -> MajorMinor {
         panic!("TTCHeader writing not supported (yet)")
-    }
-}
-
-impl Display for BuilderError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "failed to build '{}' table: '{}'", self.tag, self.inner)
-    }
-}
-
-impl std::error::Error for BuilderError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.inner)
     }
 }
 
@@ -286,7 +265,6 @@ mod tests {
 
     use crate::{font_builder::checksum_and_padding, FontBuilder};
     use rand::seq::SliceRandom;
-    use rand::Rng;
     use rstest::rstest;
 
     #[test]
@@ -322,15 +300,17 @@ mod tests {
 
     #[test]
     fn validate_font_checksum() {
+        use rand::RngExt;
+
         // Add a dummy 'head' plus a couple of made-up tables containing random bytes
         // and verify that the total font checksum is always equal to the special
         // constant 0xB1B0AFBA, which should be the case if the FontBuilder computed
         // the head.checksum_adjustment correctly.
         let head_size = 54;
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut builder = FontBuilder::default();
         for tag in [Tag::new(b"head"), Tag::new(b"FOO "), Tag::new(b"BAR ")] {
-            let data: Vec<u8> = (0..=head_size).map(|_| rng.r#gen()).collect();
+            let data: Vec<u8> = (0..=head_size).map(|_| rng.r#random()).collect();
             builder.add_raw(tag, data);
         }
         let font_data = builder.build();
@@ -375,7 +355,7 @@ mod tests {
         let mut builder = FontBuilder::default();
         builder.add_raw(dsig, vec![0]);
         let mut tags = recommended_order.to_vec();
-        tags.shuffle(&mut rand::thread_rng());
+        tags.shuffle(&mut rand::rng());
         for tag in tags {
             builder.add_raw(tag, vec![0]);
         }

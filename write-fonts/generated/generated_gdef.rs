@@ -115,8 +115,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::Gdef<'a>> for Gdef {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::Gdef<'a>> for Gdef {}
 
+impl ReadArgs for Gdef {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Gdef {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::Gdef as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -168,7 +172,7 @@ impl Validate for AttachList {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("attach_points", |ctx| {
-                if self.attach_points.len() > (u16::MAX as usize) {
+                if self.attach_points.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.attach_points.validate_impl(ctx);
@@ -189,8 +193,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::AttachList<'a>> for AttachList {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::AttachList<'a>> for AttachList {}
 
+impl ReadArgs for AttachList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AttachList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::AttachList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -225,7 +233,7 @@ impl Validate for AttachPoint {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AttachPoint", |ctx| {
             ctx.in_field("point_indices", |ctx| {
-                if self.point_indices.len() > (u16::MAX as usize) {
+                if self.point_indices.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -245,8 +253,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::AttachPoint<'a>> for AttachPoint {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::AttachPoint<'a>> for AttachPoint {}
 
+impl ReadArgs for AttachPoint {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for AttachPoint {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::AttachPoint as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -291,7 +303,7 @@ impl Validate for LigCaretList {
                 self.coverage.validate_impl(ctx);
             });
             ctx.in_field("lig_glyphs", |ctx| {
-                if self.lig_glyphs.len() > (u16::MAX as usize) {
+                if self.lig_glyphs.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.lig_glyphs.validate_impl(ctx);
@@ -312,8 +324,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::LigCaretList<'a>> for LigCaretList
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::LigCaretList<'a>> for LigCaretList {}
 
+impl ReadArgs for LigCaretList {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigCaretList {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::LigCaretList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -351,7 +367,7 @@ impl Validate for LigGlyph {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigGlyph", |ctx| {
             ctx.in_field("caret_values", |ctx| {
-                if self.caret_values.len() > (u16::MAX as usize) {
+                if self.caret_values.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.caret_values.validate_impl(ctx);
@@ -371,8 +387,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::LigGlyph<'a>> for LigGlyph {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::LigGlyph<'a>> for LigGlyph {}
 
+impl ReadArgs for LigGlyph {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for LigGlyph {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::LigGlyph as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -449,8 +469,12 @@ impl FromObjRef<read_fonts::tables::gdef::CaretValue<'_>> for CaretValue {
 
 impl FromTableRef<read_fonts::tables::gdef::CaretValue<'_>> for CaretValue {}
 
+impl ReadArgs for CaretValue {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValue {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValue as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -514,8 +538,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::CaretValueFormat1<'a>> for CaretVa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::CaretValueFormat1<'a>> for CaretValueFormat1 {}
 
+impl ReadArgs for CaretValueFormat1 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValueFormat1 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValueFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -564,8 +592,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::CaretValueFormat2<'a>> for CaretVa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::CaretValueFormat2<'a>> for CaretValueFormat2 {}
 
+impl ReadArgs for CaretValueFormat2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValueFormat2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValueFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -627,8 +659,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::CaretValueFormat3<'a>> for CaretVa
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::CaretValueFormat3<'a>> for CaretValueFormat3 {}
 
+impl ReadArgs for CaretValueFormat3 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CaretValueFormat3 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::CaretValueFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -668,7 +704,7 @@ impl Validate for MarkGlyphSets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkGlyphSets", |ctx| {
             ctx.in_field("coverages", |ctx| {
-                if self.coverages.len() > (u16::MAX as usize) {
+                if self.coverages.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.coverages.validate_impl(ctx);
@@ -688,8 +724,12 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::MarkGlyphSets<'a>> for MarkGlyphSe
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::gdef::MarkGlyphSets<'a>> for MarkGlyphSets {}
 
+impl ReadArgs for MarkGlyphSets {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MarkGlyphSets {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::gdef::MarkGlyphSets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

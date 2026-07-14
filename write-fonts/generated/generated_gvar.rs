@@ -88,7 +88,7 @@ impl Validate for SharedTuples {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SharedTuples", |ctx| {
             ctx.in_field("tuples", |ctx| {
-                if self.tuples.len() > (u16::MAX as usize) {
+                if self.tuples.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.tuples.validate_impl(ctx);

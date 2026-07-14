@@ -1,8 +1,8 @@
 //! inc_bimap: incremental bijective map, only lhs is given, rhs is incrementally assigned
 //! ported from Harfbuzz hb_inc_bimap_t: <https://github.com/harfbuzz/harfbuzz/blob/b5a65e0f20c30a7f13b2f6619479a6d666e603e0/src/hb-bimap.hh#L97>
 
+use crate::fnv::FnvHashMap;
 use core::slice::Iter;
-use fnv::FnvHashMap;
 
 #[derive(Default)]
 pub(crate) struct IncBiMap {

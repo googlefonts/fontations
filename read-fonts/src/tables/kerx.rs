@@ -64,7 +64,7 @@ impl<'a> Subtable<'a> {
     pub fn kind(&self) -> Result<SubtableKind<'a>, ReadError> {
         SubtableKind::read_with_args(
             FontData::new(self.data()),
-            &(self.coverage(), self.tuple_count()),
+            (self.coverage(), self.tuple_count()),
         )
     }
 }
@@ -83,8 +83,8 @@ impl ReadArgs for SubtableKind<'_> {
     type Args = (u32, u32);
 }
 
-impl<'a> FontReadWithArgs<'a> for SubtableKind<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for SubtableKind<'a> {
+    fn read_with_args(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
         // Format is low byte of coverage
         let format = args.0 & 0xFF;
         let tuple_count = args.1;
@@ -95,10 +95,7 @@ impl<'a> FontReadWithArgs<'a> for SubtableKind<'a> {
             // No format 3
             4 => Ok(Self::Format4(Subtable4::read(data)?)),
             // No format 5
-            6 => Ok(Self::Format6(Subtable6::read_with_args(
-                data,
-                &tuple_count,
-            )?)),
+            6 => Ok(Self::Format6(Subtable6::read_with_args(data, tuple_count)?)),
             _ => Err(ReadError::InvalidFormat(format as _)),
         }
     }
@@ -133,8 +130,12 @@ pub struct Subtable1<'a> {
     pub values: &'a [BigEndian<i16>],
 }
 
+impl ReadArgs for Subtable1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Subtable1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let state_table = ExtendedStateTable::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);
@@ -159,8 +160,12 @@ pub struct Subtable2<'a> {
     pub array: &'a [BigEndian<i16>],
 }
 
+impl ReadArgs for Subtable2<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Subtable2<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         // Skip rowWidth field
         cursor.advance_by(u32::RAW_BYTE_LEN);
@@ -212,8 +217,12 @@ pub struct Subtable4<'a> {
     pub actions: Subtable4Actions<'a>,
 }
 
+impl ReadArgs for Subtable4<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Subtable4<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let state_table = ExtendedStateTable::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);
@@ -270,9 +279,9 @@ impl ReadArgs for Subtable6<'_> {
     type Args = u32;
 }
 
-impl<'a> FontReadWithArgs<'a> for Subtable6<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
-        let tuple_count = *args;
+impl<'a> FontRead<'a> for Subtable6<'a> {
+    fn read_with_args(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
+        let tuple_count = args;
         let mut cursor = data.cursor();
         let flags = cursor.read::<u32>()?;
         // Skip rowCount and columnCount
@@ -496,7 +505,7 @@ mod tests {
     #[test]
     fn parse_subtable6_short() {
         let data = FormatTwoSix::SixShort.build_subtable();
-        let subtable = Subtable6::read_with_args(FontData::new(&data), &0).unwrap();
+        let subtable = Subtable6::read_with_args(FontData::new(&data), 0).unwrap();
         let Subtable6::ShortValues(..) = &subtable else {
             panic!("expected short values in subtable 6");
         };
@@ -506,7 +515,7 @@ mod tests {
     #[test]
     fn parse_subtable6_long() {
         let data = FormatTwoSix::SixLong.build_subtable();
-        let subtable = Subtable6::read_with_args(FontData::new(&data), &0).unwrap();
+        let subtable = Subtable6::read_with_args(FontData::new(&data), 0).unwrap();
         let Subtable6::LongValues(..) = &subtable else {
             panic!("expected long values in subtable 6");
         };
@@ -516,7 +525,7 @@ mod tests {
     #[test]
     fn parse_subtable6_long_vector() {
         let data = FormatTwoSix::SixLongVector.build_subtable();
-        let subtable = Subtable6::read_with_args(FontData::new(&data), &1).unwrap();
+        let subtable = Subtable6::read_with_args(FontData::new(&data), 1).unwrap();
         let Subtable6::LongValues(..) = &subtable else {
             panic!("expected long values in subtable 6");
         };

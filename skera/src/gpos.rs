@@ -10,6 +10,7 @@ mod pair_pos;
 mod single_pos;
 mod value_record;
 
+use crate::fnv::FnvHashMap;
 use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
@@ -18,16 +19,17 @@ use crate::{
     CollectVariationIndices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset,
     SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         collections::IntSet,
         tables::{
-            gpos::{Gpos, PositionLookup, PositionSubtables},
+            gpos::{
+                ExtensionPosFormat1, ExtensionSubtable, Gpos, PositionLookup, PositionSubtables,
+            },
             layout::{ExtensionLookup, Intersect, LookupFlag, Subtables},
         },
         types::Tag,
-        FontRead, FontRef, TopLevelTable,
+        FontRead, FontRef, ReadError, TopLevelTable,
     },
     types::{MajorMinor, Offset16, Offset32},
     FontBuilder,
@@ -107,7 +109,10 @@ impl LayoutClosure for Gpos<'_> {
         let Ok(mut lookup_indices) = self.collect_lookups(&feature_indices) else {
             return;
         };
-        let Ok(_) = self.closure_lookups(&plan.glyphset_gsub, &mut lookup_indices) else {
+        if self
+            .closure_lookups(&plan.glyphset_gsub, &mut lookup_indices)
+            .is_err()
+        {
             return;
         };
 
@@ -148,36 +153,42 @@ fn subset_gpos(
     s: &mut Serializer,
 ) -> Result<(), SerializeErrorFlags> {
     let version_pos = s.embed(gpos.version())?;
+    let mut c = SubsetLayoutContext::new(Gpos::TAG);
 
     // script_list
     let script_list_offset_pos = s.embed(0_u16)?;
 
-    let script_list = gpos
-        .script_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+    if !gpos.script_list_offset().is_null() {
+        let script_list = gpos
+            .script_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-    let mut c = SubsetLayoutContext::new(Gpos::TAG);
-    Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+        Offset16::serialize_subset(&script_list, s, plan, &mut c, script_list_offset_pos)?;
+    }
 
     // feature list
     let feature_list_offset_pos = s.embed(0_u16)?;
-    let feature_list = gpos
-        .feature_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    if !gpos.feature_list_offset().is_null() {
+        let feature_list = gpos
+            .feature_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(&feature_list, s, plan, &mut c, feature_list_offset_pos)?;
+    }
 
     // lookup list
     let lookup_list_offset_pos = s.embed(0_u16)?;
-    let lookup_list = gpos
-        .lookup_list()
-        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-    Offset16::serialize_subset(
-        &lookup_list,
-        s,
-        plan,
-        (state, font, &plan.gpos_lookups),
-        lookup_list_offset_pos,
-    )?;
+    if !gpos.lookup_list_offset().is_null() {
+        let lookup_list = gpos
+            .lookup_list()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        Offset16::serialize_subset(
+            &lookup_list,
+            s,
+            plan,
+            (state, font, &plan.gpos_lookups),
+            lookup_list_offset_pos,
+        )?;
+    }
 
     if let Some(feature_variations) = gpos
         .feature_variations()
@@ -214,26 +225,25 @@ impl<'a> SubsetTable<'a> for PositionLookup<'_> {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let subtables = self
-            .subtables()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-
-        let lookup_type: u16 = match subtables {
-            PositionSubtables::Single(_) => 1,
-            PositionSubtables::Pair(_) => 2,
-            PositionSubtables::Cursive(_) => 3,
-            PositionSubtables::MarkToBase(_) => 4,
-            PositionSubtables::MarkToLig(_) => 5,
-            PositionSubtables::MarkToMark(_) => 6,
-            PositionSubtables::Contextual(_) => 7,
-            PositionSubtables::ChainContextual(_) => 8,
-        };
+        let lookup_type = self.lookup_type();
         s.embed(lookup_type)?;
 
         let lookup_flag = self.lookup_flag();
         let lookup_flag_pos = s.embed(lookup_flag)?;
         let lookup_count_pos = s.embed(0_u16)?;
-        let lookup_count = subtables.subset(plan, s, args)?;
+
+        //subset subtables
+        let lookup_count = match self {
+            PositionLookup::Single(inner) => inner.subtables().subset(plan, s, args)?,
+            PositionLookup::Pair(inner) => inner.subtables().subset(plan, s, args)?,
+            PositionLookup::Cursive(inner) => inner.subtables().subset(plan, s, args)?,
+            PositionLookup::MarkToBase(inner) => inner.subtables().subset(plan, s, args)?,
+            PositionLookup::MarkToLig(inner) => inner.subtables().subset(plan, s, args)?,
+            PositionLookup::MarkToMark(inner) => inner.subtables().subset(plan, s, args)?,
+            PositionLookup::Contextual(inner) => inner.subtables().subset(plan, s, args)?,
+            PositionLookup::ChainContextual(inner) => inner.subtables().subset(plan, s, args)?,
+            PositionLookup::Extension(inner) => inner.subtables().subset(plan, s, args)?,
+        };
         s.copy_assign(lookup_count_pos, lookup_count);
 
         // ref: <https://github.com/harfbuzz/harfbuzz/blob/a790c38b782f9d8e6f0299d2837229e5726fc669/src/hb-ot-layout-common.hh#L1385>
@@ -250,26 +260,58 @@ impl<'a> SubsetTable<'a> for PositionLookup<'_> {
     }
 }
 
-// TODO: support extension lookup type
-impl<'a> SubsetTable<'a> for PositionSubtables<'a> {
+impl<'a> SubsetTable<'a> for ExtensionSubtable<'a> {
     type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
-    type Output = u16;
+    type Output = ();
+
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
         args: Self::ArgsForSubset,
-    ) -> Result<u16, SerializeErrorFlags> {
+    ) -> Result<Self::Output, SerializeErrorFlags> {
         match self {
-            PositionSubtables::Single(subtables) => subtables.subset(plan, s, args),
-            PositionSubtables::Pair(subtables) => subtables.subset(plan, s, args),
-            PositionSubtables::Cursive(subtables) => subtables.subset(plan, s, args),
-            PositionSubtables::MarkToBase(subtables) => subtables.subset(plan, s, args),
-            PositionSubtables::MarkToLig(subtables) => subtables.subset(plan, s, args),
-            PositionSubtables::MarkToMark(subtables) => subtables.subset(plan, s, args),
-            PositionSubtables::Contextual(subtables) => subtables.subset(plan, s, args),
-            PositionSubtables::ChainContextual(subtables) => subtables.subset(plan, s, args),
+            ExtensionSubtable::Single(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::Pair(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::Cursive(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::MarkToBase(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::MarkToLig(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::MarkToMark(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::Contextual(inner) => inner.subset(plan, s, args),
+            ExtensionSubtable::ChainContextual(inner) => inner.subset(plan, s, args),
         }
+    }
+}
+
+impl<'a, T> SubsetTable<'a> for ExtensionPosFormat1<'a, T>
+where
+    T: SubsetTable<
+            'a,
+            ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>),
+            Output = (),
+        > + FontRead<'a, Args = ()>,
+{
+    type ArgsForSubset = (&'a SubsetState, &'a FontRef<'a>, &'a FnvHashMap<u16, u16>);
+    type Output = ();
+
+    fn subset(
+        &self,
+        plan: &Plan,
+        s: &mut Serializer,
+        args: Self::ArgsForSubset,
+    ) -> Result<Self::Output, SerializeErrorFlags> {
+        if self.extension_offset().is_null() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
+        s.embed(self.pos_format())?;
+        s.embed(self.extension_lookup_type())?;
+
+        let offset_pos = s.embed(0_u32)?;
+        let subtable = self
+            .extension()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+        Offset32::serialize_subset(&subtable, s, plan, args, offset_pos)
     }
 }
 
@@ -285,10 +327,11 @@ impl CollectVariationIndices for Gpos<'_> {
                 return;
             };
 
-            let Ok(subtables) = lookup.subtables() else {
-                return;
-            };
-            subtables.collect_variation_indices(plan, varidx_set);
+            match lookup.subtables() {
+                Ok(subs) => subs.collect_variation_indices(plan, varidx_set),
+                Err(ReadError::NullOffset) => continue,
+                Err(_) => return,
+            }
         }
     }
 }
@@ -322,11 +365,14 @@ impl CollectVariationIndices for PositionSubtables<'_> {
 
 impl<'a, T, Ext> CollectVariationIndices for Subtables<'a, T, Ext>
 where
-    T: CollectVariationIndices + Intersect + FontRead<'a> + 'a,
+    T: CollectVariationIndices + Intersect + FontRead<'a, Args = ()> + 'a,
     Ext: ExtensionLookup<'a, T> + 'a,
 {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        for t in self.iter() {
+        for t in self.iter().filter_map(|table| match table {
+            Err(ReadError::NullOffset) => None,
+            other => Some(other),
+        }) {
             let Ok(t) = t else {
                 return;
             };

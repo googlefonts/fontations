@@ -1,6 +1,6 @@
 [package]
 name = "read-fonts"
-version = "0.39.1"
+version = "0.41.0"
 description = "Reading OpenType font files."
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
@@ -28,6 +28,9 @@ experimental_traverse = ["std"]
 # Enables experimental implementations of proposed changes to the spec
 # as discussed at https://github.com/harfbuzz/boring-expansion-spec
 spec_next = []
+# Enables support for a new font API, as proposed at
+# https://github.com/googlefonts/oxidize/pull/77
+experimental_font_api = []
 default = ["std"]
 serde = ["dep:serde", "font-types/serde"]
 libm = ["dep:core_maths"]
@@ -45,9 +48,10 @@ once_cell = { version = "1.21.4", default-features = false, features = [
 ] }
 
 [dev-dependencies]
+read-fonts = { path = ".", features = ["experimental_font_api"] }
 font-test-data = { workspace = true }
 criterion = { workspace = true }
-rand = "0.8.5"
+rand = { version = "0.10.1", features = ["thread_rng"] }
 serde_json = { workspace = true }
 
 [[bench]]
@@ -56,4 +60,8 @@ harness = false
 
 [[bench]]
 name = "sparse_bit_set_benchmark"
+harness = false
+
+[[bench]]
+name = "table_lookup"
 harness = false

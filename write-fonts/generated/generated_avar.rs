@@ -51,7 +51,7 @@ impl Validate for Avar {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Avar", |ctx| {
             ctx.in_field("axis_segment_maps", |ctx| {
-                if self.axis_segment_maps.len() > (u16::MAX as usize) {
+                if self.axis_segment_maps.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.axis_segment_maps.validate_impl(ctx);
@@ -88,8 +88,12 @@ impl<'a> FromObjRef<read_fonts::tables::avar::Avar<'a>> for Avar {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::avar::Avar<'a>> for Avar {}
 
+impl ReadArgs for Avar {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Avar {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::avar::Avar as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -124,7 +128,7 @@ impl Validate for SegmentMaps {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SegmentMaps", |ctx| {
             ctx.in_field("axis_value_maps", |ctx| {
-                if self.axis_value_maps.len() > (u16::MAX as usize) {
+                if self.axis_value_maps.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.axis_value_maps.validate_impl(ctx);

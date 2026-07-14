@@ -8,8 +8,9 @@ use syn::spanned::Spanned;
 
 use super::parsing::{
     logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
-    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record,
+    FieldType, FieldValidation, Fields, OffsetTarget, Record,
 };
+use crate::Phase;
 
 impl Fields {
     pub(crate) fn new(fields: Vec<Field>) -> syn::Result<Self> {
@@ -92,6 +93,10 @@ impl Fields {
         self.fields.iter()
     }
 
+    pub(crate) fn find(&self, ident: &syn::Ident) -> Option<&Field> {
+        self.iter().find(|fld| &fld.name == ident)
+    }
+
     pub(crate) fn iter_compile_decls(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.fields.iter().filter_map(Field::compile_field_decl)
     }
@@ -144,7 +149,7 @@ impl Fields {
     }
 
     // used for validating lengths. handles both fields and 'virtual fields',
-    // e.g. arguments passed in FontReadWithArgs
+    // e.g. arguments passed in FontRead
     fn get_scalar_field_type(&self, name: &syn::Ident) -> &syn::Ident {
         self.iter()
             .find(|fld| &fld.name == name)
@@ -221,7 +226,7 @@ impl Fields {
             {
                 let typ = self.get_scalar_field_type(ident);
                 Some(quote! {
-                    if #maybe_check_is_some self.#name #maybe_unwrap.len() > (#typ::MAX as usize) {
+                    if #maybe_check_is_some self.#name #maybe_unwrap.len() > to_usize(#typ::MAX) {
                         ctx.report("array exceeds max length");
                     }
                 })
@@ -381,32 +386,11 @@ fn traversal_arm_for_field(
             }
 
             FieldType::Offset {
-                target: OffsetTarget::Table(target),
+                target: OffsetTarget::Table(_),
                 ..
             } => {
-                let maybe_data = pass_data.is_none().then(|| quote!(let data = self.data;));
-                let args_if_needed = fld.attrs.read_offset_args.as_ref().map(|args| {
-                    let args = args.to_tokens_for_table_getter();
-                    quote!(let args = #args;)
-                });
-                let resolve = match fld.attrs.read_offset_args.as_deref() {
-                    None => quote!(resolve::<#target>(data)),
-                    Some(_) => quote!(resolve_with_args::<#target>(data, &args)),
-                };
-
-                quote! {{
-                    #maybe_data
-                    #args_if_needed
-                    Field::new(#name_str,
-                        FieldType::array_of_offsets(
-                            better_type_name::<#target>(),
-                            self.#name()#maybe_unwrap,
-                            move |off| {
-                                let target = off.get().#resolve;
-                                FieldType::offset(off.get(), target)
-                            }
-                        ))
-                }}
+                let getter = fld.offset_getter_name().unwrap();
+                quote!(Field::new(#name_str, FieldType::from(self.#getter(#pass_data)#maybe_unwrap)))
             }
             FieldType::Offset {
                 target: OffsetTarget::Array(_),
@@ -418,9 +402,11 @@ fn traversal_arm_for_field(
             // if we are in a record, we pass in empty data. This lets us
             // avoid a special case in the single instance where this happens, in
             // Class1Record
-            let data = in_record
-                .then(|| quote!(FontData::new(&[])))
-                .unwrap_or_else(|| fld.offset_getter_data_src());
+            let data = if in_record {
+                quote!(FontData::new(&[]))
+            } else {
+                fld.offset_getter_data_src()
+            };
             // in a record we return things by value, so clone
             let maybe_clone = in_record.then(|| quote!(.clone()));
             let typ_str = arr.raw_inner_type().to_string();
@@ -649,35 +635,17 @@ impl Field {
         self.attrs.skip_getter.is_none()
     }
 
-    /// iterate the names of fields that are required for parsing or instantiating
-    /// this field.
-    pub(crate) fn input_fields(&self) -> Vec<(syn::Ident, NeededWhen)> {
-        let mut result = Vec::new();
-        if let Some(count) = self.attrs.count.as_ref() {
-            result.extend(
-                count
-                    .iter_referenced_fields()
-                    .map(|fld| (fld.clone(), NeededWhen::Parse)),
-            );
-        }
-
-        if let Some(read_with) = self.attrs.read_with_args.as_ref() {
-            result.extend(
-                read_with
-                    .inputs
-                    .iter()
-                    .map(|fld| (fld.clone(), NeededWhen::Both)),
-            );
-        }
-        if let Some(read_offset) = self.attrs.read_offset_args.as_ref() {
-            result.extend(
-                read_offset
-                    .inputs
-                    .iter()
-                    .map(|fld| (fld.clone(), NeededWhen::Runtime)),
-            );
-        }
-        result
+    /// iterate the names of fields that are required for parsing this field
+    ///
+    /// This does not include the version field, since we don't have a reference
+    /// to that.
+    pub(crate) fn count_arg_names(&self) -> impl Iterator<Item = &syn::Ident> + '_ {
+        self.attrs
+            .count
+            .as_ref()
+            .map(|count| count.iter_referenced_fields())
+            .into_iter()
+            .flatten()
     }
 
     /// 'raw' as in this does not include handling offset resolution
@@ -760,7 +728,7 @@ impl Field {
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args) #maybe_unwrap_or_def )
+            quote!( self.data.read_with_args(range, #get_args) #maybe_unwrap_or_def )
         } else if is_var_array {
             quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
         } else if is_array {
@@ -877,7 +845,7 @@ impl Field {
         let getter_name = self.offset_getter_name().unwrap();
         let target_is_generic =
             matches!(target, OffsetTarget::Table(ident) if Some(ident) == generic);
-        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
+        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a, Args = ()>));
         // if a record, data is passed in
         let input_data_if_needed = record.is_some().then(|| quote!(, data: FontData<'a>));
         let decl_lifetime_if_needed =
@@ -935,7 +903,7 @@ impl Field {
             }
             let resolve = match self.attrs.read_offset_args.as_deref() {
                 None => quote!(resolve(data)),
-                Some(_) => quote!(resolve_with_args(data, &args)),
+                Some(_) => quote!(resolve_with_args(data, args)),
             };
             let getter_impl = if self.is_conditional() {
                 // if this is nullable *and* version dependent we add a `?`
@@ -1029,7 +997,7 @@ impl Field {
         };
 
         if let FieldType::Struct { typ } = &self.typ {
-            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args).unwrap_or(0) ));
+            return Some(quote!( <#typ as ComputeSize>::compute_size(#read_args).unwrap_or(0) ));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
             panic!("Should have resolved {self:?}")
@@ -1056,7 +1024,7 @@ impl Field {
                     }
                     FieldType::ComputedArray(array) => {
                         let inner = array.raw_inner_type();
-                        quote!( <#inner as ComputeSize>::compute_size(&#read_args).unwrap_or(0) )
+                        quote!( <#inner as ComputeSize>::compute_size(#read_args).unwrap_or(0) )
                     }
                     FieldType::VarLenArray(array) => {
                         let inner = array.raw_inner_type();
@@ -1106,7 +1074,7 @@ impl Field {
                     .unwrap()
                     .to_tokens_for_validation();
                 let count = self.attrs.count.as_ref().unwrap().count_expr();
-                quote!(cursor.read_computed_array(#count, &#args)?)
+                quote!(cursor.read_computed_array(#count, #args)?)
             }
             FieldType::Scalar { typ } => {
                 if typ == "u8" {
@@ -1123,7 +1091,7 @@ impl Field {
                 .as_deref()
                 .map(FieldReadArgs::to_tokens_for_validation)
             {
-                Some(args) => quote!(cursor.read_with_args(&#args)?),
+                Some(args) => quote!(cursor.read_with_args(#args)?),
                 None => quote!(cursor.read_be()?),
             },
         };

@@ -31,6 +31,7 @@ pub(crate) fn split_ligature_subst(
         return Ok(Vec::new());
     }
 
+    duplicate_shared_liga_sets(graph, table_idx)?;
     let cov_glyphs = coverage_glyphs(graph, coverage_idx)?;
     let mut out: Vec<usize> = Vec::with_capacity(split_points.len() + 1);
     for i in 0..split_points.len() {
@@ -58,6 +59,25 @@ pub(crate) fn split_ligature_subst(
 
     shrink(graph, table_idx, coverage_idx, &cov_glyphs, split_points[0])?;
     Ok(out)
+}
+
+fn duplicate_shared_liga_sets(graph: &mut Graph, table_idx: ObjIdx) -> Result<(), RepackError> {
+    let table_v = graph
+        .vertex(table_idx)
+        .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
+    let mut visited = IntSet::empty();
+    let mut duplicates = Vec::new();
+    for (pos, l) in table_v.real_links() {
+        let obj_idx = l.obj_idx();
+        if !visited.insert(obj_idx as u32) {
+            duplicates.push((*pos, obj_idx));
+        }
+    }
+
+    for (pos, obj_idx) in duplicates {
+        graph.duplicate_child_at_position(table_idx, obj_idx, pos)?;
+    }
+    Ok(())
 }
 
 // ref:<https://github.com/harfbuzz/harfbuzz/blob/e1f2565db09823794e3d8ed404c47dae0f0cd3c9/src/graph/ligature-graph.hh#L124>
@@ -124,11 +144,11 @@ fn clone_range(
     // the final size until we process it but we also need it to exist while we're processing
     // so that nodes can be moved to it as needed.
     let prime_size = LigatureSubstFormat1::MIN_SIZE + lig_set_count * Offset16::RAW_BYTE_LEN;
-    let new_lig_subst_idx = graph.new_vertex(prime_size);
+    let new_lig_subst_idx = graph.new_vertex(prime_size)?;
 
     // Create a place holder coverage prime id since we need to add virtual links to it while
     // generating liga and liga sets. Afterwards it will be updated to have the correct coverage.
-    let new_coverage_idx = graph.new_vertex(0);
+    let new_coverage_idx = graph.new_vertex(0)?;
     graph.add_parent_child_link(
         new_lig_subst_idx,
         new_coverage_idx,
@@ -361,7 +381,7 @@ fn fix_coverage_links(
         return Ok(coverage_idx);
     }
 
-    let new_coverage_idx = graph.new_vertex(0);
+    let new_coverage_idx = graph.new_vertex(0)?;
     lig_idxes.remove(table_idx as u32);
     lig_idxes.remove(coverage_idx as u32);
 
@@ -378,7 +398,7 @@ fn fix_coverage_links(
 
 fn create_new_ligature_set(graph: &mut Graph, num_liga: u16) -> Result<ObjIdx, RepackError> {
     let table_size = LigatureSet::MIN_SIZE + num_liga as usize * 2;
-    let table_idx = graph.new_vertex(table_size);
+    let table_idx = graph.new_vertex(table_size)?;
 
     let table_head = graph
         .vertex(table_idx)

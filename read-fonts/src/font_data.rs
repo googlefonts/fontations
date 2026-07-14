@@ -7,8 +7,7 @@ use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Scalar};
 
 use crate::array::ComputedArray;
-use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
-use crate::FontRead;
+use crate::read::{ComputeSize, FontRead, ReadArgs, ReadError};
 
 /// A reference to raw binary font data.
 ///
@@ -30,6 +29,53 @@ pub struct FontData<'a> {
 pub struct Cursor<'a> {
     pos: usize,
     data: FontData<'a>,
+}
+
+// we reuse a single buffer for all tables, but it gets padded with a u16
+// to accurately represent format-1 tables
+const ARR_LEN: usize = FontData::NULL_POOL_SIZE + u16::RAW_BYTE_LEN;
+
+/// This is [0, 1] ('1' in u16be) followed by NULL_POOL_SIZE zeros.
+///
+/// - this same array is reused both for format-1 tables (which need a leading 1)
+///   as well as all other tables, which don't.
+static EMPTY_TABLE_BYTES: [u8; ARR_LEN] = {
+    let mut arr = [0u8; ARR_LEN];
+    arr[1] = 1;
+    arr
+};
+
+impl FontData<'static> {
+    // https://github.com/harfbuzz/harfbuzz/blob/aba63bb5/src/hb-null.hh#L40
+    /// The number of bytes required to represent the largest table we have.
+    ///
+    /// This is checked by an assert at compile time, and can be increased as needed.
+    const NULL_POOL_SIZE: usize = 262;
+
+    // this is only used in const eval contexts, which are not visible to the
+    // dead_code lint https://github.com/rust-lang/rust/issues/101532
+    #[allow(dead_code)]
+    /// Return `true` if our default data can represent a table `n_bytes` long
+    pub(crate) const fn default_data_long_enough(n_bytes: usize) -> bool {
+        n_bytes <= Self::NULL_POOL_SIZE
+    }
+
+    /// Return all zeroes suitable for the default impl of a table.
+    pub(crate) fn default_table_data() -> Self {
+        FontData::new(&EMPTY_TABLE_BYTES[2..])
+    }
+
+    /// Return a [0x0, 0x01] byte pair (u16be) and then all zeros, to represent
+    /// the default impl of a format 1 table with u16 format.
+    pub(crate) fn default_format_1_u16_table_data() -> Self {
+        FontData::new(&EMPTY_TABLE_BYTES)
+    }
+
+    /// Return a single 0x01 and then all zeros, to represent the default impl
+    /// of a format 1 table with u8 format.
+    pub(crate) fn default_format_1_u8_table_data() -> Self {
+        FontData::new(&EMPTY_TABLE_BYTES[1..])
+    }
 }
 
 impl<'a> FontData<'a> {
@@ -96,9 +142,9 @@ impl<'a> FontData<'a> {
             .ok_or(ReadError::OutOfBounds)
     }
 
-    pub fn read_with_args<T>(&self, range: Range<usize>, args: &T::Args) -> Result<T, ReadError>
+    pub fn read_with_args<T>(&self, range: Range<usize>, args: T::Args) -> Result<T, ReadError>
     where
-        T: FontReadWithArgs<'a>,
+        T: FontRead<'a>,
     {
         self.slice(range)
             .ok_or(ReadError::OutOfBounds)
@@ -228,9 +274,9 @@ impl<'a> Cursor<'a> {
         temp
     }
 
-    pub(crate) fn read_with_args<T>(&mut self, args: &T::Args) -> Result<T, ReadError>
+    pub(crate) fn read_with_args<T>(&mut self, args: T::Args) -> Result<T, ReadError>
     where
-        T: FontReadWithArgs<'a> + ComputeSize,
+        T: FontRead<'a> + ComputeSize,
     {
         let len = T::compute_size(args)?;
         let range_end = self.pos.checked_add(len).ok_or(ReadError::OutOfBounds)?;
@@ -243,10 +289,10 @@ impl<'a> Cursor<'a> {
     pub(crate) fn read_computed_array<T>(
         &mut self,
         len: usize,
-        args: &T::Args,
+        args: T::Args,
     ) -> Result<ComputedArray<'a, T>, ReadError>
     where
-        T: FontReadWithArgs<'a> + ComputeSize,
+        T: FontRead<'a> + ComputeSize,
     {
         let len = len
             .checked_mul(T::compute_size(args)?)
@@ -291,8 +337,12 @@ impl<'a> Cursor<'a> {
 }
 
 // useful so we can have offsets that are just to data
+impl ReadArgs for FontData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FontData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         Ok(data)
     }
 }
@@ -315,5 +365,20 @@ impl<'a> From<&'a [u8]> for FontData<'a> {
 impl<'a> From<FontData<'a>> for std::borrow::Cow<'a, [u8]> {
     fn from(src: FontData<'a>) -> Self {
         src.bytes.into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn how_does_big_endian_work_again() {
+        let data = FontData::default_format_1_u16_table_data();
+        assert_eq!(data.read_at(0), Ok(1u16));
+
+        assert_eq!(
+            FontData::default_format_1_u8_table_data().read_at(0),
+            Ok(1u8)
+        );
     }
 }

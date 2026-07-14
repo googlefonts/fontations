@@ -96,7 +96,7 @@ table VarLenHaver {
     count: u16,
     #[count($count)]
     #[traverse_with(skip)]
-    var_len: VarLenArray<VarSizeDummy>,
+    var_len: VarLenArray<VarSizeDummy<'_>>,
     other_field: u32,
 }
 

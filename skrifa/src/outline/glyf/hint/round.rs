@@ -74,13 +74,14 @@ impl RoundState {
         use super::math;
         use RoundMode::*;
         let distance = distance.to_bits();
+        let neg_distance = distance.wrapping_neg();
         let result = match self.mode {
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1958>
             HalfGrid => {
                 if distance >= 0 {
                     (math::floor(distance) + 32).max(0)
                 } else {
-                    (-(math::floor(-distance) + 32)).min(0)
+                    ((math::floor(neg_distance) + 32).wrapping_neg()).min(0)
                 }
             }
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1913>
@@ -88,7 +89,7 @@ impl RoundState {
                 if distance >= 0 {
                     math::round(distance).max(0)
                 } else {
-                    (-math::round(-distance)).min(0)
+                    (math::round(neg_distance).wrapping_neg()).min(0)
                 }
             }
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2094>
@@ -96,7 +97,7 @@ impl RoundState {
                 if distance >= 0 {
                     math::round_pad(distance, 32).max(0)
                 } else {
-                    (-math::round_pad(-distance, 32)).min(0)
+                    (math::round_pad(neg_distance, 32).wrapping_neg()).min(0)
                 }
             }
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2005>
@@ -104,7 +105,7 @@ impl RoundState {
                 if distance >= 0 {
                     math::floor(distance).max(0)
                 } else {
-                    (-math::floor(-distance)).min(0)
+                    (math::floor(neg_distance).wrapping_neg()).min(0)
                 }
             }
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2049>
@@ -112,7 +113,7 @@ impl RoundState {
                 if distance >= 0 {
                     math::ceil(distance).max(0)
                 } else {
-                    (-math::ceil(-distance)).min(0)
+                    (math::ceil(neg_distance).wrapping_neg()).min(0)
                 }
             }
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2145>
@@ -220,6 +221,25 @@ mod tests {
             RoundMode::Off,
             &[(0, 0), (32, 32), (-32, -32), (64, 64), (50, 50)],
         );
+    }
+
+    #[test]
+    fn negative_min_value_does_not_panic_with_overflow() {
+        let value = F26Dot6::from_bits(i32::MIN);
+        for mode in [
+            RoundMode::Grid,
+            RoundMode::HalfGrid,
+            RoundMode::DoubleGrid,
+            RoundMode::DownToGrid,
+            RoundMode::UpToGrid,
+            RoundMode::Off,
+        ] {
+            let state = RoundState {
+                mode,
+                ..Default::default()
+            };
+            let _ = state.round(value);
+        }
     }
 
     fn round_cases(mode: RoundMode, cases: &[(i32, i32)]) {

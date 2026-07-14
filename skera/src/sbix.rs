@@ -7,7 +7,7 @@ use write_fonts::{
     read::{
         tables::sbix::{Sbix, Strike},
         types::Offset32,
-        ArrayOfOffsets, FontRef, MinByteRange, TopLevelTable,
+        ArrayOfOffsets, FontRef, MinByteRange, ReadError, TopLevelTable,
     },
     FontBuilder,
 };
@@ -51,11 +51,12 @@ impl<'a> SubsetTable<'a> for ArrayOfOffsets<'a, Strike<'a>, Offset32> {
         let mut obj_idxes = Vec::with_capacity(orig_num);
         let mut offset_positions = Vec::with_capacity(orig_num);
 
-        for idx in 0..orig_num {
-            let idx = orig_num - 1 - idx;
-            let t = self
-                .get(idx)
-                .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
+        for idx in (0..orig_num).rev() {
+            let t = match self.get(idx) {
+                Err(ReadError::NullOffset) => continue,
+                other => other,
+            }
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
             let snap = s.snapshot();
             let offset_pos = s.allocate_size(Offset32::RAW_BYTE_LEN, true)?;
 

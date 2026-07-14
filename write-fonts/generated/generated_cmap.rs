@@ -37,7 +37,7 @@ impl Validate for Cmap {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap", |ctx| {
             ctx.in_field("encoding_records", |ctx| {
-                if self.encoding_records.len() > (u16::MAX as usize) {
+                if self.encoding_records.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.encoding_records.validate_impl(ctx);
@@ -62,8 +62,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap<'a>> for Cmap {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap<'a>> for Cmap {}
 
+impl ReadArgs for Cmap {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -313,8 +317,12 @@ impl FromObjRef<read_fonts::tables::cmap::CmapSubtable<'_>> for CmapSubtable {
 
 impl FromTableRef<read_fonts::tables::cmap::CmapSubtable<'_>> for CmapSubtable {}
 
+impl ReadArgs for CmapSubtable {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for CmapSubtable {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::CmapSubtable as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -424,8 +432,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap0<'a>> for Cmap0 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap0<'a>> for Cmap0 {}
 
+impl ReadArgs for Cmap0 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap0 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap0 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -486,8 +498,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap2<'a>> for Cmap2 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap2<'a>> for Cmap2 {}
 
+impl ReadArgs for Cmap2 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap2 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap2 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -628,8 +644,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap4<'a>> for Cmap4 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap4<'a>> for Cmap4 {}
 
+impl ReadArgs for Cmap4 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap4 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap4 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -689,7 +709,7 @@ impl Validate for Cmap6 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap6", |ctx| {
             ctx.in_field("glyph_id_array", |ctx| {
-                if self.glyph_id_array.len() > (u16::MAX as usize) {
+                if self.glyph_id_array.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -713,8 +733,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap6<'a>> for Cmap6 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap6<'a>> for Cmap6 {}
 
+impl ReadArgs for Cmap6 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap6 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap6 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -777,7 +801,7 @@ impl Validate for Cmap8 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap8", |ctx| {
             ctx.in_field("groups", |ctx| {
-                if self.groups.len() > (u32::MAX as usize) {
+                if self.groups.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.groups.validate_impl(ctx);
@@ -802,8 +826,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap8<'a>> for Cmap8 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap8<'a>> for Cmap8 {}
 
+impl ReadArgs for Cmap8 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap8 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap8 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -907,7 +935,7 @@ impl Validate for Cmap10 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap10", |ctx| {
             ctx.in_field("glyph_id_array", |ctx| {
-                if self.glyph_id_array.len() > (u32::MAX as usize) {
+                if self.glyph_id_array.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
             });
@@ -930,8 +958,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap10<'a>> for Cmap10 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap10<'a>> for Cmap10 {}
 
+impl ReadArgs for Cmap10 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap10 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap10 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -973,7 +1005,7 @@ impl Validate for Cmap12 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap12", |ctx| {
             ctx.in_field("groups", |ctx| {
-                if self.groups.len() > (u32::MAX as usize) {
+                if self.groups.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.groups.validate_impl(ctx);
@@ -995,8 +1027,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap12<'a>> for Cmap12 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap12<'a>> for Cmap12 {}
 
+impl ReadArgs for Cmap12 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap12 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap12 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1047,7 +1083,7 @@ impl Validate for Cmap13 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap13", |ctx| {
             ctx.in_field("groups", |ctx| {
-                if self.groups.len() > (u32::MAX as usize) {
+                if self.groups.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.groups.validate_impl(ctx);
@@ -1071,8 +1107,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap13<'a>> for Cmap13 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap13<'a>> for Cmap13 {}
 
+impl ReadArgs for Cmap13 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap13 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap13 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1170,7 +1210,7 @@ impl Validate for Cmap14 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cmap14", |ctx| {
             ctx.in_field("var_selector", |ctx| {
-                if self.var_selector.len() > (u32::MAX as usize) {
+                if self.var_selector.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.var_selector.validate_impl(ctx);
@@ -1193,8 +1233,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap14<'a>> for Cmap14 {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::Cmap14<'a>> for Cmap14 {}
 
+impl ReadArgs for Cmap14 {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Cmap14 {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::Cmap14 as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1299,7 +1343,7 @@ impl Validate for DefaultUvs {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("DefaultUvs", |ctx| {
             ctx.in_field("ranges", |ctx| {
-                if self.ranges.len() > (u32::MAX as usize) {
+                if self.ranges.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.ranges.validate_impl(ctx);
@@ -1321,8 +1365,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::DefaultUvs<'a>> for DefaultUvs {
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::DefaultUvs<'a>> for DefaultUvs {}
 
+impl ReadArgs for DefaultUvs {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DefaultUvs {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::DefaultUvs as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
@@ -1359,7 +1407,7 @@ impl Validate for NonDefaultUvs {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("NonDefaultUvs", |ctx| {
             ctx.in_field("uvs_mapping", |ctx| {
-                if self.uvs_mapping.len() > (u32::MAX as usize) {
+                if self.uvs_mapping.len() > to_usize(u32::MAX) {
                     ctx.report("array exceeds max length");
                 }
                 self.uvs_mapping.validate_impl(ctx);
@@ -1381,8 +1429,12 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::NonDefaultUvs<'a>> for NonDefaultU
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::tables::cmap::NonDefaultUvs<'a>> for NonDefaultUvs {}
 
+impl ReadArgs for NonDefaultUvs {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for NonDefaultUvs {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::tables::cmap::NonDefaultUvs as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

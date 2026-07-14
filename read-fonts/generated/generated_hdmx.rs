@@ -24,9 +24,9 @@ impl ReadArgs for Hdmx<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Hdmx<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_glyphs = *args;
+impl<'a> FontRead<'a> for Hdmx<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let num_glyphs = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -43,7 +43,7 @@ impl<'a> Hdmx<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
         let args = num_glyphs;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -81,7 +81,7 @@ impl<'a> Hdmx<'a> {
     pub fn records(&self) -> ComputedArray<'a, DeviceRecord<'a>> {
         let range = self.records_byte_range();
         self.data
-            .read_with_args(range, &(self.num_glyphs(), self.size_device_record()))
+            .read_with_args(range, (self.num_glyphs(), self.size_device_record()))
             .unwrap_or_default()
     }
 
@@ -91,31 +91,45 @@ impl<'a> Hdmx<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_records_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn size_device_record_byte_range(&self) -> Range<usize> {
         let start = self.num_records_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn records_byte_range(&self) -> Range<usize> {
         let num_records = self.num_records();
         let start = self.size_device_record_byte_range().end;
-        start
-            ..start
-                + (num_records as usize).saturating_mul(
-                    <DeviceRecord as ComputeSize>::compute_size(&(
-                        self.num_glyphs(),
-                        self.size_device_record(),
-                    ))
-                    .unwrap_or(0),
-                )
+        let end = start
+            + (transforms::to_usize(num_records)).saturating_mul(
+                <DeviceRecord as ComputeSize>::compute_size((
+                    self.num_glyphs(),
+                    self.size_device_record(),
+                ))
+                .unwrap_or(0),
+            );
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Hdmx::MIN_SIZE));
+
+impl Default for Hdmx<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            num_glyphs: Default::default(),
+        }
     }
 }
 

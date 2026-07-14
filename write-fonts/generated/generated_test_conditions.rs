@@ -90,8 +90,12 @@ impl<'a> FromTableRef<read_fonts::codegen_test::conditions::MajorMinorVersion<'a
 {
 }
 
+impl ReadArgs for MajorMinorVersion {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for MajorMinorVersion {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::conditions::MajorMinorVersion as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
@@ -182,8 +186,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::conditions::FlagDay<'a>> for FlagD
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FromTableRef<read_fonts::codegen_test::conditions::FlagDay<'a>> for FlagDay {}
 
+impl ReadArgs for FlagDay {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for FlagDay {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::conditions::FlagDay as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }

@@ -332,9 +332,9 @@ impl ReadArgs for Sbix<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Sbix<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_glyphs = *args;
+impl<'a> FontRead<'a> for Sbix<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let num_glyphs = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -351,7 +351,7 @@ impl<'a> Sbix<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
         let args = num_glyphs;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -407,23 +407,39 @@ impl<'a> Sbix<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + HeaderFlags::RAW_BYTE_LEN
+        let end = start + HeaderFlags::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn num_strikes_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn strike_offsets_byte_range(&self) -> Range<usize> {
         let num_strikes = self.num_strikes();
         let start = self.num_strikes_byte_range().end;
-        start..start + (num_strikes as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(num_strikes)).saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Sbix::MIN_SIZE));
+
+impl Default for Sbix<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            num_glyphs: Default::default(),
+        }
     }
 }
 
@@ -437,21 +453,10 @@ impl<'a> SomeTable<'a> for Sbix<'a> {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("flags", self.flags())),
             2usize => Some(Field::new("num_strikes", self.num_strikes())),
-            3usize => Some({
-                let data = self.data;
-                let args = self.num_glyphs();
-                Field::new(
-                    "strike_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<Strike>(),
-                        self.strike_offsets(),
-                        move |off| {
-                            let target = off.get().resolve_with_args::<Strike>(data, &args);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "strike_offsets",
+                FieldType::from(self.strikes()),
+            )),
             _ => None,
         }
     }
@@ -479,9 +484,9 @@ impl ReadArgs for Strike<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for Strike<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_glyphs = *args;
+impl<'a> FontRead<'a> for Strike<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let num_glyphs = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -498,7 +503,7 @@ impl<'a> Strike<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, num_glyphs: u16) -> Result<Self, ReadError> {
         let args = num_glyphs;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -538,18 +543,32 @@ impl<'a> Strike<'a> {
 
     pub fn ppem_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn ppi_byte_range(&self) -> Range<usize> {
         let start = self.ppem_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn glyph_data_offsets_byte_range(&self) -> Range<usize> {
         let num_glyphs = self.num_glyphs();
         let start = self.ppi_byte_range().end;
-        start..start + (transforms::add(num_glyphs, 1_usize)).saturating_mul(u32::RAW_BYTE_LEN)
+        let end = start + (transforms::add(num_glyphs, 1_usize)).saturating_mul(u32::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Strike::MIN_SIZE));
+
+impl Default for Strike<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            num_glyphs: Default::default(),
+        }
     }
 }
 
@@ -586,8 +605,12 @@ impl<'a> MinByteRange<'a> for GlyphData<'a> {
     }
 }
 
+impl ReadArgs for GlyphData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for GlyphData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -633,22 +656,37 @@ impl<'a> GlyphData<'a> {
 
     pub fn origin_offset_x_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn origin_offset_y_byte_range(&self) -> Range<usize> {
         let start = self.origin_offset_x_byte_range().end;
-        start..start + i16::RAW_BYTE_LEN
+        let end = start + i16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn graphic_type_byte_range(&self) -> Range<usize> {
         let start = self.origin_offset_y_byte_range().end;
-        start..start + Tag::RAW_BYTE_LEN
+        let end = start + Tag::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn data_byte_range(&self) -> Range<usize> {
         let start = self.graphic_type_byte_range().end;
-        start..start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN
+        let end =
+            start + self.data.len().saturating_sub(start) / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(GlyphData::MIN_SIZE));
+
+impl Default for GlyphData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

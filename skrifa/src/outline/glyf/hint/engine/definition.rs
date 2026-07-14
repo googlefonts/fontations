@@ -78,7 +78,7 @@ impl Engine<'_> {
         let f = self.value_stack.pop()?;
         let count = self.value_stack.pop()?;
         if count > 0 {
-            self.loop_budget.doing_loop_call(count as usize)?;
+            self.work_budget.doing_loop_call(count as usize)?;
             self.do_call(DefKind::Function, count as u32, f)
         } else {
             Ok(())
@@ -299,7 +299,7 @@ mod tests {
         use Opcode::*;
         let mut mock = MockEngine::new();
         let mut engine = mock.engine();
-        let limit = engine.loop_budget.limit;
+        let limit = engine.work_budget.loop_limit;
         #[rustfmt::skip]
         let font_code = [
             op(PUSHB001), 1, 0,
@@ -498,7 +498,7 @@ mod tests {
         let mut engine = mock.engine();
         let mut font_code = vec![];
         font_code.extend_from_slice(&[op(PUSHB000), 0, op(FDEF)]);
-        font_code.extend(core::iter::repeat(op(NEG)).take(MAX_DEFINITION_SIZE + 1));
+        font_code.extend(std::iter::repeat_n(op(NEG), MAX_DEFINITION_SIZE + 1));
         font_code.push(op(ENDF));
         engine.set_font_code(&font_code);
         engine.graphics.is_pedantic = true;

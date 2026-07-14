@@ -19,9 +19,9 @@ impl ReadArgs for TupleVariationHeader<'_> {
     type Args = u16;
 }
 
-impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let axis_count = *args;
+impl<'a> FontRead<'a> for TupleVariationHeader<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
+        let axis_count = args;
 
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
@@ -38,7 +38,7 @@ impl<'a> TupleVariationHeader<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
         let args = axis_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -74,42 +74,57 @@ impl<'a> TupleVariationHeader<'a> {
 
     pub fn variation_data_size_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn tuple_index_byte_range(&self) -> Range<usize> {
         let start = self.variation_data_size_byte_range().end;
-        start..start + TupleIndex::RAW_BYTE_LEN
+        let end = start + TupleIndex::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn peak_tuple_byte_range(&self) -> Range<usize> {
         let tuple_index = self.tuple_index();
         let axis_count = self.axis_count();
         let start = self.tuple_index_byte_range().end;
-        start
-            ..start
-                + (TupleIndex::tuple_len(tuple_index, axis_count, 0_usize))
-                    .saturating_mul(F2Dot14::RAW_BYTE_LEN)
+        let end = start
+            + (TupleIndex::tuple_len(tuple_index, axis_count, 0_usize))
+                .saturating_mul(F2Dot14::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn intermediate_start_tuple_byte_range(&self) -> Range<usize> {
         let tuple_index = self.tuple_index();
         let axis_count = self.axis_count();
         let start = self.peak_tuple_byte_range().end;
-        start
-            ..start
-                + (TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))
-                    .saturating_mul(F2Dot14::RAW_BYTE_LEN)
+        let end = start
+            + (TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))
+                .saturating_mul(F2Dot14::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn intermediate_end_tuple_byte_range(&self) -> Range<usize> {
         let tuple_index = self.tuple_index();
         let axis_count = self.axis_count();
         let start = self.intermediate_start_tuple_byte_range().end;
-        start
-            ..start
-                + (TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))
-                    .saturating_mul(F2Dot14::RAW_BYTE_LEN)
+        let end = start
+            + (TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))
+                .saturating_mul(F2Dot14::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    TupleVariationHeader::MIN_SIZE
+));
+
+impl Default for TupleVariationHeader<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+            axis_count: Default::default(),
+        }
     }
 }
 
@@ -168,18 +183,18 @@ impl ReadArgs for Tuple<'_> {
 
 impl ComputeSize for Tuple<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let axis_count = *args;
-        Ok((axis_count as usize).saturating_mul(F2Dot14::RAW_BYTE_LEN))
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let axis_count = args;
+        Ok((transforms::to_usize(axis_count)).saturating_mul(F2Dot14::RAW_BYTE_LEN))
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for Tuple<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for Tuple<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let axis_count = *args;
+        let axis_count = args;
         Ok(Self {
-            values: cursor.read_array(axis_count as usize)?,
+            values: cursor.read_array(transforms::to_usize(axis_count))?,
         })
     }
 }
@@ -192,7 +207,7 @@ impl<'a> Tuple<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
         let args = axis_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -224,8 +239,12 @@ impl<'a> MinByteRange<'a> for DeltaSetIndexMapFormat0<'a> {
     }
 }
 
+impl ReadArgs for DeltaSetIndexMapFormat0<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -272,26 +291,41 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entry_format_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + EntryFormat::RAW_BYTE_LEN
+        let end = start + EntryFormat::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn map_count_byte_range(&self) -> Range<usize> {
         let start = self.entry_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn map_data_byte_range(&self) -> Range<usize> {
         let entry_format = self.entry_format();
         let map_count = self.map_count();
         let start = self.map_count_byte_range().end;
-        start
-            ..start
-                + (EntryFormat::map_size(entry_format, map_count)).saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start
+            + (EntryFormat::map_size(entry_format, map_count)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    DeltaSetIndexMapFormat0::MIN_SIZE
+));
+
+impl Default for DeltaSetIndexMapFormat0<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -333,8 +367,12 @@ impl<'a> MinByteRange<'a> for DeltaSetIndexMapFormat1<'a> {
     }
 }
 
+impl ReadArgs for DeltaSetIndexMapFormat1<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -381,26 +419,41 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u8::RAW_BYTE_LEN
+        let end = start + u8::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn entry_format_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + EntryFormat::RAW_BYTE_LEN
+        let end = start + EntryFormat::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn map_count_byte_range(&self) -> Range<usize> {
         let start = self.entry_format_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn map_data_byte_range(&self) -> Range<usize> {
         let entry_format = self.entry_format();
         let map_count = self.map_count();
         let start = self.map_count_byte_range().end;
-        start
-            ..start
-                + (EntryFormat::map_size(entry_format, map_count)).saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start
+            + (EntryFormat::map_size(entry_format, map_count)).saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    DeltaSetIndexMapFormat1::MIN_SIZE
+));
+
+impl Default for DeltaSetIndexMapFormat1<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_format_1_u8_table_data(),
+        }
     }
 }
 
@@ -433,6 +486,12 @@ impl<'a> std::fmt::Debug for DeltaSetIndexMapFormat1<'a> {
 pub enum DeltaSetIndexMap<'a> {
     Format0(DeltaSetIndexMapFormat0<'a>),
     Format1(DeltaSetIndexMapFormat1<'a>),
+}
+
+impl Default for DeltaSetIndexMap<'_> {
+    fn default() -> Self {
+        Self::Format0(Default::default())
+    }
 }
 
 impl<'a> DeltaSetIndexMap<'a> {
@@ -470,8 +529,12 @@ impl<'a> DeltaSetIndexMap<'a> {
     }
 }
 
+impl ReadArgs for DeltaSetIndexMap<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
         match format {
             DeltaSetIndexMapFormat0::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
@@ -844,8 +907,12 @@ impl<'a> MinByteRange<'a> for VariationRegionList<'a> {
     }
 }
 
+impl ReadArgs for VariationRegionList<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for VariationRegionList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -883,28 +950,42 @@ impl<'a> VariationRegionList<'a> {
     pub fn variation_regions(&self) -> ComputedArray<'a, VariationRegion<'a>> {
         let range = self.variation_regions_byte_range();
         self.data
-            .read_with_args(range, &self.axis_count())
+            .read_with_args(range, self.axis_count())
             .unwrap_or_default()
     }
 
     pub fn axis_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn region_count_byte_range(&self) -> Range<usize> {
         let start = self.axis_count_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn variation_regions_byte_range(&self) -> Range<usize> {
         let region_count = self.region_count();
         let start = self.region_count_byte_range().end;
-        start
-            ..start
-                + (region_count as usize).saturating_mul(
-                    <VariationRegion as ComputeSize>::compute_size(&self.axis_count()).unwrap_or(0),
-                )
+        let end = start
+            + (transforms::to_usize(region_count)).saturating_mul(
+                <VariationRegion as ComputeSize>::compute_size(self.axis_count()).unwrap_or(0),
+            );
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    VariationRegionList::MIN_SIZE
+));
+
+impl Default for VariationRegionList<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -960,18 +1041,18 @@ impl ReadArgs for VariationRegion<'_> {
 
 impl ComputeSize for VariationRegion<'_> {
     #[allow(clippy::needless_question_mark)]
-    fn compute_size(args: &u16) -> Result<usize, ReadError> {
-        let axis_count = *args;
-        Ok((axis_count as usize).saturating_mul(RegionAxisCoordinates::RAW_BYTE_LEN))
+    fn compute_size(args: u16) -> Result<usize, ReadError> {
+        let axis_count = args;
+        Ok((transforms::to_usize(axis_count)).saturating_mul(RegionAxisCoordinates::RAW_BYTE_LEN))
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for VariationRegion<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for VariationRegion<'a> {
+    fn read_with_args(data: FontData<'a>, args: u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let axis_count = *args;
+        let axis_count = args;
         Ok(Self {
-            region_axes: cursor.read_array(axis_count as usize)?,
+            region_axes: cursor.read_array(transforms::to_usize(axis_count))?,
         })
     }
 }
@@ -984,7 +1065,7 @@ impl<'a> VariationRegion<'a> {
     /// parsed.
     pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
         let args = axis_count;
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 
@@ -1070,8 +1151,12 @@ impl<'a> MinByteRange<'a> for ItemVariationStore<'a> {
     }
 }
 
+impl ReadArgs for ItemVariationStore<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ItemVariationStore<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1134,23 +1219,41 @@ impl<'a> ItemVariationStore<'a> {
 
     pub fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn variation_region_list_offset_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        let end = start + Offset32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn item_variation_data_count_byte_range(&self) -> Range<usize> {
         let start = self.variation_region_list_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn item_variation_data_offsets_byte_range(&self) -> Range<usize> {
         let item_variation_data_count = self.item_variation_data_count();
         let start = self.item_variation_data_count_byte_range().end;
-        start..start + (item_variation_data_count as usize).saturating_mul(Offset32::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(item_variation_data_count))
+                .saturating_mul(Offset32::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ItemVariationStore::MIN_SIZE
+));
+
+impl Default for ItemVariationStore<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -1173,20 +1276,10 @@ impl<'a> SomeTable<'a> for ItemVariationStore<'a> {
                 "item_variation_data_count",
                 self.item_variation_data_count(),
             )),
-            3usize => Some({
-                let data = self.data;
-                Field::new(
-                    "item_variation_data_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<ItemVariationData>(),
-                        self.item_variation_data_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<ItemVariationData>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            3usize => Some(Field::new(
+                "item_variation_data_offsets",
+                FieldType::from(self.item_variation_data()),
+            )),
             _ => None,
         }
     }
@@ -1210,8 +1303,12 @@ impl<'a> MinByteRange<'a> for ItemVariationData<'a> {
     }
 }
 
+impl ReadArgs for ItemVariationData<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for ItemVariationData<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -1264,23 +1361,28 @@ impl<'a> ItemVariationData<'a> {
 
     pub fn item_count_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn word_delta_count_byte_range(&self) -> Range<usize> {
         let start = self.item_count_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn region_index_count_byte_range(&self) -> Range<usize> {
         let start = self.word_delta_count_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn region_indexes_byte_range(&self) -> Range<usize> {
         let region_index_count = self.region_index_count();
         let start = self.region_index_count_byte_range().end;
-        start..start + (region_index_count as usize).saturating_mul(u16::RAW_BYTE_LEN)
+        let end =
+            start + (transforms::to_usize(region_index_count)).saturating_mul(u16::RAW_BYTE_LEN);
+        start..end
     }
 
     pub fn delta_sets_byte_range(&self) -> Range<usize> {
@@ -1288,14 +1390,22 @@ impl<'a> ItemVariationData<'a> {
         let word_delta_count = self.word_delta_count();
         let region_index_count = self.region_index_count();
         let start = self.region_indexes_byte_range().end;
-        start
-            ..start
-                + (ItemVariationData::delta_sets_len(
-                    item_count,
-                    word_delta_count,
-                    region_index_count,
-                ))
-                .saturating_mul(u8::RAW_BYTE_LEN)
+        let end = start
+            + (ItemVariationData::delta_sets_len(item_count, word_delta_count, region_index_count))
+                .saturating_mul(u8::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ItemVariationData::MIN_SIZE
+));
+
+impl Default for ItemVariationData<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 

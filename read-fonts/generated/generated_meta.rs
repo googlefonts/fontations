@@ -20,8 +20,12 @@ impl TopLevelTable for Meta<'_> {
     const TAG: Tag = Tag::new(b"meta");
 }
 
+impl ReadArgs for Meta<'_> {
+    type Args = ();
+}
+
 impl<'a> FontRead<'a> for Meta<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
         #[allow(clippy::absurd_extreme_comparisons)]
         if data.len() < Self::MIN_SIZE {
             return Err(ReadError::OutOfBounds);
@@ -68,28 +72,44 @@ impl<'a> Meta<'a> {
 
     pub fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn flags_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn reserved_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn data_maps_count_byte_range(&self) -> Range<usize> {
         let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
+        let end = start + u32::RAW_BYTE_LEN;
+        start..end
     }
 
     pub fn data_maps_byte_range(&self) -> Range<usize> {
         let data_maps_count = self.data_maps_count();
         let start = self.data_maps_count_byte_range().end;
-        start..start + (data_maps_count as usize).saturating_mul(DataMapRecord::RAW_BYTE_LEN)
+        let end = start
+            + (transforms::to_usize(data_maps_count)).saturating_mul(DataMapRecord::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(Meta::MIN_SIZE));
+
+impl Default for Meta<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
     }
 }
 
@@ -154,7 +174,7 @@ impl DataMapRecord {
     /// By calling its `offset_data` method.
     pub fn data<'a>(&self, data: FontData<'a>) -> Result<Metadata<'a>, ReadError> {
         let args = (self.tag(), self.data_length());
-        self.data_offset().resolve_with_args(data, &args)
+        self.data_offset().resolve_with_args(data, args)
     }
 
     /// Length of the data, in bytes. The data is not required to be padded to any byte boundary.

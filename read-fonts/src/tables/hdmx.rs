@@ -58,17 +58,17 @@ impl ReadArgs for DeviceRecord<'_> {
 }
 
 impl ComputeSize for DeviceRecord<'_> {
-    fn compute_size(args: &(u16, u32)) -> Result<usize, ReadError> {
-        let (_num_glyphs, size_device_record) = *args;
+    fn compute_size(args: (u16, u32)) -> Result<usize, ReadError> {
+        let (_num_glyphs, size_device_record) = args;
         // Record size is explicitly defined in the parent hdmx table
         Ok(size_device_record as usize)
     }
 }
 
-impl<'a> FontReadWithArgs<'a> for DeviceRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u32)) -> Result<Self, ReadError> {
+impl<'a> FontRead<'a> for DeviceRecord<'a> {
+    fn read_with_args(data: FontData<'a>, args: (u16, u32)) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let (num_glyphs, _size_device_record) = *args;
+        let (num_glyphs, _size_device_record) = args;
         Ok(Self {
             pixel_size: cursor.read()?,
             max_width: cursor.read()?,
@@ -89,7 +89,7 @@ impl<'a> DeviceRecord<'a> {
         size_device_record: u32,
     ) -> Result<Self, ReadError> {
         let args = (num_glyphs, size_device_record);
-        Self::read_with_args(data, &args)
+        Self::read_with_args(data, args)
     }
 }
 

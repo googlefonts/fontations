@@ -365,6 +365,7 @@ impl ClusterShaper<'_> {
             SubstitutionSubtables::Contextual(_tables) => {}
             SubstitutionSubtables::ChainContextual(_tables) => {}
             SubstitutionSubtables::Reverse(_tables) => {}
+            SubstitutionSubtables::EmptyExtension => {}
         }
         false
     }
@@ -613,6 +614,7 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
                     }
                 }
             }
+            SubstitutionSubtables::EmptyExtension => (),
         }
         Ok(())
     }

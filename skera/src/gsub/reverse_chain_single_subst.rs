@@ -1,10 +1,10 @@
 //! impl subset() for ReverseChainSingleSubst subtable
+use crate::fnv::FnvHashMap;
 use crate::{
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
     Plan, SubsetState, SubsetTable,
 };
-use fnv::FnvHashMap;
 use write_fonts::{
     read::{
         tables::{gsub::ReverseChainSingleSubstFormat1, layout::CoverageTable},
