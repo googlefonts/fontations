@@ -24,8 +24,8 @@ use crate::{
     ps::{
         cff::{CffFontAccel, CffFontRef},
         charmap::Charmap as PsCharmap,
+        type1::Type1Font,
     },
-    type1::Type1Font,
     ReadError,
 };
 use alloc::{boxed::Box, sync::Arc};
@@ -93,13 +93,14 @@ impl Font {
         }
     }
 
-    /// If this is a table based (i.e. OpenType) font, then returns an object
-    /// that provides access to the individual tables.
-    pub fn tables(&self) -> Option<&FontTables> {
+    /// Returns an object that provides access to individual font tables.
+    ///
+    /// For non-SFNT fonts, this will return an empty set of tables.
+    pub fn tables(&self) -> &FontTables {
         if let FontKindRepr::Sfnt(tables, _) = &self.0.kind {
-            Some(tables)
+            tables
         } else {
-            None
+            &tables::EMPTY_FONT_TABLES
         }
     }
 }
@@ -111,13 +112,6 @@ struct FontRepr {
     shaping_data: Once<Box<dyn Any + Send + Sync>>,
 }
 
-#[allow(clippy::large_enum_variant)]
-enum FontKindRepr {
-    Sfnt(FontTables, u32),
-    Type1(Type1Font),
-    Cff(FontBlob, u32, CffFontAccel, PsCharmap),
-}
-
 /// The underlying type of a font.
 pub enum FontKind<'a> {
     /// An SFNT-based font represented by a set of tables and an index.
@@ -126,4 +120,11 @@ pub enum FontKind<'a> {
     Type1(&'a Type1Font),
     /// A CFF font with an associated index.
     Cff(CffFontRef<'a>, u32),
+}
+
+#[expect(clippy::large_enum_variant)]
+enum FontKindRepr {
+    Sfnt(FontTables, u32),
+    Type1(Type1Font),
+    Cff(FontBlob, u32, CffFontAccel, PsCharmap),
 }
