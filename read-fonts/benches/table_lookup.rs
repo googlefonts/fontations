@@ -5,6 +5,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use font_types::BigEndian;
 use read_fonts::{
     model::Font,
+    ps::cff::CffFontRef,
     tables::{
         cff::Cff, cff2::Cff2, cvar::Cvar, glyf::Glyf, gvar::Gvar, hdmx::Hdmx, hmtx::Hmtx,
         hvar::Hvar, loca::Loca, maxp::Maxp,
@@ -102,9 +103,36 @@ impl<'a> OutlineTables<'a> {
     }
 }
 
+fn cff_data() -> &'static [u8] {
+    FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED)
+        .unwrap()
+        .cff()
+        .unwrap()
+        .offset_data()
+        .as_bytes()
+}
+
+pub fn cff_load(c: &mut Criterion) {
+    let cff_data = cff_data();
+    c.bench_function("cff_load", |b| {
+        b.iter(|| black_box(CffFontRef::new_cff(cff_data, 0, None).unwrap()))
+    });
+}
+
+pub fn cff_load_with_accel(c: &mut Criterion) {
+    let cff_data = cff_data();
+    let font = Font::new(cff_data, 0).unwrap();
+    c.bench_function("cff_load_with_accel", |b| {
+        // This forces a load from the CFF accelerator
+        b.iter(|| black_box(font.kind()))
+    });
+}
+
 criterion_group!(
     benches,
     font_ref_outlines_tables,
     font_model_outlines_tables,
+    cff_load,
+    cff_load_with_accel,
 );
 criterion_main!(benches);
