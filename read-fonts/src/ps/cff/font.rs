@@ -116,7 +116,9 @@ impl<'a> CffFontRef<'a> {
 
     /// Returns the PostScript name.
     pub fn name(&self) -> Option<&'a str> {
-        self.string_as_str(self.top_dict.info.name)
+        let range = self.top_dict.info.name.clone()?;
+        let name_bytes = self.data.get(range.start as usize..range.end as usize)?;
+        core::str::from_utf8(name_bytes).ok()
     }
 
     /// Returns the full font name.
@@ -135,8 +137,7 @@ impl<'a> CffFontRef<'a> {
     }
 
     fn string_as_str(&self, sid: Option<Sid>) -> Option<&'a str> {
-        sid.and_then(|s| self.string(s))
-            .and_then(|s| core::str::from_utf8(s).ok())
+        sid.and_then(|s| core::str::from_utf8(self.string(s)?).ok())
     }
 
     /// Returns the italic angle.
@@ -586,7 +587,7 @@ impl Default for MaybeOffset {
 
 #[derive(Clone)]
 struct TopDict<'a> {
-    info: Info,
+    info: FontInfo,
     charstrings: Index<'a>,
     charset_offset: MaybeOffset,
     encoding_offset: MaybeOffset,
@@ -623,10 +624,10 @@ impl FontDict {
     }
 }
 
-/// Accelerator for metadata in a CFF font.
+/// Additional information about a CFF font.
 #[derive(Clone, Debug)]
-pub(crate) struct Info {
-    name: Option<Sid>,
+struct FontInfo {
+    name: Option<Range<u32>>,
     full_name: Option<Sid>,
     family_name: Option<Sid>,
     weight: Option<Sid>,
@@ -637,7 +638,7 @@ pub(crate) struct Info {
     underline_thickness: Fixed,
 }
 
-impl Default for Info {
+impl Default for FontInfo {
     fn default() -> Self {
         Self {
             name: None,
@@ -780,11 +781,27 @@ impl CffFontAccel {
     pub fn new_cff(data: &[u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
         let cff = cff::Cff::read(data.into())?;
         let top_dict_data = cff.top_dicts().get(top_dict_index as usize)?;
+        let names = cff.names();
+        // Store name range from start of CFF data
+        let names_data = names.data_byte_range().start + cff.names_offset() as usize;
+        let name_range = names
+            .get_offset(top_dict_index as usize)
+            .ok()
+            .and_then(|start| {
+                Some(
+                    (start as usize).checked_add(names_data)?
+                        ..(names.get_offset(top_dict_index as usize + 1).ok()? as usize)
+                            .checked_add(names_data)?,
+                )
+            })
+            .filter(|r| data.get(r.clone()).is_some())
+            .map(|r| r.start as u32..r.end as u32);
         Self::new_impl(
             data,
             false,
             upem,
             top_dict_data,
+            name_range,
             MaybeOffset(cff.strings_offset()),
             cff.global_subrs_offset(),
         )
@@ -801,6 +818,7 @@ impl CffFontAccel {
             true,
             upem,
             cff.top_dict_data(),
+            None,
             MaybeOffset::default(),
             cff.header().trailing_data_byte_range().start as u32,
         )
@@ -811,10 +829,11 @@ impl CffFontAccel {
         is_cff2: bool,
         upem: Option<i32>,
         top_dict_data: &[u8],
+        name_range: Option<Range<u32>>,
         strings: MaybeOffset,
         global_subrs: u32,
     ) -> Result<Self, Error> {
-        let top_dict = TopDictAccel::new(data, top_dict_data, is_cff2)?;
+        let top_dict = TopDictAccel::new(data, top_dict_data, name_range, is_cff2)?;
         let top_upem = top_dict.matrix.map(|mat| mat.scale).unwrap_or(1000);
         Ok(Self {
             upem: upem.unwrap_or(top_upem),
@@ -848,7 +867,7 @@ impl CffFontAccel {
 #[derive(Clone, Debug)]
 struct TopDictAccel {
     is_cff2: bool,
-    info: Info,
+    info: FontInfo,
     charstrings: MaybeOffset,
     charset: MaybeOffset,
     encoding: MaybeOffset,
@@ -858,7 +877,12 @@ struct TopDictAccel {
 }
 
 impl TopDictAccel {
-    fn new(cff_data: &[u8], top_dict_data: &[u8], is_cff2: bool) -> Result<Self, Error> {
+    fn new(
+        cff_data: &[u8],
+        top_dict_data: &[u8],
+        name_range: Option<Range<u32>>,
+        is_cff2: bool,
+    ) -> Result<Self, Error> {
         let mut has_ros = false;
         let mut charstrings = MaybeOffset::default();
         let [mut charset, mut encoding] = if is_cff2 {
@@ -875,7 +899,10 @@ impl TopDictAccel {
         let mut private_dict_range = 0..0;
         let mut matrix = None;
         let mut var_store = MaybeOffset::default();
-        let mut info = Info::default();
+        let mut info = FontInfo {
+            name: name_range,
+            ..Default::default()
+        };
         for entry in dict::entries(top_dict_data, None).filter_map(|e| e.ok()) {
             match entry {
                 dict::Entry::Ros { .. } => has_ros = true,
@@ -1185,7 +1212,7 @@ mod tests {
             .push(24u8) // var store offset operator
             .to_vec();
         // Just don't panic with overflow
-        assert!(TopDictAccel::new(&[], &top_dict, true).is_err());
+        assert!(TopDictAccel::new(&[], &top_dict, None, true).is_err());
     }
 
     /// Fuzzer caught add with overflow when computing subrs offset.

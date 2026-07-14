@@ -48,21 +48,30 @@ impl Font {
         let kind = if let Ok(tables) = FontTables::new(source.clone(), index) {
             Some(FontKindRepr::Sfnt(tables, index))
         } else if let FontSource::Blob(blob) = &source {
-            match FontFormat::new(blob) {
-                Some(FontFormat::Type1) => Type1Font::new(blob).ok().map(FontKindRepr::Type1),
-                Some(FontFormat::Cff(_)) => CffFontAccel::new(blob, index, None)
-                    .ok()
-                    .and_then(|accel| Some((accel.clone(), accel.materialize(&blob).ok()?)))
-                    .map(|(accel, _cff)| {
-                        #[cfg(feature = "agl")]
-                        let charmap = Some(PsCharmap::from_glyph_names(charset.iter().filter_map(
-                            |(gid, sid)| Some((gid, core::str::from_utf8(_cff.string(sid)?).ok()?)),
-                        )));
-                        #[cfg(not(feature = "agl"))]
-                        let charmap = PsCharmap::default();
-                        FontKindRepr::Cff(blob.clone(), index, accel, charmap)
-                    }),
-                _ => None,
+            if let Ok(cff_accel) = CffFontAccel::new(blob, index, None) {
+                cff_accel.materialize(blob).ok().map(|cff| {
+                    #[cfg(feature = "agl")]
+                    let charmap = if !cff.is_cid() {
+                        cff.charset()
+                            .map(|charset| {
+                                PsCharmap::from_glyph_names(charset.iter().filter_map(
+                                    |(gid, sid)| {
+                                        Some((gid, core::str::from_utf8(cff.string(sid)?).ok()?))
+                                    },
+                                ))
+                            })
+                            .unwrap_or_default()
+                    } else {
+                        PsCharmap::default()
+                    };
+                    #[cfg(not(feature = "agl"))]
+                    let charmap = PsCharmap::default();
+                    // cff is unused when agl feature is disabled; silence the warning
+                    let _ = cff;
+                    FontKindRepr::Cff(blob.clone(), index, cff_accel, charmap)
+                })
+            } else {
+                Type1Font::new(blob).ok().map(FontKindRepr::Type1)
             }
         } else {
             None
@@ -113,6 +122,8 @@ struct FontRepr {
 }
 
 /// The underlying type of a font.
+#[expect(clippy::large_enum_variant)]
+#[derive(Clone)]
 pub enum FontKind<'a> {
     /// An SFNT-based font represented by a set of tables and an index.
     Sfnt(&'a FontTables, u32),
@@ -122,9 +133,34 @@ pub enum FontKind<'a> {
     Cff(CffFontRef<'a>, u32),
 }
 
-#[expect(clippy::large_enum_variant)]
 enum FontKindRepr {
     Sfnt(FontTables, u32),
     Type1(Type1Font),
     Cff(FontBlob, u32, CffFontAccel, PsCharmap),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{FontRef, TableProvider};
+
+    #[cfg(feature = "agl")]
+    #[test]
+    fn bare_cff_computed_charmap() {
+        use types::GlyphId;
+        let cff_data = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED)
+            .unwrap()
+            .cff()
+            .unwrap()
+            .offset_data()
+            .as_bytes();
+        let font = Font::new(cff_data, 0).unwrap();
+        let FontKindRepr::Cff(_blob, _index, _accel, charmap) = &font.0.kind else {
+            panic!("Expected CFF font");
+        };
+        let expected = [('i', 1), ('j', 2), ('k', 3), ('l', 4)]
+            .map(|(ch, gid)| (ch as u32, GlyphId::new(gid)));
+        let map = charmap.iter().collect::<Vec<_>>();
+        assert_eq!(map, expected);
+    }
 }
