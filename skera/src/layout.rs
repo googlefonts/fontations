@@ -32,7 +32,7 @@ use write_fonts::{
 
 const MAX_SCRIPTS: u16 = 500;
 const MAX_LANGSYS: u16 = 2000;
-const MAX_FEATURE_INDICES: u16 = 1500;
+const MAX_FEATURE_INDICES: u16 = 8000;
 const MAX_LOOKUP_VISIT_COUNT: u16 = 35000;
 const MAX_LANGSYS_FEATURE_COUNT: u16 = 5000;
 
