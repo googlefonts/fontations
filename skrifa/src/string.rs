@@ -66,6 +66,16 @@ impl<'a> LocalizedStrings<'a> {
         Self { name, records, id }
     }
 
+    /// Creates a new localized string iterator from the given `name` table and string identifier.
+    pub fn from_name_table(name: Name<'a>, id: StringId) -> Self {
+        let records = name.name_record().iter();
+        Self {
+            name: Some(name),
+            records,
+            id,
+        }
+    }
+
     /// Returns the informational string identifier for this iterator.
     pub fn id(&self) -> StringId {
         self.id
