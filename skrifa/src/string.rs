@@ -67,7 +67,7 @@ impl<'a> LocalizedStrings<'a> {
     }
 
     /// Creates a new localized string iterator from the given `name` table and string identifier.
-    pub fn new_from_name_table(name: Name<'a>, id: StringId) -> Self {
+    pub fn from_name_table(name: Name<'a>, id: StringId) -> Self {
         let records = name.name_record().iter();
         Self {
             name: Some(name),
