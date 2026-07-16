@@ -12,6 +12,10 @@ repository.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bench]]
+name = "skera-benchmarks"
+harness = false
+
 [[bin]]
 name = "skera"
 path = "src/main.rs"
@@ -30,6 +34,7 @@ write-fonts = { workspace = true, features = ["read"] }
 
 
 [dev-dependencies]
+criterion = { workspace = true }
 diff = "0.1.13"
 font-test-data = { workspace = true }
 rayon = { workspace = true }
