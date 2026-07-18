@@ -127,6 +127,7 @@ impl<'a> BitmapStrikes<'a> {
 }
 
 #[derive(Clone)]
+#[expect(clippy::large_enum_variant)]
 enum StrikesKind<'a> {
     None,
     Sbix(sbix::Sbix<'a>, GlyphMetrics<'a>),
