@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use perf_bench::Bencher;
 use skera::{subset_font, Plan, SubsetFlags, DEFAULT_DROP_TABLES, DEFAULT_LAYOUT_FEATURES};
 use std::path::Path;
 use write_fonts::{
@@ -42,26 +42,26 @@ fn create_plan(font: &FontRef, unicodes: &IntSet<u32>) -> Plan {
     )
 }
 
-fn benchmark_subset(c: &mut Criterion) {
+fn main() {
+    let mut bencher = Bencher::default();
+    let font_bytes = read_test_font("Roboto-Regular.ttf");
     let latin_codepoints = set_from_ranges([0x20..=0x7E, 0xA0..=0xFF, 0x100..=0x24F]);
-    c.benchmark_group("subset")
-        .bench_function("roboto-latin", |b| {
-            let font_bytes = read_test_font("Roboto-Regular.ttf");
-            b.iter(|| {
-                let font = FontRef::new(&font_bytes).unwrap();
-                let plan = create_plan(&font, &latin_codepoints);
-                subset_font(&font, &plan).unwrap()
-            });
-        })
-        .bench_function("roboto-variable-latin", |b| {
-            let font_bytes = read_test_font("Roboto-Variable.ttf");
-            b.iter(|| {
-                let font = FontRef::new(&font_bytes).unwrap();
-                let plan = create_plan(&font, &latin_codepoints);
-                subset_font(&font, &plan).unwrap()
-            });
-        });
+    let report = bencher.run(
+        &format!("subset"),
+        (font_bytes, latin_codepoints),
+        |(font_bytes, codepoints)| {
+            let font = FontRef::new(&font_bytes).unwrap();
+            let plan = create_plan(&font, &codepoints);
+            let _ = subset_font(&font, &plan).unwrap();
+        },
+    );
+    println!("{report}");
+    let out_dir = "target/perf-bench";
+    std::fs::create_dir_all(out_dir).expect("failed to create target/perf-bench");
+    report.write_plots(out_dir).expect("failed to write plots");
+    std::fs::write(format!("{out_dir}/index.html"), report.to_html()).expect("failed to write index.html");
+    let report_path = std::path::absolute(out_dir)
+        .expect("failed to resolve absolute path")
+        .join("index.html");
+    println!("Report: file://{}", report_path.display());
 }
-
-criterion_group!(benches, benchmark_subset);
-criterion_main!(benches);

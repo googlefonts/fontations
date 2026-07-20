@@ -1,0 +1,12 @@
+[package]
+name = "perf-bench"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+perf-event = "0.4.9"
+
+[[bench]]
+name = "fib"
+path = "benches/fib.rs"
+harness = false

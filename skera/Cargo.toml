@@ -34,7 +34,7 @@ write-fonts = { workspace = true, features = ["read"] }
 
 
 [dev-dependencies]
-criterion = { workspace = true }
+perf-bench = { workspace = true }
 diff = "0.1.13"
 font-test-data = { workspace = true }
 rayon = { workspace = true }
