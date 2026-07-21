@@ -61,7 +61,7 @@ impl<'a> Vhea<'a> {
         + u16::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
-    /// The major/minor version (1, 1)
+    /// The major/minor version (1, 0 or 1, 1)
     pub fn version(&self) -> Version16Dot16 {
         let range = self.version_byte_range();
         self.data.read_at(range.start).ok().unwrap()

@@ -6,9 +6,11 @@
 use crate::codegen_prelude::*;
 
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Vhea {
+    /// The major/minor version (1, 0 or 1, 1)
+    pub version: Version16Dot16,
     /// Typographic ascent.
     pub ascender: FWord,
     /// Typographic descent.
@@ -36,6 +38,25 @@ pub struct Vhea {
     pub caret_offset: i16,
     /// Number of advance heights in the vertical metrics (`vmtx`) table.
     pub number_of_long_ver_metrics: u16,
+}
+
+impl Default for Vhea {
+    fn default() -> Self {
+        Self {
+            version: Version16Dot16::VERSION_1_1,
+            ascender: Default::default(),
+            descender: Default::default(),
+            line_gap: Default::default(),
+            advance_height_max: Default::default(),
+            min_top_side_bearing: Default::default(),
+            min_bottom_side_bearing: Default::default(),
+            y_max_extent: Default::default(),
+            caret_slope_rise: Default::default(),
+            caret_slope_run: Default::default(),
+            caret_offset: Default::default(),
+            number_of_long_ver_metrics: Default::default(),
+        }
+    }
 }
 
 impl Vhea {
@@ -66,6 +87,7 @@ impl Vhea {
             caret_slope_run,
             caret_offset,
             number_of_long_ver_metrics,
+            ..Default::default()
         }
     }
 }
@@ -73,7 +95,7 @@ impl Vhea {
 impl FontWrite for Vhea {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (Version16Dot16::VERSION_1_1 as Version16Dot16).write_into(writer);
+        self.version.write_into(writer);
         self.ascender.write_into(writer);
         self.descender.write_into(writer);
         self.line_gap.write_into(writer);
@@ -107,6 +129,7 @@ impl TopLevelTable for Vhea {
 impl<'a> FromObjRef<read_fonts::tables::vhea::Vhea<'a>> for Vhea {
     fn from_obj_ref(obj: &read_fonts::tables::vhea::Vhea<'a>, _: FontData) -> Self {
         Vhea {
+            version: obj.version(),
             ascender: obj.ascender(),
             descender: obj.descender(),
             line_gap: obj.line_gap(),
