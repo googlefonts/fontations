@@ -16,7 +16,7 @@ pub(crate) mod markbasepos_graph;
 pub(crate) mod pairpos_graph;
 
 const MAX_SPACES: usize = 8000;
-const MAX_VERTICES: usize = 100000;
+const MAX_VERTICES: usize = 800000;
 
 #[derive(Debug)]
 pub(crate) enum RepackError {
