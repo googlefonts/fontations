@@ -64,6 +64,7 @@ pub(crate) struct Vertex {
     incoming_edges: usize,
     has_incoming_virtual_edges: bool,
     parents: FnvHashMap<ObjIdx, u16>,
+    virtual_parents: IntSet<u32>,
 }
 
 impl Vertex {
@@ -98,6 +99,7 @@ impl Vertex {
         self.incoming_edges = 0;
         self.has_incoming_virtual_edges = false;
         self.parents.clear();
+        self.virtual_parents.clear();
     }
 
     fn add_parent(&mut self, parent_idx: ObjIdx, is_virtual: bool) {
@@ -107,6 +109,9 @@ impl Vertex {
             .and_modify(|c| *c += 1)
             .or_insert(1);
 
+        if is_virtual {
+            self.virtual_parents.insert(parent_idx as u32);
+        }
         self.incoming_edges += 1;
     }
 
@@ -125,6 +130,7 @@ impl Vertex {
             *num_edges -= 1;
         } else {
             self.parents.remove(&parent_idx);
+            self.virtual_parents.remove(parent_idx as u32);
         }
     }
 
@@ -135,6 +141,9 @@ impl Vertex {
 
         self.parents.insert(new_parent, *v);
         self.parents.remove(&old_parent);
+        if self.virtual_parents.remove(old_parent as u32) {
+            self.virtual_parents.insert(new_parent as u32);
+        }
     }
 
     fn link_positions_valid(&self, num_objs: usize) -> bool {
@@ -200,8 +209,9 @@ impl Vertex {
         self.incoming_edges
     }
 
+    // return if this vertex is shared by real parents
     fn is_shared(&self) -> bool {
-        self.parents.len() > 1
+        self.parents.len() as u64 > self.virtual_parents.len() + 1
     }
 
     fn is_leaf(&self) -> bool {

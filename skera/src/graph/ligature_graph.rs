@@ -373,9 +373,7 @@ fn fix_coverage_links(
     let coverage_is_shared = graph
         .vertex(coverage_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-        .parents
-        .keys()
-        .any(|p| !lig_idxes.contains(*p as u32));
+        .is_shared();
 
     if !coverage_is_shared {
         return Ok(coverage_idx);
