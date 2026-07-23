@@ -69,5 +69,19 @@ pub use read_fonts::{
 #[doc(inline)]
 pub use provider::MetadataProvider;
 
+/// Maximum number of points in a TrueType outline.
+///
+/// TrueType uses a 16 bit integer to store contour end points so
+/// we must keep the total count within this value.
+///
+/// The maxp <https://learn.microsoft.com/en-us/typography/opentype/spec/maxp>
+/// table encodes `maxCompositePoints` as a `uint16` so the spec enforces
+/// this limit.
+const MAX_GLYF_POINTS: usize = u16::MAX as usize;
+
 /// Limit for recursion when loading TrueType composite glyphs.
 const GLYF_COMPOSITE_RECURSION_LIMIT: usize = 32;
+
+/// Maximum number of edges we'll traverse when processing a graph.
+// See <https://github.com/harfbuzz/harfbuzz/blob/cce964cb4f3f29a9addbb079b52c7a712fba93b8/src/hb-limits.hh#L92>
+const MAX_GRAPH_EDGES: usize = 2048;
