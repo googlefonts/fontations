@@ -55,7 +55,8 @@ impl BitmapSize {
                     let data_size = st.image_size() as usize;
                     location.data_size = data_size;
                     location.data_offset = st.image_data_offset() as usize + glyph_ix * data_size;
-                    location.metrics = Some(st.big_metrics()[0]);
+                    location.metrics =
+                        Some(*st.big_metrics().first().ok_or(ReadError::OutOfBounds)?);
                 }
                 IndexSubtable::Format3(st) => {
                     location.format = st.image_format();
@@ -107,7 +108,8 @@ impl BitmapSize {
                     let data_size = st.image_size() as usize;
                     location.data_size = data_size;
                     location.data_offset = st.image_data_offset() as usize + array_ix * data_size;
-                    location.metrics = Some(st.big_metrics()[0]);
+                    location.metrics =
+                        Some(*st.big_metrics().first().ok_or(ReadError::OutOfBounds)?);
                 }
             }
             return Ok(location);
@@ -465,5 +467,62 @@ impl<'a> SomeTable<'a> for IndexSubtable<'a> {
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         self.dyn_inner().get_field(idx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{types::GlyphId16, FontData};
+    use font_test_data::bebuffer::BeBuffer;
+
+    fn bitmap_size_location(data: &[u8], glyph_id: GlyphId) -> Result<BitmapLocation, ReadError> {
+        let data = FontData::new(data);
+        let size = data.read_ref_at::<BitmapSize>(0).unwrap();
+        size.location(data, glyph_id)
+    }
+
+    fn bitmap_size_with_subtable(subtable: &[u8]) -> BeBuffer {
+        BeBuffer::new()
+            .push(BitmapSize::RAW_BYTE_LEN as u32)
+            .push((IndexSubtableRecord::RAW_BYTE_LEN + subtable.len()) as u32)
+            .push(1u32)
+            .push(0u32)
+            .extend([0u8; SbitLineMetrics::RAW_BYTE_LEN])
+            .extend([0u8; SbitLineMetrics::RAW_BYTE_LEN])
+            .push(GlyphId16::new(0))
+            .push(GlyphId16::new(0))
+            .push(0u8)
+            .push(0u8)
+            .push(1u8)
+            .push(0u8)
+            .push(GlyphId16::new(0))
+            .push(GlyphId16::new(0))
+            .push(IndexSubtableRecord::RAW_BYTE_LEN as u32)
+            .extend(subtable.iter().copied())
+    }
+
+    #[test]
+    fn format_2_truncated_metrics_returns_error_instead_of_panicking() {
+        let data =
+            bitmap_size_with_subtable(&BeBuffer::new().push(2u16).push(5u16).push(0u32).push(1u32));
+        // Just don't panic!
+        let result = bitmap_size_location(data.data(), GlyphId::new(0));
+        assert!(matches!(result, Err(ReadError::OutOfBounds)));
+    }
+
+    #[test]
+    fn format_5_truncated_metrics_returns_error_instead_of_panicking() {
+        let data = bitmap_size_with_subtable(
+            &BeBuffer::new()
+                .push(5u16)
+                .push(5u16)
+                .push(0u32)
+                .push(1u32)
+                .push(0u32),
+        );
+        // Just don't panic!
+        let result = bitmap_size_location(data.data(), GlyphId::new(0));
+        assert!(result.is_err());
     }
 }
