@@ -26,10 +26,13 @@ pub(crate) fn coverage_glyphs(graph: &Graph, cov_idx: ObjIdx) -> Result<Vec<Glyp
 // Make a coverage table at the specified coverage vertex
 pub(crate) fn make_coverage(
     graph: &mut Graph,
+    parent_idx: ObjIdx,
     coverage_idx: ObjIdx,
+    coverage_pos: u32,
     cov_glyphs: &[GlyphId],
     glyph_range: Range<usize>,
 ) -> Result<(), RepackError> {
+    let coverage_idx = graph.unshared_child(parent_idx, coverage_idx, coverage_pos)?;
     let glyphs = cov_glyphs
         .get(glyph_range)
         .ok_or(RepackError::ErrorSplitSubtable)?;

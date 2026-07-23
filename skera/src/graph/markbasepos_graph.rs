@@ -362,7 +362,9 @@ fn shrink(
 
     make_coverage(
         graph,
+        table_info.table_idx,
         table_info.mark_coverage_idx,
+        MarkBasePosFormat1::MARK_COVERAGE_OFFSET_POS,
         &retained_mark_glyphs,
         0..retained_mark_glyphs.len(),
     )?;

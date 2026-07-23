@@ -20,7 +20,7 @@ pub(crate) fn split_ligature_subst(
     table_idx: ObjIdx,
 ) -> Result<Vec<ObjIdx>, RepackError> {
     let Some(coverage_idx) =
-        graph.index_for_position(table_idx, LigatureSubstFormat1::COVERAGE_OFFSET_POS as u32)
+        graph.index_for_position(table_idx, LigatureSubstFormat1::COVERAGE_OFFSET_POS)
     else {
         return Ok(Vec::new());
     };
@@ -281,7 +281,9 @@ fn clone_range(
 
     make_coverage(
         graph,
+        new_lig_subst_idx,
         new_coverage_idx,
+        LigatureSubstFormat1::COVERAGE_OFFSET_POS,
         cov_glyphs,
         start_lig_set_idx as usize..end_glyph as usize,
     )?;
@@ -354,7 +356,14 @@ fn shrink(
         + Offset16::RAW_BYTE_LEN * num_remaining_liga_set;
 
     let coverage_idx = fix_coverage_links(graph, table_idx, coverage_idx)?;
-    make_coverage(graph, coverage_idx, cov_glyphs, 0..num_remaining_liga_set)
+    make_coverage(
+        graph,
+        table_idx,
+        coverage_idx,
+        LigatureSubstFormat1::COVERAGE_OFFSET_POS,
+        cov_glyphs,
+        0..num_remaining_liga_set,
+    )
 }
 
 // if coverage is not shared, return original coverage idx
@@ -384,7 +393,7 @@ fn fix_coverage_links(
     let new_coverage_idx = graph.remap_child(
         table_idx,
         coverage_idx,
-        LigatureSubstFormat1::COVERAGE_OFFSET_POS as u32,
+        LigatureSubstFormat1::COVERAGE_OFFSET_POS,
     )?;
     fix_virtual_links(graph, &lig_idxes, coverage_idx, new_coverage_idx)?;
     Ok(new_coverage_idx)
@@ -514,7 +523,7 @@ struct LigatureSubstFormat1<'a>(DataBytes<'a>);
 impl<'a> LigatureSubstFormat1<'a> {
     const MIN_SIZE: usize = 6;
     const FORMAT_BYTE_POS: usize = 0;
-    const COVERAGE_OFFSET_POS: usize = 2;
+    const COVERAGE_OFFSET_POS: u32 = 2;
     const LIG_SET_COUNT_POS: usize = 4;
 
     pub(crate) fn from_graph(graph: &'a mut Graph, obj_idx: ObjIdx) -> Result<Self, RepackError> {

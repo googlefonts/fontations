@@ -1524,6 +1524,33 @@ impl Graph {
             .remap_child(pos, new_child)?;
         Ok(new_child)
     }
+
+    /// Ensures the child vertex is unique for the given parent at specified position.
+    ///
+    /// If the child is not shared, returns the original child index.
+    /// If the child is shared, creates a newly duplicated vertex, remaps the
+    /// parent's edge to it, and returns the new index.
+    ///
+    /// Note:
+    /// Must be called with a "real" child index, as sharing logic
+    /// is restricted to real parent nodes.
+    /// User's reponsible child index and pos
+    fn unshared_child(
+        &mut self,
+        parent: ObjIdx,
+        child: ObjIdx,
+        pos: u32,
+    ) -> Result<ObjIdx, RepackError> {
+        if !self
+            .vertex(child)
+            .ok_or(RepackError::GraphErrorInvalidVertex)?
+            .is_shared()
+        {
+            return Ok(child);
+        }
+
+        self.remap_child(parent, child, pos)
+    }
 }
 
 fn serialize_link(

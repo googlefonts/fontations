@@ -79,15 +79,15 @@ fn clone_range_format1(
     let new_table_size = PairPosFormat1::MIN_SIZE + new_pair_set_count * Offset16::RAW_BYTE_LEN;
     let new_table_idx = graph.new_vertex(new_table_size)?;
 
-    let new_coverage_idx = graph.new_vertex(0)?;
-    make_coverage(graph, new_coverage_idx, coverage_glyphs, start..end)?;
-
-    graph.add_parent_child_link(
+    let new_cov_glyphs = coverage_glyphs
+        .get(start..end)
+        .ok_or(RepackError::ErrorSplitSubtable)?;
+    add_new_coverage(
+        graph,
+        new_cov_glyphs,
         new_table_idx,
-        new_coverage_idx,
         LinkWidth::Two,
         PairPosFormat1::COVERAGE_OFFSET_POS,
-        false,
     )?;
 
     // Copy value formats from original table
@@ -186,7 +186,14 @@ fn shrink_format1(
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
     table_v.tail = table_v.head + PairPosFormat1::MIN_SIZE + shrink_point * Offset16::RAW_BYTE_LEN;
 
-    make_coverage(graph, coverage_idx, coverage_glyphs, 0..shrink_point)
+    make_coverage(
+        graph,
+        table_idx,
+        coverage_idx,
+        PairPosFormat1::COVERAGE_OFFSET_POS,
+        coverage_glyphs,
+        0..shrink_point,
+    )
 }
 
 struct Format2TableInfo {
@@ -442,7 +449,9 @@ fn shrink_format2(
 
     make_coverage(
         graph,
+        table_info.table_idx,
         table_info.coverage_idx,
+        PairPosFormat2::COVERAGE_OFFSET_POS,
         &new_cov_glyphs,
         0..new_cov_glyphs.len(),
     )?;
