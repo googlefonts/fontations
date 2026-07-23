@@ -776,6 +776,7 @@ mod tests {
     use super::*;
     use crate::{instance::Location, outline::pen::SvgPen, MetadataProvider};
     use kurbo::{Affine, BezPath, PathEl, Point};
+    use raw::model::pen::NullPen;
     use read_fonts::{types::GlyphId, FontRef, TableProvider};
 
     use pretty_assertions::assert_eq;
@@ -1618,6 +1619,51 @@ mod tests {
                 (hinted - unhinted).abs() <= 0.5,
                 "advance widths should be close, got hinted={hinted}, unhinted={unhinted} for gid {gid}"
             );
+        }
+    }
+
+    #[test]
+    fn autohint_completes_with_long_blues() {
+        // This tiny font caused an infinite loop in the long blues code path
+        // in the autohinter.
+        static FONT_DATA: [u8; 352] = [
+            0, 1, 0, 0, 0, 7, 0, 64, 0, 2, 0, 48, 99, 109, 97, 112, 0, 12, 6, 4, 0, 0, 0, 124, 0,
+            0, 0, 44, 103, 108, 121, 102, 51, 203, 248, 103, 0, 0, 0, 168, 0, 0, 0, 40, 104, 101,
+            97, 100, 95, 16, 64, 222, 0, 0, 0, 208, 0, 0, 0, 54, 104, 104, 101, 97, 0, 1, 0, 1, 0,
+            0, 1, 8, 0, 0, 0, 36, 104, 109, 116, 120, 0, 0, 0, 0, 0, 0, 1, 44, 0, 0, 0, 6, 108,
+            111, 99, 97, 0, 0, 0, 40, 0, 0, 1, 52, 0, 0, 0, 12, 109, 97, 120, 112, 0, 4, 0, 5, 0,
+            0, 1, 64, 0, 0, 0, 32, 0, 0, 0, 1, 0, 3, 0, 1, 0, 0, 0, 12, 0, 4, 0, 32, 0, 0, 0, 4, 0,
+            4, 0, 1, 0, 0, 5, 209, 255, 255, 0, 0, 5, 209, 255, 255, 250, 48, 0, 1, 0, 0, 0, 0, 0,
+            1, 0, 0, 254, 212, 0, 100, 1, 244, 0, 4, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 100, 0, 0,
+            255, 206, 0, 0, 254, 212, 0, 0, 1, 44, 1, 244, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            95, 15, 60, 245, 0, 0, 3, 232, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 40, 0, 1, 0, 0, 0, 2, 0, 5, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        let font = FontRef::new(&FONT_DATA).unwrap();
+        let outlines = font.outline_glyphs();
+        let hinter = HintingInstance::new(
+            &outlines,
+            Size::new(16.0),
+            LocationRef::default(),
+            Engine::Auto(None),
+        )
+        .unwrap();
+        let gid = font.charmap().map('\u{05D1}').unwrap();
+        let outline = outlines.get(gid).unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            outline.draw(&hinter, &mut NullPen).unwrap();
+            let _ = tx.send(());
+        });
+        let budget = std::time::Duration::from_secs(5);
+        match rx.recv_timeout(budget) {
+            Ok(_) => {}
+            Err(_) => {
+                panic!("Autohinting did not complete within {budget:?}");
+            }
         }
     }
 }
