@@ -456,7 +456,13 @@ fn shrink_format2(
         0..new_cov_glyphs.len(),
     )?;
 
-    make_class_def(graph, table_info.class_def1_idx, &gid_and_new_classes)
+    make_class_def(
+        graph,
+        table_info.table_idx,
+        table_info.class_def1_idx,
+        PairPosFormat2::CLASS_DEF1_OFFSET_POS,
+        &gid_and_new_classes,
+    )
 }
 
 struct ClassDefSizeEstimator {
@@ -847,12 +853,15 @@ impl<'a> PairPosFormat2<'a> {
     }
 }
 
-// Make a ClassDef table at the specified classdef vertex
+// Make a ClassDef table at the specified position
 fn make_class_def(
     graph: &mut Graph,
+    parent_idx: ObjIdx,
     dest_idx: ObjIdx,
+    pos: u32,
     glyph_classes: &[(u16, u16)],
 ) -> Result<(), RepackError> {
+    let dest_idx = graph.unshared_child(parent_idx, dest_idx, pos)?;
     let mut s = Serializer::new(glyph_classes.len() * 6 + 4);
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
@@ -871,7 +880,15 @@ fn add_new_class_def(
     position: u32,
 ) -> Result<ObjIdx, RepackError> {
     let new_class_def_idx = graph.new_vertex(0)?;
-    make_class_def(graph, new_class_def_idx, glyph_classes)?;
+    let mut s = Serializer::new(glyph_classes.len() * 6 + 4);
+    s.start_serialize()
+        .map_err(|_| RepackError::ErrorRepackSerialize)?;
+
+    ClassDef::serialize(&mut s, glyph_classes).map_err(|_| RepackError::ErrorRepackSerialize)?;
+    s.end_serialize();
+
+    let classdef_data = s.copy_bytes();
+    graph.update_vertex_data(new_class_def_idx, &classdef_data)?;
 
     graph.add_parent_child_link(
         parent_idx,
