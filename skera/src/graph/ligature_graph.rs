@@ -31,7 +31,6 @@ pub(crate) fn split_ligature_subst(
         return Ok(Vec::new());
     }
 
-    duplicate_shared_liga_sets(graph, table_idx)?;
     let cov_glyphs = coverage_glyphs(graph, coverage_idx)?;
     let mut out: Vec<usize> = Vec::with_capacity(split_points.len() + 1);
     for i in 0..split_points.len() {
@@ -59,25 +58,6 @@ pub(crate) fn split_ligature_subst(
 
     shrink(graph, table_idx, coverage_idx, &cov_glyphs, split_points[0])?;
     Ok(out)
-}
-
-fn duplicate_shared_liga_sets(graph: &mut Graph, table_idx: ObjIdx) -> Result<(), RepackError> {
-    let table_v = graph
-        .vertex(table_idx)
-        .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-    let mut visited = IntSet::empty();
-    let mut duplicates = Vec::new();
-    for (pos, l) in table_v.real_links() {
-        let obj_idx = l.obj_idx();
-        if !visited.insert(obj_idx as u32) {
-            duplicates.push((*pos, obj_idx));
-        }
-    }
-
-    for (pos, obj_idx) in duplicates {
-        graph.duplicate_child_at_position(table_idx, obj_idx, pos)?;
-    }
-    Ok(())
 }
 
 // ref:<https://github.com/harfbuzz/harfbuzz/blob/e1f2565db09823794e3d8ed404c47dae0f0cd3c9/src/graph/ligature-graph.hh#L124>
@@ -188,6 +168,17 @@ fn clone_range(
                 };
 
                 let new_ligset_table_idx = create_new_ligature_set(graph, num_moved_liga as u16)?;
+                // duplicate shared liga_set before mutation
+                let ligset_graph_index = if graph
+                    .vertex(ligset_graph_index)
+                    .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+                    .incoming_edges()
+                    > 1
+                {
+                    graph.remap_child(this_index, ligset_graph_index, ligset_pos)?
+                } else {
+                    ligset_graph_index
+                };
                 graph.move_children(
                     ligset_graph_index,
                     LigatureSet::MIN_SIZE as u32 + start_lig_idx * Offset16::RAW_BYTE_LEN as u32,
@@ -208,6 +199,7 @@ fn clone_range(
                 new_ligset_table_idx
             } else {
                 // move the entire ligature set to the new ligature table
+                // no need to duplicate shared liga_set here since its data is not changed, only links are changed
                 let lig_set_idx = graph
                     .move_child(
                         this_index,
@@ -227,6 +219,17 @@ fn clone_range(
             // This liga set partially overlaps [start, end)
             let num_liga = end_lig_idx;
             let new_ligset_table_idx = create_new_ligature_set(graph, num_liga as u16)?;
+            // duplicate shared liga_set before mutation
+            let ligset_graph_index = if graph
+                .vertex(ligset_graph_index)
+                .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+                .incoming_edges()
+                > 1
+            {
+                graph.remap_child(this_index, ligset_graph_index, ligset_pos)?
+            } else {
+                ligset_graph_index
+            };
             graph.move_children(
                 ligset_graph_index,
                 LigatureSet::MIN_SIZE as u32,
