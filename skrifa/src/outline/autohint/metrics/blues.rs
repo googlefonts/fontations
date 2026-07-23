@@ -375,6 +375,9 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
                             if (best_y - best_contour[first].y as i32).abs() > height_threshold {
                                 // vertical distance too large
                                 hit = false;
+                                if last == segment_first {
+                                    break;
+                                }
                                 continue;
                             }
                             let dist =
