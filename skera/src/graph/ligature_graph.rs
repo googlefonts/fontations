@@ -367,9 +367,6 @@ fn fix_coverage_links(
     coverage_idx: ObjIdx,
 ) -> Result<ObjIdx, RepackError> {
     // check if coverage table is shared
-    let mut lig_idxes = IntSet::empty();
-    find_all_child_idxes(graph, table_idx, 2, &mut lig_idxes)?;
-
     let coverage_is_shared = graph
         .vertex(coverage_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?
@@ -379,18 +376,17 @@ fn fix_coverage_links(
         return Ok(coverage_idx);
     }
 
-    let new_coverage_idx = graph.new_vertex(0)?;
+    let mut lig_idxes = IntSet::empty();
+    find_all_child_idxes(graph, table_idx, 2, &mut lig_idxes)?;
     lig_idxes.remove(table_idx as u32);
     lig_idxes.remove(coverage_idx as u32);
 
-    fix_virtual_links(graph, &lig_idxes, coverage_idx, new_coverage_idx)?;
-    graph.remap_child(
+    let new_coverage_idx = graph.remap_child(
         table_idx,
         coverage_idx,
-        new_coverage_idx,
         LigatureSubstFormat1::COVERAGE_OFFSET_POS as u32,
-        false,
     )?;
+    fix_virtual_links(graph, &lig_idxes, coverage_idx, new_coverage_idx)?;
     Ok(new_coverage_idx)
 }
 

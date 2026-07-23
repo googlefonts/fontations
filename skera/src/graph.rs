@@ -258,10 +258,16 @@ impl Vertex {
         out
     }
 
-    pub(crate) fn remap_child(&mut self, pos: u32, new_child_idx: ObjIdx) {
-        self.real_links
-            .entry(pos)
-            .and_modify(|l| l.update_obj_idx(new_child_idx));
+    pub(crate) fn remap_child(
+        &mut self,
+        pos: u32,
+        new_child_idx: ObjIdx,
+    ) -> Result<(), RepackError> {
+        let Some(l) = self.real_links.get_mut(&pos) else {
+            return Err(RepackError::GraphErrorInvalidLinkPosition);
+        };
+        l.update_obj_idx(new_child_idx);
+        Ok(())
     }
 
     fn real_links(&self) -> &BTreeMap<u32, Link> {
@@ -1497,25 +1503,26 @@ impl Graph {
         Ok(())
     }
 
+    // Creates a new child vertex and remap the old child to it.
+    // This fn can only be used to remap real child
+    // Return the index of newly created vertex
     fn remap_child(
         &mut self,
         parent: ObjIdx,
         old_child: ObjIdx,
-        new_child: ObjIdx,
         pos: u32,
-        is_virtual: bool,
-    ) -> Result<(), RepackError> {
+    ) -> Result<ObjIdx, RepackError> {
+        let new_child = self.duplicate_vertex(old_child, true)?;
         self.mut_vertex(old_child)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
             .remove_parent(parent, false);
         self.mut_vertex(new_child)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .add_parent(parent, is_virtual);
-
+            .add_parent(parent, false);
         self.mut_vertex(parent)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .remap_child(pos, new_child);
-        Ok(())
+            .remap_child(pos, new_child)?;
+        Ok(new_child)
     }
 }
 
