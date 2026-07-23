@@ -24,6 +24,9 @@ use crate::Phase;
 #[derive(Debug)]
 pub(crate) struct Items {
     pub(crate) parse_module_path: syn::Path,
+    /// Whether the `#![sanitize]` module attribute is present,
+    /// opting this module into `Sanitize` trait codegen.
+    pub(crate) sanitize: bool,
     // we use an IndexMap so that we generate code in the same order as items
     // are declared in the input file.
     items: IndexMap<syn::Ident, Item>,
@@ -171,7 +174,7 @@ mod kw {
 impl Parse for Items {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
         let mut items = IndexMap::new();
-        let parse_module_path = get_parse_module_path(input)?;
+        let (parse_module_path, sanitize) = get_module_attrs(input)?;
         while !input.is_empty() {
             let item = input.parse::<Item>()?;
             items.insert(item.name().clone(), item);
@@ -179,24 +182,39 @@ impl Parse for Items {
         Ok(Self {
             items,
             parse_module_path,
+            sanitize,
         })
     }
 }
 
-fn get_parse_module_path(input: ParseStream) -> syn::Result<syn::Path> {
+/// Parse module-level inner attributes.
+///
+/// Required: `#![parse_module(read_fonts::tables::foo)]`
+/// Optional: `#![sanitize]` — opts this module into `Sanitize` trait codegen.
+fn get_module_attrs(input: ParseStream) -> syn::Result<(syn::Path, bool)> {
     let attrs = input.call(Attribute::parse_inner)?;
-    match attrs.as_slice() {
-        [one] if one.path().is_ident("parse_module") => one.parse_args(),
-        [one] => Err(logged_syn_error(one.span(), "unexpected attribute")),
-        [_, two, ..] => Err(logged_syn_error(
-            two.span(),
-            "expected at most one top-level attribute",
-        )),
-        [] => Err(logged_syn_error(
-            Span::call_site(),
-            "expected #![parse_module(..)] attribute",
-        )),
+
+    let mut parse_module_path = None;
+    let mut sanitize = false;
+
+    for attr in &attrs {
+        if attr.path().is_ident("parse_module") {
+            parse_module_path = Some(attr.parse_args()?);
+        } else if attr.path().is_ident("sanitize") {
+            sanitize = true;
+        } else {
+            return Err(logged_syn_error(
+                attr.span(),
+                "unexpected attribute; expected `parse_module` or `sanitize`",
+            ));
+        }
     }
+
+    let parse_module_path = parse_module_path.ok_or_else(|| {
+        logged_syn_error(Span::call_site(), "expected #![parse_module(..)] attribute")
+    })?;
+
+    Ok((parse_module_path, sanitize))
 }
 
 impl Parse for Item {

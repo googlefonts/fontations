@@ -5,6 +5,7 @@
 // to only rebuild the test outputs.
 
 #![parse_module(read_fonts::codegen_test::offsets_arrays)]
+#![sanitize]
 
 #[skip_constructor]
 table KindsOfOffsets {
@@ -96,6 +97,7 @@ table VarLenHaver {
     count: u16,
     #[count($count)]
     #[traverse_with(skip)]
+    #[sanitize_len_only]
     var_len: VarLenArray<VarSizeDummy<'_>>,
     other_field: u32,
 }

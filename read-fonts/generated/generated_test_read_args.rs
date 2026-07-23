@@ -45,6 +45,17 @@ impl<'a> BaseArray<'a> {
     }
 }
 
+impl Sanitize for BaseArray<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, args: u16) -> Result<(), ReadError> {
+        let mark_class_count = args;
+        let base_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<BaseRecord>(base_count as _, mark_class_count, false)?;
+        let face_count = ctx.read::<u16>()?;
+        ctx.sanitize_computed_array::<FaceRecord>(face_count as _, mark_class_count, true)?;
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct BaseArray<'a> {
     data: FontData<'a>,
@@ -109,10 +120,10 @@ impl<'a> BaseArray<'a> {
     }
 
     pub fn face_records_byte_range(&self) -> Range<usize> {
-        let base_count = self.base_count();
+        let face_count = self.face_count();
         let start = self.face_count_byte_range().end;
         let end = start
-            + (transforms::to_usize(base_count)).saturating_mul(
+            + (transforms::to_usize(face_count)).saturating_mul(
                 <FaceRecord as ComputeSize>::compute_size(self.mark_class_count()).unwrap_or(0),
             );
         start..end
@@ -220,6 +231,15 @@ impl<'a> BaseRecord<'a> {
     }
 }
 
+impl SanitizeStruct for BaseRecord<'_> {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: u16) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for BaseRecord<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -291,6 +311,14 @@ impl<'a> FaceRecord<'a> {
     }
 }
 
+impl SanitizeStruct for FaceRecord<'_> {
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, args: u16) -> Result<(), ReadError> {
+        let _mark_class_count = args;
+        self.face_offsets().sanitize_offset::<Face>(ctx, ())?;
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for FaceRecord<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -329,6 +357,13 @@ impl<'a> FontRead<'a> for Face<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for Face<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.finish()
     }
 }
 
