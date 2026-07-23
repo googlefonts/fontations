@@ -18,7 +18,7 @@ pub(crate) fn split_markbase_pos(
     graph: &mut Graph,
     table_idx: ObjIdx,
 ) -> Result<Vec<ObjIdx>, RepackError> {
-    let Some(table_info) = get_table_info(graph, table_idx) else {
+    let Some(mut table_info) = get_table_info(graph, table_idx) else {
         return Ok(Vec::new());
     };
 
@@ -26,6 +26,19 @@ pub(crate) fn split_markbase_pos(
     if split_points.is_empty() {
         return Ok(Vec::new());
     }
+
+    // we need to duplicate shared subtables before mutating them
+    // MarkArray/BaseArray
+    table_info.mark_array_idx = graph.unshared_child(
+        table_idx,
+        table_info.mark_array_idx,
+        MarkBasePosFormat1::MARK_ARRAY_OFFSET_POS,
+    )?;
+    table_info.base_array_idx = graph.unshared_child(
+        table_idx,
+        table_info.base_array_idx,
+        MarkBasePosFormat1::BASE_ARRAY_OFFSET_POS,
+    )?;
 
     let mark_cov_glyphs = coverage_glyphs(graph, table_info.mark_coverage_idx)?;
     let num_split_points = split_points.len();
