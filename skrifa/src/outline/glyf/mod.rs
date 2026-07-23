@@ -11,12 +11,11 @@ use core_maths::CoreFloat;
 
 pub use hint::{HintError, HintInstance, HintOutline};
 pub use outline::{Outline, ScaledOutline};
-use raw::{FontRef, ReadError};
 
 use super::{DrawError, GlyphHMetrics, Hinting};
-use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
+use crate::{GLYF_COMPOSITE_RECURSION_LIMIT, MAX_GLYF_POINTS, MAX_GRAPH_EDGES};
 use memory::{FreeTypeOutlineMemory, HarfBuzzOutlineMemory};
-
+use raw::{FontRef, ReadError};
 use read_fonts::{
     tables::{
         glyf::{
@@ -157,7 +156,7 @@ impl<'a> Outlines<'a> {
         };
         let glyph = self.loca.get_glyf(glyph_id, &self.glyf)?;
         if let Some(glyph) = glyph.as_ref() {
-            self.outline_rec(glyph, &mut outline, 0, 0)?;
+            self.outline_rec(glyph, &mut outline, 0, 0, &mut 0)?;
         }
         outline.points += PHANTOM_POINT_COUNT;
         outline.max_stack = self.max_stack_elements as usize;
@@ -193,6 +192,7 @@ impl Outlines<'_> {
         outline: &mut Outline,
         component_depth: usize,
         recurse_depth: usize,
+        total_components: &mut usize,
     ) -> Result<(), DrawError> {
         if recurse_depth > GLYF_COMPOSITE_RECURSION_LIMIT {
             return Err(DrawError::RecursionLimitExceeded(outline.glyph_id));
@@ -203,6 +203,9 @@ impl Outlines<'_> {
                 let num_points_with_phantom = num_points + PHANTOM_POINT_COUNT;
                 outline.max_simple_points = outline.max_simple_points.max(num_points_with_phantom);
                 outline.points += num_points;
+                if outline.points > MAX_GLYF_POINTS {
+                    return Err(DrawError::TooManyPoints(outline.glyph_id));
+                }
                 outline.contours += simple.end_pts_of_contours().len();
                 outline.has_hinting = outline.has_hinting || simple.instruction_length() != 0;
                 outline.max_other_points = outline.max_other_points.max(num_points_with_phantom);
@@ -218,11 +221,16 @@ impl Outlines<'_> {
                     let Some(component_glyph) = component_glyph else {
                         continue;
                     };
+                    *total_components += 1;
+                    if *total_components > MAX_GRAPH_EDGES {
+                        return Err(DrawError::RecursionLimitExceeded(outline.glyph_id));
+                    }
                     self.outline_rec(
                         &component_glyph,
                         outline,
                         component_depth + count,
                         recurse_depth + 1,
+                        total_components,
                     )?;
                 }
                 let has_hinting = !instructions.unwrap_or_default().is_empty();
@@ -1398,7 +1406,56 @@ mod tests {
         assert_eq!(outline.points, PHANTOM_POINT_COUNT);
     }
 
-    // fuzzer overflow for composite glyph with too many total points
+    // fuzzer overflow for composite glyph with too many components.
+    // <https://issues.oss-fuzz.com/issues/391753684
+    #[test]
+    fn composite_component_limit() {
+        use font_test_data::bebuffer::BeBuffer;
+        let font = FontRef::new(font_test_data::GLYF_COMPONENTS).unwrap();
+        fn build_with_n_comps(n_comps: usize) -> [BeBuffer; 2] {
+            let mut glyf_buf = BeBuffer::new();
+            glyf_buf = glyf_buf.push(0i16); // number of contours
+            glyf_buf = glyf_buf.extend([0i16; 4]); // bbox
+            glyf_buf = glyf_buf.push(0u16); // instruction count
+            let glyph0_end = glyf_buf.len();
+            // Now make a composite with one more component than the limit.
+            glyf_buf = glyf_buf.push(-1i16); // negative signifies composite
+            glyf_buf = glyf_buf.extend([0i16; 4]); // bbox
+            for i in 0..n_comps {
+                let flags = if i == n_comps - 1 {
+                    CompositeGlyphFlags::ARGS_ARE_XY_VALUES
+                } else {
+                    CompositeGlyphFlags::MORE_COMPONENTS | CompositeGlyphFlags::ARGS_ARE_XY_VALUES
+                };
+                glyf_buf = glyf_buf.push(flags); // component flag
+                glyf_buf = glyf_buf.push(0u16); // component gid
+                glyf_buf = glyf_buf.extend([0u8; 2]); // x/y offset
+            }
+            let glyph1_end = glyf_buf.len();
+            let mut loca_buf = font_test_data::bebuffer::BeBuffer::new();
+            loca_buf = loca_buf.extend([0u32, glyph0_end as u32, glyph1_end as u32]);
+            [glyf_buf, loca_buf]
+        }
+        let gid = GlyphId::new(1);
+        // Build a glyph made of more than the allowed number of components,
+        // each of which is a valid empty simple glyph.
+        let [glyf_buf, loca_buf] = build_with_n_comps(MAX_GRAPH_EDGES + 1);
+        let mut outlines = Outlines::new(&font).unwrap();
+        outlines.glyf = Glyf::read(glyf_buf.data().into()).unwrap();
+        outlines.loca = Loca::read(loca_buf.data().into(), true).unwrap();
+        let result = outlines.outline(gid);
+        assert!(matches!(result, Err(DrawError::RecursionLimitExceeded(_))));
+        // Check the edge condition; make sure we can load a composite with exactly the
+        // limit number of components.
+        let [glyf_buf, loca_buf] = build_with_n_comps(MAX_GRAPH_EDGES);
+        let mut outlines = Outlines::new(&font).unwrap();
+        outlines.glyf = Glyf::read(glyf_buf.data().into()).unwrap();
+        outlines.loca = Loca::read(loca_buf.data().into(), true).unwrap();
+        let result = outlines.outline(gid);
+        assert!(result.is_ok());
+    }
+
+    // fuzzer overflow for composite glyph with too many total points.
     // <https://issues.oss-fuzz.com/issues/391753684
     #[test]
     fn composite_with_too_many_points() {
@@ -1443,12 +1500,7 @@ mod tests {
         loca_buf = loca_buf.extend([0u32, glyph0_end as u32, glyph1_end as u32]);
         outlines.loca = Loca::read(loca_buf.data().into(), true).unwrap();
         let gid = GlyphId::new(1);
-        let outline = outlines.outline(gid).unwrap();
-        let mut mem_buf = vec![0u8; outline.required_buffer_size(Default::default())];
-        // This outline has more than 64k points...
-        assert!(outline.points > u16::MAX as usize);
-        let result = FreeTypeScaler::unhinted(&outlines, &outline, &mut mem_buf, None, &[]);
-        // And we get an error instead of an overflow panic
+        let result = outlines.outline(gid);
         assert!(matches!(result, Err(DrawError::TooManyPoints(_))));
     }
 
