@@ -1229,36 +1229,6 @@ impl Graph {
         Ok(Some(clone_idx))
     }
 
-    // Creates a copy of child and re-assigns the link at specified position from parent to the clone.
-    // The copy is a shallow copy, objects linked from child are not duplicated.
-    // Returns the index of the newly created duplicate.
-    fn duplicate_child_at_position(
-        &mut self,
-        parent_idx: ObjIdx,
-        child_idx: ObjIdx,
-        pos: u32,
-    ) -> Result<Option<ObjIdx>, RepackError> {
-        let clone_idx = self.duplicate_vertex(child_idx, true)?;
-        self.mut_vertex(child_idx)
-            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .remove_parent(parent_idx, false);
-
-        self.mut_vertex(clone_idx)
-            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .add_parent(parent_idx, false);
-
-        let Some(l) = self
-            .mut_vertex(parent_idx)
-            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .real_links
-            .get_mut(&pos)
-        else {
-            return Ok(None);
-        };
-        l.update_obj_idx(clone_idx);
-        Ok(Some(clone_idx))
-    }
-
     fn resolve_shared_overflow(
         &mut self,
         overflow: &Overflow,
@@ -1913,7 +1883,7 @@ pub(crate) mod test {
         let mut c = Serializer::new(buf_size);
         populate_serializer_complex_3(&mut c);
         let mut graph = Graph::from_serializer(&c).unwrap();
-        graph.duplicate_child_at_position(3, 2, 3).unwrap();
+        graph.remap_child(3, 2, 3).unwrap();
 
         let data_bytes = &graph.data;
         let obj_6 = &graph.vertices[6];
