@@ -17,13 +17,6 @@ fn mode_name(mode: GlyphNameOrder) -> &'static str {
     }
 }
 
-fn build_post_for_mode(mode: GlyphNameOrder) -> Post<'static> {
-    let post_data =
-        font_test_data::post::v2_with_varied_glyph_names(NUM_GLYPHS, BASE_NAME_LEN, mode).0;
-    let leaked: &'static [u8] = Box::leak(post_data.into_boxed_slice());
-    Post::read(leaked.into()).unwrap()
-}
-
 /// Iterate glyph names by looping over indices and calling `Post::glyph_name`.
 pub fn glyph_names_iter_naive(c: &mut Criterion) {
     let modes = [
@@ -32,7 +25,9 @@ pub fn glyph_names_iter_naive(c: &mut Criterion) {
         GlyphNameOrder::AllPointToLast,
     ];
     for mode in modes {
-        let post = build_post_for_mode(mode);
+        let post_data =
+            font_test_data::post::v2_with_varied_glyph_names(NUM_GLYPHS, BASE_NAME_LEN, mode).0;
+        let post = Post::read(post_data.as_slice().into()).unwrap();
         let bench_name = format!("glyph_names_iter_naive_synth_post_v2/{}", mode_name(mode));
         c.bench_function(&bench_name, |b| {
             b.iter(|| {
@@ -54,7 +49,9 @@ pub fn glyph_names_iter(c: &mut Criterion) {
         GlyphNameOrder::AllPointToLast,
     ];
     for mode in modes {
-        let post = build_post_for_mode(mode);
+        let post_data =
+            font_test_data::post::v2_with_varied_glyph_names(NUM_GLYPHS, BASE_NAME_LEN, mode).0;
+        let post = Post::read(post_data.as_slice().into()).unwrap();
         let bench_name = format!("glyph_names_iter_cached_synth_post_v2/{}", mode_name(mode));
         c.bench_function(&bench_name, |b| {
             b.iter(|| {

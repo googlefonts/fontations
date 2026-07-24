@@ -185,7 +185,6 @@ impl<'a> Iterator for GlyphNames<'a> {
                         while slot > 0 && checkpoints[slot - 1] == UNSET_CHECKPOINT {
                             slot -= 1;
                         }
-
                         if slot == 0 {
                             // Fallback to implicit checkpoint 0
                             (0, 0)
