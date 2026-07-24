@@ -1509,7 +1509,7 @@ impl Graph {
     /// Note:
     /// Must be called with a "real" child index, as sharing logic
     /// is restricted to real parent nodes.
-    /// User's reponsible child index and pos
+    /// User's responsible to make sure child index at specified position is correct
     fn unshared_child(
         &mut self,
         parent: ObjIdx,
