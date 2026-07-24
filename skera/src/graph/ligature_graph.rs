@@ -481,7 +481,7 @@ fn find_all_child_idxes(
 
 // To make sure coverage table always packed at last(after LigatureSet and Ligature tables),
 // add virtual links from the new liga set and all children to the new coverage table
-// clear all existing virtual links first
+// clear all existing virtual links to the old coverage table
 fn fix_virtual_links(
     graph: &mut Graph,
     lig_idxes: &IntSet<u32>,
@@ -494,29 +494,24 @@ fn fix_virtual_links(
             .mut_vertex(idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
-        // sanity check, all virtual links in lig/liga_set idxes should be the same coverage idx
-        if !v
-            .virtual_links
-            .iter()
-            .all(|l| l.obj_idx() == old_coverage_idx)
-        {
-            return Err(RepackError::ErrorSplitSubtable);
+        let mut num_links_to_old_cov = 0_usize;
+        // lig/liga_set might be shared, only update links to the old coverage table idx
+        for l in v.virtual_links.iter_mut() {
+            if l.obj_idx() == old_coverage_idx {
+                l.update_obj_idx(coverage_idx);
+                num_links_to_old_cov += 1;
+            }
         }
-        v.virtual_links.clear();
-        v.add_link(LinkWidth::default(), coverage_idx, 0, true);
+
+        graph
+            .mut_vertex(old_coverage_idx)
+            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+            .remove_parent(idx, num_links_to_old_cov, false);
 
         graph
             .mut_vertex(coverage_idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .add_parent(idx, true);
-    }
-
-    let old_coverage_v = graph
-        .mut_vertex(old_coverage_idx)
-        .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-
-    for idx in lig_idxes.iter() {
-        old_coverage_v.remove_parent(idx as usize, true);
+            .add_parent(idx, num_links_to_old_cov, true);
     }
     Ok(())
 }

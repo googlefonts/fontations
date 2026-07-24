@@ -63,7 +63,7 @@ pub(crate) struct Vertex {
     end: usize,
     incoming_edges: usize,
     has_incoming_virtual_edges: bool,
-    parents: FnvHashMap<ObjIdx, u16>,
+    parents: FnvHashMap<ObjIdx, usize>,
     virtual_parents: IntSet<u32>,
 }
 
@@ -102,32 +102,37 @@ impl Vertex {
         self.virtual_parents.clear();
     }
 
-    fn add_parent(&mut self, parent_idx: ObjIdx, is_virtual: bool) {
+    fn add_parent(&mut self, parent_idx: ObjIdx, num_edges_to_add: usize, is_virtual: bool) {
         self.has_incoming_virtual_edges |= is_virtual;
         self.parents
             .entry(parent_idx)
-            .and_modify(|c| *c += 1)
-            .or_insert(1);
+            .and_modify(|c| *c += num_edges_to_add)
+            .or_insert(num_edges_to_add);
 
         if is_virtual {
             self.virtual_parents.insert(parent_idx as u32);
         }
-        self.incoming_edges += 1;
+        self.incoming_edges += num_edges_to_add;
     }
 
-    fn remove_parent(&mut self, parent_idx: ObjIdx, remove_all_edges: bool) {
+    fn remove_parent(
+        &mut self,
+        parent_idx: ObjIdx,
+        num_edges_to_remove: usize,
+        remove_all_edges: bool,
+    ) {
         let Some(num_edges) = self.parents.get_mut(&parent_idx) else {
             return;
         };
 
-        if remove_all_edges {
-            self.incoming_edges -= *num_edges as usize;
+        if remove_all_edges || num_edges_to_remove > *num_edges {
+            self.incoming_edges -= *num_edges;
         } else {
-            self.incoming_edges -= 1;
+            self.incoming_edges -= num_edges_to_remove;
         }
 
-        if *num_edges > 1 && !remove_all_edges {
-            *num_edges -= 1;
+        if *num_edges > num_edges_to_remove && !remove_all_edges {
+            *num_edges -= num_edges_to_remove;
         } else {
             self.parents.remove(&parent_idx);
             self.virtual_parents.remove(parent_idx as u32);
@@ -218,7 +223,7 @@ impl Vertex {
         self.real_links.is_empty() && self.virtual_links.is_empty()
     }
 
-    fn incoming_edges_from_parent(&self, parent_idx: ObjIdx) -> u16 {
+    fn incoming_edges_from_parent(&self, parent_idx: ObjIdx) -> usize {
         *self.parents.get(&parent_idx).unwrap_or(&0)
     }
 
@@ -458,14 +463,14 @@ impl Graph {
                 let Some(v) = self.vertices.get_mut(*child_idx) else {
                     return Err(RepackError::GraphErrorInvalidObjIndex);
                 };
-                v.add_parent(idx, false);
+                v.add_parent(idx, 1, false);
             }
 
             for child_idx in &virtual_links_idxes {
                 let Some(v) = self.vertices.get_mut(*child_idx) else {
                     return Err(RepackError::GraphErrorInvalidObjIndex);
                 };
-                v.add_parent(idx, true);
+                v.add_parent(idx, 1, true);
             }
         }
         Ok(())
@@ -976,12 +981,12 @@ impl Graph {
             let Some(old_v) = vertices.get_mut(*old_idx) else {
                 return Err(RepackError::GraphErrorInvalidObjIndex);
             };
-            old_v.remove_parent(*parent_idx, false);
+            old_v.remove_parent(*parent_idx, 1, false);
 
             let Some(new_v) = vertices.get_mut(*new_idx) else {
                 return Err(RepackError::GraphErrorInvalidObjIndex);
             };
-            new_v.add_parent(*parent_idx, *is_virtual);
+            new_v.add_parent(*parent_idx, 1, *is_virtual);
         }
         Ok(())
     }
@@ -1046,14 +1051,14 @@ impl Graph {
             vertices
                 .get_mut(l.obj_idx())
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-                .add_parent(clone_idx, false);
+                .add_parent(clone_idx, 1, false);
         }
 
         for l in &new_v.virtual_links {
             vertices
                 .get_mut(l.obj_idx())
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-                .add_parent(clone_idx, true);
+                .add_parent(clone_idx, 1, true);
         }
 
         vertices.push(new_v);
@@ -1198,7 +1203,7 @@ impl Graph {
 
         let links_to_child = parents
             .iter()
-            .map(|idx| child_v.incoming_edges_from_parent(idx as usize) as usize)
+            .map(|idx| child_v.incoming_edges_from_parent(idx as usize))
             .reduce(|acc, e| acc + e)
             .unwrap_or(0);
         if links_to_child >= child_v.incoming_edges() {
@@ -1345,7 +1350,7 @@ impl Graph {
         self.vertices
             .get_mut(child_idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .add_parent(parent_idx, is_virtual);
+            .add_parent(parent_idx, 1, is_virtual);
         Ok(())
     }
 
@@ -1382,8 +1387,8 @@ impl Graph {
             .get_mut(child_idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
-        child_v.remove_parent(old_parent_idx, false);
-        child_v.add_parent(new_parent_idx, false);
+        child_v.remove_parent(old_parent_idx, 1, false);
+        child_v.add_parent(new_parent_idx, 1, false);
         Ok(Some(child_idx))
     }
 
@@ -1423,8 +1428,8 @@ impl Graph {
                 .get_mut(*child_idx)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
-            child_v.remove_parent(old_parent_idx, false);
-            child_v.add_parent(new_parent_idx, false);
+            child_v.remove_parent(old_parent_idx, 1, false);
+            child_v.add_parent(new_parent_idx, 1, false);
         }
 
         let new_parent_v = self
@@ -1485,10 +1490,10 @@ impl Graph {
         let new_child = self.duplicate_vertex(old_child, true)?;
         self.mut_vertex(old_child)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .remove_parent(parent, false);
+            .remove_parent(parent, 1, false);
         self.mut_vertex(new_child)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .add_parent(parent, false);
+            .add_parent(parent, 1, false);
         self.mut_vertex(parent)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
             .remap_child(pos, new_child)?;
