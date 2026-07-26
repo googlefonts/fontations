@@ -3,7 +3,7 @@ pub mod test_glyph_defs;
 
 use read_fonts::{
     tables::colr::{CompositeMode, Extend},
-    types::{BoundingBox, GlyphId, Point},
+    types::{BoundingBox, GlyphId, Point, VariationSetting},
     FontRef,
 };
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,6 @@ use crate::{
     color::{
         transform::Transform, traversal_tests::test_glyph_defs::*, Brush, ColorPainter, ColorStop,
     },
-    setting::VariationSetting,
     MetadataProvider,
 };
 

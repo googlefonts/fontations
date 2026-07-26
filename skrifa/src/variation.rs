@@ -3,14 +3,13 @@
 use read_fonts::{
     tables::avar::Avar,
     tables::fvar::{self, Fvar},
-    types::{Fixed, Tag},
+    types::{Fixed, Tag, VariationSetting},
     FontRef, TableProvider,
 };
 
 use crate::{
     collections::SmallVec,
     instance::{Location, NormalizedCoord},
-    setting::VariationSetting,
     string::StringId,
 };
 
