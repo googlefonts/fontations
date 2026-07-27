@@ -79,15 +79,15 @@ fn clone_range_format1(
     let new_table_size = PairPosFormat1::MIN_SIZE + new_pair_set_count * Offset16::RAW_BYTE_LEN;
     let new_table_idx = graph.new_vertex(new_table_size)?;
 
-    let new_coverage_idx = graph.new_vertex(0)?;
-    make_coverage(graph, new_coverage_idx, coverage_glyphs, start..end)?;
-
-    graph.add_parent_child_link(
+    let new_cov_glyphs = coverage_glyphs
+        .get(start..end)
+        .ok_or(RepackError::ErrorSplitSubtable)?;
+    add_new_coverage(
+        graph,
+        new_cov_glyphs,
         new_table_idx,
-        new_coverage_idx,
         LinkWidth::Two,
         PairPosFormat1::COVERAGE_OFFSET_POS,
-        false,
     )?;
 
     // Copy value formats from original table
@@ -186,7 +186,14 @@ fn shrink_format1(
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
     table_v.tail = table_v.head + PairPosFormat1::MIN_SIZE + shrink_point * Offset16::RAW_BYTE_LEN;
 
-    make_coverage(graph, coverage_idx, coverage_glyphs, 0..shrink_point)
+    make_coverage(
+        graph,
+        table_idx,
+        coverage_idx,
+        PairPosFormat1::COVERAGE_OFFSET_POS,
+        coverage_glyphs,
+        0..shrink_point,
+    )
 }
 
 struct Format2TableInfo {
@@ -442,12 +449,20 @@ fn shrink_format2(
 
     make_coverage(
         graph,
+        table_info.table_idx,
         table_info.coverage_idx,
+        PairPosFormat2::COVERAGE_OFFSET_POS,
         &new_cov_glyphs,
         0..new_cov_glyphs.len(),
     )?;
 
-    make_class_def(graph, table_info.class_def1_idx, &gid_and_new_classes)
+    make_class_def(
+        graph,
+        table_info.table_idx,
+        table_info.class_def1_idx,
+        PairPosFormat2::CLASS_DEF1_OFFSET_POS,
+        &gid_and_new_classes,
+    )
 }
 
 struct ClassDefSizeEstimator {
@@ -838,12 +853,15 @@ impl<'a> PairPosFormat2<'a> {
     }
 }
 
-// Make a ClassDef table at the specified classdef vertex
+// Make a ClassDef table at the specified position
 fn make_class_def(
     graph: &mut Graph,
+    parent_idx: ObjIdx,
     dest_idx: ObjIdx,
+    pos: u32,
     glyph_classes: &[(u16, u16)],
 ) -> Result<(), RepackError> {
+    let dest_idx = graph.unshared_child(parent_idx, dest_idx, pos)?;
     let mut s = Serializer::new(glyph_classes.len() * 6 + 4);
     s.start_serialize()
         .map_err(|_| RepackError::ErrorRepackSerialize)?;
@@ -862,7 +880,15 @@ fn add_new_class_def(
     position: u32,
 ) -> Result<ObjIdx, RepackError> {
     let new_class_def_idx = graph.new_vertex(0)?;
-    make_class_def(graph, new_class_def_idx, glyph_classes)?;
+    let mut s = Serializer::new(glyph_classes.len() * 6 + 4);
+    s.start_serialize()
+        .map_err(|_| RepackError::ErrorRepackSerialize)?;
+
+    ClassDef::serialize(&mut s, glyph_classes).map_err(|_| RepackError::ErrorRepackSerialize)?;
+    s.end_serialize();
+
+    let classdef_data = s.copy_bytes();
+    graph.update_vertex_data(new_class_def_idx, &classdef_data)?;
 
     graph.add_parent_child_link(
         parent_idx,

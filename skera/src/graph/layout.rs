@@ -159,7 +159,7 @@ impl Graph {
             let subtable_v = self
                 .mut_vertex(subtable_idx)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-            subtable_v.remove_parent(lookup_idx, false);
+            subtable_v.remove_parent(lookup_idx, 1, false);
             *idx
         } else {
             let idx = self.create_extension_subtable(subtable_idx, lookup_type)?;

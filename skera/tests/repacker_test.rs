@@ -38,7 +38,7 @@ impl RepackerTestCase {
                 break;
             }
 
-            let line = line.trim_start_matches("0x");
+            let line = line.trim_start_matches("U+").trim_start_matches("0x");
             let cp = u32::from_str_radix(line, 16).unwrap();
             unicodes.insert(cp);
         }

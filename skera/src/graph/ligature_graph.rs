@@ -20,7 +20,7 @@ pub(crate) fn split_ligature_subst(
     table_idx: ObjIdx,
 ) -> Result<Vec<ObjIdx>, RepackError> {
     let Some(coverage_idx) =
-        graph.index_for_position(table_idx, LigatureSubstFormat1::COVERAGE_OFFSET_POS as u32)
+        graph.index_for_position(table_idx, LigatureSubstFormat1::COVERAGE_OFFSET_POS)
     else {
         return Ok(Vec::new());
     };
@@ -31,7 +31,6 @@ pub(crate) fn split_ligature_subst(
         return Ok(Vec::new());
     }
 
-    duplicate_shared_liga_sets(graph, table_idx)?;
     let cov_glyphs = coverage_glyphs(graph, coverage_idx)?;
     let mut out: Vec<usize> = Vec::with_capacity(split_points.len() + 1);
     for i in 0..split_points.len() {
@@ -59,25 +58,6 @@ pub(crate) fn split_ligature_subst(
 
     shrink(graph, table_idx, coverage_idx, &cov_glyphs, split_points[0])?;
     Ok(out)
-}
-
-fn duplicate_shared_liga_sets(graph: &mut Graph, table_idx: ObjIdx) -> Result<(), RepackError> {
-    let table_v = graph
-        .vertex(table_idx)
-        .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-    let mut visited = IntSet::empty();
-    let mut duplicates = Vec::new();
-    for (pos, l) in table_v.real_links() {
-        let obj_idx = l.obj_idx();
-        if !visited.insert(obj_idx as u32) {
-            duplicates.push((*pos, obj_idx));
-        }
-    }
-
-    for (pos, obj_idx) in duplicates {
-        graph.duplicate_child_at_position(table_idx, obj_idx, pos)?;
-    }
-    Ok(())
 }
 
 // ref:<https://github.com/harfbuzz/harfbuzz/blob/e1f2565db09823794e3d8ed404c47dae0f0cd3c9/src/graph/ligature-graph.hh#L124>
@@ -188,6 +168,17 @@ fn clone_range(
                 };
 
                 let new_ligset_table_idx = create_new_ligature_set(graph, num_moved_liga as u16)?;
+                // duplicate shared liga_set before mutation
+                let ligset_graph_index = if graph
+                    .vertex(ligset_graph_index)
+                    .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+                    .incoming_edges()
+                    > 1
+                {
+                    graph.remap_child(this_index, ligset_graph_index, ligset_pos)?
+                } else {
+                    ligset_graph_index
+                };
                 graph.move_children(
                     ligset_graph_index,
                     LigatureSet::MIN_SIZE as u32 + start_lig_idx * Offset16::RAW_BYTE_LEN as u32,
@@ -208,6 +199,7 @@ fn clone_range(
                 new_ligset_table_idx
             } else {
                 // move the entire ligature set to the new ligature table
+                // no need to duplicate shared liga_set here since its data is not changed, only links are changed
                 let lig_set_idx = graph
                     .move_child(
                         this_index,
@@ -227,6 +219,17 @@ fn clone_range(
             // This liga set partially overlaps [start, end)
             let num_liga = end_lig_idx;
             let new_ligset_table_idx = create_new_ligature_set(graph, num_liga as u16)?;
+            // duplicate shared liga_set before mutation
+            let ligset_graph_index = if graph
+                .vertex(ligset_graph_index)
+                .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+                .incoming_edges()
+                > 1
+            {
+                graph.remap_child(this_index, ligset_graph_index, ligset_pos)?
+            } else {
+                ligset_graph_index
+            };
             graph.move_children(
                 ligset_graph_index,
                 LigatureSet::MIN_SIZE as u32,
@@ -281,7 +284,9 @@ fn clone_range(
 
     make_coverage(
         graph,
+        new_lig_subst_idx,
         new_coverage_idx,
+        LigatureSubstFormat1::COVERAGE_OFFSET_POS,
         cov_glyphs,
         start_lig_set_idx as usize..end_glyph as usize,
     )?;
@@ -354,7 +359,14 @@ fn shrink(
         + Offset16::RAW_BYTE_LEN * num_remaining_liga_set;
 
     let coverage_idx = fix_coverage_links(graph, table_idx, coverage_idx)?;
-    make_coverage(graph, coverage_idx, cov_glyphs, 0..num_remaining_liga_set)
+    make_coverage(
+        graph,
+        table_idx,
+        coverage_idx,
+        LigatureSubstFormat1::COVERAGE_OFFSET_POS,
+        cov_glyphs,
+        0..num_remaining_liga_set,
+    )
 }
 
 // if coverage is not shared, return original coverage idx
@@ -367,32 +379,26 @@ fn fix_coverage_links(
     coverage_idx: ObjIdx,
 ) -> Result<ObjIdx, RepackError> {
     // check if coverage table is shared
-    let mut lig_idxes = IntSet::empty();
-    find_all_child_idxes(graph, table_idx, 2, &mut lig_idxes)?;
-
     let coverage_is_shared = graph
         .vertex(coverage_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-        .parents
-        .keys()
-        .any(|p| !lig_idxes.contains(*p as u32));
+        .is_shared();
 
     if !coverage_is_shared {
         return Ok(coverage_idx);
     }
 
-    let new_coverage_idx = graph.new_vertex(0)?;
+    let mut lig_idxes = IntSet::empty();
+    find_all_child_idxes(graph, table_idx, 2, &mut lig_idxes)?;
     lig_idxes.remove(table_idx as u32);
     lig_idxes.remove(coverage_idx as u32);
 
-    fix_virtual_links(graph, &lig_idxes, coverage_idx, new_coverage_idx)?;
-    graph.remap_child(
+    let new_coverage_idx = graph.remap_child(
         table_idx,
         coverage_idx,
-        new_coverage_idx,
-        LigatureSubstFormat1::COVERAGE_OFFSET_POS as u32,
-        false,
+        LigatureSubstFormat1::COVERAGE_OFFSET_POS,
     )?;
+    fix_virtual_links(graph, &lig_idxes, coverage_idx, new_coverage_idx)?;
     Ok(new_coverage_idx)
 }
 
@@ -475,7 +481,7 @@ fn find_all_child_idxes(
 
 // To make sure coverage table always packed at last(after LigatureSet and Ligature tables),
 // add virtual links from the new liga set and all children to the new coverage table
-// clear all existing virtual links first
+// clear all existing virtual links to the old coverage table
 fn fix_virtual_links(
     graph: &mut Graph,
     lig_idxes: &IntSet<u32>,
@@ -488,29 +494,24 @@ fn fix_virtual_links(
             .mut_vertex(idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
-        // sanity check, all virtual links in lig/liga_set idxes should be the same coverage idx
-        if !v
-            .virtual_links
-            .iter()
-            .all(|l| l.obj_idx() == old_coverage_idx)
-        {
-            return Err(RepackError::ErrorSplitSubtable);
+        let mut num_links_to_old_cov = 0_usize;
+        // lig/liga_set might be shared, only update links to the old coverage table idx
+        for l in v.virtual_links.iter_mut() {
+            if l.obj_idx() == old_coverage_idx {
+                l.update_obj_idx(coverage_idx);
+                num_links_to_old_cov += 1;
+            }
         }
-        v.virtual_links.clear();
-        v.add_link(LinkWidth::default(), coverage_idx, 0, true);
+
+        graph
+            .mut_vertex(old_coverage_idx)
+            .ok_or(RepackError::GraphErrorInvalidObjIndex)?
+            .remove_parent(idx, num_links_to_old_cov, false);
 
         graph
             .mut_vertex(coverage_idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
             .add_parent(idx, true);
-    }
-
-    let old_coverage_v = graph
-        .mut_vertex(old_coverage_idx)
-        .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-
-    for idx in lig_idxes.iter() {
-        old_coverage_v.remove_parent(idx as usize, true);
     }
     Ok(())
 }
@@ -520,7 +521,7 @@ struct LigatureSubstFormat1<'a>(DataBytes<'a>);
 impl<'a> LigatureSubstFormat1<'a> {
     const MIN_SIZE: usize = 6;
     const FORMAT_BYTE_POS: usize = 0;
-    const COVERAGE_OFFSET_POS: usize = 2;
+    const COVERAGE_OFFSET_POS: u32 = 2;
     const LIG_SET_COUNT_POS: usize = 4;
 
     pub(crate) fn from_graph(graph: &'a mut Graph, obj_idx: ObjIdx) -> Result<Self, RepackError> {
