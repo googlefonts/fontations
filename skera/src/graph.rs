@@ -102,17 +102,17 @@ impl Vertex {
         self.virtual_parents.clear();
     }
 
-    fn add_parent(&mut self, parent_idx: ObjIdx, num_edges_to_add: usize, is_virtual: bool) {
+    fn add_parent(&mut self, parent_idx: ObjIdx, is_virtual: bool) {
         self.has_incoming_virtual_edges |= is_virtual;
         self.parents
             .entry(parent_idx)
-            .and_modify(|c| *c += num_edges_to_add)
-            .or_insert(num_edges_to_add);
+            .and_modify(|c| *c += 1)
+            .or_insert(1);
 
         if is_virtual {
             self.virtual_parents.insert(parent_idx as u32);
         }
-        self.incoming_edges += num_edges_to_add;
+        self.incoming_edges += 1;
     }
 
     fn remove_parent(
@@ -463,14 +463,14 @@ impl Graph {
                 let Some(v) = self.vertices.get_mut(*child_idx) else {
                     return Err(RepackError::GraphErrorInvalidObjIndex);
                 };
-                v.add_parent(idx, 1, false);
+                v.add_parent(idx, false);
             }
 
             for child_idx in &virtual_links_idxes {
                 let Some(v) = self.vertices.get_mut(*child_idx) else {
                     return Err(RepackError::GraphErrorInvalidObjIndex);
                 };
-                v.add_parent(idx, 1, true);
+                v.add_parent(idx, true);
             }
         }
         Ok(())
@@ -986,7 +986,7 @@ impl Graph {
             let Some(new_v) = vertices.get_mut(*new_idx) else {
                 return Err(RepackError::GraphErrorInvalidObjIndex);
             };
-            new_v.add_parent(*parent_idx, 1, *is_virtual);
+            new_v.add_parent(*parent_idx, *is_virtual);
         }
         Ok(())
     }
@@ -1051,14 +1051,14 @@ impl Graph {
             vertices
                 .get_mut(l.obj_idx())
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-                .add_parent(clone_idx, 1, false);
+                .add_parent(clone_idx, false);
         }
 
         for l in &new_v.virtual_links {
             vertices
                 .get_mut(l.obj_idx())
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-                .add_parent(clone_idx, 1, true);
+                .add_parent(clone_idx, true);
         }
 
         vertices.push(new_v);
@@ -1350,7 +1350,7 @@ impl Graph {
         self.vertices
             .get_mut(child_idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .add_parent(parent_idx, 1, is_virtual);
+            .add_parent(parent_idx, is_virtual);
         Ok(())
     }
 
@@ -1388,7 +1388,7 @@ impl Graph {
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
         child_v.remove_parent(old_parent_idx, 1, false);
-        child_v.add_parent(new_parent_idx, 1, false);
+        child_v.add_parent(new_parent_idx, false);
         Ok(Some(child_idx))
     }
 
@@ -1429,7 +1429,7 @@ impl Graph {
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
 
             child_v.remove_parent(old_parent_idx, 1, false);
-            child_v.add_parent(new_parent_idx, 1, false);
+            child_v.add_parent(new_parent_idx, false);
         }
 
         let new_parent_v = self
@@ -1493,7 +1493,7 @@ impl Graph {
             .remove_parent(parent, 1, false);
         self.mut_vertex(new_child)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .add_parent(parent, 1, false);
+            .add_parent(parent, false);
         self.mut_vertex(parent)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
             .remap_child(pos, new_child)?;

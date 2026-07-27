@@ -511,7 +511,7 @@ fn fix_virtual_links(
         graph
             .mut_vertex(coverage_idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-            .add_parent(idx, num_links_to_old_cov, true);
+            .add_parent(idx, true);
     }
     Ok(())
 }

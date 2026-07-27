@@ -177,7 +177,7 @@ impl Graph {
                 l.update_obj_idx(ext_idx);
             }
         }
-        self.vertices[ext_idx].add_parent(lookup_idx, 1, false);
+        self.vertices[ext_idx].add_parent(lookup_idx, false);
         Ok(ext_idx)
     }
 
@@ -269,7 +269,7 @@ impl Graph {
             if subtable_v.parents.contains_key(&lookup_index) {
                 continue;
             }
-            subtable_v.add_parent(lookup_index, 1, false);
+            subtable_v.add_parent(lookup_index, false);
         }
 
         Ok(())
@@ -285,7 +285,7 @@ impl Graph {
 
             self.mut_vertex(*subtable_idx)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-                .add_parent(new_ext_idx, 1, false);
+                .add_parent(new_ext_idx, false);
 
             *subtable_idx = new_ext_idx;
         }
