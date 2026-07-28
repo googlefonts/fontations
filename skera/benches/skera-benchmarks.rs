@@ -13,18 +13,6 @@ fn read_test_font(file_name: &str) -> Vec<u8> {
     std::fs::read(&path).expect("failed to read test font file")
 }
 
-// comment out for now, may be used later
-//fn set_from_ranges<I>(ranges: I) -> IntSet<u32>
-//where
-//    I: IntoIterator<Item = std::ops::RangeInclusive<u32>>,
-//{
-//    let mut set = IntSet::empty();
-//    for range in ranges {
-//        set.insert_range(range);
-//    }
-//    set
-//}
-
 /// Creates a subsetting plan using the same default options as running the src/main.rs with
 /// --unicodes.
 fn create_plan(font: &FontRef, unicodes: &IntSet<u32>) -> Plan {
@@ -44,8 +32,6 @@ fn create_plan(font: &FontRef, unicodes: &IntSet<u32>) -> Plan {
 }
 
 fn benchmark_subset(c: &mut Criterion) {
-    // comment out for now, may be used later
-    // let latin_codepoints = set_from_ranges([0x20..=0x7E, 0xA0..=0xFF, 0x100..=0x24F]);
     c.benchmark_group("subset")
         .bench_function("Amiri-Regular-all", |b| {
             let font_bytes = read_test_font("Amiri-Regular.ttf");
