@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use skera::{subset_font, Plan, SubsetFlags, DEFAULT_DROP_TABLES, DEFAULT_LAYOUT_FEATURES};
-use std::path::Path;
+use std::{path::Path, time::Duration};
 use write_fonts::{
     read::{collections::IntSet, FontRef},
     types::NameId,
@@ -13,16 +13,17 @@ fn read_test_font(file_name: &str) -> Vec<u8> {
     std::fs::read(&path).expect("failed to read test font file")
 }
 
-fn set_from_ranges<I>(ranges: I) -> IntSet<u32>
-where
-    I: IntoIterator<Item = std::ops::RangeInclusive<u32>>,
-{
-    let mut set = IntSet::empty();
-    for range in ranges {
-        set.insert_range(range);
-    }
-    set
-}
+// comment out for now, may be used later
+//fn set_from_ranges<I>(ranges: I) -> IntSet<u32>
+//where
+//    I: IntoIterator<Item = std::ops::RangeInclusive<u32>>,
+//{
+//    let mut set = IntSet::empty();
+//    for range in ranges {
+//        set.insert_range(range);
+//    }
+//    set
+//}
 
 /// Creates a subsetting plan using the same default options as running the src/main.rs with
 /// --unicodes.
@@ -43,25 +44,116 @@ fn create_plan(font: &FontRef, unicodes: &IntSet<u32>) -> Plan {
 }
 
 fn benchmark_subset(c: &mut Criterion) {
-    let latin_codepoints = set_from_ranges([0x20..=0x7E, 0xA0..=0xFF, 0x100..=0x24F]);
+    // comment out for now, may be used later
+    // let latin_codepoints = set_from_ranges([0x20..=0x7E, 0xA0..=0xFF, 0x100..=0x24F]);
     c.benchmark_group("subset")
-        .bench_function("roboto-latin", |b| {
-            let font_bytes = read_test_font("Roboto-Regular.ttf");
+        .bench_function("Amiri-Regular-all", |b| {
+            let font_bytes = read_test_font("Amiri-Regular.ttf");
             b.iter(|| {
                 let font = FontRef::new(&font_bytes).unwrap();
-                let plan = create_plan(&font, &latin_codepoints);
+                let plan = create_plan(&font, &IntSet::all());
                 subset_font(&font, &plan).unwrap()
             });
         })
-        .bench_function("roboto-variable-latin", |b| {
-            let font_bytes = read_test_font("Roboto-Variable.ttf");
+        .bench_function("Mplus1p-Regular-all", |b| {
+            let font_bytes = read_test_font("Mplus1p-Regular.ttf");
             b.iter(|| {
                 let font = FontRef::new(&font_bytes).unwrap();
-                let plan = create_plan(&font, &latin_codepoints);
+                let plan = create_plan(&font, &IntSet::all());
+                subset_font(&font, &plan).unwrap()
+            });
+        })
+        .bench_function("MPLUS1-Variable-all", |b| {
+            let font_bytes = read_test_font("MPLUS1-Variable.ttf");
+            b.iter(|| {
+                let font = FontRef::new(&font_bytes).unwrap();
+                let plan = create_plan(&font, &IntSet::all());
+                subset_font(&font, &plan).unwrap()
+            });
+        })
+        .bench_function("Fraunces-all", |b| {
+            let font_bytes = read_test_font("Fraunces.ttf");
+            b.iter(|| {
+                let font = FontRef::new(&font_bytes).unwrap();
+                let plan = create_plan(&font, &IntSet::all());
+                subset_font(&font, &plan).unwrap()
+            });
+        });
+}
+
+fn benchmark_subset_medium(c: &mut Criterion) {
+    c.benchmark_group("subset-medium")
+        .bench_function("Roboto-Regular-all", |b| {
+            let font_bytes = read_test_font("Roboto-Regular.ttf");
+            b.iter(|| {
+                let font = FontRef::new(&font_bytes).unwrap();
+                let plan = create_plan(&font, &IntSet::all());
+                subset_font(&font, &plan).unwrap()
+            });
+        })
+        .bench_function("SourceSansPro-Regular-all", |b| {
+            let font_bytes = read_test_font("SourceSansPro-Regular.otf");
+            b.iter(|| {
+                let font = FontRef::new(&font_bytes).unwrap();
+                let plan = create_plan(&font, &IntSet::all());
+                subset_font(&font, &plan).unwrap()
+            });
+        })
+        .bench_function("AdobeVFPrototype-all", |b| {
+            let font_bytes = read_test_font("AdobeVFPrototype.otf");
+            b.iter(|| {
+                let font = FontRef::new(&font_bytes).unwrap();
+                let plan = create_plan(&font, &IntSet::all());
+                subset_font(&font, &plan).unwrap()
+            });
+        });
+}
+
+fn benchmark_subset_slow(c: &mut Criterion) {
+    c.benchmark_group("subset-slow")
+        .bench_function("NotoNastaliqUrdu-Regular-all", |b| {
+            let font_bytes = read_test_font("NotoNastaliqUrdu-Regular.ttf");
+            b.iter(|| {
+                let font = FontRef::new(&font_bytes).unwrap();
+                let plan = create_plan(&font, &IntSet::all());
+                subset_font(&font, &plan).unwrap()
+            });
+        })
+        .bench_function("NotoSansDevanagari-Regular-all", |b| {
+            let font_bytes = read_test_font("NotoSansDevanagari-Regular.ttf");
+            b.iter(|| {
+                let font = FontRef::new(&font_bytes).unwrap();
+                let plan = create_plan(&font, &IntSet::all());
+                subset_font(&font, &plan).unwrap()
+            });
+        })
+        .bench_function("SourceHanSans-Regular_subset-all", |b| {
+            let font_bytes = read_test_font("SourceHanSans-Regular_subset.otf");
+            b.iter(|| {
+                let font = FontRef::new(&font_bytes).unwrap();
+                let plan = create_plan(&font, &IntSet::all());
+                subset_font(&font, &plan).unwrap()
+            });
+        })
+        .bench_function("RobotoFlex-Variable-all", |b| {
+            let font_bytes = read_test_font("RobotoFlex-Variable.ttf");
+            b.iter(|| {
+                let font = FontRef::new(&font_bytes).unwrap();
+                let plan = create_plan(&font, &IntSet::all());
                 subset_font(&font, &plan).unwrap()
             });
         });
 }
 
 criterion_group!(benches, benchmark_subset);
-criterion_main!(benches);
+criterion_group! {
+    name = benches_medium;
+    config = Criterion::default().measurement_time(Duration::from_secs(10));
+    targets = benchmark_subset_medium
+}
+criterion_group! {
+    name = benches_slow;
+    config = Criterion::default().measurement_time(Duration::from_secs(30));
+    targets = benchmark_subset_slow
+}
+criterion_main!(benches, benches_medium, benches_slow);
