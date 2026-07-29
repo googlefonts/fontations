@@ -202,6 +202,9 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
         let mut descender = i32::MAX;
         let mut n_flats = 0;
         let mut n_rounds = 0;
+        if blues.len() >= MAX_BLUES {
+            continue;
+        }
         for cluster in blue_str.split(' ') {
             let mut best_y_extremum = if blue_zones.is_top() {
                 i32::MIN
@@ -254,9 +257,9 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
                     continue;
                 };
                 let best_contour = &outline.points[best_contour_range];
-                // If we have a contour and point then best_y is guaranteed to
-                // be Some
-                let mut best_y = best_y.unwrap() as i32;
+                let Some(mut best_y) = best_y.map(i32::from) else {
+                    continue;
+                };
                 let best_x = best_contour[best_point_ix].x as i32;
                 // Now determine whether the point belongs to a straight or
                 // round segment by examining the previous and next points.
@@ -485,11 +488,15 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
             }
             if best_y_extremum != i32::MIN && best_y_extremum != i32::MAX {
                 if best_is_round {
-                    rounds[n_rounds] = best_y_extremum;
-                    n_rounds += 1;
+                    if let Some(round) = rounds.get_mut(n_rounds) {
+                        *round = best_y_extremum;
+                        n_rounds += 1;
+                    }
                 } else {
-                    flats[n_flats] = best_y_extremum;
-                    n_flats += 1;
+                    if let Some(flat) = flats.get_mut(n_flats) {
+                        *flat = best_y_extremum;
+                        n_flats += 1;
+                    }
                 }
             }
         }
@@ -664,7 +671,6 @@ fn compute_cjk_blues(
                     continue;
                 }
                 // Step right up and find an extrema!
-                // Unwrap is safe because we know per ^ that we have at least 3 points
                 let best_pos = outline
                     .points
                     .iter()
@@ -675,14 +681,20 @@ fn compute_cjk_blues(
                         } else {
                             |a: i16, c: i16| a.min(c)
                         },
-                    )
-                    .unwrap();
+                    );
+                let Some(best_pos) = best_pos else {
+                    continue;
+                };
                 if is_fill {
-                    fills[n_fills] = best_pos;
-                    n_fills += 1;
+                    if let Some(fill) = fills.get_mut(n_fills) {
+                        *fill = best_pos;
+                        n_fills += 1;
+                    }
                 } else {
-                    flats[n_flats] = best_pos;
-                    n_flats += 1;
+                    if let Some(flat) = flats.get_mut(n_flats) {
+                        *flat = best_pos;
+                        n_flats += 1;
+                    }
                 }
             }
         }
@@ -778,7 +790,7 @@ mod tests {
         },
         satisfies_min_long_segment_len, UnscaledBlue,
     };
-    use raw::FontRef;
+    use raw::{types::Tag, FontRef};
 
     #[test]
     fn latin_blues() {
@@ -962,5 +974,61 @@ mod tests {
         assert_eq!(from_0, &[7, 6, 5, 4, 3, 2, 1, 0]);
         // Don't panic on empty slice
         let _ = super::cycle_backward::<i32>(&[], 5).count();
+    }
+
+    #[test]
+    fn blue_string_cluster_count_saturates() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::Nominal);
+        let style_51 = synthetic_default_style(1, super::BLUE_STRING_MAX_LEN);
+        let style_70 = synthetic_default_style(1, super::BLUE_STRING_MAX_LEN + 19);
+        let blues_51 = super::compute_default_blues(&shaper, &[], &style_51);
+        let blues_70 = super::compute_default_blues(&shaper, &[], &style_70);
+        assert_eq!(blues_70, blues_51);
+    }
+
+    #[test]
+    fn blue_count_saturates_at_max_blues() {
+        let font = FontRef::new(font_test_data::NOTOSERIFHEBREW_AUTOHINT_METRICS).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::Nominal);
+        let known_good_blues = style::STYLE_CLASSES[super::StyleClass::LATN].script.blues;
+        let mut repeated = Vec::with_capacity(super::MAX_BLUES + 4);
+        for i in 0..(super::MAX_BLUES + 4) {
+            repeated.push(known_good_blues[i % known_good_blues.len()]);
+        }
+        let style = synthetic_style_with_blues(repeated);
+        let blues = super::compute_default_blues(&shaper, &[], &style);
+        assert_eq!(blues.len(), super::MAX_BLUES);
+    }
+
+    fn synthetic_default_style(num_blues: usize, clusters_per_blue: usize) -> style::StyleClass {
+        let cluster = (0..clusters_per_blue)
+            .map(|_| "o")
+            .collect::<Vec<_>>()
+            .join(" ");
+        let cluster: &'static str = Box::leak(cluster.into_boxed_str());
+        let mut blues = Vec::with_capacity(num_blues);
+        for _ in 0..num_blues {
+            blues.push((cluster, BlueZones::TOP));
+        }
+        synthetic_style_with_blues(blues)
+    }
+
+    fn synthetic_style_with_blues(blues: Vec<(&'static str, BlueZones)>) -> style::StyleClass {
+        let blues: &'static [(&'static str, BlueZones)] = Box::leak(blues.into_boxed_slice());
+        let script = Box::leak(Box::new(style::ScriptClass {
+            name: "synthetic",
+            group: style::ScriptGroup::Default,
+            tag: Tag::new(b"DFLT"),
+            hint_top_to_bottom: true,
+            std_chars: "o",
+            blues,
+        }));
+        style::StyleClass {
+            name: "synthetic",
+            index: 0,
+            script,
+            feature: None,
+        }
     }
 }
