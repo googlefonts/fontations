@@ -6,7 +6,10 @@ use raw::{
         cff::charset::{Charset, Iter as CharsetIter},
         string::Sid,
     },
-    tables::{cff::Cff, post::Post},
+    tables::{
+        cff::Cff,
+        post::{self, Post},
+    },
     types::GlyphId,
     FontRef, TableProvider,
 };
@@ -104,7 +107,7 @@ impl<'a> GlyphNames<'a> {
     /// the font.
     pub fn iter(&self) -> impl Iterator<Item = (GlyphId, GlyphName)> + 'a + Clone {
         match &self.inner {
-            Inner::Post(post, n) => Iter::Post(0..*n, post.clone()),
+            Inner::Post(post, n) => Iter::Post(0..*n, post.glyph_names()),
             Inner::Cff(cff, charset) => Iter::Cff(cff.clone(), charset.iter()),
             Inner::Synthesized(n) => Iter::Synthesized(0..*n),
         }
@@ -244,7 +247,7 @@ impl core::fmt::Write for GlyphNameWrite<'_> {
 
 #[derive(Clone)]
 enum Iter<'a> {
-    Post(Range<u32>, Post<'a>),
+    Post(Range<u32>, post::GlyphNames<'a>),
     Cff(Cff<'a>, CharsetIter<'a>),
     Synthesized(Range<u32>),
 }
@@ -252,11 +255,11 @@ enum Iter<'a> {
 impl Iter<'_> {
     fn next_name(&mut self) -> Option<Result<(GlyphId, GlyphName), GlyphId>> {
         match self {
-            Self::Post(range, post) => {
+            Self::Post(range, iter) => {
                 let gid = GlyphId::new(range.next()?);
                 Some(
-                    GlyphName::from_post(post, gid)
-                        .map(|name| (gid, name))
+                    iter.next()
+                        .map(|(_, name)| (gid, GlyphName::from_bytes(name.as_bytes())))
                         .ok_or(gid),
                 )
             }

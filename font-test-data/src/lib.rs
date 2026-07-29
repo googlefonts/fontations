@@ -158,6 +158,105 @@ pub mod closure {
 }
 
 pub mod post {
+    use crate::bebuffer::BeBuffer;
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum GlyphNameOrder {
+        /// Glyph name indices in strictly increasing order.
+        Monotonic,
+        /// Glyph name indices in mostly increasing order, with some back
+        /// references to previous names.
+        ///
+        /// This likely matches most sane font data with duplicate glyph names.
+        MostlyMonotonicWithBackrefs,
+        /// All glyph name indices point to the last glyph name.
+        ///
+        /// This is the patholical case, requiring a full scan for each glyph
+        /// during iteration.
+        AllPointToLast,
+    }
+
+    /// Build a synthetic post v2 table with custom names for each glyph.
+    ///
+    /// Returns the table bytes and the generated glyph names in glyph id order.
+    pub fn v2_with_varied_glyph_names(
+        num_glyphs: u16,
+        base_name_len: u8,
+        order: GlyphNameOrder,
+    ) -> (Vec<u8>, Vec<String>) {
+        let custom_start = 258u16;
+        let mut buf = BeBuffer::new()
+            .push(0x0002_0000u32) // version 2.0
+            .push(0u32) // italicAngle
+            .push(0i16) // underlinePosition
+            .push(0i16) // underlineThickness
+            .push(0u32) // isFixedPitch
+            .push(0u32) // minMemType42
+            .push(0u32) // maxMemType42
+            .push(0u32) // minMemType1
+            .push(0u32) // maxMemType1
+            .push(num_glyphs);
+        let mapped_indices = mapped_custom_indices(num_glyphs as usize, order);
+        for mapped_idx in mapped_indices.iter().copied() {
+            let mapped_idx_u16 = u16::try_from(mapped_idx).unwrap();
+            buf = buf.push(custom_start.saturating_add(mapped_idx_u16));
+        }
+        let mut custom_names = Vec::with_capacity(num_glyphs as usize);
+        for custom_idx in 0..num_glyphs as usize {
+            let name = varied_name(custom_idx, base_name_len);
+            let len = u8::try_from(name.len()).unwrap();
+            buf = buf.push(len).extend(name.as_bytes().iter().copied());
+            custom_names.push(name);
+        }
+        let names = mapped_indices
+            .iter()
+            .map(|idx| custom_names[*idx].clone())
+            .collect();
+        (buf.data().to_vec(), names)
+    }
+
+    fn mapped_custom_indices(num_glyphs: usize, order: GlyphNameOrder) -> Vec<usize> {
+        match order {
+            GlyphNameOrder::Monotonic => (0..num_glyphs).collect(),
+            GlyphNameOrder::MostlyMonotonicWithBackrefs => (0..num_glyphs)
+                .map(|gid| {
+                    if gid > 0 && gid % 97 == 0 {
+                        gid - 1
+                    } else if gid > 3 && gid % 251 == 0 {
+                        gid - 3
+                    } else if gid > 7 && gid % 509 == 0 {
+                        gid - 7
+                    } else {
+                        gid
+                    }
+                })
+                .collect(),
+            GlyphNameOrder::AllPointToLast => {
+                if num_glyphs == 0 {
+                    Vec::new()
+                } else {
+                    vec![num_glyphs - 1; num_glyphs]
+                }
+            }
+        }
+    }
+
+    fn varied_name(custom_idx: usize, base_name_len: u8) -> String {
+        let base_name_len = usize::from(base_name_len.clamp(8, 220));
+        let len = (base_name_len + (custom_idx % 27)).min(255);
+        let mut name = format!("glyph_{custom_idx:05}_");
+        let pattern = match custom_idx % 4 {
+            0 => "abcdefghijklmnopqrstuvwxyz0123456789",
+            1 => "zyxwvutsrqponmlkjihgfedcba9876543210",
+            2 => "aabccddeeffgghhiijjkkllmmnnooppqqrrss",
+            _ => "n0nlinear_name_pattern_block_",
+        };
+        while name.len() < len {
+            name.push_str(pattern);
+        }
+        name.truncate(len);
+        name
+    }
 
     #[rustfmt::skip]
     pub static SIMPLE: &[u8] = &[

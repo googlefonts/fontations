@@ -13,7 +13,13 @@ impl<'a> Post<'a> {
         }
     }
 
-    pub fn glyph_name(&self, glyph_id: GlyphId16) -> Option<&str> {
+    /// Returns the name for the given glyph.
+    ///
+    /// Note that this is a relatively expensive operation, as it may require
+    /// a linear scan through the string data to find the target name. If you
+    /// need to iterate over all glyph names or collect them into a map for
+    /// faster access, use [`Self::glyph_names`] instead.
+    pub fn glyph_name(&self, glyph_id: GlyphId16) -> Option<&'a str> {
         let glyph_id = glyph_id.to_u16() as usize;
         match self.version() {
             Version16Dot16::VERSION_1_0 => DEFAULT_GLYPH_NAMES.get(glyph_id).copied(),
@@ -27,6 +33,24 @@ impl<'a> Post<'a> {
             }
             _ => None,
         }
+    }
+
+    /// Return an iterator over the glyph names in this table.
+    pub fn glyph_names(&self) -> GlyphNames<'a> {
+        let num_names = self.num_names() as u32;
+        let kind = match self.version() {
+            Version16Dot16::VERSION_1_0 => GlyphNameIterKind::V1(self.clone(), 0),
+            Version16Dot16::VERSION_2_0 => GlyphNameIterKind::V2 {
+                post: self.clone(),
+                idx: 0,
+                checkpoint_stride: (num_names as usize).div_ceil(NUM_CHECKPOINTS + 1).max(1),
+                checkpoints: [UNSET_CHECKPOINT; NUM_CHECKPOINTS],
+                last_actual_idx: None,
+                last_offset: 0,
+            },
+            _ => GlyphNameIterKind::None,
+        };
+        GlyphNames { num_names, kind }
     }
 
     //FIXME: how do we want to traverse this? I want to stop needing to
@@ -86,6 +110,126 @@ impl<'a> FontRead<'a> for PString<'a> {
 
 impl VarSize for PString<'_> {
     type Size = u8;
+}
+
+const NUM_CHECKPOINTS: usize = 16;
+const UNSET_CHECKPOINT: u32 = u32::MAX;
+
+/// Iterator over the glyph names in a post table.
+#[derive(Clone)]
+pub struct GlyphNames<'a> {
+    num_names: u32,
+    kind: GlyphNameIterKind<'a>,
+}
+
+#[derive(Clone)]
+enum GlyphNameIterKind<'a> {
+    None,
+    V1(Post<'a>, u32),
+    V2 {
+        post: Post<'a>,
+        idx: u32,
+        // The number of indices between checkpoints
+        checkpoint_stride: usize,
+        // The offset of each checkpoint; checkpoint 0 is implicit
+        checkpoints: [u32; NUM_CHECKPOINTS],
+        // The last actual index and that was scanned, for monotonic fast path
+        last_actual_idx: Option<usize>,
+        // The offset associated with the last scanned index
+        last_offset: usize,
+    },
+}
+
+impl<'a> Iterator for GlyphNames<'a> {
+    type Item = (GlyphId, &'a str);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.kind {
+            GlyphNameIterKind::None => None,
+            GlyphNameIterKind::V1(post, idx) => {
+                if *idx >= self.num_names {
+                    return None;
+                }
+                let gid = GlyphId16::new(*idx as u16);
+                let name = post.glyph_name(gid)?;
+                *idx += 1;
+                Some((gid.into(), name))
+            }
+            GlyphNameIterKind::V2 {
+                post,
+                idx,
+                checkpoint_stride,
+                checkpoints,
+                last_actual_idx,
+                last_offset,
+            } => {
+                if *idx >= self.num_names {
+                    return None;
+                }
+                let stride = *checkpoint_stride;
+                let gid = GlyphId16::new(*idx as u16);
+                let mut actual_idx = post.glyph_name_index()?.get(*idx as usize)?.get() as usize;
+                let name = if actual_idx < DEFAULT_GLYPH_NAMES.len() {
+                    DEFAULT_GLYPH_NAMES.get(actual_idx).copied()?
+                } else {
+                    actual_idx -= DEFAULT_GLYPH_NAMES.len();
+                    let string_data = post.data.slice(post.string_data_byte_range())?;
+                    // Checkpoint 0 is implicit and always at offset 0; the
+                    // array stores logical checkpoints 1..=NUM_CHECKPOINTS.
+                    let target_slot = (actual_idx / stride).min(NUM_CHECKPOINTS);
+                    // Find the the starting location for our scan
+                    let (mut scan_idx, mut offset) = {
+                        // Search backward from the target slot to find the
+                        // nearest checkpoint that has been set
+                        let mut slot = target_slot;
+                        while slot > 0 && checkpoints[slot - 1] == UNSET_CHECKPOINT {
+                            slot -= 1;
+                        }
+                        if slot == 0 {
+                            // Fallback to implicit checkpoint 0
+                            (0, 0)
+                        } else {
+                            // Otherwise, start scanning from the nearest
+                            // checkpoint
+                            (slot * stride, checkpoints[slot - 1] as usize)
+                        }
+                    };
+                    // See if we can use the monotonic fast path.
+                    if let Some(last_idx) = *last_actual_idx {
+                        // Start scanning from the last index if that provides
+                        // a smaller search space than the nearest checkpoint
+                        if last_idx <= actual_idx && last_idx > scan_idx {
+                            scan_idx = last_idx;
+                            offset = *last_offset;
+                        }
+                    }
+                    // Now do the linear scan over the string data
+                    while scan_idx < actual_idx {
+                        let item_len = PString::read_len_at(string_data, offset)?;
+                        offset = offset.checked_add(item_len)?;
+                        scan_idx += 1;
+                        // If this index is a checkpoint, record the offset
+                        // for future scans
+                        if scan_idx % stride == 0 {
+                            let slot = (scan_idx / stride).min(NUM_CHECKPOINTS);
+                            if slot > 0 {
+                                checkpoints[slot - 1] = u32::try_from(offset).ok()?;
+                            }
+                        }
+                    }
+                    if actual_idx % stride == 0 && target_slot > 0 {
+                        checkpoints[target_slot - 1] = u32::try_from(offset).ok()?;
+                    }
+                    // Record the last index and offset for future scans
+                    *last_actual_idx = Some(actual_idx);
+                    *last_offset = offset;
+                    PString::read(string_data.split_off(offset)?).ok()?.0
+                };
+                *idx += 1;
+                Some((gid.into(), name))
+            }
+        }
+    }
 }
 
 /// The 258 glyph names defined for Macintosh TrueType fonts
@@ -205,5 +349,28 @@ mod tests {
         let post = Post::read(buf.data().into()).unwrap();
         // Just don't panic
         assert_eq!(post.glyph_name(GlyphId16::new(0)), None);
+    }
+
+    #[test]
+    fn glyph_names_matches_naive_on_varied_synthetic_v2_data() {
+        let num_glyphs = 2_000u16;
+        let orders = [
+            test_data::GlyphNameOrder::Monotonic,
+            test_data::GlyphNameOrder::MostlyMonotonicWithBackrefs,
+            test_data::GlyphNameOrder::AllPointToLast,
+        ];
+        for order in orders {
+            let (bytes, expected_custom_names) =
+                test_data::v2_with_varied_glyph_names(num_glyphs, 63, order);
+            let post = Post::read(bytes.as_slice().into()).unwrap();
+            let from_naive: Vec<_> = (0..num_glyphs)
+                .map(|gid| post.glyph_name(GlyphId16::new(gid)).unwrap())
+                .collect();
+            let from_iter: Vec<_> = post.glyph_names().map(|(_, name)| name).collect();
+            assert_eq!(from_iter, from_naive);
+            for (name, expected) in from_iter.iter().zip(expected_custom_names.iter()) {
+                assert_eq!(*name, expected.as_str());
+            }
+        }
     }
 }
