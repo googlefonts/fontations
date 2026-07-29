@@ -485,7 +485,7 @@ mod tests {
             ..Default::default()
         };
         // Just don't panic with overflow
-        let _ = segment.adjust_height(i32::MIN, i32::MAX);
-        let _ = segment.adjust_height(i32::MAX, i32::MIN);
+        segment.adjust_height(i32::MIN, i32::MAX);
+        segment.adjust_height(i32::MAX, i32::MIN);
     }
 }
