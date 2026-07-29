@@ -39,27 +39,22 @@ where
         }
     }
 
-    /// Tries to reserve capacity for at least `additional` more elements.
-    pub fn try_reserve(&mut self, additional: usize) -> bool {
+    /// Reserves capacity for at least `additional` more elements.
+    pub fn reserve(&mut self, additional: usize) {
         match &mut self.0 {
             Storage::Inline(buf, len) => {
-                let new_cap = *len + additional;
+                let new_cap = len.saturating_add(additional);
                 if new_cap > N {
                     let mut vec = Vec::new();
-                    if vec.try_reserve(new_cap).is_err() {
-                        return false;
-                    }
+                    vec.reserve(new_cap);
                     vec.extend_from_slice(&buf[..*len]);
                     self.0 = Storage::Heap(vec);
                 }
             }
             Storage::Heap(vec) => {
-                if vec.try_reserve(additional).is_err() {
-                    return false;
-                }
+                vec.reserve(additional);
             }
         }
-        true
     }
 
     /// Appends an element to the back of the collection.
@@ -346,10 +341,10 @@ mod test {
             vec.push(i);
         }
         assert!(matches!(vec.0, Storage::Inline(..)));
-        assert!(vec.try_reserve(1));
+        vec.reserve(1);
         // still inline after reserving 1
         assert!(matches!(vec.0, Storage::Inline(..)));
-        assert!(vec.try_reserve(2));
+        vec.reserve(2);
         // reserving 2 spills to heap
         assert!(matches!(vec.0, Storage::Heap(..)));
     }

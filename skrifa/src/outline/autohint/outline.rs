@@ -529,12 +529,8 @@ impl Contour {
 }
 
 impl UnscaledOutlineSink for Outline {
-    fn try_reserve(&mut self, additional: usize) -> Result<(), DrawError> {
-        if self.points.try_reserve(additional) {
-            Ok(())
-        } else {
-            Err(DrawError::InsufficientMemory)
-        }
+    fn reserve(&mut self, additional: usize) {
+        self.points.reserve(additional);
     }
 
     fn push(&mut self, point: UnscaledPoint) -> Result<(), DrawError> {
