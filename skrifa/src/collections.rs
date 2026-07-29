@@ -45,8 +45,7 @@ where
             Storage::Inline(buf, len) => {
                 let new_cap = len.saturating_add(additional);
                 if new_cap > N {
-                    let mut vec = Vec::new();
-                    vec.reserve(new_cap);
+                    let mut vec = Vec::with_capacity(new_cap);
                     vec.extend_from_slice(&buf[..*len]);
                     self.0 = Storage::Heap(vec);
                 }
