@@ -14,7 +14,7 @@ use crate::collections::SmallVec;
 use core::ops::Range;
 use raw::{
     tables::glyf::{PointFlags, PointMarker},
-    types::{F26Dot6, F2Dot14},
+    types::{F26Dot6, F2Dot14, GlyphId},
 };
 
 /// Hinting directions.
@@ -172,6 +172,7 @@ impl Outline {
     ) -> Result<(), DrawError> {
         self.clear();
         let advance = glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
+        self.check_u16_index_bounds(glyph.glyph_id())?;
         self.advance = advance;
         self.units_per_em = glyph.units_per_em() as i32;
         // Heuristic value
@@ -186,6 +187,17 @@ impl Outline {
             self.check_remaining_weak_points(is_corner_flat_jit);
         }
         self.compute_orientation();
+        Ok(())
+    }
+
+    // Sanity check so that we can use 16-bit indices for points and contours.
+    fn check_u16_index_bounds(&self, glyph_id: GlyphId) -> Result<(), DrawError> {
+        // All of our u16 ranges are inclusive so this allows point indices up
+        // to u16::MAX
+        const MAX_LEN: usize = u16::MAX as usize + 1;
+        if self.points.len() > MAX_LEN || self.contours.len() > MAX_LEN {
+            return Err(DrawError::TooManyPoints(glyph_id));
+        }
         Ok(())
     }
 
@@ -244,15 +256,18 @@ impl Outline {
             let Some(points) = points.get_mut(contour.range()) else {
                 continue;
             };
-            let first_ix = contour.first() as u16;
+            let first_ix = contour.first();
             let mut prev_ix = contour.last() as u16;
             for (ix, point) in points.iter_mut().enumerate() {
-                let ix = ix as u16 + first_ix;
+                let ix = (ix + first_ix) as u16;
                 point.prev_ix = prev_ix;
                 prev_ix = ix;
-                point.next_ix = ix + 1;
+                // This can only potentially wrap for the last point in an
+                // outline and will be patched up the line below that sets
+                // the last point's next_ix to the first_ix.
+                point.next_ix = ix.wrapping_add(1);
             }
-            points.last_mut().unwrap().next_ix = first_ix;
+            points.last_mut().unwrap().next_ix = first_ix as u16;
         }
     }
 
@@ -687,6 +702,57 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(&points, expected);
+    }
+
+    #[test]
+    fn fill_sanity_checks_u16_index_bounds() {
+        let mut outline = Outline::default();
+        let gid = GlyphId::new(42);
+        outline
+            .points
+            .resize_and_fill(u16::MAX as usize + 1, Point::default());
+        outline
+            .contours
+            .resize_and_fill(u16::MAX as usize + 1, Contour::default());
+        assert!(outline.check_u16_index_bounds(gid).is_ok());
+        outline
+            .points
+            .resize_and_fill(u16::MAX as usize + 2, Point::default());
+        assert!(matches!(
+            outline.check_u16_index_bounds(gid),
+            Err(DrawError::TooManyPoints(err_gid)) if err_gid == gid
+        ));
+        outline.points.clear();
+        outline
+            .contours
+            .resize_and_fill(u16::MAX as usize + 2, Contour::default());
+        assert!(matches!(
+            outline.check_u16_index_bounds(gid),
+            Err(DrawError::TooManyPoints(err_gid)) if err_gid == gid
+        ));
+    }
+
+    #[test]
+    fn link_points_handles_max_points_last_next_overflow() {
+        let mut outline = Outline::default();
+        outline
+            .points
+            .resize_and_fill(u16::MAX as usize + 1, Point::default());
+        outline.contours.push(Contour {
+            first_ix: 0,
+            last_ix: u16::MAX,
+        });
+        outline.check_u16_index_bounds(0u32.into()).unwrap();
+        outline.link_points();
+        // The loop writes `ix + 1` to next_ix first, which overflows for the
+        // last point; this should then be patched to the contour's first index.
+        assert_eq!(outline.points[0].prev(), u16::MAX as usize);
+        assert_eq!(outline.points[0].next(), 1);
+        assert_eq!(
+            outline.points[u16::MAX as usize].prev(),
+            u16::MAX as usize - 1
+        );
+        assert_eq!(outline.points[u16::MAX as usize].next(), 0);
     }
 
     #[test]
