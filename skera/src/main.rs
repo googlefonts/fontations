@@ -233,18 +233,18 @@ fn main() {
     };
 
     let mut output_bytes = Vec::new();
-    let plan = Plan::new(
-        &gids,
-        &unicodes,
-        &font,
-        subset_flags,
-        &drop_tables,
-        &layout_scripts,
-        &layout_features,
-        &name_ids,
-        &name_languages,
-    );
     for _ in 0..args.num_iterations.unwrap_or(1) {
+        let plan = Plan::new(
+            &gids,
+            &unicodes,
+            &font,
+            subset_flags,
+            &drop_tables,
+            &layout_scripts,
+            &layout_features,
+            &name_ids,
+            &name_languages,
+        );
         match subset_font(&font, &plan) {
             Ok(out) => {
                 output_bytes = out;
