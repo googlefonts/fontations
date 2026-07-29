@@ -492,11 +492,9 @@ fn compute_default_blues(shaper: &Shaper, coords: &[F2Dot14], style: &StyleClass
                         *round = best_y_extremum;
                         n_rounds += 1;
                     }
-                } else {
-                    if let Some(flat) = flats.get_mut(n_flats) {
-                        *flat = best_y_extremum;
-                        n_flats += 1;
-                    }
+                } else if let Some(flat) = flats.get_mut(n_flats) {
+                    *flat = best_y_extremum;
+                    n_flats += 1;
                 }
             }
         }
@@ -690,11 +688,9 @@ fn compute_cjk_blues(
                         *fill = best_pos;
                         n_fills += 1;
                     }
-                } else {
-                    if let Some(flat) = flats.get_mut(n_flats) {
-                        *flat = best_pos;
-                        n_flats += 1;
-                    }
+                } else if let Some(flat) = flats.get_mut(n_flats) {
+                    *flat = best_pos;
+                    n_flats += 1;
                 }
             }
         }
