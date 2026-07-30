@@ -171,10 +171,18 @@ impl Outline {
         quirks: QuirksMode,
     ) -> Result<(), DrawError> {
         self.clear();
-        let advance = glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
-        self.check_u16_index_bounds(glyph.glyph_id())?;
-        self.advance = advance;
         self.units_per_em = glyph.units_per_em() as i32;
+        self.advance = glyph.draw_unscaled(LocationRef::new(coords), None, self)?;
+        self.analyze_and_validate(glyph.glyph_id(), quirks)
+    }
+
+    fn analyze_and_validate(&mut self, gid: GlyphId, quirks: QuirksMode) -> Result<(), DrawError> {
+        // All of our u16 ranges are inclusive so this allows point indices up
+        // to u16::MAX
+        const MAX_LEN: usize = u16::MAX as usize + 1;
+        if self.points.len() > MAX_LEN || self.contours.len() > MAX_LEN {
+            return Err(DrawError::TooManyPoints(gid));
+        }
         // Heuristic value
         let near_limit = 20 * self.units_per_em / 2048;
         self.link_points();
@@ -187,17 +195,6 @@ impl Outline {
             self.check_remaining_weak_points(is_corner_flat_jit);
         }
         self.compute_orientation();
-        Ok(())
-    }
-
-    // Sanity check so that we can use 16-bit indices for points and contours.
-    fn check_u16_index_bounds(&self, glyph_id: GlyphId) -> Result<(), DrawError> {
-        // All of our u16 ranges are inclusive so this allows point indices up
-        // to u16::MAX
-        const MAX_LEN: usize = u16::MAX as usize + 1;
-        if self.points.len() > MAX_LEN || self.contours.len() > MAX_LEN {
-            return Err(DrawError::TooManyPoints(glyph_id));
-        }
         Ok(())
     }
 
@@ -708,18 +705,19 @@ mod tests {
     fn fill_sanity_checks_u16_index_bounds() {
         let mut outline = Outline::default();
         let gid = GlyphId::new(42);
+        let quirks = QuirksMode::Jit;
         outline
             .points
             .resize_and_fill(u16::MAX as usize + 1, Point::default());
         outline
             .contours
             .resize_and_fill(u16::MAX as usize + 1, Contour::default());
-        assert!(outline.check_u16_index_bounds(gid).is_ok());
+        assert!(outline.analyze_and_validate(gid, quirks).is_ok());
         outline
             .points
             .resize_and_fill(u16::MAX as usize + 2, Point::default());
         assert!(matches!(
-            outline.check_u16_index_bounds(gid),
+            outline.analyze_and_validate(gid, quirks),
             Err(DrawError::TooManyPoints(err_gid)) if err_gid == gid
         ));
         outline.points.clear();
@@ -727,7 +725,7 @@ mod tests {
             .contours
             .resize_and_fill(u16::MAX as usize + 2, Contour::default());
         assert!(matches!(
-            outline.check_u16_index_bounds(gid),
+            outline.analyze_and_validate(gid, quirks),
             Err(DrawError::TooManyPoints(err_gid)) if err_gid == gid
         ));
     }
@@ -742,8 +740,8 @@ mod tests {
             first_ix: 0,
             last_ix: u16::MAX,
         });
-        outline.check_u16_index_bounds(0u32.into()).unwrap();
-        outline.link_points();
+        let quirks = QuirksMode::Jit;
+        outline.analyze_and_validate(0u32.into(), quirks).unwrap();
         // The loop writes `ix + 1` to next_ix first, which overflows for the
         // last point; this should then be patched to the contour's first index.
         assert_eq!(outline.points[0].prev(), u16::MAX as usize);
