@@ -42,9 +42,9 @@ mod ctx {
 
     pub(super) struct ClosureCtx<'a> {
         /// the current closure glyphs. This is updated as we go.
-        glyphs: &'a mut IntSet<GlyphId>,
-        active_glyphs_stack: Vec<IntSet<GlyphId>>,
-        output: IntSet<GlyphId>,
+        pub(super) glyphs: &'a mut IntSet<GlyphId>,
+        pub(super) active_glyphs_stack: Vec<IntSet<GlyphId>>,
+        pub(super) output: IntSet<GlyphId>,
         lookup_count: u16,
         nesting_level_left: u8,
         done_lookups_glyphs: HashMap<u16, (u64, IntSet<GlyphId>)>,
@@ -453,11 +453,15 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
             return Ok(());
         }
         let coverage = self.coverage()?;
-        let glyph_set = ctx.parent_active_glyphs();
+        let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
+            &glyph_set
+        } else {
+            &*ctx.glyphs
+        };
         let subs_glyphs = self.substitute_glyph_ids();
 
-        let new_glyphs: Vec<GlyphId> =
-            if self.glyph_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+        if self.glyph_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+            ctx.output.extend(
                 glyph_set
                     .iter()
                     .filter_map(|g| coverage.get(g))
@@ -465,17 +469,17 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
                         subs_glyphs
                             .get(idx as usize)
                             .map(|new_g| GlyphId::from(new_g.get()))
-                    })
-                    .collect()
-            } else {
+                    }),
+            );
+        } else {
+            ctx.output.extend(
                 coverage
                     .iter()
                     .zip(subs_glyphs)
                     .filter(|&(g, _)| glyph_set.contains(GlyphId::from(g)))
-                    .map(|(_, &new_g)| GlyphId::from(new_g.get()))
-                    .collect()
-            };
-        ctx.add_glyphs(new_glyphs);
+                    .map(|(_, &new_g)| GlyphId::from(new_g.get())),
+            );
+        }
         Ok(())
     }
 }
@@ -491,11 +495,15 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
             return Ok(());
         }
         let coverage = self.coverage()?;
-        let glyph_set = ctx.parent_active_glyphs();
+        let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
+            &glyph_set
+        } else {
+            &*ctx.glyphs
+        };
         let sequences = self.sequences();
 
-        let new_glyphs: Vec<GlyphId> =
-            if self.sequence_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+        if self.sequence_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+            ctx.output.extend(
                 glyph_set
                     .iter()
                     .filter_map(|g| coverage.get(g))
@@ -504,9 +512,10 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
                         seq.substitute_glyph_ids()
                             .iter()
                             .map(|new_g| GlyphId::from(new_g.get()))
-                    })
-                    .collect()
-            } else {
+                    }),
+            );
+        } else {
+            ctx.output.extend(
                 coverage
                     .iter()
                     .zip(sequences.iter_as_nullable())
@@ -520,11 +529,9 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
                         seq.substitute_glyph_ids()
                             .iter()
                             .map(|new_g| GlyphId::from(new_g.get()))
-                    })
-                    .collect()
-            };
-
-        ctx.add_glyphs(new_glyphs);
+                    }),
+            );
+        }
         Ok(())
     }
 }
@@ -540,11 +547,14 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
             return Ok(());
         }
         let coverage = self.coverage()?;
-        let glyph_set = ctx.parent_active_glyphs();
+        let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
+            &glyph_set
+        } else {
+            &*ctx.glyphs
+        };
         let alts = self.alternate_sets();
-
-        let new_glyphs: Vec<GlyphId> =
-            if self.alternate_set_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+        if self.alternate_set_count() as u64 > glyph_set.len() * coverage.cost() as u64 {
+            ctx.output.extend(
                 glyph_set
                     .iter()
                     .filter_map(|g| coverage.get(g))
@@ -554,9 +564,10 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
                             .alternate_glyph_ids()
                             .iter()
                             .map(|new_g| GlyphId::from(new_g.get()))
-                    })
-                    .collect()
-            } else {
+                    }),
+            );
+        } else {
+            ctx.output.extend(
                 coverage
                     .iter()
                     .zip(alts.iter_as_nullable())
@@ -571,11 +582,9 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
                             .alternate_glyph_ids()
                             .iter()
                             .map(|new_g| GlyphId::from(new_g.get()))
-                    })
-                    .collect()
-            };
-
-        ctx.add_glyphs(new_glyphs);
+                    }),
+            );
+        }
         Ok(())
     }
 }
@@ -592,33 +601,49 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
         }
         let coverage = self.coverage()?;
         let ligs = self.ligature_sets();
-        let lig_set_idxes: Vec<usize> =
-            if self.ligature_set_count() as u64 > ctx.parent_active_glyphs().len() {
-                ctx.parent_active_glyphs()
-                    .iter()
-                    .filter_map(|g| coverage.get(g))
-                    .map(|idx| idx as usize)
-                    .collect()
-            } else {
-                coverage
-                    .iter()
-                    .enumerate()
-                    .filter(|&(_idx, g)| ctx.parent_active_glyphs().contains(GlyphId::from(g)))
-                    .map(|(idx, _)| idx)
-                    .collect()
-            };
+        let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
+            &glyph_set
+        } else {
+            &*ctx.glyphs
+        };
 
-        for idx in lig_set_idxes {
-            let lig_set = match ligs.get(idx) {
-                Err(ReadError::NullOffset) => continue,
-                other => other,
-            }?;
-            for lig in lig_set.ligatures().iter_as_nullable() {
-                let Some(lig) = lig.transpose()? else {
-                    continue;
-                };
-                if lig.intersects(ctx.glyphs())? {
-                    ctx.add(GlyphId::from(lig.ligature_glyph()));
+        if self.ligature_set_count() as u64 > glyph_set.len() {
+            for idx in glyph_set
+                .iter()
+                .filter_map(|g| coverage.get(g))
+                .map(|idx| idx as usize)
+            {
+                let lig_set = match ligs.get(idx) {
+                    Err(ReadError::NullOffset) => continue,
+                    other => other,
+                }?;
+                for lig in lig_set.ligatures().iter_as_nullable() {
+                    let Some(lig) = lig.transpose()? else {
+                        continue;
+                    };
+                    if lig.intersects(ctx.glyphs())? {
+                        ctx.output.insert(GlyphId::from(lig.ligature_glyph()));
+                    }
+                }
+            }
+        } else {
+            for idx in coverage
+                .iter()
+                .enumerate()
+                .filter(|&(_idx, g)| glyph_set.contains(GlyphId::from(g)))
+                .map(|(idx, _)| idx)
+            {
+                let lig_set = match ligs.get(idx) {
+                    Err(ReadError::NullOffset) => continue,
+                    other => other,
+                }?;
+                for lig in lig_set.ligatures().iter_as_nullable() {
+                    let Some(lig) = lig.transpose()? else {
+                        continue;
+                    };
+                    if lig.intersects(ctx.glyphs())? {
+                        ctx.output.insert(GlyphId::from(lig.ligature_glyph()));
+                    }
                 }
             }
         }
@@ -638,28 +663,36 @@ impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
         }
 
         let coverage = self.coverage()?;
-        let glyph_set = ctx.parent_active_glyphs();
-        let idxes: Vec<usize> = if self.glyph_count() as u64 > glyph_set.len() {
-            glyph_set
+        let sub_glyphs = self.substitute_glyph_ids();
+        let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
+            &glyph_set
+        } else {
+            &*ctx.glyphs
+        };
+
+        if self.glyph_count() as u64 > glyph_set.len() {
+            for i in glyph_set
                 .iter()
                 .filter_map(|g| coverage.get(g))
                 .map(|idx| idx as usize)
-                .collect()
+            {
+                let Some(g) = sub_glyphs.get(i) else {
+                    continue;
+                };
+                ctx.output.insert(GlyphId::from(g.get()));
+            }
         } else {
-            coverage
+            for i in coverage
                 .iter()
                 .enumerate()
                 .filter(|&(_idx, g)| glyph_set.contains(GlyphId::from(g)))
                 .map(|(idx, _)| idx)
-                .collect()
-        };
-
-        let sub_glyphs = self.substitute_glyph_ids();
-        for i in idxes {
-            let Some(g) = sub_glyphs.get(i) else {
-                continue;
-            };
-            ctx.add(GlyphId::from(g.get()));
+            {
+                let Some(g) = sub_glyphs.get(i) else {
+                    continue;
+                };
+                ctx.output.insert(GlyphId::from(g.get()));
+            }
         }
 
         Ok(())
