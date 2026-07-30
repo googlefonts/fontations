@@ -163,10 +163,6 @@ mod ctx {
             self.output.insert(gid);
         }
 
-        pub(super) fn add_glyphs(&mut self, iter: impl IntoIterator<Item = GlyphId>) {
-            self.output.extend(iter)
-        }
-
         pub(super) fn flush(&mut self) {
             self.glyphs.union(&self.output);
             self.output.clear();
