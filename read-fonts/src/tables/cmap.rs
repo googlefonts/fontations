@@ -653,8 +653,9 @@ where
                 // that the start code of next group is at least
                 // current_end.
                 if next_group.range.start < group.range.end {
-                    next_group.range = group.range.end..next_group.range.end;
+                    next_group.range.start = group.range.end;
                 }
+                next_group.range.end = next_group.range.end.max(group.range.end);
                 self.cur_group = Some(next_group);
             }
         }
@@ -1403,6 +1404,34 @@ mod tests {
             ..Default::default()
         };
         assert!(cmap12.iter_with_limits(limits).count() <= char::MAX as usize + 1);
+    }
+
+    // Ensure range bounds stay monotonic across groups even when a middle
+    // group's end is saturated by glyph limits. Without this, a later group
+    // can reset iteration backwards.
+    #[test]
+    fn cmap12_iter_saturated_group_does_not_reset_range() {
+        let data = be_buffer! {
+            12u16,      // format
+            0u16,       // reserved, set to 0
+            0u32,       // length, ignored
+            0u32,       // language, ignored
+            3u32,       // numGroups
+            // groups: [startCode, endCode, startGlyphID]
+            [10u32, 20, 0],
+            [15u32, 40, 100],
+            [18u32, 22, 0]
+        };
+        let cmap12 = Cmap12::read(data.data().into()).unwrap();
+        let limits = CmapIterLimits {
+            glyph_count: 50,
+            ..Default::default()
+        };
+        let codepoints = cmap12
+            .iter_with_limits(limits)
+            .map(|(cp, _)| cp)
+            .collect::<Vec<_>>();
+        assert_eq!(codepoints, (10..=22).collect::<Vec<_>>());
     }
 
     #[test]
