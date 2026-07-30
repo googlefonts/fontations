@@ -363,6 +363,12 @@ impl Segment {
     pub(crate) fn link<'a>(&self, segments: &'a [Segment]) -> Option<&'a Segment> {
         segments.get(self.link_ix.map(|ix| ix as usize)?)
     }
+
+    /// Adjust the height of the segment by half the distance between v1
+    /// and v2 using wrapping arithmetic.
+    pub(crate) fn adjust_height(&mut self, v1: i32, v2: i32) {
+        self.height = (self.height as i32).wrapping_add(v1.wrapping_sub(v2) >> 1) as i16;
+    }
 }
 
 /// Sequence of segments used for grid-fitting.
@@ -465,5 +471,21 @@ impl Edge {
 
     pub(crate) fn serif<'a>(&self, edges: &'a [Edge]) -> Option<&'a Edge> {
         edges.get(self.serif_ix.map(|ix| ix as usize)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn segment_adjust_height_extreme_values_do_not_panic() {
+        let mut segment = Segment {
+            height: i16::MAX,
+            ..Default::default()
+        };
+        // Just don't panic with overflow
+        segment.adjust_height(i32::MIN, i32::MAX);
+        segment.adjust_height(i32::MAX, i32::MIN);
     }
 }

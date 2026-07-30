@@ -470,7 +470,7 @@ pub(crate) fn fixed_mul_div(a: i32, b: i32, c: i32) -> i32 {
 }
 
 pub(crate) fn pix_round(a: i32) -> i32 {
-    (a + 32) & !63
+    (a.wrapping_add(32)) & !63
 }
 
 pub(crate) fn pix_floor(a: i32) -> i32 {
@@ -593,5 +593,12 @@ mod tests {
             .iter()
             .map(|opt| opt.is_some())
             .collect()
+    }
+
+    #[test]
+    fn pix_round_extremes_do_not_panic() {
+        // Just don't panic with overflow
+        let _ = pix_round(i32::MIN);
+        let _ = pix_round(i32::MAX);
     }
 }
