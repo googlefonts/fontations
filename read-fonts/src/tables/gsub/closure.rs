@@ -450,7 +450,7 @@ impl GlyphClosure for SingleSubstFormat2<'_> {
         }
         let coverage = self.coverage()?;
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
-            &glyph_set
+            glyph_set
         } else {
             &*ctx.glyphs
         };
@@ -492,7 +492,7 @@ impl GlyphClosure for MultipleSubstFormat1<'_> {
         }
         let coverage = self.coverage()?;
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
-            &glyph_set
+            glyph_set
         } else {
             &*ctx.glyphs
         };
@@ -544,7 +544,7 @@ impl GlyphClosure for AlternateSubstFormat1<'_> {
         }
         let coverage = self.coverage()?;
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
-            &glyph_set
+            glyph_set
         } else {
             &*ctx.glyphs
         };
@@ -598,7 +598,7 @@ impl GlyphClosure for LigatureSubstFormat1<'_> {
         let coverage = self.coverage()?;
         let ligs = self.ligature_sets();
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
-            &glyph_set
+            glyph_set
         } else {
             &*ctx.glyphs
         };
@@ -661,7 +661,7 @@ impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
         let coverage = self.coverage()?;
         let sub_glyphs = self.substitute_glyph_ids();
         let glyph_set = if let Some(glyph_set) = ctx.active_glyphs_stack.last() {
-            &glyph_set
+            glyph_set
         } else {
             &*ctx.glyphs
         };
