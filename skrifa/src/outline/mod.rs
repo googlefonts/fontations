@@ -477,7 +477,7 @@ impl<'a> OutlineGlyph<'a> {
                 with_temporary_memory(self, Hinting::None, user_memory, |buf| {
                     let outline = FreeTypeScaler::unhinted(glyf, outline, buf, ppem, coords)?
                         .scale(&outline.glyph, outline.glyph_id)?;
-                    sink.try_reserve(outline.points.len())?;
+                    sink.reserve(outline.points.len());
                     let mut contour_start = 0;
                     for contour_end in outline.contours.iter().map(|contour| *contour as usize) {
                         if contour_end >= contour_start {

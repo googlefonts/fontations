@@ -39,7 +39,7 @@ impl UnscaledPoint {
 }
 
 pub(super) trait UnscaledOutlineSink {
-    fn try_reserve(&mut self, additional: usize) -> Result<(), DrawError>;
+    fn reserve(&mut self, additional: usize);
     fn push(&mut self, point: UnscaledPoint) -> Result<(), DrawError>;
     fn extend(&mut self, points: impl IntoIterator<Item = UnscaledPoint>) -> Result<(), DrawError> {
         for point in points.into_iter() {
@@ -69,12 +69,8 @@ impl<const INLINE_CAP: usize> UnscaledOutlineBuf<INLINE_CAP> {
 }
 
 impl<const INLINE_CAP: usize> UnscaledOutlineSink for UnscaledOutlineBuf<INLINE_CAP> {
-    fn try_reserve(&mut self, additional: usize) -> Result<(), DrawError> {
-        if !self.0.try_reserve(additional) {
-            Err(DrawError::InsufficientMemory)
-        } else {
-            Ok(())
-        }
+    fn reserve(&mut self, additional: usize) {
+        self.0.reserve(additional);
     }
 
     fn push(&mut self, point: UnscaledPoint) -> Result<(), DrawError> {
