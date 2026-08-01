@@ -80,7 +80,9 @@ fn serialize_name_records(
 ) -> Result<(), SubsetError> {
     let data = name.offset_data().as_bytes();
     let name_records = name.name_record();
-    let name_records_bytes = data.get(name.name_record_byte_range()).unwrap();
+    let name_records_bytes = data
+        .get(name.name_record_byte_range())
+        .ok_or(SubsetError::SubsetTableError(Name::TAG))?;
     let storage_start = name.storage_offset() as usize;
     for idx in retained_name_record_idxes.iter() {
         let len = s.length();
@@ -129,3 +131,86 @@ fn serialize_name_records(
 
 //NameRecord size in bytes
 const NAME_RECORD_SIZE: usize = NameRecord::RAW_BYTE_LEN;
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use write_fonts::read::{types::NameId, TableProvider};
+    use write_fonts::types::Tag;
+
+    /// Returns a copy of `font_bytes` with the `count` field of the `name`
+    /// table header overwritten, so that the header claims more name records
+    /// than the table actually contains.
+    fn font_with_bad_name_count(font_bytes: &[u8], count: u16) -> Vec<u8> {
+        let mut bytes = font_bytes.to_vec();
+        let font = FontRef::new(font_bytes).unwrap();
+        let record = font
+            .table_directory()
+            .table_records()
+            .iter()
+            .find(|r| r.tag() == Name::TAG)
+            .unwrap();
+        // count is the second u16 of the name table header
+        let count_pos = record.offset() as usize + 2;
+        bytes[count_pos..count_pos + 2].copy_from_slice(&count.to_be_bytes());
+        bytes
+    }
+
+    #[test]
+    fn test_subset_name_record_count_out_of_bounds() {
+        let ttf: &[u8] = include_bytes!("../test-data/fonts/Roboto-Regular.abc.ttf");
+        let bytes = font_with_bad_name_count(ttf, 0xFFFF);
+        let font = FontRef::new(&bytes).unwrap();
+        let name = font.name().unwrap();
+
+        let mut builder = FontBuilder::new();
+        let mut plan = Plan::default();
+        plan.name_ids.insert(NameId::new(1));
+        plan.name_languages.insert(0x0409);
+
+        let mut s = Serializer::new(1024);
+        assert_eq!(s.start_serialize(), Ok(()));
+        let ret = name.subset(&plan, &font, &mut s, &mut builder);
+        assert!(matches!(
+            ret,
+            Err(SubsetError::SubsetTableError(tag)) if tag == Name::TAG
+        ));
+    }
+
+    #[test]
+    fn test_subset_font_name_record_count_out_of_bounds() {
+        use write_fonts::read::collections::IntSet;
+
+        let ttf: &[u8] = include_bytes!("../test-data/fonts/Roboto-Regular.abc.ttf");
+        let bytes = font_with_bad_name_count(ttf, 0xFFFF);
+        let font = FontRef::new(&bytes).unwrap();
+
+        let mut unicodes = IntSet::<u32>::empty();
+        unicodes.insert_range(0x61..=0x63);
+        let mut name_ids = IntSet::<NameId>::empty();
+        name_ids.insert_range(NameId::from(0)..=NameId::from(6));
+        let mut name_languages = IntSet::<u16>::empty();
+        name_languages.insert(0x0409);
+        let mut layout_features = IntSet::empty();
+        layout_features.extend_unsorted(crate::DEFAULT_LAYOUT_FEATURES.iter().copied());
+
+        let plan = Plan::new(
+            &IntSet::empty(),
+            &unicodes,
+            &font,
+            SubsetFlags::SUBSET_FLAGS_DEFAULT,
+            &IntSet::empty(),
+            &IntSet::<Tag>::all(),
+            &layout_features,
+            &name_ids,
+            &name_languages,
+        );
+
+        // subset_font used to panic here. The malformed name table is now
+        // reported as a subset failure, which subset() treats as "table
+        // subsetted to empty", so the table is dropped from the output.
+        let out = crate::subset_font(&font, &plan).unwrap();
+        let subset = FontRef::new(&out).unwrap();
+        assert!(subset.table_data(Name::TAG).is_none());
+    }
+}
