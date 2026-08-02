@@ -931,7 +931,6 @@ impl<'a> Parser<'a> {
             return None;
         }
         let end = self.pos;
-        self.pos += 1;
         Some(Token::Proc(self.data.get(start + 1..end - 1)?))
     }
 
@@ -960,7 +959,6 @@ impl<'a> Parser<'a> {
             return None;
         }
         let end = self.pos;
-        self.pos += 1;
         Some(Token::LitString(self.data.get(start + 1..end - 1)?))
     }
 
@@ -1717,8 +1715,35 @@ mod tests {
     }
 
     #[test]
+    fn parse_proc_with_single_int() {
+        check_tokens(
+            "dup 3 {3} executeonly put",
+            &[
+                Token::Raw(b"dup"),
+                Token::Int(3),
+                Token::Proc(b"3"),
+                Token::Raw(b"executeonly"),
+                Token::Raw(b"put"),
+            ],
+        );
+    }
+
+    #[test]
     fn parse_unterminated_procs() {
         check_tokens("{a {nested 20} proc", &[]);
+    }
+
+    #[test]
+    fn parse_aggregate_tokens_without_whitespace() {
+        check_tokens(
+            "{(string)}3(string1)(string2)",
+            &[
+                Token::Proc(b"(string)"),
+                Token::Int(3),
+                Token::LitString(b"string1"),
+                Token::LitString(b"string2"),
+            ],
+        );
     }
 
     #[test]
