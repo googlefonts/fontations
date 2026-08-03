@@ -58,3 +58,7 @@ skera = { version = "0.5.1", path = "skera" }
 
 [workspace.metadata.release]
 allow-branch = ["main"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
