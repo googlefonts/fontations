@@ -876,18 +876,15 @@ impl LookupClosure for ContextFormat1<'_> {
         let Some(coverage) = self.coverage().transpose()? else {
             return Ok(());
         };
-        let glyph_set = c.glyphs();
 
-        let intersected_idxes: IntSet<u16> = coverage
+        for (g, rule_set) in coverage
             .iter()
-            .enumerate()
-            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
-            .map(|(idx, _)| idx as u16)
-            .collect();
-
-        for rule_set in self.rule_sets().enumerate().filter_map(|(idx, rule_set)| {
-            rule_set.filter(|_| intersected_idxes.contains(idx as u16))
-        }) {
+            .zip(self.rule_sets())
+            .filter_map(|(g, rule_set)| rule_set.map(|rs| (g, rs)))
+        {
+            if !c.glyphs().contains(GlyphId::from(g)) {
+                continue;
+            }
             if c.lookup_limit_exceed() {
                 return Ok(());
             }
