@@ -750,6 +750,7 @@ impl GlyphClosure for ContextFormat1<'_> {
         };
 
         let lookups = lookup_list.lookups();
+        let mut seen_sequence_indices = IntSet::new();
         for (gid, rule_set) in coverage
             .iter()
             .zip(self.rule_sets())
@@ -780,7 +781,7 @@ impl GlyphClosure for ContextFormat1<'_> {
                 // we can no longer trivially determine the state of the context
                 // at that point. In this case we give up, and assume that the
                 // second lookup is reachable by all glyphs.
-                let mut seen_sequence_indices = IntSet::new();
+                seen_sequence_indices.clear();
 
                 for lookup_record in rule.lookup_records() {
                     let lookup_index = lookup_record.lookup_list_index();
@@ -866,6 +867,7 @@ impl GlyphClosure for ContextFormat2<'_> {
         };
 
         let lookups = lookup_list.lookups();
+        let mut seen_sequence_indices = IntSet::new();
         for (i, rule_set) in self
             .rule_sets()
             .enumerate()
@@ -897,8 +899,7 @@ impl GlyphClosure for ContextFormat2<'_> {
                 let input_seq = rule.input_sequence();
                 let input_count = input_seq.len() + 1;
 
-                let mut seen_sequence_indices = IntSet::new();
-
+                seen_sequence_indices.clear();
                 for lookup_record in rule.lookup_records() {
                     let lookup_index = lookup_record.lookup_list_index();
                     let lookup = match lookups.get(lookup_index as usize) {
