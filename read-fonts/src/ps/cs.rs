@@ -23,9 +23,10 @@ pub const NESTING_DEPTH_LIMIT: u32 = 10;
 /// Maximum number of operations that can be processed during charstring
 /// evaluation.
 ///
-/// HarfBuzz limits this to 200,000 (https://github.com/harfbuzz/harfbuzz/blob/a6357ca3f7e73165ba8b201b65f1130059e34255/src/hb-limits.hh#L108)
-/// and threat analysis suggested 2,000,000 so we picked a value of 1,000,000
-/// that matches our instruction limit for the TrueType interpreter.
+/// HarfBuzz limits this to 200,000
+/// (<https://github.com/harfbuzz/harfbuzz/blob/a6357ca3f7e73165ba8b201b65f1130059e34255/src/hb-limits.hh#L108>)
+/// and threat analysis suggested 2,000,000 so a value of 1,000,000
+/// was chosen to match our instruction limit for the TrueType interpreter.
 ///
 /// FreeType only limits depth, not number of operations.
 const MAX_OPERATIONS: u32 = 1_000_000;
