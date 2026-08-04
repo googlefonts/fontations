@@ -173,75 +173,6 @@ impl<'a> EntryData<'a> {
     }
 }
 
-impl<'a> PatchMapFormat1<'a> {
-    pub fn gid_to_entry_iter(&'a self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
-        GidToEntryIter {
-            glyph_map: self.glyph_map().ok(),
-            glyph_count: self.glyph_count().to_u32(),
-            gid: self
-                .glyph_map()
-                .map(|glyph_map| glyph_map.first_mapped_glyph() as u32)
-                .unwrap_or(0),
-        }
-        .filter(|(_, entry_index)| *entry_index > 0)
-    }
-
-    pub fn entry_count(&self) -> u32 {
-        self.max_entry_index() as u32 + 1
-    }
-
-    pub fn is_entry_applied(&self, entry_index: u16) -> bool {
-        let byte_index = entry_index / 8;
-        let bit_mask = 1 << (entry_index % 8);
-        self.applied_entries_bitmap()
-            .get(byte_index as usize)
-            .map(|byte| byte & bit_mask != 0)
-            .unwrap_or(false)
-    }
-}
-
-impl FeatureMap<'_> {
-    pub fn entry_records_size(&self, max_entry_index: u16) -> Result<usize, ReadError> {
-        let entry_width = if max_entry_index < 256 { 2 } else { 4 };
-        let mut num_bytes = 0usize;
-        for record in self.feature_records().iter() {
-            let entries_size = record?.entry_map_count().get() as usize * entry_width;
-            num_bytes = num_bytes
-                .checked_add(entries_size)
-                .ok_or(ReadError::OutOfBounds)?;
-        }
-        Ok(num_bytes)
-    }
-}
-
-struct GidToEntryIter<'a> {
-    glyph_map: Option<GlyphMap<'a>>,
-    glyph_count: u32,
-    gid: u32,
-}
-
-impl Iterator for GidToEntryIter<'_> {
-    type Item = (GlyphId, u16);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let glyph_map = self.glyph_map.as_ref()?;
-
-        let cur_gid = self.gid;
-        self.gid += 1;
-
-        if cur_gid >= self.glyph_count {
-            return None;
-        }
-
-        let index = cur_gid as usize - glyph_map.first_mapped_glyph() as usize;
-        glyph_map
-            .entry_index()
-            .get(index)
-            .ok()
-            .map(|entry_index| (cur_gid.into(), entry_index.0))
-    }
-}
-
 impl<'a> GlyphPatches<'a> {
     /// Returns an iterator over the per glyph data for the table with the given index.
     pub fn glyph_data_for_table(
@@ -358,172 +289,37 @@ mod tests {
     // - feature map with short entry indices.
 
     #[test]
-    fn format_1_gid_to_u8_entry_iter() {
-        let data = test_data::simple_format1();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
-        let entries: Vec<(GlyphId, u16)> = map.gid_to_entry_iter().collect();
-
-        assert_eq!(
-            entries,
-            vec![(1u32.into(), 2), (2u32.into(), 1), (4u32.into(), 1)]
-        );
-    }
-
-    #[test]
-    fn format_1_gid_to_u16_entry_iter() {
-        let data = test_data::u16_entries_format1();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
-        let entries: Vec<(GlyphId, u16)> = map.gid_to_entry_iter().collect();
-
-        assert_eq!(
-            entries,
-            vec![
-                (2u32.into(), 0x50),
-                (3u32.into(), 0x51),
-                (4u32.into(), 0x12c),
-                (5u32.into(), 0x12c),
-                (6u32.into(), 0x50)
-            ]
-        );
-    }
-
-    #[test]
-    fn format_1_feature_map() {
-        let data = test_data::feature_map_format1();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
-
-        let Some(feature_map_result) = map.feature_map() else {
-            panic!("should have a non null feature map.");
-        };
-
-        let Ok(feature_map) = feature_map_result else {
-            panic!("should have a valid feature map.");
-        };
-
-        assert_eq!(feature_map.feature_records().len(), 3);
-
-        let fr0 = feature_map.feature_records().get(0).unwrap();
-        assert_eq!(fr0.feature_tag(), Tag::new(b"dlig"));
-        assert_eq!(*fr0.first_new_entry_index(), U8Or16(0x190));
-        assert_eq!(*fr0.entry_map_count(), U8Or16(0x01));
-
-        let fr1 = feature_map.feature_records().get(1).unwrap();
-        assert_eq!(fr1.feature_tag(), Tag::new(b"liga"));
-        assert_eq!(*fr1.first_new_entry_index(), U8Or16(0x180));
-        assert_eq!(*fr1.entry_map_count(), U8Or16(0x02));
-    }
-
-    #[test]
-    fn format_1_get_charstrings_offset() {
+    fn get_charstrings_offset() {
         // No offsets
-        let data = test_data::simple_format1();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
-
+        let data = test_data::codepoints_only();
+        let map = IftPatchMap::read(FontData::new(&data)).unwrap();
         assert_eq!(map.cff_charstrings_offset(), None);
         assert_eq!(map.cff2_charstrings_offset(), None);
 
         // One offset
-        let data = test_data::simple_format1_with_one_charstrings_offset();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
+        let data = test_data::with_one_charstrings_offset();
+        let map = IftPatchMap::read(FontData::new(&data)).unwrap();
 
         assert_eq!(map.cff_charstrings_offset(), Some(456));
         assert_eq!(map.cff2_charstrings_offset(), None);
 
         // Two offsets
-        let data = test_data::simple_format1_with_two_charstrings_offsets();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
+        let data = test_data::with_two_charstrings_offset();
+        let map = IftPatchMap::read(FontData::new(&data)).unwrap();
 
         assert_eq!(map.cff_charstrings_offset(), Some(456));
         assert_eq!(map.cff2_charstrings_offset(), Some(789));
-    }
-
-    #[test]
-    fn format_2_get_charstrings_offset() {
-        // No offsets
-        let data = test_data::codepoints_only_format2();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format2(map) = table else {
-            panic!("Not format 2.");
-        };
-        assert_eq!(map.cff_charstrings_offset(), None);
-        assert_eq!(map.cff2_charstrings_offset(), None);
-
-        // One offset
-        let data = test_data::format2_with_one_charstrings_offset();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format2(map) = table else {
-            panic!("Not format 2.");
-        };
-
-        assert_eq!(map.cff_charstrings_offset(), Some(456));
-        assert_eq!(map.cff2_charstrings_offset(), None);
-
-        // Two offsets
-        let data = test_data::format2_with_two_charstrings_offset();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format2(map) = table else {
-            panic!("Not format 2.");
-        };
-
-        assert_eq!(map.cff_charstrings_offset(), Some(456));
-        assert_eq!(map.cff2_charstrings_offset(), Some(789));
-    }
-
-    #[test]
-    fn invalid_format_number() {
-        // No offsets
-        let mut data = test_data::codepoints_only_format2();
-        data.write_at("format", 3u8);
-
-        let Err(err) = Ift::read(FontData::new(&data)) else {
-            panic!("Read should have failed due to invalid format number.");
-        };
-
-        assert_eq!(ReadError::InvalidFormat(3), err);
     }
 
     #[test]
     fn compatibility_id() {
-        let data = test_data::simple_format1();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
+        let data = test_data::codepoints_only();
+        let map = IftPatchMap::read(FontData::new(&data)).unwrap();
 
         assert_eq!(
             map.compatibility_id(),
             CompatibilityId::from_u32s([1, 2, 3, 4])
         );
-    }
-
-    #[test]
-    fn is_entry_applied() {
-        let data = test_data::simple_format1();
-        let table = Ift::read(FontData::new(&data)).unwrap();
-        let Ift::Format1(map) = table else {
-            panic!("Not format 1.");
-        };
-        assert!(!map.is_entry_applied(0));
-        assert!(map.is_entry_applied(1));
-        assert!(!map.is_entry_applied(2));
     }
 
     #[test]

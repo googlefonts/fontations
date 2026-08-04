@@ -21,280 +21,8 @@ pub const CFF2_FONT_CHARSTRINGS_OFFSET: u32 = 0x8f;
 pub const RELATIVE_URL_TEMPLATE: &[u8] = b"\x04foo/\x80";
 pub const ABSOLUTE_URL_TEMPLATE: &[u8] = b"\x0a//foo.bar/\x80";
 
-// Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
-pub fn simple_format1() -> BeBuffer {
-    let mut buffer = be_buffer! {
-        /* ### Header ### */
-        {1u8: "format"},        // format
-        0u32,                   // reserved
-        [1u32, 2, 3, 4],        // compat id
-        2u16,                   // max entry id
-        {2u16: "max_glyph_map_entry_id"},
-        (Uint24::new(7)),       // glyph count
-        {0u32: "glyph_map_offset"},
-        0u32,                   // feature map offset
-        0b00000010u8,           // applied entry bitmap (entry 1)
-
-        6u16,                   // url template length
-        4u8,
-        {b'f': "url_template[1]"},
-        {b'o': "url_template[2]"},
-        [b'o', b'/', 128u8], // url_template[3..6]
-
-        {3u8: "patch_format"}, // = glyph keyed
-
-        /* ### Glyph Map ### */
-        {1u16: "glyph_map"},     // first mapped glyph
-        {2u8: "entry_index[1]"},
-        [1u8, 0, 1, 0, 0]        // entry index[2..6]
-    };
-
-    let offset = buffer.offset_for("glyph_map") as u32;
-    buffer.write_at("glyph_map_offset", offset);
-
-    buffer
-}
-
-pub fn format1_with_dup_urls() -> BeBuffer {
-    let mut buffer = be_buffer! {
-        /* ### Header ### */
-        1u8,                    // format
-        0u32,                   // reserved
-        [1u32, 2, 3, 4],        // compat id
-        4u16,                   // max entry id
-        {4u16: "max_glyph_map_entry_id"},
-        (Uint24::new(7)),       // glyph count
-        {0u32: "glyph_map_offset"},
-        0u32,                   // feature map offset
-        0b00000010u8,           // applied entry bitmap (entry 1)
-
-        9u16,                   // url template length
-        [8u8, b'f', b'o', b'o', b'/', b'b', b'a', b'a', b'r'], // url_template[9]
-
-        {3u8: "patch_format"}, // = glyph keyed
-
-        /* ### Glyph Map ### */
-        {1u16: "glyph_map"},     // first mapped glyph
-        {2u8: "entry_index[1]"},
-        [3u8, 4, 0, 0, 0]        // entry index[2..6]
-    };
-
-    let offset = buffer.offset_for("glyph_map") as u32;
-    buffer.write_at("glyph_map_offset", offset);
-
-    buffer
-}
-
-pub fn simple_format1_with_one_charstrings_offset() -> BeBuffer {
-    let mut buffer = be_buffer! {
-        /* ### Header ### */
-        1u8,                    // format
-        0u8, 0u8, 0u8,          // reserved
-        0b00000001u8,           // has charstrings offset
-        [1u32, 2, 3, 4],        // compat id
-        2u16,                   // max entry id
-        {2u16: "max_glyph_map_entry_id"},
-        (Uint24::new(7)),       // glyph count
-        {0u32: "glyph_map_offset"},
-        0u32,                   // feature map offset
-        0b00000010u8,           // applied entry bitmap (entry 1)
-
-        8u16,                   // url template length
-        {b'A': "url_template[0]"},
-        {b'B': "url_template[1]"},
-        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // url_template[2..7]
-
-        {3u8: "patch_format"}, // = glyph keyed
-
-        456u32, // charstrings offset [0]
-
-        /* ### Glyph Map ### */
-        {1u16: "glyph_map"},     // first mapped glyph
-        {2u8: "entry_index[1]"},
-        [1u8, 0, 1, 0, 0]        // entry index[2..6]
-    };
-
-    let offset = buffer.offset_for("glyph_map") as u32;
-    buffer.write_at("glyph_map_offset", offset);
-
-    buffer
-}
-
-pub fn simple_format1_with_two_charstrings_offsets() -> BeBuffer {
-    let mut buffer = be_buffer! {
-        /* ### Header ### */
-        1u8,                    // format
-        0u8, 0u8, 0u8,          // reserved
-        0b00000011u8,           // has cff and cff2 charstrings offset
-        [1u32, 2, 3, 4],        // compat id
-        2u16,                   // max entry id
-        {2u16: "max_glyph_map_entry_id"},
-        (Uint24::new(7)),       // glyph count
-        {0u32: "glyph_map_offset"},
-        0u32,                   // feature map offset
-        0b00000010u8,           // applied entry bitmap (entry 1)
-
-        8u16,                   // url template length
-        {b'A': "url_template[0]"},
-        {b'B': "url_template[1]"},
-        [b'C', b'D', b'E', b'F', 0xc9, 0xa4], // url_template[2..7]
-
-        {3u8: "patch_format"}, // = glyph keyed
-
-        456u32, // charstrings offset [0]
-        789u32, // charstrings offset [1]
-
-        /* ### Glyph Map ### */
-        {1u16: "glyph_map"},     // first mapped glyph
-        {2u8: "entry_index[1]"},
-        [1u8, 0, 1, 0, 0]        // entry index[2..6]
-    };
-
-    let offset = buffer.offset_for("glyph_map") as u32;
-    buffer.write_at("glyph_map_offset", offset);
-
-    buffer
-}
-
-pub fn u16_entries_format1() -> BeBuffer {
-    let mut buffer = be_buffer! {
-      1u8,              // format
-      0u32,             // reserved
-      [1, 2, 3, 4u32],  // compat id
-
-      300u16,           // max entry id
-      300u16,           // max glyph map entry id
-
-      (Uint24::new(7)), // glyph count
-
-      {0u32: "glyph_map_offset"},
-      {0u32: "feature_map_offset"},
-
-      // applied entry bitmap (38 bytes)
-      {0u8: "applied_entry_bitmap"},
-      [
-        0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0,
-        0, 0u8
-      ],
-
-      6u16, // urlTemplateLength
-      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
-
-      3u8,                 // patch encoding = glyph keyed
-
-      /* ### Glyph Map ### */
-      {2u16: "glyph_map"}, // first mapped glyph
-
-      // entryIndex[2..6]
-      [80, 81, 300, 300, 80u16]
-    };
-
-    let offset = buffer.offset_for("glyph_map") as u32;
-    buffer.write_at("glyph_map_offset", offset);
-
-    buffer
-}
-
-pub fn feature_map_format1() -> BeBuffer {
-    let mut buffer = be_buffer! {
-      /* ### Header ### */
-      1u8,                    // format
-
-      0u32,  // reserved
-
-      [1u32, 2u32, 3u32, 4u32], // compat id
-
-      400u16, // max entry id
-      300u16, // max glyph map entry id
-      (Uint24::new(7)), // glyph count
-
-      {0u32: "glyph_map_offset"},
-      {0u32: "feature_map_offset"},
-
-      // applied entry bitmap (51 bytes) - 299 is applied
-      {0u8: "applied_entries"},
-      [
-        0, 0, 0, 0, 0, 0, 0,           // [0, 64)
-        0, 0, 0, 0, 0, 0, 0, 0,           // [64, 128)
-        0, 0, 0, 0, 0, 0, 0, 0,           // [128, 192)
-        0, 0, 0, 0, 0, 0, 0, 0,           // [192, 256)
-        0, 0, 0, 0, 0u8
-      ],
-      {0b00001000u8: "applied_entries_296"},
-      [
-        0, 0,  // [256, 320)
-        0, 0, 0, 0, 0, 0, 0, 0,           // [320, 384)
-        0, 0, 0u8                         // [384, 400)
-      ],
-
-      6u16, // urlTemplateLength
-      [4, b'f', b'o', b'o', b'/', 128u8],  // urlTemplate[6]
-
-      {3u8: "patch_format"},            // patch encoding = glyph keyed
-
-      /* ### Glyph Map ### */
-      {2u16: "glyph_map"}, // first mapped glyph
-
-      // entryIndex[2..6]
-      [
-        80,     // gid 2
-        81,     // gid 3
-        300u16  // gid 4
-      ],
-      {299u16: "gid5_entry"},  // gid 5
-      {80u16:  "gid6_entry"},  // gid 6
-
-      // ## Feature Map ##
-      {3u16: "feature_map"}, // feature count
-
-      // FeatureRecord[0]
-      {(Tag::new(b"dlig")): "FeatureRecord[0]"}, // feature tag
-      400u16,                   // first new entry index
-      1u16,                     // entry map count
-
-      // FeatureRecord[1]
-      {(Tag::new(b"liga")): "FeatureRecord[1]"}, // feature tag
-      384u16,                   // first new entry index
-      2u16,                     // entry map count
-
-      // FeatureRecord[2]
-      [b'n', b'u', b'l', b'l'], // feature tag
-      301u16,                   // first new entry index
-      1u16,                     // entry map count
-
-      // EntryMapRecord[0]: "dlig" + entry 81 => entry 400
-      81u16,                    // first_entry_index
-      81u16,                    // last_entry_index
-
-      // EntryMapRecord[1]: "liga" + entry [80, 81] => entry 384
-      80u16,                    // first_entry_index
-      81u16,                    // last_entry_index
-
-      // EntryMapRecord[2]: "liga" + entry [299, 300] => entry 385
-      299u16,                   // first_entry_index
-      300u16,                   // last_entry_index
-
-      // EntryMapRecord[3]: "null" + entry 0 => entry 301
-      0u16,                     // first_entry_index
-      0u16                      // last_entry_index
-    };
-
-    let offset = buffer.offset_for("glyph_map") as u32;
-    buffer.write_at("glyph_map_offset", offset);
-
-    let offset = buffer.offset_for("feature_map") as u32;
-    buffer.write_at("feature_map_offset", offset);
-
-    buffer
-}
-
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
-pub fn codepoints_only_format2() -> BeBuffer {
+pub fn codepoints_only() -> BeBuffer {
     let mut buffer = be_buffer! {
       {2u8: "format"},    // format
 
@@ -340,7 +68,7 @@ pub fn codepoints_only_format2() -> BeBuffer {
     buffer
 }
 
-pub fn format2_with_one_charstrings_offset() -> BeBuffer {
+pub fn with_one_charstrings_offset() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                // format
 
@@ -374,7 +102,7 @@ pub fn format2_with_one_charstrings_offset() -> BeBuffer {
     buffer
 }
 
-pub fn format2_with_two_charstrings_offset() -> BeBuffer {
+pub fn with_two_charstrings_offset() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                // format
 
@@ -409,7 +137,7 @@ pub fn format2_with_two_charstrings_offset() -> BeBuffer {
     buffer
 }
 
-pub fn features_and_design_space_format2() -> BeBuffer {
+pub fn features_and_design_space() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8, // format
 
@@ -479,7 +207,7 @@ pub fn features_and_design_space_format2() -> BeBuffer {
     buffer
 }
 
-pub fn child_indices_format2() -> BeBuffer {
+pub fn child_indices() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                      // format
 
@@ -568,7 +296,7 @@ pub fn child_indices_format2() -> BeBuffer {
 }
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
-pub fn custom_ids_format2() -> BeBuffer {
+pub fn custom_ids() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                               // format
 
@@ -617,7 +345,7 @@ pub fn custom_ids_format2() -> BeBuffer {
 }
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
-pub fn string_ids_format2() -> BeBuffer {
+pub fn string_ids() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                      // format
 
@@ -671,7 +399,7 @@ pub fn string_ids_format2() -> BeBuffer {
     buffer
 }
 
-pub fn string_ids_format2_with_preloads() -> BeBuffer {
+pub fn string_ids_with_preloads() -> BeBuffer {
     const CONTINUE_MASK: u32 = 1 << 23;
     let mut buffer = be_buffer! {
       2u8,                      // format
@@ -725,7 +453,7 @@ pub fn string_ids_format2_with_preloads() -> BeBuffer {
 }
 
 // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-2
-pub fn table_keyed_format2() -> BeBuffer {
+pub fn table_keyed() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                // format
 
@@ -759,7 +487,7 @@ pub fn table_keyed_format2() -> BeBuffer {
     buffer
 }
 
-pub fn table_keyed_format2_with_preload_urls() -> BeBuffer {
+pub fn table_keyed_with_preload_urls() -> BeBuffer {
     let mut buffer = be_buffer! {
       2u8,                // format
 

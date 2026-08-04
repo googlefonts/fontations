@@ -183,8 +183,6 @@ pub(crate) enum CountTransform {
     ItemVariationDataLen,
     /// Number of bytes to hold a bitmap of N items
     BitmapLen,
-    /// Number of bytes to hold a bitmap with max value N
-    MaxValueBitmapLen,
     /// requires exactly two args, defined as $arg1 - $arg2 + 2
     SubAddTwo,
     /// requires exactly one arg. Get the count from the $arg1.`try_into::<usize>`().
@@ -603,7 +601,6 @@ static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
         "item_variation_data_len",
     ),
     (CountTransform::BitmapLen, "bitmap_len"),
-    (CountTransform::MaxValueBitmapLen, "max_value_bitmap_len"),
     (CountTransform::SubAddTwo, "subtract_add_two"),
     (CountTransform::TryInto, "try_into"),
 ];
@@ -641,7 +638,6 @@ impl CountTransform {
             CountTransform::TupleLen => 3,
             CountTransform::ItemVariationDataLen => 3,
             CountTransform::BitmapLen => 1,
-            CountTransform::MaxValueBitmapLen => 1,
             CountTransform::SubAddTwo => 2,
             CountTransform::TryInto => 1,
         }
@@ -740,9 +736,6 @@ impl Count {
                 }
                 (CountTransform::BitmapLen, [a]) => {
                     quote!(transforms::bitmap_len(#a))
-                }
-                (CountTransform::MaxValueBitmapLen, [a]) => {
-                    quote!(transforms::max_value_bitmap_len(#a))
                 }
                 (CountTransform::SubAddTwo, [a, b]) => {
                     quote!(transforms::subtract_add_two(#a, #b))
