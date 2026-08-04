@@ -840,37 +840,32 @@ impl GlyphClosure for ContextFormat2<'_> {
         let Some(coverage) = self.coverage().transpose()? else {
             return Ok(());
         };
-        let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
-        if cov_active_glyphs.is_empty() {
-            return Ok(());
-        }
 
         let Some(input_class_def) = self.input_class_def().transpose()? else {
             return Ok(());
         };
-        let coverage_glyph_classes = input_class_def.intersect_classes(&cov_active_glyphs);
-        if coverage_glyph_classes.is_empty() {
+
+        if !coverage.intersects(ctx.parent_active_glyphs()) {
             return Ok(());
         }
-
-        let input_glyph_classes = input_class_def.intersect_classes(ctx.glyphs());
-        let backtrack_classes = match self {
-            Self::Plain(_) => IntSet::empty(),
+        let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
+        let backtrack_class_def = match self {
+            Self::Plain(_) => None,
             Self::Chain(table) => {
                 if table.backtrack_class_def_offset().is_null() {
-                    IntSet::empty()
+                    None
                 } else {
-                    table.backtrack_class_def()?.intersect_classes(ctx.glyphs())
+                    Some(table.backtrack_class_def()?)
                 }
             }
         };
-        let lookahead_classes = match self {
-            Self::Plain(_) => IntSet::empty(),
+        let lookahead_class_def = match self {
+            Self::Plain(_) => None,
             Self::Chain(table) => {
                 if table.lookahead_class_def_offset().is_null() {
-                    IntSet::empty()
+                    None
                 } else {
-                    table.lookahead_class_def()?.intersect_classes(ctx.glyphs())
+                    Some(table.lookahead_class_def()?)
                 }
             }
         };
@@ -880,7 +875,9 @@ impl GlyphClosure for ContextFormat2<'_> {
             .rule_sets()
             .enumerate()
             .filter_map(|(class, rs)| rs.map(|rs| (class as u16, rs)))
-            .filter(|&(class, _)| coverage_glyph_classes.contains(class))
+            .filter(|&(class, _)| {
+                input_class_def.intersects_class_glyphs(&cov_active_glyphs, class)
+            })
         {
             if ctx.lookup_limit_exceed() {
                 return Ok(());
@@ -893,7 +890,12 @@ impl GlyphClosure for ContextFormat2<'_> {
                 let Some(rule) = rule.transpose()? else {
                     continue;
                 };
-                if !rule.intersects(&input_glyph_classes, &backtrack_classes, &lookahead_classes) {
+                if !rule.intersects(
+                    ctx.glyphs(),
+                    &input_class_def,
+                    backtrack_class_def.as_ref(),
+                    lookahead_class_def.as_ref(),
+                ) {
                     continue;
                 }
 
