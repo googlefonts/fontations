@@ -748,21 +748,16 @@ impl GlyphClosure for ContextFormat1<'_> {
         let Some(coverage) = self.coverage().transpose()? else {
             return Ok(());
         };
-        let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
-        if cov_active_glyphs.is_empty() {
-            return Ok(());
-        }
 
         let lookups = lookup_list.lookups();
         for (gid, rule_set) in coverage
             .iter()
             .zip(self.rule_sets())
-            .filter_map(|(g, rule_set)| {
-                rule_set
-                    .filter(|_| cov_active_glyphs.contains(GlyphId::from(g)))
-                    .map(|rs| (g, rs))
-            })
+            .filter_map(|(g, rule_set)| rule_set.map(|rs| (g, rs)))
         {
+            if !ctx.parent_active_glyphs().contains(GlyphId::from(gid)) {
+                continue;
+            }
             if ctx.lookup_limit_exceed() {
                 return Ok(());
             }
