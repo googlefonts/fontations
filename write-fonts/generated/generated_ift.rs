@@ -9,480 +9,18 @@ pub use read_fonts::tables::ift::{
     EntryFormatFlags, GlyphKeyedFlags, PatchMapFieldPresenceFlags, TablePatchFlags,
 };
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum Ift {
-    Format1(PatchMapFormat1),
-    Format2(PatchMapFormat2),
-}
-
-impl Ift {
-    /// Construct a new `PatchMapFormat1` subtable
-    #[allow(clippy::too_many_arguments)]
-    pub fn format_1(
-        field_flags: PatchMapFieldPresenceFlags,
-        compatibility_id: CompatibilityId,
-        max_entry_index: u16,
-        max_glyph_map_entry_index: u16,
-        glyph_count: Uint24,
-        glyph_map: GlyphMap,
-        feature_map: Option<FeatureMap>,
-        applied_entries_bitmap: Vec<u8>,
-        url_template_length: u16,
-        url_template: Vec<u8>,
-        patch_format: u8,
-    ) -> Self {
-        Self::Format1(PatchMapFormat1::new(
-            field_flags,
-            compatibility_id,
-            max_entry_index,
-            max_glyph_map_entry_index,
-            glyph_count,
-            glyph_map,
-            feature_map,
-            applied_entries_bitmap,
-            url_template_length,
-            url_template,
-            patch_format,
-        ))
-    }
-
-    /// Construct a new `PatchMapFormat2` subtable
-    #[allow(clippy::too_many_arguments)]
-    pub fn format_2(
-        field_flags: PatchMapFieldPresenceFlags,
-        compatibility_id: CompatibilityId,
-        default_patch_format: u8,
-        entry_count: Uint24,
-        entries: MappingEntries,
-        entry_id_string_data: Option<IdStringData>,
-        url_template_length: u16,
-        url_template: Vec<u8>,
-    ) -> Self {
-        Self::Format2(PatchMapFormat2::new(
-            field_flags,
-            compatibility_id,
-            default_patch_format,
-            entry_count,
-            entries,
-            entry_id_string_data,
-            url_template_length,
-            url_template,
-        ))
-    }
-}
-
-impl Default for Ift {
-    fn default() -> Self {
-        Self::Format1(Default::default())
-    }
-}
-
-impl FontWrite for Ift {
-    fn write_into(&self, writer: &mut TableWriter) {
-        match self {
-            Self::Format1(item) => item.write_into(writer),
-            Self::Format2(item) => item.write_into(writer),
-        }
-    }
-    fn table_type(&self) -> TableType {
-        match self {
-            Self::Format1(item) => item.table_type(),
-            Self::Format2(item) => item.table_type(),
-        }
-    }
-}
-
-impl Validate for Ift {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        match self {
-            Self::Format1(item) => item.validate_impl(ctx),
-            Self::Format2(item) => item.validate_impl(ctx),
-        }
-    }
-}
-
-impl FromObjRef<read_fonts::tables::ift::Ift<'_>> for Ift {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::Ift, _: FontData) -> Self {
-        use read_fonts::tables::ift::Ift as ObjRefType;
-        match obj {
-            ObjRefType::Format1(item) => Ift::Format1(item.to_owned_table()),
-            ObjRefType::Format2(item) => Ift::Format2(item.to_owned_table()),
-        }
-    }
-}
-
-impl FromTableRef<read_fonts::tables::ift::Ift<'_>> for Ift {}
-
-impl ReadArgs for Ift {
-    type Args = ();
-}
-
-impl<'a> FontRead<'a> for Ift {
-    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::Ift as FontRead>::read(data).map(|x| x.to_owned_table())
-    }
-}
-
-impl From<PatchMapFormat1> for Ift {
-    fn from(src: PatchMapFormat1) -> Ift {
-        Ift::Format1(src)
-    }
-}
-
-impl From<PatchMapFormat2> for Ift {
-    fn from(src: PatchMapFormat2) -> Ift {
-        Ift::Format2(src)
-    }
-}
-
 impl FontWrite for PatchMapFieldPresenceFlags {
     fn write_into(&self, writer: &mut TableWriter) {
         writer.write_slice(&self.bits().to_be_bytes())
     }
 }
 
-/// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
+/// [Patch Map Table](https://w3c.github.io/IFT/Overview.html#patch-map-table)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct PatchMapFormat1 {
-    pub field_flags: PatchMapFieldPresenceFlags,
-    /// Unique ID that identifies compatible patches.
-    pub compatibility_id: CompatibilityId,
-    /// Largest entry index which appears in either the glyph map or feature map.
-    pub max_entry_index: u16,
-    /// Largest entry index which appears in the glyph map.
-    pub max_glyph_map_entry_index: u16,
-    pub glyph_count: Uint24,
-    /// Sub table that maps glyph ids to entry indices.
-    pub glyph_map: OffsetMarker<GlyphMap, WIDTH_32>,
-    /// Sub table that maps feature and glyph ids to entry indices.
-    pub feature_map: NullableOffsetMarker<FeatureMap, WIDTH_32>,
-    pub applied_entries_bitmap: Vec<u8>,
-    pub url_template_length: u16,
-    pub url_template: Vec<u8>,
-    /// Patch format number for patches referenced by this mapping.
-    pub patch_format: u8,
-    pub cff_charstrings_offset: Option<u32>,
-    pub cff2_charstrings_offset: Option<u32>,
-}
-
-impl PatchMapFormat1 {
-    /// Construct a new `PatchMapFormat1`
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        field_flags: PatchMapFieldPresenceFlags,
-        compatibility_id: CompatibilityId,
-        max_entry_index: u16,
-        max_glyph_map_entry_index: u16,
-        glyph_count: Uint24,
-        glyph_map: GlyphMap,
-        feature_map: Option<FeatureMap>,
-        applied_entries_bitmap: Vec<u8>,
-        url_template_length: u16,
-        url_template: Vec<u8>,
-        patch_format: u8,
-    ) -> Self {
-        Self {
-            field_flags,
-            compatibility_id,
-            max_entry_index,
-            max_glyph_map_entry_index,
-            glyph_count,
-            glyph_map: glyph_map.into(),
-            feature_map: feature_map.into(),
-            applied_entries_bitmap,
-            url_template_length,
-            url_template,
-            patch_format,
-            ..Default::default()
-        }
-    }
-}
-
-impl FontWrite for PatchMapFormat1 {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        (1 as u8).write_into(writer);
-        (0 as u8).write_into(writer);
-        (0 as u8).write_into(writer);
-        (0 as u8).write_into(writer);
-        self.field_flags.write_into(writer);
-        self.compatibility_id.write_into(writer);
-        self.max_entry_index.write_into(writer);
-        self.max_glyph_map_entry_index.write_into(writer);
-        self.glyph_count.write_into(writer);
-        self.glyph_map.write_into(writer);
-        self.feature_map.write_into(writer);
-        self.applied_entries_bitmap.write_into(writer);
-        self.url_template_length.write_into(writer);
-        self.url_template.write_into(writer);
-        self.patch_format.write_into(writer);
-        self.field_flags
-            .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET)
-            .then(|| {
-                self.cff_charstrings_offset
-                    .as_ref()
-                    .expect("missing conditional field should have failed validation")
-                    .write_into(writer)
-            });
-        self.field_flags
-            .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET)
-            .then(|| {
-                self.cff2_charstrings_offset
-                    .as_ref()
-                    .expect("missing conditional field should have failed validation")
-                    .write_into(writer)
-            });
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("PatchMapFormat1")
-    }
-}
-
-impl Validate for PatchMapFormat1 {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("PatchMapFormat1", |ctx| {
-            ctx.in_field("glyph_map", |ctx| {
-                self.glyph_map.validate_impl(ctx);
-            });
-            ctx.in_field("feature_map", |ctx| {
-                self.feature_map.validate_impl(ctx);
-            });
-            ctx.in_field("url_template", |ctx| {
-                if self.url_template.len() > to_usize(u16::MAX) {
-                    ctx.report("array exceeds max length");
-                }
-            });
-            ctx.in_field("cff_charstrings_offset", |ctx| {
-                if !(self
-                    .field_flags
-                    .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
-                    && self.cff_charstrings_offset.is_some()
-                {
-                    ctx.report(
-                        "'cff_charstrings_offset' is present but CFF_CHARSTRINGS_OFFSET not set",
-                    )
-                }
-                if (self
-                    .field_flags
-                    .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET))
-                    && self.cff_charstrings_offset.is_none()
-                {
-                    ctx.report("CFF_CHARSTRINGS_OFFSET is set but 'cff_charstrings_offset' is None")
-                }
-            });
-            ctx.in_field("cff2_charstrings_offset", |ctx| {
-                if !(self
-                    .field_flags
-                    .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
-                    && self.cff2_charstrings_offset.is_some()
-                {
-                    ctx.report(
-                        "'cff2_charstrings_offset' is present but CFF2_CHARSTRINGS_OFFSET not set",
-                    )
-                }
-                if (self
-                    .field_flags
-                    .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET))
-                    && self.cff2_charstrings_offset.is_none()
-                {
-                    ctx.report(
-                        "CFF2_CHARSTRINGS_OFFSET is set but 'cff2_charstrings_offset' is None",
-                    )
-                }
-            });
-        })
-    }
-}
-
-impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFormat1 {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::PatchMapFormat1<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
-        PatchMapFormat1 {
-            field_flags: obj.field_flags(),
-            compatibility_id: obj.compatibility_id(),
-            max_entry_index: obj.max_entry_index(),
-            max_glyph_map_entry_index: obj.max_glyph_map_entry_index(),
-            glyph_count: obj.glyph_count(),
-            glyph_map: obj.glyph_map().to_owned_table(),
-            feature_map: obj.feature_map().to_owned_table(),
-            applied_entries_bitmap: obj.applied_entries_bitmap().to_owned_obj(offset_data),
-            url_template_length: obj.url_template_length(),
-            url_template: obj.url_template().to_owned_obj(offset_data),
-            patch_format: obj.patch_format(),
-            cff_charstrings_offset: obj.cff_charstrings_offset(),
-            cff2_charstrings_offset: obj.cff2_charstrings_offset(),
-        }
-    }
-}
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> FromTableRef<read_fonts::tables::ift::PatchMapFormat1<'a>> for PatchMapFormat1 {}
-
-impl ReadArgs for PatchMapFormat1 {
-    type Args = ();
-}
-
-impl<'a> FontRead<'a> for PatchMapFormat1 {
-    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::PatchMapFormat1 as FontRead>::read(data)
-            .map(|x| x.to_owned_table())
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct GlyphMap {
-    pub first_mapped_glyph: u16,
-}
-
-impl GlyphMap {
-    /// Construct a new `GlyphMap`
-    pub fn new(first_mapped_glyph: u16) -> Self {
-        Self { first_mapped_glyph }
-    }
-}
-
-impl FontWrite for GlyphMap {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.first_mapped_glyph.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("GlyphMap")
-    }
-}
-
-impl Validate for GlyphMap {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl<'a> FromObjRef<read_fonts::tables::ift::GlyphMap<'a>> for GlyphMap {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::GlyphMap<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
-        GlyphMap {
-            first_mapped_glyph: obj.first_mapped_glyph(),
-        }
-    }
-}
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> FromTableRef<read_fonts::tables::ift::GlyphMap<'a>> for GlyphMap {}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct FeatureMap {
-    pub feature_count: u16,
-    pub entry_map_data: Vec<u8>,
-}
-
-impl FeatureMap {
-    /// Construct a new `FeatureMap`
-    pub fn new(feature_count: u16, entry_map_data: Vec<u8>) -> Self {
-        Self {
-            feature_count,
-            entry_map_data,
-        }
-    }
-}
-
-impl FontWrite for FeatureMap {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.feature_count.write_into(writer);
-        self.entry_map_data.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("FeatureMap")
-    }
-}
-
-impl Validate for FeatureMap {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl<'a> FromObjRef<read_fonts::tables::ift::FeatureMap<'a>> for FeatureMap {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::FeatureMap<'a>, _: FontData) -> Self {
-        let offset_data = obj.offset_data();
-        FeatureMap {
-            feature_count: obj.feature_count(),
-            entry_map_data: obj.entry_map_data().to_owned_obj(offset_data),
-        }
-    }
-}
-
-#[allow(clippy::needless_lifetimes)]
-impl<'a> FromTableRef<read_fonts::tables::ift::FeatureMap<'a>> for FeatureMap {}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct FeatureRecord {
-    pub feature_tag: Tag,
-}
-
-impl FeatureRecord {
-    /// Construct a new `FeatureRecord`
-    pub fn new(feature_tag: Tag) -> Self {
-        Self { feature_tag }
-    }
-}
-
-impl FontWrite for FeatureRecord {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.feature_tag.write_into(writer);
-    }
-    fn table_type(&self) -> TableType {
-        TableType::Named("FeatureRecord")
-    }
-}
-
-impl Validate for FeatureRecord {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl FromObjRef<read_fonts::tables::ift::FeatureRecord> for FeatureRecord {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::FeatureRecord, offset_data: FontData) -> Self {
-        FeatureRecord {
-            feature_tag: obj.feature_tag(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct EntryMapRecord {}
-
-impl EntryMapRecord {
-    /// Construct a new `EntryMapRecord`
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl FontWrite for EntryMapRecord {
-    #[allow(clippy::unnecessary_cast)]
-    fn write_into(&self, writer: &mut TableWriter) {}
-    fn table_type(&self) -> TableType {
-        TableType::Named("EntryMapRecord")
-    }
-}
-
-impl Validate for EntryMapRecord {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
-}
-
-impl FromObjRef<read_fonts::tables::ift::EntryMapRecord> for EntryMapRecord {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::EntryMapRecord, offset_data: FontData) -> Self {
-        EntryMapRecord {}
-    }
-}
-
-/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-2)
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct PatchMapFormat2 {
+pub struct IftPatchMap {
+    /// Format identifier: format = 2
+    pub format: u8,
     pub field_flags: PatchMapFieldPresenceFlags,
     /// Unique ID that identifies compatible patches.
     pub compatibility_id: CompatibilityId,
@@ -497,10 +35,11 @@ pub struct PatchMapFormat2 {
     pub cff2_charstrings_offset: Option<u32>,
 }
 
-impl PatchMapFormat2 {
-    /// Construct a new `PatchMapFormat2`
+impl IftPatchMap {
+    /// Construct a new `IftPatchMap`
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        format: u8,
         field_flags: PatchMapFieldPresenceFlags,
         compatibility_id: CompatibilityId,
         default_patch_format: u8,
@@ -511,6 +50,7 @@ impl PatchMapFormat2 {
         url_template: Vec<u8>,
     ) -> Self {
         Self {
+            format,
             field_flags,
             compatibility_id,
             default_patch_format,
@@ -524,10 +64,10 @@ impl PatchMapFormat2 {
     }
 }
 
-impl FontWrite for PatchMapFormat2 {
+impl FontWrite for IftPatchMap {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (2 as u8).write_into(writer);
+        self.format.write_into(writer);
         (0 as u8).write_into(writer);
         (0 as u8).write_into(writer);
         (0 as u8).write_into(writer);
@@ -557,13 +97,13 @@ impl FontWrite for PatchMapFormat2 {
             });
     }
     fn table_type(&self) -> TableType {
-        TableType::Named("PatchMapFormat2")
+        TableType::Named("IftPatchMap")
     }
 }
 
-impl Validate for PatchMapFormat2 {
+impl Validate for IftPatchMap {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("PatchMapFormat2", |ctx| {
+        ctx.in_table("IftPatchMap", |ctx| {
             ctx.in_field("entries", |ctx| {
                 self.entries.validate_impl(ctx);
             });
@@ -617,10 +157,11 @@ impl Validate for PatchMapFormat2 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFormat2 {
-    fn from_obj_ref(obj: &read_fonts::tables::ift::PatchMapFormat2<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::ift::IftPatchMap<'a>> for IftPatchMap {
+    fn from_obj_ref(obj: &read_fonts::tables::ift::IftPatchMap<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
-        PatchMapFormat2 {
+        IftPatchMap {
+            format: obj.format(),
             field_flags: obj.field_flags(),
             compatibility_id: obj.compatibility_id(),
             default_patch_format: obj.default_patch_format(),
@@ -636,16 +177,15 @@ impl<'a> FromObjRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFo
 }
 
 #[allow(clippy::needless_lifetimes)]
-impl<'a> FromTableRef<read_fonts::tables::ift::PatchMapFormat2<'a>> for PatchMapFormat2 {}
+impl<'a> FromTableRef<read_fonts::tables::ift::IftPatchMap<'a>> for IftPatchMap {}
 
-impl ReadArgs for PatchMapFormat2 {
+impl ReadArgs for IftPatchMap {
     type Args = ();
 }
 
-impl<'a> FontRead<'a> for PatchMapFormat2 {
+impl<'a> FontRead<'a> for IftPatchMap {
     fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
-        <read_fonts::tables::ift::PatchMapFormat2 as FontRead>::read(data)
-            .map(|x| x.to_owned_table())
+        <read_fonts::tables::ift::IftPatchMap as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 

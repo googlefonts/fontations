@@ -74,7 +74,7 @@ fn do_we_even_serde() {
         vhea: vhea::Vhea,
         vmtx: vmtx::Vmtx,
         vvar: vvar::Vvar,
-        ift: ift::Ift,
+        ift: ift::IftPatchMap,
     }
     let tables = AllTables::default();
     let dumped = bincode::serde::encode_to_vec(&tables, bincode::config::legacy()).unwrap();
