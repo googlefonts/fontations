@@ -36,7 +36,6 @@
 //! ```
 //!
 mod instance;
-mod transform;
 mod traversal;
 
 #[cfg(test)]
@@ -66,12 +65,13 @@ use traversal::{
     get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks, PaintDecycler,
 };
 
-pub use transform::Transform;
-
 use crate::prelude::{LocationRef, Size};
 use crate::string::StringId;
 
 use self::instance::{resolve_paint, PaintId};
+
+/// A transformation matrix.
+pub type Transform = read_fonts::types::Matrix<f32>;
 
 /// An error during drawing a COLR glyph.
 ///
