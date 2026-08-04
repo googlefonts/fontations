@@ -133,8 +133,12 @@ mod ctx {
 
         // Return true if we have visited this lookup with current set of glyphs
         pub(super) fn is_lookup_done(&mut self, lookup_index: u16) -> bool {
-            let mut cur_active_glyphs = IntSet::empty();
-            cur_active_glyphs.union(self.parent_active_glyphs());
+            let cur_active_glyphs = if let Some(cur_active_glyphs) = self.active_glyphs_stack.last()
+            {
+                cur_active_glyphs
+            } else {
+                &self.glyphs
+            };
 
             let (count, covered) = self
                 .done_lookups_glyphs
