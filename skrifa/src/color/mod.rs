@@ -65,10 +65,13 @@ use traversal::{
     get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks, PaintDecycler,
 };
 
-use crate::prelude::{LocationRef, Size};
 use crate::string::StringId;
+use crate::{
+    color::traversal::TraversalState,
+    prelude::{LocationRef, Size},
+};
 
-use self::instance::{resolve_paint, PaintId};
+use instance::PaintId;
 
 /// A transformation matrix.
 pub type Transform = read_fonts::types::Matrix<f32>;
@@ -383,26 +386,21 @@ impl<'a> ColorGlyph<'a> {
     ) -> Result<(), PaintError> {
         let instance =
             instance::ColrInstance::new(self.colr.clone(), location.into().effective_coords());
-        let mut resolved_stops = traversal::ColorStopVec::default();
         match &self.root_paint_ref {
             ColorGlyphRoot::V1Paint(paint, paint_id, glyph_id, _) => {
                 let clipbox = get_clipbox_font_units(&instance, *glyph_id);
-
                 if let Some(rect) = clipbox {
                     painter.push_clip_box(rect);
                 }
-
                 let mut decycler = PaintDecycler::default();
                 let mut cycle_guard = decycler.enter(*paint_id)?;
+                let mut state = TraversalState::new(instance, painter);
                 traverse_with_callbacks(
-                    &resolve_paint(&instance, paint)?,
-                    &instance,
-                    painter,
+                    &state.resolve_paint(paint)?,
+                    &mut state,
                     &mut cycle_guard,
-                    &mut resolved_stops,
                     0,
                 )?;
-
                 if clipbox.is_some() {
                     painter.pop_clip();
                 }
