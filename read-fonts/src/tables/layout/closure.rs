@@ -728,6 +728,7 @@ impl Format2Rule<'_> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn intersects(
         &self,
         glyphs: &IntSet<GlyphId>,
@@ -781,6 +782,7 @@ impl ClassSequenceRule<'_> {
 }
 
 impl ChainedClassSequenceRule<'_> {
+    #[allow(clippy::too_many_arguments)]
     fn intersects(
         &self,
         glyphs: &IntSet<GlyphId>,
@@ -807,10 +809,8 @@ impl ChainedClassSequenceRule<'_> {
             {
                 return false;
             }
-        } else {
-            if self.backtrack_glyph_count() != 0 {
-                return false;
-            }
+        } else if self.backtrack_glyph_count() != 0 {
+            return false;
         }
 
         if let Some(lookahead_class_def) = lookahead_class_def {
@@ -821,10 +821,8 @@ impl ChainedClassSequenceRule<'_> {
             {
                 return false;
             }
-        } else {
-            if self.lookahead_glyph_count() != 0 {
-                return false;
-            }
+        } else if self.lookahead_glyph_count() != 0 {
+            return false;
         }
         true
     }
