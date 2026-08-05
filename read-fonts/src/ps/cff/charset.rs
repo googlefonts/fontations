@@ -204,8 +204,10 @@ fn string_id_from_ranges<T: CharsetRange>(
     // are cumulative, we must scan them all in order until we find
     // the range that contains our requested glyph.
     for range in ranges {
-        let next_end = end
-            .checked_add(range.n_left() + 1)
+        let next_end = range
+            .n_left()
+            .checked_add(1)
+            .and_then(|span| end.checked_add(span))
             .ok_or(ReadError::OutOfBounds)?;
         if gid < next_end {
             return (gid - end)
@@ -232,11 +234,15 @@ fn glyph_id_from_ranges<T: CharsetRange>(
     for range in ranges {
         let first = range.first();
         let n_left = range.n_left();
-        if first <= sid && sid <= (first + n_left) {
-            gid += sid - first;
+        let last = first.checked_add(n_left).ok_or(ReadError::OutOfBounds)?;
+        if first <= sid && sid <= last {
+            gid = gid.checked_add(sid - first).ok_or(ReadError::OutOfBounds)?;
             return Ok(GlyphId::new(gid));
         }
-        gid += n_left + 1;
+        gid = n_left
+            .checked_add(1)
+            .and_then(|span| gid.checked_add(span))
+            .ok_or(ReadError::OutOfBounds)?;
     }
     Err(ReadError::OutOfBounds)
 }
@@ -357,9 +363,12 @@ where
 }
 
 fn next_range<T: CharsetRange>(ranges: &mut std::slice::Iter<T>) -> Option<(u32, u32)> {
-    ranges
-        .next()
-        .map(|range| (range.first(), range.n_left() + 1))
+    ranges.next().and_then(|range| {
+        range
+            .n_left()
+            .checked_add(1)
+            .map(|span| (range.first(), span))
+    })
 }
 
 /// See "Expert" charset at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=47>
@@ -393,6 +402,22 @@ const EXPERT_SUBSET_CHARSET: &[u16] = &[
 mod tests {
     use super::*;
     use font_test_data::bebuffer::BeBuffer;
+
+    #[derive(Clone, Copy)]
+    struct TestRange {
+        first: u32,
+        n_left: u32,
+    }
+
+    impl CharsetRange for TestRange {
+        fn first(&self) -> u32 {
+            self.first
+        }
+
+        fn n_left(&self) -> u32 {
+            self.n_left
+        }
+    }
 
     #[test]
     fn iso_adobe_charset() {
@@ -542,5 +567,48 @@ mod tests {
                 Ok(GlyphId::new(gid as u32))
             );
         }
+    }
+
+    #[test]
+    fn string_id_from_ranges_overflow_does_not_panic() {
+        // Don't panic on overflow!
+        let ranges = [TestRange {
+            first: 42,
+            n_left: u32::MAX,
+        }];
+        assert_eq!(
+            string_id_from_ranges(&ranges, GlyphId::new(1)),
+            Err(ReadError::OutOfBounds)
+        );
+    }
+
+    #[test]
+    fn glyph_id_from_ranges_overflow_does_not_panic() {
+        // Don't panic on overflow!
+        let ranges = [
+            TestRange {
+                first: 2,
+                n_left: 0,
+            },
+            TestRange {
+                first: 2,
+                n_left: u32::MAX - 2,
+            },
+        ];
+        assert_eq!(
+            glyph_id_from_ranges(&ranges, Sid::new(1)),
+            Err(ReadError::OutOfBounds)
+        );
+    }
+
+    #[test]
+    fn next_range_overflow_does_not_panic() {
+        // Don't panic on overflow!
+        let ranges = [TestRange {
+            first: 7,
+            n_left: u32::MAX,
+        }];
+        let mut iter = ranges.iter();
+        assert_eq!(next_range(&mut iter), None);
     }
 }
