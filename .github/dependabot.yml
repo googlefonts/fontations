@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # Actions are pinned to commit hashes (required by the unpinned-uses scan);
+  # dependabot updates both the hash and the trailing version comment.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    # Don't adopt a release until it has been public for a week: a compromised
+    # release is usually caught and yanked well inside that window.
+    cooldown:
+      default-days: 7
