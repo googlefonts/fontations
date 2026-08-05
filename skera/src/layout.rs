@@ -1754,14 +1754,14 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitutionRecord {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         let (feature_index_map, c, font_data) = args;
-        let Some(new_feature_indx) = feature_index_map.get(&self.feature_index()) else {
+        let Some(new_feature_index) = feature_index_map.get(&self.feature_index()) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         };
 
         let alternate_feature = self
             .alternate_feature(font_data)
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        s.embed(*new_feature_indx)?;
+        s.embed(*new_feature_index)?;
 
         let feature_offset_pos = s.embed(0_u32)?;
         Offset32::serialize_subset(&alternate_feature, s, plan, c, feature_offset_pos)

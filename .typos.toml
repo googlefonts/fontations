@@ -40,6 +40,8 @@ ND = "ND"
 
 # Match Inside a Word - Case Insensitive
 [default.extend-words]
+# 'bimap' as in bidirectional map (IncBiMap), not 'bitmap'
+bimap = "bimap"
 loca = "loca"
 wdth = "wdth"
 ot = "ot"

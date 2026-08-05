@@ -20,6 +20,17 @@ use crate::{
 /// <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=33>
 pub const NESTING_DEPTH_LIMIT: u32 = 10;
 
+/// Maximum number of operations that can be processed during charstring
+/// evaluation.
+///
+/// HarfBuzz limits this to 200,000
+/// (<https://github.com/harfbuzz/harfbuzz/blob/a6357ca3f7e73165ba8b201b65f1130059e34255/src/hb-limits.hh#L108>)
+/// and threat analysis suggested 2,000,000 so a value of 1,000,000
+/// was chosen to match our instruction limit for the TrueType interpreter.
+///
+/// FreeType only limits depth, not number of operations.
+const MAX_OPERATIONS: u32 = 1_000_000;
+
 /// The type of a PostScript charstring.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum CharstringKind {
@@ -186,6 +197,8 @@ struct Evaluator<'a, S> {
     stack: Stack,
     stack_ix: usize,
     in_seac: bool,
+    /// Number of operators or numbers processed so far
+    ops_done: u32,
 }
 
 impl<'a, S> Evaluator<'a, S>
@@ -215,6 +228,7 @@ where
             wx: Fixed::ZERO,
             stack_ix: 0,
             in_seac: false,
+            ops_done: 0,
         }
     }
 
@@ -242,6 +256,10 @@ where
         let mut cursor = crate::FontData::new(charstring_data).cursor();
         let mut seen_endchar = false;
         while cursor.remaining_bytes() != 0 {
+            self.ops_done += 1;
+            if self.ops_done > MAX_OPERATIONS {
+                return Err(Error::CharstringNestingDepthLimitExceeded);
+            }
             let b0 = cursor.read::<u8>()?;
             match b0 {
                 // See "3.2 Charstring Number Encoding" <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=12>
@@ -1893,6 +1911,31 @@ mod tests {
                 Command::LineTo(x, Fixed::ZERO)
             ]
         );
+    }
+
+    #[test]
+    fn operation_limit() {
+        // Reserved operators are ignored but still count toward total operations.
+        // This verifies the guard using a realistic charstring stream
+        let charstring = vec![0u8; MAX_OPERATIONS as usize + 1];
+        let mut commands = CaptureCommandSink::default();
+        // This one should succeed
+        evaluate(
+            &NullContext(CharstringKind::Type2),
+            None,
+            &charstring[..MAX_OPERATIONS as usize],
+            &mut commands,
+        )
+        .unwrap();
+        // And this one should fail
+        let err = evaluate(
+            &NullContext(CharstringKind::Type2),
+            None,
+            &charstring,
+            &mut commands,
+        )
+        .unwrap_err();
+        assert!(matches!(err, Error::CharstringNestingDepthLimitExceeded));
     }
 
     #[test]

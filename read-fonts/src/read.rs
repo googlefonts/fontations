@@ -61,7 +61,7 @@ pub trait Format<T> {
 
 /// A trait for tables that contain offsets to subtables of heterogeneous types.
 ///
-/// The type of the subtable is determiend by an inline discriminant; this trait
+/// The type of the subtable is determined by an inline discriminant; this trait
 /// reads that discriminant.
 pub trait Discriminant {
     /// Read the discriminant for this table.

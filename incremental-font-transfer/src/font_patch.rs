@@ -225,8 +225,7 @@ mod tests {
     use std::collections::HashMap;
 
     use font_test_data::ift::{
-        codepoints_only_format2, glyf_u16_glyph_patches, glyph_keyed_patch_header,
-        table_keyed_patch,
+        codepoints_only, glyf_u16_glyph_patches, glyph_keyed_patch_header, table_keyed_patch,
     };
     use read_fonts::{
         collections::IntSet,
@@ -257,8 +256,8 @@ mod tests {
             application_flag_bit_indices: IntSet::<u32>::empty(),
         };
 
-        let ift_table = codepoints_only_format2();
-        let mut iftx_table = codepoints_only_format2();
+        let ift_table = codepoints_only();
+        let mut iftx_table = codepoints_only();
         iftx_table.write_at("compat_id[0]", 2u32);
 
         let font = test_font_for_patching_with_loca_mod(
@@ -291,7 +290,7 @@ mod tests {
             application_flag_bit_indices: IntSet::<u32>::empty(),
         };
 
-        let ift_table = codepoints_only_format2();
+        let ift_table = codepoints_only();
         let font = test_font_for_patching_with_loca_mod(
             true,
             |_| {},
@@ -318,7 +317,7 @@ mod tests {
             application_flag_bit_indices: IntSet::<u32>::empty(),
         };
 
-        let ift_table = codepoints_only_format2();
+        let ift_table = codepoints_only();
         let font = test_font_for_patching_with_loca_mod(
             true,
             |_| {},
@@ -348,7 +347,7 @@ mod tests {
             application_flag_bit_indices: IntSet::<u32>::empty(),
         };
 
-        let mut ift_table = codepoints_only_format2();
+        let mut ift_table = codepoints_only();
         ift_table.write_at("compat_id[0]", 6u32);
         ift_table.write_at("compat_id[1]", 7u32);
         ift_table.write_at("compat_id[2]", 8u32);

@@ -46,7 +46,7 @@ pub enum Glyph {
 ///
 /// This should be the minimum rectangle which fully encloses the glyph outline;
 /// importantly this can only be determined by computing the individual Bezier
-/// segments, and cannot be determiend from points alone.
+/// segments, and cannot be determined from points alone.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Bbox {
     pub x_min: i16,
