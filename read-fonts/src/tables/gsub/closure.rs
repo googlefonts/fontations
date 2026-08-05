@@ -11,8 +11,8 @@ use crate::{
 };
 
 use super::{
-    AlternateSubstFormat1, ChainedSequenceContext, ExtensionSubstFormat1, ExtensionSubtable, Gsub,
-    Ligature, LigatureSet, LigatureSubstFormat1, MultipleSubstFormat1,
+    AlternateSubstFormat1, ChainedSequenceContext, ClassDef, ExtensionSubstFormat1,
+    ExtensionSubtable, Gsub, Ligature, LigatureSet, LigatureSubstFormat1, MultipleSubstFormat1,
     ReverseChainSingleSubstFormat1, SequenceContext, SingleSubst, SingleSubstFormat1,
     SingleSubstFormat2, SubstitutionLookup, SubstitutionLookupList, SubstitutionSubtables,
 };
@@ -829,6 +829,21 @@ impl GlyphClosure for ContextFormat1<'_> {
     }
 }
 
+fn intersected_class_glyphs(
+    class_def: &ClassDef,
+    glyphs: &IntSet<GlyphId>,
+    class: u16,
+    cache: &mut FnvHashMap<u16, IntSet<GlyphId>>,
+) -> IntSet<GlyphId> {
+    if let Some(cached_set) = cache.get(&class) {
+        return cached_set.clone();
+    }
+
+    let out = class_def.intersected_class_glyphs(glyphs, class);
+    cache.insert(class, out.clone());
+    out
+}
+
 //https://github.com/fonttools/fonttools/blob/a6f59a4f87a0111/Lib/fontTools/subset/__init__.py#L1215
 impl GlyphClosure for ContextFormat2<'_> {
     fn closure_glyphs(
@@ -876,6 +891,7 @@ impl GlyphClosure for ContextFormat2<'_> {
         let mut input_cache = FnvHashMap::default();
         let mut backtrack_cache = FnvHashMap::default();
         let mut lookahead_cache = FnvHashMap::default();
+        let mut intersected_class_cache = FnvHashMap::default();
         for (i, rule_set) in self
             .rule_sets()
             .enumerate()
@@ -927,10 +943,20 @@ impl GlyphClosure for ContextFormat2<'_> {
                     let active_glyphs = if !seen_sequence_indices.insert(sequence_idx) {
                         ctx.glyphs().clone()
                     } else if sequence_idx == 0 {
-                        input_class_def.intersected_class_glyphs(ctx.parent_active_glyphs(), i)
+                        intersected_class_glyphs(
+                            &input_class_def,
+                            ctx.parent_active_glyphs(),
+                            i,
+                            &mut intersected_class_cache,
+                        )
                     } else {
                         let c = input_seq[sequence_idx as usize - 1].get();
-                        input_class_def.intersected_class_glyphs(ctx.glyphs(), c)
+                        intersected_class_glyphs(
+                            &input_class_def,
+                            ctx.glyphs(),
+                            c,
+                            &mut intersected_class_cache,
+                        )
                     };
 
                     ctx.recurse(
