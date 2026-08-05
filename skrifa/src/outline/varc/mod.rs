@@ -640,7 +640,7 @@ impl<'a> Outlines<'a> {
         let condition_list = condition_list?;
         let condition = condition_list.conditions().get(condition_index as usize)?;
         let (store, regions) = store_regions.ok_or(ReadError::NullOffset)?;
-        Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch)
+        Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch, 0)
     }
 
     fn eval_condition(
@@ -650,7 +650,15 @@ impl<'a> Outlines<'a> {
         regions: &SparseVariationRegionList<'a>,
         scalar_cache: &mut ScalarCache,
         scratch: &mut Scratchpad,
+        depth: usize,
     ) -> Result<bool, DrawError> {
+        // Format 3/4/5 conditions nest child conditions by offset, and the tree
+        // is fully attacker-controlled. Bound the recursion so a deeply nested
+        // (or degenerate) condition tree returns an error instead of overflowing
+        // the stack, mirroring the component-recursion guard in `draw_glyph`.
+        if depth >= GLYF_COMPOSITE_RECURSION_LIMIT {
+            return Err(DrawError::RecursionLimitExceeded(GlyphId::NOTDEF));
+        }
         match condition {
             Condition::Format1AxisRange(condition) => {
                 let axis_index = condition.axis_index() as usize;
@@ -683,6 +691,7 @@ impl<'a> Outlines<'a> {
                         regions,
                         scalar_cache,
                         scratch,
+                        depth + 1,
                     )? {
                         return Ok(false);
                     }
@@ -699,6 +708,7 @@ impl<'a> Outlines<'a> {
                         regions,
                         scalar_cache,
                         scratch,
+                        depth + 1,
                     )? {
                         return Ok(true);
                     }
@@ -714,6 +724,7 @@ impl<'a> Outlines<'a> {
                     regions,
                     scalar_cache,
                     scratch,
+                    depth + 1,
                 )?)
             }
         }
@@ -1258,5 +1269,98 @@ mod tests {
                 "Q704.43,783.31 717.03,804.56".to_string(),
             ]
         );
+    }
+
+    // Build the store/regions needed by `eval_condition`'s signature. The
+    // conditions exercised below never touch the variation store, so any valid
+    // VARC store works here.
+    fn condition_eval_env() -> (
+        FontRef<'static>,
+        MultiItemVariationStore<'static>,
+        SparseVariationRegionList<'static>,
+    ) {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let varc = font.varc().unwrap();
+        let store = varc.multi_var_store().unwrap().unwrap();
+        let regions = store.region_list().unwrap();
+        (font, store, regions)
+    }
+
+    // A deeply nested condition tree must return an error instead of overflowing
+    // the stack. Regression test for the unbounded recursion in `eval_condition`.
+    #[test]
+    fn eval_condition_bounds_recursion_depth() {
+        use read_fonts::{FontData, FontRead};
+        // Linear chain of Format5Negate tables: each is `format(u16 BE = 5)` +
+        // `condition_offset(Offset24 BE = 5)`, so every table points 5 bytes
+        // forward to the next -> an arbitrarily deep condition tree. `CHAIN_LEN`
+        // is far larger than the limit, proving evaluation bails out early rather
+        // than walking (and recursing into) the whole chain.
+        const CHAIN_LEN: usize = 4096;
+        let mut bytes = Vec::with_capacity(CHAIN_LEN * 5);
+        for _ in 0..CHAIN_LEN {
+            bytes.extend_from_slice(&[0x00, 0x05, 0x00, 0x00, 0x05]);
+        }
+        let cond = Condition::read(FontData::new(&bytes)).unwrap();
+
+        let (_font, store, regions) = condition_eval_env();
+        let mut cache = ScalarCache::new(regions.region_count() as usize);
+        let mut scratch = Scratchpad::new();
+
+        let result =
+            Outlines::eval_condition(&cond, &[], &store, &regions, &mut cache, &mut scratch, 0);
+        assert!(
+            matches!(result, Err(DrawError::RecursionLimitExceeded(_))),
+            "expected RecursionLimitExceeded, got {result:?}"
+        );
+    }
+
+    // A normal (shallow) condition tree must still evaluate correctly.
+    #[test]
+    fn eval_condition_shallow_is_correct() {
+        use read_fonts::{FontData, FontRead};
+        let (_font, store, regions) = condition_eval_env();
+        let mut cache = ScalarCache::new(regions.region_count() as usize);
+        let mut scratch = Scratchpad::new();
+
+        // ConditionFormat1: axis 0, filter range [-1.0, 1.0].
+        let leaf: [u8; 8] = [0x00, 0x01, 0x00, 0x00, 0xC0, 0x00, 0x40, 0x00];
+        let cond = Condition::read(FontData::new(&leaf)).unwrap();
+        assert!(Outlines::eval_condition(
+            &cond,
+            &[coord(0.5)],
+            &store,
+            &regions,
+            &mut cache,
+            &mut scratch,
+            0,
+        )
+        .unwrap());
+        assert!(!Outlines::eval_condition(
+            &cond,
+            &[coord(1.5)],
+            &store,
+            &regions,
+            &mut cache,
+            &mut scratch,
+            0,
+        )
+        .unwrap());
+
+        // Format5Negate wrapping the same leaf must negate the result, proving a
+        // shallow nested tree still evaluates through the recursion guard.
+        let mut negate = vec![0x00, 0x05, 0x00, 0x00, 0x05];
+        negate.extend_from_slice(&leaf);
+        let cond = Condition::read(FontData::new(&negate)).unwrap();
+        assert!(!Outlines::eval_condition(
+            &cond,
+            &[coord(0.5)],
+            &store,
+            &regions,
+            &mut cache,
+            &mut scratch,
+            0,
+        )
+        .unwrap());
     }
 }
