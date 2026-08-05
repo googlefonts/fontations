@@ -905,7 +905,7 @@ mod tests {
     #[test]
     fn compute_shared_points_is_deterministic() {
         // The deltas for glyph "etatonos.sc.ss06" in GoogleSans-VF are such that the
-        // TupleVariationStore's shared set of point numbers could potentionally be
+        // TupleVariationStore's shared set of point numbers could potentially be
         // computed as either PackedPointNumbers::All or PackedPointNumbers::Some([1, 3])
         // without affecting the size (or correctness) of the serialized data.
         // However we want to ensure that the result is deterministic, and doesn't
