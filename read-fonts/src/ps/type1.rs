@@ -816,10 +816,8 @@ impl<'a> Parser<'a> {
                             // but Type1 fonts define /RD procs and this
                             // pattern is used by FreeType.
                             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1351>
-                            if self.peek_is_rd() {
-                                // skip the token
-                                self.next();
-                                // and a single space
+                            if self.accept_blob_start() {
+                                // skip a single space
                                 self.pos += 1;
                                 // read the internal data
                                 let data = self.read_bytes(int as usize)?;
@@ -839,13 +837,18 @@ impl<'a> Parser<'a> {
 
     /// Special lookahead case for RD or -| which indicates a binary blob in
     /// Type1 fonts.
-    fn peek_is_rd(&self) -> bool {
+    fn accept_blob_start(&mut self) -> bool {
         let mut p = self.clone();
         p.skip_whitespace();
         let start = p.pos;
         p.skip_until(is_special_or_whitespace);
         let end = p.pos;
-        matches!(self.data.get(start..end), Some(b"RD") | Some(b"-|"))
+        if matches!(self.data.get(start..end), Some(b"RD") | Some(b"-|")) {
+            self.pos = end;
+            true
+        } else {
+            false
+        }
     }
 
     fn accept(&mut self, token: Token) -> bool {
