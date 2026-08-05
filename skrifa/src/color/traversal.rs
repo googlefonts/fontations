@@ -144,7 +144,7 @@ pub(crate) fn traverse_with_callbacks<'a, P: ColorPainter>(
             let glyph_id = (*glyph_id).into();
             // Look for the pattern `(transform)* fill` and optimize it to a
             // single paint call
-            let mut next_paint = state.resolve_paint(&paint)?;
+            let mut next_paint = state.resolve_paint(paint)?;
             // Collect any chain of intermediate transforms
             let mut intermediate_transform = None;
             while let Some((transform, child_paint)) = next_paint.as_transform() {

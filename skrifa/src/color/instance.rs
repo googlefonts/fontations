@@ -185,7 +185,7 @@ impl<'a> ColorStops<'a> {
     }
 }
 
-/// Similar to Option<Brush> but with an additional variant for a valid brush
+/// Similar to `Option<Brush>` but with an additional variant for a valid brush
 /// that produces no rendering.
 pub(crate) enum MaybeBrush<'a> {
     Some(Brush<'a>),
