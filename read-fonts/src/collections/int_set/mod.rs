@@ -394,6 +394,26 @@ impl<T: Domain> IntSet<T> {
         false
     }
 
+    /// Returns `true` if this set is a subset of `other`.
+    pub fn is_subset(&self, other: &IntSet<T>) -> bool {
+        if self.len() > other.len() {
+            return false;
+        }
+
+        match (&self.0, &other.0) {
+            (Membership::Inclusive(a), Membership::Inclusive(b)) => a.is_subset(b),
+            (Membership::Inclusive(a), Membership::Exclusive(b)) => !a.intersects_set(b),
+            (Membership::Exclusive(a), Membership::Inclusive(b)) => {
+                // For this (A) to be a subset of other (B):
+                // - All members of the domain T must be in either A, B, or both
+                // - So we check that A U B = T, which we can do by checking |A U B| = |T|
+                // - |A U B| is given by |A| + |B| - |A n B| (inclusion exclusion principle)
+                a.len() + b.len() - a.intersection_len(b) == T::count()
+            }
+            (Membership::Exclusive(a), Membership::Exclusive(b)) => b.is_subset(a),
+        }
+    }
+
     /// Returns first element in the set, if any. This element is always the minimum of all elements in the set.
     pub fn first(&self) -> Option<T> {
         return self.iter().next();
@@ -2519,6 +2539,83 @@ mod test {
         assert_intersects!(c, empty, false);
         assert_intersects!(d, empty, false);
         assert_intersects!(e, empty, false);
+    }
+
+    #[test]
+    fn is_subset() {
+        let empty = IntSet::<u32>::empty();
+        let a = IntSet::from([1u32, 5, 6, 7, 8, 12]);
+        let b = IntSet::from([1u32, 5, 6, 7, 8, 12, 15]);
+        let c = IntSet::from([1u32, 5, 6, 7, 8, 13]);
+
+        // Inclusive - Inclusive
+        assert!(empty.is_subset(&empty));
+        assert!(empty.is_subset(&a));
+        assert!(!a.is_subset(&empty));
+
+        assert!(a.is_subset(&a));
+
+        assert!(a.is_subset(&b));
+        assert!(!b.is_subset(&a)); // Rejection via length check (7 > 6)
+
+        assert!(!a.is_subset(&c)); // Rejection via member check (6 <= 6)
+        assert!(!c.is_subset(&a));
+
+        // Inclusive - Exclusive
+        let mut all_but_13 = IntSet::<u32>::all();
+        all_but_13.remove(13);
+
+        let mut all_but_5 = IntSet::<u32>::all();
+        all_but_5.remove(5);
+
+        assert!(a.is_subset(&all_but_13)); // a doesn't contain 13
+        assert!(!a.is_subset(&all_but_5)); // a contains 5 which is excluded in excl_5
+        assert!(empty.is_subset(&all_but_13));
+
+        // Exclusive - Inclusive
+        let mut all_but_1 = IntSet::<u8>::all();
+        all_but_1.remove(1u8);
+
+        let mut all_but_1_2 = IntSet::<u8>::all();
+        all_but_1_2.remove(1u8);
+        all_but_1_2.remove(2u8);
+
+        let mut incl_all_but_1 = IntSet::<u8>::empty();
+        incl_all_but_1.insert_range(0u8..=255);
+        incl_all_but_1.remove(1u8);
+
+        let mut incl_all_but_3 = IntSet::<u8>::empty();
+        incl_all_but_3.insert_range(0u8..=255);
+        incl_all_but_3.remove(3u8);
+
+        let mut incl_all = IntSet::<u8>::empty();
+        incl_all.insert_range(0u8..=255);
+
+        assert!(all_but_1.is_subset(&incl_all));
+        assert!(all_but_1.is_subset(&incl_all_but_1));
+        assert!(all_but_1_2.is_subset(&incl_all_but_1));
+        assert!(!all_but_1.is_subset(&IntSet::<u8>::from([0u8, 2, 3]))); // Rejection via length check (255 > 3)
+        assert!(!all_but_1_2.is_subset(&incl_all_but_3)); // Rejection via member check (254 <= 255)
+
+        // Exclusive - Exclusive
+        let mut all_but_2_3 = IntSet::<u8>::all();
+        all_but_2_3.remove(2u8);
+        all_but_2_3.remove(3u8);
+
+        assert!(all_but_1_2.is_subset(&all_but_1));
+        assert!(!all_but_1.is_subset(&all_but_1_2)); // Rejection via length check (255 > 254)
+        assert!(!all_but_1_2.is_subset(&all_but_2_3)); // Rejection via member (254 <= 254)
+        assert!(IntSet::<u32>::all().is_subset(&IntSet::<u32>::all()));
+
+        // Discontinuous Domain
+        let even_empty = IntSet::<EvenInts>::empty();
+        let even_a = IntSet::from([EvenInts(2), EvenInts(4)]);
+        let even_b = IntSet::from([EvenInts(2), EvenInts(4), EvenInts(6)]);
+        let even_c = IntSet::from([EvenInts(2), EvenInts(6)]);
+        assert!(even_empty.is_subset(&even_a));
+        assert!(even_a.is_subset(&even_b));
+        assert!(!even_b.is_subset(&even_a)); // Rejection via length check (3 > 2)
+        assert!(!even_c.is_subset(&even_a)); // Rejection via member check (2 <= 2)
     }
 
     #[test]

@@ -269,6 +269,69 @@ impl U32Set {
         false
     }
 
+    /// Returns true if this set is a subset of `other`.
+    pub fn is_subset(&self, other: &U32Set) -> bool {
+        if self.len() > other.len() {
+            return false;
+        }
+        let mut it_b = other.page_map.iter().peekable();
+
+        for a_info in self.page_map.iter() {
+            let page_a = &self.pages[a_info.index as usize];
+            if page_a.is_empty() {
+                continue;
+            }
+
+            while let Some(b_info) = it_b.peek() {
+                if b_info.major_value < a_info.major_value {
+                    it_b.next();
+                } else {
+                    break;
+                }
+            }
+
+            match it_b.peek() {
+                Some(b_info) if b_info.major_value == a_info.major_value => {
+                    let page_b = &other.pages[b_info.index as usize];
+                    if !page_a.is_subset(page_b) {
+                        return false;
+                    }
+                    it_b.next();
+                }
+                _ => return false,
+            }
+        }
+
+        true
+    }
+
+    /// Returns the number of members present in both `self` and `other`.
+    pub fn intersection_len(&self, other: &U32Set) -> u64 {
+        let mut it_a = self.page_map.iter().peekable();
+        let mut it_b = other.page_map.iter().peekable();
+        let mut count = 0u64;
+
+        while let (Some(a), Some(b)) = (it_a.peek(), it_b.peek()) {
+            match a.major_value.cmp(&b.major_value) {
+                Ordering::Equal => {
+                    count += self.pages[a.index as usize]
+                        .intersection_len(&other.pages[b.index as usize])
+                        as u64;
+                    it_a.next();
+                    it_b.next();
+                }
+                Ordering::Less => {
+                    it_a.next();
+                }
+                Ordering::Greater => {
+                    it_b.next();
+                }
+            }
+        }
+
+        count
+    }
+
     pub const fn empty() -> U32Set {
         U32Set {
             pages: Vec::new(),
@@ -1529,5 +1592,60 @@ mod test {
         let b = U32Set::from_iter([4000]);
 
         assert_intersects!(a, b, true);
+    }
+
+    #[test]
+    fn is_subset() {
+        let empty = U32Set::empty();
+        let a = U32Set::from_iter([2, 4, 5, 2057, 7000]);
+        let b = U32Set::from_iter([2, 4, 5, 2057, 7000, 8000]);
+        let c = U32Set::from_iter([2, 4, 5]);
+        let d = U32Set::from_iter([2, 4, 6, 2057, 7000]); // same len as a, different element on page 0
+        let e = U32Set::from_iter([2, 4, 5, 3000, 7000]); // same len as a, different major page
+
+        assert!(empty.is_subset(&empty));
+        assert!(empty.is_subset(&a));
+        assert!(a.is_subset(&a));
+        assert!(a.is_subset(&b));
+        assert!(c.is_subset(&a));
+        assert!(c.is_subset(&b));
+
+        // Fails via length check:
+        assert!(!b.is_subset(&a));
+        assert!(!a.is_subset(&c));
+        assert!(!a.is_subset(&empty));
+
+        // Fails via bitwise check (same len):
+        assert!(!a.is_subset(&d));
+        assert!(!d.is_subset(&a));
+
+        // Fails via page matching check (different major page, same len):
+        assert!(!a.is_subset(&e));
+        assert!(!e.is_subset(&a));
+
+        // Test with empty pages present in self
+        let mut a_with_empty_page = U32Set::empty();
+        a_with_empty_page.insert(100);
+        a_with_empty_page.insert(2057);
+        a_with_empty_page.remove(100); // page for 100 remains in page_map but is empty
+        assert!(a_with_empty_page.is_subset(&b));
+    }
+
+    #[test]
+    fn intersection_len() {
+        let empty = U32Set::empty();
+        let a = U32Set::from_iter([2, 4, 5, 2057, 7000]);
+        let b = U32Set::from_iter([4, 5, 2057, 9000]);
+        let c = U32Set::from_iter([1, 3, 10000]);
+
+        assert_eq!(empty.intersection_len(&a), 0);
+        assert_eq!(a.intersection_len(&empty), 0);
+        assert_eq!(a.intersection_len(&a), 5);
+
+        assert_eq!(a.intersection_len(&b), 3);
+        assert_eq!(b.intersection_len(&a), 3);
+
+        assert_eq!(a.intersection_len(&c), 0);
+        assert_eq!(c.intersection_len(&a), 0);
     }
 }
