@@ -7,5 +7,7 @@ pub use int_set::U32Set;
 mod range_set;
 pub use range_set::RangeSet;
 
-pub(crate) mod fnv;
-pub(crate) use fnv::FnvHashMap;
+#[cfg(feature = "std")]
+pub mod fnv;
+#[cfg(feature = "std")]
+pub use fnv::FnvHashMap;
