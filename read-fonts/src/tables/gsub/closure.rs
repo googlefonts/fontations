@@ -137,7 +137,7 @@ mod ctx {
             {
                 cur_active_glyphs
             } else {
-                &self.glyphs
+                &*self.glyphs
             };
 
             let (count, covered) = self
@@ -155,7 +155,7 @@ mod ctx {
                 return true;
             }
 
-            covered.union(&cur_active_glyphs);
+            covered.union(cur_active_glyphs);
             false
         }
 
