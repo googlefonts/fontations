@@ -85,11 +85,13 @@ impl BitmapSize {
                         Ok(ix) => ix,
                         _ => return Err(ReadError::InvalidCollectionIndex(glyph_id.to_u32())),
                     };
-                    let start = array[array_ix].sbit_offset() as usize;
-                    let end = array
-                        .get(array_ix + 1)
-                        .ok_or(ReadError::OutOfBounds)?
-                        .sbit_offset() as usize;
+                    let start =
+                        st.image_data_offset() as usize + array[array_ix].sbit_offset() as usize;
+                    let end = st.image_data_offset() as usize
+                        + array
+                            .get(array_ix + 1)
+                            .ok_or(ReadError::OutOfBounds)?
+                            .sbit_offset() as usize;
                     location.data_offset = start;
                     if end < start {
                         return Err(ReadError::OutOfBounds);
@@ -509,6 +511,24 @@ mod tests {
         // Just don't panic!
         let result = bitmap_size_location(data.data(), GlyphId::new(0));
         assert!(matches!(result, Err(ReadError::OutOfBounds)));
+    }
+
+    #[test]
+    fn format_4_sbit_offsets_are_relative_to_image_data_offset() {
+        let data = bitmap_size_with_subtable(
+            &BeBuffer::new()
+                .push(4u16) // index format
+                .push(17u16) // image format
+                .push(1000u32) // image data offset
+                .push(1u32) // num glyphs
+                .push(GlyphId16::new(0))
+                .push(20u16) // sbit offset
+                .push(GlyphId16::new(1))
+                .push(30u16), // sbit offset of the following glyph
+        );
+        let location = bitmap_size_location(data.data(), GlyphId::new(0)).unwrap();
+        assert_eq!(location.data_offset, 1020);
+        assert_eq!(location.data_size, 10);
     }
 
     #[test]

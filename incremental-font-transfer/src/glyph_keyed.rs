@@ -1113,11 +1113,11 @@ pub(crate) mod tests {
     use font_test_data::{
         bebuffer::BeBuffer,
         ift::{
-            cff_u16_glyph_patches, format2_with_one_charstrings_offset,
-            glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches, glyf_u16_glyph_patches_2,
-            glyph_keyed_patch_header, long_gvar_with_shared_tuples, noop_glyf_glyph_patches,
-            out_of_order_gvar_with_shared_tuples, short_gvar_near_maximum_offset_size,
-            short_gvar_with_no_shared_tuples, short_gvar_with_shared_tuples, CFF2_FONT,
+            cff_u16_glyph_patches, glyf_and_gvar_u16_glyph_patches, glyf_u16_glyph_patches,
+            glyf_u16_glyph_patches_2, glyph_keyed_patch_header, long_gvar_with_shared_tuples,
+            noop_glyf_glyph_patches, out_of_order_gvar_with_shared_tuples,
+            short_gvar_near_maximum_offset_size, short_gvar_with_no_shared_tuples,
+            short_gvar_with_shared_tuples, with_one_charstrings_offset, CFF2_FONT,
             CFF2_FONT_CHARSTRINGS_OFFSET, CFF_FONT, CFF_FONT_CHARSTRINGS_OFFSET,
         },
     };
@@ -2040,7 +2040,7 @@ pub(crate) mod tests {
         let mut font_builder = FontBuilder::new();
         font_builder.copy_missing_tables(cff_font);
 
-        let mut ift_table = format2_with_one_charstrings_offset();
+        let mut ift_table = with_one_charstrings_offset();
         ift_table.write_at("charstrings_offset", CFF_FONT_CHARSTRINGS_OFFSET);
         font_builder.add_raw(Tag::new(b"IFT "), ift_table.data());
 
@@ -2112,7 +2112,7 @@ pub(crate) mod tests {
         let mut font_builder = FontBuilder::new();
         font_builder.copy_missing_tables(cff_font);
 
-        let mut ift_table = format2_with_one_charstrings_offset();
+        let mut ift_table = with_one_charstrings_offset();
         ift_table.write_at("charstrings_offset", CFF_FONT_CHARSTRINGS_OFFSET);
         font_builder.add_raw(Tag::new(b"IFT "), ift_table.data());
 
@@ -2187,7 +2187,7 @@ pub(crate) mod tests {
         let mut font_builder = FontBuilder::new();
         font_builder.copy_missing_tables(cff2_font);
 
-        let mut ift_table = format2_with_one_charstrings_offset();
+        let mut ift_table = with_one_charstrings_offset();
         ift_table.write_at("field_flags", 0b00000010u8);
         ift_table.write_at("charstrings_offset", CFF2_FONT_CHARSTRINGS_OFFSET);
         font_builder.add_raw(Tag::new(b"IFT "), ift_table.data());
