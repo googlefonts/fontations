@@ -5,7 +5,7 @@
 use font_types::GlyphId;
 
 use crate::{
-    collections::IntSet,
+    collections::{FnvHashMap, IntSet},
     tables::layout::{ExtensionLookup, Subtables},
     FontRead, ReadError, Tag,
 };
@@ -872,6 +872,10 @@ impl GlyphClosure for ContextFormat2<'_> {
 
         let lookups = lookup_list.lookups();
         let mut seen_sequence_indices = IntSet::new();
+
+        let mut input_cache = FnvHashMap::default();
+        let mut backtrack_cache = FnvHashMap::default();
+        let mut lookahead_cache = FnvHashMap::default();
         for (i, rule_set) in self
             .rule_sets()
             .enumerate()
@@ -896,6 +900,9 @@ impl GlyphClosure for ContextFormat2<'_> {
                     &input_class_def,
                     backtrack_class_def.as_ref(),
                     lookahead_class_def.as_ref(),
+                    &mut input_cache,
+                    &mut backtrack_cache,
+                    &mut lookahead_cache,
                 ) {
                     continue;
                 }

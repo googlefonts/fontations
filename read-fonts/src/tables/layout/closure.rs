@@ -12,7 +12,7 @@ use super::{
     SequenceRule, SequenceRuleSet, Subtables, Tag,
 };
 use crate::{
-    collections::IntSet,
+    collections::{FnvHashMap, IntSet},
     tables::{gpos::PositionLookupList, gsub::SubstitutionLookupList},
     FontRead,
 };
@@ -734,24 +734,49 @@ impl Format2Rule<'_> {
         input_class_def: &ClassDef,
         backtrack_class_def: Option<&ClassDef>,
         lookahead_class_def: Option<&ClassDef>,
+        input_cache: &mut FnvHashMap<u16, bool>,
+        backtrack_cache: &mut FnvHashMap<u16, bool>,
+        lookahead_cache: &mut FnvHashMap<u16, bool>,
     ) -> bool {
         match self {
-            Self::Plain(table) => table.intersects(glyphs, input_class_def),
+            Self::Plain(table) => table.intersects(glyphs, input_class_def, input_cache),
             Self::Chain(table) => table.intersects(
                 glyphs,
                 input_class_def,
                 backtrack_class_def,
                 lookahead_class_def,
+                input_cache,
+                backtrack_cache,
+                lookahead_cache,
             ),
         }
     }
 }
 
+fn intersects_class(
+    class_def: &ClassDef,
+    glyphs: &IntSet<GlyphId>,
+    class: u16,
+    cache: &mut FnvHashMap<u16, bool>,
+) -> bool {
+    if let Some(v) = cache.get(&class) {
+        return *v;
+    }
+
+    let v = class_def.intersects_class_glyphs(glyphs, class);
+    cache.insert(class, v);
+    v
+}
 impl ClassSequenceRule<'_> {
-    fn intersects(&self, glyphs: &IntSet<GlyphId>, input_class_def: &ClassDef) -> bool {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        input_class_def: &ClassDef,
+        cache: &mut FnvHashMap<u16, bool>,
+    ) -> bool {
         self.input_sequence()
             .iter()
-            .all(|c| input_class_def.intersects_class_glyphs(glyphs, c.get()))
+            .all(|c| intersects_class(input_class_def, glyphs, c.get(), cache))
     }
 }
 
@@ -762,11 +787,14 @@ impl ChainedClassSequenceRule<'_> {
         input_class_def: &ClassDef,
         backtrack_class_def: Option<&ClassDef>,
         lookahead_class_def: Option<&ClassDef>,
+        input_cache: &mut FnvHashMap<u16, bool>,
+        backtrack_cache: &mut FnvHashMap<u16, bool>,
+        lookahead_cache: &mut FnvHashMap<u16, bool>,
     ) -> bool {
         if !self
             .input_sequence()
             .iter()
-            .all(|c| input_class_def.intersects_class_glyphs(glyphs, c.get()))
+            .all(|c| intersects_class(input_class_def, glyphs, c.get(), input_cache))
         {
             return false;
         }
@@ -775,7 +803,7 @@ impl ChainedClassSequenceRule<'_> {
             if !self
                 .backtrack_sequence()
                 .iter()
-                .all(|c| backtrack_class_def.intersects_class_glyphs(glyphs, c.get()))
+                .all(|c| intersects_class(backtrack_class_def, glyphs, c.get(), backtrack_cache))
             {
                 return false;
             }
@@ -789,7 +817,7 @@ impl ChainedClassSequenceRule<'_> {
             if !self
                 .lookahead_sequence()
                 .iter()
-                .all(|c| lookahead_class_def.intersects_class_glyphs(glyphs, c.get()))
+                .all(|c| intersects_class(lookahead_class_def, glyphs, c.get(), lookahead_cache))
             {
                 return false;
             }
@@ -935,6 +963,9 @@ impl Intersect for ContextFormat2<'_> {
             }
         };
 
+        let mut input_cache = FnvHashMap::default();
+        let mut backtrack_cache = FnvHashMap::default();
+        let mut lookahead_cache = FnvHashMap::default();
         for rule_set in self.rule_sets().enumerate().filter_map(|(c, rule_set)| {
             input_class_def
                 .intersects_class_glyphs(&retained_coverage_glyphs, c as u16)
@@ -950,6 +981,9 @@ impl Intersect for ContextFormat2<'_> {
                     &input_class_def,
                     backtrack_class_def.as_ref(),
                     lookahead_class_def.as_ref(),
+                    &mut input_cache,
+                    &mut backtrack_cache,
+                    &mut lookahead_cache,
                 ) {
                     return Ok(true);
                 }
@@ -993,6 +1027,9 @@ impl LookupClosure for ContextFormat2<'_> {
             }
         };
 
+        let mut input_cache = FnvHashMap::default();
+        let mut backtrack_cache = FnvHashMap::default();
+        let mut lookahead_cache = FnvHashMap::default();
         for rule_set in self.rule_sets().enumerate().filter_map(|(c, rule_set)| {
             input_class_def
                 .intersects_class_glyphs(&retained_coverage_glyphs, c as u16)
@@ -1016,6 +1053,9 @@ impl LookupClosure for ContextFormat2<'_> {
                     &input_class_def,
                     backtrack_class_def.as_ref(),
                     lookahead_class_def.as_ref(),
+                    &mut input_cache,
+                    &mut backtrack_cache,
+                    &mut lookahead_cache,
                 ) {
                     continue;
                 }
