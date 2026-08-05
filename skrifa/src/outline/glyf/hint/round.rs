@@ -82,10 +82,7 @@ impl RoundState {
                 if distance >= 0 {
                     math::floor(distance).wrapping_add(32).max(0)
                 } else {
-                    (math::floor(neg_distance)
-                        .wrapping_add(32)
-                        .wrapping_neg())
-                    .min(0)
+                    (math::floor(neg_distance).wrapping_add(32).wrapping_neg()).min(0)
                 }
             }
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1913>
@@ -123,9 +120,7 @@ impl RoundState {
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2145>
             Super => {
                 if distance >= 0 {
-                    let val = (distance
-                        .wrapping_add(round_bias)
-                        & self.period.wrapping_neg())
+                    let val = (distance.wrapping_add(round_bias) & self.period.wrapping_neg())
                         .wrapping_add(self.phase);
                     if val < 0 {
                         self.phase
