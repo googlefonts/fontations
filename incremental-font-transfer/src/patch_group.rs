@@ -692,8 +692,8 @@ mod tests {
     use font_test_data::{
         bebuffer::BeBuffer,
         ift::{
-            custom_ids_format2, glyf_u16_glyph_patches, glyph_keyed_patch_header,
-            table_keyed_format2, table_keyed_patch, ABSOLUTE_URL_TEMPLATE, RELATIVE_URL_TEMPLATE,
+            custom_ids, glyf_u16_glyph_patches, glyph_keyed_patch_header, table_keyed,
+            table_keyed_patch, ABSOLUTE_URL_TEMPLATE, RELATIVE_URL_TEMPLATE,
         },
     };
 
@@ -743,7 +743,7 @@ mod tests {
     fn p(index: u32, table: IftTableTag, format: PatchFormat) -> PatchMapEntry {
         let url =
             PatchUrl::expand_template(ABSOLUTE_URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
-        let mut e = url.into_format_1_entry(table, format, Default::default());
+        let mut e = url.into_entry(vec![], table, format, Default::default());
         e.application_bit_indices.insert(42);
         e
     }
@@ -811,7 +811,8 @@ mod tests {
     fn full(index: u32, codepoints: u64) -> PatchMapEntry {
         let url =
             PatchUrl::expand_template(ABSOLUTE_URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
-        let mut e = url.into_format_1_entry(
+        let mut e = url.into_entry(
+            vec![],
             IftTableTag::Ift(cid_1()),
             PatchFormat::TableKeyed {
                 fully_invalidating: true,
@@ -830,7 +831,8 @@ mod tests {
         };
         let url =
             PatchUrl::expand_template(ABSOLUTE_URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
-        let mut e = url.into_format_1_entry(
+        let mut e = url.into_entry(
+            vec![],
             tag,
             PatchFormat::TableKeyed {
                 fully_invalidating: false,
@@ -1830,7 +1832,7 @@ mod tests {
 
     #[test]
     fn select_next_patches_no_intersection() {
-        let font = base_font(Some(table_keyed_format2()), None);
+        let font = base_font(Some(table_keyed()), None);
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([55].into_iter().collect());
@@ -1850,7 +1852,7 @@ mod tests {
 
     #[test]
     fn apply_patches_full_invalidation() {
-        let font = base_font(Some(table_keyed_format2()), None);
+        let font = base_font(Some(table_keyed()), None);
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
@@ -1907,7 +1909,7 @@ mod tests {
 
     #[test]
     fn apply_patches_full_invalidation_with_custom_brotli() {
-        let font = base_font(Some(table_keyed_format2()), None);
+        let font = base_font(Some(table_keyed()), None);
         let font = FontRef::new(&font).unwrap();
 
         let s = SubsetDefinition::codepoints([5].into_iter().collect());
@@ -1953,7 +1955,7 @@ mod tests {
 
     #[test]
     fn apply_patches_one_partial_invalidation() {
-        let mut buffer = table_keyed_format2();
+        let mut buffer = table_keyed();
         buffer.write_at("encoding", 2u8);
 
         // IFT
@@ -2017,10 +2019,10 @@ mod tests {
 
     #[test]
     fn apply_patches_two_partial_invalidation() {
-        let mut ift_buffer = table_keyed_format2();
+        let mut ift_buffer = table_keyed();
         ift_buffer.write_at("encoding", 2u8);
 
-        let mut iftx_buffer = table_keyed_format2();
+        let mut iftx_buffer = table_keyed();
         iftx_buffer.write_at("compat_id[0]", 2u32);
         iftx_buffer.write_at("encoding", 2u8);
         iftx_buffer.write_at("id_delta", Int24::new(2)); // delta = +1
@@ -2072,10 +2074,10 @@ mod tests {
 
     #[test]
     fn apply_patches_mixed() {
-        let mut ift_builder = table_keyed_format2();
+        let mut ift_builder = table_keyed();
         ift_builder.write_at("encoding", 2u8);
 
-        let mut iftx_builder = table_keyed_format2();
+        let mut iftx_builder = table_keyed();
         iftx_builder.write_at("encoding", 3u8);
         iftx_builder.write_at("compat_id[0]", 6u32);
         iftx_builder.write_at("compat_id[1]", 7u32);
@@ -2129,14 +2131,14 @@ mod tests {
 
     #[test]
     fn apply_patches_all_no_invalidation() {
-        let mut ift_builder = table_keyed_format2();
+        let mut ift_builder = table_keyed();
         ift_builder.write_at("encoding", 3u8);
         ift_builder.write_at("compat_id[0]", 6u32);
         ift_builder.write_at("compat_id[1]", 7u32);
         ift_builder.write_at("compat_id[2]", 8u32);
         ift_builder.write_at("compat_id[3]", 9u32);
 
-        let mut iftx_builder = table_keyed_format2();
+        let mut iftx_builder = table_keyed();
         iftx_builder.write_at("encoding", 3u8);
         iftx_builder.write_at("compat_id[0]", 7u32);
         iftx_builder.write_at("compat_id[1]", 7u32);
@@ -2213,7 +2215,7 @@ mod tests {
         // Two types of duplicate url situations
         // 1. Same mapping table has duplicate urls. All should be marked applied.
         // 2. Different mapping table has duplicate urls. These will not be marked as applied.
-        let mut ift_builder = table_keyed_format2();
+        let mut ift_builder = table_keyed();
         ift_builder.write_at("encoding", 3u8);
         ift_builder.write_at("compat_id[0]", 6u32);
         ift_builder.write_at("compat_id[1]", 7u32);
@@ -2228,7 +2230,7 @@ mod tests {
             // codpeoints {100..117}
             .extend([0b00001101, 0b00000011, 0b00110001u8]);
 
-        let mut iftx_builder = table_keyed_format2();
+        let mut iftx_builder = table_keyed();
         iftx_builder.write_at("encoding", 3u8);
         iftx_builder.write_at("compat_id[0]", 0u32);
         iftx_builder.write_at("compat_id[1]", 0u32);
@@ -2306,8 +2308,8 @@ mod tests {
 
     #[test]
     fn tables_have_same_compat_id() {
-        let ift_buffer = table_keyed_format2();
-        let iftx_buffer = table_keyed_format2();
+        let ift_buffer = table_keyed();
+        let iftx_buffer = table_keyed();
 
         let font = base_font(Some(ift_buffer), Some(iftx_buffer));
         let font = FontRef::new(&font).unwrap();
@@ -2323,7 +2325,7 @@ mod tests {
 
     #[test]
     fn invalid_url_templates() {
-        let mut buffer = table_keyed_format2();
+        let mut buffer = table_keyed();
         buffer.write_at("url_template_var_end", b'~');
 
         let font = base_font(Some(buffer), None);
@@ -2342,11 +2344,11 @@ mod tests {
 
     #[test]
     fn select_next_patches_ordering_for_non_invalidating() {
-        let mut ift_builder = custom_ids_format2();
+        let mut ift_builder = custom_ids();
         ift_builder.write_at("entries[0].id_delta", Int24::new(30)); // delta = +15
         ift_builder.write_at("entries[1].id_delta", Int24::new(-10)); // delta = -5
 
-        let mut iftx_builder = custom_ids_format2();
+        let mut iftx_builder = custom_ids();
         iftx_builder.write_at("compat_id[0]", 5u32);
         iftx_builder.write_at("compat_id[1]", 6u32);
         iftx_builder.write_at("compat_id[2]", 7u32);
@@ -2389,11 +2391,11 @@ mod tests {
 
     #[test]
     fn select_next_patches_ordering_for_non_invalidating_with_duplicates() {
-        let mut ift_builder = custom_ids_format2();
+        let mut ift_builder = custom_ids();
         ift_builder.write_at("entries[0].id_delta", Int24::new(30)); // delta = +15
         ift_builder.write_at("entries[1].id_delta", Int24::new(-20)); // delta = -10
 
-        let mut iftx_builder = custom_ids_format2();
+        let mut iftx_builder = custom_ids();
         iftx_builder.write_at("compat_id[0]", 5u32);
         iftx_builder.write_at("compat_id[1]", 6u32);
         iftx_builder.write_at("compat_id[2]", 7u32);

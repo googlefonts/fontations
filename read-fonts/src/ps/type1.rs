@@ -816,13 +816,8 @@ impl<'a> Parser<'a> {
                             // but Type1 fonts define /RD procs and this
                             // pattern is used by FreeType.
                             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/type1/t1load.c#L1351>
-                            if matches!(
-                                self.peek(),
-                                Some(Token::Raw(b"RD")) | Some(Token::Raw(b"-|"))
-                            ) {
-                                // skip the token
-                                self.next();
-                                // and a single space
+                            if self.accept_blob_start() {
+                                // skip a single space
                                 self.pos += 1;
                                 // read the internal data
                                 let data = self.read_bytes(int as usize)?;
@@ -840,13 +835,26 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn peek(&self) -> Option<Token<'a>> {
-        self.clone().next()
+    /// Special lookahead case for RD or -| which indicates a binary blob in
+    /// Type1 fonts.
+    fn accept_blob_start(&mut self) -> bool {
+        let mut p = self.clone();
+        p.skip_whitespace();
+        let start = p.pos;
+        p.skip_until(is_special_or_whitespace);
+        let end = p.pos;
+        if matches!(self.data.get(start..end), Some(b"RD") | Some(b"-|")) {
+            self.pos = end;
+            true
+        } else {
+            false
+        }
     }
 
     fn accept(&mut self, token: Token) -> bool {
-        if self.peek() == Some(token) {
-            self.next();
+        let mut p = self.clone();
+        if p.next() == Some(token) {
+            self.pos = p.pos;
             true
         } else {
             false
@@ -902,24 +910,38 @@ impl<'a> Parser<'a> {
     }
 
     fn read_proc(&mut self, start: usize) -> Option<Token<'a>> {
-        while self.next_byte()? != b'}' {
-            // This handles nested procedures
-            self.next()?;
-            self.skip_whitespace();
+        let mut nest_depth = 1i32;
+        while let Some(c) = self.next_byte() {
+            match c {
+                b'{' => nest_depth = nest_depth.checked_add(1)?,
+                b'}' => {
+                    nest_depth -= 1;
+                    if nest_depth == 0 {
+                        break;
+                    }
+                }
+                // Skip over comments
+                b'%' => self.skip_line(),
+                // Skip over literal strings since they can contain braces
+                b'(' => {
+                    self.read_lit_string(self.pos - 1)?;
+                }
+                _ => {}
+            }
         }
-        let end = self.pos;
-        if self.data.get(end - 1) != Some(&b'}') {
+        if nest_depth != 0 {
             // unterminated procedure
             return None;
         }
+        let end = self.pos;
         Some(Token::Proc(self.data.get(start + 1..end - 1)?))
     }
 
     fn read_lit_string(&mut self, start: usize) -> Option<Token<'a>> {
-        let mut nest_depth = 1;
+        let mut nest_depth = 1i32;
         while let Some(c) = self.next_byte() {
             match c {
-                b'(' => nest_depth += 1,
+                b'(' => nest_depth = nest_depth.checked_add(1)?,
                 b')' => {
                     nest_depth -= 1;
                     if nest_depth == 0 {
@@ -940,7 +962,6 @@ impl<'a> Parser<'a> {
             return None;
         }
         let end = self.pos;
-        self.pos += 1;
         Some(Token::LitString(self.data.get(start + 1..end - 1)?))
     }
 
@@ -1616,6 +1637,10 @@ mod tests {
 /FontName /NotoSerif-Regular def
 /FontBBox {5 0 989 775 }readonly def
 "#;
+        // git will replace \r\n with \n in pfa files on windows so strip
+        // \r out to ensure a robust comparison
+        let mut base = base.to_vec();
+        base.retain(|&b| b != b'\r');
         assert!(base.starts_with(EXPECTED_PREFIX.as_bytes()));
     }
 
@@ -1676,10 +1701,32 @@ mod tests {
     #[test]
     fn parse_procs() {
         check_tokens(
-            "{a {nested 20} proc } % and a\n {simple proc}",
+            "{a {nested 20 % comment\n} proc } % and a\n {simple proc}",
             &[
-                Token::Proc(b"a {nested 20} proc "),
+                Token::Proc(b"a {nested 20 % comment\n} proc "),
                 Token::Proc(b"simple proc"),
+            ],
+        );
+    }
+
+    #[test]
+    fn parse_procs_with_string_containing_unbalanced_braces() {
+        check_tokens(
+            "{a proc with (string {with braces}} {) }",
+            &[Token::Proc(b"a proc with (string {with braces}} {) ")],
+        );
+    }
+
+    #[test]
+    fn parse_proc_with_single_int() {
+        check_tokens(
+            "dup 3 {3} executeonly put",
+            &[
+                Token::Raw(b"dup"),
+                Token::Int(3),
+                Token::Proc(b"3"),
+                Token::Raw(b"executeonly"),
+                Token::Raw(b"put"),
             ],
         );
     }
@@ -1687,6 +1734,19 @@ mod tests {
     #[test]
     fn parse_unterminated_procs() {
         check_tokens("{a {nested 20} proc", &[]);
+    }
+
+    #[test]
+    fn parse_aggregate_tokens_without_whitespace() {
+        check_tokens(
+            "{(string)}3(string1)(string2)",
+            &[
+                Token::Proc(b"(string)"),
+                Token::Int(3),
+                Token::LitString(b"string1"),
+                Token::LitString(b"string2"),
+            ],
+        );
     }
 
     #[test]

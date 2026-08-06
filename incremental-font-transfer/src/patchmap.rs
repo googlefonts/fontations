@@ -9,7 +9,6 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::io::Read;
-use std::ops::RangeInclusive;
 
 use font_types::Fixed;
 use font_types::Int24;
@@ -17,15 +16,10 @@ use font_types::Tag;
 
 use read_fonts::{
     collections::{IntSet, RangeSet},
-    tables::ift::{
-        CompatibilityId, EntryData, EntryFormatFlags, EntryMapRecord, Ift, PatchMapFormat1,
-        PatchMapFormat2, IFTX_TAG, IFT_TAG,
-    },
+    tables::ift::{CompatibilityId, EntryData, EntryFormatFlags, IftPatchMap, IFTX_TAG, IFT_TAG},
     types::Uint24,
     FontData, FontRead, FontRef, ReadError, TableProvider,
 };
-
-use skrifa::charmap::Charmap;
 
 use crate::short_string::ShortString;
 use crate::url_templates;
@@ -43,346 +37,10 @@ pub fn intersecting_patches(
     let mut result: Vec<PatchMapEntry> = vec![];
 
     for (tag, table) in IftTableTag::tables_in(font)? {
-        add_intersecting_patches(font, tag, &table, subset_definition, &mut result)?;
+        add_intersecting_patches(&tag, &table, subset_definition, &mut result)?;
     }
 
     Ok(result)
-}
-
-fn add_intersecting_patches(
-    font: &FontRef,
-    source_table: IftTableTag,
-    ift: &Ift,
-    subset_definition: &SubsetDefinition,
-    patches: &mut Vec<PatchMapEntry>,
-) -> Result<(), ReadError> {
-    match ift {
-        Ift::Format1(format_1) => add_intersecting_format1_patches(
-            font,
-            &source_table,
-            format_1,
-            &subset_definition.codepoints,
-            &subset_definition.feature_tags,
-            patches,
-        ),
-        Ift::Format2(format_2) => {
-            add_intersecting_format2_patches(&source_table, format_2, subset_definition, patches)
-        }
-    }
-}
-
-fn add_intersecting_format1_patches(
-    font: &FontRef,
-    source_table: &IftTableTag,
-    map: &PatchMapFormat1,
-    codepoints: &IntSet<u32>,
-    features: &FeatureSet,
-    patches: &mut Vec<PatchMapEntry>,
-) -> Result<(), ReadError> {
-    // Step 0: Top Level Field Validation
-    let maxp = font.maxp()?;
-    if map.glyph_count() != Uint24::new(maxp.num_glyphs() as u32) {
-        return Err(ReadError::MalformedData(
-            "IFT glyph count must match maxp glyph count.",
-        ));
-    }
-
-    let patches_start = patches.len();
-
-    let max_entry_index = map.max_entry_index();
-    let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
-    if max_glyph_map_entry_index > max_entry_index {
-        return Err(ReadError::MalformedData(
-            "max_glyph_map_entry_index() must be >= max_entry_index().",
-        ));
-    }
-
-    let url_template = map.url_template();
-    let format = PatchFormat::from_format_number(map.patch_format())?;
-
-    // Step 1: Collect the glyph and feature map entries.
-    let charmap = Charmap::new(font);
-    let entries = if PatchFormat::is_invalidating_format(map.patch_format()) {
-        intersect_format1_glyph_and_feature_map::<true>(&charmap, map, codepoints, features)?
-    } else {
-        intersect_format1_glyph_and_feature_map::<false>(&charmap, map, codepoints, features)?
-    };
-
-    // Step 2: produce final output.
-    let mut applied_entries_indices: HashMap<PatchUrl, IntSet<u32>> = Default::default();
-    let applied_entries_start_bit_index = map.applied_entries_bitmap_byte_range().start * 8;
-
-    for (index, subset_def) in entries
-        .into_iter()
-        // Entry 0 is the entry for codepoints already in the font, so it's always considered applied and skipped.
-        .filter(|(index, _)| *index > 0)
-        .filter(|(index, _)| !map.is_entry_applied(*index))
-    {
-        let url = PatchUrl::expand_template(url_template, &PatchId::Numeric(index as u32))
-            .map_err(|_| {
-                ReadError::MalformedData("Failure expanding url template in format 1 patch map.")
-            })?;
-        let intersection_info = if PatchFormat::is_invalidating_format(map.patch_format()) {
-            IntersectionInfo::from_subset(
-                &subset_def,
-                // For format 1 the entry index is the "order",
-                // see: https://w3c.github.io/IFT/Overview.html#font-patch-invalidations
-                index.into(),
-            )
-        } else {
-            // For non-invalidating entries we only need to know the order (index here).
-            IntersectionInfo::from_order(index.into())
-        };
-
-        applied_entries_indices
-            .entry(url.clone())
-            .or_default()
-            .insert(applied_entries_start_bit_index as u32 + index as u32);
-
-        patches.push(url.into_format_1_entry(source_table.clone(), format, intersection_info));
-    }
-
-    if patches.len() > patches_start {
-        for p in patches[patches_start..].iter_mut() {
-            if let Some(indices) = applied_entries_indices.get(&p.url) {
-                p.application_bit_indices = indices.clone();
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn intersect_format1_glyph_and_feature_map<const RECORD_INTERSECTION: bool>(
-    charmap: &Charmap,
-    map: &PatchMapFormat1,
-    codepoints: &IntSet<u32>,
-    features: &FeatureSet,
-) -> Result<BTreeMap<u16, SubsetDefinition>, ReadError> {
-    let mut entries = Default::default();
-    intersect_format1_glyph_map::<RECORD_INTERSECTION>(charmap, map, codepoints, &mut entries)?;
-    intersect_format1_feature_map::<RECORD_INTERSECTION>(map, features, &mut entries)?;
-    Ok(entries)
-}
-
-fn intersect_format1_glyph_map<const RECORD_INTERSECTION: bool>(
-    charmap: &Charmap,
-    map: &PatchMapFormat1,
-    codepoints: &IntSet<u32>,
-    entries: &mut BTreeMap<u16, SubsetDefinition>,
-) -> Result<(), ReadError> {
-    if codepoints.is_inverted() {
-        // TODO(garretrieger): consider invoking this path if codepoints set is above a size threshold
-        //                     relative to the fonts cmap.
-        let cp_gids = charmap
-            .mappings()
-            .filter(|(cp, _)| codepoints.contains(*cp))
-            .map(|(cp, gid)| (cp, gid.to_u32()));
-        return intersect_format1_glyph_map_inner::<RECORD_INTERSECTION>(map, cp_gids, entries);
-    }
-
-    // TODO(garretrieger): since codepoints are looked up in sorted order we may be able to speed up the charmap lookup
-    // (eg. walking the charmap in parallel with the codepoints, or caching the last binary search index)
-    let cp_gids = codepoints
-        .iter()
-        .flat_map(|cp| charmap.map(cp).map(|gid| (cp, gid.to_u32())));
-    intersect_format1_glyph_map_inner::<RECORD_INTERSECTION>(map, cp_gids, entries)
-}
-
-fn intersect_format1_glyph_map_inner<const RECORD_INTERSECTION: bool>(
-    map: &PatchMapFormat1,
-    gids: impl Iterator<Item = (u32, u32)>,
-    entries: &mut BTreeMap<u16, SubsetDefinition>,
-) -> Result<(), ReadError> {
-    let glyph_map = map.glyph_map()?;
-    if glyph_map.entry_index_byte_range().end > glyph_map.offset_data().len() {
-        return Err(ReadError::OutOfBounds);
-    }
-    let first_gid = glyph_map.first_mapped_glyph() as u32;
-    let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
-
-    for (cp, gid) in gids {
-        let entry_index = if gid < first_gid {
-            0
-        } else {
-            glyph_map
-                .entry_index()
-                // TODO(garretrieger): this branches to determine item size on each individual lookup, would
-                //                     likely be faster if we bypassed that since all items have the same length.
-                .get((gid - first_gid) as usize)?
-                .get()
-        };
-        if entry_index > max_glyph_map_entry_index {
-            continue;
-        }
-
-        let e = entries.entry(entry_index);
-        let subset = e.or_default();
-        if RECORD_INTERSECTION {
-            subset.codepoints.insert(cp);
-        }
-    }
-
-    Ok(())
-}
-
-fn intersect_format1_feature_map<const RECORD_INTERSECTION: bool>(
-    map: &PatchMapFormat1,
-    features: &FeatureSet,
-    entries: &mut BTreeMap<u16, SubsetDefinition>,
-) -> Result<(), ReadError> {
-    let Some(feature_map) = map.feature_map() else {
-        return Ok(());
-    };
-    let feature_map = feature_map?;
-
-    let max_entry_index = map.max_entry_index();
-    let max_glyph_map_entry_index = map.max_glyph_map_entry_index();
-    let entry_map_record_size = if max_entry_index < 256 {
-        2usize
-    } else {
-        4usize
-    };
-
-    if feature_map.feature_records_byte_range().end > feature_map.offset_data().len() {
-        return Err(ReadError::OutOfBounds);
-    }
-
-    // We need to check up front there is enough data for all of the listed entry records, this
-    // isn't checked by the read_fonts generated code. Specification requires the operation to fail
-    // up front if the data is too short.
-    if feature_map.entry_records_size(max_entry_index)? > feature_map.entry_map_data().len() {
-        return Err(ReadError::OutOfBounds);
-    }
-
-    let mut maybe_tag_it = match features {
-        FeatureSet::All => None,
-        FeatureSet::Set(f) => Some(f.iter().peekable()),
-    };
-    let mut record_it = feature_map.feature_records().iter().peekable();
-
-    let mut cumulative_entry_map_count: usize = 0;
-    let mut largest_tag: Option<Tag> = None;
-    loop {
-        let record = if let Some(tag_it) = &mut maybe_tag_it {
-            let Some((tag, record)) = tag_it.peek().cloned().zip(record_it.peek().cloned()) else {
-                break;
-            };
-            let record = record?;
-
-            if *tag > record.feature_tag() {
-                cumulative_entry_map_count = cumulative_entry_map_count
-                    .checked_add(record.entry_map_count().get() as usize)
-                    .ok_or(ReadError::OutOfBounds)?;
-                record_it.next();
-                continue;
-            }
-
-            if let Some(largest_tag) = largest_tag {
-                if *tag <= largest_tag {
-                    // Out of order or duplicate tag, skip this record.
-                    tag_it.next();
-                    continue;
-                }
-            }
-
-            largest_tag = Some(*tag);
-
-            if *tag < record.feature_tag() {
-                tag_it.next();
-                continue;
-            }
-
-            let Some(record) = record_it.next() else {
-                break;
-            };
-            record?
-        } else {
-            // Specialization where the target set matches all feature records.
-            let Some(record) = record_it.next() else {
-                break;
-            };
-            let record = record?;
-
-            if let Some(largest_tag) = largest_tag {
-                if record.feature_tag() <= largest_tag {
-                    // Out of order or duplicate tag, skip this record.
-                    cumulative_entry_map_count = cumulative_entry_map_count
-                        .checked_add(record.entry_map_count().get() as usize)
-                        .ok_or(ReadError::OutOfBounds)?;
-                    continue;
-                }
-            }
-
-            largest_tag = Some(record.feature_tag());
-            record
-        };
-
-        let entry_count = record.entry_map_count().get();
-
-        for i in 0..entry_count {
-            let index = i as usize + cumulative_entry_map_count;
-            let byte_index = index * entry_map_record_size;
-            let data = FontData::new(&feature_map.entry_map_data()[byte_index..]);
-            let mapped_entry_index = record.first_new_entry_index().get() as u32 + i as u32;
-            let entry_record = EntryMapRecord::read(data, max_entry_index)?;
-            let first = entry_record.first_entry_index().get();
-            let last = entry_record.last_entry_index().get();
-            if first > last
-                || first > max_glyph_map_entry_index
-                || last > max_glyph_map_entry_index
-                || mapped_entry_index <= max_glyph_map_entry_index as u32
-                || mapped_entry_index > max_entry_index as u32
-            {
-                // Invalid, continue on
-                continue;
-            }
-
-            // If any entries exist which intersect the range of this record add all of their subset defs
-            // to the new entry.
-            merge_intersecting_entries::<RECORD_INTERSECTION>(
-                first..=last,
-                mapped_entry_index as u16,
-                record.feature_tag(),
-                entries,
-            );
-        }
-
-        cumulative_entry_map_count = cumulative_entry_map_count
-            .checked_add(entry_count as usize)
-            .ok_or(ReadError::OutOfBounds)?;
-    }
-
-    Ok(())
-}
-
-fn merge_intersecting_entries<const RECORD_INTERSECTION: bool>(
-    intersection: RangeInclusive<u16>,
-    mapped_entry_index: u16,
-    mapped_tag: Tag,
-    entries: &mut BTreeMap<u16, SubsetDefinition>,
-) {
-    let mut range = entries.range(intersection).peekable();
-    let merged_subset_def = if range.peek().is_some() {
-        let mut merged_subset_def = SubsetDefinition::default();
-        if RECORD_INTERSECTION {
-            range.for_each(|(_, subset_def)| {
-                merged_subset_def.union(subset_def);
-            });
-            merged_subset_def
-                .feature_tags
-                .extend([mapped_tag].iter().copied());
-        }
-        Some(merged_subset_def)
-    } else {
-        None
-    };
-    if let Some(merged_subset_def) = merged_subset_def {
-        entries
-            .entry(mapped_entry_index)
-            .or_default()
-            .union(&merged_subset_def);
-    }
 }
 
 #[derive(Clone, Default)]
@@ -396,14 +54,14 @@ struct EntryCaches {
 struct EntryIntersectionCache<'a> {
     target_subset_definition: &'a SubsetDefinition,
     // The entries that we are inspecting.
-    entries: &'a [Format2Entry],
+    entries: &'a [Entry],
     // Storage for cached values for entries. Initialized to have the same length as `entries`.
     cache: Vec<EntryCaches>,
 }
 
 impl<'a> EntryIntersectionCache<'a> {
     fn new(
-        entries: &'a [Format2Entry],
+        entries: &'a [Entry],
         target_subset_definition: &'a SubsetDefinition,
     ) -> EntryIntersectionCache<'a> {
         EntryIntersectionCache {
@@ -439,7 +97,7 @@ impl<'a> EntryIntersectionCache<'a> {
         result
     }
 
-    fn compute_intersection(&mut self, entry: &Format2Entry) -> bool {
+    fn compute_intersection(&mut self, entry: &Entry) -> bool {
         // See: https://w3c.github.io/IFT/Overview.html#abstract-opdef-check-entry-intersection
         if !entry.intersects(self.target_subset_definition) {
             return false;
@@ -456,7 +114,7 @@ impl<'a> EntryIntersectionCache<'a> {
         }
     }
 
-    fn all_children_intersect(&mut self, entry: &Format2Entry) -> bool {
+    fn all_children_intersect(&mut self, entry: &Entry) -> bool {
         for child_index in entry.child_indices.iter() {
             if !self.intersects(*child_index) {
                 return false;
@@ -465,7 +123,7 @@ impl<'a> EntryIntersectionCache<'a> {
         true
     }
 
-    fn some_children_intersect(&mut self, entry: &Format2Entry) -> bool {
+    fn some_children_intersect(&mut self, entry: &Entry) -> bool {
         for child_index in entry.child_indices.iter() {
             if self.intersects(*child_index) {
                 return true;
@@ -487,7 +145,7 @@ impl<'a> EntryIntersectionCache<'a> {
 
     /// Returns None if `index` is out of range.
     fn coverage_intersection_impl<'b>(
-        entries: &[Format2Entry],
+        entries: &[Entry],
         target_subset_definition: &SubsetDefinition,
         index: usize,
         cache: &'b mut [EntryCaches],
@@ -515,13 +173,13 @@ impl<'a> EntryIntersectionCache<'a> {
     }
 }
 
-fn add_intersecting_format2_patches(
+fn add_intersecting_patches(
     source_table: &IftTableTag,
-    map: &PatchMapFormat2,
+    map: &IftPatchMap,
     subset_definition: &SubsetDefinition,
     patches: &mut Vec<PatchMapEntry>,
 ) -> Result<(), ReadError> {
-    let entries = decode_format2_entries(map)?;
+    let entries = decode_entries(map)?;
 
     // Caches the result of intersection check for an entry index.
     let mut entry_intersection_cache = EntryIntersectionCache::new(&entries, subset_definition);
@@ -555,7 +213,7 @@ fn add_intersecting_format2_patches(
             IntersectionInfo::from_order(order)
         };
         let preload_urls: Vec<PatchUrl> = it.cloned().collect();
-        patches.push(first_url.clone().into_format_2_entry(
+        patches.push(first_url.clone().into_entry(
             preload_urls,
             source_table.clone(),
             e.format,
@@ -598,14 +256,14 @@ fn add_intersecting_format2_patches(
     Ok(())
 }
 
-fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Format2Entry>, ReadError> {
+fn decode_entries(map: &IftPatchMap) -> Result<Vec<Entry>, ReadError> {
     let url_template = map.url_template();
     let entries_data = map.entries()?.entry_data();
     let default_encoding = PatchFormat::from_format_number(map.default_patch_format())?;
 
     let mut entry_count = map.entry_count().to_u32();
     let mut entries_data = FontData::new(entries_data);
-    let mut entries: Vec<Format2Entry> = vec![];
+    let mut entries: Vec<Entry> = vec![];
 
     let mut entry_start_byte = map.entries_offset().to_u32() as usize;
 
@@ -623,8 +281,8 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Format2Entry>, Re
 
     while entry_count > 0 {
         let consumed_bytes;
-        // TODO(garretrieger): processing context type ovject to reduce argument passing to decode_format2_entry(...)
-        (entries_data, consumed_bytes) = decode_format2_entry(
+        // TODO(garretrieger): processing context type ovject to reduce argument passing to decode_entry(...)
+        (entries_data, consumed_bytes) = decode_entry(
             entries_data,
             entry_start_byte,
             url_template,
@@ -640,21 +298,20 @@ fn decode_format2_entries(map: &PatchMapFormat2) -> Result<Vec<Format2Entry>, Re
     Ok(entries)
 }
 
-fn decode_format2_entry<'a>(
+fn decode_entry<'a>(
     data: FontData<'a>,
     data_start_index: usize,
     url_template: &[u8],
     default_format: &PatchFormat,
     id_string_data: &mut Option<Cursor<&[u8]>>,
-    entries: &mut Vec<Format2Entry>,
+    entries: &mut Vec<Entry>,
     last_entry_id: &mut PatchId,
 ) -> Result<(FontData<'a>, usize), ReadError> {
     let entry_data = EntryData::read(data)?;
 
     // Record the index of the bit which when set causes this entry to be ignored.
     // See: https://w3c.github.io/IFT/Overview.html#mapping-entry-formatflags
-    let mut entry: Format2Entry =
-        Format2Entry::base_entry(*default_format, (data_start_index as u32 * 8) + 6);
+    let mut entry: Entry = Entry::base_entry(*default_format, (data_start_index as u32 * 8) + 6);
 
     // Features
     if let Some(features) = entry_data.feature_tags() {
@@ -703,22 +360,21 @@ fn decode_format2_entry<'a>(
 
     // Entry ID
     let (entry_deltas, trailing_data) = if id_string_data.is_some() {
-        decode_format2_entry_deltas::<true>(entry_data.format_flags(), entry_data.trailing_data())?
+        decode_entry_deltas::<true>(entry_data.format_flags(), entry_data.trailing_data())?
     } else {
-        decode_format2_entry_deltas::<false>(entry_data.format_flags(), entry_data.trailing_data())?
+        decode_entry_deltas::<false>(entry_data.format_flags(), entry_data.trailing_data())?
     };
 
     // Encoding
     let (patch_format, trailing_data) =
-        decode_format2_patch_format(entry_data.format_flags(), trailing_data)?;
+        decode_patch_format(entry_data.format_flags(), trailing_data)?;
     entry.format = patch_format.unwrap_or(*default_format);
 
     // We now have info information to generate the associated urls.
     entry.populate_urls(url_template, entry_deltas, last_entry_id, id_string_data)?;
 
     // Codepoints
-    let (codepoints, trailing_data) =
-        decode_format2_codepoints(entry_data.format_flags(), trailing_data)?;
+    let (codepoints, trailing_data) = decode_codepoints(entry_data.format_flags(), trailing_data)?;
     if entry.subset_definition.codepoints.is_empty() {
         // as an optimization move the existing set instead of copying it in if possible.
         entry.subset_definition.codepoints = codepoints;
@@ -737,7 +393,7 @@ fn decode_format2_entry<'a>(
     Ok((FontData::new(trailing_data), consumed_bytes))
 }
 
-fn format2_new_entry_id(
+fn new_entry_id(
     delta_or_length: Option<i32>,
     last_id: &PatchId,
     id_string_data: &mut Option<Cursor<&[u8]>>,
@@ -748,7 +404,7 @@ fn format2_new_entry_id(
             PatchId::String(_) => return Err(ReadError::MalformedData("Unexpected string id.")),
         };
 
-        return Ok(PatchId::Numeric(compute_format2_new_entry_index(
+        return Ok(PatchId::Numeric(compute_new_entry_index(
             delta_or_length.unwrap_or_default(),
             last_entry_index,
         )?));
@@ -777,7 +433,7 @@ fn format2_new_entry_id(
     Ok(PatchId::String(id_string))
 }
 
-fn compute_format2_new_entry_index(delta: i32, last_entry_index: u32) -> Result<u32, ReadError> {
+fn compute_new_entry_index(delta: i32, last_entry_index: u32) -> Result<u32, ReadError> {
     let new_index = (last_entry_index as i64) + 1 + (delta as i64);
 
     if new_index.is_negative() {
@@ -789,7 +445,7 @@ fn compute_format2_new_entry_index(delta: i32, last_entry_index: u32) -> Result<
     })
 }
 
-fn decode_format2_patch_format(
+fn decode_patch_format(
     flags: EntryFormatFlags,
     format_data: &[u8],
 ) -> Result<(Option<PatchFormat>, &[u8]), ReadError> {
@@ -804,7 +460,7 @@ fn decode_format2_patch_format(
     Ok((Some(patch_format), &format_data[1..]))
 }
 
-fn decode_format2_entry_deltas<const HAS_STRING_DATA: bool>(
+fn decode_entry_deltas<const HAS_STRING_DATA: bool>(
     flags: EntryFormatFlags,
     delta_data: &[u8],
 ) -> Result<(Vec<i32>, &[u8]), ReadError> {
@@ -817,7 +473,7 @@ fn decode_format2_entry_deltas<const HAS_STRING_DATA: bool>(
     let mut index = 0usize;
     loop {
         let (value, has_more) =
-            decode_format2_entry_delta::<HAS_STRING_DATA>(&delta_data[index * WIDTH..])?;
+            decode_entry_delta::<HAS_STRING_DATA>(&delta_data[index * WIDTH..])?;
         result.push(value);
         index += 1;
 
@@ -829,7 +485,7 @@ fn decode_format2_entry_deltas<const HAS_STRING_DATA: bool>(
     Ok((result, &delta_data[index * WIDTH..]))
 }
 
-fn decode_format2_entry_delta<const HAS_STRING_DATA: bool>(
+fn decode_entry_delta<const HAS_STRING_DATA: bool>(
     delta_data: &[u8],
 ) -> Result<(i32, bool), ReadError> {
     if HAS_STRING_DATA {
@@ -852,7 +508,7 @@ fn decode_format2_entry_delta<const HAS_STRING_DATA: bool>(
     }
 }
 
-fn decode_format2_codepoints(
+fn decode_codepoints(
     flags: EntryFormatFlags,
     codepoint_data: &[u8],
 ) -> Result<(IntSet<u32>, &[u8]), ReadError> {
@@ -900,14 +556,6 @@ impl PatchFormat {
         matches!(self, PatchFormat::TableKeyed { .. })
     }
 
-    fn is_invalidating_format(format: u8) -> bool {
-        match format {
-            1 | 2 => true,
-            3 => false,
-            _ => false,
-        }
-    }
-
     fn from_format_number(format: u8) -> Result<Self, ReadError> {
         // Based on https://w3c.github.io/IFT/Overview.html#font-patch-formats-summary
         match format {
@@ -940,21 +588,36 @@ pub(crate) enum IftTableTag {
 impl IftTableTag {
     pub(crate) fn tables_in<'a>(
         font: &'a FontRef,
-    ) -> Result<impl Iterator<Item = (IftTableTag, Ift<'a>)>, ReadError> {
+    ) -> Result<impl Iterator<Item = (IftTableTag, IftPatchMap<'a>)>, ReadError> {
         let ift = font
             .data_for_tag(IFT_TAG)
-            .map(Ift::read)
-            .transpose()?
+            .map(IftPatchMap::read)
+            .transpose()
+            .and_then(Self::check_format)?
             .map(|t| (IftTableTag::Ift(t.compatibility_id()), t))
             .into_iter();
         let iftx = font
             .data_for_tag(IFTX_TAG)
-            .map(Ift::read)
-            .transpose()?
+            .map(IftPatchMap::read)
+            .transpose()
+            .and_then(Self::check_format)?
             .map(|t| (IftTableTag::Iftx(t.compatibility_id()), t))
             .into_iter();
 
         Ok(ift.chain(iftx))
+    }
+
+    fn check_format(table: Option<IftPatchMap>) -> Result<Option<IftPatchMap>, ReadError> {
+        match table {
+            Some(table) => {
+                if table.format() == 2 {
+                    Ok(Some(table))
+                } else {
+                    Err(ReadError::InvalidFormat(table.format().into()))
+                }
+            }
+            None => Ok(table),
+        }
     }
 
     pub(crate) fn font_compat_id(&self, font: &FontRef) -> Result<CompatibilityId, ReadError> {
@@ -968,7 +631,10 @@ impl IftTableTag {
         }
     }
 
-    pub(crate) fn mapping_table<'a>(&self, font: &'a FontRef) -> Result<Ift<'a>, ReadError> {
+    pub(crate) fn mapping_table<'a>(
+        &self,
+        font: &'a FontRef,
+    ) -> Result<IftPatchMap<'a>, ReadError> {
         font.expect_data_for_tag(self.tag())
             .and_then(FontRead::read)
     }
@@ -1033,23 +699,7 @@ impl PatchUrl {
         self.0.as_str()
     }
 
-    pub(crate) fn into_format_1_entry(
-        self,
-        source_table: IftTableTag,
-        format: PatchFormat,
-        intersection_info: IntersectionInfo,
-    ) -> PatchMapEntry {
-        PatchMapEntry {
-            url: self,
-            preload_urls: vec![], // Format 1 has no preload urls
-            format,
-            source_table,
-            application_bit_indices: IntSet::<u32>::empty(), // these are populated later on
-            intersection_info,
-        }
-    }
-
-    fn into_format_2_entry(
+    pub(crate) fn into_entry(
         self,
         preload_urls: Vec<PatchUrl>,
         source_table: IftTableTag,
@@ -1335,7 +985,7 @@ impl SubsetDefinition {
 ///
 /// See: <https://w3c.github.io/IFT/Overview.html#patch-map-dfn>
 #[derive(Debug, Clone, PartialEq)]
-struct Format2Entry {
+struct Entry {
     // Key
     subset_definition: SubsetDefinition,
     child_indices: Vec<usize>,
@@ -1348,9 +998,9 @@ struct Format2Entry {
     application_flag_bit_index: u32,
 }
 
-impl Format2Entry {
+impl Entry {
     fn base_entry(default_format: PatchFormat, application_flag_bit_index: u32) -> Self {
-        Format2Entry {
+        Entry {
             subset_definition: Default::default(),
             child_indices: vec![],
             conjunctive_child_match: false,
@@ -1406,7 +1056,7 @@ impl Format2Entry {
         id_string_data: &mut Option<Cursor<&[u8]>>,
     ) -> Result<(), ReadError> {
         if deltas.is_empty() {
-            let next_id = format2_new_entry_id(None, last_id, id_string_data)?;
+            let next_id = new_entry_id(None, last_id, id_string_data)?;
             self.urls.push(
                 PatchUrl::expand_template(url_template, &next_id).map_err(|_| {
                     ReadError::MalformedData("Failed to expand url template in format 2 table.")
@@ -1417,7 +1067,7 @@ impl Format2Entry {
         }
 
         for delta in deltas {
-            let next_id = format2_new_entry_id(Some(delta), last_id, id_string_data)?;
+            let next_id = new_entry_id(Some(delta), last_id, id_string_data)?;
             self.urls.push(
                 PatchUrl::expand_template(url_template, &next_id).map_err(|_| {
                     ReadError::MalformedData("Failed to expand url template in format 2 table.")
@@ -1454,10 +1104,8 @@ mod tests {
     use super::*;
     use font_test_data as test_data;
     use font_test_data::ift::{
-        child_indices_format2, codepoints_only_format2, custom_ids_format2, feature_map_format1,
-        features_and_design_space_format2, format1_with_dup_urls, simple_format1,
-        string_ids_format2, string_ids_format2_with_preloads,
-        table_keyed_format2_with_preload_urls, u16_entries_format1, ABSOLUTE_URL_TEMPLATE,
+        child_indices, codepoints_only, custom_ids, features_and_design_space, string_ids,
+        string_ids_with_preloads, table_keyed_with_preload_urls, ABSOLUTE_URL_TEMPLATE,
         RELATIVE_URL_TEMPLATE,
     };
     use read_fonts::tables::ift::{IFTX_TAG, IFT_TAG};
@@ -1544,14 +1192,6 @@ mod tests {
         set
     }
 
-    fn f1(index: u32) -> ExpectedEntry {
-        ExpectedEntry {
-            indices: vec![index],
-            application_bit_index: set(index + 36 * 8),
-            order: index as usize,
-        }
-    }
-
     fn f2(index: u32, entry_start: usize, order: usize) -> ExpectedEntry {
         ExpectedEntry {
             indices: vec![index],
@@ -1609,7 +1249,7 @@ mod tests {
                             .unwrap()
                     });
 
-                    let mut e = it.next().unwrap().into_format_2_entry(
+                    let mut e = it.next().unwrap().into_entry(
                         it.collect(),
                         IftTableTag::Ift(compat_id()),
                         PatchFormat::GlyphKeyed,
@@ -1659,7 +1299,7 @@ mod tests {
                     let mut it = indices.iter().map(|i| {
                         PatchUrl::expand_template(url_template, &PatchId::Numeric(*i)).unwrap()
                     });
-                    let mut e = it.next().unwrap().into_format_2_entry(
+                    let mut e = it.next().unwrap().into_entry(
                         it.collect(),
                         IftTableTag::Ift(compat_id()),
                         PatchFormat::GlyphKeyed,
@@ -1731,13 +1371,13 @@ mod tests {
 
     #[test]
     fn rejects_invalid_format() {
-        let mut bad_format = simple_format1();
+        let mut bad_format = codepoints_only();
         bad_format.write_at("format", 3u8);
 
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
             Some(&bad_format),
-            Some(&simple_format1()),
+            Some(&codepoints_only()),
         );
         let font = FontRef::new(&font_bytes).unwrap();
         assert_eq!(
@@ -1750,274 +1390,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn format_1_patch_map_u8_entries() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&simple_format1()),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        test_intersection(&font, [], [], []);
-        test_intersection(&font, [0x123], [], []); // 0x123 is not in the mapping
-        test_intersection(&font, [0x13], [], []); // 0x13 maps to entry 0
-        test_intersection(&font, [0x12], [], []); // 0x12 maps to entry 1 which is applied
-        test_intersection(&font, [0x11], [], [f1(2)]); // 0x11 maps to entry 2
-        test_intersection(&font, [0x11, 0x12, 0x123], [], [f1(2)]);
-
-        test_intersection_with_all(&font, [], [f1(2)]);
-    }
-
-    #[test]
-    fn format_1_patch_map_with_duplicate_urls() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&format1_with_dup_urls()),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        let mut e2 = f1(2);
-        let mut e3 = f1(3);
-        let mut e4 = f1(4);
-        e2.application_bit_index.union(&e3.application_bit_index);
-        e2.application_bit_index.union(&e4.application_bit_index);
-        e3.application_bit_index.union(&e2.application_bit_index);
-        e4.application_bit_index.union(&e2.application_bit_index);
-
-        test_intersection_with_all_and_template(&font, [], b"\x08foo/baar", [e2, e3, e4]);
-    }
-
-    #[test]
-    fn format_1_patch_map_bad_entry_index() {
-        let mut data = simple_format1();
-        data.write_at("entry_index[1]", 3u8);
-
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&data),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        test_intersection(&font, [0x11], [], []);
-    }
-
-    #[test]
-    fn format_1_patch_map_glyph_map_too_short() {
-        let data: &[u8] = &simple_format1();
-        let data = &data[..data.len() - 1];
-
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(data),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x123]),
-                FeatureSet::from([]),
-                Default::default(),
-            ),
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn format_1_patch_map_bad_glyph_count() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::CMAP12_FONT1).unwrap(),
-            Some(&simple_format1()),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x123]),
-                FeatureSet::from([]),
-                Default::default(),
-            ),
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn format_1_patch_map_bad_max_entry() {
-        let mut data = simple_format1();
-        data.write_at("max_glyph_map_entry_id", 3u16);
-
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&data),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x123]),
-                FeatureSet::from([]),
-                Default::default(),
-            ),
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn format_1_patch_map_bad_encoding_number() {
-        let mut data = simple_format1();
-        data.write_at("patch_format", 0x12u8);
-
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&data),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x123]),
-                FeatureSet::from([]),
-                Default::default()
-            )
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn format_1_patch_map_u16_entries() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&u16_entries_format1()),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        test_intersection(&font, [], [], []);
-        test_intersection(&font, [0x11], [], []);
-        test_intersection(&font, [0x12], [], [f1(0x50)]);
-        test_intersection(&font, [0x13, 0x15], [], [f1(0x51), f1(0x12c)]);
-
-        test_intersection_with_all(&font, [], [f1(0x50), f1(0x51), f1(0x12c)]);
-    }
-
-    #[test]
-    fn format_1_patch_map_u16_entries_with_feature_mapping() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&feature_map_format1()),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        test_intersection(&font, [], [], []);
-        test_intersection(
-            &font,
-            [],
-            [Tag::new(b"liga"), Tag::new(b"dlig"), Tag::new(b"null")],
-            [],
-        );
-        test_intersection(&font, [0x12], [], [f1(0x50)]);
-        test_intersection(&font, [0x12], [Tag::new(b"liga")], [f1(0x50), f1(0x180)]);
-        test_intersection(
-            &font,
-            [0x13, 0x14],
-            [Tag::new(b"liga")],
-            [f1(0x51), f1(0x12c), f1(0x180), f1(0x181)],
-        );
-        test_intersection(
-            &font,
-            [0x13, 0x14],
-            [Tag::new(b"dlig")],
-            [f1(0x51), f1(0x12c), f1(0x190)],
-        );
-        test_intersection(
-            &font,
-            [0x13, 0x14],
-            [Tag::new(b"dlig"), Tag::new(b"liga")],
-            [f1(0x51), f1(0x12c), f1(0x180), f1(0x181), f1(0x190)],
-        );
-        test_intersection(&font, [0x11], [Tag::new(b"null")], [f1(0x12D)]);
-        test_intersection(&font, [0x15], [Tag::new(b"liga")], [f1(0x181)]);
-
-        test_intersection_with_all(&font, [], [f1(0x50), f1(0x51), f1(0x12c)]);
-        test_intersection_with_all(
-            &font,
-            [Tag::new(b"liga")],
-            [f1(0x50), f1(0x51), f1(0x12c), f1(0x180), f1(0x181)],
-        );
-        test_intersection_with_all(
-            &font,
-            [Tag::new(b"dlig")],
-            [f1(0x50), f1(0x51), f1(0x12c), f1(0x190)],
-        );
-    }
-
-    #[test]
-    fn format_1_patch_map_all_features() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&feature_map_format1()),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        test_design_space_intersection(
-            &font,
-            [0x13],
-            FeatureSet::from([Tag::new(b"dlig"), Tag::new(b"liga")]),
-            Default::default(),
-            [f1(0x51), f1(0x180), f1(0x190)],
-        );
-
-        test_design_space_intersection(
-            &font,
-            [0x13],
-            FeatureSet::All,
-            Default::default(),
-            [f1(0x51), f1(0x180), f1(0x190)],
-        );
-    }
-
-    #[test]
-    fn format_1_patch_map_all_features_skips_unsorted() {
-        let mut data = feature_map_format1();
-        data.write_at("FeatureRecord[0]", Tag::new(b"liga"));
-        data.write_at("FeatureRecord[1]", Tag::new(b"dlig"));
-
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&data),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        test_design_space_intersection(
-            &font,
-            [0x13, 0x14],
-            FeatureSet::from([Tag::new(b"dlig"), Tag::new(b"liga"), Tag::new(b"null")]),
-            Default::default(),
-            [f1(0x51), f1(0x12c), f1(0x190)],
-        );
-
-        test_design_space_intersection(
-            &font,
-            [0x13, 0x14],
-            FeatureSet::All,
-            Default::default(),
-            [f1(0x51), f1(0x12c), f1(0x190)],
-        );
-    }
-
     fn patch_with_intersection(
         applied_entries_start: usize,
         index: u32,
@@ -2025,7 +1397,8 @@ mod tests {
     ) -> PatchMapEntry {
         let url =
             PatchUrl::expand_template(RELATIVE_URL_TEMPLATE, &PatchId::Numeric(index)).unwrap();
-        let mut e = url.into_format_1_entry(
+        let mut e = url.into_entry(
+            vec![],
             IftTableTag::Ift(compat_id()),
             PatchFormat::TableKeyed {
                 fully_invalidating: true,
@@ -2038,257 +1411,17 @@ mod tests {
     }
 
     #[test]
-    fn format_1_patch_map_intersection_info() {
-        let mut map = feature_map_format1();
-        map.write_at("patch_format", 1u8);
-        map.write_at("gid5_entry", 299u16);
-        map.write_at("gid6_entry", 300u16);
-        map.write_at("applied_entries_296", 0u8);
-        let applied_entries_start = map.offset_for("applied_entries") * 8;
+    fn patch_map_codepoints_only() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&map),
+            Some(&codepoints_only()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        // case 1 - only codepoints
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(IntSet::from([0x14]), Default::default(), Default::default()),
-        )
-        .unwrap();
-        assert_eq!(
-            patches,
-            vec![patch_with_intersection(
-                applied_entries_start,
-                300,
-                IntersectionInfo::new(1, 0, 300),
-            ),]
-        );
-
-        // case 2 - only codepoints
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x14, 0x15, 0x16]),
-                Default::default(),
-                Default::default(),
-            ),
-        )
-        .unwrap();
-        assert_eq!(
-            patches,
-            vec![
-                patch_with_intersection(
-                    applied_entries_start,
-                    299,
-                    IntersectionInfo::new(1, 0, 299),
-                ),
-                patch_with_intersection(
-                    applied_entries_start,
-                    300,
-                    IntersectionInfo::new(2, 0, 300),
-                ),
-            ]
-        );
-
-        // case 3 - features (w/ intersection)
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x14, 0x15, 0x16]),
-                FeatureSet::from([Tag::new(b"dlig"), Tag::new(b"liga")]),
-                Default::default(),
-            ),
-        )
-        .unwrap();
-        assert_eq!(
-            patches,
-            vec![
-                patch_with_intersection(
-                    applied_entries_start,
-                    299,
-                    IntersectionInfo::new(1, 0, 299),
-                ),
-                patch_with_intersection(
-                    applied_entries_start,
-                    300,
-                    IntersectionInfo::new(2, 0, 300),
-                ),
-                patch_with_intersection(
-                    applied_entries_start,
-                    385,
-                    IntersectionInfo::new(3, 1, 385),
-                ),
-            ]
-        );
-
-        // case 4 - features (w/o intersection)
-        let patches = intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x14, 0x15, 0x16]),
-                FeatureSet::from([Tag::new(b"dlig")]),
-                Default::default(),
-            ),
-        )
-        .unwrap();
-        assert_eq!(
-            patches,
-            vec![
-                patch_with_intersection(
-                    applied_entries_start,
-                    299,
-                    IntersectionInfo::new(1, 0, 299),
-                ),
-                patch_with_intersection(
-                    applied_entries_start,
-                    300,
-                    IntersectionInfo::new(2, 0, 300),
-                ),
-            ]
-        );
-    }
-
-    #[test]
-    fn format_1_patch_map_u16_entries_with_out_of_order_feature_mapping() {
-        let mut data = feature_map_format1();
-        data.write_at("FeatureRecord[0]", Tag::new(b"liga"));
-        data.write_at("FeatureRecord[1]", Tag::new(b"dlig"));
-
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&data),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        test_intersection(
-            &font,
-            [0x13, 0x14],
-            [Tag::new(b"liga")],
-            [f1(0x51), f1(0x12c), f1(0x190)],
-        );
-        test_intersection(
-            &font,
-            [0x13, 0x14],
-            [Tag::new(b"dlig")],
-            [f1(0x51), f1(0x12c)], // dlig is ignored since it's out of order.
-        );
-        test_intersection(&font, [0x11], [Tag::new(b"null")], [f1(0x12D)]);
-    }
-
-    #[test]
-    fn format_1_patch_map_u16_entries_with_duplicate_feature_mapping() {
-        let mut data = feature_map_format1();
-        data.write_at("FeatureRecord[0]", Tag::new(b"liga"));
-        data.write_at("FeatureRecord[1]", Tag::new(b"liga"));
-
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&data),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        test_intersection(
-            &font,
-            [0x13, 0x14],
-            [Tag::new(b"liga")],
-            [f1(0x51), f1(0x12c), f1(0x190)],
-        );
-        test_intersection(&font, [0x11], [Tag::new(b"null")], [f1(0x12D)]);
-    }
-
-    #[test]
-    fn format_1_patch_map_feature_map_entry_record_too_short() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&feature_map_format1()[..feature_map_format1().len() - 1]),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                FeatureSet::from([]),
-                Default::default(),
-            ),
-        )
-        .is_err());
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                FeatureSet::from([Tag::new(b"liga")]),
-                Default::default(),
-            )
-        )
-        .is_err());
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                FeatureSet::from([]),
-                Default::default(),
-            )
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn format_1_patch_map_feature_record_too_short() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&feature_map_format1()[..123]),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                FeatureSet::from([]),
-                Default::default(),
-            ),
-        )
-        .is_err());
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                FeatureSet::from([Tag::new(b"liga")]),
-                Default::default(),
-            )
-        )
-        .is_err());
-        assert!(intersecting_patches(
-            &font,
-            &SubsetDefinition::new(
-                IntSet::from([0x12]),
-                FeatureSet::from([]),
-                Default::default(),
-            )
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn format_2_patch_map_codepoints_only() {
-        let font_bytes = create_ift_font(
-            FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&codepoints_only_format2()),
-            None,
-        );
-        let font = FontRef::new(&font_bytes).unwrap();
-
-        let e1 = f2(1, codepoints_only_format2().offset_for("entries[0]"), 0);
-        let e3 = f2(3, codepoints_only_format2().offset_for("entries[2]"), 2);
-        let e4 = f2(4, codepoints_only_format2().offset_for("entries[3]"), 3);
+        let e1 = f2(1, codepoints_only().offset_for("entries[0]"), 0);
+        let e3 = f2(3, codepoints_only().offset_for("entries[2]"), 2);
+        let e4 = f2(4, codepoints_only().offset_for("entries[3]"), 3);
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x02], [], [e1.clone()]);
         test_intersection(&font, [0x15], [], [e3.clone()]);
@@ -2299,29 +1432,17 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_features_and_design_space() {
+    fn patch_map_features_and_design_space() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&features_and_design_space_format2()),
+            Some(&features_and_design_space()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e1 = f2(
-            1,
-            features_and_design_space_format2().offset_for("entries[0]"),
-            0,
-        );
-        let e2 = f2(
-            2,
-            features_and_design_space_format2().offset_for("entries[1]"),
-            1,
-        );
-        let e3 = f2(
-            3,
-            features_and_design_space_format2().offset_for("entries[2]"),
-            2,
-        );
+        let e1 = f2(1, features_and_design_space().offset_for("entries[0]"), 0);
+        let e2 = f2(2, features_and_design_space().offset_for("entries[1]"), 1);
+        let e3 = f2(3, features_and_design_space().offset_for("entries[2]"), 2);
 
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x02], [], []);
@@ -2435,29 +1556,17 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_all_features() {
+    fn patch_map_all_features() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&features_and_design_space_format2()),
+            Some(&features_and_design_space()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e1 = f2(
-            1,
-            features_and_design_space_format2().offset_for("entries[0]"),
-            0,
-        );
-        let e2 = f2(
-            2,
-            features_and_design_space_format2().offset_for("entries[1]"),
-            1,
-        );
-        let e3 = f2(
-            3,
-            features_and_design_space_format2().offset_for("entries[2]"),
-            2,
-        );
+        let e1 = f2(1, features_and_design_space().offset_for("entries[0]"), 0);
+        let e2 = f2(2, features_and_design_space().offset_for("entries[1]"), 1);
+        let e3 = f2(3, features_and_design_space().offset_for("entries[2]"), 2);
 
         test_design_space_intersection(
             &font,
@@ -2474,29 +1583,17 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_all_design_space() {
+    fn patch_map_all_design_space() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&features_and_design_space_format2()),
+            Some(&features_and_design_space()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e1 = f2(
-            1,
-            features_and_design_space_format2().offset_for("entries[0]"),
-            0,
-        );
-        let e2 = f2(
-            2,
-            features_and_design_space_format2().offset_for("entries[1]"),
-            1,
-        );
-        let e3 = f2(
-            3,
-            features_and_design_space_format2().offset_for("entries[2]"),
-            2,
-        );
+        let e1 = f2(1, features_and_design_space().offset_for("entries[0]"), 0);
+        let e2 = f2(2, features_and_design_space().offset_for("entries[1]"), 1);
+        let e3 = f2(3, features_and_design_space().offset_for("entries[2]"), 2);
 
         test_design_space_intersection(
             &font,
@@ -2516,10 +1613,10 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_with_duplicate_urls() {
+    fn patch_map_with_duplicate_urls() {
         // The mapping is set up to contain multiple entries that have the same url.
         // Checks that application bit indices get correctly recorded.
-        let mut buffer = codepoints_only_format2();
+        let mut buffer = codepoints_only();
         buffer.write_at("entry_count", Uint24::new(5));
         let buffer = buffer
             .push(0b00010100u8) // DELTA | CODEPOINT 1
@@ -2544,8 +1641,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_intersection_info() {
-        let mut map = features_and_design_space_format2();
+    fn patch_map_intersection_info() {
+        let mut map = features_and_design_space();
         map.write_at("patch_format", 1u8);
 
         let font_bytes = create_ift_font(
@@ -2612,8 +1709,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_invalid_child_indices() {
-        let mut builder = child_indices_format2();
+    fn patch_map_invalid_child_indices() {
+        let mut builder = child_indices();
         builder.write_at("entries[6]_child", Uint24::new(6));
 
         let font_bytes = create_ift_font(
@@ -2634,20 +1731,20 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_disjunctive_child_indices() {
+    fn patch_map_disjunctive_child_indices() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&child_indices_format2()),
+            Some(&child_indices()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e3 = f2(3, child_indices_format2().offset_for("entries[2]"), 2);
-        let e5 = f2(5, child_indices_format2().offset_for("entries[4]"), 4);
-        let e6 = f2(6, child_indices_format2().offset_for("entries[5]"), 5);
-        let e7 = f2(7, child_indices_format2().offset_for("entries[6]"), 6);
-        let e8 = f2(8, child_indices_format2().offset_for("entries[7]"), 7);
-        let e9 = f2(9, child_indices_format2().offset_for("entries[8]"), 8);
+        let e3 = f2(3, child_indices().offset_for("entries[2]"), 2);
+        let e5 = f2(5, child_indices().offset_for("entries[4]"), 4);
+        let e6 = f2(6, child_indices().offset_for("entries[5]"), 5);
+        let e7 = f2(7, child_indices().offset_for("entries[6]"), 6);
+        let e8 = f2(8, child_indices().offset_for("entries[7]"), 7);
+        let e9 = f2(9, child_indices().offset_for("entries[8]"), 8);
         test_intersection(&font, [], [], []);
         test_intersection(&font, [0x05], [], [e5.clone(), e7.clone(), e8.clone()]);
         test_intersection(&font, [0x65], [], []);
@@ -2686,8 +1783,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_conjunctive_child_indices() {
-        let mut builder = child_indices_format2();
+    fn patch_map_conjunctive_child_indices() {
+        let mut builder = child_indices();
         builder.write_at("entries[6]_child_count", 0b10000000u8 | 4u8);
 
         let font_bytes = create_ift_font(
@@ -2697,13 +1794,13 @@ mod tests {
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e2 = f2(2, child_indices_format2().offset_for("entries[1]"), 1);
-        let e3 = f2(3, child_indices_format2().offset_for("entries[2]"), 2);
-        let e4 = f2(4, child_indices_format2().offset_for("entries[3]"), 3);
-        let e5 = f2(5, child_indices_format2().offset_for("entries[4]"), 4);
-        let e6 = f2(6, child_indices_format2().offset_for("entries[5]"), 5);
-        let e7 = f2(7, child_indices_format2().offset_for("entries[6]"), 6);
-        let e8 = f2(8, child_indices_format2().offset_for("entries[7]"), 7);
+        let e2 = f2(2, child_indices().offset_for("entries[1]"), 1);
+        let e3 = f2(3, child_indices().offset_for("entries[2]"), 2);
+        let e4 = f2(4, child_indices().offset_for("entries[3]"), 3);
+        let e5 = f2(5, child_indices().offset_for("entries[4]"), 4);
+        let e6 = f2(6, child_indices().offset_for("entries[5]"), 5);
+        let e7 = f2(7, child_indices().offset_for("entries[6]"), 6);
+        let e8 = f2(8, child_indices().offset_for("entries[7]"), 7);
         test_intersection(&font, [0x05], [], [e5.clone(), e8.clone()]);
         test_design_space_intersection(
             &font,
@@ -2723,8 +1820,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_conjunctive_child_indices_intersection_info() {
-        let mut builder = child_indices_format2();
+    fn patch_map_conjunctive_child_indices_intersection_info() {
+        let mut builder = child_indices();
         builder.write_at("entries[6]_child_count", 0b10000000u8 | 4u8);
         builder.write_at("encoding", 1u8);
 
@@ -2771,48 +1868,48 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_custom_ids() {
+    fn patch_map_custom_ids() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&custom_ids_format2()),
+            Some(&custom_ids()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
-        let e0 = f2(0, custom_ids_format2().offset_for("entries[0]"), 0);
-        let e6 = f2(6, custom_ids_format2().offset_for("entries[1]"), 1);
-        let e15 = f2(15, custom_ids_format2().offset_for("entries[3]"), 3);
+        let e0 = f2(0, custom_ids().offset_for("entries[0]"), 0);
+        let e6 = f2(6, custom_ids().offset_for("entries[1]"), 1);
+        let e15 = f2(15, custom_ids().offset_for("entries[3]"), 3);
 
         test_intersection_with_all(&font, [], [e0, e6, e15]);
     }
 
     #[test]
-    fn format_2_patch_map_custom_preload_ids() {
+    fn patch_map_custom_preload_ids() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&table_keyed_format2_with_preload_urls()),
+            Some(&table_keyed_with_preload_urls()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
 
         let e0 = f2(
             1,
-            table_keyed_format2_with_preload_urls().offset_for("entries[0]"),
+            table_keyed_with_preload_urls().offset_for("entries[0]"),
             0,
         );
         let e1 = f2p(
             vec![9, 10, 6],
-            table_keyed_format2_with_preload_urls().offset_for("entries[1]"),
+            table_keyed_with_preload_urls().offset_for("entries[1]"),
             1,
         );
         let e2 = f2p(
             vec![2, 3],
-            table_keyed_format2_with_preload_urls().offset_for("entries[2]"),
+            table_keyed_with_preload_urls().offset_for("entries[2]"),
             2,
         );
         let e3 = f2(
             4,
-            table_keyed_format2_with_preload_urls().offset_for("entries[3]"),
+            table_keyed_with_preload_urls().offset_for("entries[3]"),
             3,
         );
 
@@ -2820,8 +1917,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_custom_encoding() {
-        let mut data = custom_ids_format2();
+    fn patch_map_custom_encoding() {
+        let mut data = custom_ids();
         data.write_at("entry[4] encoding", 1u8); // Tabled Keyed Full Invalidation.
 
         let font_bytes = create_ift_font(
@@ -2851,10 +1948,10 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_id_strings() {
+    fn patch_map_id_strings() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&string_ids_format2()),
+            Some(&string_ids()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -2875,10 +1972,10 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_id_strings_with_preloads() {
+    fn patch_map_id_strings_with_preloads() {
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
-            Some(&string_ids_format2_with_preloads()),
+            Some(&string_ids_with_preloads()),
             None,
         );
         let font = FontRef::new(&font_bytes).unwrap();
@@ -2920,8 +2017,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_id_strings_too_short() {
-        let mut data = string_ids_format2();
+    fn patch_map_id_strings_too_short() {
+        let mut data = string_ids();
         data.write_at("entry[4] id length", Uint24::new(4));
 
         let font_bytes = create_ift_font(
@@ -2939,8 +2036,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_invalid_design_space() {
-        let mut data = features_and_design_space_format2();
+    fn patch_map_invalid_design_space() {
+        let mut data = features_and_design_space();
         data.write_at("wdth start", 0x20000u32);
 
         let font_bytes = create_ift_font(
@@ -2958,8 +2055,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_invalid_sparse_bit_set() {
-        let data = codepoints_only_format2();
+    fn patch_map_invalid_sparse_bit_set() {
+        let data = codepoints_only();
         let font_bytes = create_ift_font(
             FontRef::new(test_data::ift::IFT_BASE).unwrap(),
             Some(&data[..(data.len() - 1)]),
@@ -2975,8 +2072,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_negative_entry_id() {
-        let mut data = custom_ids_format2();
+    fn patch_map_negative_entry_id() {
+        let mut data = custom_ids();
         data.write_at("entries[1].id_delta", Int24::new(-4));
 
         let font_bytes = create_ift_font(
@@ -2994,8 +2091,8 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_negative_entry_id_on_ignored() {
-        let mut data = custom_ids_format2();
+    fn patch_map_negative_entry_id_on_ignored() {
+        let mut data = custom_ids();
         data.write_at("id delta - ignored entry", Int24::new(-20));
 
         let font_bytes = create_ift_font(
@@ -3013,9 +2110,9 @@ mod tests {
     }
 
     #[test]
-    fn format_2_patch_map_entry_id_overflow() {
+    fn patch_map_entry_id_overflow() {
         let count = 1023;
-        let mut data = custom_ids_format2();
+        let mut data = custom_ids();
         data.write_at("entry_count", Uint24::new(count + 5));
 
         for _ in 0..count {
@@ -3149,7 +2246,7 @@ mod tests {
         let s2 = SubsetDefinition::codepoints([13, 15, 17].into_iter().collect());
         let s3 = SubsetDefinition::codepoints([7, 13].into_iter().collect());
 
-        let e1 = Format2Entry {
+        let e1 = Entry {
             subset_definition: s1.clone(),
             child_indices: Default::default(),
             conjunctive_child_match: Default::default(),
@@ -3159,7 +2256,7 @@ mod tests {
             format: PatchFormat::GlyphKeyed,
             application_flag_bit_index: 0,
         };
-        let e2 = Format2Entry {
+        let e2 = Entry {
             subset_definition: Default::default(),
             child_indices: Default::default(),
             conjunctive_child_match: Default::default(),
@@ -3264,7 +2361,7 @@ mod tests {
             )]),
         );
 
-        let e1 = Format2Entry {
+        let e1 = Entry {
             subset_definition: s1.clone(),
             child_indices: Default::default(),
             conjunctive_child_match: Default::default(),
@@ -3275,7 +2372,7 @@ mod tests {
             application_flag_bit_index: 0,
         };
 
-        let e2 = Format2Entry {
+        let e2 = Entry {
             subset_definition: Default::default(),
             child_indices: Default::default(),
             conjunctive_child_match: Default::default(),
