@@ -133,7 +133,10 @@ impl BitmapSize {
         // alone, excluding the subtables it points to, which would make all
         // subtable offsets resolve out of bounds. Like FreeType, ignore the
         // declared size and bound reads by the end of the parent table
-        // instead.
+        // instead: see `tt_sbit_decoder_load_image` in src/sfnt/ttsbit.c,
+        // which bounds all index subtable reads by `decoder->eblc_limit`
+        // (the end of the EBLC/CBLC table) and never reads indexTablesSize.
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/VER-2-13-3/src/sfnt/ttsbit.c#L1241>
         let data = offset_data.split_off(start).ok_or(ReadError::OutOfBounds)?;
         IndexSubtableList::read(data, self.number_of_index_subtables())
     }
