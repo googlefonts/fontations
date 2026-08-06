@@ -166,7 +166,7 @@ impl Lookup10<'_> {
             .checked_sub(self.first_glyph())
             .ok_or(ReadError::OutOfBounds)? as usize;
         let unit_size = self.unit_size() as usize;
-        let offset = ix * unit_size;
+        let offset = ix.wrapping_mul(unit_size);
         let mut cursor = FontData::new(self.values_data()).cursor();
         cursor.advance_by(offset);
         let val = match unit_size {
@@ -477,14 +477,16 @@ where
         if class >= self.n_classes {
             class = class::OUT_OF_BOUNDS as usize;
         }
-        let state_ix = state as usize * self.n_classes + class;
+        let state_ix = (state as usize)
+            .wrapping_mul(self.n_classes)
+            .wrapping_add(class);
         let entry_ix = self
             .state_array
             .get(state_ix)
             .copied()
             .ok_or(ReadError::OutOfBounds)?
             .get() as usize;
-        let entry_offset = entry_ix * StateEntry::<T>::RAW_BYTE_LEN;
+        let entry_offset = entry_ix.wrapping_mul(StateEntry::<T>::RAW_BYTE_LEN);
         let entry_data = self
             .entry_table
             .get(entry_offset..)
