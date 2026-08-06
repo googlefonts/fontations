@@ -20,7 +20,7 @@ use super::{
 #[cfg(feature = "std")]
 use crate::tables::layout::{
     ContextFormat1, ContextFormat2, ContextFormat3, Intersect, LayoutLookupList, LookupClosure,
-    LookupClosureCtx,
+    LookupClosureCtx, SeqCache,
 };
 
 // we put ClosureCtx in its own module to enforce visibility rules;
@@ -133,12 +133,7 @@ mod ctx {
 
         // Return true if we have visited this lookup with current set of glyphs
         pub(super) fn is_lookup_done(&mut self, lookup_index: u16) -> bool {
-            let cur_active_glyphs = if let Some(cur_active_glyphs) = self.active_glyphs_stack.last()
-            {
-                cur_active_glyphs
-            } else {
-                &*self.glyphs
-            };
+            let cur_active_glyphs = self.active_glyphs_stack.last().unwrap_or(self.glyphs);
 
             let (count, covered) = self
                 .done_lookups_glyphs
@@ -888,10 +883,8 @@ impl GlyphClosure for ContextFormat2<'_> {
         let lookups = lookup_list.lookups();
         let mut seen_sequence_indices = IntSet::new();
 
-        let mut input_cache = FnvHashMap::default();
-        let mut backtrack_cache = FnvHashMap::default();
-        let mut lookahead_cache = FnvHashMap::default();
         let mut intersected_class_cache = FnvHashMap::default();
+        let mut seq_cache = SeqCache::default();
         for (i, rule_set) in self
             .rule_sets()
             .enumerate()
@@ -916,9 +909,7 @@ impl GlyphClosure for ContextFormat2<'_> {
                     &input_class_def,
                     backtrack_class_def.as_ref(),
                     lookahead_class_def.as_ref(),
-                    &mut input_cache,
-                    &mut backtrack_cache,
-                    &mut lookahead_cache,
+                    &mut seq_cache,
                 ) {
                     continue;
                 }
