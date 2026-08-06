@@ -488,7 +488,7 @@ impl Engine<'_> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5731>
     pub(super) fn op_mirp(&mut self, opcode: u8) -> OpResult {
         let gs = &mut self.graphics;
-        let n = (self.value_stack.pop()? + 1) as usize;
+        let n = (self.value_stack.pop()?.wrapping_add(1)) as usize;
         let p = self.value_stack.pop_usize()?;
         if !gs.is_pedantic
             && (!gs.in_bounds([(gs.zp1, p), (gs.zp0, gs.rp0)]) || (n > self.cvt.len()))
@@ -1302,6 +1302,15 @@ mod tests {
         engine.op_mirp(Opcode::MIRP00100 as _).unwrap();
         let point = engine.graphics.zones[1].point(2).unwrap();
         assert_eq!(point.map(F26Dot6::to_bits), Point::new(147, -223));
+    }
+
+    #[test]
+    fn mirp_does_not_panic_with_overflow() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        engine.value_stack.push(i32::MAX).unwrap();
+        // Just don't panic on overflow
+        engine.op_mirp(Opcode::MIRP10000 as _).unwrap();
     }
 
     #[test]
