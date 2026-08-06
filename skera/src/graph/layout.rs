@@ -266,7 +266,11 @@ impl Graph {
             let subtable_v = self
                 .mut_vertex(*subtable)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-            if subtable_v.parents.contains_key(&lookup_index) {
+            if let Some(parent) = subtable_v.single_parent {
+                if parent == lookup_index {
+                    continue;
+                }
+            } else if subtable_v.parents.contains_key(&lookup_index) {
                 continue;
             }
             subtable_v.add_parent(lookup_index, false);
