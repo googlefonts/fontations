@@ -128,11 +128,14 @@ impl BitmapSize {
         offset_data: FontData<'a>,
     ) -> Result<IndexSubtableList<'a>, ReadError> {
         let start = self.index_subtable_list_offset() as usize;
-        let end = start
-            .checked_add(self.index_subtable_list_size() as usize)
-            .ok_or(ReadError::OutOfBounds)?;
+        // The list is nominally bounded by indexTablesSize, but some fonts
+        // (e.g. ProggyClean) set it to the size of the index subtable array
+        // alone, excluding the subtables it points to, which would make all
+        // subtable offsets resolve out of bounds. Like FreeType, ignore the
+        // declared size and bound reads by the end of the parent table
+        // instead.
         let data = offset_data
-            .slice(start..end)
+            .split_off(start)
             .ok_or(ReadError::OutOfBounds)?;
         IndexSubtableList::read(data, self.number_of_index_subtables())
     }
@@ -502,6 +505,41 @@ mod tests {
             .push(GlyphId16::new(0))
             .push(IndexSubtableRecord::RAW_BYTE_LEN as u32)
             .extend(subtable.iter().copied())
+    }
+
+    #[test]
+    fn short_index_tables_size_is_ignored() {
+        // Some fonts (e.g. ProggyClean) set indexTablesSize to the size of
+        // the index subtable array alone, excluding the subtables it points
+        // to. Ensure we still resolve the subtables.
+        let subtable = BeBuffer::new()
+            .push(2u16) // index format
+            .push(5u16) // image format
+            .push(0u32) // image data offset
+            .push(4u32) // image size
+            .extend([0u8; 8]); // big metrics
+        let subtable = subtable.data();
+        let data = BeBuffer::new()
+            .push(BitmapSize::RAW_BYTE_LEN as u32)
+            // indexTablesSize covering only the record array
+            .push(IndexSubtableRecord::RAW_BYTE_LEN as u32)
+            .push(1u32)
+            .push(0u32)
+            .extend([0u8; SbitLineMetrics::RAW_BYTE_LEN])
+            .extend([0u8; SbitLineMetrics::RAW_BYTE_LEN])
+            .push(GlyphId16::new(0))
+            .push(GlyphId16::new(1))
+            .push(0u8)
+            .push(0u8)
+            .push(1u8)
+            .push(0u8)
+            .push(GlyphId16::new(0))
+            .push(GlyphId16::new(1))
+            .push(IndexSubtableRecord::RAW_BYTE_LEN as u32)
+            .extend(subtable.iter().copied());
+        let location = bitmap_size_location(data.data(), GlyphId::new(1)).unwrap();
+        assert_eq!(location.data_offset, 4);
+        assert_eq!(location.data_size, 4);
     }
 
     #[test]
