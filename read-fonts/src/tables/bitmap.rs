@@ -134,9 +134,7 @@ impl BitmapSize {
         // subtable offsets resolve out of bounds. Like FreeType, ignore the
         // declared size and bound reads by the end of the parent table
         // instead.
-        let data = offset_data
-            .split_off(start)
-            .ok_or(ReadError::OutOfBounds)?;
+        let data = offset_data.split_off(start).ok_or(ReadError::OutOfBounds)?;
         IndexSubtableList::read(data, self.number_of_index_subtables())
     }
 }
