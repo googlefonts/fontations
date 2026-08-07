@@ -1,7 +1,7 @@
 //! Read layout tables in a graph
 use crate::fnv::FnvHashMap;
 use crate::{
-    graph::{Graph, RepackError},
+    graph::{Graph, Parents, RepackError},
     serialize::{Link, LinkWidth, ObjIdx},
 };
 use write_fonts::types::{FixedSize, Offset16, Scalar};
@@ -266,8 +266,18 @@ impl Graph {
             let subtable_v = self
                 .mut_vertex(*subtable)
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-            if subtable_v.parents.contains_key(&lookup_index) {
-                continue;
+            match &subtable_v.parents {
+                Parents::Single(single_parent) => {
+                    if *single_parent == lookup_index {
+                        continue;
+                    }
+                }
+                Parents::Multiple(parents_map) => {
+                    if parents_map.contains_key(&lookup_index) {
+                        continue;
+                    }
+                }
+                Parents::Empty => (),
             }
             subtable_v.add_parent(lookup_index, false);
         }
