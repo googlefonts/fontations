@@ -131,6 +131,8 @@ pub enum ReadError {
     TableIsMissing(Tag),
     MetricIsMissing(Tag),
     MalformedData(&'static str),
+    /// Sanitize descended through more nested offsets than we permit.
+    RecursionLimitExceeded,
 }
 
 impl std::fmt::Display for ReadError {
@@ -151,6 +153,9 @@ impl std::fmt::Display for ReadError {
             ReadError::TableIsMissing(tag) => write!(f, "the {tag} table is missing"),
             ReadError::MetricIsMissing(tag) => write!(f, "the {tag} metric is missing"),
             ReadError::MalformedData(msg) => write!(f, "Malformed data: '{msg}'"),
+            ReadError::RecursionLimitExceeded => {
+                write!(f, "Offset graph exceeded max MAX_SANITIZE_DEPTH",)
+            }
         }
     }
 }

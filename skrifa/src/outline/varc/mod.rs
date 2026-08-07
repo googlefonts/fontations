@@ -1305,18 +1305,8 @@ mod tests {
         for _ in 0..CHAIN_LEN {
             bytes.extend_from_slice(&[0x00, 0x05, 0x00, 0x00, 0x05]);
         }
-        let cond = Condition::read(FontData::new(&bytes)).unwrap();
-
-        let (_font, store, regions) = condition_eval_env();
-        let mut cache = ScalarCache::new(regions.region_count() as usize);
-        let mut scratch = Scratchpad::new();
-
-        let result =
-            Outlines::eval_condition(&cond, &[], &store, &regions, &mut cache, &mut scratch, 0);
-        assert!(
-            matches!(result, Err(DrawError::RecursionLimitExceeded(_))),
-            "expected RecursionLimitExceeded, got {result:?}"
-        );
+        let cond = Condition::read(FontData::new(&bytes));
+        assert!(matches!(cond, Err(ReadError::RecursionLimitExceeded)),);
     }
 
     // A normal (shallow) condition tree must still evaluate correctly.
