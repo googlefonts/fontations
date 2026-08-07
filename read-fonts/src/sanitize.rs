@@ -146,15 +146,7 @@ impl<'a> SanitizeContext<'a> {
         F: Fn(&T, &mut SanitizeContext) -> Result<(), ReadError>,
     {
         let offset = self.read::<O>()?;
-        if offset.to_usize() == 0 {
-            return Ok(());
-        }
-        let array: &[T] = offset.resolve_with_args(self.cursor.data, count)?;
-        if !len_only {
-            self.descend_into_offset(offset, |ctx| array.iter().try_for_each(|t| f(t, ctx)))
-        } else {
-            Ok(())
-        }
+        self.sanitize_resolved_offset_to_array(offset, count, len_only, f)
     }
 
     /// Sanitize an offset-to-array where we already have the offset value.
@@ -229,7 +221,6 @@ impl<'a> SanitizeContext<'a> {
     {
         let remaining = self.cursor.remaining().ok_or(ReadError::OutOfBounds)?;
         let total_len = T::total_len_for_count(remaining, count)?;
-        // FIXME: do we actually ever recurse here?
         if recurse {
             let array = VarLenArray::<T>::read(remaining)?;
             for item in array.iter().take(count) {
@@ -247,12 +238,6 @@ impl<'a> SanitizeContext<'a> {
         self.cursor.position().map(|_| ())
     }
 }
-
-// okay so: the sanitize context _does_ kinda want to mutate, and it wants to mutate
-// alongside access to the table data? probably?
-//
-// the annoying bit here is going to be figuring out how we keep track of our
-// position as we... do stuff?
 
 pub trait Sanitize: ReadArgs {
     /// recursively sanitizes this + all subgraphs.
