@@ -145,8 +145,7 @@ mod ctx {
                 covered.clear();
             }
 
-            //TODO: add IntSet::is_subset
-            if cur_active_glyphs.iter().all(|g| covered.contains(g)) {
+            if cur_active_glyphs.is_subset(covered) {
                 return true;
             }
 
