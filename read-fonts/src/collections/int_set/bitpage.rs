@@ -78,28 +78,6 @@ impl BitPage {
             .sum()
     }
 
-    /// Returns true if this page is a subset of `other`.
-    pub(crate) fn is_subset(&self, other: &BitPage) -> bool {
-        if self.len() > other.len() {
-            return false;
-        }
-        for (a, b) in self.storage.iter().zip(other.storage.iter()) {
-            if (*a & *b) != *a {
-                return false;
-            }
-        }
-        true
-    }
-
-    /// Returns the number of members present in both `self` and `other`.
-    pub(crate) fn intersection_len(&self, other: &BitPage) -> u32 {
-        self.storage
-            .iter()
-            .zip(other.storage.iter())
-            .map(|(a, b)| (*a & *b).count_ones())
-            .sum()
-    }
-
     // TODO(garretrieger): iterator that starts after some value (similar to next in hb).
     // TODO(garretrieger): reverse iterator.
 
