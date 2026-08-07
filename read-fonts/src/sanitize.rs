@@ -17,11 +17,21 @@ pub struct SanitizeContext<'a, 's> {
     state: &'s mut SanitizeState,
 }
 
+/// The deepest offset graph we will descend through while sanitizing.
+///
+/// Sanitize follows offsets eagerly, so a self-referential table (a chain of
+/// `ConditionFormat5` negations, a cyclic COLRv1 paint graph) would otherwise
+/// recurse until the stack is exhausted.
+///
+/// 64 is the limit set by HB.
+/// <https://github.com/harfbuzz/harfbuzz/blob/aba63bb5f8/src/hb-limits.hh#L52>
+pub(crate) const MAX_SANITIZE_DEPTH: u32 = 64;
+
 /// State tracked during during a sanitize pass
 #[derive(Clone, Debug, Default)]
 struct SanitizeState {
-    // only used in COLRv1
-    _recursion_depth: u32,
+    /// How many offsets deep we currently are; bounded by [`MAX_SANITIZE_DEPTH`].
+    recursion_depth: u32,
     // gpos/gsub
     _subtable_depth: u32,
     _max_ops: u32,
@@ -78,13 +88,19 @@ impl<'a> SanitizeContext<'a, '_> {
             .split_off(offset)
             .ok_or(ReadError::OutOfBounds)?;
 
-        //TODO: track descent here?
+        if self.state.recursion_depth >= MAX_SANITIZE_DEPTH {
+            return Err(ReadError::RecursionLimitExceeded);
+        }
+        self.state.recursion_depth += 1;
+
         let mut child_ctx = SanitizeContext {
             cursor: offset_data.cursor(),
             state: self.state,
         };
+        let result = f(&mut child_ctx);
 
-        f(&mut child_ctx)
+        self.state.recursion_depth -= 1;
+        result
     }
 
     /// Advance the cursor past a scalar
@@ -393,6 +409,45 @@ mod tests {
     use types::Offset16;
 
     use super::*;
+
+    fn sanitize_condition_chain(len: usize) -> Result<(), ReadError> {
+        /// A linear chain of `ConditionFormat5` negations, `len` nodes long.
+        ///
+        /// Each node is `format(u16 = 5)` + `condition_offset(Offset24 = 5)`, so
+        /// every node points 5 bytes forward to the next.
+        fn condition_chain(len: usize) -> Vec<u8> {
+            let mut bytes = Vec::with_capacity(len * 5 + 8);
+            for _ in 0..len {
+                bytes.extend_from_slice(&[0x00, 0x05, 0x00, 0x00, 0x05]);
+            }
+            // ConditionFormat1: axis 0, filter range [-1.0, 1.0]
+            bytes.extend_from_slice(&[0x00, 0x01, 0x00, 0x00, 0xC0, 0x00, 0x40, 0x00]);
+            bytes
+        }
+
+        use crate::tables::layout::Condition;
+        let bytes = condition_chain(len);
+        Condition::read_checked(FontData::new(&bytes), ()).map(|_| ())
+    }
+
+    #[test]
+    fn deep_offset_chain_is_rejected_not_overflowed() {
+        assert_eq!(
+            sanitize_condition_chain(4096),
+            Err(ReadError::RecursionLimitExceeded)
+        );
+    }
+
+    #[test]
+    fn depth_limit_is_exactly_max_sanitize_depth() {
+        // the chain root is depth 0, so a chain of MAX nodes descends MAX times
+        let max = MAX_SANITIZE_DEPTH as usize;
+        assert_eq!(sanitize_condition_chain(max), Ok(()));
+        assert_eq!(
+            sanitize_condition_chain(max + 1),
+            Err(ReadError::RecursionLimitExceeded)
+        );
+    }
 
     #[test]
     fn verify_that_various_things_compile() {
