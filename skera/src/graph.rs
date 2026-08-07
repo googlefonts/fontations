@@ -46,6 +46,14 @@ impl Overflow {
 }
 
 #[derive(Default, Debug)]
+pub(crate) enum Parents {
+    #[default]
+    Empty,
+    Single(ObjIdx),
+    Multiple(FnvHashMap<ObjIdx, usize>),
+}
+
+#[derive(Default, Debug)]
 pub(crate) struct Vertex {
     head: usize,
     tail: usize,
@@ -63,9 +71,8 @@ pub(crate) struct Vertex {
     end: usize,
     incoming_edges: usize,
     has_incoming_virtual_edges: bool,
-    parents: FnvHashMap<ObjIdx, usize>,
+    parents: Parents,
     virtual_parents: IntSet<u32>,
-    single_parent: Option<ObjIdx>,
 }
 
 impl Vertex {
@@ -88,7 +95,6 @@ impl Vertex {
             virtual_links: other_v.virtual_links.clone(),
             distance: other_v.distance,
             space: other_v.space,
-            single_parent: None,
             ..Default::default()
         }
     }
@@ -100,9 +106,11 @@ impl Vertex {
     fn reset_parents(&mut self) {
         self.incoming_edges = 0;
         self.has_incoming_virtual_edges = false;
-        self.parents.clear();
         self.virtual_parents.clear();
-        self.single_parent = None;
+        match &mut self.parents {
+            Parents::Multiple(ref mut parents_map) => parents_map.clear(),
+            _ => self.parents = Parents::Empty,
+        };
     }
 
     fn add_parent(&mut self, parent_idx: ObjIdx, is_virtual: bool) {
@@ -111,22 +119,32 @@ impl Vertex {
             self.virtual_parents.insert(parent_idx as u32);
         }
 
-        if self.incoming_edges == 0 {
-            self.single_parent = Some(parent_idx);
-            self.incoming_edges = 1;
-            return;
-        } else if let Some(single_parent) = self.single_parent {
-            assert!(self.incoming_edges == 1);
-            self.parents.insert(single_parent, 1);
-            self.single_parent = None;
+        match &mut self.parents {
+            Parents::Empty => {
+                self.parents = Parents::Single(parent_idx);
+                self.incoming_edges = 1;
+            }
+            Parents::Single(exist_parent) => {
+                assert!(self.incoming_edges == 1);
+                let mut parents = FnvHashMap::default();
+                parents.insert(*exist_parent, 1);
+                parents
+                    .entry(parent_idx)
+                    .and_modify(|c| *c += 1)
+                    .or_insert(1_usize);
+                self.parents = Parents::Multiple(parents);
+
+                self.incoming_edges += 1;
+            }
+            Parents::Multiple(ref mut parents) => {
+                parents
+                    .entry(parent_idx)
+                    .and_modify(|c| *c += 1)
+                    .or_insert(1);
+
+                self.incoming_edges += 1;
+            }
         }
-
-        self.parents
-            .entry(parent_idx)
-            .and_modify(|c| *c += 1)
-            .or_insert(1);
-
-        self.incoming_edges += 1;
     }
 
     fn remove_parent(
@@ -135,73 +153,75 @@ impl Vertex {
         num_edges_to_remove: usize,
         remove_all_edges: bool,
     ) {
-        if let Some(single_parent) = self.single_parent {
-            if parent_idx == single_parent && num_edges_to_remove > 0 {
-                self.incoming_edges = 0;
-                self.virtual_parents.clear();
-                self.single_parent = None;
+        match &mut self.parents {
+            Parents::Empty => (),
+            Parents::Single(single_parent) => {
+                if *single_parent == parent_idx && num_edges_to_remove > 0 {
+                    self.incoming_edges = 0;
+                    self.virtual_parents.clear();
+                    self.parents = Parents::Empty;
+                }
             }
-            return;
-        }
+            Parents::Multiple(ref mut parents_map) => {
+                let Some(num_edges) = parents_map.get_mut(&parent_idx) else {
+                    return;
+                };
 
-        let Some(num_edges) = self.parents.get_mut(&parent_idx) else {
-            return;
-        };
+                if remove_all_edges || num_edges_to_remove > *num_edges {
+                    self.incoming_edges -= *num_edges;
+                } else {
+                    self.incoming_edges -= num_edges_to_remove;
+                }
 
-        if remove_all_edges || num_edges_to_remove > *num_edges {
-            self.incoming_edges -= *num_edges;
-        } else {
-            self.incoming_edges -= num_edges_to_remove;
-        }
-
-        if *num_edges > num_edges_to_remove && !remove_all_edges {
-            *num_edges -= num_edges_to_remove;
-        } else {
-            self.parents.remove(&parent_idx);
-            self.virtual_parents.remove(parent_idx as u32);
-        }
-
-        if self.incoming_edges == 1 {
-            let Some(parent) = self.parents.keys().next() else {
-                return;
-            };
-            self.single_parent = Some(*parent);
-            self.parents.clear();
+                if *num_edges > num_edges_to_remove && !remove_all_edges {
+                    *num_edges -= num_edges_to_remove;
+                } else {
+                    parents_map.remove(&parent_idx);
+                    self.virtual_parents.remove(parent_idx as u32);
+                }
+            }
         }
     }
 
     fn remap_parent(&mut self, old_parent: ObjIdx, new_parent: ObjIdx) {
-        if let Some(single_parent) = self.single_parent {
-            if old_parent == single_parent {
-                self.single_parent = Some(new_parent);
+        match &mut self.parents {
+            Parents::Empty => (),
+            Parents::Single(single_parent) => {
+                if old_parent != *single_parent {
+                    return;
+                }
+                self.parents = Parents::Single(new_parent);
                 if self.virtual_parents.remove(old_parent as u32) {
                     self.virtual_parents.insert(new_parent as u32);
                 }
             }
-            return;
-        }
-
-        let Some(v) = self.parents.get(&old_parent) else {
-            return;
-        };
-
-        self.parents.insert(new_parent, *v);
-        self.parents.remove(&old_parent);
-        if self.virtual_parents.remove(old_parent as u32) {
-            self.virtual_parents.insert(new_parent as u32);
+            Parents::Multiple(ref mut parents_map) => {
+                let Some(&v) = parents_map.get(&old_parent) else {
+                    return;
+                };
+                parents_map.remove(&old_parent);
+                parents_map.insert(new_parent, v);
+                if self.virtual_parents.remove(old_parent as u32) {
+                    self.virtual_parents.insert(new_parent as u32);
+                }
+            }
         }
     }
 
     fn iter_parents(&self) -> impl Iterator<Item = &usize> {
-        self.single_parent.as_ref().into_iter().chain(
-            if self.single_parent.is_some() {
-                None
-            } else {
-                Some(self.parents.keys())
-            }
+        let single_opt = match &self.parents {
+            Parents::Single(ref val) => Some(val),
+            _ => None,
+        };
+
+        let multiple_opt = match &self.parents {
+            Parents::Multiple(ref parents_map) => Some(parents_map.keys()),
+            _ => None,
+        };
+
+        single_opt
             .into_iter()
-            .flatten(),
-        )
+            .chain(multiple_opt.into_iter().flatten())
     }
 
     fn link_positions_valid(&self, num_objs: usize) -> bool {
@@ -269,7 +289,12 @@ impl Vertex {
 
     // return if this vertex is shared by real parents
     fn is_shared(&self) -> bool {
-        self.parents.len() as u64 > self.virtual_parents.len() + 1
+        match &self.parents {
+            Parents::Multiple(parents_map) => {
+                parents_map.len() as u64 > self.virtual_parents.len() + 1
+            }
+            _ => false,
+        }
     }
 
     fn is_leaf(&self) -> bool {
@@ -277,14 +302,17 @@ impl Vertex {
     }
 
     fn incoming_edges_from_parent(&self, parent_idx: ObjIdx) -> usize {
-        if let Some(single_parent) = self.single_parent {
-            if parent_idx == single_parent {
-                return 1;
-            } else {
-                return 0;
+        match &self.parents {
+            Parents::Empty => 0,
+            Parents::Single(single_parent) => {
+                if parent_idx == *single_parent {
+                    1
+                } else {
+                    0
+                }
             }
+            Parents::Multiple(parents_map) => *parents_map.get(&parent_idx).unwrap_or(&0),
         }
-        *self.parents.get(&parent_idx).unwrap_or(&0)
     }
 
     fn give_max_priority(&mut self) {
