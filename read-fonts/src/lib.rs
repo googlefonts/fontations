@@ -96,7 +96,11 @@ pub mod codegen_test;
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
+#[cfg(any(test, feature = "codegen_test"))]
+pub use offset_array::{SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets};
 pub use read::{ComputeSize, FontRead, ReadArgs, ReadError, VarSize};
+#[cfg(any(test, feature = "codegen_test"))]
+pub use sanitize::Sanitize;
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::MinByteRange;
 
@@ -110,11 +114,16 @@ pub(crate) mod codegen_prelude {
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
+    #[cfg(any(test, feature = "codegen_test"))]
+    pub use crate::offset_array::{SanitizedArrayOfNullableOffsets, SanitizedArrayOfOffsets};
     pub use crate::read::{
         ComputeSize, Discriminant, FontRead, Format, ReadArgs, ReadError, VarSize,
     };
     #[cfg(any(test, feature = "codegen_test"))]
-    pub(crate) use crate::sanitize::{Sanitize, SanitizeContext, SanitizeOffset, SanitizeStruct};
+    pub(crate) use crate::sanitize::{
+        FastResolveNullableOffset, FastResolveOffset, Sanitize, SanitizeContext, SanitizeOffset,
+        SanitizeStruct,
+    };
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;
     pub use std::ops::Range;

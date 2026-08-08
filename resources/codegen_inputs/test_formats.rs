@@ -7,8 +7,12 @@
 #![parse_module(read_fonts::codegen_test::formats)]
 #![sanitize]
 
+// NOTE: format is deliberately 0 so that `MyTable` has a format-0 variant. This
+// exercises `read_fast`: a failed/short format read must route to `default()`,
+// and must NOT be coerced to `0` (which would collide with this variant and
+// construct it from the empty/invalid data, panicking in a getter).
 table Table1 {
-    #[format = 1]
+    #[format = 0]
     format: u16,
     heft: u32,
     flex: u16,

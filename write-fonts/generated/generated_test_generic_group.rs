@@ -11,6 +11,8 @@ use crate::codegen_prelude::*;
 pub struct MyLookup<T> {
     /// Determines the concrete type of T
     pub lookup_type: u16,
+    /// offset to a single generic table
+    pub single_subtable: OffsetMarker<T, WIDTH_32>,
     /// Offsets to subtables, from beginning of this table
     pub subtables: Vec<OffsetMarker<T>>,
 }
@@ -19,6 +21,7 @@ impl<T: FontWrite> FontWrite for MyLookup<T> {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.lookup_type.write_into(writer);
+        self.single_subtable.write_into(writer);
         (u16::try_from(array_len(&self.subtables)).unwrap()).write_into(writer);
         self.subtables.write_into(writer);
     }
@@ -30,6 +33,9 @@ impl<T: FontWrite> FontWrite for MyLookup<T> {
 impl<T: Validate> Validate for MyLookup<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MyLookup", |ctx| {
+            ctx.in_field("single_subtable", |ctx| {
+                self.single_subtable.validate_impl(ctx);
+            });
             ctx.in_field("subtables", |ctx| {
                 if self.subtables.len() > to_usize(u16::MAX) {
                     ctx.report("array exceeds max length");
@@ -42,7 +48,7 @@ impl<T: Validate> Validate for MyLookup<T> {
 
 impl<'a, T, U> FromObjRef<read_fonts::codegen_test::generic_group::MyLookup<'a, U>> for MyLookup<T>
 where
-    U: FontRead<'a, Args = ()>,
+    U: FontRead<'a, Args = ()> + Sanitize<'a> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
@@ -51,6 +57,7 @@ where
     ) -> Self {
         MyLookup {
             lookup_type: obj.lookup_type(),
+            single_subtable: obj.single_subtable().to_owned_table(),
             subtables: obj.subtables().to_owned_table(),
         }
     }
@@ -60,7 +67,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::codegen_test::generic_group::MyLookup<'a, U>>
     for MyLookup<T>
 where
-    U: FontRead<'a, Args = ()>,
+    U: FontRead<'a, Args = ()> + Sanitize<'a> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
 }

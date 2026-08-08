@@ -22,7 +22,7 @@ impl Table1 {
 impl FontWrite for Table1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (1 as u16).write_into(writer);
+        (0 as u16).write_into(writer);
         self.heft.write_into(writer);
         self.flex.write_into(writer);
     }
