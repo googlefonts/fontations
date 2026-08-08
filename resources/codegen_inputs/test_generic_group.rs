@@ -4,6 +4,7 @@
 // Based on the Lookup / PositionLookup pattern in GPOS.
 
 #![parse_module(read_fonts::codegen_test::generic_group)]
+#![sanitize]
 
 /// A generic table parameterized by the type of its subtable offsets.
 #[generic_offset(T)]
