@@ -35,7 +35,6 @@ fn split_pair_pos_format_1(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
 
     let data = &graph.objects[&subtable];
 
-    debug_assert!(data.reparse::<rgpos::PairPosFormat1>().is_ok());
     let coverage_id = data.offsets.first().unwrap();
     assert_eq!(coverage_id.pos, 2, "offset records are always sorted");
     let coverage_size = graph.objects[&coverage_id.object].bytes.len();
@@ -108,13 +107,13 @@ fn split_pair_pos_format_1(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
 fn split_off_ppf1(graph: &mut Graph, subtable: ObjectId, start: usize, end: usize) -> TableData {
     let coverage = graph.objects[&subtable].offsets.first().unwrap().object;
     let coverage = graph.objects.get(&coverage).unwrap();
-    let coverage = coverage.reparse::<rlayout::CoverageTable>().unwrap();
+    let coverage = coverage.reparse::<rlayout::CoverageTable>();
     let n_pair_sets = end - start;
     let new_coverage = super::split_coverage(&coverage, start as u16, end as u16);
     let new_cov_id = graph.add_object(new_coverage);
 
     let data = &graph.objects[&subtable];
-    let table = data.reparse::<rgpos::PairPosFormat1>().unwrap();
+    let table = data.reparse::<rgpos::PairPosFormat1>();
 
     let mut new_ppf1 = TableData::new(data.type_);
 
@@ -136,7 +135,7 @@ fn split_pair_pos_format_2(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
     const BASE_SIZE: usize = 8 * u16::RAW_BYTE_LEN;
     let data = &graph.objects[&subtable];
 
-    let pp2 = data.reparse::<rgpos::PairPosFormat2>().unwrap();
+    let pp2 = data.reparse::<rgpos::PairPosFormat2>();
     let cur_len = data.bytes.len();
     log::info!(
         "PairPos f.2 subtable has {} class1 and {} class2, current size {cur_len} ",
@@ -150,10 +149,10 @@ fn split_pair_pos_format_2(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
     let class_def2_id = data.offsets[2].object;
     let class_def2_size = graph.objects[&class_def2_id].bytes.len();
     let coverage = &graph.objects[&coverage_id];
-    let coverage = coverage.reparse::<rlayout::CoverageTable>().unwrap();
+    let coverage = coverage.reparse::<rlayout::CoverageTable>();
 
     let class_def1 = &graph.objects[&class_def1_id];
-    let class_def1 = class_def1.reparse::<rlayout::ClassDef>().unwrap();
+    let class_def1 = class_def1.reparse::<rlayout::ClassDef>();
     let estimator = ClassDefSizeEstimator::new(coverage, class_def1);
 
     let class2_count = pp2.class2_count();
@@ -246,10 +245,10 @@ fn split_off_ppf2(
     // we have to do this bit manually (instead of via reparsing) because of borrowk
     let coverage = graph.objects[&subtable].offsets.first().unwrap().object;
     let coverage = graph.objects.get(&coverage).unwrap();
-    let coverage = coverage.reparse::<rlayout::CoverageTable>().unwrap();
+    let coverage = coverage.reparse::<rlayout::CoverageTable>();
     let class_def_1 = graph.objects[&subtable].offsets[1].object;
     let class_def_1 = graph.objects.get(&class_def_1).unwrap();
-    let class_def_1 = class_def_1.reparse::<rlayout::ClassDef>().unwrap();
+    let class_def_1 = class_def_1.reparse::<rlayout::ClassDef>();
 
     let class1_count = end - start;
     log::trace!("splitting off {class1_count} class1records ({start}..={end})");
@@ -281,7 +280,7 @@ fn split_off_ppf2(
     let class_def_2_id = graph.objects[&subtable].offsets[2].object;
 
     let data = &graph.objects[&subtable];
-    let table = data.reparse::<rgpos::PairPosFormat2>().unwrap();
+    let table = data.reparse::<rgpos::PairPosFormat2>();
     let value_format1 = table.value_format1();
     let value_format2 = table.value_format2();
 
@@ -881,7 +880,7 @@ mod tests {
         assert!(graph.pack_objects());
         let root_id = graph.root;
         let ppf2_data = &graph.objects[&root_id];
-        let ppf2 = ppf2_data.reparse::<rgpos::PairPosFormat2>().unwrap();
+        let ppf2 = ppf2_data.reparse::<rgpos::PairPosFormat2>();
         assert_eq!(ppf2.class1_records().len(), 1);
         let c1rec = ppf2.class1_records().get(0).unwrap();
         let mut visited = HashSet::new();

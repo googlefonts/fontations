@@ -6,7 +6,7 @@ use font_test_data::gdef as test_data;
 
 #[test]
 fn gdef_header() {
-    let table = Gdef::read(test_data::GDEF_HEADER.into()).unwrap();
+    let table = Gdef::read_fast(test_data::GDEF_HEADER.into(), ());
     assert_eq!(table.version(), MajorMinor::VERSION_1_0);
     assert_eq!(table.mark_attach_class_def_offset(), 0x5a);
 }

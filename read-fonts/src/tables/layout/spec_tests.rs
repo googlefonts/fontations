@@ -5,7 +5,7 @@ use font_test_data::layout as test_data;
 fn example_1_scripts() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-1-scriptlist-table-and-scriptrecords
 
-    let table = ScriptList::read(test_data::SCRIPTS.into()).unwrap();
+    let table = ScriptList::read_fast(test_data::SCRIPTS.into(), ());
     assert_eq!(table.script_count(), 3);
     assert_eq!(table.script_records()[0].script_tag(), Tag::new(b"hani"));
     assert_eq!(table.script_records()[1].script_tag(), Tag::new(b"kana"));

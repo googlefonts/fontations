@@ -53,7 +53,9 @@ impl<'a> AnchorTable<'a> {
     }
 }
 
-impl<'a, T: FontRead<'a, Args = ()>> ExtensionLookup<'a, T> for ExtensionPosFormat1<'a, T> {
+impl<'a, T: Sanitize<'a, Args = ()> + Default> ExtensionLookup<'a, T>
+    for ExtensionPosFormat1<'a, T>
+{
     fn extension(&self) -> Result<T, ReadError> {
         self.extension()
     }
@@ -182,6 +184,12 @@ impl PairPosFormat2<'_> {
             Value::read(data, record_offset + format1_len, format2, context)?,
         ])
     }
+}
+
+// called from codegen
+fn sanitize_value_record(ctx: &mut SanitizeContext, args: ValueFormat) -> Result<(), ReadError> {
+    let record: ValueRecord = ctx.cursor.read_with_args(args)?;
+    record.sanitize_struct(ctx, args)
 }
 
 #[cfg(test)]
