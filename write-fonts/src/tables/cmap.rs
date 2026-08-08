@@ -74,10 +74,15 @@ impl CmapSubtable {
         }
 
         // add the final segment:
-        end_code.push(0xFFFF);
-        start_code.push(0xFFFF);
-        id_deltas.push(1);
-        id_range_offsets.push(0);
+        if !matches!(
+            (start_code.as_slice(), end_code.as_slice()),
+            ([.., 0xFFFF], [.., 0xFFFF])
+        ) {
+            end_code.push(0xFFFF);
+            start_code.push(0xFFFF);
+            id_deltas.push(1);
+            id_range_offsets.push(0);
+        }
 
         Some(Self::format_4(
             0,
@@ -990,5 +995,26 @@ mod tests {
         let bytes = crate::dump_table(&cmap12).unwrap();
         let read_it_back = Cmap12::read(bytes.as_slice().into()).unwrap();
         assert_eq!(read_it_back.groups.len() as u32, more_than_16_bits);
+    }
+
+    #[test]
+    fn cmap4_final_segment_is_not_duplicated() {
+        let cmap = crate::tables::cmap::Cmap::from_mappings([
+            ('a', GlyphId::new(1)),
+            ('\u{FFFF}', GlyphId::new(0)),
+        ])
+        .unwrap();
+        for record in &cmap.encoding_records {
+            let crate::tables::cmap::CmapSubtable::Format4(cmap4) = &*record.subtable else {
+                continue;
+            };
+            core::assert_matches!(
+                (cmap4.start_code.as_slice(), cmap4.end_code.as_slice()),
+                (
+                    &[.., before_last_start, 0xFFFF],
+                    &[.., before_last_end, 0xFFFF]
+                ) if before_last_start != 0xFFFF || before_last_end != 0xFFFF
+            );
+        }
     }
 }
