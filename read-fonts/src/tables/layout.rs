@@ -1040,8 +1040,7 @@ mod tests {
     #[test]
     fn classdef_format1_short_read_no_panic() {
         // glyph_count is 5, but only one class value is present.
-        let classdef =
-            ClassDefFormat1::read(FontData::new(&[0, 1, 0, 10, 0, 5, 0, 1])).unwrap();
+        let classdef = ClassDefFormat1::read(FontData::new(&[0, 1, 0, 10, 0, 5, 0, 1])).unwrap();
         let glyphs: IntSet<GlyphId> = [GlyphId::new(10), GlyphId::new(11), GlyphId::new(14)]
             .into_iter()
             .collect();
