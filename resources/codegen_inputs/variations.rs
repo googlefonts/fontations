@@ -91,6 +91,7 @@ flags u8 EntryFormat {
 }
 
 /// The [VariationRegionList](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) table
+#[validate(validate_axis_count)]
 table VariationRegionList {
     /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
@@ -159,4 +160,3 @@ table ItemVariationData {
     #[count(item_variation_data_len($item_count, $word_delta_count, $region_index_count))]
     delta_sets: [u8],
 }
-

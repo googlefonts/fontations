@@ -410,6 +410,7 @@ impl Validate for VariationRegionList {
                 }
                 self.variation_regions.validate_impl(ctx);
             });
+            self.validate_axis_count(ctx);
         })
     }
 }

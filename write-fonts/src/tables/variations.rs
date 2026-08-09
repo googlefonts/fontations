@@ -10,6 +10,22 @@ pub mod common_builder;
 pub mod ivs_builder;
 pub mod mivs_builder;
 
+impl VariationRegionList {
+    fn validate_axis_count(&self, ctx: &mut ValidationCtx) {
+        ctx.in_field("variation_regions", |ctx| {
+            ctx.with_array_items(self.variation_regions.iter(), |ctx, region| {
+                if region.region_axes.len() != usize::from(self.axis_count) {
+                    ctx.report(format!(
+                        "region_axes length ({}) does not match axis_count ({})",
+                        region.region_axes.len(),
+                        self.axis_count
+                    ));
+                }
+            });
+        });
+    }
+}
+
 /// The influence of a single axis on a variation region.
 ///
 /// The values here end up serialized in peak/start/end tuples in
@@ -685,6 +701,36 @@ impl<T: std::fmt::Display + std::fmt::Debug> std::error::Error
 mod tests {
     use super::*;
     use rstest::rstest;
+
+    #[test]
+    fn variation_region_list_accepts_matching_axis_counts() {
+        let list = VariationRegionList::new(
+            2,
+            vec![VariationRegion::new(vec![
+                RegionAxisCoordinates::default();
+                2
+            ])],
+        );
+
+        assert!(list.validate().is_ok());
+    }
+
+    #[test]
+    fn variation_region_list_rejects_mismatched_axis_counts() {
+        let list = VariationRegionList::new(
+            2,
+            vec![
+                VariationRegion::new(vec![RegionAxisCoordinates::default()]),
+                VariationRegion::new(vec![RegionAxisCoordinates::default(); 3]),
+            ],
+        );
+
+        let report = list.validate().unwrap_err().to_string();
+        assert!(report.contains("region_axes length (1) does not match axis_count (2)"));
+        assert!(report.contains("VariationRegionList.variation_regions[0]"));
+        assert!(report.contains("region_axes length (3) does not match axis_count (2)"));
+        assert!(report.contains("VariationRegionList.variation_regions[1]"));
+    }
 
     #[test]
     fn point_pack_words() {
