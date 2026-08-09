@@ -875,7 +875,11 @@ impl<'a> Device<'a> {
     /// Iterate over the decoded values for this device
     pub fn iter(&self) -> impl Iterator<Item = i8> + 'a {
         let format = self.delta_format();
-        let mut n = (self.end_size() - self.start_size()) as usize + 1;
+        let mut n = self
+            .end_size()
+            .checked_sub(self.start_size())
+            .map(|x| x as usize + 1)
+            .unwrap_or(0);
         let deltas_per_word = match format {
             DeltaFormat::Local2BitDeltas => 8,
             DeltaFormat::Local4BitDeltas => 4,
@@ -1059,6 +1063,14 @@ mod tests {
             device.iter().collect::<Vec<_>>(),
             &[1i8, -12, 30, -11, 101, 8, 42]
         );
+    }
+
+    #[test]
+    fn device_decode_does_not_overflow() {
+        // manually generated with write-fonts
+        let bytes: &[u8] = &[0, 0xA, 0, 1, 0, 1];
+        // Don't panic with overflow
+        Device::read(bytes.into()).unwrap().iter().count();
     }
 
     #[test]
