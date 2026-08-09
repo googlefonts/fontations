@@ -43,7 +43,7 @@ impl FdSelect<'_> {
                 if !(range.first()..fds.sentinel()).contains(&gid) {
                     return None;
                 }
-                Some(range.fd() as u16)
+                Some(range.fd())
             }
         }
     }
