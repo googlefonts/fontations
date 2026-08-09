@@ -393,16 +393,15 @@ impl Intersect for ClassDef<'_> {
 
 impl Intersect for ClassDefFormat1<'_> {
     fn intersects(&self, glyph_set: &IntSet<GlyphId>) -> Result<bool, ReadError> {
-        let glyph_count = self.glyph_count();
-        if glyph_count == 0 {
+        let class_values = self.class_value_array();
+        if class_values.is_empty() {
             return Ok(false);
         }
 
         let start = self.start_glyph_id().to_u32();
-        let end = start + glyph_count as u32;
+        let end = start + self.glyph_count() as u32;
 
         let mut start_glyph = GlyphId::from(start);
-        let class_values = self.class_value_array();
         if glyph_set.contains(start_glyph) && class_values[0] != 0 {
             return Ok(true);
         }
@@ -1121,5 +1120,21 @@ impl LookupClosure for ChainedSequenceContext<'_> {
             Self::Format2(table) => ContextFormat2::Chain(table.clone()).closure_lookups(c, arg),
             Self::Format3(table) => ContextFormat3::Chain(table.clone()).closure_lookups(c, arg),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::FontData;
+
+    #[test]
+    fn classdef_format1_short_read_no_panic() {
+        // glyph_count is 5, but only one class value is present.
+        let classdef =
+            ClassDefFormat1::read(FontData::new(&[0, 1, 0, 10, 0, 5, 0, 1])).unwrap();
+        let glyphs: IntSet<GlyphId> = [GlyphId::new(14)].into_iter().collect();
+
+        assert!(!classdef.intersects(&glyphs).unwrap());
     }
 }
