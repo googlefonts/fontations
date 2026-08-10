@@ -6,3 +6,8 @@ pub use int_set::U32Set;
 
 mod range_set;
 pub use range_set::RangeSet;
+
+#[cfg(feature = "std")]
+pub mod fnv;
+#[cfg(feature = "std")]
+pub use fnv::FnvHashMap;

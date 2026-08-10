@@ -264,9 +264,7 @@ impl<'a> Outlines<'a> {
         expand_coords(&mut font_coords, self.axis_count, coords);
         let mut stack = GlyphStack::new();
         let pen: &mut dyn OutlinePen = pen;
-        let mut scalar_cache = self
-            .scalar_cache_from_store(self.var_store.as_ref())?
-            .unwrap();
+        let mut scalar_cache = self.scalar_cache_from_store(self.var_store.as_ref())?;
         let mut scratch = Scratchpad::new();
         let ctx = VarcSharedContext {
             font_coords: &font_coords,
@@ -389,7 +387,8 @@ impl<'a> Outlines<'a> {
                             if let Some(ref mut cache) = child_scalar_cache {
                                 cache.values.fill(ScalarCache::INVALID);
                             } else {
-                                child_scalar_cache = self.scalar_cache_from_store(ctx.var_store)?;
+                                child_scalar_cache =
+                                    Some(self.scalar_cache_from_store(ctx.var_store)?);
                             }
                             self.draw_glyph(
                                 component_gid,
@@ -640,7 +639,7 @@ impl<'a> Outlines<'a> {
         let condition_list = condition_list?;
         let condition = condition_list.conditions().get(condition_index as usize)?;
         let (store, regions) = store_regions.ok_or(ReadError::NullOffset)?;
-        Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch)
+        Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch, 0)
     }
 
     fn eval_condition(
@@ -650,7 +649,15 @@ impl<'a> Outlines<'a> {
         regions: &SparseVariationRegionList<'a>,
         scalar_cache: &mut ScalarCache,
         scratch: &mut Scratchpad,
+        depth: usize,
     ) -> Result<bool, DrawError> {
+        // Format 3/4/5 conditions nest child conditions by offset, and the tree
+        // is fully attacker-controlled. Bound the recursion so a deeply nested
+        // (or degenerate) condition tree returns an error instead of overflowing
+        // the stack, mirroring the component-recursion guard in `draw_glyph`.
+        if depth >= GLYF_COMPOSITE_RECURSION_LIMIT {
+            return Err(DrawError::RecursionLimitExceeded(GlyphId::NOTDEF));
+        }
         match condition {
             Condition::Format1AxisRange(condition) => {
                 let axis_index = condition.axis_index() as usize;
@@ -683,6 +690,7 @@ impl<'a> Outlines<'a> {
                         regions,
                         scalar_cache,
                         scratch,
+                        depth + 1,
                     )? {
                         return Ok(false);
                     }
@@ -699,6 +707,7 @@ impl<'a> Outlines<'a> {
                         regions,
                         scalar_cache,
                         scratch,
+                        depth + 1,
                     )? {
                         return Ok(true);
                     }
@@ -714,6 +723,7 @@ impl<'a> Outlines<'a> {
                     regions,
                     scalar_cache,
                     scratch,
+                    depth + 1,
                 )?)
             }
         }
@@ -722,12 +732,17 @@ impl<'a> Outlines<'a> {
     fn scalar_cache_from_store(
         &self,
         store: Option<&MultiItemVariationStore<'a>>,
-    ) -> Result<Option<ScalarCache>, DrawError> {
-        let Some(store) = store else {
-            return Ok(None);
+    ) -> Result<ScalarCache, DrawError> {
+        // The VARC `multiVarStore` offset is nullable, so a valid font may omit the
+        // store entirely. In that case there are no variation regions and an empty
+        // cache is correct: any component that references variation data will fail
+        // gracefully with `ReadError::NullOffset` when it resolves the missing store,
+        // rather than us panicking here.
+        let region_count = match store {
+            Some(store) => store.region_list()?.region_count() as usize,
+            None => 0,
         };
-        let region_count = store.region_list()?.region_count() as usize;
-        Ok(Some(ScalarCache::new(region_count)))
+        Ok(ScalarCache::new(region_count))
     }
 }
 
@@ -1257,6 +1272,138 @@ mod tests {
                 "Q675.14,743.12 689.79,763.21".to_string(),
                 "Q704.43,783.31 717.03,804.56".to_string(),
             ]
+        );
+    }
+
+    // Build the store/regions needed by `eval_condition`'s signature. The
+    // conditions exercised below never touch the variation store, so any valid
+    // VARC store works here.
+    fn condition_eval_env() -> (
+        FontRef<'static>,
+        MultiItemVariationStore<'static>,
+        SparseVariationRegionList<'static>,
+    ) {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let varc = font.varc().unwrap();
+        let store = varc.multi_var_store().unwrap().unwrap();
+        let regions = store.region_list().unwrap();
+        (font, store, regions)
+    }
+
+    // A deeply nested condition tree must return an error instead of overflowing
+    // the stack. Regression test for the unbounded recursion in `eval_condition`.
+    #[test]
+    fn eval_condition_bounds_recursion_depth() {
+        use read_fonts::{FontData, FontRead};
+        // Linear chain of Format5Negate tables: each is `format(u16 BE = 5)` +
+        // `condition_offset(Offset24 BE = 5)`, so every table points 5 bytes
+        // forward to the next -> an arbitrarily deep condition tree. `CHAIN_LEN`
+        // is far larger than the limit, proving evaluation bails out early rather
+        // than walking (and recursing into) the whole chain.
+        const CHAIN_LEN: usize = 4096;
+        let mut bytes = Vec::with_capacity(CHAIN_LEN * 5);
+        for _ in 0..CHAIN_LEN {
+            bytes.extend_from_slice(&[0x00, 0x05, 0x00, 0x00, 0x05]);
+        }
+        let cond = Condition::read(FontData::new(&bytes)).unwrap();
+
+        let (_font, store, regions) = condition_eval_env();
+        let mut cache = ScalarCache::new(regions.region_count() as usize);
+        let mut scratch = Scratchpad::new();
+
+        let result =
+            Outlines::eval_condition(&cond, &[], &store, &regions, &mut cache, &mut scratch, 0);
+        assert!(
+            matches!(result, Err(DrawError::RecursionLimitExceeded(_))),
+            "expected RecursionLimitExceeded, got {result:?}"
+        );
+    }
+
+    // A normal (shallow) condition tree must still evaluate correctly.
+    #[test]
+    fn eval_condition_shallow_is_correct() {
+        use read_fonts::{FontData, FontRead};
+        let (_font, store, regions) = condition_eval_env();
+        let mut cache = ScalarCache::new(regions.region_count() as usize);
+        let mut scratch = Scratchpad::new();
+
+        // ConditionFormat1: axis 0, filter range [-1.0, 1.0].
+        let leaf: [u8; 8] = [0x00, 0x01, 0x00, 0x00, 0xC0, 0x00, 0x40, 0x00];
+        let cond = Condition::read(FontData::new(&leaf)).unwrap();
+        assert!(Outlines::eval_condition(
+            &cond,
+            &[coord(0.5)],
+            &store,
+            &regions,
+            &mut cache,
+            &mut scratch,
+            0,
+        )
+        .unwrap());
+        assert!(!Outlines::eval_condition(
+            &cond,
+            &[coord(1.5)],
+            &store,
+            &regions,
+            &mut cache,
+            &mut scratch,
+            0,
+        )
+        .unwrap());
+
+        // Format5Negate wrapping the same leaf must negate the result, proving a
+        // shallow nested tree still evaluates through the recursion guard.
+        let mut negate = vec![0x00, 0x05, 0x00, 0x00, 0x05];
+        negate.extend_from_slice(&leaf);
+        let cond = Condition::read(FontData::new(&negate)).unwrap();
+        assert!(!Outlines::eval_condition(
+            &cond,
+            &[coord(0.5)],
+            &store,
+            &regions,
+            &mut cache,
+            &mut scratch,
+            0,
+        )
+        .unwrap());
+    }
+
+    /// The `multi_var_store_offset` field of the VARC table is `#[nullable]`, so a
+    /// spec-valid font may omit the `MultiItemVariationStore`. Drawing such a glyph
+    /// must not panic. Regression test for the `.unwrap()` on the `Option` returned
+    /// by `scalar_cache_from_store`.
+    #[test]
+    fn draw_varc_with_null_var_store_does_not_panic() {
+        use crate::{instance::LocationRef, outline::DrawSettings, MetadataProvider};
+        use read_fonts::types::Tag;
+
+        let mut bytes = font_test_data::varc::CJK_6868.to_vec();
+        // Find the VARC table via the public table directory rather than parsing the
+        // sfnt header by hand.
+        let varc_off = {
+            let font = FontRef::new(&bytes).unwrap();
+            font.table_directory()
+                .table_records()
+                .iter()
+                .find(|rec| rec.tag() == Tag::new(b"VARC"))
+                .expect("VARC table present")
+                .offset() as usize
+        };
+        // VARC layout: version (4) + coverage_offset (4) + multi_var_store_offset (4) ...
+        // Null the (nullable) multi_var_store_offset so `multi_var_store()` -> None.
+        for b in &mut bytes[varc_off + 8..varc_off + 12] {
+            *b = 0;
+        }
+
+        let font = FontRef::new(&bytes).unwrap();
+        let outlines = font.outline_glyphs();
+        let gid = font.cmap().unwrap().map_codepoint(0x6868_u32).unwrap();
+        let glyph = outlines.get(gid).expect("covered VARC glyph");
+        let mut pen = Vec::<PathElement>::new();
+        // Must complete without panicking (Ok, or a graceful DrawError).
+        let _ = glyph.draw(
+            DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
+            &mut pen,
         );
     }
 }

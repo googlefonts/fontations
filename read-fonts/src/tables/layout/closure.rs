@@ -12,7 +12,7 @@ use super::{
     SequenceRule, SequenceRuleSet, Subtables, Tag,
 };
 use crate::{
-    collections::IntSet,
+    collections::{FnvHashMap, IntSet},
     tables::{gpos::PositionLookupList, gsub::SubstitutionLookupList},
     FontRead,
 };
@@ -631,6 +631,13 @@ pub(crate) enum Format2Rule<'a> {
     Chain(ChainedClassSequenceRule<'a>),
 }
 
+#[derive(Default)]
+pub(crate) struct SeqCache {
+    input: FnvHashMap<u16, bool>,
+    backtrack: FnvHashMap<u16, bool>,
+    lookahead: FnvHashMap<u16, bool>,
+}
+
 impl ContextFormat2<'_> {
     pub(crate) fn coverage(&self) -> Option<Result<CoverageTable<'_>, ReadError>> {
         match self {
@@ -728,47 +735,99 @@ impl Format2Rule<'_> {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn intersects(
         &self,
-        input_classes: &IntSet<u16>,
-        backtrack_classes: &IntSet<u16>,
-        lookahead_classes: &IntSet<u16>,
+        glyphs: &IntSet<GlyphId>,
+        input_class_def: &ClassDef,
+        backtrack_class_def: Option<&ClassDef>,
+        lookahead_class_def: Option<&ClassDef>,
+        seq_cache: &mut SeqCache,
     ) -> bool {
         match self {
-            Self::Plain(table) => table.intersects(input_classes),
-            Self::Chain(table) => {
-                table.intersects(input_classes, backtrack_classes, lookahead_classes)
-            }
+            Self::Plain(table) => table.intersects(glyphs, input_class_def, &mut seq_cache.input),
+            Self::Chain(table) => table.intersects(
+                glyphs,
+                input_class_def,
+                backtrack_class_def,
+                lookahead_class_def,
+                seq_cache,
+            ),
         }
     }
 }
 
+fn intersects_class(
+    class_def: &ClassDef,
+    glyphs: &IntSet<GlyphId>,
+    class: u16,
+    cache: &mut FnvHashMap<u16, bool>,
+) -> bool {
+    *cache
+        .entry(class)
+        .or_insert_with(|| class_def.intersects_class_glyphs(glyphs, class))
+}
 impl ClassSequenceRule<'_> {
-    fn intersects(&self, input_classes: &IntSet<u16>) -> bool {
+    fn intersects(
+        &self,
+        glyphs: &IntSet<GlyphId>,
+        input_class_def: &ClassDef,
+        cache: &mut FnvHashMap<u16, bool>,
+    ) -> bool {
         self.input_sequence()
             .iter()
-            .all(|c| input_classes.contains(c.get()))
+            .all(|c| intersects_class(input_class_def, glyphs, c.get(), cache))
     }
 }
 
 impl ChainedClassSequenceRule<'_> {
+    #[allow(clippy::too_many_arguments)]
     fn intersects(
         &self,
-        input_classes: &IntSet<u16>,
-        backtrack_classes: &IntSet<u16>,
-        lookahead_classes: &IntSet<u16>,
+        glyphs: &IntSet<GlyphId>,
+        input_class_def: &ClassDef,
+        backtrack_class_def: Option<&ClassDef>,
+        lookahead_class_def: Option<&ClassDef>,
+        seq_cache: &mut SeqCache,
     ) -> bool {
-        self.input_sequence()
+        if !self
+            .input_sequence()
             .iter()
-            .all(|c| input_classes.contains(c.get()))
-            && self
-                .backtrack_sequence()
-                .iter()
-                .all(|c| backtrack_classes.contains(c.get()))
-            && self
-                .lookahead_sequence()
-                .iter()
-                .all(|c| lookahead_classes.contains(c.get()))
+            .all(|c| intersects_class(input_class_def, glyphs, c.get(), &mut seq_cache.input))
+        {
+            return false;
+        }
+
+        if let Some(backtrack_class_def) = backtrack_class_def {
+            if !self.backtrack_sequence().iter().all(|c| {
+                intersects_class(
+                    backtrack_class_def,
+                    glyphs,
+                    c.get(),
+                    &mut seq_cache.backtrack,
+                )
+            }) {
+                return false;
+            }
+        } else if self.backtrack_glyph_count() != 0 {
+            return false;
+        }
+
+        if let Some(lookahead_class_def) = lookahead_class_def {
+            if !self.lookahead_sequence().iter().all(|c| {
+                intersects_class(
+                    lookahead_class_def,
+                    glyphs,
+                    c.get(),
+                    &mut seq_cache.lookahead,
+                )
+            }) {
+                return false;
+            }
+        } else if self.lookahead_glyph_count() != 0 {
+            return false;
+        }
+        true
     }
 }
 
@@ -846,18 +905,15 @@ impl LookupClosure for ContextFormat1<'_> {
         let Some(coverage) = self.coverage().transpose()? else {
             return Ok(());
         };
-        let glyph_set = c.glyphs();
 
-        let intersected_idxes: IntSet<u16> = coverage
+        for (g, rule_set) in coverage
             .iter()
-            .enumerate()
-            .filter(|&(_, g)| glyph_set.contains(GlyphId::from(g)))
-            .map(|(idx, _)| idx as u16)
-            .collect();
-
-        for rule_set in self.rule_sets().enumerate().filter_map(|(idx, rule_set)| {
-            rule_set.filter(|_| intersected_idxes.contains(idx as u16))
-        }) {
+            .zip(self.rule_sets())
+            .filter_map(|(g, rule_set)| rule_set.map(|rs| (g, rs)))
+        {
+            if !c.glyphs().contains(GlyphId::from(g)) {
+                continue;
+            }
             if c.lookup_limit_exceed() {
                 return Ok(());
             }
@@ -878,41 +934,40 @@ impl Intersect for ContextFormat2<'_> {
         let Some(coverage) = self.coverage().transpose()? else {
             return Ok(false);
         };
-        let retained_coverage_glyphs = coverage.intersect_set(glyph_set);
-        if retained_coverage_glyphs.is_empty() {
+        if !coverage.intersects(glyph_set) {
             return Ok(false);
         }
+        let retained_coverage_glyphs = coverage.intersect_set(glyph_set);
 
         let Some(input_class_def) = self.input_class_def().transpose()? else {
             return Ok(false);
         };
-        let coverage_glyph_classes = input_class_def.intersect_classes(&retained_coverage_glyphs);
-        let input_glyph_classes = input_class_def.intersect_classes(glyph_set);
 
-        let backtrack_classes = match self {
-            Self::Plain(_) => IntSet::empty(),
+        let backtrack_class_def = match self {
+            Self::Plain(_) => None,
             Self::Chain(table) => {
                 if table.backtrack_class_def_offset().is_null() {
-                    IntSet::empty()
+                    None
                 } else {
-                    table.backtrack_class_def()?.intersect_classes(glyph_set)
+                    Some(table.backtrack_class_def()?)
                 }
             }
         };
-        let lookahead_classes = match self {
-            Self::Plain(_) => IntSet::empty(),
+        let lookahead_class_def = match self {
+            Self::Plain(_) => None,
             Self::Chain(table) => {
                 if table.lookahead_class_def_offset().is_null() {
-                    IntSet::empty()
+                    None
                 } else {
-                    table.lookahead_class_def()?.intersect_classes(glyph_set)
+                    Some(table.lookahead_class_def()?)
                 }
             }
         };
 
+        let mut seq_cache = SeqCache::default();
         for rule_set in self.rule_sets().enumerate().filter_map(|(c, rule_set)| {
-            coverage_glyph_classes
-                .contains(c as u16)
+            input_class_def
+                .intersects_class_glyphs(&retained_coverage_glyphs, c as u16)
                 .then_some(rule_set)
                 .flatten()
         }) {
@@ -920,7 +975,13 @@ impl Intersect for ContextFormat2<'_> {
                 let Some(rule) = rule.transpose()? else {
                     continue;
                 };
-                if rule.intersects(&input_glyph_classes, &backtrack_classes, &lookahead_classes) {
+                if rule.intersects(
+                    glyph_set,
+                    &input_class_def,
+                    backtrack_class_def.as_ref(),
+                    lookahead_class_def.as_ref(),
+                    &mut seq_cache,
+                ) {
                     return Ok(true);
                 }
             }
@@ -934,42 +995,39 @@ impl LookupClosure for ContextFormat2<'_> {
         let Some(coverage) = self.coverage().transpose()? else {
             return Ok(());
         };
-        let glyph_set = c.glyphs();
-        let retained_coverage_glyphs = coverage.intersect_set(glyph_set);
-        if retained_coverage_glyphs.is_empty() {
+        if !coverage.intersects(c.glyphs()) {
             return Ok(());
         }
-
+        let retained_coverage_glyphs = coverage.intersect_set(c.glyphs());
         let Some(input_class_def) = self.input_class_def().transpose()? else {
             return Ok(());
         };
-        let coverage_glyph_classes = input_class_def.intersect_classes(&retained_coverage_glyphs);
-        let input_glyph_classes = input_class_def.intersect_classes(glyph_set);
 
-        let backtrack_classes = match self {
-            Self::Plain(_) => IntSet::empty(),
+        let backtrack_class_def = match self {
+            Self::Plain(_) => None,
             Self::Chain(table) => {
                 if table.backtrack_class_def_offset().is_null() {
-                    IntSet::empty()
+                    None
                 } else {
-                    table.backtrack_class_def()?.intersect_classes(glyph_set)
+                    Some(table.backtrack_class_def()?)
                 }
             }
         };
-        let lookahead_classes = match self {
-            Self::Plain(_) => IntSet::empty(),
+        let lookahead_class_def = match self {
+            Self::Plain(_) => None,
             Self::Chain(table) => {
                 if table.lookahead_class_def_offset().is_null() {
-                    IntSet::empty()
+                    None
                 } else {
-                    table.lookahead_class_def()?.intersect_classes(glyph_set)
+                    Some(table.lookahead_class_def()?)
                 }
             }
         };
 
+        let mut seq_cache = SeqCache::default();
         for rule_set in self.rule_sets().enumerate().filter_map(|(c, rule_set)| {
-            coverage_glyph_classes
-                .contains(c as u16)
+            input_class_def
+                .intersects_class_glyphs(&retained_coverage_glyphs, c as u16)
                 .then_some(rule_set)
                 .flatten()
         }) {
@@ -985,7 +1043,13 @@ impl LookupClosure for ContextFormat2<'_> {
                     continue;
                 };
 
-                if !rule.intersects(&input_glyph_classes, &backtrack_classes, &lookahead_classes) {
+                if !rule.intersects(
+                    c.glyphs(),
+                    &input_class_def,
+                    backtrack_class_def.as_ref(),
+                    lookahead_class_def.as_ref(),
+                    &mut seq_cache,
+                ) {
                     continue;
                 }
 

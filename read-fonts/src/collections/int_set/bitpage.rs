@@ -52,12 +52,30 @@ impl BitPage {
 
     /// Returns true if this page has any members in common with `other`.
     pub(crate) fn intersects_set(&self, other: &BitPage) -> bool {
-        for (a, b) in self.storage.iter().zip(other.storage.iter()) {
-            if (*a & *b) != 0 {
-                return true;
-            }
+        self.storage
+            .iter()
+            .zip(other.storage.iter())
+            .any(|(a, b)| (*a & *b) != 0)
+    }
+
+    /// Returns true if this page is a subset of `other`.
+    pub(crate) fn is_subset(&self, other: &BitPage) -> bool {
+        if self.len() > other.len() {
+            return false;
         }
-        false
+        self.storage
+            .iter()
+            .zip(other.storage.iter())
+            .all(|(a, b)| (*a & *b) == *a)
+    }
+
+    /// Returns the number of members present in both `self` and `other`.
+    pub(crate) fn intersection_len(&self, other: &BitPage) -> u32 {
+        self.storage
+            .iter()
+            .zip(other.storage.iter())
+            .map(|(a, b)| (*a & *b).count_ones())
+            .sum()
     }
 
     // TODO(garretrieger): iterator that starts after some value (similar to next in hb).
@@ -861,5 +879,61 @@ mod test {
         assert_intersects!(b, d, false);
 
         assert_intersects!(c, d, false);
+    }
+
+    #[test]
+    fn is_subset() {
+        let a = BitPage::new_zeroes();
+        let b = BitPage::from_iter([32, 400]);
+        let c = BitPage::from_iter([32]);
+        let d = BitPage::from_iter([32, 200, 400]);
+        let e = BitPage::from_iter([32, 300]);
+        let f = BitPage::from_iter([32, 200, 300]);
+
+        assert!(a.is_subset(&a));
+        assert!(a.is_subset(&b));
+        assert!(a.is_subset(&c));
+        assert!(a.is_subset(&d));
+
+        // self subset check
+        assert!(b.is_subset(&b));
+        assert!(c.is_subset(&c));
+        assert!(d.is_subset(&d));
+        assert!(e.is_subset(&e));
+        assert!(f.is_subset(&f));
+
+        // is subset where len a < len b
+        assert!(c.is_subset(&b));
+        assert!(c.is_subset(&d));
+        assert!(b.is_subset(&d));
+
+        // Fails via len a > len b
+        assert!(!b.is_subset(&c));
+        assert!(!d.is_subset(&b));
+        assert!(!d.is_subset(&c));
+        assert!(!b.is_subset(&a));
+
+        // Fails via bitwise check (len a <= len b)
+        assert!(!b.is_subset(&e));
+        assert!(!e.is_subset(&b));
+        assert!(!b.is_subset(&f));
+    }
+
+    #[test]
+    fn intersection_len() {
+        let a = BitPage::new_zeroes();
+        let b = BitPage::from_iter([32, 400]);
+        let c = BitPage::from_iter([32, 200]);
+        let d = BitPage::from_iter([32]);
+
+        assert_eq!(a.intersection_len(&b), 0);
+        assert_eq!(b.intersection_len(&a), 0);
+
+        assert_eq!(b.intersection_len(&c), 1);
+        assert_eq!(c.intersection_len(&b), 1);
+        assert_eq!(b.intersection_len(&d), 1);
+        assert_eq!(d.intersection_len(&b), 1);
+
+        assert_eq!(b.intersection_len(&b), 2);
     }
 }

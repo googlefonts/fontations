@@ -5,14 +5,14 @@
 use font_types::GlyphId;
 
 use crate::{
-    collections::IntSet,
+    collections::{FnvHashMap, IntSet},
     tables::layout::{ExtensionLookup, Subtables},
     FontRead, ReadError, Tag,
 };
 
 use super::{
-    AlternateSubstFormat1, ChainedSequenceContext, ExtensionSubstFormat1, ExtensionSubtable, Gsub,
-    Ligature, LigatureSet, LigatureSubstFormat1, MultipleSubstFormat1,
+    AlternateSubstFormat1, ChainedSequenceContext, ClassDef, ExtensionSubstFormat1,
+    ExtensionSubtable, Gsub, Ligature, LigatureSet, LigatureSubstFormat1, MultipleSubstFormat1,
     ReverseChainSingleSubstFormat1, SequenceContext, SingleSubst, SingleSubstFormat1,
     SingleSubstFormat2, SubstitutionLookup, SubstitutionLookupList, SubstitutionSubtables,
 };
@@ -20,7 +20,7 @@ use super::{
 #[cfg(feature = "std")]
 use crate::tables::layout::{
     ContextFormat1, ContextFormat2, ContextFormat3, Intersect, LayoutLookupList, LookupClosure,
-    LookupClosureCtx,
+    LookupClosureCtx, SeqCache,
 };
 
 // we put ClosureCtx in its own module to enforce visibility rules;
@@ -133,8 +133,7 @@ mod ctx {
 
         // Return true if we have visited this lookup with current set of glyphs
         pub(super) fn is_lookup_done(&mut self, lookup_index: u16) -> bool {
-            let mut cur_active_glyphs = IntSet::empty();
-            cur_active_glyphs.union(self.parent_active_glyphs());
+            let cur_active_glyphs = self.active_glyphs_stack.last().unwrap_or(self.glyphs);
 
             let (count, covered) = self
                 .done_lookups_glyphs
@@ -146,12 +145,11 @@ mod ctx {
                 covered.clear();
             }
 
-            //TODO: add IntSet::is_subset
-            if cur_active_glyphs.iter().all(|g| covered.contains(g)) {
+            if cur_active_glyphs.is_subset(covered) {
                 return true;
             }
 
-            covered.union(&cur_active_glyphs);
+            covered.union(cur_active_glyphs);
             false
         }
 
@@ -748,21 +746,17 @@ impl GlyphClosure for ContextFormat1<'_> {
         let Some(coverage) = self.coverage().transpose()? else {
             return Ok(());
         };
-        let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
-        if cov_active_glyphs.is_empty() {
-            return Ok(());
-        }
 
         let lookups = lookup_list.lookups();
+        let mut seen_sequence_indices = IntSet::new();
         for (gid, rule_set) in coverage
             .iter()
             .zip(self.rule_sets())
-            .filter_map(|(g, rule_set)| {
-                rule_set
-                    .filter(|_| cov_active_glyphs.contains(GlyphId::from(g)))
-                    .map(|rs| (g, rs))
-            })
+            .filter_map(|(g, rule_set)| rule_set.map(|rs| (g, rs)))
         {
+            if !ctx.parent_active_glyphs().contains(GlyphId::from(gid)) {
+                continue;
+            }
             if ctx.lookup_limit_exceed() {
                 return Ok(());
             }
@@ -785,7 +779,7 @@ impl GlyphClosure for ContextFormat1<'_> {
                 // we can no longer trivially determine the state of the context
                 // at that point. In this case we give up, and assume that the
                 // second lookup is reachable by all glyphs.
-                let mut seen_sequence_indices = IntSet::new();
+                seen_sequence_indices.clear();
 
                 for lookup_record in rule.lookup_records() {
                     let lookup_index = lookup_record.lookup_list_index();
@@ -829,6 +823,21 @@ impl GlyphClosure for ContextFormat1<'_> {
     }
 }
 
+fn intersected_class_glyphs(
+    class_def: &ClassDef,
+    glyphs: &IntSet<GlyphId>,
+    class: u16,
+    cache: &mut FnvHashMap<u16, IntSet<GlyphId>>,
+) -> IntSet<GlyphId> {
+    if let Some(cached_set) = cache.get(&class) {
+        return cached_set.clone();
+    }
+
+    let out = class_def.intersected_class_glyphs(glyphs, class);
+    cache.insert(class, out.clone());
+    out
+}
+
 //https://github.com/fonttools/fonttools/blob/a6f59a4f87a0111/Lib/fontTools/subset/__init__.py#L1215
 impl GlyphClosure for ContextFormat2<'_> {
     fn closure_glyphs(
@@ -840,47 +849,48 @@ impl GlyphClosure for ContextFormat2<'_> {
         let Some(coverage) = self.coverage().transpose()? else {
             return Ok(());
         };
-        let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
-        if cov_active_glyphs.is_empty() {
-            return Ok(());
-        }
 
         let Some(input_class_def) = self.input_class_def().transpose()? else {
             return Ok(());
         };
-        let coverage_glyph_classes = input_class_def.intersect_classes(&cov_active_glyphs);
-        if coverage_glyph_classes.is_empty() {
+
+        if !coverage.intersects(ctx.parent_active_glyphs()) {
             return Ok(());
         }
-
-        let input_glyph_classes = input_class_def.intersect_classes(ctx.glyphs());
-        let backtrack_classes = match self {
-            Self::Plain(_) => IntSet::empty(),
+        let cov_active_glyphs = coverage.intersect_set(ctx.parent_active_glyphs());
+        let backtrack_class_def = match self {
+            Self::Plain(_) => None,
             Self::Chain(table) => {
                 if table.backtrack_class_def_offset().is_null() {
-                    IntSet::empty()
+                    None
                 } else {
-                    table.backtrack_class_def()?.intersect_classes(ctx.glyphs())
+                    Some(table.backtrack_class_def()?)
                 }
             }
         };
-        let lookahead_classes = match self {
-            Self::Plain(_) => IntSet::empty(),
+        let lookahead_class_def = match self {
+            Self::Plain(_) => None,
             Self::Chain(table) => {
                 if table.lookahead_class_def_offset().is_null() {
-                    IntSet::empty()
+                    None
                 } else {
-                    table.lookahead_class_def()?.intersect_classes(ctx.glyphs())
+                    Some(table.lookahead_class_def()?)
                 }
             }
         };
 
         let lookups = lookup_list.lookups();
+        let mut seen_sequence_indices = IntSet::new();
+
+        let mut intersected_class_cache = FnvHashMap::default();
+        let mut seq_cache = SeqCache::default();
         for (i, rule_set) in self
             .rule_sets()
             .enumerate()
             .filter_map(|(class, rs)| rs.map(|rs| (class as u16, rs)))
-            .filter(|&(class, _)| coverage_glyph_classes.contains(class))
+            .filter(|&(class, _)| {
+                input_class_def.intersects_class_glyphs(&cov_active_glyphs, class)
+            })
         {
             if ctx.lookup_limit_exceed() {
                 return Ok(());
@@ -893,15 +903,20 @@ impl GlyphClosure for ContextFormat2<'_> {
                 let Some(rule) = rule.transpose()? else {
                     continue;
                 };
-                if !rule.intersects(&input_glyph_classes, &backtrack_classes, &lookahead_classes) {
+                if !rule.intersects(
+                    ctx.glyphs(),
+                    &input_class_def,
+                    backtrack_class_def.as_ref(),
+                    lookahead_class_def.as_ref(),
+                    &mut seq_cache,
+                ) {
                     continue;
                 }
 
                 let input_seq = rule.input_sequence();
                 let input_count = input_seq.len() + 1;
 
-                let mut seen_sequence_indices = IntSet::new();
-
+                seen_sequence_indices.clear();
                 for lookup_record in rule.lookup_records() {
                     let lookup_index = lookup_record.lookup_list_index();
                     let lookup = match lookups.get(lookup_index as usize) {
@@ -918,10 +933,20 @@ impl GlyphClosure for ContextFormat2<'_> {
                     let active_glyphs = if !seen_sequence_indices.insert(sequence_idx) {
                         ctx.glyphs().clone()
                     } else if sequence_idx == 0 {
-                        input_class_def.intersected_class_glyphs(ctx.parent_active_glyphs(), i)
+                        intersected_class_glyphs(
+                            &input_class_def,
+                            ctx.parent_active_glyphs(),
+                            i,
+                            &mut intersected_class_cache,
+                        )
                     } else {
                         let c = input_seq[sequence_idx as usize - 1].get();
-                        input_class_def.intersected_class_glyphs(ctx.glyphs(), c)
+                        intersected_class_glyphs(
+                            &input_class_def,
+                            ctx.glyphs(),
+                            c,
+                            &mut intersected_class_cache,
+                        )
                     };
 
                     ctx.recurse(

@@ -46,6 +46,14 @@ impl Overflow {
 }
 
 #[derive(Default, Debug)]
+pub(crate) enum Parents {
+    #[default]
+    Empty,
+    Single(ObjIdx),
+    Multiple(FnvHashMap<ObjIdx, usize>),
+}
+
+#[derive(Default, Debug)]
 pub(crate) struct Vertex {
     head: usize,
     tail: usize,
@@ -63,7 +71,7 @@ pub(crate) struct Vertex {
     end: usize,
     incoming_edges: usize,
     has_incoming_virtual_edges: bool,
-    parents: FnvHashMap<ObjIdx, usize>,
+    parents: Parents,
     virtual_parents: IntSet<u32>,
 }
 
@@ -98,21 +106,45 @@ impl Vertex {
     fn reset_parents(&mut self) {
         self.incoming_edges = 0;
         self.has_incoming_virtual_edges = false;
-        self.parents.clear();
         self.virtual_parents.clear();
+        match &mut self.parents {
+            Parents::Multiple(ref mut parents_map) => parents_map.clear(),
+            _ => self.parents = Parents::Empty,
+        };
     }
 
     fn add_parent(&mut self, parent_idx: ObjIdx, is_virtual: bool) {
         self.has_incoming_virtual_edges |= is_virtual;
-        self.parents
-            .entry(parent_idx)
-            .and_modify(|c| *c += 1)
-            .or_insert(1);
-
         if is_virtual {
             self.virtual_parents.insert(parent_idx as u32);
         }
-        self.incoming_edges += 1;
+
+        match &mut self.parents {
+            Parents::Empty => {
+                self.parents = Parents::Single(parent_idx);
+                self.incoming_edges = 1;
+            }
+            Parents::Single(exist_parent) => {
+                assert!(self.incoming_edges == 1);
+                let mut parents = FnvHashMap::default();
+                parents.insert(*exist_parent, 1);
+                parents
+                    .entry(parent_idx)
+                    .and_modify(|c| *c += 1)
+                    .or_insert(1_usize);
+                self.parents = Parents::Multiple(parents);
+
+                self.incoming_edges += 1;
+            }
+            Parents::Multiple(ref mut parents) => {
+                parents
+                    .entry(parent_idx)
+                    .and_modify(|c| *c += 1)
+                    .or_insert(1);
+
+                self.incoming_edges += 1;
+            }
+        }
     }
 
     fn remove_parent(
@@ -121,34 +153,75 @@ impl Vertex {
         num_edges_to_remove: usize,
         remove_all_edges: bool,
     ) {
-        let Some(num_edges) = self.parents.get_mut(&parent_idx) else {
-            return;
-        };
+        match &mut self.parents {
+            Parents::Empty => (),
+            Parents::Single(single_parent) => {
+                if *single_parent == parent_idx && num_edges_to_remove > 0 {
+                    self.incoming_edges = 0;
+                    self.virtual_parents.clear();
+                    self.parents = Parents::Empty;
+                }
+            }
+            Parents::Multiple(ref mut parents_map) => {
+                let Some(num_edges) = parents_map.get_mut(&parent_idx) else {
+                    return;
+                };
 
-        if remove_all_edges || num_edges_to_remove > *num_edges {
-            self.incoming_edges -= *num_edges;
-        } else {
-            self.incoming_edges -= num_edges_to_remove;
-        }
+                if remove_all_edges || num_edges_to_remove > *num_edges {
+                    self.incoming_edges -= *num_edges;
+                } else {
+                    self.incoming_edges -= num_edges_to_remove;
+                }
 
-        if *num_edges > num_edges_to_remove && !remove_all_edges {
-            *num_edges -= num_edges_to_remove;
-        } else {
-            self.parents.remove(&parent_idx);
-            self.virtual_parents.remove(parent_idx as u32);
+                if *num_edges > num_edges_to_remove && !remove_all_edges {
+                    *num_edges -= num_edges_to_remove;
+                } else {
+                    parents_map.remove(&parent_idx);
+                    self.virtual_parents.remove(parent_idx as u32);
+                }
+            }
         }
     }
 
     fn remap_parent(&mut self, old_parent: ObjIdx, new_parent: ObjIdx) {
-        let Some(v) = self.parents.get(&old_parent) else {
-            return;
+        match &mut self.parents {
+            Parents::Empty => (),
+            Parents::Single(single_parent) => {
+                if old_parent != *single_parent {
+                    return;
+                }
+                self.parents = Parents::Single(new_parent);
+                if self.virtual_parents.remove(old_parent as u32) {
+                    self.virtual_parents.insert(new_parent as u32);
+                }
+            }
+            Parents::Multiple(ref mut parents_map) => {
+                let Some(&v) = parents_map.get(&old_parent) else {
+                    return;
+                };
+                parents_map.remove(&old_parent);
+                parents_map.insert(new_parent, v);
+                if self.virtual_parents.remove(old_parent as u32) {
+                    self.virtual_parents.insert(new_parent as u32);
+                }
+            }
+        }
+    }
+
+    fn iter_parents(&self) -> impl Iterator<Item = &usize> {
+        let single_opt = match &self.parents {
+            Parents::Single(ref val) => Some(val),
+            _ => None,
         };
 
-        self.parents.insert(new_parent, *v);
-        self.parents.remove(&old_parent);
-        if self.virtual_parents.remove(old_parent as u32) {
-            self.virtual_parents.insert(new_parent as u32);
-        }
+        let multiple_opt = match &self.parents {
+            Parents::Multiple(ref parents_map) => Some(parents_map.keys()),
+            _ => None,
+        };
+
+        single_opt
+            .into_iter()
+            .chain(multiple_opt.into_iter().flatten())
     }
 
     fn link_positions_valid(&self, num_objs: usize) -> bool {
@@ -216,7 +289,12 @@ impl Vertex {
 
     // return if this vertex is shared by real parents
     fn is_shared(&self) -> bool {
-        self.parents.len() as u64 > self.virtual_parents.len() + 1
+        match &self.parents {
+            Parents::Multiple(parents_map) => {
+                parents_map.len() as u64 > self.virtual_parents.len() + 1
+            }
+            _ => false,
+        }
     }
 
     fn is_leaf(&self) -> bool {
@@ -224,7 +302,17 @@ impl Vertex {
     }
 
     fn incoming_edges_from_parent(&self, parent_idx: ObjIdx) -> usize {
-        *self.parents.get(&parent_idx).unwrap_or(&0)
+        match &self.parents {
+            Parents::Empty => 0,
+            Parents::Single(single_parent) => {
+                if parent_idx == *single_parent {
+                    1
+                } else {
+                    0
+                }
+            }
+            Parents::Multiple(parents_map) => *parents_map.get(&parent_idx).unwrap_or(&0),
+        }
     }
 
     fn give_max_priority(&mut self) {
@@ -280,21 +368,6 @@ impl Vertex {
     }
 }
 
-impl Clone for Vertex {
-    fn clone(&self) -> Self {
-        Self {
-            head: self.head,
-            tail: self.tail,
-            real_links: self.real_links.clone(),
-            virtual_links: self.virtual_links.clone(),
-            distance: self.distance,
-            space: self.space,
-            ..Default::default()
-        }
-    }
-}
-
-//TODO: add support for space assignment and splitting
 #[derive(Default, Debug)]
 pub(crate) struct Graph {
     vertices: Vec<Vertex>,
@@ -749,7 +822,7 @@ impl Graph {
             self.find_connected_nodes(l.obj_idx(), targets, visited, connected);
         }
 
-        for p in v.parents.keys() {
+        for p in v.iter_parents() {
             self.find_connected_nodes(*p, targets, visited, connected);
         }
     }
@@ -1071,7 +1144,7 @@ impl Graph {
         let vertices = &self.vertices;
         let v = &vertices[obj_idx];
         let mut count = 0;
-        for p in v.parents.keys() {
+        for p in v.iter_parents() {
             let parent_v = &vertices[*p];
             for l in parent_v.real_links.values() {
                 let width = l.link_width() as u8;
@@ -1139,7 +1212,7 @@ impl Graph {
             return Ok((v.space, obj_idx));
         }
 
-        let Some(parent_idx) = v.parents.keys().nth(0) else {
+        let Some(parent_idx) = v.iter_parents().nth(0) else {
             return Ok((0, obj_idx));
         };
         self.find_root_and_space(*parent_idx)
