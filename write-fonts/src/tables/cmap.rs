@@ -1008,13 +1008,15 @@ mod tests {
             let crate::tables::cmap::CmapSubtable::Format4(cmap4) = &*record.subtable else {
                 continue;
             };
-            core::assert_matches!(
-                (cmap4.start_code.as_slice(), cmap4.end_code.as_slice()),
-                (
-                    &[.., before_last_start, 0xFFFF],
-                    &[.., before_last_end, 0xFFFF]
-                ) if before_last_start != 0xFFFF || before_last_end != 0xFFFF
-            );
+            if !matches!((cmap4.start_code.as_slice(), cmap4.end_code.as_slice()),
+                (&[.., before_last_start, 0xFFFF], &[.., before_last_end, 0xFFFF])
+                    if before_last_start != 0xFFFF || before_last_end != 0xFFFF)
+            {
+                panic!(
+                    "Expected cmap4 to end with a single (0xFFFF, 0xFFFF) segment, but found {:?}",
+                    (&cmap4.start_code, &cmap4.end_code)
+                );
+            }
         }
     }
 }
