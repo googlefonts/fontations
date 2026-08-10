@@ -18,7 +18,7 @@ use crate::{
     instance::Size,
     outline::{cff, glyf, metrics::GlyphHMetrics, pen::PathStyle, DrawError, OutlinePen},
     provider::MetadataProvider,
-    GLYF_COMPOSITE_RECURSION_LIMIT,
+    GLYF_COMPOSITE_RECURSION_LIMIT, MAX_GRAPH_EDGES,
 };
 
 #[cfg(feature = "libm")]
@@ -39,6 +39,7 @@ struct Scratchpad {
     deltas: DeltaVec,
     axis_indices: AxisIndexVec,
     axis_values: AxisValueVec,
+    edges_left: usize,
 }
 
 impl Scratchpad {
@@ -47,6 +48,7 @@ impl Scratchpad {
             deltas: DeltaVec::new(),
             axis_indices: AxisIndexVec::new(),
             axis_values: AxisValueVec::new(),
+            edges_left: MAX_GRAPH_EDGES,
         }
     }
 }
@@ -217,7 +219,8 @@ impl<'a> Outlines<'a> {
         coverage_index: u16,
     ) -> Result<usize, ReadError> {
         let mut stack = GlyphStack::new();
-        self.max_component_memory_for_glyph(glyph_id, coverage_index, &mut stack)
+        let mut edges_left = MAX_GRAPH_EDGES;
+        self.max_component_memory_for_glyph(glyph_id, coverage_index, &mut stack, &mut edges_left)
     }
 
     fn max_component_memory_for_glyph(
@@ -225,13 +228,20 @@ impl<'a> Outlines<'a> {
         glyph_id: GlyphId,
         coverage_index: u16,
         stack: &mut GlyphStack,
+        edges_left: &mut usize,
     ) -> Result<usize, ReadError> {
         if stack.contains(&glyph_id) {
             return Ok(0);
         }
+        // HB returns success for both recursion and edge limits, so we do the same.
+        // See <https://github.com/harfbuzz/harfbuzz/blob/0fef675a5ea4973ce49d6dd00c02e70ec409eee3/src/OT/Var/VARC/VARC.cc#L386>
         if stack.len() >= GLYF_COMPOSITE_RECURSION_LIMIT {
             return Ok(0);
         }
+        if *edges_left == 0 {
+            return Ok(0);
+        }
+        *edges_left -= 1;
         stack.push(glyph_id);
         let mut max_memory = 0usize;
         let glyph = self.varc.glyph(coverage_index as usize)?;
@@ -241,7 +251,12 @@ impl<'a> Outlines<'a> {
             let component_memory = if component_gid == glyph_id {
                 self.base.base_outline_memory(component_gid)
             } else if let Some(coverage_index) = self.coverage_index(component_gid)? {
-                self.max_component_memory_for_glyph(component_gid, coverage_index, stack)?
+                self.max_component_memory_for_glyph(
+                    component_gid,
+                    coverage_index,
+                    stack,
+                    edges_left,
+                )?
             } else {
                 self.base.base_outline_memory(component_gid)
             };
@@ -317,6 +332,10 @@ impl<'a> Outlines<'a> {
         if stack.len() >= GLYF_COMPOSITE_RECURSION_LIMIT {
             return Err(DrawError::RecursionLimitExceeded(glyph_id));
         }
+        if scratch.edges_left == 0 {
+            return Err(DrawError::RecursionLimitExceeded(glyph_id));
+        }
+        scratch.edges_left -= 1;
         let glyph = self.varc.glyph(coverage_index as usize)?;
         stack.push(glyph_id);
         let coverage = ctx.coverage;
@@ -1405,5 +1424,85 @@ mod tests {
             DrawSettings::unhinted(Size::unscaled(), LocationRef::default()),
             &mut pen,
         );
+    }
+
+    fn first_nested_varc_edge(outlines: &Outlines<'_>) -> Option<(GlyphId, u16)> {
+        for gid16 in outlines.coverage.iter() {
+            let gid: GlyphId = gid16.into();
+            let coverage_index = outlines.coverage.get(gid)?;
+            let glyph = outlines.varc.glyph(coverage_index as usize).ok()?;
+            for component in glyph.components() {
+                let component = component.ok()?;
+                // Pick an unconditional child edge so the traversal always attempts
+                // to recurse for this component.
+                if component.condition_index().is_none()
+                    && component.gid() != gid
+                    && outlines.coverage.get(component.gid()).is_some()
+                {
+                    return Some((gid, coverage_index));
+                }
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn draw_glyph_respects_total_edge_budget() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
+        let (root_gid, root_cov_idx) = first_nested_varc_edge(&outlines)
+            .expect("expected at least one VARC->VARC component edge in fixture font");
+        let mut coords = CoordVec::new();
+        expand_coords(&mut coords, outlines.axis_count, &[]);
+        let ctx = VarcSharedContext {
+            font_coords: &coords,
+            size: Size::unscaled(),
+            path_style: PathStyle::default(),
+            coverage: &outlines.coverage,
+            var_store: outlines.var_store.as_ref(),
+            store_regions: outlines.var_store.as_ref().zip(outlines.regions.as_ref()),
+        };
+        let outline = outlines.outline(root_gid).unwrap().unwrap();
+        let mut memory = vec![0u8; outline.required_buffer_size()];
+        let mut pen = Vec::<PathElement>::new();
+        let mut stack = GlyphStack::new();
+        let mut scalar_cache = outlines
+            .scalar_cache_from_store(outlines.var_store.as_ref())
+            .unwrap();
+        let mut scratch = Scratchpad::new();
+        // Budget of one edge allows entering the root glyph only; any recursive
+        // component edge must be rejected as over budget.
+        scratch.edges_left = 1;
+        let result = outlines.draw_glyph(
+            root_gid,
+            root_cov_idx,
+            &coords,
+            Affine::IDENTITY,
+            &ctx,
+            &mut memory,
+            &mut pen,
+            &mut stack,
+            &mut scalar_cache,
+            &mut scratch,
+        );
+        assert!(
+            matches!(result, Err(DrawError::RecursionLimitExceeded(_))),
+            "expected RecursionLimitExceeded when edge budget is exhausted, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn max_component_memory_respects_total_edge_budget() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
+        let (root_gid, root_cov_idx) = first_nested_varc_edge(&outlines)
+            .expect("expected at least one VARC->VARC component edge in fixture font");
+        let mut stack = GlyphStack::new();
+        let mut edges_left = 0;
+        let memory = outlines
+            .max_component_memory_for_glyph(root_gid, root_cov_idx, &mut stack, &mut edges_left)
+            .unwrap();
+        assert_eq!(memory, 0);
+        assert_eq!(edges_left, 0);
     }
 }
