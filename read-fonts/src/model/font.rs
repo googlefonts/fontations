@@ -20,7 +20,10 @@ pub use tables::{FontTableFunction, FontTables};
 pub mod interop;
 
 use super::once::Once;
-use crate::{ps::type1::Type1Font, ReadError};
+use crate::{
+    ps::{cff::CffFontRef, type1::Type1Font},
+    ReadError,
+};
 use alloc::{boxed::Box, sync::Arc};
 use core::any::Any;
 
@@ -97,6 +100,8 @@ pub enum FontKind<'a> {
     Sfnt(&'a FontTables, u32),
     /// An Adobe Type1 font.
     Type1(&'a Type1Font),
+    /// A CFF font with an associated index.
+    Cff(CffFontRef<'a>, u32),
 }
 
 /// The underlying type of a font.
