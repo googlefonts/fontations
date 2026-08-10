@@ -1,5 +1,10 @@
 //! COLR table instance.
 
+use super::{traversal::ColorStopVec, Brush, PaintError, Transform};
+use core::ops::{Deref, Range};
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::*;
 use read_fonts::{
     tables::{
         colr::*,
@@ -11,8 +16,6 @@ use read_fonts::{
     types::{BoundingBox, F2Dot14, GlyphId16, Point},
     ReadError,
 };
-
-use core::ops::{Deref, Range};
 
 /// Unique paint identifier used for detecting cycles in the paint graph.
 pub type PaintId = usize;
@@ -139,16 +142,6 @@ pub struct ColorStops<'a> {
     var_stops: &'a [VarColorStop],
 }
 
-impl ColorStops<'_> {
-    pub fn len(&self) -> usize {
-        self.stops.len() + self.var_stops.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.stops.is_empty() && self.var_stops.is_empty()
-    }
-}
-
 impl<'a> From<ColorLine<'a>> for ColorStops<'a> {
     fn from(value: ColorLine<'a>) -> Self {
         Self {
@@ -190,6 +183,16 @@ impl<'a> ColorStops<'a> {
                 }
             }))
     }
+}
+
+/// Similar to `Option<Brush>` but with an additional variant for a valid brush
+/// that produces no rendering.
+pub(crate) enum MaybeBrush<'a> {
+    Some(Brush<'a>),
+    /// Valid brush but produces no rendering
+    NonRendering,
+    /// Not a brush
+    None,
 }
 
 /// Simplified version of `Paint` with applied variation deltas.
@@ -278,6 +281,424 @@ pub enum ResolvedPaint<'a> {
         mode: CompositeMode,
         backdrop_paint: Paint<'a>,
     },
+}
+
+impl<'a> ResolvedPaint<'a> {
+    pub(crate) fn as_transform(&self) -> Option<(Transform, Paint<'a>)> {
+        match self {
+            ResolvedPaint::Rotate {
+                angle,
+                around_center,
+                paint,
+            } => {
+                let sin_v = (angle * 180.0).to_radians().sin();
+                let cos_v = (angle * 180.0).to_radians().cos();
+                let mut out_transform = Transform {
+                    xx: cos_v,
+                    xy: -sin_v,
+                    yx: sin_v,
+                    yy: cos_v,
+                    ..Default::default()
+                };
+
+                fn scalar_dot_product(a: f32, b: f32, c: f32, d: f32) -> f32 {
+                    a * b + c * d
+                }
+
+                if let Some(center) = around_center {
+                    out_transform.dx = scalar_dot_product(sin_v, center.y, 1.0 - cos_v, center.x);
+                    out_transform.dy = scalar_dot_product(-sin_v, center.x, 1.0 - cos_v, center.y);
+                }
+                Some((out_transform, paint.clone()))
+            }
+            ResolvedPaint::Scale {
+                scale_x,
+                scale_y,
+                around_center,
+                paint,
+            } => {
+                let mut out_transform = Transform {
+                    xx: *scale_x,
+                    yy: *scale_y,
+                    ..Transform::default()
+                };
+
+                if let Some(center) = around_center {
+                    out_transform.dx = center.x - scale_x * center.x;
+                    out_transform.dy = center.y - scale_y * center.y;
+                }
+                Some((out_transform, paint.clone()))
+            }
+            ResolvedPaint::Skew {
+                x_skew_angle,
+                y_skew_angle,
+                around_center,
+                paint,
+            } => {
+                let tan_x = (x_skew_angle * 180.0).to_radians().tan();
+                let tan_y = (y_skew_angle * 180.0).to_radians().tan();
+                let mut out_transform = Transform {
+                    xy: -tan_x,
+                    yx: tan_y,
+                    ..Transform::default()
+                };
+
+                if let Some(center) = around_center {
+                    out_transform.dx = tan_x * center.y;
+                    out_transform.dy = -tan_y * center.x;
+                }
+                Some((out_transform, paint.clone()))
+            }
+            ResolvedPaint::Transform {
+                xx,
+                yx,
+                xy,
+                yy,
+                dx,
+                dy,
+                paint,
+            } => Some((
+                Transform {
+                    xx: *xx,
+                    yx: *yx,
+                    xy: *xy,
+                    yy: *yy,
+                    dx: *dx,
+                    dy: *dy,
+                },
+                paint.clone(),
+            )),
+            ResolvedPaint::Translate { dx, dy, paint, .. } => Some((
+                Transform {
+                    dx: *dx,
+                    dy: *dy,
+                    ..Default::default()
+                },
+                paint.clone(),
+            )),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn as_brush<'s>(
+        &self,
+        instance: &ColrInstance,
+        resolved_stops: &'s mut ColorStopVec,
+    ) -> Result<MaybeBrush<'s>, PaintError> {
+        match self {
+            ResolvedPaint::Solid {
+                palette_index,
+                alpha,
+            } => Ok(MaybeBrush::Some(Brush::Solid {
+                palette_index: *palette_index,
+                alpha: *alpha,
+            })),
+            ResolvedPaint::LinearGradient {
+                x0,
+                y0,
+                x1,
+                y1,
+                x2,
+                y2,
+                color_stops,
+                extend,
+            } => {
+                let mut p0 = Point::new(*x0, *y0);
+                let p1 = Point::new(*x1, *y1);
+                let p2 = Point::new(*x2, *y2);
+
+                let dot_product = |a: Point<f32>, b: Point<f32>| -> f32 { a.x * b.x + a.y * b.y };
+                let cross_product = |a: Point<f32>, b: Point<f32>| -> f32 { a.x * b.y - a.y * b.x };
+                let project_onto = |vector: Point<f32>, point: Point<f32>| -> Point<f32> {
+                    let length = (point.x * point.x + point.y * point.y).sqrt();
+                    if length == 0.0 {
+                        return Point::default();
+                    }
+                    let mut point_normalized = point / length;
+                    point_normalized *= dot_product(vector, point) / length;
+                    point_normalized
+                };
+
+                make_sorted_resolved_stops(color_stops, instance, resolved_stops);
+
+                // If p0p1 or p0p2 are degenerate probably nothing should be drawn.
+                // If p0p1 and p0p2 are parallel then one side is the first color and the other side is
+                // the last color, depending on the direction.
+                // For now, just use the first color.
+                if p1 == p0 || p2 == p0 || cross_product(p1 - p0, p2 - p0) == 0.0 {
+                    if let Some(stop) = resolved_stops.first() {
+                        return Ok(MaybeBrush::Some(Brush::Solid {
+                            palette_index: stop.palette_index,
+                            alpha: stop.alpha,
+                        }));
+                    };
+                    return Ok(MaybeBrush::NonRendering);
+                }
+
+                // Follow implementation note in nanoemoji:
+                // https://github.com/googlefonts/nanoemoji/blob/0ac6e7bb4d8202db692574d8530a9b643f1b3b3c/src/nanoemoji/svg.py#L188
+                // to compute a new gradient end point P3 as the orthogonal
+                // projection of the vector from p0 to p1 onto a line perpendicular
+                // to line p0p2 and passing through p0.
+                let mut perpendicular_to_p2 = p2 - p0;
+                perpendicular_to_p2 = Point::new(perpendicular_to_p2.y, -perpendicular_to_p2.x);
+                let mut p3 = p0 + project_onto(p1 - p0, perpendicular_to_p2);
+
+                match (
+                    resolved_stops.first().cloned(),
+                    resolved_stops.last().cloned(),
+                ) {
+                    (None, _) | (_, None) => {}
+                    (Some(first_stop), Some(last_stop)) => {
+                        let mut color_stop_range = last_stop.offset - first_stop.offset;
+
+                        // Nothing can be drawn for this situation.
+                        if color_stop_range == 0.0 && extend != &Extend::Pad {
+                            return Ok(MaybeBrush::NonRendering);
+                        }
+
+                        // In the Pad case, for providing normalized stops in the 0 to 1 range to the client,
+                        // insert a color stop at the end. Adding this stop will paint the equivalent gradient,
+                        // because: All font-specified color stops are in the same spot, mode is pad, so
+                        // everything before this spot is painted with the first color, everything after this spot
+                        // is painted with the last color. Not adding this stop would skip the projection below along
+                        // the p0-p3 axis and result in specifying non-normalized color stops to the shader.
+
+                        if color_stop_range == 0.0 && extend == &Extend::Pad {
+                            let mut extra_stop = last_stop;
+                            extra_stop.offset += 1.0;
+                            resolved_stops.push(extra_stop);
+
+                            color_stop_range = 1.0;
+                        }
+
+                        debug_assert!(color_stop_range != 0.0);
+
+                        if color_stop_range != 1.0 || first_stop.offset != 0.0 {
+                            let p0_p3 = p3 - p0;
+                            let p0_offset = p0_p3 * first_stop.offset;
+                            let p3_offset = p0_p3 * last_stop.offset;
+
+                            p3 = p0 + p3_offset;
+                            p0 += p0_offset;
+
+                            let scale_factor = 1.0 / color_stop_range;
+                            let start_offset = first_stop.offset;
+
+                            for stop in resolved_stops.iter_mut() {
+                                stop.offset = (stop.offset - start_offset) * scale_factor;
+                            }
+                        }
+
+                        return Ok(MaybeBrush::Some(Brush::LinearGradient {
+                            p0,
+                            p1: p3,
+                            color_stops: resolved_stops.as_slice(),
+                            extend: *extend,
+                        }));
+                    }
+                }
+
+                Ok(MaybeBrush::NonRendering)
+            }
+            ResolvedPaint::RadialGradient {
+                x0,
+                y0,
+                radius0,
+                x1,
+                y1,
+                radius1,
+                color_stops,
+                extend,
+            } => {
+                let mut c0 = Point::new(*x0, *y0);
+                let mut c1 = Point::new(*x1, *y1);
+                let mut radius0 = *radius0;
+                let mut radius1 = *radius1;
+
+                make_sorted_resolved_stops(color_stops, instance, resolved_stops);
+
+                match (
+                    resolved_stops.first().cloned(),
+                    resolved_stops.last().cloned(),
+                ) {
+                    (None, _) | (_, None) => {}
+                    (Some(first_stop), Some(last_stop)) => {
+                        let mut color_stop_range = last_stop.offset - first_stop.offset;
+                        // Nothing can be drawn for this situation.
+                        if color_stop_range == 0.0 && extend != &Extend::Pad {
+                            return Ok(MaybeBrush::NonRendering);
+                        }
+
+                        // In the Pad case, for providing normalized stops in the 0 to 1 range to the client,
+                        // insert a color stop at the end. See LinearGradient for more details.
+
+                        if color_stop_range == 0.0 && extend == &Extend::Pad {
+                            let mut extra_stop = last_stop;
+                            extra_stop.offset += 1.0;
+                            resolved_stops.push(extra_stop);
+                            color_stop_range = 1.0;
+                        }
+
+                        debug_assert!(color_stop_range != 0.0);
+
+                        // If the colorStopRange is 0 at this point, the default behavior of the shader is to
+                        // clamp to 1 color stops that are above 1, clamp to 0 for color stops that are below 0,
+                        // and repeat the outer color stops at 0 and 1 if the color stops are inside the
+                        // range. That will result in the correct rendering.
+                        if color_stop_range != 1.0 || first_stop.offset != 0.0 {
+                            let c0_to_c1 = c1 - c0;
+                            let radius_diff = radius1 - radius0;
+                            let scale_factor = 1.0 / color_stop_range;
+
+                            let c0_offset = c0_to_c1 * first_stop.offset;
+                            let c1_offset = c0_to_c1 * last_stop.offset;
+                            let stops_start_offset = first_stop.offset;
+
+                            // Order of reassignments is important to avoid shadowing variables.
+                            c1 = c0 + c1_offset;
+                            c0 += c0_offset;
+                            radius1 = radius0 + radius_diff * last_stop.offset;
+                            radius0 += radius_diff * first_stop.offset;
+
+                            for stop in resolved_stops.iter_mut() {
+                                stop.offset = (stop.offset - stops_start_offset) * scale_factor;
+                            }
+                        }
+
+                        return Ok(MaybeBrush::Some(Brush::RadialGradient {
+                            c0,
+                            r0: radius0,
+                            c1,
+                            r1: radius1,
+                            color_stops: resolved_stops.as_slice(),
+                            extend: *extend,
+                        }));
+                    }
+                }
+                Ok(MaybeBrush::NonRendering)
+            }
+            ResolvedPaint::SweepGradient {
+                center_x,
+                center_y,
+                start_angle,
+                end_angle,
+                color_stops,
+                extend,
+            } => {
+                // OpenType 1.9.1 adds a shift to the angle to ease specification of a 0 to 360
+                // degree sweep.
+                let sweep_angle_to_degrees = |angle| angle * 180.0 + 180.0;
+
+                let start_angle = sweep_angle_to_degrees(start_angle);
+                let end_angle = sweep_angle_to_degrees(end_angle);
+
+                // Stop normalization for sweep:
+
+                let sector_angle = end_angle - start_angle;
+
+                make_sorted_resolved_stops(color_stops, instance, resolved_stops);
+                if resolved_stops.is_empty() {
+                    return Ok(MaybeBrush::NonRendering);
+                }
+
+                match (
+                    resolved_stops.first().cloned(),
+                    resolved_stops.last().cloned(),
+                ) {
+                    (None, _) | (_, None) => {}
+                    (Some(first_stop), Some(last_stop)) => {
+                        let mut color_stop_range = last_stop.offset - first_stop.offset;
+
+                        let mut start_angle_scaled = start_angle + sector_angle * first_stop.offset;
+                        let mut end_angle_scaled = start_angle + sector_angle * last_stop.offset;
+
+                        let start_offset = first_stop.offset;
+
+                        // Nothing can be drawn for this situation.
+                        if color_stop_range == 0.0 && extend != &Extend::Pad {
+                            return Ok(MaybeBrush::NonRendering);
+                        }
+
+                        // In the Pad case, if the color_stop_range is 0 insert a color stop at the end before
+                        // normalizing. Adding this stop will paint the equivalent gradient, because: All font
+                        // specified color stops are in the same spot, mode is pad, so everything before this
+                        // spot is painted with the first color, everything after this spot is painted with
+                        // the last color. Not adding this stop will skip the projection and result in
+                        // specifying non-normalized color stops to the shader.
+                        if color_stop_range == 0.0 && extend == &Extend::Pad {
+                            let mut offset_last = last_stop;
+                            offset_last.offset += 1.0;
+                            resolved_stops.push(offset_last);
+                            color_stop_range = 1.0;
+                        }
+
+                        debug_assert!(color_stop_range != 0.0);
+
+                        let scale_factor = 1.0 / color_stop_range;
+
+                        for shift_stop in resolved_stops.iter_mut() {
+                            shift_stop.offset = (shift_stop.offset - start_offset) * scale_factor;
+                        }
+
+                        // /* https://docs.microsoft.com/en-us/typography/opentype/spec/colr#sweep-gradients
+                        //  * "The angles are expressed in counter-clockwise degrees from
+                        //  * the direction of the positive x-axis on the design
+                        //  * grid. [...]  The color line progresses from the start angle
+                        //  * to the end angle in the counter-clockwise direction;" -
+                        //  * Convert angles and stops from counter-clockwise to clockwise
+                        //  * for the shader if the gradient is not already reversed due to
+                        //  * start angle being larger than end angle. */
+                        start_angle_scaled = 360.0 - start_angle_scaled;
+                        end_angle_scaled = 360.0 - end_angle_scaled;
+
+                        if start_angle_scaled >= end_angle_scaled {
+                            (start_angle_scaled, end_angle_scaled) =
+                                (end_angle_scaled, start_angle_scaled);
+                            resolved_stops.reverse();
+                            for stop in resolved_stops.iter_mut() {
+                                stop.offset = 1.0 - stop.offset;
+                            }
+                        }
+
+                        // https://learn.microsoft.com/en-us/typography/opentype/spec/colr#sweep-gradients
+                        // "If the color line's extend mode is reflect or repeat
+                        // and start and end angle are equal, nothing shall be drawn."
+                        if start_angle_scaled == end_angle_scaled && extend != &Extend::Pad {
+                            return Ok(MaybeBrush::NonRendering);
+                        }
+
+                        return Ok(MaybeBrush::Some(Brush::SweepGradient {
+                            c0: Point::new(*center_x, *center_y),
+                            start_angle: start_angle_scaled,
+                            end_angle: end_angle_scaled,
+                            color_stops: resolved_stops.as_slice(),
+                            extend: *extend,
+                        }));
+                    }
+                }
+                Ok(MaybeBrush::NonRendering)
+            }
+            _ => Ok(MaybeBrush::None),
+        }
+    }
+}
+
+fn make_sorted_resolved_stops(
+    stops: &ColorStops,
+    instance: &ColrInstance,
+    out_stops: &mut ColorStopVec,
+) {
+    let color_stop_iter = stops.resolve(instance).map(|stop| stop.into());
+    out_stops.clear();
+    for stop in color_stop_iter {
+        out_stops.push(stop);
+    }
+    out_stops.sort_by(|a, b| {
+        a.offset
+            .partial_cmp(&b.offset)
+            .unwrap_or(core::cmp::Ordering::Equal)
+    });
 }
 
 /// Resolves this paint with the given instance.
