@@ -60,14 +60,11 @@ fn apply_avar_mappings<T>(
     to_fixed: impl Fn(&T) -> Fixed,
     from_fixed: impl Fn(Fixed) -> T,
 ) {
-    let avar_mappings = avar.map(|avar| avar.axis_segment_maps());
-    for (i, coord) in coords.iter_mut().enumerate() {
-        if let Some(mapping) = avar_mappings
-            .as_ref()
-            .and_then(|mappings| mappings.get(i).transpose().ok())
-            .flatten()
-        {
-            *coord = from_fixed(mapping.apply(to_fixed(coord)));
+    if let Some(maps) = avar.map(|avar| avar.axis_segment_maps()) {
+        for (coord, map) in coords.iter_mut().zip(maps.iter()) {
+            if let Ok(map) = map {
+                *coord = from_fixed(map.apply(to_fixed(coord)));
+            }
         }
     }
 }
