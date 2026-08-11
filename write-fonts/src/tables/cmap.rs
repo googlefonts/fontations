@@ -39,7 +39,10 @@ impl CmapSubtable {
             // no chars in BMP
             return None;
         }
-        let n_segments = segments.len() + 1;
+        let add_final_segment = segments.last().is_none_or(|seg| {
+            (mappings[seg.start_ix].0, mappings[seg.end_ix].0) != ('\u{FFFF}', '\u{FFFF}')
+        });
+        let n_segments = segments.len() + add_final_segment as usize;
         for (i, segment) in segments.into_iter().enumerate() {
             let start = mappings[segment.start_ix].0;
             let end = mappings[segment.end_ix].0;
@@ -74,10 +77,7 @@ impl CmapSubtable {
         }
 
         // add the final segment:
-        if !matches!(
-            (start_code.as_slice(), end_code.as_slice()),
-            ([.., 0xFFFF], [.., 0xFFFF])
-        ) {
+        if add_final_segment {
             end_code.push(0xFFFF);
             start_code.push(0xFFFF);
             id_deltas.push(1);
@@ -997,13 +997,11 @@ mod tests {
         assert_eq!(read_it_back.groups.len() as u32, more_than_16_bits);
     }
 
-    #[test]
-    fn cmap4_final_segment_is_not_duplicated() {
-        let cmap = crate::tables::cmap::Cmap::from_mappings([
-            ('a', GlyphId::new(1)),
-            ('\u{FFFF}', GlyphId::new(0)),
-        ])
-        .unwrap();
+    fn cmap4_has_a_unique_final_segment<I>(mappings: I)
+    where
+        I: IntoIterator<Item = (char, GlyphId)>,
+    {
+        let cmap = crate::tables::cmap::Cmap::from_mappings(mappings).unwrap();
         for record in &cmap.encoding_records {
             let crate::tables::cmap::CmapSubtable::Format4(cmap4) = &*record.subtable else {
                 continue;
@@ -1018,5 +1016,19 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn cmap4_final_segment_is_not_duplicated() {
+        cmap4_has_a_unique_final_segment([('a', GlyphId::new(1)), ('\u{FFFF}', GlyphId::new(0))]);
+    }
+
+    #[test]
+    fn cmap4_final_segment_is_added_even_if_last_generated_segment_ends_with_0xffff() {
+        cmap4_has_a_unique_final_segment([
+            ('a', GlyphId::new(1)),
+            ('\u{FFFE}', GlyphId::new(0)),
+            ('\u{FFFF}', GlyphId::new(0)),
+        ]);
     }
 }
