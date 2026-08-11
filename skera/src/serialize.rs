@@ -153,7 +153,7 @@ impl LinkWidth {
     }
 }
 
-pub(crate) type ObjIdx = usize;
+pub(crate) type ObjIdx = u32;
 
 #[derive(Default, Eq, PartialEq, Clone, Copy, Hash, Debug)]
 pub(crate) struct Link {
@@ -545,7 +545,7 @@ impl Serializer {
         }
 
         self.packed.push(pool_idx);
-        let obj_idx = self.packed.len() - 1;
+        let obj_idx = (self.packed.len() - 1) as ObjIdx;
 
         if share {
             self.packed_map
@@ -737,7 +737,7 @@ impl Serializer {
             .collect();
 
         for other_idx in other_child_idxes {
-            let Some(pool_idx) = self.packed.get(other_idx) else {
+            let Some(pool_idx) = self.packed.get(other_idx as usize) else {
                 return Err(self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
             };
             let Some(other_obj) = self.object_pool.get_obj_mut(*pool_idx) else {
@@ -786,7 +786,7 @@ impl Serializer {
             };
 
             for link in parent_obj.real_links.iter() {
-                let Some(child_pool_idx) = self.packed.get(link.objidx) else {
+                let Some(child_pool_idx) = self.packed.get(link.objidx as usize) else {
                     self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
                     return;
                 };

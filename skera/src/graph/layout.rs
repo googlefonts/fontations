@@ -144,7 +144,7 @@ impl Graph {
         ext_subtable.reset(lookup_type);
 
         // Make extension point at the subtable
-        self.vertices[ext_idx].add_link(LinkWidth::Four, subtable_idx, 4, false);
+        self.vertices[ext_idx as usize].add_link(LinkWidth::Four, subtable_idx, 4, false);
         Ok(ext_idx)
     }
 
@@ -153,8 +153,8 @@ impl Graph {
         lookup_idx: ObjIdx,
         subtable_idx: ObjIdx,
         lookup_type: u16,
-        idx_map: &mut FnvHashMap<usize, usize>,
-    ) -> Result<usize, RepackError> {
+        idx_map: &mut FnvHashMap<ObjIdx, ObjIdx>,
+    ) -> Result<ObjIdx, RepackError> {
         let ext_idx = if let Some(idx) = idx_map.get(&subtable_idx) {
             let subtable_v = self
                 .mut_vertex(subtable_idx)
@@ -172,12 +172,12 @@ impl Graph {
             idx
         };
 
-        for l in self.vertices[lookup_idx].real_links.values_mut() {
+        for l in self.vertices[lookup_idx as usize].real_links.values_mut() {
             if l.obj_idx() == subtable_idx {
                 l.update_obj_idx(ext_idx);
             }
         }
-        self.vertices[ext_idx].add_parent(lookup_idx, false);
+        self.vertices[ext_idx as usize].add_parent(lookup_idx, false);
         Ok(ext_idx)
     }
 
@@ -186,7 +186,7 @@ impl Graph {
         lookup_idx: ObjIdx,
         lookup_type: u16,
         extension_type: Option<u16>,
-        idx_map: &mut FnvHashMap<usize, usize>,
+        idx_map: &mut FnvHashMap<ObjIdx, ObjIdx>,
     ) -> Result<(), RepackError> {
         let Some(ext_type) = extension_type else {
             return Ok(());

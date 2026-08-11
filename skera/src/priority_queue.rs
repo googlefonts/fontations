@@ -6,11 +6,11 @@
 //! priority of its children. The heap is stored in an array, with the
 //! children of node i stored at indices 2i + 1 and 2i + 2.
 
-pub(crate) struct PriorityQueue<T: Copy + PartialOrd> {
-    heap: Vec<(T, usize)>,
+pub(crate) struct PriorityQueue<T: Copy + PartialOrd, I: Copy = usize> {
+    heap: Vec<(T, I)>,
 }
 
-impl<T: Copy + PartialOrd> PriorityQueue<T> {
+impl<T: Copy + PartialOrd, I: Copy> PriorityQueue<T, I> {
     #[inline]
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -19,13 +19,13 @@ impl<T: Copy + PartialOrd> PriorityQueue<T> {
     }
 
     #[inline]
-    pub(crate) fn push(&mut self, item: (T, usize)) {
+    pub(crate) fn push(&mut self, item: (T, I)) {
         self.heap.push(item);
         self.bubble_up(self.heap.len() - 1);
     }
 
     #[inline]
-    pub(crate) fn pop(&mut self) -> Option<(T, usize)> {
+    pub(crate) fn pop(&mut self) -> Option<(T, I)> {
         if self.heap.is_empty() {
             return None;
         }
@@ -116,8 +116,8 @@ fn right_child(index: usize) -> usize {
 mod test {
     use super::*;
 
-    impl<T: Copy + PartialOrd> PriorityQueue<T> {
-        fn minimum(&self) -> Option<&(T, usize)> {
+    impl<T: Copy + PartialOrd, I: Copy> PriorityQueue<T, I> {
+        fn minimum(&self) -> Option<&(T, I)> {
             self.heap.first()
         }
     }

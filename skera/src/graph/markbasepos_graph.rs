@@ -42,7 +42,7 @@ pub(crate) fn split_markbase_pos(
 
     let mark_cov_glyphs = coverage_glyphs(graph, table_info.mark_coverage_idx)?;
     let num_split_points = split_points.len();
-    let mut out: Vec<usize> = Vec::with_capacity(num_split_points);
+    let mut out: Vec<ObjIdx> = Vec::with_capacity(num_split_points);
     for i in 0..split_points.len() {
         // [start,end) range
         let start = split_points[i];

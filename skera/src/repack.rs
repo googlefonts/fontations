@@ -1243,8 +1243,8 @@ pub(crate) mod test {
         unique_lig_str: bool,
         shared_extension: bool,
     ) {
-        let mut liga = vec![0_usize; liga_set_count * liga_per_set_count];
-        let mut liga_set = vec![0_usize; liga_set_count];
+        let mut liga = vec![0_u32; liga_set_count * liga_per_set_count];
+        let mut liga_set = vec![0_u32; liga_set_count];
         let mut ch = b'a';
         for (l, subst_idx) in liga_subst_idxes
             .iter_mut()
@@ -1338,9 +1338,9 @@ pub(crate) mod test {
         const LIGA_SIZE: usize = 30000;
         let large_bytes = [b'a'; 100000];
 
-        let mut liga = [0_usize; 2];
-        let mut liga_subst = [0_usize; 3];
-        let mut liga_set = [0_usize; 2];
+        let mut liga = [0_u32; 2];
+        let mut liga_subst = [0_u32; 3];
+        let mut liga_set = [0_u32; 2];
 
         // LigSubst 3
         let coverage = add_coverage(s, 1, 1, false);
@@ -1409,10 +1409,10 @@ pub(crate) mod test {
 
         start_lookup(s, 7, 3);
         for l in &liga_subst {
-            add_offset(s, *l);
+            add_offset(s, *l as ObjIdx);
         }
 
-        let mut lookups = [0_usize; 1];
+        let mut lookups = [0_u32; 1];
         lookups[0] = finish_lookup(s);
         let lookup_list_idx = add_lookup_list(s, 1, &lookups);
         add_gsub_gpos_header(s, lookup_list_idx);
@@ -1446,7 +1446,7 @@ pub(crate) mod test {
 
         start_lookup(s, 7, lig_subst_count as u8);
         for l in liga_subst_idxes.iter().take(lig_subst_count) {
-            add_offset(s, *l);
+            add_offset(s, *l as ObjIdx);
         }
         lookups[0] = finish_lookup(s);
 
@@ -1482,7 +1482,7 @@ pub(crate) mod test {
 
         start_lookup(s, 7, lig_subst_count as u8 + 1);
         for l in liga_subst_idxes {
-            add_offset(s, l);
+            add_offset(s, l as ObjIdx);
         }
         lookups[1] = finish_lookup(s);
 
@@ -1499,7 +1499,7 @@ pub(crate) mod test {
         liga_size: usize,
     ) {
         s.start_serialize().unwrap();
-        let mut liga_subst = vec![0_usize; lig_subst_count + 1];
+        let mut liga_subst = vec![0_u32; lig_subst_count + 1];
         // LigSubst: small one, no split, coverage shared
         populate_serializer_with_large_ligsubst(
             s,
@@ -1530,7 +1530,7 @@ pub(crate) mod test {
 
         start_lookup(s, 7, lig_subst_count as u8 + 1);
         for l in liga_subst {
-            add_offset(s, l);
+            add_offset(s, l as ObjIdx);
         }
 
         let mut lookups = [0; 1];

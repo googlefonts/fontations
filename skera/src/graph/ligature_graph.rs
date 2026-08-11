@@ -32,7 +32,7 @@ pub(crate) fn split_ligature_subst(
     }
 
     let cov_glyphs = coverage_glyphs(graph, coverage_idx)?;
-    let mut out: Vec<usize> = Vec::with_capacity(split_points.len() + 1);
+    let mut out: Vec<ObjIdx> = Vec::with_capacity(split_points.len() + 1);
     for i in 0..split_points.len() {
         // [start,end) range
         let start = split_points[i];
@@ -270,7 +270,7 @@ fn clone_range(
         fix_virtual_links(graph, &all_lig_idxes, coverage_idx, new_coverage_idx)?;
     }
 
-    graph.vertices[new_lig_subst_idx].tail -=
+    graph.vertices[new_lig_subst_idx as usize].tail -=
         (lig_set_count - new_lig_set_count as usize) * Offset16::RAW_BYTE_LEN;
     let mut new_lig_subst = LigatureSubstFormat1::from_graph(graph, new_lig_subst_idx)?;
     new_lig_subst.set_format(1);
@@ -436,7 +436,7 @@ fn compact_lig_set(graph: &mut Graph, liga_set_index: ObjIdx) -> Result<(), Repa
 
     let subtract_len = (old_lig_count - num_liga) * Offset16::RAW_BYTE_LEN;
 
-    let lig_set_v = &mut graph.vertices[liga_set_index];
+    let lig_set_v = &mut graph.vertices[liga_set_index as usize];
     let start_pos = LigatureSet::MIN_SIZE as u32;
     let mut new_links = Vec::with_capacity(num_liga);
     for i in 0..old_lig_count as u32 {
@@ -489,7 +489,6 @@ fn fix_virtual_links(
     coverage_idx: ObjIdx,
 ) -> Result<(), RepackError> {
     for idx in lig_idxes.iter() {
-        let idx = idx as usize;
         let v = graph
             .mut_vertex(idx)
             .ok_or(RepackError::GraphErrorInvalidObjIndex)?;

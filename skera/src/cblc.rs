@@ -1,6 +1,6 @@
 //! impl subset() for CBLC
 use crate::{
-    serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
+    serialize::{ObjIdx, OffsetWhence, SerializeErrorFlags, Serializer},
     Plan, Subset, SubsetError, SubsetTable,
 };
 use write_fonts::{
@@ -206,7 +206,7 @@ impl<'a> SubsetTable<'a> for IndexSubtableList<'a> {
 
 impl SubsetTable<'_> for IndexSubtableRecord {
     // (obj_idx, first_glyph_id(new), last_glyph_id(new))
-    type ArgsForSubset = (usize, GlyphId, GlyphId);
+    type ArgsForSubset = (ObjIdx, GlyphId, GlyphId);
     type Output = ();
     fn subset(
         &self,
