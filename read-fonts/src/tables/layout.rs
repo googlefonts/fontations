@@ -463,15 +463,18 @@ impl<'a> ClassDefFormat1<'a> {
         }
 
         let start_glyph = self.start_glyph_id().to_u32();
-        let glyph_count = self.glyph_count();
-        let end_glyph = start_glyph + glyph_count as u32 - 1;
+        let class_values = self.class_value_array();
+        if class_values.is_empty() {
+            out.insert(0);
+            return out;
+        }
+        let end_glyph = start_glyph + class_values.len() as u32 - 1;
         if glyphs.first().unwrap().to_u32() < start_glyph
             || glyphs.last().unwrap().to_u32() > end_glyph
         {
             out.insert(0);
         }
 
-        let class_values = self.class_value_array();
         if glyphs.contains(GlyphId::from(start_glyph)) {
             let Some(start_glyph_class) = class_values.first() else {
                 return out;
@@ -613,13 +616,11 @@ impl<'a> ClassDefFormat2<'a> {
             return out;
         }
 
-        if self.class_range_count() == 0 {
+        let range_records = self.class_range_records();
+        let Some(first_record) = range_records.first() else {
             out.insert(0);
             return out;
-        }
-
-        let range_records = self.class_range_records();
-        let first_record = range_records[0];
+        };
 
         if glyphs.first().unwrap() < first_record.start_glyph_id() {
             out.insert(0);
@@ -1038,6 +1039,22 @@ mod tests {
         for (gid, class) in classdef.iter() {
             assert_eq!(classdef.get(gid), class);
         }
+    }
+
+    #[test]
+    fn classdef_format1_short_read_no_panic() {
+        // glyph_count is 5, but only one class value is present.
+        let classdef = ClassDefFormat1::read(FontData::new(&[0, 1, 0, 10, 0, 5, 0, 1])).unwrap();
+        let glyphs: IntSet<GlyphId> = [GlyphId::new(10), GlyphId::new(11), GlyphId::new(14)]
+            .into_iter()
+            .collect();
+
+        assert_eq!(classdef.get(GlyphId::new(10)), 0);
+        assert_eq!(classdef.get(GlyphId::new(11)), 0);
+        assert!(!classdef.intersects_class_glyphs(&glyphs, 2));
+
+        let class_ones = classdef.intersected_class_glyphs(&glyphs, 1);
+        assert!(class_ones.is_empty());
     }
 
     #[test]
