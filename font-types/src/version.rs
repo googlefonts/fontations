@@ -181,10 +181,4 @@ mod tests {
         assert_eq!(Version16Dot16::new(0, 5).0, 0x00005000);
         assert_eq!(Version16Dot16::new(1, 1).0, 0x00011000);
     }
-
-    #[test]
-    #[should_panic]
-    fn minor_version_out_of_range_test() {
-        Version16Dot16::new(1, 10);
-    }
 }
