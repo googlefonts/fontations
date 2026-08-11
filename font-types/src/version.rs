@@ -54,14 +54,7 @@ impl Version16Dot16 {
     pub const VERSION_3_0: Version16Dot16 = Version16Dot16::new(3, 0);
 
     /// Create a new version with the provided major and minor parts.
-    ///
-    /// The minor version must be in the range 0..=9.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `minor > 9`.
     pub const fn new(major: u16, minor: u16) -> Self {
-        assert!(minor < 10, "minor version must be in the range [0, 9]");
         let version = ((major as u32) << 16) | ((minor as u32) << 12);
         Version16Dot16(version)
     }
