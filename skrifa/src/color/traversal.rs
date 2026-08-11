@@ -198,9 +198,8 @@ pub(crate) fn traverse_with_callbacks<'a, P: ColorPainter>(
                             if let Some(rect) = clipbox {
                                 state.painter.push_clip_box(rect);
                             }
-
-                            let result = traverse_with_callbacks(
-                                &state.resolve_paint(&base_glyph)?,
+                            let result = traverse_unresolved_paint(
+                                &base_glyph,
                                 state,
                                 &mut cycle_guard,
                                 recurse_depth + 1,
@@ -236,12 +235,7 @@ pub(crate) fn traverse_with_callbacks<'a, P: ColorPainter>(
                     .ok_or(ReadError::MalformedData("expected a transform paint"))?
                     .0,
             );
-            let result = traverse_with_callbacks(
-                &state.resolve_paint(next_paint)?,
-                state,
-                decycler,
-                recurse_depth + 1,
-            );
+            let result = traverse_unresolved_paint(next_paint, state, decycler, recurse_depth + 1);
             state.painter.pop_transform();
             result
         }
@@ -251,25 +245,29 @@ pub(crate) fn traverse_with_callbacks<'a, P: ColorPainter>(
             backdrop_paint,
         } => {
             state.painter.push_layer(CompositeMode::SrcOver);
-            let mut result = traverse_with_callbacks(
-                &state.resolve_paint(backdrop_paint)?,
-                state,
-                decycler,
-                recurse_depth + 1,
-            );
-            result?;
+            let mut result =
+                traverse_unresolved_paint(backdrop_paint, state, decycler, recurse_depth + 1);
+            if result.is_err() {
+                state.painter.pop_layer_with_mode(CompositeMode::SrcOver);
+                return result;
+            }
             state.painter.push_layer(*mode);
-            result = traverse_with_callbacks(
-                &state.resolve_paint(source_paint)?,
-                state,
-                decycler,
-                recurse_depth + 1,
-            );
+            result = traverse_unresolved_paint(source_paint, state, decycler, recurse_depth + 1);
             state.painter.pop_layer_with_mode(*mode);
             state.painter.pop_layer_with_mode(CompositeMode::SrcOver);
             result
         }
     }
+}
+
+fn traverse_unresolved_paint<'a, P: ColorPainter>(
+    paint: &Paint<'a>,
+    state: &mut TraversalState<'a, P>,
+    decycler: &mut PaintDecycler,
+    recurse_depth: usize,
+) -> Result<(), PaintError> {
+    let resolved_paint = state.resolve_paint(paint)?;
+    traverse_with_callbacks(&resolved_paint, state, decycler, recurse_depth)
 }
 
 pub(crate) fn traverse_v0_range(
@@ -304,7 +302,10 @@ mod tests {
         MetadataProvider,
     };
     use raw::types::GlyphId;
-    use read_fonts::{types::BoundingBox, FontRef, TableProvider};
+    use read_fonts::{
+        types::{BoundingBox, GlyphId16},
+        FontRef, TableProvider,
+    };
 
     #[test]
     fn clipbox_test() {
@@ -392,6 +393,117 @@ mod tests {
         fn pop_layer(&mut self) {
             // nop
         }
+    }
+
+    #[derive(Default)]
+    struct StackTrackingPainter {
+        transform_pushes: usize,
+        transform_pops: usize,
+        clip_pushes: usize,
+        clip_pops: usize,
+        layer_pushes: usize,
+        layer_pops: usize,
+    }
+
+    impl ColorPainter for StackTrackingPainter {
+        fn push_transform(&mut self, _transform: Transform) {
+            self.transform_pushes += 1;
+        }
+
+        fn pop_transform(&mut self) {
+            self.transform_pops += 1;
+        }
+
+        fn push_clip_glyph(&mut self, _glyph_id: GlyphId) {
+            self.clip_pushes += 1;
+        }
+
+        fn push_clip_box(&mut self, _clip_box: BoundingBox<f32>) {
+            self.clip_pushes += 1;
+        }
+
+        fn pop_clip(&mut self) {
+            self.clip_pops += 1;
+        }
+
+        fn fill(&mut self, _brush: Brush<'_>) {
+            // nop
+        }
+
+        fn push_layer(&mut self, _composite_mode: CompositeMode) {
+            self.layer_pushes += 1;
+        }
+
+        fn pop_layer(&mut self) {
+            self.layer_pops += 1;
+        }
+    }
+
+    #[test]
+    fn transform_error_unwinds_transform_stack() {
+        let colr_font = font_test_data::COLRV0V1_VARIABLE;
+        let font = FontRef::new(colr_font).unwrap();
+        let glyph_id = font.charmap().map(CLIPBOX[0]).unwrap();
+        let mut painter = StackTrackingPainter::default();
+        let instance = ColrInstance::new(font.colr().unwrap(), &[]);
+        let inner_paint = instance.v1_base_glyph(glyph_id).unwrap().unwrap().0;
+        let mut state = TraversalState::new(instance, &mut painter);
+        let mut decycler = PaintDecycler::new();
+        state.nodes_left = 0;
+        let paint = ResolvedPaint::Transform {
+            xx: 1.0,
+            yx: 0.0,
+            xy: 0.0,
+            yy: 1.0,
+            dx: 0.0,
+            dy: 0.0,
+            paint: inner_paint,
+        };
+        let result = traverse_with_callbacks(&paint, &mut state, &mut decycler, 0);
+        assert!(matches!(result, Err(PaintError::DepthLimitExceeded)));
+        assert_eq!(painter.transform_pushes, painter.transform_pops);
+        assert_ne!(painter.transform_pushes, 0);
+    }
+
+    #[test]
+    fn composite_error_unwinds_layer_stack() {
+        let colr_font = font_test_data::COLRV0V1_VARIABLE;
+        let font = FontRef::new(colr_font).unwrap();
+        let glyph_id = font.charmap().map(CLIPBOX[0]).unwrap();
+        let mut painter = StackTrackingPainter::default();
+        let instance = ColrInstance::new(font.colr().unwrap(), &[]);
+        let inner_paint = instance.v1_base_glyph(glyph_id).unwrap().unwrap().0;
+        let mut state = TraversalState::new(instance, &mut painter);
+        let mut decycler = PaintDecycler::new();
+        state.nodes_left = 0;
+        let paint = ResolvedPaint::Composite {
+            source_paint: inner_paint.clone(),
+            mode: CompositeMode::SrcOver,
+            backdrop_paint: inner_paint,
+        };
+        let result = traverse_with_callbacks(&paint, &mut state, &mut decycler, 0);
+        assert!(matches!(result, Err(PaintError::DepthLimitExceeded)));
+        assert_eq!(painter.layer_pushes, painter.layer_pops);
+        assert_ne!(painter.layer_pushes, 0);
+    }
+
+    #[test]
+    fn clipbox_error_unwinds_clip_stack() {
+        let colr_font = font_test_data::COLRV0V1_VARIABLE;
+        let font = FontRef::new(colr_font).unwrap();
+        let glyph_id = font.charmap().map(CLIPBOX[0]).unwrap();
+        let mut painter = StackTrackingPainter::default();
+        let instance = ColrInstance::new(font.colr().unwrap(), &[]);
+        let mut state = TraversalState::new(instance, &mut painter);
+        let mut decycler = PaintDecycler::new();
+        state.nodes_left = 0;
+        let paint = ResolvedPaint::ColrGlyph {
+            glyph_id: GlyphId16::new(glyph_id.to_u32() as u16),
+        };
+        let result = traverse_with_callbacks(&paint, &mut state, &mut decycler, 0);
+        assert!(matches!(result, Err(PaintError::DepthLimitExceeded)));
+        assert_eq!(painter.clip_pushes, painter.clip_pops);
+        assert_ne!(painter.clip_pushes, 0);
     }
 
     #[test]
