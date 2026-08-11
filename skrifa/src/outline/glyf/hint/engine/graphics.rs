@@ -1122,7 +1122,7 @@ mod tests {
     fn line_vector_avoid_overflow() {
         let p1 = Point::new(F26Dot6::from_bits(0), F26Dot6::from_bits(0));
         let p2 = Point::new(F26Dot6::from_bits(1), F26Dot6::from_bits(i32::MIN));
-        // The overflow occured when the difference between the y coordinates
+        // The overflow occurred when the difference between the y coordinates
         // is i32::MIN and the requested vector is perpendicular
         assert_eq!((p1.y - p2.y).to_bits(), i32::MIN);
         // Just don't panic with negation overflow
