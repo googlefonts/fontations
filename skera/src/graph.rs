@@ -6,7 +6,6 @@ use crate::{
     priority_queue::PriorityQueue,
     serialize::{Link, LinkWidth, ObjIdx, Object, OffsetWhence, SerializeErrorFlags, Serializer},
 };
-use std::collections::BTreeMap;
 use write_fonts::{read::collections::IntSet, types::Uint24};
 
 mod coverage_graph;
@@ -57,9 +56,8 @@ pub(crate) enum Parents {
 pub(crate) struct Vertex {
     head: usize,
     tail: usize,
-    // real_links: link position-> Link mapping
     // real links are associated with actual offsets
-    real_links: BTreeMap<u32, Link>,
+    real_links: Vec<Link>,
     // virtual links not associated with actual offsets,
     // they exist merely to enforce an ordering constraint.
     virtual_links: Vec<Link>,
@@ -227,7 +225,7 @@ impl Vertex {
     fn link_positions_valid(&self, num_objs: usize) -> bool {
         let table_size = self.table_size();
         let mut assigned_bytes = IntSet::empty();
-        for (pos, l) in &self.real_links {
+        for l in &self.real_links {
             if l.obj_idx() >= num_objs {
                 return false;
             }
@@ -237,7 +235,7 @@ impl Vertex {
                 return false;
             }
 
-            let start = *pos;
+            let start = l.position();
             let end = start + width as u32 - 1;
             if end as usize >= table_size {
                 return false;
@@ -332,14 +330,15 @@ impl Vertex {
         if is_virtual {
             self.virtual_links.push(link);
         } else {
-            self.real_links.insert(position, link);
+            self.real_links.push(link);
         }
     }
 
     pub(crate) fn child_idxes(&self) -> FnvHashMap<ObjIdx, u32> {
         let mut out = FnvHashMap::default();
-        for (&pos, l) in &self.real_links {
+        for l in &self.real_links {
             let obj_idx = l.obj_idx();
+            let pos = l.position();
             out.entry(obj_idx)
                 .and_modify(|p| {
                     if *p < pos {
@@ -356,15 +355,27 @@ impl Vertex {
         pos: u32,
         new_child_idx: ObjIdx,
     ) -> Result<(), RepackError> {
-        let Some(l) = self.real_links.get_mut(&pos) else {
-            return Err(RepackError::GraphErrorInvalidLinkPosition);
-        };
-        l.update_obj_idx(new_child_idx);
-        Ok(())
+        for l in self.real_links.iter_mut() {
+            if l.position() == pos {
+                l.update_obj_idx(new_child_idx);
+                return Ok(());
+            }
+        }
+        Err(RepackError::GraphErrorInvalidLinkPosition)
     }
 
-    fn real_links(&self) -> &BTreeMap<u32, Link> {
+    fn real_links(&self) -> &[Link] {
         &self.real_links
+    }
+
+    // removes an real link at specified position and returns it
+    fn remove_real_link(&mut self, pos: u32) -> Option<Link> {
+        for idx in 0..self.real_links.len() {
+            if self.real_links[idx].position() == pos {
+                return Some(self.real_links.swap_remove(idx));
+            }
+        }
+        None
     }
 }
 
@@ -479,11 +490,7 @@ impl Graph {
             pos += 1;
 
             let next_v = &self.vertices[next_id];
-            for link in next_v
-                .real_links
-                .values()
-                .chain(next_v.virtual_links.iter())
-            {
+            for link in next_v.real_links.iter().chain(next_v.virtual_links.iter()) {
                 let child_idx = link.obj_idx();
                 removed_edges[child_idx] += 1;
 
@@ -524,7 +531,7 @@ impl Graph {
 
             real_links_idxes.clear();
             virtual_links_idxes.clear();
-            for l in v.real_links.values() {
+            for l in v.real_links() {
                 real_links_idxes.push(l.obj_idx());
             }
 
@@ -577,11 +584,7 @@ impl Graph {
             let next_v = &self.vertices[next_idx];
             visited[next_idx] = true;
 
-            for link in next_v
-                .real_links
-                .values()
-                .chain(next_v.virtual_links.iter())
-            {
+            for link in next_v.real_links.iter().chain(next_v.virtual_links.iter()) {
                 let child_idx = link.obj_idx();
                 if visited[child_idx] {
                     continue;
@@ -665,8 +668,9 @@ impl Graph {
             s.push()?;
             let start = s.embed_bytes(obj_bytes)?;
 
-            for (link_pos, link) in &v.real_links {
-                serialize_link(&mut s, link, *link_pos as usize, start, obj_size, &id_map)?;
+            for link in v.real_links() {
+                let link_pos = link.position();
+                serialize_link(&mut s, link, link_pos as usize, start, obj_size, &id_map)?;
             }
 
             let new_idx = s
@@ -729,7 +733,7 @@ impl Graph {
         let vertices = &self.vertices;
         for parent_idx in &self.ordering {
             let parent_v = &vertices[*parent_idx];
-            for link in parent_v.real_links.values() {
+            for link in parent_v.real_links() {
                 if self.offset_overflows(parent_v, link) {
                     return true;
                 }
@@ -745,7 +749,7 @@ impl Graph {
         let mut out = Vec::new();
         for parent_idx in &self.ordering {
             let parent_v = &vertices[*parent_idx];
-            for link in parent_v.real_links.values() {
+            for link in parent_v.real_links() {
                 if !self.offset_overflows(parent_v, link) {
                     continue;
                 }
@@ -818,7 +822,7 @@ impl Graph {
         }
 
         let v = &self.vertices[start_idx];
-        for l in v.real_links.values().chain(v.virtual_links.iter()) {
+        for l in v.real_links.iter().chain(v.virtual_links.iter()) {
             self.find_connected_nodes(l.obj_idx(), targets, visited, connected);
         }
 
@@ -839,7 +843,7 @@ impl Graph {
             let Some(v) = vertices.get(*i) else {
                 return Err(RepackError::GraphErrorInvalidObjIndex);
             };
-            for l in v.real_links.values() {
+            for l in v.real_links() {
                 if l.is_signed() {
                     continue;
                 }
@@ -880,7 +884,7 @@ impl Graph {
         }
 
         let v = &self.vertices[obj_idx];
-        for l in v.real_links.values().chain(v.virtual_links.iter()) {
+        for l in v.real_links.iter().chain(v.virtual_links.iter()) {
             self.find_subgraph_nodes(l.obj_idx(), subgraph);
         }
     }
@@ -891,7 +895,7 @@ impl Graph {
         subgraph_map: &mut FnvHashMap<u32, usize>,
     ) {
         let v = &self.vertices[start_idx];
-        for l in v.real_links.values().chain(v.virtual_links.iter()) {
+        for l in v.real_links.iter().chain(v.virtual_links.iter()) {
             let obj_idx = l.obj_idx();
             let v = subgraph_map
                 .entry(obj_idx as u32)
@@ -924,7 +928,7 @@ impl Graph {
             return Ok(size);
         }
 
-        for l in v.real_links.values().chain(v.virtual_links.iter()) {
+        for l in v.real_links.iter().chain(v.virtual_links.iter()) {
             size += self.find_subgraph_size(l.obj_idx(), visited, max_depth - 1)?;
         }
 
@@ -934,7 +938,7 @@ impl Graph {
     // Finds the topmost children of 32bit offsets in the subgraph starting at obj_idx
     fn find_32bit_roots(&self, obj_idx: ObjIdx, roots: &mut IntSet<u32>) {
         let v = &self.vertices[obj_idx];
-        for l in v.real_links.values() {
+        for l in v.real_links() {
             let child_idx = l.obj_idx();
             if !l.is_signed() && l.link_width() == LinkWidth::Four {
                 roots.insert(child_idx as u32);
@@ -1007,7 +1011,7 @@ impl Graph {
             let Some(obj) = self.vertices.get_mut(i as usize) else {
                 return Err(RepackError::GraphErrorInvalidObjIndex);
             };
-            for l in obj.real_links.values_mut() {
+            for l in obj.real_links.iter_mut() {
                 let old_idx = l.obj_idx();
                 let Some(new_idx) = index_map.get(&old_idx) else {
                     continue;
@@ -1082,7 +1086,7 @@ impl Graph {
         let start_v = &self.vertices[start_idx];
         let child_idxes: Vec<ObjIdx> = start_v
             .real_links
-            .values()
+            .iter()
             .chain(start_v.virtual_links.iter())
             .map(|l| l.obj_idx())
             .collect();
@@ -1120,7 +1124,7 @@ impl Graph {
         }
         let vertices = &mut self.vertices;
 
-        for l in new_v.real_links.values() {
+        for l in new_v.real_links() {
             vertices
                 .get_mut(l.obj_idx())
                 .ok_or(RepackError::GraphErrorInvalidObjIndex)?
@@ -1146,7 +1150,7 @@ impl Graph {
         let mut count = 0;
         for p in v.iter_parents() {
             let parent_v = &vertices[*p];
-            for l in parent_v.real_links.values() {
+            for l in parent_v.real_links() {
                 let width = l.link_width() as u8;
                 if l.obj_idx() == obj_idx && (width == 3 || width == 4) && !l.is_signed() {
                     count += 1;
@@ -1243,7 +1247,7 @@ impl Graph {
     fn raise_childrens_priority(&mut self, parent_idx: ObjIdx) -> bool {
         let children: Vec<usize> = self.vertices[parent_idx]
             .real_links
-            .values()
+            .iter()
             .chain(self.vertices[parent_idx].virtual_links.iter())
             .map(|l| l.obj_idx())
             .collect();
@@ -1287,7 +1291,7 @@ impl Graph {
         let mut old_to_new_idx_parents = Vec::new();
         for parent_idx in parents.iter() {
             let parent_idx = parent_idx as usize;
-            for l in self.vertices[parent_idx].real_links.values_mut() {
+            for l in self.vertices[parent_idx].real_links.iter_mut() {
                 if l.obj_idx() != child_idx {
                     continue;
                 }
@@ -1403,8 +1407,12 @@ impl Graph {
     // within vertices[idx].
     pub(crate) fn index_for_position(&self, idx: ObjIdx, position: u32) -> Option<ObjIdx> {
         let v = self.vertices.get(idx)?;
-        let link = v.real_links.get(&position)?;
-        Some(link.obj_idx())
+        for l in v.real_links() {
+            if l.position() == position {
+                return Some(l.obj_idx());
+            }
+        }
+        None
     }
 
     fn add_parent_child_link(
@@ -1443,7 +1451,7 @@ impl Graph {
         let old_parent_v = self.vertices.get_mut(old_parent_idx).unwrap();
 
         // remove from old parent
-        let Some((_, link)) = old_parent_v.real_links.remove_entry(&old_offset) else {
+        let Some(link) = old_parent_v.remove_real_link(old_offset) else {
             return Ok(None);
         };
 
@@ -1488,7 +1496,7 @@ impl Graph {
 
         for i in 0..num_child {
             let pos = old_offset_start + i * link_width as u32;
-            let Some((_, l)) = old_parent_v.real_links.remove_entry(&pos) else {
+            let Some(l) = old_parent_v.remove_real_link(pos) else {
                 continue;
             };
 
@@ -1642,10 +1650,11 @@ pub(crate) mod test {
 
     impl Vertex {
         // zeros all offsets
-        fn normalize(&self, data_bytes: &mut [u8]) {
+        fn normalize(&mut self, data_bytes: &mut [u8]) {
+            self.real_links.sort_by_key(|a| a.position());
             let head = self.head;
-            for (pos, l) in self.real_links.iter() {
-                let pos = head + *pos as usize;
+            for l in self.real_links() {
+                let pos = head + l.position() as usize;
                 let width = l.link_width() as u8;
                 data_bytes
                     .get_mut(pos..pos + width as usize)
@@ -1660,13 +1669,13 @@ pub(crate) mod test {
                 return false;
             }
 
-            let real_links = &self.real_links;
-            let other_real_links = &other.real_links;
+            let real_links = self.real_links();
+            let other_real_links = other.real_links();
             if real_links.len() != other_real_links.len() {
                 return false;
             }
 
-            for (link_a, link_b) in real_links.values().zip(other_real_links.values()) {
+            for (link_a, link_b) in real_links.iter().zip(other_real_links.iter()) {
                 if !links_equal(link_a, link_b, this_graph, other_graph) {
                     return false;
                 }
@@ -1693,7 +1702,7 @@ pub(crate) mod test {
 
     impl Graph {
         pub(crate) fn normalize(&mut self) {
-            for v in &self.vertices {
+            for v in self.vertices.iter_mut() {
                 v.normalize(&mut self.data);
             }
         }
@@ -1966,15 +1975,15 @@ pub(crate) mod test {
         let data_bytes = &graph.data;
         let obj_6 = &graph.vertices[6];
         assert_eq!(data_bytes.get(obj_6.head..obj_6.head + 3).unwrap(), b"jkl");
-        assert_eq!(obj_6.real_links.len(), 1);
-        assert_eq!(obj_6.real_links.values().next().unwrap().obj_idx(), 0);
+        assert_eq!(obj_6.real_links().len(), 1);
+        assert_eq!(obj_6.real_links()[0].obj_idx(), 0);
 
         let obj_5 = &graph.vertices[5];
         assert_eq!(data_bytes.get(obj_5.head..obj_5.head + 3).unwrap(), b"abc");
-        assert_eq!(obj_5.real_links.len(), 3);
+        assert_eq!(obj_5.real_links().len(), 3);
         let child_idxes: IntSet<u32> = obj_5
             .real_links
-            .values()
+            .iter()
             .map(|l| l.obj_idx() as u32)
             .collect();
         assert!(child_idxes.contains(4));
@@ -1983,18 +1992,18 @@ pub(crate) mod test {
 
         let obj_4 = &graph.vertices[4];
         assert_eq!(data_bytes.get(obj_4.head..obj_4.head + 3).unwrap(), b"def");
-        assert_eq!(obj_4.real_links.len(), 1);
-        assert_eq!(obj_4.real_links.values().next().unwrap().obj_idx(), 3);
+        assert_eq!(obj_4.real_links().len(), 1);
+        assert_eq!(obj_4.real_links()[0].obj_idx(), 3);
 
         let obj_3 = &graph.vertices[3];
         assert_eq!(data_bytes.get(obj_3.head..obj_3.head + 3).unwrap(), b"ghi");
-        assert_eq!(obj_3.real_links.len(), 1);
-        assert_eq!(obj_3.real_links.values().next().unwrap().obj_idx(), 6);
+        assert_eq!(obj_3.real_links().len(), 1);
+        assert_eq!(obj_3.real_links()[0].obj_idx(), 6);
 
         let obj_2 = &graph.vertices[2];
         assert_eq!(data_bytes.get(obj_2.head..obj_2.head + 3).unwrap(), b"jkl");
-        assert_eq!(obj_2.real_links.len(), 1);
-        assert_eq!(obj_2.real_links.values().next().unwrap().obj_idx(), 0);
+        assert_eq!(obj_2.real_links().len(), 1);
+        assert_eq!(obj_2.real_links()[0].obj_idx(), 0);
 
         let obj_1 = &graph.vertices[1];
         assert_eq!(data_bytes.get(obj_1.head..obj_1.head + 2).unwrap(), b"mn");

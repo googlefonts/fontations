@@ -79,23 +79,32 @@ struct TableInfo {
 }
 
 fn get_table_info(graph: &mut Graph, table_idx: ObjIdx) -> Option<TableInfo> {
-    let table_links = graph.vertex(table_idx)?.real_links();
+    let mut mark_coverage_idx = None;
+    let mut base_coverage_idx = None;
+    let mut mark_array_idx = None;
+    let mut base_array_idx = None;
 
-    let mark_coverage_idx = table_links
-        .get(&MarkBasePosFormat1::MARK_COVERAGE_OFFSET_POS)?
-        .obj_idx();
+    for l in graph.vertex(table_idx)?.real_links() {
+        match l.position() {
+            MarkBasePosFormat1::MARK_COVERAGE_OFFSET_POS => mark_coverage_idx = Some(l.obj_idx()),
+            MarkBasePosFormat1::BASE_COVERAGE_OFFSET_POS => base_coverage_idx = Some(l.obj_idx()),
+            MarkBasePosFormat1::MARK_ARRAY_OFFSET_POS => mark_array_idx = Some(l.obj_idx()),
+            MarkBasePosFormat1::BASE_ARRAY_OFFSET_POS => base_array_idx = Some(l.obj_idx()),
+            _ => (),
+        }
+        if mark_coverage_idx.is_some()
+            && base_coverage_idx.is_some()
+            && mark_array_idx.is_some()
+            && base_array_idx.is_some()
+        {
+            break;
+        }
+    }
 
-    let base_coverage_idx = table_links
-        .get(&MarkBasePosFormat1::BASE_COVERAGE_OFFSET_POS)?
-        .obj_idx();
-
-    let mark_array_idx = table_links
-        .get(&MarkBasePosFormat1::MARK_ARRAY_OFFSET_POS)?
-        .obj_idx();
-
-    let base_array_idx = table_links
-        .get(&MarkBasePosFormat1::BASE_ARRAY_OFFSET_POS)?
-        .obj_idx();
+    let mark_coverage_idx = mark_coverage_idx?;
+    let base_coverage_idx = base_coverage_idx?;
+    let mark_array_idx = mark_array_idx?;
+    let base_array_idx = base_array_idx?;
 
     let mark_class_count = MarkBasePosFormat1::from_graph(graph, table_idx)
         .ok()?
@@ -407,28 +416,13 @@ fn shrink_mark_array(
 
     mark_array_v.tail -= 4 * (org_mark_count - new_mark_count) as usize;
 
-    let links = &mut mark_array_v.real_links;
-    let mut new_links = Vec::with_capacity(links.len());
-    for (new_idx, old_idx) in retained_mark_classes
-        .iter()
-        .map(|(old_idx, _)| *old_idx as u32)
-        .enumerate()
-    {
-        let old_pos = old_idx * 4 + 4;
-        let Some((_, mut l)) = links.remove_entry(&old_pos) else {
-            continue;
-        };
+    mark_array_v.real_links.sort_by_key(|a| a.position());
 
-        let new_pos = new_idx as u32 * 4 + 4;
+    let mut new_pos = MarkArray::MIN_SIZE as u32 + 2;
+    for l in mark_array_v.real_links.iter_mut() {
         l.update_position(new_pos);
-        new_links.push((new_pos, l));
+        new_pos += 4;
     }
-
-    // sanity check
-    if !links.is_empty() {
-        return Err(RepackError::ErrorSplitSubtable);
-    }
-    links.extend(new_links);
     Ok(())
 }
 
@@ -445,26 +439,19 @@ fn shrink_base_array(
     let base_count = table_info.base_count;
     base_array_v.tail -= (mark_class_count - shrink_point) * Offset16::RAW_BYTE_LEN * base_count;
 
-    let links = &mut base_array_v.real_links;
-    let mut new_links = Vec::with_capacity(links.len());
-    for i in 0..base_count as u32 {
-        for class in 0..shrink_point as u32 {
-            let old_pos = 2 + (i * mark_class_count as u32 + class) * 2;
-            let Some((_, mut l)) = links.remove_entry(&old_pos) else {
-                continue;
-            };
-
-            let new_pos = 2 + (i * shrink_point as u32 + class) * 2;
-            l.update_position(new_pos);
-            new_links.push((new_pos, l));
+    base_array_v.real_links.sort_by_key(|a| a.position());
+    for l in base_array_v.real_links.iter_mut() {
+        let index = (l.position() - 2) / 2;
+        let base = index / mark_class_count as u32;
+        let class = index % mark_class_count as u32;
+        // sanity check
+        if class as usize >= shrink_point {
+            // should have been removed
+            return Err(RepackError::ErrorSplitSubtable);
         }
+        let new_index = base * shrink_point as u32 + class;
+        l.update_position(BaseArray::MIN_SIZE as u32 + 2 * new_index);
     }
-
-    // sanity check
-    if !links.is_empty() {
-        return Err(RepackError::ErrorSplitSubtable);
-    }
-    links.extend(new_links);
     Ok(())
 }
 

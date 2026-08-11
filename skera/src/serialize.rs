@@ -8,7 +8,6 @@ use std::{
 
 use crate::fnv::FnvHasher;
 use hashbrown::HashTable;
-use std::collections::BTreeMap;
 use write_fonts::types::{FixedSize, Scalar, Uint24};
 
 /// An error which occurred during the serialization of a table using Serializer.
@@ -120,9 +119,9 @@ impl Object {
         self.tail
     }
 
-    // used by repacker only, real_links vector is converted to BTreeMap
-    pub(crate) fn real_links(&self) -> BTreeMap<u32, Link> {
-        self.real_links.iter().map(|l| (l.position, *l)).collect()
+    // used by repacker only
+    pub(crate) fn real_links(&self) -> Vec<Link> {
+        self.real_links.clone()
     }
 
     pub(crate) fn virtual_links(&self) -> Vec<Link> {
@@ -180,6 +179,10 @@ impl Link {
 
     pub(crate) fn bias(&self) -> u32 {
         self.bias
+    }
+
+    pub(crate) fn position(&self) -> u32 {
+        self.position
     }
 
     pub(crate) fn is_signed(&self) -> bool {
