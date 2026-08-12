@@ -8,6 +8,6 @@ mod range_set;
 pub use range_set::RangeSet;
 
 #[cfg(feature = "std")]
-pub mod fnv;
+pub(crate) mod fnv;
 #[cfg(feature = "std")]
-pub use fnv::FnvHashMap;
+pub(crate) use fnv::FnvHashMap;
