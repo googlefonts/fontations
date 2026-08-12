@@ -54,7 +54,12 @@ impl Version16Dot16 {
     pub const VERSION_3_0: Version16Dot16 = Version16Dot16::new(3, 0);
 
     /// Create a new version with the provided major and minor parts.
+    ///
+    /// The minor version must be in the range 0..=9, and will be clamped to
+    /// that range if it is not.
     pub const fn new(major: u16, minor: u16) -> Self {
+        // Clamp minor to 0..=9, but in a way that works in a const context
+        let minor = if minor > 9 { 9 } else { minor };
         let version = ((major as u32) << 16) | ((minor as u32) << 12);
         Version16Dot16(version)
     }
@@ -180,5 +185,16 @@ mod tests {
         assert_eq!(Version16Dot16(0x00011000).to_major_minor(), (1, 1));
         assert_eq!(Version16Dot16::new(0, 5).0, 0x00005000);
         assert_eq!(Version16Dot16::new(1, 1).0, 0x00011000);
+    }
+
+    #[test]
+    fn minor_version_clamped_test() {
+        for minor in 0..=9 {
+            assert_eq!(Version16Dot16::new(1, minor).to_major_minor(), (1, minor));
+        }
+        // Minor versions above 9 should be clamped
+        for minor in [10, u16::MAX] {
+            assert_eq!(Version16Dot16::new(1, minor).to_major_minor(), (1, 9));
+        }
     }
 }
