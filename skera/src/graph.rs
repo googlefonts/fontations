@@ -356,10 +356,9 @@ impl Vertex {
                 }
             }
             Parents::Multiple(ref mut parents_map) => {
-                let Some(&v) = parents_map.get(&old_parent) else {
+                let Some((_, v)) = parents_map.remove_entry(&old_parent) else {
                     return;
                 };
-                parents_map.remove(&old_parent);
                 parents_map.insert(new_parent, v);
                 if self.virtual_parents.remove(old_parent as u32) {
                     self.virtual_parents.insert(new_parent as u32);
