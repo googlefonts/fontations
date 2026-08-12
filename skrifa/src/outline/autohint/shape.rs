@@ -623,7 +623,7 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
     /// returns the range of touched glyphs.
     fn finish(self) -> Option<Range<usize>> {
         self.visited_set.clear();
-        if self.min_gid > self.max_gid {
+        if self.min_gid > self.max_gid || self.glyph_styles.is_empty() {
             // We didn't touch any glyphs
             return None;
         }
@@ -632,7 +632,7 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
             // We didn't find any substitutions for our blue strings so
             // we ignore the style. Clear the GSUB marker for any touched
             // glyphs
-            for glyph in &mut self.glyph_styles[range] {
+            for glyph in self.glyph_styles.get_mut(range)? {
                 glyph.clear_from_gsub();
             }
             None
@@ -789,6 +789,25 @@ mod tests {
             &mut visited_set,
         );
         gsub_handler.process_lookup(0).unwrap();
+    }
+
+    #[test]
+    fn finish_with_empty_glyph_styles() {
+        let font = FontRef::new(font_test_data::NOTOSERIF_AUTOHINT_SHAPING).unwrap();
+        let shaper = Shaper::new(&font, ShaperMode::BestEffort);
+        let style = &style::STYLE_CLASSES[style::StyleClass::LATN];
+        let lookup_list_buf = BadLookupBuilder::default().build();
+        let lookup_list = SubstitutionLookupList::read(FontData::new(&lookup_list_buf)).unwrap();
+        let mut set_buf = [0u8; 8192];
+        let mut visited_set = VisitedLookupSet(&mut set_buf);
+        let gsub_handler = GsubHandler::new(
+            &shaper.charmap,
+            &lookup_list,
+            style,
+            &mut [],
+            &mut visited_set,
+        );
+        assert_eq!(gsub_handler.finish(), None);
     }
 
     #[test]
