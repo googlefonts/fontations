@@ -1297,14 +1297,21 @@ mod tests {
         use read_fonts::{FontData, FontRead};
         // Linear chain of Format5Negate tables: each is `format(u16 BE = 5)` +
         // `condition_offset(Offset24 BE = 5)`, so every table points 5 bytes
-        // forward to the next -> an arbitrarily deep condition tree. `CHAIN_LEN`
-        // is far larger than the limit, proving evaluation bails out early rather
-        // than walking (and recursing into) the whole chain.
-        const CHAIN_LEN: usize = 4096;
-        let mut bytes = Vec::with_capacity(CHAIN_LEN * 5);
+        // forward to the next, terminated by a ConditionFormat1 leaf so the
+        // graph is well formed.
+        //
+        // `Condition::read` sanitizes, which walks the chain eagerly and
+        // enforces its own (higher) depth limit. Sitting between the two limits
+        // keeps the chain readable while still out-running evaluation, so this
+        // exercises `eval_condition`'s guard rather than riding on sanitize
+        // having already rejected the input.
+        const CHAIN_LEN: usize = GLYF_COMPOSITE_RECURSION_LIMIT + 8;
+        let mut bytes = Vec::with_capacity(CHAIN_LEN * 5 + 8);
         for _ in 0..CHAIN_LEN {
             bytes.extend_from_slice(&[0x00, 0x05, 0x00, 0x00, 0x05]);
         }
+        // ConditionFormat1: axis 0, filter range [-1.0, 1.0].
+        bytes.extend_from_slice(&[0x00, 0x01, 0x00, 0x00, 0xC0, 0x00, 0x40, 0x00]);
         let cond = Condition::read(FontData::new(&bytes)).unwrap();
 
         let (_font, store, regions) = condition_eval_env();
