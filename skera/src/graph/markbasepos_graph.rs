@@ -416,13 +416,24 @@ fn shrink_mark_array(
 
     mark_array_v.tail -= 4 * (org_mark_count - new_mark_count) as usize;
 
-    mark_array_v.real_links.sort_if_needed();
+    let links = &mut mark_array_v.real_links;
+    let mut new_links = Vec::with_capacity(links.len());
+    for (new_idx, old_idx) in retained_mark_classes
+        .iter()
+        .map(|(old_idx, _)| *old_idx as u32)
+        .enumerate()
+    {
+        let old_pos = old_idx * 4 + 4;
+        let Some(mut l) = links.remove_real_link(old_pos) else {
+            continue;
+        };
 
-    let mut new_pos = MarkArray::MIN_SIZE as u32 + 2;
-    for l in mark_array_v.real_links.iter_mut() {
+        let new_pos = new_idx as u32 * 4 + 4;
         l.update_position(new_pos);
-        new_pos += 4;
+        new_links.push(l);
     }
+
+    links.extend_unsorted(&new_links);
     Ok(())
 }
 
@@ -439,8 +450,7 @@ fn shrink_base_array(
     let base_count = table_info.base_count;
     base_array_v.tail -= (mark_class_count - shrink_point) * Offset16::RAW_BYTE_LEN * base_count;
 
-    base_array_v.real_links.sort_if_needed();
-    for l in base_array_v.real_links.iter_mut() {
+    for l in base_array_v.real_links.sorted_iter_mut() {
         let index = (l.position() - 2) / 2;
         let base = index / mark_class_count as u32;
         let class = index % mark_class_count as u32;

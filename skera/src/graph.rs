@@ -60,7 +60,7 @@ pub(crate) enum RealLinks {
 
 impl Default for RealLinks {
     fn default() -> Self {
-        RealLinks::Unsorted(Vec::new())
+        RealLinks::Sorted(Vec::new())
     }
 }
 
@@ -73,10 +73,21 @@ impl RealLinks {
     }
 
     /// Returns a mutable iterator over the links.
+    /// links will be set to Unsorted since Link::update_position()
+    /// could potentially invalidate the order of sorted links
     fn iter_mut(&mut self) -> std::slice::IterMut<'_, Link> {
+        if let Self::Sorted(v) = self {
+            *self = Self::Unsorted(std::mem::take(v));
+        }
+
         match self {
             RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.iter_mut(),
         }
+    }
+
+    fn sorted_iter_mut(&mut self) -> std::slice::IterMut<'_, Link> {
+        self.sort_if_needed();
+        self.iter_mut()
     }
 
     fn is_empty(&self) -> bool {
@@ -92,13 +103,9 @@ impl RealLinks {
     }
 
     fn sort_if_needed(&mut self) {
-        if let RealLinks::Unsorted(_) = self {
-            let tmp_state = std::mem::take(self);
-
-            if let RealLinks::Unsorted(mut v) = tmp_state {
-                v.sort_unstable_by_key(|link| link.position());
-                *self = RealLinks::Sorted(v);
-            }
+        if let Self::Unsorted(v) = self {
+            v.sort_unstable_by_key(|link| link.position());
+            *self = Self::Sorted(std::mem::take(v));
         }
     }
 
@@ -175,6 +182,16 @@ impl RealLinks {
                 .ok()
                 .map(|idx| v[idx].obj_idx()),
             RealLinks::Unsorted(v) => v.iter().find(|&l| l.position() == pos).map(|l| l.obj_idx()),
+        }
+    }
+
+    fn extend_unsorted(&mut self, other: &[Link]) {
+        if let Self::Sorted(v) = self {
+            *self = Self::Unsorted(std::mem::take(v));
+        }
+
+        match self {
+            RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.extend_from_slice(other),
         }
     }
 }
@@ -365,6 +382,11 @@ impl Vertex {
         single_opt
             .into_iter()
             .chain(multiple_opt.into_iter().flatten())
+    }
+
+    #[inline]
+    fn all_links(&self) -> impl Iterator<Item = &Link> {
+        self.real_links.iter().chain(self.virtual_links.iter())
     }
 
     fn link_positions_valid(&self, num_objs: usize) -> bool {
@@ -627,7 +649,7 @@ impl Graph {
             pos += 1;
 
             let next_v = &self.vertices[next_id];
-            for link in next_v.real_links.iter().chain(next_v.virtual_links.iter()) {
+            for link in next_v.all_links() {
                 let child_idx = link.obj_idx();
                 removed_edges[child_idx] += 1;
 
@@ -721,7 +743,7 @@ impl Graph {
             let next_v = &self.vertices[next_idx];
             visited[next_idx] = true;
 
-            for link in next_v.real_links.iter().chain(next_v.virtual_links.iter()) {
+            for link in next_v.all_links() {
                 let child_idx = link.obj_idx();
                 if visited[child_idx] {
                     continue;
@@ -959,7 +981,7 @@ impl Graph {
         }
 
         let v = &self.vertices[start_idx];
-        for l in v.real_links.iter().chain(v.virtual_links.iter()) {
+        for l in v.all_links() {
             self.find_connected_nodes(l.obj_idx(), targets, visited, connected);
         }
 
@@ -1021,7 +1043,7 @@ impl Graph {
         }
 
         let v = &self.vertices[obj_idx];
-        for l in v.real_links.iter().chain(v.virtual_links.iter()) {
+        for l in v.all_links() {
             self.find_subgraph_nodes(l.obj_idx(), subgraph);
         }
     }
@@ -1032,7 +1054,7 @@ impl Graph {
         subgraph_map: &mut FnvHashMap<u32, usize>,
     ) {
         let v = &self.vertices[start_idx];
-        for l in v.real_links.iter().chain(v.virtual_links.iter()) {
+        for l in v.all_links() {
             let obj_idx = l.obj_idx();
             let v = subgraph_map
                 .entry(obj_idx as u32)
@@ -1065,7 +1087,7 @@ impl Graph {
             return Ok(size);
         }
 
-        for l in v.real_links.iter().chain(v.virtual_links.iter()) {
+        for l in v.all_links() {
             size += self.find_subgraph_size(l.obj_idx(), visited, max_depth - 1)?;
         }
 
