@@ -13,7 +13,7 @@ members = [
     "skera",
     "fuzz",
     "shared-brotli-patch-decoder",
-    "incremental-font-transfer",
+    "incremental-font-transfer", "skrifa_cxx",
 ]
 
 [workspace.package]
