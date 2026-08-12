@@ -12,8 +12,8 @@ repository.workspace = true
 
 [package.metadata.docs.rs]
 # To build locally:
-# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --features libm,serde,std
-features = ["libm", "serde", "std"]
+# RUSTDOCFLAGS="--cfg docsrs" cargo +nightly doc --features agl,libm,serde,std
+features = ["agl", "libm", "serde", "std"]
 
 [features]
 std = ["font-types/std"]
