@@ -3,9 +3,9 @@ use crate::{
     graph::{
         coverage_graph::{add_new_coverage, coverage_glyphs, make_coverage},
         layout::DataBytes,
-        Graph, RepackError,
+        Graph, RealLinks, RepackError,
     },
-    serialize::{Link, LinkWidth, ObjIdx, Serializer},
+    serialize::{LinkWidth, ObjIdx, Serializer},
     Serialize,
 };
 use write_fonts::{
@@ -605,21 +605,17 @@ fn get_device_table_indices(val: u16) -> Vec<u8> {
 
 fn size_of_value_record_children(
     graph: &Graph,
-    links: &[Link],
+    links: &RealLinks,
     device_table_indices: &[u8],
     value_record_index: u32,
     visited: &mut IntSet<u32>,
 ) -> Result<usize, RepackError> {
     let mut size = 0;
     let record_start_pos = PairPosFormat2::MIN_SIZE as u32 + value_record_index * 2;
-    for l in links {
-        let link_pos = l.position();
-        // maximum num of device_table_indices is 4
-        for &i in device_table_indices {
-            let pos = record_start_pos + i as u32 * 2;
-            if pos == link_pos {
-                size += graph.find_subgraph_size(l.obj_idx(), visited, u16::MAX)?;
-            }
+    for &i in device_table_indices {
+        let pos = record_start_pos + i as u32 * 2;
+        if let Some(obj_idx) = links.link_index_at_position(pos) {
+            size += graph.find_subgraph_size(obj_idx, visited, u16::MAX)?;
         }
     }
     Ok(size)

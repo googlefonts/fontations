@@ -416,7 +416,7 @@ fn shrink_mark_array(
 
     mark_array_v.tail -= 4 * (org_mark_count - new_mark_count) as usize;
 
-    mark_array_v.real_links.sort_by_key(|a| a.position());
+    mark_array_v.real_links.sort_if_needed();
 
     let mut new_pos = MarkArray::MIN_SIZE as u32 + 2;
     for l in mark_array_v.real_links.iter_mut() {
@@ -439,7 +439,7 @@ fn shrink_base_array(
     let base_count = table_info.base_count;
     base_array_v.tail -= (mark_class_count - shrink_point) * Offset16::RAW_BYTE_LEN * base_count;
 
-    base_array_v.real_links.sort_by_key(|a| a.position());
+    base_array_v.real_links.sort_if_needed();
     for l in base_array_v.real_links.iter_mut() {
         let index = (l.position() - 2) / 2;
         let base = index / mark_class_count as u32;

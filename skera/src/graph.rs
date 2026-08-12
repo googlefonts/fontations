@@ -52,12 +52,157 @@ pub(crate) enum Parents {
     Multiple(FnvHashMap<ObjIdx, usize>),
 }
 
+#[derive(Clone, Debug)]
+pub(crate) enum RealLinks {
+    Unsorted(Vec<Link>),
+    Sorted(Vec<Link>),
+}
+
+impl Default for RealLinks {
+    fn default() -> Self {
+        RealLinks::Unsorted(Vec::new())
+    }
+}
+
+impl RealLinks {
+    /// Returns an immutable iterator over the links.
+    fn iter(&self) -> std::slice::Iter<'_, Link> {
+        match self {
+            RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.iter(),
+        }
+    }
+
+    /// Returns a mutable iterator over the links.
+    fn iter_mut(&mut self) -> std::slice::IterMut<'_, Link> {
+        match self {
+            RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.iter_mut(),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        match self {
+            RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.is_empty(),
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.len(),
+        }
+    }
+
+    fn sort_if_needed(&mut self) {
+        if let RealLinks::Unsorted(_) = self {
+            let tmp_state = std::mem::take(self);
+
+            if let RealLinks::Unsorted(mut v) = tmp_state {
+                v.sort_unstable_by_key(|link| link.position());
+                *self = RealLinks::Sorted(v);
+            }
+        }
+    }
+
+    fn add_link(&mut self, link: Link) {
+        let tmp_state = std::mem::take(self);
+        *self = match tmp_state {
+            RealLinks::Unsorted(mut v) => {
+                v.push(link);
+                RealLinks::Unsorted(v)
+            }
+            RealLinks::Sorted(mut v) => {
+                let still_sorted = v
+                    .last()
+                    .is_none_or(|last| link.position() > last.position());
+                v.push(link);
+
+                if still_sorted {
+                    RealLinks::Sorted(v)
+                } else {
+                    RealLinks::Unsorted(v)
+                }
+            }
+        }
+    }
+
+    fn clear(&mut self) {
+        match self {
+            RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v.clear(),
+        }
+    }
+
+    fn update_link_at_pos(&mut self, pos: u32, obj_idx: ObjIdx) -> bool {
+        let link = match self {
+            RealLinks::Sorted(ref mut v) => v
+                .binary_search_by_key(&pos, |a| a.position())
+                .ok()
+                .and_then(|idx| v.get_mut(idx)),
+            RealLinks::Unsorted(ref mut v) => v.iter_mut().find(|l| l.position() == pos),
+        };
+        if let Some(link) = link {
+            link.update_obj_idx(obj_idx);
+            return true;
+        }
+
+        false
+    }
+
+    // removes an real link at specified position and returns it
+    fn remove_real_link(&mut self, pos: u32) -> Option<Link> {
+        let tmp_state = std::mem::take(self);
+        match tmp_state {
+            RealLinks::Sorted(mut v) => {
+                let out = v
+                    .binary_search_by_key(&pos, |a| a.position())
+                    .ok()
+                    .map(|idx| v.swap_remove(idx));
+                *self = RealLinks::Unsorted(v);
+                out
+            }
+            RealLinks::Unsorted(mut v) => {
+                let out = (0..v.len())
+                    .find(|&i| v[i].position() == pos)
+                    .map(|i| v.swap_remove(i));
+                *self = RealLinks::Unsorted(v);
+                out
+            }
+        }
+    }
+
+    fn link_index_at_position(&self, pos: u32) -> Option<ObjIdx> {
+        match self {
+            RealLinks::Sorted(v) => v
+                .binary_search_by_key(&pos, |a| a.position())
+                .ok()
+                .map(|idx| v[idx].obj_idx()),
+            RealLinks::Unsorted(v) => v.iter().find(|&l| l.position() == pos).map(|l| l.obj_idx()),
+        }
+    }
+}
+
+impl<'a> IntoIterator for &'a RealLinks {
+    type Item = &'a Link;
+    type IntoIter = std::slice::Iter<'a, Link>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut RealLinks {
+    type Item = &'a mut Link;
+    type IntoIter = std::slice::IterMut<'a, Link>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
 #[derive(Default, Debug)]
 pub(crate) struct Vertex {
     head: usize,
     tail: usize,
     // real links are associated with actual offsets
-    real_links: Vec<Link>,
+    real_links: RealLinks,
     // virtual links not associated with actual offsets,
     // they exist merely to enforce an ordering constraint.
     virtual_links: Vec<Link>,
@@ -78,7 +223,7 @@ impl Vertex {
         Self {
             head: obj.head(),
             tail: obj.tail(),
-            real_links: obj.real_links(),
+            real_links: RealLinks::Unsorted(obj.real_links()),
             virtual_links: obj.virtual_links(),
             ..Default::default()
         }
@@ -330,7 +475,7 @@ impl Vertex {
         if is_virtual {
             self.virtual_links.push(link);
         } else {
-            self.real_links.push(link);
+            self.real_links.add_link(link);
         }
     }
 
@@ -355,27 +500,19 @@ impl Vertex {
         pos: u32,
         new_child_idx: ObjIdx,
     ) -> Result<(), RepackError> {
-        for l in self.real_links.iter_mut() {
-            if l.position() == pos {
-                l.update_obj_idx(new_child_idx);
-                return Ok(());
-            }
+        if self.real_links.update_link_at_pos(pos, new_child_idx) {
+            return Ok(());
         }
         Err(RepackError::GraphErrorInvalidLinkPosition)
     }
 
-    fn real_links(&self) -> &[Link] {
+    fn real_links(&self) -> &RealLinks {
         &self.real_links
     }
 
     // removes an real link at specified position and returns it
     fn remove_real_link(&mut self, pos: u32) -> Option<Link> {
-        for idx in 0..self.real_links.len() {
-            if self.real_links[idx].position() == pos {
-                return Some(self.real_links.swap_remove(idx));
-            }
-        }
-        None
+        self.real_links.remove_real_link(pos)
     }
 }
 
@@ -1405,14 +1542,12 @@ impl Graph {
 
     // Finds the object idx of the object pointed to by the offset at specified 'position'
     // within vertices[idx].
+    #[inline]
     pub(crate) fn index_for_position(&self, idx: ObjIdx, position: u32) -> Option<ObjIdx> {
-        let v = self.vertices.get(idx)?;
-        for l in v.real_links() {
-            if l.position() == position {
-                return Some(l.obj_idx());
-            }
-        }
-        None
+        self.vertices
+            .get(idx)?
+            .real_links
+            .link_index_at_position(position)
     }
 
     fn add_parent_child_link(
@@ -1646,12 +1781,13 @@ fn serialize_link(
 pub(crate) mod test {
     use super::*;
     use crate::serialize::OffsetWhence;
+    use std::ops::Index;
     use write_fonts::types::{FixedSize, Offset16, Offset24, Offset32, Scalar};
 
     impl Vertex {
         // zeros all offsets
         fn normalize(&mut self, data_bytes: &mut [u8]) {
-            self.real_links.sort_by_key(|a| a.position());
+            self.real_links.sort_if_needed();
             let head = self.head;
             for l in self.real_links() {
                 let pos = head + l.position() as usize;
@@ -1687,6 +1823,17 @@ pub(crate) mod test {
             let head = self.head;
             let table_size = self.table_size();
             graph.data.get(head..head + table_size).unwrap()
+        }
+    }
+
+    impl Index<usize> for RealLinks {
+        type Output = Link;
+
+        fn index(&self, index: usize) -> &Self::Output {
+            let vec = match self {
+                RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v,
+            };
+            &vec[index]
         }
     }
 

@@ -438,7 +438,8 @@ fn compact_lig_set(graph: &mut Graph, liga_set_index: ObjIdx) -> Result<(), Repa
 
     let lig_set_v = &mut graph.vertices[liga_set_index];
     let mut new_pos = LigatureSet::MIN_SIZE as u32;
-    lig_set_v.real_links.sort_by_key(|a| a.position());
+
+    lig_set_v.real_links.sort_if_needed();
     for l in lig_set_v.real_links.iter_mut() {
         l.update_position(new_pos);
         new_pos += Offset16::RAW_BYTE_LEN as u32;

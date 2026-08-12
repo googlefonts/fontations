@@ -259,7 +259,7 @@ impl Graph {
             let pos = start_pos + Offset16::RAW_BYTE_LEN as u32 * i;
             new_lookup_v
                 .real_links
-                .push(Link::new(LinkWidth::Two, *subtable_idx, pos));
+                .add_link(Link::new(LinkWidth::Two, *subtable_idx, pos));
         }
 
         for subtable in subtable_idxes {
