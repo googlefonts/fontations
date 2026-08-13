@@ -36,8 +36,8 @@ impl<'a> Sanitize<'a> for Table1<'a> {
         ctx.advance::<u16>();
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -149,8 +149,8 @@ impl<'a> Sanitize<'a> for Table2<'a> {
         ctx.sanitize_array::<u16>(transforms::to_usize(value_count))?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -252,8 +252,8 @@ impl<'a> Sanitize<'a> for Table3<'a> {
         ctx.advance::<u16>();
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -381,15 +381,13 @@ impl<'a> Sanitize<'a> for MyTable<'a> {
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        let Ok(format) = data.read_at::<u16>(0usize) else {
-            return MyTable::default();
-        };
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        let format = data.read_at::<u16>(0usize).ok()?;
         match format {
-            Table1::FORMAT => MyTable::Format1(Table1::read_fast(data, ())),
-            Table2::FORMAT => MyTable::MyFormat22(Table2::read_fast(data, ())),
-            Table3::FORMAT => MyTable::Format3(Table3::read_fast(data, ())),
-            _ => MyTable::default(),
+            Table1::FORMAT => Table1::read_fast(data, ()).map(MyTable::Format1),
+            Table2::FORMAT => Table2::read_fast(data, ()).map(MyTable::MyFormat22),
+            Table3::FORMAT => Table3::read_fast(data, ()).map(MyTable::Format3),
+            _ => None,
         }
     }
 }

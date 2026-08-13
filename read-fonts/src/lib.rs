@@ -191,6 +191,38 @@ pub(crate) mod codegen_prelude {
         }
     }
 
+    /// The body of a generated `Sanitize::read_fast`.
+    ///
+    /// Takes the complete constructor for the table and wraps it in the single
+    /// `MIN_SIZE` bounds check, which is all `read_fast` does. The caller emits
+    /// the enclosing `fn` (and binds any read args), so that this works
+    /// uniformly for plain, generic, and read-args tables:
+    ///
+    /// ```ignore
+    /// fn read_fast(data: FontData<'a>, args: u16) -> Option<Self> {
+    ///     let mark_class_count = args;
+    ///     read_fast_impl!(Self { data, mark_class_count })
+    /// }
+    /// ```
+    ///
+    /// Note that we construct first and check afterwards, reaching the data
+    /// through the built value's field rather than naming the caller's `data`
+    /// binding: macro_rules hygiene means an identifier written here cannot
+    /// resolve to a local introduced at the call site, but field access is
+    /// resolved against the type and works fine. Constructing is just moving
+    /// fields, so doing it before the check is free.
+    #[macro_export]
+    macro_rules! read_fast_impl {
+        ($ctor:expr) => {{
+            let this = $ctor;
+            #[allow(clippy::absurd_extreme_comparisons)] // if MIN_SIZE is 0
+            if this.data.len() < Self::MIN_SIZE {
+                return None;
+            }
+            Some(this)
+        }};
+    }
+
     #[macro_export]
     macro_rules! basic_table_impls {
         (impl_the_methods) => {
@@ -222,6 +254,11 @@ pub(crate) mod codegen_prelude {
     }
 
     pub(crate) use crate::basic_table_impls;
+    // gated to match the rest of the sanitize machinery above: only the
+    // codegen-test modules are sanitized so far, so nothing invokes this in a
+    // default build
+    #[cfg(any(test, feature = "codegen_test"))]
+    pub(crate) use crate::read_fast_impl;
 }
 
 include!("../generated/font.rs");

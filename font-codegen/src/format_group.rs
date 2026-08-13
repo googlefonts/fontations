@@ -202,8 +202,9 @@ fn generate_sanitize(item: &TableFormat) -> TokenStream {
         .collect();
 
     // `read_fast` dispatches on the format like `sanitize`, but constructs the
-    // matched variant via its own `read_fast` (no validation). Soundness relies on
-    // the bytes having already been sanitized.
+    // matched variant via its own `read_fast`. This mirrors the `FontRead` body we
+    // generate for non-sanitized format groups: an unreadable or unknown format
+    // yields `None` rather than a silent fallback to some other variant.
     let fast_read_arms: Vec<_> = non_write_only
         .iter()
         .map(|variant| {
@@ -215,7 +216,7 @@ fn generate_sanitize(item: &TableFormat) -> TokenStream {
             } else {
                 quote!(#typ::FORMAT)
             };
-            quote!(#lhs => #name::#var_name(#typ::read_fast(data, ())),)
+            quote!(#lhs => #typ::read_fast(data, ()).map(#name::#var_name),)
         })
         .collect();
 
@@ -235,14 +236,12 @@ fn generate_sanitize(item: &TableFormat) -> TokenStream {
                 }
             }
 
-            fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-                let Ok(format) = data.read_at::<#format>(#format_offset) else {
-                    return #name::default();
-                };
+            fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+                let format = data.read_at::<#format>(#format_offset).ok()?;
                 #maybe_allow_lint
                 match format {
                     #( #fast_read_arms )*
-                    _ => #name::default(),
+                    _ => None,
                 }
             }
         }

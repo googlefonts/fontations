@@ -266,24 +266,28 @@ fn generate_sanitize(item: &Table) -> syn::Result<TokenStream> {
     let generic_bounds = generic.map(|t| quote!(#t: Sanitize<'a, Args = #args_type>));
     let phantom = generic.map(|_| quote!(offset_type: std::marker::PhantomData,));
 
-    // `read_fast` is a required method on `Sanitize`: it constructs the table
-    // without any validation, and is only sound once the bytes have already been
-    // sanitized (which `read_checked`, and thus `FontRead`, guarantees).
+    // `read_fast` is a required method on `Sanitize`: it performs the same single
+    // bounds check that `FontRead` does for tables that don't route through
+    // sanitize, and nothing else. Everything beyond that check (validating the
+    // subgraph reachable through this table's offsets) is `sanitize`'s job.
+    //
+    // The check itself lives in the `read_fast_impl!` macro; we emit only the
+    // signature, any read-arg destructure, and the constructor.
     let read_fast = match item.attrs.read_args.as_ref() {
         Some(args) => {
             let typ = args.args_type();
             let destructure_pattern = args.destructure_pattern();
             let arg_idents = args.idents();
             quote! {
-                fn read_fast(data: FontData<'a>, args: #typ) -> Self {
+                fn read_fast(data: FontData<'a>, args: #typ) -> Option<Self> {
                     #destructure_pattern
-                    Self { data, #( #arg_idents, )* }
+                    read_fast_impl!(Self { data, #( #arg_idents, )* })
                 }
             }
         }
         None => quote! {
-            fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-                Self { data, #phantom }
+            fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+                read_fast_impl!(Self { data, #phantom })
             }
         },
     };

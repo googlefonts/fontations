@@ -31,8 +31,8 @@ impl<'a> Sanitize<'a> for CountAll16<'a> {
         sanitize_remainder(ctx)?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -128,8 +128,8 @@ impl<'a> Sanitize<'a> for CountAll32<'a> {
         sanitize_remainder(ctx)?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 

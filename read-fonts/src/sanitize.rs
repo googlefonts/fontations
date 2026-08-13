@@ -236,7 +236,12 @@ pub trait Sanitize<'a>: ReadArgs + Sized {
     /// does not need to be called manually? we'll do this automatically?
     fn sanitize(ctx: &mut SanitizeContext<'a, '_>, args: Self::Args) -> Result<(), ReadError>;
 
-    /// Read without performing any validation.
+    /// Read, performing only a single bounds check.
+    ///
+    /// Returns `None` if the data is not long enough to hold the table's
+    /// minimum-size fields (or, for a format group, if the format is one we
+    /// don't know). This does *not* validate the subgraph reachable through
+    /// this table's offsets, which is [`sanitize`]'s job.
     ///
     /// This is part of the sanitize machinery, and should generally not be
     /// called directly.
@@ -244,8 +249,10 @@ pub trait Sanitize<'a>: ReadArgs + Sized {
     /// The exception would be in certain performance-sensitive cases, where
     /// the caller ensures that this specific table (and these specific bytes)
     /// have already been sanitized.
+    ///
+    /// [`sanitize`]: Self::sanitize
     #[doc(hidden)]
-    fn read_fast(data: FontData<'a>, args: Self::Args) -> Self;
+    fn read_fast(data: FontData<'a>, args: Self::Args) -> Option<Self>;
 
     /// Validate the data, returning a table on success.
     fn read_checked(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
@@ -254,7 +261,8 @@ pub trait Sanitize<'a>: ReadArgs + Sized {
             cursor: data.cursor(),
             state: &mut state,
         };
-        Self::sanitize(&mut ctx, args).map(|_| Self::read_fast(data, args))
+        Self::sanitize(&mut ctx, args)
+            .and_then(|_| Self::read_fast(data, args).ok_or(ReadError::OutOfBounds))
     }
 }
 
@@ -356,7 +364,9 @@ impl<O: Offset> FastResolveOffset for O {
         args: T::Args,
     ) -> Result<T, ReadError> {
         match self.non_null() {
-            Some(off) => Ok(T::read_fast(data.split_off(off).unwrap(), args)),
+            Some(off) => {
+                T::read_fast(data.split_off(off).unwrap(), args).ok_or(ReadError::OutOfBounds)
+            }
             None => Ok(T::default()),
         }
     }
@@ -368,9 +378,9 @@ impl<O: Offset> FastResolveNullableOffset for Nullable<O> {
         data: FontData<'a>,
         args: T::Args,
     ) -> Option<Result<T, ReadError>> {
-        self.offset()
-            .non_null()
-            .map(|off| Ok(T::read_fast(data.split_off(off).unwrap(), args)))
+        self.offset().non_null().map(|off| {
+            T::read_fast(data.split_off(off).unwrap(), args).ok_or(ReadError::OutOfBounds)
+        })
     }
 }
 

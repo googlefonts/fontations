@@ -57,11 +57,11 @@ impl<'a, T: Sanitize<'a, Args = ()>> Sanitize<'a> for MyLookup<'a, T> {
         ctx.sanitize_array_of_offsets::<Offset16, T>(transforms::to_usize(sub_table_count), ())?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self {
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self {
             data,
             offset_type: std::marker::PhantomData,
-        }
+        })
     }
 }
 
@@ -256,18 +256,16 @@ impl<'a> Sanitize<'a> for MySubtable<'a> {
             other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        let Ok(format) = data.read_at::<u16>(0usize) else {
-            return MySubtable::default();
-        };
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        let format = data.read_at::<u16>(0usize).ok()?;
         match format {
             MySubtableFormat1::FORMAT => {
-                MySubtable::Format1(MySubtableFormat1::read_fast(data, ()))
+                MySubtableFormat1::read_fast(data, ()).map(MySubtable::Format1)
             }
             MySubtableFormat2::FORMAT => {
-                MySubtable::Format2(MySubtableFormat2::read_fast(data, ()))
+                MySubtableFormat2::read_fast(data, ()).map(MySubtable::Format2)
             }
-            _ => MySubtable::default(),
+            _ => None,
         }
     }
 }
@@ -329,8 +327,8 @@ impl<'a> Sanitize<'a> for MySubtableFormat1<'a> {
         ctx.advance::<u16>();
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -432,8 +430,8 @@ impl<'a> Sanitize<'a> for MySubtableFormat2<'a> {
         ctx.sanitize_array::<u16>(transforms::to_usize(count))?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -554,11 +552,12 @@ impl<'a> Sanitize<'a> for MyLookupGroup<'a> {
             other => Err(ReadError::InvalidFormat(other as _)),
         }
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        match MyLookup::read_discriminant(data) {
-            Ok(1) => MyLookupGroup::TypeOne(MyLookup::<MySubtable>::read_fast(data, ())),
-            Ok(2) => MyLookupGroup::TypeTwo(MyLookup::<MySubtableFormat1>::read_fast(data, ())),
-            _ => MyLookupGroup::default(),
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        let discriminant = MyLookup::read_discriminant(data).ok()?;
+        match discriminant {
+            1 => MyLookup::<MySubtable>::read_fast(data, ()).map(MyLookupGroup::TypeOne),
+            2 => MyLookup::<MySubtableFormat1>::read_fast(data, ()).map(MyLookupGroup::TypeTwo),
+            _ => None,
         }
     }
 }
@@ -616,8 +615,8 @@ impl<'a> Sanitize<'a> for ContainsLookupGroup<'a> {
         ctx.sanitize_offset::<Offset16, MyLookupGroup>(())?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 

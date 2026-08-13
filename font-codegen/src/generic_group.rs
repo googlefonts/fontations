@@ -121,7 +121,8 @@ fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> 
         .collect();
 
     // `read_fast` dispatches on the discriminant like `sanitize`, constructing the
-    // matched variant via its inner table's `read_fast` (no validation).
+    // matched variant via its inner table's `read_fast`. As with `sanitize`, an
+    // unreadable or unknown discriminant yields `None`.
     let read_fast_arms: Vec<_> = item
         .variants
         .iter()
@@ -129,7 +130,7 @@ fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> 
             let type_id = &var.type_id;
             let var_name = &var.name;
             let typ = &var.typ;
-            quote!(Ok(#type_id) => #name::#var_name(#inner::<#typ>::read_fast(data, ())),)
+            quote!(#type_id => #inner::<#typ>::read_fast(data, ()).map(#name::#var_name),)
         })
         .collect();
 
@@ -146,12 +147,11 @@ fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> 
                 }
             }
 
-            fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-                // An unreadable or unknown discriminant routes to the default
-                // table rather than re-reading `data` as the first variant.
-                match #inner::read_discriminant(data) {
+            fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+                let discriminant = #inner::read_discriminant(data).ok()?;
+                match discriminant {
                     #( #read_fast_arms )*
-                    _ => #name::default(),
+                    _ => None,
                 }
             }
         }

@@ -38,8 +38,8 @@ impl<'a> Sanitize<'a> for BasicTable<'a> {
         )?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -423,8 +423,8 @@ impl<'a> Sanitize<'a> for VarLenItem<'a> {
         sanitize_data(ctx)?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -607,9 +607,9 @@ impl<'a> Sanitize<'a> for HasReadArgs<'a> {
         ctx.sanitize_array::<i16>(transforms::to_usize(merp_len))?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, args: u16) -> Self {
+    fn read_fast(data: FontData<'a>, args: u16) -> Option<Self> {
         let merp_len = args;
-        Self { data, merp_len }
+        read_fast_impl!(Self { data, merp_len })
     }
 }
 

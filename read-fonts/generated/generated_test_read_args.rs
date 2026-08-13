@@ -45,12 +45,12 @@ impl<'a> Sanitize<'a> for BaseArray<'a> {
         ctx.sanitize_computed_array::<FaceRecord>(face_count as _, mark_class_count, true)?;
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, args: u16) -> Self {
+    fn read_fast(data: FontData<'a>, args: u16) -> Option<Self> {
         let mark_class_count = args;
-        Self {
+        read_fast_impl!(Self {
             data,
             mark_class_count,
-        }
+        })
     }
 }
 
@@ -362,8 +362,8 @@ impl<'a> Sanitize<'a> for Face<'a> {
         ctx.advance::<u16>();
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 

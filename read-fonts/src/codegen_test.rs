@@ -36,37 +36,50 @@ pub mod formats {
         use crate::sanitize::Sanitize;
         use font_test_data::bebuffer::BeBuffer;
 
-        // `read_fast`'s fallback (for an unknown format) must construct the
-        // table's `Default`, NOT re-read the provided bytes as the first
-        // variant. `Table1::default()` is backed by valid data with `heft == 0`,
-        // so we can tell the two apart from the `0xdead_beef` heft below.
+        // An unknown format is `None`, NOT the bytes re-read as the first
+        // variant (which would report a `heft` of 0xdead_beef below).
         #[test]
-        fn read_fast_unknown_format_uses_default() {
+        fn read_fast_unknown_format_is_none() {
             let buf = BeBuffer::new()
                 .push(99u16) // unknown format
                 .push(0xdead_beefu32) // heft
                 .push(0xcafeu16); // flex
-            let table = MyTable::read_fast(buf.data().into(), ());
-            assert!(matches!(table, MyTable::Format1(_)));
-            if let MyTable::Format1(t) = &table {
-                assert_eq!(t.heft(), 0); // default data, not 0xdeadbeef
-            }
+            assert!(MyTable::read_fast(buf.data().into(), ()).is_none());
         }
 
-        // Data too short to even read the format byte must route to `default()`.
-        // `Table1` (the `Format1` variant) has format 0, so the old
-        // `unwrap_or_default()` fabricated `0`, matched `Format1`, and built it
-        // from the empty data — panicking in a getter. The default is instead
-        // backed by valid, long-enough data.
+        // A known format whose fields don't fit is also `None`: `read_fast`
+        // performs the same single `MIN_SIZE` check that `FontRead` does.
+        // Without it the getters would read off the end of the buffer.
+        #[test]
+        fn read_fast_short_variant_is_none() {
+            let buf = BeBuffer::new()
+                .push(0u16) // Format1, but truncated: no room for heft/flex
+                .push(0xdead_u16);
+            assert!(MyTable::read_fast(buf.data().into(), ()).is_none());
+        }
+
+        // Data too short to even read the format field is `None`. Note that
+        // `Table1` (the `Format1` variant) has format 0, so a fabricated default
+        // of `0` here would match `Format1` and build it from the empty data,
+        // panicking in a getter.
         #[test]
         fn read_fast_empty_data_does_not_collide_with_format0() {
-            let table = MyTable::read_fast(FontData::new(&[]), ());
-            assert!(matches!(table, MyTable::Format1(_)));
-            // Must not panic: a default table has valid, long-enough backing data.
-            assert_eq!(table.format(), 0);
-            if let MyTable::Format1(t) = &table {
-                assert_eq!(t.heft(), 0);
-            }
+            assert!(MyTable::read_fast(FontData::new(&[]), ()).is_none());
+        }
+
+        // ...whereas data that does fit is read as-is, with no further checking.
+        #[test]
+        fn read_fast_reads_a_well_formed_table() {
+            let buf = BeBuffer::new()
+                .push(0u16) // Format1
+                .push(0xdead_beefu32) // heft
+                .push(0xcafeu16); // flex
+            let table = MyTable::read_fast(buf.data().into(), ()).unwrap();
+            let MyTable::Format1(t) = &table else {
+                panic!("expected Format1");
+            };
+            assert_eq!(t.heft(), 0xdead_beef);
+            assert_eq!(t.flex(), 0xcafe);
         }
     }
 }

@@ -56,8 +56,8 @@ impl<'a> Sanitize<'a> for KindsOfOffsets<'a> {
         }
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -361,8 +361,8 @@ impl<'a> Sanitize<'a> for KindsOfArraysOfOffsets<'a> {
         }
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -581,8 +581,8 @@ impl<'a> Sanitize<'a> for KindsOfArrays<'a> {
         }
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -764,8 +764,8 @@ impl<'a> Sanitize<'a> for VarLenHaver<'a> {
         ctx.advance::<u32>();
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
@@ -880,8 +880,8 @@ impl<'a> Sanitize<'a> for Dummy<'a> {
         ctx.advance::<u16>();
         ctx.finish()
     }
-    fn read_fast(data: FontData<'a>, _args: ()) -> Self {
-        Self { data }
+    fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+        read_fast_impl!(Self { data })
     }
 }
 
