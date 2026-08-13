@@ -712,6 +712,7 @@ impl Graph {
                 v.add_parent(idx, true);
             }
         }
+        self.parents_invalid = false;
         Ok(())
     }
 
