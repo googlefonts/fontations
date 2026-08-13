@@ -437,20 +437,13 @@ fn compact_lig_set(graph: &mut Graph, liga_set_index: ObjIdx) -> Result<(), Repa
     let subtract_len = (old_lig_count - num_liga) * Offset16::RAW_BYTE_LEN;
 
     let lig_set_v = &mut graph.vertices[liga_set_index];
-    let start_pos = LigatureSet::MIN_SIZE as u32;
-    let mut new_links = Vec::with_capacity(num_liga);
-    for i in 0..old_lig_count as u32 {
-        let old_pos = start_pos + i * 2;
-        let Some((mut pos, mut l)) = lig_set_v.real_links.remove_entry(&old_pos) else {
-            continue;
-        };
+    let mut new_pos = LigatureSet::MIN_SIZE as u32;
 
-        pos -= subtract_len as u32;
-        l.update_position(pos);
-        new_links.push((pos, l));
+    for l in lig_set_v.real_links.sorted_iter_mut() {
+        l.update_position(new_pos);
+        new_pos += Offset16::RAW_BYTE_LEN as u32;
     }
 
-    lig_set_v.real_links.extend(new_links);
     lig_set_v.tail -= subtract_len;
     Ok(())
 }
@@ -473,7 +466,7 @@ fn find_all_child_idxes(
     let v = graph
         .vertex(start_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-    for l in v.real_links.values() {
+    for l in v.real_links() {
         find_all_child_idxes(graph, l.obj_idx(), depth - 1, out)?;
     }
     Ok(())
