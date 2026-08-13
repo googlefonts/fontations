@@ -356,10 +356,9 @@ impl Vertex {
                 }
             }
             Parents::Multiple(ref mut parents_map) => {
-                let Some(&v) = parents_map.get(&old_parent) else {
+                let Some((_, v)) = parents_map.remove_entry(&old_parent) else {
                     return;
                 };
-                parents_map.remove(&old_parent);
                 parents_map.insert(new_parent, v);
                 if self.virtual_parents.remove(old_parent as u32) {
                     self.virtual_parents.insert(new_parent as u32);
@@ -630,11 +629,10 @@ impl Graph {
 
         let v_count = self.vertices.len();
         let mut queue = PriorityQueue::with_capacity(v_count);
-        self.ordering_scratch.resize(v_count, 0);
         let mut removed_edges = vec![0_usize; v_count];
 
         self.update_parents()?;
-
+        self.ordering_scratch.resize(v_count, 0);
         queue.push((self.root().modified_distance(0), self.root_idx()));
         let mut order = 1_u32;
         let mut pos = 0;
@@ -682,36 +680,34 @@ impl Graph {
             v.reset_parents();
         }
 
-        let count = self.vertices.len();
-        let mut real_links_idxes = Vec::with_capacity(count);
-        let mut virtual_links_idxes = Vec::with_capacity(count);
-        for idx in 0..count {
+        for idx in 0..self.vertices.len() {
             let v = &self.vertices[idx];
 
-            real_links_idxes.clear();
-            virtual_links_idxes.clear();
+            self.ordering_scratch.clear();
             for l in v.real_links() {
-                real_links_idxes.push(l.obj_idx());
+                self.ordering_scratch.push(l.obj_idx());
             }
 
+            let num_real_links = v.real_links().len();
             for l in &v.virtual_links {
-                virtual_links_idxes.push(l.obj_idx());
+                self.ordering_scratch.push(l.obj_idx());
             }
 
-            for child_idx in &real_links_idxes {
+            for child_idx in &self.ordering_scratch[0..num_real_links] {
                 let Some(v) = self.vertices.get_mut(*child_idx) else {
                     return Err(RepackError::GraphErrorInvalidObjIndex);
                 };
                 v.add_parent(idx, false);
             }
 
-            for child_idx in &virtual_links_idxes {
+            for child_idx in &self.ordering_scratch[num_real_links..] {
                 let Some(v) = self.vertices.get_mut(*child_idx) else {
                     return Err(RepackError::GraphErrorInvalidObjIndex);
                 };
                 v.add_parent(idx, true);
             }
         }
+        self.parents_invalid = false;
         Ok(())
     }
 
