@@ -489,11 +489,27 @@ fn fix_virtual_links(
 
         let mut num_links_to_old_cov = 0_usize;
         // lig/liga_set might be shared, only update links to the old coverage table idx
-        for l in v.virtual_links.iter_mut() {
-            if l.obj_idx() == old_coverage_idx {
-                l.update_obj_idx(coverage_idx);
-                num_links_to_old_cov += 1;
+        // deduplicate virtual_links so we keep only one virtual_link to the new coverage idx
+        let mut i = 0;
+        let mut found_cov_link = false;
+
+        while i < v.virtual_links.len() {
+            if v.virtual_links[i].obj_idx() == old_coverage_idx {
+                if found_cov_link {
+                    v.virtual_links.swap_remove(i);
+                    num_links_to_old_cov += 1;
+                    continue;
+                } else {
+                    found_cov_link = true;
+                    v.virtual_links[i].update_obj_idx(coverage_idx);
+                    num_links_to_old_cov += 1;
+                }
             }
+            i += 1;
+        }
+
+        if !found_cov_link {
+            v.add_link(LinkWidth::default(), coverage_idx, 0, true);
         }
 
         graph
