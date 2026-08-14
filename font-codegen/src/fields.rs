@@ -326,8 +326,8 @@ fn traversal_arm_for_field(
 ) -> TokenStream {
     let name_str = &fld.name.to_string();
     let name = &fld.name;
-    let maybe_unwrap = fld.attrs.conditional.is_some().then(|| quote!(.unwrap()));
-    let maybe_unwrap_getter = maybe_unwrap.as_ref().filter(|_| !fld.is_nullable());
+    let maybe_try = fld.attrs.conditional.is_some().then(|| quote!(?));
+    let maybe_try_getter = maybe_try.as_ref().filter(|_| !fld.is_nullable());
     if let Some(traverse_with) = &fld.attrs.traverse_with {
         let traverse_fn = &traverse_with.attr;
         if traverse_fn == "skip" {
@@ -348,8 +348,8 @@ fn traversal_arm_for_field(
             quote!(Field::new(
                     #name_str,
                     traversal::FieldType::offset_to_array_of_records(
-                        self.#name()#maybe_unwrap,
-                        self.#getter(#pass_data)#maybe_unwrap_getter,
+                        self.#name()#maybe_try,
+                        self.#getter(#pass_data)#maybe_try_getter,
                         stringify!(#typ),
                         #offset_data,
                     )
@@ -361,15 +361,15 @@ fn traversal_arm_for_field(
                 OffsetTarget::Array(_) => quote!(offset_to_array_of_scalars),
             };
             let getter = fld.offset_getter_name();
-            quote!(Field::new(#name_str, FieldType::#constructor_name(self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap_getter)))
+            quote!(Field::new(#name_str, FieldType::#constructor_name(self.#name()#maybe_try, self.#getter(#pass_data)#maybe_try_getter)))
         }
-        FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
+        FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name()#maybe_try)),
 
         FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-            FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
+            FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name()#maybe_try)),
             //HACK: glyf has fields that are [u8]
             FieldType::Struct { typ } if typ == "u8" => {
-                quote!(Field::new( #name_str, self.#name()#maybe_unwrap))
+                quote!(Field::new( #name_str, self.#name()#maybe_try))
             }
             FieldType::Struct { typ } => {
                 let offset_data = pass_data
@@ -379,7 +379,7 @@ fn traversal_arm_for_field(
                         #name_str,
                         traversal::FieldType::array_of_records(
                             stringify!(#typ),
-                            self.#name()#maybe_unwrap,
+                            self.#name()#maybe_try,
                             #offset_data,
                         )
                 ))
@@ -390,7 +390,7 @@ fn traversal_arm_for_field(
                 ..
             } => {
                 let getter = fld.offset_getter_name().unwrap();
-                quote!(Field::new(#name_str, FieldType::from(self.#getter(#pass_data)#maybe_unwrap)))
+                quote!(Field::new(#name_str, FieldType::from(self.#getter(#pass_data)#maybe_try)))
             }
             FieldType::Offset {
                 target: OffsetTarget::Array(_),
@@ -414,7 +414,7 @@ fn traversal_arm_for_field(
                     #name_str,
                     traversal::FieldType::computed_array(
                         #typ_str,
-                        self.#name()#maybe_clone #maybe_unwrap,
+                        self.#name()#maybe_clone #maybe_try,
                         #data
                     )
             ))
@@ -422,7 +422,7 @@ fn traversal_arm_for_field(
         FieldType::VarLenArray(arr) => {
             let typ_str = arr.raw_inner_type().to_string();
             let data = fld.offset_getter_data_src();
-            quote!(Field::new(#name_str, traversal::FieldType::var_array(#typ_str, self.#name()#maybe_unwrap, #data)))
+            quote!(Field::new(#name_str, traversal::FieldType::var_array(#typ_str, self.#name()#maybe_try, #data)))
         }
         // See if there are better ways to handle these hardcoded types
         // <https://github.com/googlefonts/fontations/issues/659>
@@ -430,7 +430,7 @@ fn traversal_arm_for_field(
             let offset_data = pass_data
                 .cloned()
                 .unwrap_or_else(|| fld.offset_getter_data_src());
-            quote!(Field::new(#name_str, self.#name() #maybe_unwrap .traversal_type(#offset_data)))
+            quote!(Field::new(#name_str, self.#name() #maybe_try .traversal_type(#offset_data)))
         }
         FieldType::Struct { .. } => {
             quote!(compile_error!(concat!("another weird type: ", #name_str)))
