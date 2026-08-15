@@ -991,11 +991,9 @@ impl Iterator for NonDefaultUvsIter<'_> {
 
 #[cfg(test)]
 mod tests {
-    use font_test_data::{be_buffer, bebuffer::BeBuffer};
-    use font_types::Uint24;
-
     use super::*;
-    use crate::{FontRef, GlyphId, TableProvider};
+    use crate::{types::Uint24, FontRef, GlyphId, TableProvider};
+    use font_test_data::{be_buffer, bebuffer::BeBuffer};
 
     #[test]
     fn map_codepoints() {
@@ -1527,12 +1525,18 @@ mod tests {
         assert_eq!(count, 7);
     }
 
+    /// Slice of default UVS ranges, each of which is (start_unicode_value, additional_count).
+    type DefaultUvs<'a> = &'a [(u32, u8)];
+
+    /// Slice of non-default UVS ranges, each of which is (unicode_value, glyph_id).
+    type NonDefaultUvs<'a> = &'a [(u32, u16)];
+
     /// Build a minimal synthetic format-14 subtable.
     ///
     /// Each record is (selector, default_ranges, non_default_mappings), where
     /// default_ranges is a slice of (start, additional_count) and
     /// non_default_mappings is a slice of (codepoint, glyph_id).
-    fn build_cmap14(records: &[(u32, Option<&[(u32, u8)]>, Option<&[(u32, u16)]>)]) -> BeBuffer {
+    fn build_cmap14(records: &[(u32, Option<DefaultUvs>, Option<NonDefaultUvs>)]) -> BeBuffer {
         fn default_uvs_data(ranges: &[(u32, u8)]) -> BeBuffer {
             let mut bytes = BeBuffer::new();
             bytes = bytes.push(ranges.len() as u32);
