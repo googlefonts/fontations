@@ -23,6 +23,7 @@ use write_fonts::{
                 Intersect, LangSys, LangSysRecord, LookupList, RangeRecord, Script, ScriptList,
                 ScriptRecord, SizeParams, StylisticSetParams, VariationIndex,
             },
+            variations::NO_VARIATION_INDEX,
         },
         types::{GlyphId, GlyphId16, NameId},
         ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
@@ -124,6 +125,9 @@ impl<'a> SubsetTable<'a> for VariationIndex<'a> {
     ) -> Result<(), SerializeErrorFlags> {
         let var_idx =
             ((self.delta_set_outer_index() as u32) << 16) + self.delta_set_inner_index() as u32;
+        if var_idx == NO_VARIATION_INDEX {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let Some((new_idx, _)) = args.get(&var_idx) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         };
