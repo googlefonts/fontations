@@ -105,13 +105,18 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
-                Offset16::serialize_subset(
+                match Offset16::serialize_subset(
                     &device,
                     s,
                     plan,
                     &plan.layout_varidx_delta_map,
                     offset_pos,
-                )?;
+                ) {
+                    Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
             }
         }
 
@@ -122,13 +127,18 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
-                Offset16::serialize_subset(
+                match Offset16::serialize_subset(
                     &device,
                     s,
                     plan,
                     &plan.layout_varidx_delta_map,
                     offset_pos,
-                )?;
+                ) {
+                    Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
             }
         }
 
@@ -139,13 +149,18 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
-                Offset16::serialize_subset(
+                match Offset16::serialize_subset(
                     &device,
                     s,
                     plan,
                     &plan.layout_varidx_delta_map,
                     offset_pos,
-                )?;
+                ) {
+                    Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
             }
         }
 
@@ -156,13 +171,18 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
-                Offset16::serialize_subset(
+                match Offset16::serialize_subset(
                     &device,
                     s,
                     plan,
                     &plan.layout_varidx_delta_map,
                     offset_pos,
-                )?;
+                ) {
+                    Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                    Err(e) => {
+                        return Err(e);
+                    }
+                }
             }
         }
         Ok(())
