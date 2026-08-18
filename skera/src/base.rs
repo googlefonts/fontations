@@ -103,10 +103,6 @@ impl SubsetTable<'_> for Axis<'_> {
         s: &mut Serializer,
         _args: (),
     ) -> Result<(), SerializeErrorFlags> {
-        if self.base_script_list_offset().is_null() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
-        let snap = s.snapshot();
         let base_taglist_offset_pos = s.embed(0_u16)?;
         let base_scriptlist_offset_pos = s.embed(0_u16)?;
 
@@ -118,18 +114,13 @@ impl SubsetTable<'_> for Axis<'_> {
             Offset16::serialize_copy(&base_taglist, s, base_taglist_offset_pos)?;
         }
 
+        if self.base_script_list_offset().is_null() {
+            return Ok(());
+        }
         let base_scriptlist = self
             .base_script_list()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?;
-        match Offset16::serialize_subset(&base_scriptlist, s, plan, (), base_scriptlist_offset_pos)
-        {
-            Ok(()) => Ok(()),
-            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
-                s.revert_snapshot(snap);
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY)
-            }
-            Err(e) => Err(e),
-        }
+        Offset16::serialize_subset(&base_scriptlist, s, plan, (), base_scriptlist_offset_pos)
     }
 }
 
@@ -143,7 +134,6 @@ impl SubsetTable<'_> for BaseScriptList<'_> {
         s: &mut Serializer,
         _args: (),
     ) -> Result<(), SerializeErrorFlags> {
-        let snap = s.snapshot();
         let script_count_pos = s.embed(0_u16)?;
         let mut count: usize = 0;
         for script_record in self.base_script_records().iter() {
@@ -159,15 +149,14 @@ impl SubsetTable<'_> for BaseScriptList<'_> {
             }
         }
 
-        if count == 0 {
-            s.revert_snapshot(snap);
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        if count != 0 {
+            s.check_assign::<u16>(
+                script_count_pos,
+                count,
+                SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
+            )?;
         }
-        s.check_assign::<u16>(
-            script_count_pos,
-            count,
-            SerializeErrorFlags::SERIALIZE_ERROR_INT_OVERFLOW,
-        )
+        Ok(())
     }
 }
 
@@ -218,7 +207,16 @@ impl SubsetTable<'_> for BaseScript<'_> {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            Offset16::serialize_subset(&default_min_max, s, plan, (), default_min_max_offset_pos)?;
+            match Offset16::serialize_subset(
+                &default_min_max,
+                s,
+                plan,
+                (),
+                default_min_max_offset_pos,
+            ) {
+                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
         }
 
         let base_lang_sys_count_pos = s.embed(0_u16)?;
@@ -271,7 +269,10 @@ impl SubsetTable<'_> for BaseValues<'_> {
                 continue;
             };
             let offset_pos = pos_start + idx * Offset16::RAW_BYTE_LEN;
-            Offset16::serialize_subset(&base_coord, s, plan, (), offset_pos)?;
+            match Offset16::serialize_subset(&base_coord, s, plan, (), offset_pos) {
+                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
         }
         Ok(())
     }
@@ -287,13 +288,19 @@ impl SubsetTable<'_> for MinMax<'_> {
         s: &mut Serializer,
         _args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
+        let snap = s.snapshot();
+        let mut empty = true;
         let min_coord_offset_pos = s.embed(0_u16)?;
         if let Some(min_coord) = self
             .min_coord()
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            Offset16::serialize_subset(&min_coord, s, plan, (), min_coord_offset_pos)?;
+            match Offset16::serialize_subset(&min_coord, s, plan, (), min_coord_offset_pos) {
+                Ok(()) => empty = false,
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
         }
 
         let max_coord_offset_pos = s.embed(0_u16)?;
@@ -302,7 +309,11 @@ impl SubsetTable<'_> for MinMax<'_> {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            Offset16::serialize_subset(&max_coord, s, plan, (), max_coord_offset_pos)?;
+            match Offset16::serialize_subset(&max_coord, s, plan, (), max_coord_offset_pos) {
+                Ok(()) => empty = false,
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
         }
 
         let feat_min_max_count_pos = s.embed(0_u16)?;
@@ -320,7 +331,13 @@ impl SubsetTable<'_> for MinMax<'_> {
         }
 
         if count != 0 {
+            empty = false;
             s.copy_assign(feat_min_max_count_pos, count);
+        }
+
+        if empty {
+            s.revert_snapshot(snap);
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         Ok(())
     }
@@ -341,13 +358,19 @@ impl<'a> SubsetTable<'a> for FeatMinMaxRecord {
         }
         s.embed(self.feature_table_tag())?;
 
+        let snap = s.snapshot();
         let min_coord_offset_pos = s.embed(0_u16)?;
+        let mut empty = true;
         if let Some(min_coord) = self
             .min_coord(data)
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            Offset16::serialize_subset(&min_coord, s, plan, (), min_coord_offset_pos)?;
+            match Offset16::serialize_subset(&min_coord, s, plan, (), min_coord_offset_pos) {
+                Ok(()) => empty = false,
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
         }
 
         let max_coord_offset_pos = s.embed(0_u16)?;
@@ -356,7 +379,16 @@ impl<'a> SubsetTable<'a> for FeatMinMaxRecord {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            Offset16::serialize_subset(&max_coord, s, plan, (), max_coord_offset_pos)?;
+            match Offset16::serialize_subset(&max_coord, s, plan, (), max_coord_offset_pos) {
+                Ok(()) => empty = false,
+                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
+        }
+
+        if empty {
+            s.revert_snapshot(snap);
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         }
         Ok(())
     }
@@ -426,7 +458,7 @@ impl SubsetTable<'_> for BaseCoordFormat2<'_> {
     ) -> Result<(), SerializeErrorFlags> {
         s.embed_bytes(self.min_table_bytes())?;
         let Some(new_gid) = plan.glyph_map.get(&GlyphId::from(self.reference_glyph())) else {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
         };
         s.check_assign::<u16>(
             4,
@@ -455,13 +487,16 @@ impl SubsetTable<'_> for BaseCoordFormat3<'_> {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            Offset16::serialize_subset(
+            match Offset16::serialize_subset(
                 &device,
                 s,
                 plan,
                 &plan.base_varidx_delta_map,
                 device_offset_pos,
-            )?;
+            ) {
+                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
+                Err(e) => return Err(e),
+            }
         }
         Ok(())
     }
