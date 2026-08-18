@@ -522,20 +522,30 @@ impl SubsetTable<'_> for CaretValueFormat3<'_> {
             return s.embed(self.coordinate()).map(|_| ());
         }
 
-        s.embed(self.caret_value_format())?;
+        let format_pos = s.embed(self.caret_value_format())?;
         s.embed(self.coordinate())?;
 
+        let snap = s.snapshot();
         let device_offset_pos = s.embed(0_u16)?;
         let Ok(device) = self.device() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
-        Offset16::serialize_subset(
+        match Offset16::serialize_subset(
             &device,
             s,
             plan,
             &plan.layout_varidx_delta_map,
             device_offset_pos,
-        )
+        ) {
+            Ok(()) => Ok(()),
+            // Downgrade to format1 if Device table is empty
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
+                s.revert_snapshot(snap);
+                s.copy_assign(format_pos, 1_u16);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
