@@ -1519,4 +1519,18 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn noto_color_emoji_recursion_limit() {
+        let font = FontRef::new(font_test_data::NOTO_COLOR_EMOJI).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
+        let maxp = font.maxp().unwrap();
+        for gid in 0..maxp.num_glyphs() {
+            let gid = GlyphId::new(gid as u32);
+            let result = outlines.outline(gid);
+            if let Err(DrawError::RecursionLimitExceeded(e)) = result {
+                panic!("Glyph {gid:?} unexpectedly hit recursion limit on component {e:?}");
+            }
+        }
+    }
 }

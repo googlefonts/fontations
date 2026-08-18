@@ -110,6 +110,8 @@ pub static TINOS_SUBSET: &[u8] = include_bytes!("../test_data/ttf/tinos_subset.t
 pub static NOTO_HANDWRITING_SBIX: &[u8] =
     include_bytes!("../test_data/ttf/noto_handwriting-sbix.ttf");
 
+pub static NOTO_COLOR_EMOJI: &[u8] = include_bytes!("../test_data/ttf/NotoColorEmoji-Regular.ttf");
+
 pub static COUSINE_HINT_SUBSET: &[u8] = include_bytes!("../test_data/ttf/cousine_hint_subset.ttf");
 
 pub mod morx {

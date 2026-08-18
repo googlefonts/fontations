@@ -565,4 +565,32 @@ mod tests {
         let result = traverse_with_limit(node_count - 1);
         assert!(matches!(result, Err(PaintError::DepthLimitExceeded)));
     }
+
+    #[test]
+    fn noto_color_emoji_colrv1_traversal_limits() {
+        let font = FontRef::new(font_test_data::NOTO_COLOR_EMOJI).unwrap();
+        let colr_glyphs = font.color_glyphs();
+
+        // GID 1852 (Flag of Ecuador 🇪🇨) has an extremely complex coat of arms
+        // that exceeds the MAX_NODES (4096) paint graph traversal limit.
+        let gid_ecuador = GlyphId::new(1852);
+        let color_glyph = colr_glyphs.get(gid_ecuador).expect("GID 1852 should exist");
+        let result = color_glyph.paint(LocationRef::default(), &mut NopPainter);
+        assert!(
+            matches!(result, Err(PaintError::DepthLimitExceeded)),
+            "Expected GID 1852 (Flag of Ecuador) to exceed MAX_NODES limit, got: {result:?}"
+        );
+
+        // GID 1986 (Flag of El Salvador 🇸🇻) also has a complex coat of arms
+        // that exceeds the MAX_NODES (4096) limit.
+        let gid_el_salvador = GlyphId::new(1986);
+        let color_glyph = colr_glyphs
+            .get(gid_el_salvador)
+            .expect("GID 1986 should exist");
+        let result = color_glyph.paint(LocationRef::default(), &mut NopPainter);
+        assert!(
+            matches!(result, Err(PaintError::DepthLimitExceeded)),
+            "Expected GID 1986 (Flag of El Salvador) to exceed MAX_NODES limit, got: {result:?}"
+        );
+    }
 }
