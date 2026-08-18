@@ -145,12 +145,13 @@ impl<'a, T: FontRead<'a, Args = ()> + VarSize> VarLenArray<'a, T> {
         if self.data.is_empty() {
             return None;
         }
-
         let mut pos = 0usize;
         for _ in 0..idx {
             pos = pos.checked_add(T::read_len_at(self.data, pos)?)?;
         }
-        self.data.split_off(pos).map(T::read)
+        let len = T::read_len_at(self.data, pos)?;
+        let end = pos.checked_add(len)?;
+        self.data.slice(pos..end).map(T::read)
     }
 
     /// Return an iterator over this array's items.
@@ -251,5 +252,22 @@ mod tests {
         // take() exists so that the test fails rather than hanging if the
         // code regresses in the future)
         assert_eq!(arr.iter().take(10).count(), 2);
+    }
+
+    #[test]
+    fn var_len_iter_same_as_get() {
+        let mut buf = BeBuffer::new();
+        buf = buf.push(4u32).extend([1u8, 2, 3, 4]);
+        buf = buf.push(2u32).extend([5u8, 6]);
+        buf = buf.push(3u32).extend([7u8, 8, 9]);
+        let arr: VarLenArray<VarLenItem> = VarLenArray::read(FontData::new(buf.data())).unwrap();
+        let iter_items: Vec<_> = arr.iter().map(|x| x.unwrap()).collect();
+        let get_items: Vec<_> = (0..iter_items.len())
+            .map(|i| arr.get(i).unwrap().unwrap())
+            .collect();
+        assert_eq!(iter_items.len(), get_items.len());
+        for (a, b) in iter_items.iter().zip(get_items.iter()) {
+            assert_eq!(a.data(), b.data());
+        }
     }
 }
