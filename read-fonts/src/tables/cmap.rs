@@ -722,6 +722,10 @@ impl<'a> Cmap13<'a> {
 
     /// Returns an iterator over all (codepoint, glyph identifier) pairs
     /// in the subtable within the given limits.
+    ///
+    /// Malicious and malformed fonts can produce a large number of invalid
+    /// pairs. Use [`Self::iter_with_limits`] to generate a pruned sequence
+    /// that is limited to reasonable values.
     pub fn iter_with_limits(&self, limits: CmapIterLimits) -> Cmap13Iter<'a> {
         Cmap13Iter::new(self.clone(), Some(limits))
     }
@@ -804,6 +808,10 @@ impl<'a> Cmap14<'a> {
 
     /// Returns an iterator over all (codepoint, selector, mapping variant)
     /// triples in the subtable.
+    ///
+    /// Malicious and malformed fonts can produce a large number of invalid
+    /// triples. Use [`Self::iter_with_limits`] to generate a pruned sequence
+    /// that is limited to reasonable values.
     pub fn iter(&self) -> Cmap14Iter<'a> {
         Cmap14Iter::new(self.clone(), None)
     }
