@@ -4,7 +4,7 @@ use crate::{
     layout::intersected_glyphs_and_indices,
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::{IterNullableHelper, SubsetOffsetArray},
-    serialize::{ObjIdx, SerializeErrorFlags, Serializer},
+    serialize::{ObjIdx, SerializeErrorFlags, SerializeResultEmpty, Serializer},
     Plan, SubsetState, SubsetTable,
 };
 use skrifa::raw::tables::layout::Intersect;
@@ -124,10 +124,10 @@ impl SubsetTable<'_> for LigatureSet<'_> {
             };
             let snap = s.snapshot();
             let offset_pos = s.allocate_size(Offset16::RAW_BYTE_LEN, true)?;
-            match Offset16::serialize_subset(&lig, s, plan, coverage_idx, offset_pos) {
-                Ok(()) => lig_count += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
-                Err(e) => return Err(e),
+            if !Offset16::serialize_subset(&lig, s, plan, coverage_idx, offset_pos).is_empty()? {
+                lig_count += 1;
+            } else {
+                s.revert_snapshot(snap);
             }
         }
 

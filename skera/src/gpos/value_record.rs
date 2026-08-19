@@ -2,7 +2,7 @@
 
 use crate::{
     offset::SerializeSubset,
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetTable,
 };
 use write_fonts::{
@@ -111,7 +111,8 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                     plan,
                     &plan.layout_varidx_delta_map,
                     offset_pos,
-                )?;
+                )
+                .is_empty()?;
             }
         }
 
@@ -128,7 +129,8 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                     plan,
                     &plan.layout_varidx_delta_map,
                     offset_pos,
-                )?;
+                )
+                .is_empty()?;
             }
         }
 
@@ -145,7 +147,8 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                     plan,
                     &plan.layout_varidx_delta_map,
                     offset_pos,
-                )?;
+                )
+                .is_empty()?;
             }
         }
 
@@ -162,7 +165,8 @@ impl<'a> SubsetTable<'a> for ValueRecord {
                     plan,
                     &plan.layout_varidx_delta_map,
                     offset_pos,
-                )?;
+                )
+                .is_empty()?;
             }
         }
         Ok(())

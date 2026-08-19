@@ -1,6 +1,6 @@
 //! impl subset() for CBLC
 use crate::{
-    serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
+    serialize::{OffsetWhence, SerializeErrorFlags, SerializeResultEmpty, Serializer},
     Plan, Subset, SubsetError, SubsetTable,
 };
 use write_fonts::{
@@ -61,12 +61,12 @@ impl Subset for Cblc<'_> {
             let src_bytes = bitmapsize_bytes
                 .get(start..start + BitmapSize::RAW_BYTE_LEN)
                 .unwrap();
-            match bitmap_size_table.subset(plan, s, (self, &cbdt, src_bytes, &mut cbdt_out)) {
-                Ok(()) => num_sizes += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
-                Err(_) => {
-                    return Err(SubsetError::SubsetTableError(Cblc::TAG));
-                }
+            if !bitmap_size_table
+                .subset(plan, s, (self, &cbdt, src_bytes, &mut cbdt_out))
+                .is_empty()
+                .map_err(|_| SubsetError::SubsetTableError(Cblc::TAG))?
+            {
+                num_sizes += 1;
             }
         }
 

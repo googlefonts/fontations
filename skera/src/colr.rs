@@ -4,7 +4,7 @@ use crate::offset::SerializeSerialize;
 use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     variations::DeltaSetIndexMapSerializePlan,
     Plan, Subset, SubsetError, SubsetTable,
 };
@@ -73,16 +73,15 @@ impl Subset for Colr<'_> {
             .transpose()
             .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
         {
-            match Offset32::serialize_subset(
+            Offset32::serialize_subset(
                 &var_store,
                 s,
                 plan,
                 (&plan.colr_varstore_inner_maps, false),
                 30,
-            ) {
-                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(_) => return Err(SubsetError::SubsetTableError(Colr::TAG)),
-            }
+            )
+            .is_empty()
+            .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
         }
 
         // BaseGlyphList offset pos = 14
@@ -95,12 +94,9 @@ impl Subset for Colr<'_> {
             .transpose()
             .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
         {
-            match Offset32::serialize_subset(&layer_list, s, plan, (), 18) {
-                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(_) => {
-                    return Err(SubsetError::SubsetTableError(Colr::TAG));
-                }
-            }
+            Offset32::serialize_subset(&layer_list, s, plan, (), 18)
+                .is_empty()
+                .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
         }
 
         //ClipList offset pos = 22
@@ -110,12 +106,9 @@ impl Subset for Colr<'_> {
             .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?
         {
             // cliplist could be empty after subsetting
-            match Offset32::serialize_subset(&clip_list, s, plan, (), 22) {
-                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(_) => {
-                    return Err(SubsetError::SubsetTableError(Colr::TAG));
-                }
-            }
+            Offset32::serialize_subset(&clip_list, s, plan, (), 22)
+                .is_empty()
+                .map_err(|_| SubsetError::SubsetTableError(Colr::TAG))?;
         }
 
         //varIndexMap offset pos = 26
@@ -1634,20 +1627,15 @@ impl SubsetTable<'_> for PaintComposite<'_> {
             let Ok(src_paint) = self.source_paint() else {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
             };
-            match Offset24::serialize_subset(&src_paint, s, plan, (), src_paint_pos) {
-                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => return Err(e),
-            }
+            Offset24::serialize_subset(&src_paint, s, plan, (), src_paint_pos).is_empty()?;
         }
 
         if !backdrop_paint_offset.is_null() {
             let Ok(backdrop_paint) = self.backdrop_paint() else {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
             };
-            match Offset24::serialize_subset(&backdrop_paint, s, plan, (), backdrop_paint_pos) {
-                Ok(()) | Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => return Ok(()),
-                Err(e) => return Err(e),
-            }
+            Offset24::serialize_subset(&backdrop_paint, s, plan, (), backdrop_paint_pos)
+                .is_empty()?;
         }
         Ok(())
     }

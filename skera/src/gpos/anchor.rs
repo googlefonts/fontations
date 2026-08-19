@@ -2,7 +2,7 @@
 
 use crate::{
     offset::SerializeSubset,
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetFlags, SubsetTable,
 };
 use write_fonts::{
@@ -93,14 +93,17 @@ impl SubsetTable<'_> for AnchorFormat3<'_> {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            downgrade_to_format1 = false;
-            Offset16::serialize_subset(
+            if !Offset16::serialize_subset(
                 &x_device,
                 s,
                 plan,
                 &plan.layout_varidx_delta_map,
                 x_device_offset_pos,
-            )?;
+            )
+            .is_empty()?
+            {
+                downgrade_to_format1 = false;
+            }
         }
 
         let y_device_offset_pos = s.embed(0_u16)?;
@@ -109,14 +112,17 @@ impl SubsetTable<'_> for AnchorFormat3<'_> {
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            downgrade_to_format1 = false;
-            Offset16::serialize_subset(
+            if !Offset16::serialize_subset(
                 &y_device,
                 s,
                 plan,
                 &plan.layout_varidx_delta_map,
                 y_device_offset_pos,
-            )?;
+            )
+            .is_empty()?
+            {
+                downgrade_to_format1 = false;
+            }
         }
 
         if downgrade_to_format1 {

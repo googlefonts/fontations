@@ -15,7 +15,7 @@ use crate::{
     collect_features_with_retained_subs, find_duplicate_features,
     offset::SerializeSubset,
     prune_features, remap_feature_indices, remap_indices,
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, LayoutClosure, NameIdClosure, Plan, PruneLangSysContext, Subset,
     SubsetError, SubsetLayoutContext, SubsetState, SubsetTable,
 };
@@ -197,20 +197,18 @@ fn subset_gpos(
     {
         let snap = s.snapshot();
         let feature_vars_offset_pos = s.embed(0_u32)?;
-        match Offset32::serialize_subset(
+        if Offset32::serialize_subset(
             &feature_variations,
             s,
             plan,
             &mut c,
             feature_vars_offset_pos,
-        ) {
-            Ok(()) => (),
+        )
+        .is_empty()?
+        {
             // downgrade table version if there are no FeatureVariations
-            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
-                s.revert_snapshot(snap);
-                s.copy_assign(version_pos, MajorMinor::VERSION_1_0);
-            }
-            Err(e) => return Err(e),
+            s.revert_snapshot(snap);
+            s.copy_assign(version_pos, MajorMinor::VERSION_1_0);
         }
     }
     Ok(())
