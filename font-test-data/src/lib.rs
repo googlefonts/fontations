@@ -63,6 +63,11 @@ pub static COLRV0V1: &[u8] = include_bytes!("../test_data/ttf/test_glyphs-glyf_c
 pub static COLRV0V1_VARIABLE: &[u8] =
     include_bytes!("../test_data/ttf/test_glyphs-glyf_colr_1_variable.ttf");
 
+/// Subset of Noto Color Emoji containing the flags with the most complex
+/// COLRv1 paint graphs (Ecuador and El Salvador).
+pub static NOTO_COLOR_EMOJI_FLAGS: &[u8] =
+    include_bytes!("../test_data/ttf/noto_color_emoji_flags.ttf");
+
 pub static COLRV1_NO_CLIPLIST: &[u8] =
     include_bytes!("../test_data/ttf/test_glyphs-glyf_colr_1_no_cliplist.subset.ttf");
 
