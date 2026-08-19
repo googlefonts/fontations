@@ -4,7 +4,7 @@ use crate::{
     layout::{intersected_glyphs_and_indices, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::{IterNullableHelper, SubsetOffsetArray},
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     Plan, SubsetState, SubsetTable,
 };
 use write_fonts::{
@@ -75,13 +75,12 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat1<'_> {
         // seq rulesets offsets
         let rule_sets = self.seq_rule_sets();
         for (g, idx) in cov_glyphs.iter().zip(rule_sets_idxes.iter()) {
-            match rule_sets.subset_offset(idx as usize, s, plan, lookup_map) {
-                Ok(()) => {
-                    new_cov_glyphs.push(*g);
-                    rule_set_count += 1;
-                }
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => return Err(e),
+            if !rule_sets
+                .subset_offset(idx as usize, s, plan, lookup_map)
+                .is_empty()?
+            {
+                new_cov_glyphs.push(*g);
+                rule_set_count += 1;
             }
         }
 
@@ -169,10 +168,8 @@ fn serialize_lookup_records(
 ) -> Result<u16, SerializeErrorFlags> {
     let mut seq_lookup_count = 0_u16;
     for lookup in lookup_records {
-        match lookup.subset(plan, s, lookup_map) {
-            Ok(()) => seq_lookup_count += 1,
-            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-            Err(e) => return Err(e),
+        if !lookup.subset(plan, s, lookup_map).is_empty()? {
+            seq_lookup_count += 1;
         }
     }
     Ok(seq_lookup_count)
@@ -300,19 +297,17 @@ impl<'a> SubsetTable<'a> for SequenceContextFormat2<'_> {
             }
             match rule_sets.get(c as usize) {
                 Some(Ok(rule_set)) => {
-                    match Offset16::serialize_subset(
+                    if !Offset16::serialize_subset(
                         &rule_set,
                         s,
                         plan,
                         (&class_map, lookup_map),
                         offset_pos,
-                    ) {
-                        Ok(()) => {
-                            rule_set_count = i as u16 + 1;
-                            snap = s.snapshot();
-                        }
-                        Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
-                        Err(e) => return Err(e),
+                    )
+                    .is_empty()?
+                    {
+                        rule_set_count = i as u16 + 1;
+                        snap = s.snapshot();
                     }
                 }
                 None => continue,
@@ -507,13 +502,12 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat1<'_> {
         // chained seq rulesets offsets
         let rule_sets = self.chained_seq_rule_sets();
         for (g, idx) in cov_glyphs.iter().zip(rule_sets_idxes.iter()) {
-            match rule_sets.subset_offset(idx as usize, s, plan, lookup_map) {
-                Ok(()) => {
-                    new_cov_glyphs.push(*g);
-                    rule_set_count += 1;
-                }
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => return Err(e),
+            if !rule_sets
+                .subset_offset(idx as usize, s, plan, lookup_map)
+                .is_empty()?
+            {
+                new_cov_glyphs.push(*g);
+                rule_set_count += 1;
             }
         }
 
@@ -735,14 +729,11 @@ impl<'a> SubsetTable<'a> for ChainedSequenceContextFormat2<'_> {
             }
             match rule_sets.get(c as usize) {
                 Some(Ok(rule_set)) => {
-                    match Offset16::serialize_subset(&rule_set, s, plan, &subset_struct, offset_pos)
+                    if !Offset16::serialize_subset(&rule_set, s, plan, &subset_struct, offset_pos)
+                        .is_empty()?
                     {
-                        Ok(()) => {
-                            rule_set_count = i as u16 + 1;
-                            snap = s.snapshot();
-                        }
-                        Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
-                        Err(e) => return Err(e),
+                        rule_set_count = i as u16 + 1;
+                        snap = s.snapshot();
                     }
                 }
                 None => continue,

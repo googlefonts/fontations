@@ -61,6 +61,21 @@ impl std::ops::Not for SerializeErrorFlags {
     }
 }
 
+pub(crate) trait SerializeResultEmpty {
+    #[allow(clippy::wrong_self_convention)]
+    fn is_empty(self) -> Result<bool, SerializeErrorFlags>;
+}
+
+impl SerializeResultEmpty for Result<(), SerializeErrorFlags> {
+    fn is_empty(self) -> Result<bool, SerializeErrorFlags> {
+        match self {
+            Ok(()) => Ok(false),
+            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => Ok(true),
+            Err(e) => Err(e),
+        }
+    }
+}
+
 #[derive(Default, Eq, PartialEq, Clone, Copy, Hash, Debug)]
 /// Marks where an offset is relative from.
 ///

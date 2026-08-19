@@ -4,7 +4,7 @@ use crate::fnv::FnvHashMap;
 use crate::{
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
     offset::{SerializeSerialize, SerializeSubset},
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
 };
 use write_fonts::{
@@ -56,10 +56,8 @@ impl<'a> SubsetTable<'a> for CursivePosFormat1<'_> {
             let Some(exit_record) = exit_records.get(i as usize) else {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
             };
-            match exit_record.subset(plan, s, font_data) {
-                Ok(()) => entry_exit_count += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => return Err(e),
+            if !exit_record.subset(plan, s, font_data).is_empty()? {
+                entry_exit_count += 1;
             }
         }
 

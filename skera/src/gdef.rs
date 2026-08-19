@@ -4,7 +4,7 @@ use crate::{
     layout::ClassDefSubsetStruct,
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::{IterNullableHelper, SubsetOffsetArray},
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, Subset, SubsetError, SubsetState, SubsetTable,
 };
 use write_fonts::{
@@ -119,19 +119,14 @@ fn subset_gdef(
             .transpose()
             .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
         {
-            match Offset16::serialize_subset(
+            !Offset16::serialize_subset(
                 &mark_glyph_sets_def,
                 s,
                 plan,
                 (),
                 mark_glyphsetsdef_offset_pos,
-            ) {
-                Ok(()) => true,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => false,
-                Err(e) => {
-                    return Err(e);
-                }
-            }
+            )
+            .is_empty()?
         } else {
             false
         }
@@ -181,13 +176,8 @@ fn subset_gdef(
         .transpose()
         .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
     {
-        match Offset16::serialize_subset(&ligcaret_list, s, plan, (), ligcaret_list_offset_pos) {
-            Ok(_) => true,
-            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => false,
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        !Offset16::serialize_subset(&ligcaret_list, s, plan, (), ligcaret_list_offset_pos)
+            .is_empty()?
     } else {
         false
     };
@@ -197,13 +187,7 @@ fn subset_gdef(
         .transpose()
         .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?
     {
-        match Offset16::serialize_subset(&attach_list, s, plan, (), attachlist_offset_pos) {
-            Ok(_) => true,
-            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => false,
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        !Offset16::serialize_subset(&attach_list, s, plan, (), attachlist_offset_pos).is_empty()?
     } else {
         false
     };
@@ -292,13 +276,9 @@ impl SubsetTable<'_> for AttachList<'_> {
                 continue;
             };
 
-            match attach_points.subset_offset(idx, s, plan, ()) {
-                Ok(()) => {
-                    count += 1;
-                    retained_glyphs.push(*new_gid);
-                }
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => return Err(e),
+            if !attach_points.subset_offset(idx, s, plan, ()).is_empty()? {
+                count += 1;
+                retained_glyphs.push(*new_gid);
             }
         }
 
@@ -360,13 +340,9 @@ impl SubsetTable<'_> for LigCaretList<'_> {
                 continue;
             };
 
-            match lig_glyphs.subset_offset(idx, s, plan, ()) {
-                Ok(()) => {
-                    count += 1;
-                    retained_glyphs.push(*new_gid);
-                }
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
-                Err(e) => return Err(e),
+            if !lig_glyphs.subset_offset(idx, s, plan, ()).is_empty()? {
+                count += 1;
+                retained_glyphs.push(*new_gid);
             }
         }
 
@@ -445,14 +421,8 @@ impl SubsetTable<'_> for MarkGlyphSets<'_> {
         let mut count = 0_u16;
 
         for i in 0..mark_glyph_set_count {
-            match coverages.subset_offset(i, s, plan, ()) {
-                Ok(()) => {
-                    count += 1;
-                }
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => {
-                    return Err(e);
-                }
+            if !coverages.subset_offset(i, s, plan, ()).is_empty()? {
+                count += 1;
             }
         }
 
@@ -530,22 +500,22 @@ impl SubsetTable<'_> for CaretValueFormat3<'_> {
         let Ok(device) = self.device() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
-        match Offset16::serialize_subset(
+
+        if Offset16::serialize_subset(
             &device,
             s,
             plan,
             &plan.layout_varidx_delta_map,
             device_offset_pos,
-        ) {
-            Ok(()) => Ok(()),
+        )
+        .is_empty()?
+        {
             // Downgrade to format1 if Device table is empty
-            Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => {
-                s.revert_snapshot(snap);
-                s.copy_assign(format_pos, 1_u16);
-                Ok(())
-            }
-            Err(e) => Err(e),
+            s.revert_snapshot(snap);
+            s.copy_assign(format_pos, 1_u16);
         }
+
+        Ok(())
     }
 }
 

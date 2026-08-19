@@ -4,7 +4,7 @@ use crate::{
     gpos::mark_array::{collect_mark_record_varidx, get_mark_class_map},
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
     offset::{SerializeSerialize, SerializeSubset},
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetState, SubsetTable,
 };
 use write_fonts::{
@@ -173,10 +173,11 @@ impl<'a> SubsetTable<'a> for BaseArray<'_> {
                 .get(i as usize)
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-            match base_record.subset(plan, s, (mark_class_map, font_data)) {
-                Ok(()) => retained_base_glyphs.push(*g),
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => return Err(e),
+            if !base_record
+                .subset(plan, s, (mark_class_map, font_data))
+                .is_empty()?
+            {
+                retained_base_glyphs.push(*g);
             }
         }
 
