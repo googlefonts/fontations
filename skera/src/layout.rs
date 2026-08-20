@@ -6,7 +6,7 @@ use crate::fnv::FnvHashMap;
 use crate::{
     offset::SerializeSubset,
     offset_array::SubsetOffsetArray,
-    serialize::{OffsetWhence, SerializeErrorFlags, Serializer},
+    serialize::{OffsetWhence, SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, NameIdClosure, Plan, Serialize, SubsetState, SubsetTable,
 };
 use write_fonts::{
@@ -23,6 +23,7 @@ use write_fonts::{
                 Intersect, LangSys, LangSysRecord, LookupList, RangeRecord, Script, ScriptList,
                 ScriptRecord, SizeParams, StylisticSetParams, VariationIndex,
             },
+            variations::NO_VARIATION_INDEX,
         },
         types::{GlyphId, GlyphId16, NameId},
         ArrayOfOffsets, FontData, FontRead, FontRef, MinByteRange, ReadError, TopLevelTable,
@@ -124,6 +125,9 @@ impl<'a> SubsetTable<'a> for VariationIndex<'a> {
     ) -> Result<(), SerializeErrorFlags> {
         let var_idx =
             ((self.delta_set_outer_index() as u32) << 16) + self.delta_set_inner_index() as u32;
+        if var_idx == NO_VARIATION_INDEX {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         let Some((new_idx, _)) = args.get(&var_idx) else {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         };
@@ -1202,10 +1206,13 @@ impl<'a> SubsetTable<'a> for ScriptList<'_> {
             }
 
             let snap = s.snapshot();
-            match script_record.subset(plan, s, (c, font_data, i)) {
-                Ok(()) => num_records += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => s.revert_snapshot(snap),
-                Err(e) => return Err(e),
+            if !script_record
+                .subset(plan, s, (c, font_data, i))
+                .is_empty()?
+            {
+                num_records += 1;
+            } else {
+                s.revert_snapshot(snap);
             }
         }
         if num_records != 0 {
@@ -1661,10 +1668,8 @@ impl SubsetTable<'_> for ConditionSet<'_> {
         let conditions = self.conditions();
         let condition_count = self.condition_count() as usize;
         for i in 0..condition_count {
-            match conditions.subset_offset(i, s, plan, ()) {
-                Ok(()) => count += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
-                Err(e) => return Err(e),
+            if !conditions.subset_offset(i, s, plan, ()).is_empty()? {
+                count += 1;
             }
         }
 
@@ -1723,10 +1728,11 @@ impl<'a> SubsetTable<'a> for FeatureTableSubstitution<'_> {
         let (feature_index_map, c) = args;
         let font_data = self.offset_data();
         for sub in self.substitutions() {
-            match sub.subset(plan, s, (feature_index_map, c, font_data)) {
-                Ok(()) => subs_count += 1,
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => continue,
-                Err(e) => return Err(e),
+            if !sub
+                .subset(plan, s, (feature_index_map, c, font_data))
+                .is_empty()?
+            {
+                subs_count += 1;
             }
         }
 

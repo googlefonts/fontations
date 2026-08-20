@@ -145,6 +145,21 @@ Describes the provenance, usage and generation procedures for font data used for
   * usage: testing cmap format 13
   * subset: manually subset to ASCII to reduce ttx size
 
+* _noto_color_emoji_flags_
+  * font: Noto Color Emoji
+  * source: https://fonts.google.com/noto/specimen/Noto+Color+Emoji
+  * license: [Open Font License][OFL]
+  * usage: testing COLRv1 paint traversal with high node counts; the Ecuador
+    and El Salvador flags have the most complex paint graphs in the font,
+    requiring ~6700 nodes
+  * subset: the Ecuador (`glyph01852`) and El Salvador (`glyph01986`) flag
+    glyphs, their COLRv1 paint graph dependencies, and the regional indicator
+    glyphs needed to keep the GSUB ligature lookups. The `SVG `, `vhea` and
+    `vmtx` tables are dropped as they are not needed for testing COLRv1.
+    ```shell
+    pyftsubset NotoColorEmoji-Regular.ttf --glyphs=glyph01852,glyph01986,u1F1EA,u1F1E8,u1F1F8,u1F1FB --layout-features='*' --drop-tables='SVG ,vhea,vmtx'
+    ```
+
 * type1/notoserif-regular.subset.pfa
   * font: Noto Serif Regular
   * source: https://fonts.google.com/noto/specimen/Noto+Serif

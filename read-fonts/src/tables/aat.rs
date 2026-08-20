@@ -23,6 +23,7 @@ impl Lookup0<'_> {
             .cursor()
             .read_array::<BigEndian<T>>(n_elems)
     }
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         self.values::<T>()?
             .get(index as usize)
@@ -52,6 +53,7 @@ impl<T: LookupValue> FixedSize for LookupSegment2<T> {
 }
 
 impl Lookup2<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let segments = self.segments::<T>()?;
         let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
@@ -74,6 +76,7 @@ impl Lookup2<'_> {
 }
 
 impl Lookup4<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let segments = self.segments();
         let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
@@ -130,6 +133,7 @@ impl<T: LookupValue> FixedSize for LookupSingle<T> {
 }
 
 impl Lookup6<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let entries = self.entries::<T>()?;
         if let Ok(ix) = entries.binary_search_by_key(&index, |entry| entry.glyph.get()) {
@@ -148,6 +152,7 @@ impl Lookup6<'_> {
 }
 
 impl Lookup8<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         index
             .checked_sub(self.first_glyph())
@@ -161,6 +166,7 @@ impl Lookup8<'_> {
 }
 
 impl Lookup10<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let ix = index
             .checked_sub(self.first_glyph())
@@ -184,6 +190,7 @@ impl Lookup10<'_> {
 }
 
 impl Lookup<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         match self {
             Lookup::Format0(lookup) => lookup.value::<T>(index),
@@ -342,6 +349,9 @@ pub struct StateTable<'a> {
     class_array: &'a [u8],
     state_array: &'a [u8],
     entry_table: &'a [u8],
+    /// floor(2^32 / n_classes) + 1: exact reciprocal for dividends < 2^16,
+    /// so the per-transition new-state conversion avoids a hardware divide.
+    n_classes_magic: u64,
 }
 
 impl StateTable<'_> {
@@ -379,10 +389,16 @@ impl StateTable<'_> {
         let mut entry = StateEntry::read(FontData::new(entry_data))?;
         // For legacy state tables, the newState is a byte offset into
         // the state array. Convert this to an index for consistency.
-        let new_state = (entry.new_state as i32)
-            .checked_sub(self.header.state_array_offset().to_u32() as i32)
-            .ok_or(ReadError::OutOfBounds)?
-            / self.n_classes as i32;
+        let offset = self.header.state_array_offset().to_u32() as i32;
+        let diff = entry.new_state as i32 - offset;
+        let new_state = if diff >= 0 {
+            // Multiply by the precomputed reciprocal instead of dividing;
+            // exact for all dividends below 2^16, and this is the per-
+            // transition hot path of legacy state machines.
+            ((diff as u64 * self.n_classes_magic) >> 32) as i32
+        } else {
+            diff / self.n_classes as i32
+        };
         entry.new_state = new_state.try_into().map_err(|_| ReadError::OutOfBounds)?;
         Ok(entry)
     }
@@ -418,6 +434,7 @@ impl<'a> FontRead<'a> for StateTable<'a> {
             class_array,
             state_array,
             entry_table,
+            n_classes_magic: (1u64 << 32) / n_classes as u64 + 1,
         })
     }
 }
@@ -460,6 +477,7 @@ where
     T: FixedSize + bytemuck::AnyBitPattern,
 {
     /// Returns the class table entry for the given glyph identifier.
+    #[inline]
     pub fn class(&self, glyph_id: GlyphId) -> Result<u16, ReadError> {
         let glyph_id: u16 = glyph_id
             .to_u32()
@@ -472,6 +490,7 @@ where
     }
 
     /// Returns the entry for the given state and class.
+    #[inline]
     pub fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError> {
         let mut class = class as usize;
         if class >= self.n_classes {

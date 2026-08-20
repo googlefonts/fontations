@@ -1,0 +1,8 @@
+FONTS:
+HubotSans-Italic_subset.ttf
+
+PROFILES:
+default.txt
+
+SUBSETS:
+U+21,U+48

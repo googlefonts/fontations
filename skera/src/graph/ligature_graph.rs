@@ -437,20 +437,13 @@ fn compact_lig_set(graph: &mut Graph, liga_set_index: ObjIdx) -> Result<(), Repa
     let subtract_len = (old_lig_count - num_liga) * Offset16::RAW_BYTE_LEN;
 
     let lig_set_v = &mut graph.vertices[liga_set_index];
-    let start_pos = LigatureSet::MIN_SIZE as u32;
-    let mut new_links = Vec::with_capacity(num_liga);
-    for i in 0..old_lig_count as u32 {
-        let old_pos = start_pos + i * 2;
-        let Some((mut pos, mut l)) = lig_set_v.real_links.remove_entry(&old_pos) else {
-            continue;
-        };
+    let mut new_pos = LigatureSet::MIN_SIZE as u32;
 
-        pos -= subtract_len as u32;
-        l.update_position(pos);
-        new_links.push((pos, l));
+    for l in lig_set_v.real_links.sorted_iter_mut() {
+        l.update_position(new_pos);
+        new_pos += Offset16::RAW_BYTE_LEN as u32;
     }
 
-    lig_set_v.real_links.extend(new_links);
     lig_set_v.tail -= subtract_len;
     Ok(())
 }
@@ -473,7 +466,7 @@ fn find_all_child_idxes(
     let v = graph
         .vertex(start_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-    for l in v.real_links.values() {
+    for l in v.real_links() {
         find_all_child_idxes(graph, l.obj_idx(), depth - 1, out)?;
     }
     Ok(())
@@ -496,11 +489,27 @@ fn fix_virtual_links(
 
         let mut num_links_to_old_cov = 0_usize;
         // lig/liga_set might be shared, only update links to the old coverage table idx
-        for l in v.virtual_links.iter_mut() {
-            if l.obj_idx() == old_coverage_idx {
-                l.update_obj_idx(coverage_idx);
-                num_links_to_old_cov += 1;
+        // deduplicate virtual_links so we keep only one virtual_link to the new coverage idx
+        let mut i = 0;
+        let mut found_cov_link = false;
+
+        while i < v.virtual_links.len() {
+            if v.virtual_links[i].obj_idx() == old_coverage_idx {
+                if found_cov_link {
+                    v.virtual_links.swap_remove(i);
+                    num_links_to_old_cov += 1;
+                    continue;
+                } else {
+                    found_cov_link = true;
+                    v.virtual_links[i].update_obj_idx(coverage_idx);
+                    num_links_to_old_cov += 1;
+                }
             }
+            i += 1;
+        }
+
+        if !found_cov_link {
+            v.add_link(LinkWidth::default(), coverage_idx, 0, true);
         }
 
         graph

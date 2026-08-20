@@ -5,7 +5,7 @@ use crate::{
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     CollectVariationIndices, Plan, SubsetFlags, SubsetState, SubsetTable,
 };
 
@@ -196,15 +196,12 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
 
         let mut retained_glyphs = Vec::with_capacity(glyphs.len());
         for (i, g) in pairset_idxes.iter().zip(glyphs) {
-            match pair_sets.subset_offset(i as usize, s, plan, (new_format1, new_format2)) {
-                Ok(()) => {
-                    pairset_count += 1;
-                    retained_glyphs.push(g);
-                }
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => {
-                    return Err(e);
-                }
+            if !pair_sets
+                .subset_offset(i as usize, s, plan, (new_format1, new_format2))
+                .is_empty()?
+            {
+                pairset_count += 1;
+                retained_glyphs.push(g);
             }
         }
 

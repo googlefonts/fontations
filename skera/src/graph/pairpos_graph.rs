@@ -3,12 +3,11 @@ use crate::{
     graph::{
         coverage_graph::{add_new_coverage, coverage_glyphs, make_coverage},
         layout::DataBytes,
-        Graph, RepackError,
+        Graph, RealLinks, RepackError,
     },
-    serialize::{Link, LinkWidth, ObjIdx, Serializer},
+    serialize::{LinkWidth, ObjIdx, Serializer},
     Serialize,
 };
-use std::collections::BTreeMap;
 use write_fonts::{
     read::{
         collections::IntSet,
@@ -122,10 +121,6 @@ fn compute_format1_split_points(
         return Ok(Vec::new());
     }
 
-    let table_links = graph
-        .vertex(table_idx)
-        .ok_or(RepackError::GraphErrorInvalidObjIndex)?
-        .real_links();
     let coverage_table_size = graph
         .vertex(coverage_idx)
         .ok_or(RepackError::GraphErrorInvalidObjIndex)?
@@ -143,7 +138,7 @@ fn compute_format1_split_points(
     for i in 0..num_pair_sets {
         let pos =
             PairPosFormat1::PAIR_SET_OFFSETS_START + (i as u32 * Offset16::RAW_BYTE_LEN as u32);
-        let Some(pairset_idx) = table_links.get(&pos).map(|l| l.obj_idx()) else {
+        let Some(pairset_idx) = graph.index_for_position(table_idx, pos) else {
             continue;
         };
 
@@ -240,19 +235,24 @@ fn split_format2(graph: &mut Graph, table_idx: ObjIdx) -> Result<Vec<ObjIdx>, Re
 }
 
 fn get_table_info(graph: &mut Graph, table_idx: ObjIdx) -> Option<Format2TableInfo> {
-    let table_links = graph.vertex(table_idx)?.real_links();
+    let mut coverage_idx = None;
+    let mut class_def1_idx = None;
+    let mut class_def2_idx = None;
+    for l in graph.vertex(table_idx)?.real_links() {
+        match l.position() {
+            PairPosFormat2::COVERAGE_OFFSET_POS => coverage_idx = Some(l.obj_idx()),
+            PairPosFormat2::CLASS_DEF1_OFFSET_POS => class_def1_idx = Some(l.obj_idx()),
+            PairPosFormat2::CLASS_DEF2_OFFSET_POS => class_def2_idx = Some(l.obj_idx()),
+            _ => (),
+        }
+        if coverage_idx.is_some() && class_def1_idx.is_some() && class_def2_idx.is_some() {
+            break;
+        }
+    }
 
-    let coverage_idx = table_links
-        .get(&PairPosFormat2::COVERAGE_OFFSET_POS)?
-        .obj_idx();
-
-    let class_def1_idx = table_links
-        .get(&PairPosFormat2::CLASS_DEF1_OFFSET_POS)?
-        .obj_idx();
-
-    let class_def2_idx = table_links
-        .get(&PairPosFormat2::CLASS_DEF2_OFFSET_POS)?
-        .obj_idx();
+    let coverage_idx = coverage_idx?;
+    let class_def1_idx = class_def1_idx?;
+    let class_def2_idx = class_def2_idx?;
 
     let format2_table = PairPosFormat2::from_graph(graph, table_idx).ok()?;
     let value_format1 = format2_table.value_format1();
@@ -563,7 +563,7 @@ impl ClassDefSizeEstimator {
 
 fn get_device_table_indices(val: u16) -> Vec<u8> {
     let value_format = ValueFormat::from_bits_truncate(val);
-    let mut indices = Vec::new();
+    let mut indices = Vec::with_capacity(4);
     let mut i = 0;
     if value_format.contains(ValueFormat::X_PLACEMENT) {
         i += 1;
@@ -605,7 +605,7 @@ fn get_device_table_indices(val: u16) -> Vec<u8> {
 
 fn size_of_value_record_children(
     graph: &Graph,
-    links: &BTreeMap<u32, Link>,
+    links: &RealLinks,
     device_table_indices: &[u8],
     value_record_index: u32,
     visited: &mut IntSet<u32>,
@@ -614,8 +614,8 @@ fn size_of_value_record_children(
     let record_start_pos = PairPosFormat2::MIN_SIZE as u32 + value_record_index * 2;
     for &i in device_table_indices {
         let pos = record_start_pos + i as u32 * 2;
-        if let Some(&link) = links.get(&pos) {
-            size += graph.find_subgraph_size(link.obj_idx(), visited, u16::MAX)?;
+        if let Some(obj_idx) = links.link_index_at_position(pos) {
+            size += graph.find_subgraph_size(obj_idx, visited, u16::MAX)?;
         }
     }
     Ok(size)

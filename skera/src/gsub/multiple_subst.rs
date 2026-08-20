@@ -4,7 +4,7 @@ use crate::{
     layout::intersected_glyphs_and_indices,
     offset::SerializeSerialize,
     offset_array::SubsetOffsetArray,
-    serialize::{SerializeErrorFlags, Serializer},
+    serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
     Plan, SubsetState, SubsetTable,
 };
 use write_fonts::{
@@ -55,13 +55,12 @@ impl<'a> SubsetTable<'a> for MultipleSubstFormat1<'_> {
 
         let mut glyphs = Vec::with_capacity(cov_glyphs.len());
         for (g, idx) in cov_glyphs.iter().zip(seq_idxes.iter()) {
-            match sequences.subset_offset(idx as usize, s, plan, ()) {
-                Ok(()) => {
-                    glyphs.push(*g);
-                    seq_count += 1;
-                }
-                Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY) => (),
-                Err(e) => return Err(e),
+            if !sequences
+                .subset_offset(idx as usize, s, plan, ())
+                .is_empty()?
+            {
+                glyphs.push(*g);
+                seq_count += 1;
             }
         }
 
