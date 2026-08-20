@@ -514,6 +514,55 @@ where
     }
 }
 
+/// Pre-resolved byte offsets of an [ExtendedStateTable]'s components,
+/// relative to the table start. Lifetime-free, so callers can cache it and
+/// rebuild the table with [ExtendedStateTable::from_parts] without re-reading
+/// and re-validating the header.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct StateTableParts {
+    pub n_classes: u32,
+    pub class_table_offset: u32,
+    pub state_array_offset: u32,
+    pub entry_table_offset: u32,
+}
+
+impl StateTableParts {
+    /// Reads the header of an extended state table at the start of `data`.
+    pub fn read(data: FontData) -> Result<Self, ReadError> {
+        let header = StxHeader::read(data)?;
+        Ok(StateTableParts {
+            n_classes: header.n_classes(),
+            class_table_offset: header.class_table_offset().to_u32(),
+            state_array_offset: header.state_array_offset().to_u32(),
+            entry_table_offset: header.entry_table_offset().to_u32(),
+        })
+    }
+}
+
+impl<'a, T> ExtendedStateTable<'a, T> {
+    /// Builds the state table from `data` and offsets previously captured
+    /// with [StateTableParts::read] on the same data.
+    #[inline]
+    pub fn from_parts(data: FontData<'a>, parts: &StateTableParts) -> Result<Self, ReadError> {
+        let class_table = LookupU16::read(
+            data.split_off(parts.class_table_offset as usize)
+                .ok_or(ReadError::OutOfBounds)?,
+        )?;
+        let state_array = safe_read_array_to_end(&data, parts.state_array_offset as usize)?;
+        let entry_table = data
+            .as_bytes()
+            .get(parts.entry_table_offset as usize..)
+            .ok_or(ReadError::OutOfBounds)?;
+        Ok(Self {
+            n_classes: parts.n_classes as usize,
+            class_table,
+            state_array,
+            entry_table,
+            _marker: std::marker::PhantomData,
+        })
+    }
+}
+
 impl<T> ReadArgs for ExtendedStateTable<'_, T> {
     type Args = ();
 }
