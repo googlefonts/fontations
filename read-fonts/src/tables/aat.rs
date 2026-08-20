@@ -23,6 +23,7 @@ impl Lookup0<'_> {
             .cursor()
             .read_array::<BigEndian<T>>(n_elems)
     }
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         self.values::<T>()?
             .get(index as usize)
@@ -52,6 +53,7 @@ impl<T: LookupValue> FixedSize for LookupSegment2<T> {
 }
 
 impl Lookup2<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let segments = self.segments::<T>()?;
         let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
@@ -74,6 +76,7 @@ impl Lookup2<'_> {
 }
 
 impl Lookup4<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let segments = self.segments();
         let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
@@ -130,6 +133,7 @@ impl<T: LookupValue> FixedSize for LookupSingle<T> {
 }
 
 impl Lookup6<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let entries = self.entries::<T>()?;
         if let Ok(ix) = entries.binary_search_by_key(&index, |entry| entry.glyph.get()) {
@@ -148,6 +152,7 @@ impl Lookup6<'_> {
 }
 
 impl Lookup8<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         index
             .checked_sub(self.first_glyph())
@@ -161,6 +166,7 @@ impl Lookup8<'_> {
 }
 
 impl Lookup10<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         let ix = index
             .checked_sub(self.first_glyph())
@@ -184,6 +190,7 @@ impl Lookup10<'_> {
 }
 
 impl Lookup<'_> {
+    #[inline]
     pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
         match self {
             Lookup::Format0(lookup) => lookup.value::<T>(index),
@@ -460,6 +467,7 @@ where
     T: FixedSize + bytemuck::AnyBitPattern,
 {
     /// Returns the class table entry for the given glyph identifier.
+    #[inline]
     pub fn class(&self, glyph_id: GlyphId) -> Result<u16, ReadError> {
         let glyph_id: u16 = glyph_id
             .to_u32()
@@ -472,6 +480,7 @@ where
     }
 
     /// Returns the entry for the given state and class.
+    #[inline]
     pub fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError> {
         let mut class = class as usize;
         if class >= self.n_classes {
