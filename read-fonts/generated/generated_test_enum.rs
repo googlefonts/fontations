@@ -118,6 +118,19 @@ impl FixedSize for MyRecord {
     const RAW_BYTE_LEN: usize = MyEnum1::RAW_BYTE_LEN + MyEnum2::RAW_BYTE_LEN;
 }
 
+impl ReadArgs for MyRecord {
+    type Args = ();
+}
+
+impl SanitizeStruct for MyRecord {
+    fn can_skip() -> bool {
+        true
+    }
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext<'_>, _args: ()) -> Result<(), ReadError> {
+        ctx.finish()
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for MyRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
