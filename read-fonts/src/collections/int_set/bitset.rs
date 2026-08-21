@@ -692,11 +692,22 @@ impl U32Set {
     /// the page if it does not yet exist.
     #[inline]
     fn ensure_page_index_for_major(&mut self, major_value: u32) -> usize {
+        // Check the last-accessed-page cache (also maintained by contains())
+        // before searching; runs of nearby values mostly hit the same page.
+        let cached_map_index = *self.last_page_map_index.get_mut();
+        if let Some(info) = self.page_map.get(cached_map_index) {
+            if info.major_value == major_value {
+                return info.index as usize;
+            }
+        }
         match self
             .page_map
             .binary_search_by(|probe| probe.major_value.cmp(&major_value))
         {
-            Ok(map_index) => self.page_map[map_index].index as usize,
+            Ok(map_index) => {
+                *self.last_page_map_index.get_mut() = map_index;
+                self.page_map[map_index].index as usize
+            }
             Err(map_index_to_insert) => {
                 let page_index = self.pages.len();
                 self.pages.push(BitPage::new_zeroes());
@@ -705,6 +716,7 @@ impl U32Set {
                     major_value,
                 };
                 self.page_map.insert(map_index_to_insert, new_info);
+                *self.last_page_map_index.get_mut() = map_index_to_insert;
                 page_index
             }
         }
