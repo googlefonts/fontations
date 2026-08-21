@@ -56,6 +56,30 @@ pub fn insert_benchmark(c: &mut Criterion) {
     }
 }
 
+pub fn insert_ordered_benchmark(c: &mut Criterion) {
+    const NUM_INSERTS: u32 = 1000;
+    let inputs = set_parameters();
+
+    for input in inputs {
+        c.bench_with_input(
+            BenchmarkId::new("BM_SetInsertOrdered_1000", &input),
+            &input,
+            |b, p: &SetTest| {
+                let set = random_set(p.set_size, p.max_value());
+                b.iter_batched(
+                    || set.clone(),
+                    |mut s| {
+                        for i in 0..NUM_INSERTS {
+                            s.insert(i % p.max_value());
+                        }
+                    },
+                    BatchSize::SmallInput,
+                )
+            },
+        );
+    }
+}
+
 pub fn ordered_extend_benchmark(c: &mut Criterion) {
     let num_inserts = 1000u32;
     let inputs = set_parameters();
@@ -157,6 +181,7 @@ pub fn iteration_benchmark(c: &mut Criterion) {
 criterion_group!(
     benches,
     insert_benchmark,
+    insert_ordered_benchmark,
     ordered_extend_benchmark,
     lookup_random_benchmark,
     lookup_ordered_benchmark,
