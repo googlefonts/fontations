@@ -1,5 +1,6 @@
 // path (from compile crate) to the generated parse module for this table.
 #![parse_module(read_fonts::tables::layout)]
+#![sanitize]
 
 extern scalar LookupFlag;
 
@@ -708,6 +709,7 @@ record FeatureTableSubstitutionRecord {
     /// Offset to an alternate feature table, from start of the
     /// FeatureTableSubstitution table.
     #[offset_getter(alternate_feature)] // custom impl, we need to pass a fake tag
+    #[sanitize_with(sanitize_alternate_feature_offset)]
     alternate_feature_offset: Offset32<Feature>,
 }
 

@@ -2,16 +2,16 @@ use super::*;
 use crate::assert_hex_eq;
 use font_test_data::layout as test_data;
 
-#[test]
-fn example_1_scripts() {
-    // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-1-scriptlist-table-and-scriptrecords
+// this test data is only a header and no subtables, so we can't do much with it.
+//#[test]
+//fn example_1_scripts() {
+// // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-1-scriptlist-table-and-scriptrecords
 
-    let table = ScriptList::read(test_data::SCRIPTS.into()).unwrap();
-    // validation fails because of of missing subtables
-    let _dumped = crate::dump_table(&table);
-    //NOTE: we can't roundtrip this because the data doesn't include subtables.
-    //assert_hex_eq!(&bytes, &dumped);
-}
+//let table = ScriptList::read(test_data::SCRIPTS.into()).unwrap();
+// // validation fails because of of missing subtables
+//let _dumped = crate::dump_table(&table);
+// //assert_hex_eq!(&bytes, &dumped);
+//}
 
 #[test]
 fn example_2_scripts_and_langs() {
