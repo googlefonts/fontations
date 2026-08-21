@@ -1,6 +1,5 @@
 //! the traits we'll need to generate for sanitize
 
-#![allow(dead_code)] // just until sanitize P.2 lands
 use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Nullable, Scalar};
 
@@ -13,14 +12,14 @@ use crate::{
 ///
 /// This is bundled together because we need to update the shared state as we
 /// navigate the bytes.
-pub struct SanitizeContext<'a> {
+pub struct SanitizeContext<'a, 's> {
     cursor: Cursor<'a>,
-    state: &'a mut SanitizeState,
+    state: &'s mut SanitizeState,
 }
 
 /// State tracked during during a sanitize pass
 #[derive(Clone, Debug, Default)]
-pub(crate) struct SanitizeState {
+struct SanitizeState {
     // only used in COLRv1
     _recursion_depth: u32,
     // gpos/gsub
@@ -29,15 +28,7 @@ pub(crate) struct SanitizeState {
     // some stuff goes in here?
 }
 
-impl<'a> SanitizeContext<'a> {
-    #[cfg(test)]
-    pub(crate) fn new(data: FontData<'a>, state: &'a mut SanitizeState) -> Self {
-        Self {
-            cursor: data.cursor(),
-            state,
-        }
-    }
-
+impl<'a> SanitizeContext<'a, '_> {
     pub(crate) fn data(&self) -> FontData<'a> {
         self.cursor.data
     }
@@ -60,7 +51,7 @@ impl<'a> SanitizeContext<'a> {
     pub(crate) fn sanitize_offset<O, T>(&mut self, args: T::Args) -> Result<(), ReadError>
     where
         O: Offset + Scalar,
-        T: Sanitize,
+        T: Sanitize<'a>,
     {
         let offset = self.read::<O>()?;
         self.descend_into_offset(offset, |ctx| T::sanitize(ctx, args))
@@ -74,7 +65,7 @@ impl<'a> SanitizeContext<'a> {
     fn descend_into_offset(
         &mut self,
         offset: impl Offset,
-        f: impl FnOnce(&mut SanitizeContext) -> Result<(), ReadError>,
+        f: impl FnOnce(&mut SanitizeContext<'a, '_>) -> Result<(), ReadError>,
     ) -> Result<(), ReadError> {
         let offset = match offset.to_usize() {
             0 => return Ok(()),
@@ -123,7 +114,7 @@ impl<'a> SanitizeContext<'a> {
     ) -> Result<(), ReadError>
     where
         O: Offset + Scalar,
-        T: Sanitize,
+        T: Sanitize<'a>,
         BigEndian<O>: AnyBitPattern + FixedSize,
     {
         let array = self.cursor.read_array::<BigEndian<O>>(count)?;
@@ -143,7 +134,7 @@ impl<'a> SanitizeContext<'a> {
     where
         O: Offset + Scalar,
         T: AnyBitPattern + FixedSize,
-        F: Fn(&T, &mut SanitizeContext) -> Result<(), ReadError>,
+        F: Fn(&T, &mut SanitizeContext<'a, '_>) -> Result<(), ReadError>,
     {
         let offset = self.read::<O>()?;
         self.sanitize_resolved_offset_to_array(offset, count, len_only, f)
@@ -163,7 +154,7 @@ impl<'a> SanitizeContext<'a> {
     where
         O: Offset + Scalar,
         T: AnyBitPattern + FixedSize,
-        F: Fn(&T, &mut SanitizeContext) -> Result<(), ReadError>,
+        F: Fn(&T, &mut SanitizeContext<'a, '_>) -> Result<(), ReadError>,
     {
         if offset.to_usize() == 0 {
             return Ok(());
@@ -239,11 +230,40 @@ impl<'a> SanitizeContext<'a> {
     }
 }
 
-pub trait Sanitize: ReadArgs {
+pub trait Sanitize<'a>: ReadArgs + Sized {
     /// recursively sanitizes this + all subgraphs.
     ///
     /// does not need to be called manually? we'll do this automatically?
-    fn sanitize(ctx: &mut SanitizeContext<'_>, args: Self::Args) -> Result<(), ReadError>;
+    fn sanitize(ctx: &mut SanitizeContext<'a, '_>, args: Self::Args) -> Result<(), ReadError>;
+
+    /// Read, performing only a single bounds check.
+    ///
+    /// Returns `None` if the data is not long enough to hold the table's
+    /// minimum-size fields (or, for a format group, if the format is one we
+    /// don't know). This does *not* validate the subgraph reachable through
+    /// this table's offsets, which is [`sanitize`]'s job.
+    ///
+    /// This is part of the sanitize machinery, and should generally not be
+    /// called directly.
+    ///
+    /// The exception would be in certain performance-sensitive cases, where
+    /// the caller ensures that this specific table (and these specific bytes)
+    /// have already been sanitized.
+    ///
+    /// [`sanitize`]: Self::sanitize
+    #[doc(hidden)]
+    fn read_fast(data: FontData<'a>, args: Self::Args) -> Option<Self>;
+
+    /// Validate the data, returning a table on success.
+    fn read_checked(data: FontData<'a>, args: Self::Args) -> Result<Self, ReadError> {
+        let mut state = SanitizeState::default();
+        let mut ctx = SanitizeContext {
+            cursor: data.cursor(),
+            state: &mut state,
+        };
+        Self::sanitize(&mut ctx, args)
+            .and_then(|_| Self::read_fast(data, args).ok_or(ReadError::OutOfBounds))
+    }
 }
 
 /// Sanitize functionality that is called on concrete types, instead of just
@@ -257,26 +277,23 @@ pub trait SanitizeStruct: ReadArgs {
     }
 
     /// Sanitize `self`, recursing into any offsets
-    fn sanitize_struct(
-        &self,
-        ctx: &mut SanitizeContext<'_>,
-        args: Self::Args,
-    ) -> Result<(), ReadError>;
+    fn sanitize_struct(&self, ctx: &mut SanitizeContext, args: Self::Args)
+        -> Result<(), ReadError>;
 }
 
 /// Recursively sanitize the table pointed at by an offset.
 pub trait SanitizeOffset {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError>;
 }
 
 impl<O: Offset> SanitizeOffset for O {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError> {
         ctx.descend_into_offset(*self, |ctx| T::sanitize(ctx, args))
@@ -284,9 +301,9 @@ impl<O: Offset> SanitizeOffset for O {
 }
 
 impl<O: Offset> SanitizeOffset for Nullable<O> {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError> {
         self.offset().sanitize_offset::<T>(ctx, args)
@@ -294,9 +311,9 @@ impl<O: Offset> SanitizeOffset for Nullable<O> {
 }
 
 impl<O: SanitizeOffset + Scalar> SanitizeOffset for BigEndian<O> {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError> {
         self.get().sanitize_offset::<T>(ctx, args)
@@ -304,13 +321,66 @@ impl<O: SanitizeOffset + Scalar> SanitizeOffset for BigEndian<O> {
 }
 
 impl<O: SanitizeOffset> SanitizeOffset for &[O] {
-    fn sanitize_offset<T: Sanitize>(
+    fn sanitize_offset<'a, T: Sanitize<'a>>(
         &self,
-        ctx: &mut SanitizeContext<'_>,
+        ctx: &mut SanitizeContext<'a, '_>,
         args: T::Args,
     ) -> Result<(), ReadError> {
         self.iter()
             .try_for_each(|off| off.sanitize_offset::<T>(ctx, args))
+    }
+}
+
+/// Resolve an offset using `read_fast` (post-sanitize).
+///
+/// For non-nullable offsets, a null offset returns a "default" table
+/// constructed from empty data. This should only occur if sanitize
+/// permitted a null non-nullable offset.
+pub trait FastResolveOffset {
+    fn fast_resolve<'a, T: Sanitize<'a> + Default>(
+        &self,
+        data: FontData<'a>,
+        args: T::Args,
+        // NOTE: return type matches what we do for non-sanitize, just to keep
+        // this less invasive for now
+    ) -> Result<T, ReadError>;
+}
+
+/// Resolve a nullable offset using `read_fast` (post-sanitize).
+///
+/// Null offsets return `None`.
+pub trait FastResolveNullableOffset {
+    fn fast_resolve<'a, T: Sanitize<'a> + Default>(
+        &self,
+        data: FontData<'a>,
+        args: T::Args,
+    ) -> Option<Result<T, ReadError>>;
+}
+
+impl<O: Offset> FastResolveOffset for O {
+    fn fast_resolve<'a, T: Sanitize<'a> + Default>(
+        &self,
+        data: FontData<'a>,
+        args: T::Args,
+    ) -> Result<T, ReadError> {
+        match self.non_null() {
+            Some(off) => {
+                T::read_fast(data.split_off(off).unwrap(), args).ok_or(ReadError::OutOfBounds)
+            }
+            None => Ok(T::default()),
+        }
+    }
+}
+
+impl<O: Offset> FastResolveNullableOffset for Nullable<O> {
+    fn fast_resolve<'a, T: Sanitize<'a> + Default>(
+        &self,
+        data: FontData<'a>,
+        args: T::Args,
+    ) -> Option<Result<T, ReadError>> {
+        self.offset().non_null().map(|off| {
+            T::read_fast(data.split_off(off).unwrap(), args).ok_or(ReadError::OutOfBounds)
+        })
     }
 }
 
