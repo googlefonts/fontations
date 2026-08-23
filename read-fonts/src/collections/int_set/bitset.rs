@@ -710,7 +710,9 @@ impl U32Set {
             .binary_search_by(|probe| probe.major_value.cmp(&major_value))
         {
             Ok(map_index) => self.page_map[map_index].index as usize,
-            Err(map_index_to_insert) => self.insert_page_for_major(map_index_to_insert, major_value),
+            Err(map_index_to_insert) => {
+                self.insert_page_for_major(map_index_to_insert, major_value)
+            }
         }
     }
 
