@@ -980,7 +980,7 @@ impl<T: Validate> Validate for ExtensionSubstFormat1<T> {
 impl<'a, T, U> FromObjRef<read_fonts::tables::gsub::ExtensionSubstFormat1<'a, U>>
     for ExtensionSubstFormat1<T>
 where
-    U: FontRead<'a, Args = ()>,
+    U: Sanitize<'a, Args = ()> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
@@ -998,7 +998,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::tables::gsub::ExtensionSubstFormat1<'a, U>>
     for ExtensionSubstFormat1<T>
 where
-    U: FontRead<'a, Args = ()>,
+    U: Sanitize<'a, Args = ()> + Default,
     T: FromTableRef<U> + Default + 'static,
 {
 }
