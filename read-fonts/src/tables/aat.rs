@@ -349,6 +349,10 @@ pub struct StateTable<'a> {
     class_array: &'a [u8],
     state_array: &'a [u8],
     entry_table: &'a [u8],
+    /// Byte offset from the start of the table to the state array, cached
+    /// from the header so the per-transition new-state conversion doesn't
+    /// re-read it through the header accessor on every call.
+    state_array_offset: i32,
     /// floor(2^32 / n_classes) + 1: exact reciprocal for dividends < 2^16,
     /// so the per-transition new-state conversion avoids a hardware divide.
     n_classes_magic: u64,
@@ -382,15 +386,18 @@ impl StateTable<'_> {
             .copied()
             .ok_or(ReadError::OutOfBounds)? as usize;
         let entry_offset = entry_ix * 4;
-        let entry_data = self
+        // Hand-rolled equivalent of `StateEntry::read`: a single bounds
+        // check for the 4 entry bytes, then two fixed big-endian reads.
+        let entry_data: &[u8; 4] = self
             .entry_table
-            .get(entry_offset..)
+            .get(entry_offset..entry_offset + 4)
+            .and_then(|data| data.first_chunk())
             .ok_or(ReadError::OutOfBounds)?;
-        let mut entry = StateEntry::read(FontData::new(entry_data))?;
+        let raw_new_state = u16::from_be_bytes([entry_data[0], entry_data[1]]);
+        let flags = u16::from_be_bytes([entry_data[2], entry_data[3]]);
         // For legacy state tables, the newState is a byte offset into
         // the state array. Convert this to an index for consistency.
-        let offset = self.header.state_array_offset().to_u32() as i32;
-        let diff = entry.new_state as i32 - offset;
+        let diff = raw_new_state as i32 - self.state_array_offset;
         let new_state = if diff >= 0 {
             // Multiply by the precomputed reciprocal instead of dividing;
             // exact for all dividends below 2^16, and this is the per-
@@ -399,8 +406,16 @@ impl StateTable<'_> {
         } else {
             diff / self.n_classes as i32
         };
-        entry.new_state = new_state.try_into().map_err(|_| ReadError::OutOfBounds)?;
-        Ok(entry)
+        // Same accept/reject set as `u16::try_from`: reject anything
+        // negative or above u16::MAX.
+        if new_state as u32 > u16::MAX as u32 {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(StateEntry {
+            new_state: new_state as u16,
+            flags,
+            payload: NoPayload(()),
+        })
     }
 
     /// Reads scalar values that are referenced from state table entries.
@@ -434,6 +449,7 @@ impl<'a> FontRead<'a> for StateTable<'a> {
             class_array,
             state_array,
             entry_table,
+            state_array_offset: header.state_array_offset().to_u32() as i32,
             n_classes_magic: (1u64 << 32) / n_classes as u64 + 1,
         })
     }
@@ -506,11 +522,18 @@ where
             .ok_or(ReadError::OutOfBounds)?
             .get() as usize;
         let entry_offset = entry_ix.wrapping_mul(StateEntry::<T>::RAW_BYTE_LEN);
+        // Hand-rolled equivalent of `StateEntry::read`: a single bounds
+        // check covering the two fixed fields and the payload, then two
+        // fixed big-endian reads and a bytemuck read of the payload.
         let entry_data = self
             .entry_table
-            .get(entry_offset..)
+            .get(entry_offset..entry_offset + StateEntry::<T>::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
-        StateEntry::read(FontData::new(entry_data))
+        Ok(StateEntry {
+            new_state: u16::from_be_bytes([entry_data[0], entry_data[1]]),
+            flags: u16::from_be_bytes([entry_data[2], entry_data[3]]),
+            payload: *bytemuck::from_bytes(&entry_data[4..]),
+        })
     }
 }
 
@@ -916,5 +939,198 @@ mod tests {
                 entry.flags
             );
         }
+    }
+
+    /// Verbatim copy of the original `StateTable::entry` (which parsed the
+    /// entry with the generic `StateEntry::read` machinery and re-read the
+    /// state array offset from the header on every call), kept as a
+    /// reference to prove the hand-rolled fast path returns identical
+    /// results, including all error paths.
+    fn reference_state_entry(
+        table: &StateTable,
+        state: u16,
+        class: u8,
+    ) -> Result<StateEntry, ReadError> {
+        let mut class = class as usize;
+        if class >= table.n_classes {
+            class = class::OUT_OF_BOUNDS as usize;
+        }
+        let entry_ix = table
+            .state_array
+            .get(state as usize * table.n_classes + class)
+            .copied()
+            .ok_or(ReadError::OutOfBounds)? as usize;
+        let entry_offset = entry_ix * 4;
+        let entry_data = table
+            .entry_table
+            .get(entry_offset..)
+            .ok_or(ReadError::OutOfBounds)?;
+        let mut entry = StateEntry::read(FontData::new(entry_data))?;
+        // For legacy state tables, the newState is a byte offset into
+        // the state array. Convert this to an index for consistency.
+        let offset = table.header.state_array_offset().to_u32() as i32;
+        let diff = entry.new_state as i32 - offset;
+        let new_state = if diff >= 0 {
+            ((diff as u64 * table.n_classes_magic) >> 32) as i32
+        } else {
+            diff / table.n_classes as i32
+        };
+        entry.new_state = new_state.try_into().map_err(|_| ReadError::OutOfBounds)?;
+        Ok(entry)
+    }
+
+    /// Verbatim copy of the original `ExtendedStateTable::entry`; see
+    /// [`reference_state_entry`].
+    fn reference_extended_state_entry<T: bytemuck::AnyBitPattern + FixedSize>(
+        table: &ExtendedStateTable<T>,
+        state: u16,
+        class: u16,
+    ) -> Result<StateEntry<T>, ReadError> {
+        let mut class = class as usize;
+        if class >= table.n_classes {
+            class = class::OUT_OF_BOUNDS as usize;
+        }
+        let state_ix = (state as usize)
+            .wrapping_mul(table.n_classes)
+            .wrapping_add(class);
+        let entry_ix = table
+            .state_array
+            .get(state_ix)
+            .copied()
+            .ok_or(ReadError::OutOfBounds)?
+            .get() as usize;
+        let entry_offset = entry_ix.wrapping_mul(StateEntry::<T>::RAW_BYTE_LEN);
+        let entry_data = table
+            .entry_table
+            .get(entry_offset..)
+            .ok_or(ReadError::OutOfBounds)?;
+        StateEntry::read(FontData::new(entry_data))
+    }
+
+    #[test]
+    fn state_table_entry_matches_reference() {
+        for n_classes in [1u16, 2, 7] {
+            let n_states = 3u16;
+            let class_off = 10u16;
+            let state_off = class_off + 8; // 2 (first_glyph) + 2 (n_glyphs) + 4 classes
+            let entry_off = state_off + n_states * n_classes;
+            let header = [n_classes, class_off, state_off, entry_off];
+            // Entry indices, including several that run off the end of the
+            // entry table.
+            let state_array: Vec<u8> = (0..n_states as usize * n_classes as usize)
+                .map(|i| [0, 1, 2, 3, 4, 5, 6, 60, 255][i % 9])
+                .collect();
+            // newState byte offsets probing every corner of the index
+            // conversion: the state array start, an exact state boundary, a
+            // non-multiple, offsets before the state array (both rounding to
+            // zero and truly negative), and far out in both directions.
+            let entry_table: Vec<u16> = [
+                state_off,
+                state_off + n_classes,
+                state_off + n_classes + 1,
+                state_off - 1,
+                state_off - n_classes,
+                0,
+                0xFFFF,
+            ]
+            .into_iter()
+            .enumerate()
+            .flat_map(|(i, new_state)| [new_state, 0x8000 | i as u16])
+            .collect();
+            let buf = BeBuffer::new()
+                .extend(header)
+                .extend([3u16, 4]) // class table: first_glyph, n_glyphs
+                .extend([1u8, 2, 3, 4])
+                .extend(state_array)
+                .extend(entry_table);
+            let data = buf.data();
+            // Try every truncation of the underlying data and, for tables
+            // that still parse, every (state, class) transition including
+            // out-of-range states and classes.
+            for len in (0..=data.len()).rev() {
+                let Ok(table) = StateTable::read(FontData::new(&data[..len])) else {
+                    continue;
+                };
+                for state in 0..=n_states + 1 {
+                    for class in (0..=9).chain([254, 255]) {
+                        let expected = reference_state_entry(&table, state, class);
+                        let actual = table.entry(state, class);
+                        assert_eq!(
+                            format!("{expected:?}"),
+                            format!("{actual:?}"),
+                            "n_classes {n_classes} len {len} state {state} class {class}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    fn check_extended_entry_matches_reference<T>()
+    where
+        T: bytemuck::AnyBitPattern + FixedSize + std::fmt::Debug,
+    {
+        let n_classes = 6u32;
+        let n_states = 3u32;
+        let n_entries = 5u32;
+        let entry_words = (4 + T::RAW_BYTE_LEN as u32) / 2;
+        let class_off = 20u32;
+        let state_off = class_off + 36;
+        let entry_off = state_off + n_states * n_classes * 2;
+        let header = [n_classes, class_off, state_off, entry_off, 0];
+        #[rustfmt::skip]
+        let class_table = [
+            6_u16, // format
+            4,     // unit size (4 bytes)
+            5,     // number of units
+            16,    // search range
+            2,     // entry selector
+            0,     // range shift
+            50, 4, // Input glyph 50 maps to class 4
+            51, 4, // Input glyph 51 maps to class 4
+            80, 5, // Input glyph 80 maps to class 5
+            201, 4, // Input glyph 201 maps to class 4
+            202, 4, // Input glyph 202 maps to class 4
+            !0, !0,
+        ];
+        // Entry indices, including out-of-range ones.
+        let state_array: Vec<u16> = (0..(n_states * n_classes) as usize)
+            .map(|i| [0u16, 1, 2, 3, 4, 5, 6, 600, 0xFFFF][i % 9])
+            .collect();
+        let entry_table: Vec<u16> = (0..n_entries * entry_words)
+            .map(|i| 0x1000 + i as u16 * 3)
+            .collect();
+        let buf = BeBuffer::new()
+            .extend(header)
+            .extend(class_table)
+            .extend(state_array)
+            .extend(entry_table);
+        let data = buf.data();
+        for len in (0..=data.len()).rev() {
+            let Ok(table) = ExtendedStateTable::<T>::read(FontData::new(&data[..len])) else {
+                continue;
+            };
+            for state in 0..=n_states as u16 + 1 {
+                for class in (0..=7).chain([0xFFFE, 0xFFFF]) {
+                    let expected = reference_extended_state_entry(&table, state, class);
+                    let actual = table.entry(state, class);
+                    assert_eq!(
+                        format!("{expected:?}"),
+                        format!("{actual:?}"),
+                        "payload {} len {len} state {state} class {class}",
+                        std::any::type_name::<T>()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn extended_state_table_entry_matches_reference() {
+        use crate::tables::morx::{ContextualEntryData, InsertionEntryData};
+        check_extended_entry_matches_reference::<NoPayload>();
+        check_extended_entry_matches_reference::<BigEndian<u16>>();
+        check_extended_entry_matches_reference::<ContextualEntryData>();
+        check_extended_entry_matches_reference::<InsertionEntryData>();
     }
 }
