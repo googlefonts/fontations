@@ -50,7 +50,7 @@ pub trait FontRead<'a>: Sized + ReadArgs {
 /// This is separate from [`FontRead`] so that it can also be a supertrait of
 /// [`ComputeSize`], which does not need a lifetime.
 pub trait ReadArgs {
-    type Args: Copy;
+    type Args: Copy + 'static;
 }
 
 /// A trait for tables that have multiple possible formats.

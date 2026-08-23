@@ -33,6 +33,15 @@ impl<'a> FontRead<'a> for Table1<'a> {
     }
 }
 
+impl Sanitize for Table1<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u32>();
+        ctx.advance::<u16>();
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct Table1<'a> {
     data: FontData<'a>,
@@ -138,6 +147,15 @@ impl<'a> FontRead<'a> for Table2<'a> {
     }
 }
 
+impl Sanitize for Table2<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        let value_count = ctx.read::<u16>()?;
+        ctx.sanitize_array::<u16>(transforms::to_usize(value_count))?;
+        ctx.finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct Table2<'a> {
     data: FontData<'a>,
@@ -231,6 +249,14 @@ impl<'a> FontRead<'a> for Table3<'a> {
             return Err(ReadError::OutOfBounds);
         }
         Ok(Self { data })
+    }
+}
+
+impl Sanitize for Table3<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        ctx.advance::<u16>();
+        ctx.advance::<u16>();
+        ctx.finish()
     }
 }
 
@@ -350,6 +376,18 @@ impl<'a> MinByteRange<'a> for MyTable<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::MyFormat22(item) => item.min_table_bytes(),
             Self::Format3(item) => item.min_table_bytes(),
+        }
+    }
+}
+
+impl Sanitize for MyTable<'_> {
+    fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        let format: u16 = ctx.peek_at(0usize)?;
+        match format {
+            Table1::FORMAT => Table1::sanitize(ctx, ()),
+            Table2::FORMAT => Table2::sanitize(ctx, ()),
+            Table3::FORMAT => Table3::sanitize(ctx, ()),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }

@@ -5,6 +5,7 @@
 // to only rebuild the test outputs.
 
 #![parse_module(read_fonts::codegen_test::formats)]
+#![sanitize]
 
 table Table1 {
     #[format = 1]
