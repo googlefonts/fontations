@@ -716,7 +716,7 @@ impl U32Set {
         }
     }
 
-    /// The miss path of [`ensure_page_index_for_major`]: allocate and
+    /// The miss path of `ensure_page_index_for_major`: allocate and
     /// link a new page. Kept out of line so the hit path stays small
     /// enough to inline into the per-value insert loops.
     #[cold]
