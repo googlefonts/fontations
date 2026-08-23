@@ -110,7 +110,7 @@ fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> 
     let name = &item.name;
     let inner = &item.inner_type;
 
-    let match_arms: Vec<_> = item
+    let sanitize_arms: Vec<_> = item
         .variants
         .iter()
         .map(|var| {
@@ -120,13 +120,38 @@ fn generate_sanitize(item: &GenericGroup, items: &Items) -> Option<TokenStream> 
         })
         .collect();
 
+    // `read_fast` dispatches on the discriminant like `sanitize`, constructing the
+    // matched variant via its inner table's `read_fast`. As with `sanitize`, an
+    // unreadable or unknown discriminant yields `None`.
+    let read_fast_arms: Vec<_> = item
+        .variants
+        .iter()
+        .map(|var| {
+            let type_id = &var.type_id;
+            let var_name = &var.name;
+            let typ = &var.typ;
+            quote!(#type_id => #inner::<#typ>::read_fast(data, ()).map(#name::#var_name),)
+        })
+        .collect();
+
+    // soundness: a generic group must have at least one variant.
+    let _ = item.variants.first().expect("generic group needs variants");
+
     Some(quote! {
-        impl Sanitize for #name<'_> {
-            fn sanitize(ctx: &mut SanitizeContext, _args: ()) -> Result<(), ReadError> {
+        impl<'a> Sanitize<'a> for #name<'a> {
+            fn sanitize(ctx: &mut SanitizeContext<'a, '_>, _args: ()) -> Result<(), ReadError> {
                 let discriminant = #inner::read_discriminant(ctx.data())?;
                 match discriminant {
-                    #( #match_arms )*
+                    #( #sanitize_arms )*
                     other => Err(ReadError::InvalidFormat(other as _)),
+                }
+            }
+
+            fn read_fast(data: FontData<'a>, _args: ()) -> Option<Self> {
+                let discriminant = #inner::read_discriminant(data).ok()?;
+                match discriminant {
+                    #( #read_fast_arms )*
+                    _ => None,
                 }
             }
         }
