@@ -5,8 +5,9 @@
 use bytemuck::AnyBitPattern;
 use font_types::FixedSize;
 
-use crate::read::{ComputeSize, FontRead, ReadArgs, VarSize};
+use crate::read::{ComputeSize, FontRead, FontReadAt, ReadArgs, VarSize};
 use crate::{FontData, ReadError};
+use core::ops::Range;
 
 /// An array whose items size is not known at compile time.
 ///
@@ -119,6 +120,147 @@ impl<T: ReadArgs> std::fmt::Debug for ComputedArray<'_, T> {
     }
 }
 
+/// An array of items located by position within enclosing data.
+///
+/// This is the [`FontReadAt`] counterpart to [`ComputedArray`]: item size is
+/// computed at runtime from `Args`, but items are addressed by offset within
+/// `data` rather than by slicing it, so each item keeps the enclosing table's
+/// data and can resolve offsets relative to it.
+#[derive(Clone)]
+pub struct PositionedArray<'a, T: ReadArgs> {
+    data: FontData<'a>,
+    /// Position of the first item within `data`.
+    start: usize,
+    /// The length of each item.
+    item_len: usize,
+    len: usize,
+    args: T::Args,
+}
+
+impl<'a, T: ComputeSize> PositionedArray<'a, T> {
+    /// Creates an array of the items occupying `range` within `data`.
+    ///
+    /// `data` is retained in full; `range` only locates the items.
+    pub fn new(data: FontData<'a>, range: Range<usize>, args: T::Args) -> Result<Self, ReadError> {
+        let item_len = T::compute_size(args)?;
+        // the whole range must be present, matching `ComputedArray`, which is
+        // built from data already sliced to it
+        let available = data
+            .as_bytes()
+            .get(range.clone())
+            .ok_or(ReadError::OutOfBounds)?
+            .len();
+        let len = available.checked_div(item_len).unwrap_or(0);
+        Ok(PositionedArray {
+            data,
+            start: range.start,
+            item_len,
+            len,
+            args,
+        })
+    }
+
+    /// The number of items in the array.
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+impl<T: ReadArgs> ReadArgs for PositionedArray<'_, T> {
+    type Args = T::Args;
+}
+
+impl<T> Default for PositionedArray<'_, T>
+where
+    T: ReadArgs,
+    T::Args: Default,
+{
+    fn default() -> Self {
+        Self {
+            data: Default::default(),
+            start: 0,
+            item_len: 0,
+            len: 0,
+            args: Default::default(),
+        }
+    }
+}
+
+/// The number of items whose offsets are representable.
+///
+/// Item `i` sits at `start + i * item_len`, and walking the array computes one
+/// offset past the last item, so this is the largest `len` for which
+/// `start + len * item_len` does not overflow. Establishing it once up front
+/// lets iteration be a plain add per step.
+///
+/// An array built by [`PositionedArray::new`] is already within this bound: its
+/// last offset is `range.end`, which had to be a valid index into `data`.
+fn representable_len(start: usize, item_len: usize, len: usize) -> usize {
+    if item_len == 0 {
+        return len;
+    }
+    // `start` is a usize, so this cannot underflow
+    #[allow(clippy::arithmetic_side_effects)]
+    let max_len = (usize::MAX - start) / item_len;
+    len.min(max_len)
+}
+
+impl<'a, T> PositionedArray<'a, T>
+where
+    T: FontReadAt<'a>,
+    T::Args: Copy + 'static,
+{
+    /// Returns the item at `idx`.
+    #[inline]
+    pub fn get(&self, idx: usize) -> Result<T, ReadError> {
+        if idx >= self.len {
+            return Err(ReadError::OutOfBounds);
+        }
+        let offset = idx
+            .checked_mul(self.item_len)
+            .and_then(|off| off.checked_add(self.start))
+            .ok_or(ReadError::OutOfBounds)?;
+        T::read_at(self.data, offset, self.args)
+    }
+
+    /// Returns an iterator over the items.
+    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a + Clone {
+        let data = self.data;
+        let args = self.args;
+        let item_len = self.item_len;
+        // Bounding the length here makes every offset below representable,
+        // including the one computed past the last item, so each step is a
+        // plain add. An array long enough to overflow simply stops early, where
+        // per-item checked arithmetic would have started failing anyway.
+        let len = representable_len(self.start, item_len, self.len);
+        let mut offset = self.start;
+        (0..len).map(move |_| {
+            let item = T::read_at(data, offset, args);
+            #[allow(clippy::arithmetic_side_effects)] // bounded by representable_len
+            {
+                offset += item_len;
+            }
+            item
+        })
+    }
+}
+
+impl<T: ReadArgs> std::fmt::Debug for PositionedArray<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("PositionedArray")
+            .field("start", &self.start)
+            .field("item_len", &self.item_len)
+            .field("len", &self.len)
+            .finish()
+    }
+}
+
 /// An array of items of non-uniform length.
 ///
 /// Random access into this array cannot be especially efficient, since it requires
@@ -227,6 +369,41 @@ mod tests {
     use super::*;
     use crate::codegen_test::records::VarLenItem;
     use font_test_data::bebuffer::BeBuffer;
+
+    /// The bound must admit every array that can actually be built, and must
+    /// keep `start + len * item_len` representable in the cases that cannot.
+    #[test]
+    fn representable_len_bound() {
+        // ordinary arrays are unaffected
+        assert_eq!(representable_len(0, 4, 10), 10);
+        assert_eq!(representable_len(100, 4, 10), 10);
+        // a zero stride has no offsets to overflow
+        assert_eq!(representable_len(usize::MAX, 0, 10), 10);
+
+        // exactly at the limit
+        assert_eq!(representable_len(0, 1, usize::MAX), usize::MAX);
+        assert_eq!(representable_len(2, 1, usize::MAX), usize::MAX - 2);
+        assert_eq!(representable_len(usize::MAX, 1, 5), 0);
+
+        // and the bound it promises actually holds
+        for (start, item_len, len) in [
+            (0usize, 4usize, 10usize),
+            (100, 4, 10),
+            (usize::MAX, 1, 5),
+            (usize::MAX - 8, 4, 100),
+            (usize::MAX / 2, 3, usize::MAX),
+        ] {
+            let bounded = representable_len(start, item_len, len);
+            assert!(bounded <= len);
+            assert!(
+                bounded
+                    .checked_mul(item_len)
+                    .and_then(|off| off.checked_add(start))
+                    .is_some(),
+                "start {start} item_len {item_len} len {len} -> {bounded}"
+            );
+        }
+    }
 
     impl VarSize for VarLenItem<'_> {
         type Size = u32;

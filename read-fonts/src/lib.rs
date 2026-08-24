@@ -93,7 +93,7 @@ pub mod codegen_test;
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
-pub use read::{ComputeSize, FontRead, ReadArgs, ReadError, VarSize};
+pub use read::{ComputeSize, FontRead, FontReadAt, ReadArgs, ReadError, VarSize};
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::MinByteRange;
 
@@ -104,11 +104,16 @@ pub extern crate font_types as types;
 #[doc(hidden)]
 pub(crate) mod codegen_prelude {
     pub use crate::array::{ComputedArray, VarLenArray};
+    // Only named by generated code for tables holding positioned records. The
+    // only such tables today are in `codegen_test`, so a plain library build
+    // never mentions it; drop this once a shipping table uses one.
+    #[allow(unused_imports)]
+    pub use crate::array::PositionedArray;
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
     pub use crate::read::{
-        ComputeSize, Discriminant, FontRead, Format, ReadArgs, ReadError, VarSize,
+        ComputeSize, Discriminant, FontRead, FontReadAt, Format, ReadArgs, ReadError, VarSize,
     };
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::MinByteRange;

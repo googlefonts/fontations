@@ -78,6 +78,22 @@ pub trait ComputeSize: ReadArgs {
     fn compute_size(args: Self::Args) -> Result<usize, ReadError>;
 }
 
+/// A trait for types that are read at a position within enclosing data.
+///
+/// [`FontRead`] receives data already sliced to the start of the item, which
+/// discards everything before it. That is the wrong shape for an item holding
+/// offsets that resolve relative to the enclosing table rather than to the item
+/// itself: a GPOS value record's device offsets are measured from the start of
+/// the table containing the record. Such a type is given the enclosing data and
+/// its own position within it, and keeps both.
+///
+/// You should not generally need to call this directly; it is intended to be
+/// used from generated code.
+pub trait FontReadAt<'a>: Sized + ReadArgs {
+    /// Read an item positioned at `offset` bytes into `data`.
+    fn read_at(data: FontData<'a>, offset: usize, args: Self::Args) -> Result<Self, ReadError>;
+}
+
 /// A trait for types that have variable length.
 ///
 /// As a rule, these types have an initial length field.

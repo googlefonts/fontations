@@ -410,9 +410,14 @@ fn traversal_arm_for_field(
             // in a record we return things by value, so clone
             let maybe_clone = in_record.then(|| quote!(.clone()));
             let typ_str = arr.raw_inner_type().to_string();
+            let ctor = if fld.positioned {
+                quote!(positioned_array)
+            } else {
+                quote!(computed_array)
+            };
             quote!(Field::new(
                     #name_str,
-                    traversal::FieldType::computed_array(
+                    traversal::FieldType::#ctor(
                         #typ_str,
                         self.#name()#maybe_clone #maybe_try,
                         #data
@@ -424,9 +429,13 @@ fn traversal_arm_for_field(
             let data = fld.offset_getter_data_src();
             quote!(Field::new(#name_str, traversal::FieldType::var_array(#typ_str, self.#name()#maybe_try, #data)))
         }
+        // a positioned record is hand-written and supplies its own traversal;
+        // the two named types are the same arrangement predating that.
         // See if there are better ways to handle these hardcoded types
         // <https://github.com/googlefonts/fontations/issues/659>
-        FieldType::Struct { typ } if typ == "ValueRecord" || typ == "SbitLineMetrics" => {
+        FieldType::Struct { typ }
+            if fld.positioned || typ == "ValueRecord" || typ == "SbitLineMetrics" =>
+        {
             let offset_data = pass_data
                 .cloned()
                 .unwrap_or_else(|| fld.offset_getter_data_src());
@@ -459,10 +468,15 @@ impl Field {
                 quote!(BigEndian<Nullable<#typ>>)
             }
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => big_endian(typ),
+            FieldType::Struct { typ } if self.positioned => quote!(#typ<'a>),
             FieldType::Struct { typ } => typ.to_token_stream(),
             FieldType::ComputedArray(array) => {
                 let inner = array.type_with_lifetime();
-                quote!(ComputedArray<'a, #inner>)
+                if self.positioned {
+                    quote!(PositionedArray<'a, #inner>)
+                } else {
+                    quote!(ComputedArray<'a, #inner>)
+                }
             }
             FieldType::VarLenArray(_) => quote!(compile_error("VarLenArray not used in records?")),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
@@ -652,6 +666,7 @@ impl Field {
     pub(crate) fn raw_getter_return_type(&self) -> TokenStream {
         match &self.typ {
             FieldType::Offset { typ, .. } if self.is_nullable() => quote!(Nullable<#typ>),
+            FieldType::Struct { typ } if self.positioned => quote!(#typ<'a>),
             FieldType::Offset { typ, .. }
             | FieldType::Scalar { typ }
             | FieldType::Struct { typ } => typ.to_token_stream(),
@@ -669,7 +684,11 @@ impl Field {
             },
             FieldType::ComputedArray(array) => {
                 let inner = array.type_with_lifetime();
-                quote!(ComputedArray<'a, #inner>)
+                if self.positioned {
+                    quote!(PositionedArray<'a, #inner>)
+                } else {
+                    quote!(ComputedArray<'a, #inner>)
+                }
             }
             FieldType::VarLenArray(array) => {
                 let inner = array.type_with_lifetime();
@@ -726,7 +745,22 @@ impl Field {
             (maybe_unwrap.is_none() && !is_conditional).then(|| quote!( .unwrap_or_default() ));
 
         let range_stmt = self.getter_range_stmt();
-        let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
+        let mut read_stmt = if let Some(args) = self
+            .attrs
+            .read_with_args
+            .as_ref()
+            .filter(|_| self.positioned)
+        {
+            // positioned items keep the table's data rather than a slice of it,
+            // so they get the whole thing plus where they start within it
+            let get_args = args.to_tokens_for_table_getter();
+            if self.is_computed_array() {
+                quote!( PositionedArray::new(self.data, range, #get_args) #maybe_unwrap_or_def )
+            } else {
+                let typ = self.typ.cooked_type_tokens();
+                quote!( #typ::read_at(self.data, range.start, #get_args) #maybe_unwrap_or_def )
+            }
+        } else if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
             quote!( self.data.read_with_args(range, #get_args) #maybe_unwrap_or_def )
         } else if is_var_array {
@@ -1074,7 +1108,11 @@ impl Field {
                     .unwrap()
                     .to_tokens_for_validation();
                 let count = self.attrs.count.as_ref().unwrap().count_expr();
-                quote!(cursor.read_computed_array(#count, #args)?)
+                if self.positioned {
+                    quote!(cursor.read_positioned_array(#count, #args)?)
+                } else {
+                    quote!(cursor.read_computed_array(#count, #args)?)
+                }
             }
             FieldType::Scalar { typ } => {
                 if typ == "u8" {
@@ -1091,6 +1129,7 @@ impl Field {
                 .as_deref()
                 .map(FieldReadArgs::to_tokens_for_validation)
             {
+                Some(args) if self.positioned => quote!(cursor.read_at_with_args(#args)?),
                 Some(args) => quote!(cursor.read_with_args(#args)?),
                 None => quote!(cursor.read_be()?),
             },
