@@ -8,7 +8,7 @@
 //!
 //! See [inferred deltas for un-referenced point numbers](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers).
 
-use core::ops::RangeInclusive;
+use core::ops::Range;
 
 use super::{GlyphDelta, Gvar};
 use crate::{
@@ -69,10 +69,14 @@ impl Gvar<'_> {
             return Err(ReadError::InvalidArrayLen);
         }
         self.compute_deltas(glyph_id, coords, deltas, |scalar, tuple, deltas| {
-            // Prepare the working buffer by converting the points to 16.16 and
-            // clearing the markers left by the previous tuple.
-            for ((flag, point), iup_point) in flags.iter_mut().zip(points).zip(&mut iup[..]) {
+            // Prepare the working buffer by converting the points to 16.16,
+            // then drop the markers left by the previous tuple. Kept as two
+            // passes: fused, the read-modify-write on the flags blocks the
+            // conversion from vectorizing.
+            for (point, iup_point) in points.iter().zip(&mut iup[..]) {
                 *iup_point = point.map(D::from);
+            }
+            for flag in flags.iter_mut() {
                 flag.clear_marker(PointMarker::HAS_DELTA);
             }
             tuple.accumulate_sparse_deltas(iup, flags, scalar)?;
@@ -155,7 +159,7 @@ impl Gvar<'_> {
 /// manner of the `IUP` hinting instruction.
 ///
 /// Points carrying an explicit delta are marked with [`PointMarker::HAS_DELTA`]
-/// in `flags`.
+/// in `flags`. Each contour is handled independently.
 ///
 /// Modeled after the FreeType implementation:
 /// <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3881>
@@ -169,118 +173,128 @@ where
     C: PointCoord,
     D: PointCoord + From<C>,
 {
-    let mut jiggler = Jiggler { points, out_points };
-    let mut point_ix = 0usize;
-    for &end_point_ix in contours {
-        let end_point_ix = end_point_ix as usize;
-        let first_point_ix = point_ix;
-        // Search for first point that has a delta.
-        while point_ix <= end_point_ix && !flags.get(point_ix)?.has_marker(PointMarker::HAS_DELTA) {
-            point_ix += 1;
-        }
-        // If we didn't find any deltas, no variations in the current tuple
-        // apply, so skip it.
-        if point_ix > end_point_ix {
+    let mut start = 0usize;
+    for &end in contours {
+        let end = end as usize;
+        // A contour ending before the previous one did is malformed. Skip it
+        // without advancing, so the contours that follow still line up with
+        // the points they describe.
+        if end < start {
             continue;
         }
-        let first_delta_ix = point_ix;
-        let mut cur_delta_ix = point_ix;
-        point_ix += 1;
-        // Search for next point that has a delta...
-        while point_ix <= end_point_ix {
-            if flags.get(point_ix)?.has_marker(PointMarker::HAS_DELTA) {
-                // ... and interpolate intermediate points.
-                jiggler.interpolate(
-                    cur_delta_ix + 1..=point_ix - 1,
-                    RefPoints(cur_delta_ix, point_ix),
-                )?;
-                cur_delta_ix = point_ix;
-            }
-            point_ix += 1;
+        let range = start..end + 1;
+        start = end + 1;
+        // Slicing all three to the same range once means everything below can
+        // work in contour local indices, with no further bounds checks.
+        Contour {
+            points: points.get(range.clone())?,
+            flags: flags.get(range.clone())?,
+            out_points: out_points.get_mut(range)?,
         }
-        // If we only have a single delta, shift the contour.
-        if cur_delta_ix == first_delta_ix {
-            jiggler.shift(first_point_ix..=end_point_ix, cur_delta_ix)?;
-        } else {
-            // Otherwise, handle remaining points at beginning and end of
-            // contour.
-            jiggler.interpolate(
-                cur_delta_ix + 1..=end_point_ix,
-                RefPoints(cur_delta_ix, first_delta_ix),
-            )?;
-            if first_delta_ix > 0 {
-                jiggler.interpolate(
-                    first_point_ix..=first_delta_ix - 1,
-                    RefPoints(cur_delta_ix, first_delta_ix),
-                )?;
-            }
-        }
+        .interpolate_untouched();
     }
     Some(())
 }
 
-struct RefPoints(usize, usize);
-
-struct Jiggler<'a, C, D>
+/// One contour's worth of points, as input coordinates and the moved
+/// coordinates being derived from them.
+///
+/// All three slices have the same length, so indices are interchangeable
+/// between them and are always in bounds.
+struct Contour<'a, C, D>
 where
     C: PointCoord,
     D: PointCoord + From<C>,
 {
     points: &'a [Point<C>],
+    flags: &'a [PointFlags],
     out_points: &'a mut [Point<D>],
 }
 
-impl<C, D> Jiggler<'_, C, D>
+impl<C, D> Contour<'_, C, D>
 where
     C: PointCoord,
     D: PointCoord + From<C>,
 {
-    /// Shift the coordinates of all points in the specified range using the
-    /// difference given by the point at `ref_ix`.
-    ///
-    /// Modeled after the FreeType implementation: <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3776>
-    fn shift(&mut self, range: RangeInclusive<usize>, ref_ix: usize) -> Option<()> {
-        let ref_in = self.points.get(ref_ix)?.map(D::from);
-        let ref_out = self.out_points.get(ref_ix)?;
-        let delta = *ref_out - ref_in;
-        if delta.x == D::zeroed() && delta.y == D::zeroed() {
-            return Some(());
+    /// Infers the deltas of every point in this contour that the current tuple
+    /// did not reference.
+    fn interpolate_untouched(&mut self) {
+        // Copy the reference out so iterating it does not borrow `self`.
+        let flags = self.flags;
+        let mut referenced = flags
+            .iter()
+            .enumerate()
+            .filter(|(_, flag)| flag.has_marker(PointMarker::HAS_DELTA))
+            .map(|(ix, _)| ix);
+        let Some(first) = referenced.next() else {
+            // Nothing in this contour is referenced, so the tuple does not
+            // affect it at all.
+            return;
+        };
+        // Interpolate each run of unreferenced points between two references.
+        let mut last = first;
+        for next in referenced {
+            self.interpolate(last + 1..next, last, next);
+            last = next;
         }
-        // Apply the reference point delta to the entire range excluding the
-        // reference point itself which would apply the delta twice.
-        for out_point in self.out_points.get_mut(*range.start()..ref_ix)? {
-            *out_point += delta;
+        if last == first {
+            // A single reference carries the whole contour with it.
+            self.shift(first);
+        } else {
+            // The points after the last reference and those before the first
+            // wrap around, and are bracketed by that same pair. Both ranges are
+            // empty when there is nothing to do.
+            let len = self.out_points.len();
+            self.interpolate(last + 1..len, last, first);
+            self.interpolate(0..first, last, first);
         }
-        for out_point in self.out_points.get_mut(ref_ix + 1..=*range.end())? {
-            *out_point += delta;
-        }
-        Some(())
     }
 
-    /// Interpolate the coordinates of all points in the specified range using
-    /// `ref1_ix` and `ref2_ix` as the reference point indices.
+    /// Shifts the whole contour by the delta of its one referenced point.
+    ///
+    /// Modeled after the FreeType implementation: <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3776>
+    fn shift(&mut self, reference: usize) {
+        let delta = self.out_points[reference] - self.points[reference].map(D::from);
+        if delta.x == D::zeroed() && delta.y == D::zeroed() {
+            return;
+        }
+        // Every point but the reference itself, which already carries it.
+        let (before, rest) = self.out_points.split_at_mut(reference);
+        for out_point in before {
+            *out_point += delta;
+        }
+        for out_point in &mut rest[1..] {
+            *out_point += delta;
+        }
+    }
+
+    /// Interpolates the unreferenced points in `range` between the referenced
+    /// points at `ref1` and `ref2`.
     ///
     /// Modeled after the FreeType implementation: <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3813>
     ///
     /// For details on the algorithm, see: <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers>
-    fn interpolate(&mut self, range: RangeInclusive<usize>, ref_points: RefPoints) -> Option<()> {
+    fn interpolate(&mut self, range: Range<usize>, ref1: usize, ref2: usize) {
         if range.is_empty() {
-            return Some(());
+            return;
         }
-        // FreeType uses pointer tricks to handle x and y coords with a single piece of code.
-        // Try a macro instead.
+        // FreeType uses pointer tricks to handle x and y with a single piece of
+        // code. Try a macro instead.
         macro_rules! interp_coord {
             ($coord:ident) => {
-                let RefPoints(mut ref1_ix, mut ref2_ix) = ref_points;
-                if self.points.get(ref1_ix)?.$coord > self.points.get(ref2_ix)?.$coord {
-                    core::mem::swap(&mut ref1_ix, &mut ref2_ix);
-                }
-                let in1 = D::from(self.points.get(ref1_ix)?.$coord);
-                let in2 = D::from(self.points.get(ref2_ix)?.$coord);
-                let out1 = self.out_points.get(ref1_ix)?.$coord;
-                let out2 = self.out_points.get(ref2_ix)?.$coord;
-                // If the reference points have the same coordinate but different delta,
-                // inferred delta is zero. Otherwise interpolate.
+                // Order the references by coordinate, which can differ between
+                // the two axes.
+                let (lo, hi) = if self.points[ref1].$coord > self.points[ref2].$coord {
+                    (ref2, ref1)
+                } else {
+                    (ref1, ref2)
+                };
+                let in1 = D::from(self.points[lo].$coord);
+                let in2 = D::from(self.points[hi].$coord);
+                let out1 = self.out_points[lo].$coord;
+                let out2 = self.out_points[hi].$coord;
+                // If the references share a coordinate but moved apart, the
+                // inferred delta is zero and the coordinate is left alone.
                 if in1 != in2 || out1 == out2 {
                     let scale = if in1 != in2 {
                         (out2 - out1) / (in2 - in1)
@@ -289,28 +303,26 @@ where
                     };
                     let d1 = out1 - in1;
                     let d2 = out2 - in2;
-                    for (point, out_point) in self
-                        .points
-                        .get(range.clone())?
+                    for (point, out_point) in self.points[range.clone()]
                         .iter()
-                        .zip(self.out_points.get_mut(range.clone())?)
+                        .zip(&mut self.out_points[range.clone()])
                     {
-                        let mut out = D::from(point.$coord);
-                        if out <= in1 {
-                            out += d1;
-                        } else if out >= in2 {
-                            out += d2;
+                        let coord = D::from(point.$coord);
+                        // Outside the references the nearer delta is applied
+                        // wholesale; between them it is interpolated.
+                        out_point.$coord = if coord <= in1 {
+                            coord + d1
+                        } else if coord >= in2 {
+                            coord + d2
                         } else {
-                            out = out1 + (out - in1) * scale;
-                        }
-                        out_point.$coord = out;
+                            out1 + (coord - in1) * scale
+                        };
                     }
                 }
             };
         }
         interp_coord!(x);
         interp_coord!(y);
-        Some(())
     }
 }
 
