@@ -1,7 +1,7 @@
 //! impl subset() for PairPos subtable
 
 use crate::{
-    gpos::value_record::{collect_variation_indices, compute_effective_format},
+    gpos::value_record::compute_effective_format,
     layout::{intersected_coverage_indices, intersected_glyphs_and_indices, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
@@ -20,7 +20,7 @@ use write_fonts::{
             layout::CoverageTable,
         },
         types::GlyphId,
-        FontData, FontRef, ReadError, TableProvider,
+        FontRef, ReadError, TableProvider,
     },
     types::Offset16,
 };
@@ -96,7 +96,6 @@ impl SubsetTable<'_> for PairSet<'_> {
         let mut count = 0_u16;
 
         let glyph_map = &plan.glyph_map_gsub;
-        let font_data = self.offset_data();
         let (new_format1, new_format2) = args;
 
         for pairvalue_rec in self.pair_value_records().iter() {
@@ -105,7 +104,7 @@ impl SubsetTable<'_> for PairSet<'_> {
             let Some(gid) = glyph_map.get(&GlyphId::from(pairvalue_rec.second_glyph())) else {
                 continue;
             };
-            pairvalue_rec.subset(plan, s, (gid, new_format1, new_format2, font_data))?;
+            pairvalue_rec.subset(plan, s, (gid, new_format1, new_format2))?;
             count += 1;
         }
 
@@ -117,8 +116,8 @@ impl SubsetTable<'_> for PairSet<'_> {
     }
 }
 
-impl<'a> SubsetTable<'a> for PairValueRecord {
-    type ArgsForSubset = (&'a GlyphId, ValueFormat, ValueFormat, FontData<'a>);
+impl<'a> SubsetTable<'a> for PairValueRecord<'_> {
+    type ArgsForSubset = (&'a GlyphId, ValueFormat, ValueFormat);
     type Output = ();
     fn subset(
         &self,
@@ -126,15 +125,13 @@ impl<'a> SubsetTable<'a> for PairValueRecord {
         s: &mut Serializer,
         args: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let (new_gid, new_format1, new_format2, font_data) = args;
+        let (new_gid, new_format1, new_format2) = args;
         // second glyph
         s.embed(new_gid.to_u32() as u16)?;
 
         //value records
-        self.value_record1()
-            .subset(plan, s, (new_format1, font_data))?;
-        self.value_record2()
-            .subset(plan, s, (new_format2, font_data))
+        self.value_record1().subset(plan, s, new_format1)?;
+        self.value_record2().subset(plan, s, new_format2)
     }
 }
 
@@ -223,18 +220,13 @@ fn compute_effective_pair_formats_2(
     let orig_format1 = pair_pos.value_format1();
     let orig_format2 = pair_pos.value_format2();
 
-    let class1_records = pair_pos.class1_records();
+    let class_records = pair_pos.class_value_records();
     for i in class1_idxes {
-        let class1_rec = class1_records.get(*i as usize)?;
-        let class2_records = class1_rec.class2_records();
-
         for j in class2_idxes {
-            let class2_rec = class2_records.get(*j as usize)?;
+            let [rec1, rec2] = class_records.get(*i, *j).ok_or(ReadError::OutOfBounds)?;
 
-            new_format1 |=
-                compute_effective_format(class2_rec.value_record1(), strip_hints, strip_empty);
-            new_format2 |=
-                compute_effective_format(class2_rec.value_record2(), strip_hints, strip_empty);
+            new_format1 |= compute_effective_format(&rec1, strip_hints, strip_empty);
+            new_format2 |= compute_effective_format(&rec2, strip_hints, strip_empty);
         }
         if new_format1 == orig_format1 && new_format2 == orig_format2 {
             break;
@@ -371,24 +363,15 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
         s.copy_assign(value_format2_pos, new_format2);
 
         // serialize value records
-        let font_data = self.offset_data();
-        let class1_records = self.class1_records();
+        let class_records = self.class_value_records();
         for i in class1_idxes {
-            let Ok(class1_record) = class1_records.get(i as usize) else {
-                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-            };
-            let class2_records = class1_record.class2_records();
             for j in &class2_idxes {
-                let Ok(class2_rec) = class2_records.get(*j as usize) else {
+                let Some([rec1, rec2]) = class_records.get(i, *j) else {
                     return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
                 };
 
-                class2_rec
-                    .value_record1()
-                    .subset(plan, s, (new_format1, font_data))?;
-                class2_rec
-                    .value_record2()
-                    .subset(plan, s, (new_format2, font_data))?;
+                rec1.subset(plan, s, new_format1)?;
+                rec2.subset(plan, s, new_format2)?;
             }
         }
 
@@ -400,28 +383,20 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
 impl CollectVariationIndices for PairSet<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
         let glyph_set = &plan.glyphset_gsub;
-        let font_data = self.offset_data();
         for pairvalue_record in self.pair_value_records().iter() {
             let Ok(pairvalue_record) = pairvalue_record else {
                 return;
             };
-
             if !glyph_set.contains(GlyphId::from(pairvalue_record.second_glyph())) {
                 continue;
             }
 
-            collect_variation_indices(
-                pairvalue_record.value_record1(),
-                font_data,
-                plan,
-                varidx_set,
-            );
-            collect_variation_indices(
-                pairvalue_record.value_record2(),
-                font_data,
-                plan,
-                varidx_set,
-            );
+            pairvalue_record
+                .value_record1()
+                .collect_variation_indices(plan, varidx_set);
+            pairvalue_record
+                .value_record2()
+                .collect_variation_indices(plan, varidx_set);
         }
     }
 }
@@ -499,19 +474,14 @@ impl CollectVariationIndices for PairPosFormat2<'_> {
         }
         class2_set.insert(0);
 
-        let font_data = self.offset_data();
-        let class1_records = self.class1_records();
+        let class_records = self.class_value_records();
         for class1 in class1_set.iter() {
-            let Ok(class1_record) = class1_records.get(class1 as usize) else {
-                return;
-            };
-            let class2_records = class1_record.class2_records();
             for class2 in class2_set.iter() {
-                let Ok(class2_rec) = class2_records.get(class2 as usize) else {
+                let Some([rec1, rec2]) = class_records.get(class1, class2) else {
                     return;
                 };
-                collect_variation_indices(class2_rec.value_record1(), font_data, plan, varidx_set);
-                collect_variation_indices(class2_rec.value_record2(), font_data, plan, varidx_set);
+                rec1.collect_variation_indices(plan, varidx_set);
+                rec2.collect_variation_indices(plan, varidx_set);
             }
         }
     }

@@ -9,71 +9,66 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::gpos::{ValueFormat, ValueRecord},
-        FontData,
     },
     types::Offset16,
 };
+
+/// The device fields of a value record, in on-disk order.
+const DEVICE_FIELDS: [ValueFormat; 4] = [
+    ValueFormat::X_PLACEMENT_DEVICE,
+    ValueFormat::Y_PLACEMENT_DEVICE,
+    ValueFormat::X_ADVANCE_DEVICE,
+    ValueFormat::Y_ADVANCE_DEVICE,
+];
 
 pub(crate) fn compute_effective_format(
     value_record: &ValueRecord,
     strip_hints: bool,
     strip_empty: bool,
 ) -> ValueFormat {
-    let mut value_format = ValueFormat::empty();
+    let format = value_record.format();
+    let mut effective = format;
 
-    if let Some(x_placement) = value_record.x_placement {
-        if !strip_empty || x_placement.get() != 0 {
-            value_format |= ValueFormat::X_PLACEMENT;
+    if strip_hints {
+        effective -= ValueFormat::ANY_DEVICE_OR_VARIDX;
+    } else if format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+        // a device field that is present but null contributes nothing
+        for field in DEVICE_FIELDS {
+            if value_record
+                .device_offset(field)
+                .is_some_and(|offset| offset.is_null())
+            {
+                effective -= field;
+            }
         }
     }
 
-    if let Some(y_placement) = value_record.y_placement {
-        if !strip_empty || y_placement.get() != 0 {
-            value_format |= ValueFormat::Y_PLACEMENT;
+    if strip_empty {
+        for (field, value) in [
+            (ValueFormat::X_PLACEMENT, value_record.x_placement()),
+            (ValueFormat::Y_PLACEMENT, value_record.y_placement()),
+            (ValueFormat::X_ADVANCE, value_record.x_advance()),
+            (ValueFormat::Y_ADVANCE, value_record.y_advance()),
+        ] {
+            if value == Some(0) {
+                effective -= field;
+            }
         }
     }
 
-    if let Some(x_advance) = value_record.x_advance {
-        if !strip_empty || x_advance.get() != 0 {
-            value_format |= ValueFormat::X_ADVANCE;
-        }
-    }
-
-    if let Some(y_advance) = value_record.y_advance {
-        if !strip_empty || y_advance.get() != 0 {
-            value_format |= ValueFormat::Y_ADVANCE;
-        }
-    }
-
-    if !value_record.x_placement_device.get().is_null() && !strip_hints {
-        value_format |= ValueFormat::X_PLACEMENT_DEVICE;
-    }
-
-    if !value_record.y_placement_device.get().is_null() && !strip_hints {
-        value_format |= ValueFormat::Y_PLACEMENT_DEVICE;
-    }
-
-    if !value_record.x_advance_device.get().is_null() && !strip_hints {
-        value_format |= ValueFormat::X_ADVANCE_DEVICE;
-    }
-
-    if !value_record.y_advance_device.get().is_null() && !strip_hints {
-        value_format |= ValueFormat::Y_ADVANCE_DEVICE;
-    }
-    value_format
+    effective
 }
 
-impl<'a> SubsetTable<'a> for ValueRecord {
-    type ArgsForSubset = (ValueFormat, FontData<'a>);
+impl<'a> SubsetTable<'a> for ValueRecord<'_> {
+    type ArgsForSubset = ValueFormat;
     type Output = ();
 
     fn subset(
         &self,
         plan: &Plan,
         s: &mut Serializer,
-        args: Self::ArgsForSubset,
+        new_format: Self::ArgsForSubset,
     ) -> Result<(), SerializeErrorFlags> {
-        let (new_format, font_data) = args;
         if new_format.is_empty() {
             return Ok(());
         }
@@ -98,64 +93,17 @@ impl<'a> SubsetTable<'a> for ValueRecord {
             return Ok(());
         }
 
-        if new_format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
-            let offset_pos = s.embed(0_u16)?;
-            if let Some(device) = self
-                .x_placement_device(font_data)
-                .transpose()
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
-            {
-                Offset16::serialize_subset(
-                    &device,
-                    s,
-                    plan,
-                    &plan.layout_varidx_delta_map,
-                    offset_pos,
-                )
-                .is_empty()?;
+        for (field, device) in [
+            (ValueFormat::X_PLACEMENT_DEVICE, self.x_placement_device()),
+            (ValueFormat::Y_PLACEMENT_DEVICE, self.y_placement_device()),
+            (ValueFormat::X_ADVANCE_DEVICE, self.x_advance_device()),
+            (ValueFormat::Y_ADVANCE_DEVICE, self.y_advance_device()),
+        ] {
+            if !new_format.contains(field) {
+                continue;
             }
-        }
-
-        if new_format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
             let offset_pos = s.embed(0_u16)?;
-            if let Some(device) = self
-                .y_placement_device(font_data)
-                .transpose()
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
-            {
-                Offset16::serialize_subset(
-                    &device,
-                    s,
-                    plan,
-                    &plan.layout_varidx_delta_map,
-                    offset_pos,
-                )
-                .is_empty()?;
-            }
-        }
-
-        if new_format.contains(ValueFormat::X_ADVANCE_DEVICE) {
-            let offset_pos = s.embed(0_u16)?;
-            if let Some(device) = self
-                .x_advance_device(font_data)
-                .transpose()
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
-            {
-                Offset16::serialize_subset(
-                    &device,
-                    s,
-                    plan,
-                    &plan.layout_varidx_delta_map,
-                    offset_pos,
-                )
-                .is_empty()?;
-            }
-        }
-
-        if new_format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
-            let offset_pos = s.embed(0_u16)?;
-            if let Some(device) = self
-                .y_advance_device(font_data)
+            if let Some(device) = device
                 .transpose()
                 .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
             {
@@ -173,30 +121,23 @@ impl<'a> SubsetTable<'a> for ValueRecord {
     }
 }
 
-pub(crate) fn collect_variation_indices(
-    value_record: &ValueRecord,
-    font_data: FontData,
-    plan: &Plan,
-    varidx_set: &mut IntSet<u32>,
-) {
-    let value_format = value_record.format;
-    if !value_format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
-        return;
-    }
+impl CollectVariationIndices for ValueRecord<'_> {
+    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+        if !self.format().intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+            return;
+        }
 
-    if let Some(Ok(x_pla_device)) = value_record.x_placement_device(font_data) {
-        x_pla_device.collect_variation_indices(plan, varidx_set);
-    }
-
-    if let Some(Ok(y_pla_device)) = value_record.y_placement_device(font_data) {
-        y_pla_device.collect_variation_indices(plan, varidx_set);
-    }
-
-    if let Some(Ok(x_adv_device)) = value_record.x_advance_device(font_data) {
-        x_adv_device.collect_variation_indices(plan, varidx_set);
-    }
-
-    if let Some(Ok(y_adv_device)) = value_record.y_advance_device(font_data) {
-        y_adv_device.collect_variation_indices(plan, varidx_set);
+        for device in [
+            self.x_placement_device(),
+            self.y_placement_device(),
+            self.x_advance_device(),
+            self.y_advance_device(),
+        ]
+        .into_iter()
+        .flatten()
+        .flatten()
+        {
+            device.collect_variation_indices(plan, varidx_set);
+        }
     }
 }

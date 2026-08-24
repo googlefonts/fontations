@@ -1,7 +1,7 @@
 // path (from compile crate) to the generated parse module for this table.
 #![parse_module(read_fonts::tables::gpos)]
 
-extern record ValueRecord;
+extern record ValueRecord<'a>;
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
@@ -170,7 +170,7 @@ table SinglePosFormat2 {
     /// Array of ValueRecords — positioning values applied to glyphs.
     #[count($value_count)]
     #[read_with($value_format)]
-    value_records: ComputedArray<ValueRecord>,
+    value_records: ComputedArray<ValueRecord<'a>>,
 }
 
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
@@ -215,12 +215,12 @@ table PairSet {
     /// glyph.
     #[count($pair_value_count)]
     #[read_with($value_format1, $value_format2)]
-    pair_value_records: ComputedArray<PairValueRecord>,
+    pair_value_records: ComputedArray<PairValueRecord<'a>>,
 }
 
 /// Part of [PairSet]
 #[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
-record PairValueRecord {
+record PairValueRecord<'a> {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
     second_glyph: GlyphId16,
@@ -272,12 +272,12 @@ record Class1Record<'a> {
     /// Array of Class2 records, ordered by classes in classDef2.
     #[count($class2_count)]
     #[read_with($value_format1, $value_format2)]
-    class2_records: ComputedArray<Class2Record>,
+    class2_records: ComputedArray<Class2Record<'a>>,
 }
 
 /// Part of [PairPosFormat2]
 #[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
-record Class2Record {
+record Class2Record<'a> {
     /// Positioning for first glyph — empty if valueFormat1 = 0.
     #[read_with($value_format1)]
     value_record1: ValueRecord,

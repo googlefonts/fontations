@@ -1193,7 +1193,7 @@ impl Validate for PairValueRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::tables::gpos::PairValueRecord> for PairValueRecord {
+impl FromObjRef<read_fonts::tables::gpos::PairValueRecord<'_>> for PairValueRecord {
     fn from_obj_ref(
         obj: &read_fonts::tables::gpos::PairValueRecord,
         offset_data: FontData,
@@ -1393,7 +1393,7 @@ impl Validate for Class2Record {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::tables::gpos::Class2Record> for Class2Record {
+impl FromObjRef<read_fonts::tables::gpos::Class2Record<'_>> for Class2Record {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::Class2Record, offset_data: FontData) -> Self {
         Class2Record {
             value_record1: obj.value_record1().to_owned_obj(offset_data),

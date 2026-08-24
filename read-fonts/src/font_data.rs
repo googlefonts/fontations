@@ -274,6 +274,11 @@ impl<'a> Cursor<'a> {
         temp
     }
 
+    // emitted by codegen for record fields that take read args and are not
+    // positioned. GPOS value records were the only such fields, so nothing
+    // calls this today; kept because codegen still emits it for any record
+    // added in that shape.
+    #[allow(dead_code)]
     pub(crate) fn read_with_args<T>(&mut self, args: T::Args) -> Result<T, ReadError>
     where
         T: FontRead<'a> + ComputeSize,
@@ -290,10 +295,6 @@ impl<'a> Cursor<'a> {
     /// Unlike [`read_with_args`][Self::read_with_args] the item is given the
     /// cursor's whole data plus its position, rather than data sliced to it, so
     /// it can resolve offsets relative to the enclosing table.
-    // emitted by codegen for positioned record fields; the only records that
-    // use it today are in `codegen_test`, so a plain library build has no
-    // callers. Drop this once a shipping record is positioned.
-    #[allow(dead_code)]
     pub(crate) fn read_at_with_args<T>(&mut self, args: T::Args) -> Result<T, ReadError>
     where
         T: FontReadAt<'a> + ComputeSize,
