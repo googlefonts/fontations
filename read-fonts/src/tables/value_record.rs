@@ -143,6 +143,195 @@ impl Value {
     }
 }
 
+/// A GPOS ValueRecord, with fields read on demand.
+///
+/// The contents of a value record are described by a [`ValueFormat`] stored in
+/// the parent table, so a record cannot be located or interpreted on its own.
+/// This type stores the position of the record within its parent table's data
+/// alongside that format, and reads individual fields only when they are asked
+/// for; constructing one performs no reads at all.
+#[derive(Copy, Clone)]
+pub struct ValueRecordRef<'a> {
+    /// The offset data of the table *containing* the record.
+    data: FontData<'a>,
+    /// The position of the record within `data`.
+    offset: u32,
+    format: ValueFormat,
+}
+
+impl<'a> ValueRecordRef<'a> {
+    /// Creates a value record positioned at `offset` within `data`.
+    ///
+    /// `data` must be the offset data of the table containing the record, and
+    /// not merely the bytes of the record itself: the device and variation
+    /// index offsets in a value record are resolved relative to that table.
+    #[inline]
+    pub fn new(data: FontData<'a>, offset: usize, format: ValueFormat) -> Self {
+        Self {
+            data,
+            // an offset that doesn't fit is out of bounds by definition, and
+            // saturating here lets every subsequent read fail cleanly
+            offset: u32::try_from(offset).unwrap_or(u32::MAX),
+            format,
+        }
+    }
+
+    /// The format describing which fields this record contains.
+    #[inline]
+    pub fn format(&self) -> ValueFormat {
+        self.format
+    }
+
+    /// The number of bytes occupied by this record.
+    #[inline]
+    pub fn byte_len(&self) -> usize {
+        self.format.record_byte_len()
+    }
+
+    /// Returns `true` if this record contains no fields.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.format.is_empty()
+    }
+
+    /// The offset data of the table containing this record.
+    #[inline]
+    pub fn offset_data(&self) -> FontData<'a> {
+        self.data
+    }
+
+    /// The position of this record within [`offset_data`](Self::offset_data).
+    #[inline]
+    pub fn offset(&self) -> usize {
+        self.offset as usize
+    }
+
+    #[inline]
+    pub fn x_placement(&self) -> Option<i16> {
+        self.read_i16(ValueFormat::X_PLACEMENT)
+    }
+
+    #[inline]
+    pub fn y_placement(&self) -> Option<i16> {
+        self.read_i16(ValueFormat::Y_PLACEMENT)
+    }
+
+    #[inline]
+    pub fn x_advance(&self) -> Option<i16> {
+        self.read_i16(ValueFormat::X_ADVANCE)
+    }
+
+    #[inline]
+    pub fn y_advance(&self) -> Option<i16> {
+        self.read_i16(ValueFormat::Y_ADVANCE)
+    }
+
+    #[inline]
+    pub fn x_placement_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        self.read_device(ValueFormat::X_PLACEMENT_DEVICE)
+    }
+
+    #[inline]
+    pub fn y_placement_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        self.read_device(ValueFormat::Y_PLACEMENT_DEVICE)
+    }
+
+    #[inline]
+    pub fn x_advance_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        self.read_device(ValueFormat::X_ADVANCE_DEVICE)
+    }
+
+    #[inline]
+    pub fn y_advance_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        self.read_device(ValueFormat::Y_ADVANCE_DEVICE)
+    }
+
+    /// Returns the raw, unresolved offset for the given device field.
+    ///
+    /// The returned offset is relative to [`offset_data`](Self::offset_data).
+    /// Returns `None` if the field is not present in this record's format, or
+    /// if the record is truncated.
+    #[inline]
+    pub fn device_offset(&self, field: ValueFormat) -> Option<Nullable<Offset16>> {
+        self.data.read_at(self.field_offset(field)?).ok()
+    }
+
+    /// The raw bytes of this record, or `None` if the data is truncated.
+    #[inline]
+    pub fn bytes(&self) -> Option<&'a [u8]> {
+        let start = self.offset as usize;
+        self.data
+            .as_bytes()
+            .get(start..start.checked_add(self.byte_len())?)
+    }
+
+    /// Returns the position of `field` within [`offset_data`](Self::offset_data),
+    /// or `None` if this record's format doesn't include it.
+    ///
+    /// Fields are laid out in the order of their format bits and each occupies
+    /// two bytes, so a field's position is fixed by the number of lower format
+    /// bits that are set.
+    #[inline]
+    fn field_offset(&self, field: ValueFormat) -> Option<usize> {
+        if !self.format.contains(field) {
+            return None;
+        }
+        let preceding = (self.format.bits() & (field.bits() - 1)).count_ones() as usize;
+        Some(self.offset as usize + preceding * u16::RAW_BYTE_LEN)
+    }
+
+    #[inline]
+    fn read_i16(&self, field: ValueFormat) -> Option<i16> {
+        self.data.read_at(self.field_offset(field)?).ok()
+    }
+
+    #[inline]
+    fn read_device(
+        &self,
+        field: ValueFormat,
+    ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        let pos = self.field_offset(field)?;
+        match self.data.read_at::<Nullable<Offset16>>(pos) {
+            Ok(offset) => offset.resolve(self.data),
+            Err(err) => Some(Err(err)),
+        }
+    }
+}
+
+/// Two records are equal when they describe the same positioning: same format,
+/// and the same bytes for the fields that format selects.
+impl PartialEq for ValueRecordRef<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.format == other.format && self.bytes() == other.bytes()
+    }
+}
+
+impl Eq for ValueRecordRef<'_> {}
+
+impl std::fmt::Debug for ValueRecordRef<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut f = f.debug_struct("ValueRecordRef");
+        self.x_placement().map(|x| f.field("x_placement", &x));
+        self.y_placement().map(|y| f.field("y_placement", &y));
+        self.x_advance().map(|x| f.field("x_advance", &x));
+        self.y_advance().map(|y| f.field("y_advance", &y));
+        for (name, field) in [
+            ("x_placement_device", ValueFormat::X_PLACEMENT_DEVICE),
+            ("y_placement_device", ValueFormat::Y_PLACEMENT_DEVICE),
+            ("x_advance_device", ValueFormat::X_ADVANCE_DEVICE),
+            ("y_advance_device", ValueFormat::Y_ADVANCE_DEVICE),
+        ] {
+            match self.device_offset(field) {
+                Some(offset) if !offset.is_null() => {
+                    f.field(name, &offset);
+                }
+                _ => (),
+            }
+        }
+        f.finish()
+    }
+}
+
 /// A Positioning ValueRecord.
 ///
 /// NOTE: we create these manually, since parsing is weird and depends on the
@@ -403,5 +592,59 @@ mod tests {
             | ValueFormat::X_PLACEMENT_DEVICE;
         assert_eq!(format, ValueFormat::ANY_DEVICE_OR_VARIDX);
         assert_eq!(format.record_byte_len(), 4 * 2);
+    }
+
+    /// The lazy reader locates fields with a popcount over the format bits;
+    /// the owned reader walks them in order with a cursor. They must agree for
+    /// every combination of format bits.
+    #[test]
+    fn lazy_fields_match_owned_for_every_format() {
+        // give every field slot a distinct, recognizable value
+        let bytes: Vec<u8> = (0..8u16).flat_map(|i| (0x1100 + i).to_be_bytes()).collect();
+        // pad the front so we exercise a non-zero record offset
+        const PAD: usize = 6;
+        let mut padded = vec![0u8; PAD];
+        padded.extend_from_slice(&bytes);
+        let data = FontData::new(&padded);
+
+        for bits in 0..=u8::MAX {
+            let format = ValueFormat { bits: bits as u16 };
+            let owned = ValueRecord::read(FontData::new(&bytes), format).unwrap();
+            let lazy = ValueRecordRef::new(data, PAD, format);
+
+            assert_eq!(lazy.format(), format);
+            assert_eq!(lazy.byte_len(), format.record_byte_len());
+            assert_eq!(lazy.x_placement(), owned.x_placement(), "{format:?}");
+            assert_eq!(lazy.y_placement(), owned.y_placement(), "{format:?}");
+            assert_eq!(lazy.x_advance(), owned.x_advance(), "{format:?}");
+            assert_eq!(lazy.y_advance(), owned.y_advance(), "{format:?}");
+
+            for (field, expected) in [
+                (ValueFormat::X_PLACEMENT_DEVICE, owned.x_placement_device),
+                (ValueFormat::Y_PLACEMENT_DEVICE, owned.y_placement_device),
+                (ValueFormat::X_ADVANCE_DEVICE, owned.x_advance_device),
+                (ValueFormat::Y_ADVANCE_DEVICE, owned.y_advance_device),
+            ] {
+                // the owned reader leaves absent device fields as null
+                let expected = format.contains(field).then_some(expected.get());
+                assert_eq!(lazy.device_offset(field), expected, "{format:?} {field:?}");
+            }
+        }
+    }
+
+    /// Reads past the end of the data must fail cleanly rather than panic or
+    /// read a neighbouring field.
+    #[test]
+    fn lazy_fields_out_of_bounds() {
+        let format = ValueFormat::X_PLACEMENT | ValueFormat::Y_ADVANCE;
+        // only enough room for the first of the two fields
+        let bytes = [0u8, 1, 0, 2];
+        let lazy = ValueRecordRef::new(FontData::new(&bytes), 2, format);
+        assert_eq!(lazy.x_placement(), Some(2));
+        assert_eq!(lazy.y_advance(), None);
+
+        // an offset that can't even be represented
+        let huge = ValueRecordRef::new(FontData::new(&bytes), usize::MAX, format);
+        assert_eq!(huge.x_placement(), None);
     }
 }
