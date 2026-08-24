@@ -359,21 +359,6 @@ impl<T> StateTable<'_, T> {
     pub const HEADER_LEN: usize = u16::RAW_BYTE_LEN * 4;
 }
 
-impl<'a> StateTable<'a> {
-    /// Reads a state table with no entry payload.
-    ///
-    /// This inherent constructor preserves type inference for existing
-    /// callers now that payload-bearing legacy state tables are supported.
-    pub fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <Self as FontRead>::read(data)
-    }
-
-    /// Reads a state table with no entry payload and explicit empty arguments.
-    pub fn read_with_args(data: FontData<'a>, args: ()) -> Result<Self, ReadError> {
-        <Self as FontRead>::read_with_args(data, args)
-    }
-}
-
 impl<T> StateTable<'_, T>
 where
     T: FixedSize + bytemuck::AnyBitPattern,
@@ -980,7 +965,7 @@ mod tests {
             .extend(classes)
             .extend(state_array)
             .extend(entry_table);
-        let table = StateTable::read(buf.data().into()).unwrap();
+        let table = StateTable::<NoPayload>::read(buf.data().into()).unwrap();
         // check class lookups
         for i in 0..4u8 {
             assert_eq!(table.class(GlyphId16::from(i as u16 + 3)).unwrap(), i + 1);
