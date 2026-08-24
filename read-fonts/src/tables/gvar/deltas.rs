@@ -8,9 +8,9 @@
 //!
 //! See [inferred deltas for un-referenced point numbers](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers).
 
-use core::ops::RangeInclusive;
+use core::ops::Range;
 
-use super::{GlyphDelta, Gvar};
+use super::{GlyphDelta, GlyphVariationData, Gvar};
 use crate::{
     tables::{
         glyf::{PointCoord, PointFlags, PointMarker, PHANTOM_POINT_COUNT},
@@ -20,9 +20,10 @@ use crate::{
     ReadError,
 };
 
-/// Caller-provided storage for [`Gvar::simple_deltas`].
+/// Caller-provided storage for [`Gvar::simple_deltas`] and
+/// [`GlyphVariationData::simple_deltas`].
 ///
-/// Both slices must be at least as long as the glyph's point count including
+/// Both slices must be at least as long as the glyph's point count, including
 /// the phantom points.
 pub struct DeltaBuffers<'a, D: PointCoord> {
     /// Receives the computed deltas.
@@ -36,21 +37,12 @@ impl Gvar<'_> {
     /// Computes the deltas for the points of a simple glyph at the given
     /// location in variation space.
     ///
-    /// Deltas for points that a sparse tuple does not reference are inferred by
-    /// interpolation, so this needs the glyph's points and contour end points
-    /// in addition to the buffers it writes.
-    ///
-    /// * `points` and `contours` describe the unvaried glyph. `points` must
-    ///   include the four phantom points.
-    /// * `flags` is used as scratch: the [`PointMarker::HAS_DELTA`] marker is
-    ///   cleared and set as tuples are processed. Its length must match
-    ///   `points`.
-    /// * `buffers` supplies the output and interpolation storage.
+    /// Looks the glyph's variation data up and hands off to
+    /// [`GlyphVariationData::simple_deltas`], which documents the arguments.
     ///
     /// Returns `true` if the glyph has variation data, and `false` if it does
     /// not — in which case the deltas are zeroed. Note that they are zeroed
-    /// before anything else happens, so they never retain values from a
-    /// previous call, whatever this returns.
+    /// whichever it returns, so they never retain values from a previous call.
     pub fn simple_deltas<C, D>(
         &self,
         glyph_id: GlyphId,
@@ -64,15 +56,86 @@ impl Gvar<'_> {
         C: PointCoord,
         D: PointCoord + From<C>,
     {
+        check_simple_buffers(points, flags, buffers)?;
+        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
+            // Missing or malformed variation data for a glyph is not an error.
+            zero(buffers.deltas);
+            return Ok(false);
+        };
+        var_data.simple_deltas(coords, points, flags, contours, buffers)?;
+        Ok(true)
+    }
+
+    /// Computes the deltas for the component offsets of a composite glyph at
+    /// the given location in variation space.
+    ///
+    /// Looks the glyph's variation data up and hands off to
+    /// [`GlyphVariationData::composite_deltas`].
+    ///
+    /// `deltas` must have one entry per component plus four for the phantom
+    /// points.
+    ///
+    /// Returns `true` if the glyph has variation data, and `false` if it does
+    /// not — in which case `deltas` is zeroed.
+    pub fn composite_deltas<D: PointCoord>(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        deltas: &mut [Point<D>],
+    ) -> Result<bool, ReadError> {
+        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
+            zero(deltas);
+            return Ok(false);
+        };
+        var_data.composite_deltas(coords, deltas)?;
+        Ok(true)
+    }
+}
+
+impl GlyphVariationData<'_> {
+    /// Computes the deltas for the points of a simple glyph at the given
+    /// location in variation space.
+    ///
+    /// Deltas for points that a sparse tuple does not reference are inferred by
+    /// interpolation, so this needs the glyph's points and contour end points
+    /// in addition to the buffers it writes.
+    ///
+    /// * `points` and `contours` describe the unvaried glyph. `points` must
+    ///   include the four phantom points.
+    /// * `flags` is used as scratch: the [`PointMarker::HAS_DELTA`] marker is
+    ///   cleared and set as tuples are processed.
+    /// * `buffers` supplies the output and interpolation storage.
+    ///
+    /// `flags` and both buffers must be at least as long as `points`, which
+    /// is what everything here is indexed by.
+    ///
+    /// The deltas are zeroed before anything else happens, so they never
+    /// retain values from a previous call.
+    ///
+    /// See [`Gvar::simple_deltas`] to look a glyph's data up first.
+    pub fn simple_deltas<C, D>(
+        &self,
+        coords: &[F2Dot14],
+        points: &[Point<C>],
+        flags: &mut [PointFlags],
+        contours: &[u16],
+        buffers: &mut DeltaBuffers<'_, D>,
+    ) -> Result<(), ReadError>
+    where
+        C: PointCoord,
+        D: PointCoord + From<C>,
+    {
+        check_simple_buffers(points, flags, buffers)?;
         let DeltaBuffers { deltas, iup } = buffers;
-        if iup.len() < points.len() || points.len() < PHANTOM_POINT_COUNT {
-            return Err(ReadError::InvalidArrayLen);
-        }
-        self.compute_deltas(glyph_id, coords, deltas, |scalar, tuple, deltas| {
-            // Prepare the working buffer by converting the points to 16.16 and
-            // clearing the markers left by the previous tuple.
-            for ((flag, point), iup_point) in flags.iter_mut().zip(points).zip(&mut iup[..]) {
+        self.accumulate_deltas(coords, deltas, |scalar, tuple, deltas| {
+            // Prepare the working buffer by converting the points to 16.16,
+            // then drop the markers left by the previous tuple. Kept as two
+            // passes: fused, the read-modify-write on the flags blocks the
+            // conversion from vectorizing.
+            for (point, iup_point) in points.iter().zip(&mut iup[..]) {
                 *iup_point = point.map(D::from);
+            }
+            for flag in flags.iter_mut() {
                 flag.clear_marker(PointMarker::HAS_DELTA);
             }
             tuple.accumulate_sparse_deltas(iup, flags, scalar)?;
@@ -89,20 +152,18 @@ impl Gvar<'_> {
     /// the given location in variation space.
     ///
     /// Interpolation is meaningless for component offsets, so this skips the
-    /// expensive part of [`Gvar::simple_deltas`] and needs no scratch.
+    /// expensive part of [`Self::simple_deltas`] and needs no scratch.
     ///
     /// `deltas` must have one entry per component plus four for the phantom
-    /// points.
+    /// points, and is zeroed first.
     ///
-    /// Returns `true` if the glyph has variation data, and `false` if it does
-    /// not — in which case `deltas` is zeroed.
+    /// See [`Gvar::composite_deltas`] to look a glyph's data up first.
     pub fn composite_deltas<D: PointCoord>(
         &self,
-        glyph_id: GlyphId,
         coords: &[F2Dot14],
         deltas: &mut [Point<D>],
-    ) -> Result<bool, ReadError> {
-        self.compute_deltas(glyph_id, coords, deltas, |scalar, tuple, deltas| {
+    ) -> Result<(), ReadError> {
+        self.accumulate_deltas(coords, deltas, |scalar, tuple, deltas| {
             for tuple_delta in tuple.deltas() {
                 let ix = tuple_delta.position as usize;
                 if let Some(delta) = deltas.get_mut(ix) {
@@ -118,9 +179,8 @@ impl Gvar<'_> {
     /// Zeroes `deltas`, then accumulates every tuple that is active at
     /// `coords`. Dense tuples are handled here; sparse tuples are passed to
     /// `apply_sparse_tuple`, which differs between the two glyph kinds.
-    fn compute_deltas<D: PointCoord>(
+    fn accumulate_deltas<D: PointCoord>(
         &self,
-        glyph_id: GlyphId,
         coords: &[F2Dot14],
         deltas: &mut [Point<D>],
         mut apply_sparse_tuple: impl FnMut(
@@ -128,17 +188,10 @@ impl Gvar<'_> {
             TupleVariation<GlyphDelta>,
             &mut [Point<D>],
         ) -> Result<(), ReadError>,
-    ) -> Result<bool, ReadError> {
-        // Always zero first: callers must never observe values left over from a
-        // previous glyph, including on the paths that bail out below.
-        for delta in deltas.iter_mut() {
-            *delta = Default::default();
-        }
-        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
-            // Missing or malformed variation data for a glyph is not an error.
-            return Ok(false);
-        };
-        for (tuple, scalar) in var_data.active_tuples_at(coords) {
+    ) -> Result<(), ReadError> {
+        // Callers must never observe values left over from a previous glyph.
+        zero(deltas);
+        for (tuple, scalar) in self.active_tuples_at(coords) {
             if tuple.has_deltas_for_all_points() {
                 // Fast path: the tuple covers every point, so the deltas can be
                 // accumulated directly with no interpolation.
@@ -147,7 +200,36 @@ impl Gvar<'_> {
                 apply_sparse_tuple(scalar, tuple, deltas)?;
             }
         }
-        Ok(true)
+        Ok(())
+    }
+}
+
+/// The buffer requirements shared by both entry points to simple glyph
+/// processing.
+///
+/// Everything hinges on `points`, which carries the glyph's real point count:
+/// each of the others is indexed or zipped by point, so one that is short
+/// either truncates the result silently or fails later with a less useful
+/// error.
+fn check_simple_buffers<C: PointCoord, D: PointCoord>(
+    points: &[Point<C>],
+    flags: &[PointFlags],
+    buffers: &DeltaBuffers<'_, D>,
+) -> Result<(), ReadError> {
+    let count = points.len();
+    if count < PHANTOM_POINT_COUNT
+        || flags.len() < count
+        || buffers.deltas.len() < count
+        || buffers.iup.len() < count
+    {
+        return Err(ReadError::InvalidArrayLen);
+    }
+    Ok(())
+}
+
+fn zero<D: PointCoord>(deltas: &mut [Point<D>]) {
+    for delta in deltas.iter_mut() {
+        *delta = Default::default();
     }
 }
 
@@ -155,7 +237,7 @@ impl Gvar<'_> {
 /// manner of the `IUP` hinting instruction.
 ///
 /// Points carrying an explicit delta are marked with [`PointMarker::HAS_DELTA`]
-/// in `flags`.
+/// in `flags`. Each contour is handled independently.
 ///
 /// Modeled after the FreeType implementation:
 /// <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3881>
@@ -169,118 +251,128 @@ where
     C: PointCoord,
     D: PointCoord + From<C>,
 {
-    let mut jiggler = Jiggler { points, out_points };
-    let mut point_ix = 0usize;
-    for &end_point_ix in contours {
-        let end_point_ix = end_point_ix as usize;
-        let first_point_ix = point_ix;
-        // Search for first point that has a delta.
-        while point_ix <= end_point_ix && !flags.get(point_ix)?.has_marker(PointMarker::HAS_DELTA) {
-            point_ix += 1;
-        }
-        // If we didn't find any deltas, no variations in the current tuple
-        // apply, so skip it.
-        if point_ix > end_point_ix {
+    let mut start = 0usize;
+    for &end in contours {
+        let end = end as usize;
+        // A contour ending before the previous one did is malformed. Skip it
+        // without advancing, so the contours that follow still line up with
+        // the points they describe.
+        if end < start {
             continue;
         }
-        let first_delta_ix = point_ix;
-        let mut cur_delta_ix = point_ix;
-        point_ix += 1;
-        // Search for next point that has a delta...
-        while point_ix <= end_point_ix {
-            if flags.get(point_ix)?.has_marker(PointMarker::HAS_DELTA) {
-                // ... and interpolate intermediate points.
-                jiggler.interpolate(
-                    cur_delta_ix + 1..=point_ix - 1,
-                    RefPoints(cur_delta_ix, point_ix),
-                )?;
-                cur_delta_ix = point_ix;
-            }
-            point_ix += 1;
+        let range = start..end + 1;
+        start = end + 1;
+        // Slicing all three to the same range once means everything below can
+        // work in contour local indices, with no further bounds checks.
+        Contour {
+            points: points.get(range.clone())?,
+            flags: flags.get(range.clone())?,
+            out_points: out_points.get_mut(range)?,
         }
-        // If we only have a single delta, shift the contour.
-        if cur_delta_ix == first_delta_ix {
-            jiggler.shift(first_point_ix..=end_point_ix, cur_delta_ix)?;
-        } else {
-            // Otherwise, handle remaining points at beginning and end of
-            // contour.
-            jiggler.interpolate(
-                cur_delta_ix + 1..=end_point_ix,
-                RefPoints(cur_delta_ix, first_delta_ix),
-            )?;
-            if first_delta_ix > 0 {
-                jiggler.interpolate(
-                    first_point_ix..=first_delta_ix - 1,
-                    RefPoints(cur_delta_ix, first_delta_ix),
-                )?;
-            }
-        }
+        .interpolate_untouched();
     }
     Some(())
 }
 
-struct RefPoints(usize, usize);
-
-struct Jiggler<'a, C, D>
+/// One contour's worth of points, as input coordinates and the moved
+/// coordinates being derived from them.
+///
+/// All three slices have the same length, so indices are interchangeable
+/// between them and are always in bounds.
+struct Contour<'a, C, D>
 where
     C: PointCoord,
     D: PointCoord + From<C>,
 {
     points: &'a [Point<C>],
+    flags: &'a [PointFlags],
     out_points: &'a mut [Point<D>],
 }
 
-impl<C, D> Jiggler<'_, C, D>
+impl<C, D> Contour<'_, C, D>
 where
     C: PointCoord,
     D: PointCoord + From<C>,
 {
-    /// Shift the coordinates of all points in the specified range using the
-    /// difference given by the point at `ref_ix`.
-    ///
-    /// Modeled after the FreeType implementation: <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3776>
-    fn shift(&mut self, range: RangeInclusive<usize>, ref_ix: usize) -> Option<()> {
-        let ref_in = self.points.get(ref_ix)?.map(D::from);
-        let ref_out = self.out_points.get(ref_ix)?;
-        let delta = *ref_out - ref_in;
-        if delta.x == D::zeroed() && delta.y == D::zeroed() {
-            return Some(());
+    /// Infers the deltas of every point in this contour that the current tuple
+    /// did not reference.
+    fn interpolate_untouched(&mut self) {
+        // Copy the reference out so iterating it does not borrow `self`.
+        let flags = self.flags;
+        let mut referenced = flags
+            .iter()
+            .enumerate()
+            .filter(|(_, flag)| flag.has_marker(PointMarker::HAS_DELTA))
+            .map(|(ix, _)| ix);
+        let Some(first) = referenced.next() else {
+            // Nothing in this contour is referenced, so the tuple does not
+            // affect it at all.
+            return;
+        };
+        // Interpolate each run of unreferenced points between two references.
+        let mut last = first;
+        for next in referenced {
+            self.interpolate(last + 1..next, last, next);
+            last = next;
         }
-        // Apply the reference point delta to the entire range excluding the
-        // reference point itself which would apply the delta twice.
-        for out_point in self.out_points.get_mut(*range.start()..ref_ix)? {
-            *out_point += delta;
+        if last == first {
+            // A single reference carries the whole contour with it.
+            self.shift(first);
+        } else {
+            // The points after the last reference and those before the first
+            // wrap around, and are bracketed by that same pair. Both ranges are
+            // empty when there is nothing to do.
+            let len = self.out_points.len();
+            self.interpolate(last + 1..len, last, first);
+            self.interpolate(0..first, last, first);
         }
-        for out_point in self.out_points.get_mut(ref_ix + 1..=*range.end())? {
-            *out_point += delta;
-        }
-        Some(())
     }
 
-    /// Interpolate the coordinates of all points in the specified range using
-    /// `ref1_ix` and `ref2_ix` as the reference point indices.
+    /// Shifts the whole contour by the delta of its one referenced point.
+    ///
+    /// Modeled after the FreeType implementation: <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3776>
+    fn shift(&mut self, reference: usize) {
+        let delta = self.out_points[reference] - self.points[reference].map(D::from);
+        if delta.x == D::zeroed() && delta.y == D::zeroed() {
+            return;
+        }
+        // Every point but the reference itself, which already carries it.
+        let (before, rest) = self.out_points.split_at_mut(reference);
+        for out_point in before {
+            *out_point += delta;
+        }
+        for out_point in &mut rest[1..] {
+            *out_point += delta;
+        }
+    }
+
+    /// Interpolates the unreferenced points in `range` between the referenced
+    /// points at `ref1` and `ref2`.
     ///
     /// Modeled after the FreeType implementation: <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3813>
     ///
     /// For details on the algorithm, see: <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers>
-    fn interpolate(&mut self, range: RangeInclusive<usize>, ref_points: RefPoints) -> Option<()> {
+    fn interpolate(&mut self, range: Range<usize>, ref1: usize, ref2: usize) {
         if range.is_empty() {
-            return Some(());
+            return;
         }
-        // FreeType uses pointer tricks to handle x and y coords with a single piece of code.
-        // Try a macro instead.
+        // FreeType uses pointer tricks to handle x and y with a single piece of
+        // code. Try a macro instead.
         macro_rules! interp_coord {
             ($coord:ident) => {
-                let RefPoints(mut ref1_ix, mut ref2_ix) = ref_points;
-                if self.points.get(ref1_ix)?.$coord > self.points.get(ref2_ix)?.$coord {
-                    core::mem::swap(&mut ref1_ix, &mut ref2_ix);
-                }
-                let in1 = D::from(self.points.get(ref1_ix)?.$coord);
-                let in2 = D::from(self.points.get(ref2_ix)?.$coord);
-                let out1 = self.out_points.get(ref1_ix)?.$coord;
-                let out2 = self.out_points.get(ref2_ix)?.$coord;
-                // If the reference points have the same coordinate but different delta,
-                // inferred delta is zero. Otherwise interpolate.
+                // Order the references by coordinate, which can differ between
+                // the two axes.
+                let (lo, hi) = if self.points[ref1].$coord > self.points[ref2].$coord {
+                    (ref2, ref1)
+                } else {
+                    (ref1, ref2)
+                };
+                let in1 = D::from(self.points[lo].$coord);
+                let in2 = D::from(self.points[hi].$coord);
+                let out1 = self.out_points[lo].$coord;
+                let out2 = self.out_points[hi].$coord;
+                // If the references share a coordinate but moved apart, the
+                // inferred delta is zero and the coordinate is left alone.
                 if in1 != in2 || out1 == out2 {
                     let scale = if in1 != in2 {
                         (out2 - out1) / (in2 - in1)
@@ -289,28 +381,26 @@ where
                     };
                     let d1 = out1 - in1;
                     let d2 = out2 - in2;
-                    for (point, out_point) in self
-                        .points
-                        .get(range.clone())?
+                    for (point, out_point) in self.points[range.clone()]
                         .iter()
-                        .zip(self.out_points.get_mut(range.clone())?)
+                        .zip(&mut self.out_points[range.clone()])
                     {
-                        let mut out = D::from(point.$coord);
-                        if out <= in1 {
-                            out += d1;
-                        } else if out >= in2 {
-                            out += d2;
+                        let coord = D::from(point.$coord);
+                        // Outside the references the nearer delta is applied
+                        // wholesale; between them it is interpolated.
+                        out_point.$coord = if coord <= in1 {
+                            coord + d1
+                        } else if coord >= in2 {
+                            coord + d2
                         } else {
-                            out = out1 + (out - in1) * scale;
-                        }
-                        out_point.$coord = out;
+                            out1 + (coord - in1) * scale
+                        };
                     }
                 }
             };
         }
         interp_coord!(x);
         interp_coord!(y);
-        Some(())
     }
 }
 
@@ -707,6 +797,153 @@ mod tests {
         let mut deltas = [Point::<Fixed>::default(); 1];
         assert!(gvar
             .composite_deltas(COMPOSITE_GID, &coords, &mut deltas)
+            .is_ok());
+    }
+
+    /// Going through `Gvar` is the same as looking the data up and calling
+    /// `GlyphVariationData` directly.
+    #[test]
+    fn both_layers_agree() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let gvar = font.gvar().unwrap();
+        let glyf = font.glyf().unwrap();
+        let loca = font.loca(None).unwrap();
+        let coords = [F2Dot14::from_f32(0.5)];
+        for gid in 0..font.maxp().unwrap().num_glyphs() {
+            let glyph_id = GlyphId::from(gid);
+            let Some(Glyph::Simple(simple)) = loca.get_glyf(glyph_id, &glyf).unwrap() else {
+                continue;
+            };
+            let count = simple.num_points() + PHANTOM_POINT_COUNT;
+            let points = vec![Point::<i32>::default(); count];
+            let contours: Vec<u16> = simple
+                .end_pts_of_contours()
+                .iter()
+                .map(|e| e.get())
+                .collect();
+
+            let mut through_gvar = vec![Point::<Fixed>::default(); count];
+            let mut iup = vec![Point::<Fixed>::default(); count];
+            let mut flags = vec![PointFlags::default(); count];
+            let had_data = gvar
+                .simple_deltas(
+                    glyph_id,
+                    &coords,
+                    &points,
+                    &mut flags,
+                    &contours,
+                    &mut DeltaBuffers {
+                        deltas: &mut through_gvar,
+                        iup: &mut iup,
+                    },
+                )
+                .unwrap();
+
+            let var_data = gvar.glyph_variation_data(glyph_id).unwrap();
+            assert_eq!(had_data, var_data.is_some(), "gid {gid}");
+            let Some(var_data) = var_data else { continue };
+
+            let mut direct = vec![Point::<Fixed>::default(); count];
+            let mut iup = vec![Point::<Fixed>::default(); count];
+            let mut flags = vec![PointFlags::default(); count];
+            var_data
+                .simple_deltas(
+                    &coords,
+                    &points,
+                    &mut flags,
+                    &contours,
+                    &mut DeltaBuffers {
+                        deltas: &mut direct,
+                        iup: &mut iup,
+                    },
+                )
+                .unwrap();
+            assert_eq!(through_gvar, direct, "gid {gid}");
+        }
+    }
+
+    /// The `Gvar` wrapper zeroes the deltas for a glyph with no variation
+    /// data, so a reused buffer never leaks the previous glyph's values.
+    #[test]
+    fn a_glyph_without_data_still_zeroes() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let gvar = font.gvar().unwrap();
+        // Past the end of the table, so there is certainly nothing there.
+        let missing = GlyphId::new(0xFFFF);
+        let mut deltas = vec![Point::new(Fixed::from_i32(7), Fixed::from_i32(9)); 8];
+        assert!(!gvar.composite_deltas(missing, &[], &mut deltas).unwrap());
+        assert!(deltas.iter().all(|d| *d == Point::default()));
+
+        let points = vec![Point::<i32>::default(); 8];
+        let mut deltas = vec![Point::new(Fixed::from_i32(7), Fixed::from_i32(9)); 8];
+        let mut iup = vec![Point::<Fixed>::default(); 8];
+        let mut flags = vec![PointFlags::default(); 8];
+        assert!(!gvar
+            .simple_deltas(
+                missing,
+                &[],
+                &points,
+                &mut flags,
+                &[7],
+                &mut DeltaBuffers {
+                    deltas: &mut deltas,
+                    iup: &mut iup,
+                },
+            )
+            .unwrap());
+        assert!(deltas.iter().all(|d| *d == Point::default()));
+    }
+
+    /// Every buffer that is indexed by point is checked against the point
+    /// count, by both entry points, before anything is written.
+    #[test]
+    fn short_buffers_are_rejected_by_both() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let gvar = font.gvar().unwrap();
+        let glyph_id = GlyphId::new(2);
+        let var_data = gvar.glyph_variation_data(glyph_id).unwrap().unwrap();
+        const COUNT: usize = 8;
+
+        // Each case leaves one buffer one element short of `points`.
+        for short in ["flags", "deltas", "iup", "points"] {
+            let points = vec![Point::<i32>::default(); if short == "points" { 3 } else { COUNT }];
+            let mut flags =
+                vec![PointFlags::default(); if short == "flags" { COUNT - 1 } else { COUNT }];
+            let mut deltas =
+                vec![Point::<Fixed>::default(); if short == "deltas" { COUNT - 1 } else { COUNT }];
+            let mut iup =
+                vec![Point::<Fixed>::default(); if short == "iup" { COUNT - 1 } else { COUNT }];
+            let mut buffers = DeltaBuffers {
+                deltas: &mut deltas,
+                iup: &mut iup,
+            };
+            assert!(
+                matches!(
+                    gvar.simple_deltas(glyph_id, &[], &points, &mut flags, &[7], &mut buffers),
+                    Err(ReadError::InvalidArrayLen)
+                ),
+                "Gvar accepted a short {short}"
+            );
+            assert!(
+                matches!(
+                    var_data.simple_deltas(&[], &points, &mut flags, &[7], &mut buffers),
+                    Err(ReadError::InvalidArrayLen)
+                ),
+                "GlyphVariationData accepted a short {short}"
+            );
+        }
+
+        // The same sizes, none of them short, are accepted.
+        let points = vec![Point::<i32>::default(); COUNT];
+        let mut flags = vec![PointFlags::default(); COUNT];
+        let mut deltas = vec![Point::<Fixed>::default(); COUNT];
+        let mut iup = vec![Point::<Fixed>::default(); COUNT];
+        let mut buffers = DeltaBuffers {
+            deltas: &mut deltas,
+            iup: &mut iup,
+        };
+        assert!(gvar
+            .simple_deltas(glyph_id, &[], &points, &mut flags, &[7], &mut buffers)
             .is_ok());
     }
 }
