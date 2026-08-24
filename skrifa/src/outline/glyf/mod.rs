@@ -1,6 +1,5 @@
 //! Scaling support for TrueType outlines.
 
-mod deltas;
 mod hint;
 mod memory;
 mod outline;
@@ -21,7 +20,7 @@ use read_fonts::{
         glyf::{
             Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointMarker, SimpleGlyph,
         },
-        gvar::Gvar,
+        gvar::{DeltaBuffers, Gvar},
         hdmx::Hdmx,
         loca::Loca,
     },
@@ -655,22 +654,33 @@ impl Scaler for FreeTypeScaler<'_> {
         let mut have_deltas = false;
         if self.outlines.gvar.is_some() && !self.coords.is_empty() {
             let gvar = self.outlines.gvar.as_ref().unwrap();
-            let glyph = deltas::SimpleGlyph {
-                points: &mut unscaled[..],
-                flags: &mut flags[..],
-                contours,
+            let mut buffers = DeltaBuffers {
+                deltas: self
+                    .memory
+                    .deltas
+                    .get_mut(..point_count + PHANTOM_POINT_COUNT)
+                    .ok_or(InsufficientMemory)?,
+                iup: self
+                    .memory
+                    .iup_buffer
+                    .get_mut(..point_count + PHANTOM_POINT_COUNT)
+                    .ok_or(InsufficientMemory)?,
             };
-            let deltas = self
-                .memory
-                .deltas
-                .get_mut(..point_count + PHANTOM_POINT_COUNT)
-                .ok_or(InsufficientMemory)?;
-            let iup_buffer = self
-                .memory
-                .iup_buffer
-                .get_mut(..point_count + PHANTOM_POINT_COUNT)
-                .ok_or(InsufficientMemory)?;
-            if deltas::simple_glyph(gvar, glyph_id, self.coords, glyph, iup_buffer, deltas).is_ok()
+            // Note that we deliberately ignore whether the glyph actually has
+            // variation data. A glyph without any yields zero deltas, but the
+            // delta-aware scaling path below rounds differently from the plain
+            // one, so keying off the return value would change the output for
+            // unvaried glyphs in a variable font.
+            if gvar
+                .simple_deltas(
+                    glyph_id,
+                    self.coords,
+                    &unscaled[..],
+                    &mut flags[..],
+                    contours,
+                    &mut buffers,
+                )
+                .is_ok()
             {
                 have_deltas = true;
             }
@@ -812,7 +822,10 @@ impl Scaler for FreeTypeScaler<'_> {
                 .composite_deltas
                 .get_mut(delta_base..delta_base + count)
                 .ok_or(InsufficientMemory)?;
-            if deltas::composite_glyph(gvar, glyph_id, self.coords, &mut deltas[..]).is_ok() {
+            if gvar
+                .composite_deltas(glyph_id, self.coords, &mut deltas[..])
+                .is_ok()
+            {
                 // Apply deltas to phantom points.
                 for (phantom, delta) in self
                     .phantom
@@ -1154,24 +1167,30 @@ impl Scaler for HarfBuzzScaler<'_> {
         // Acquire deltas
         if self.outlines.gvar.is_some() && !self.coords.is_empty() {
             let gvar = self.outlines.gvar.as_ref().unwrap();
-            let glyph = deltas::SimpleGlyph {
-                points: &mut points[..],
-                flags: &mut flags[..],
-                contours,
+            let mut buffers = DeltaBuffers {
+                deltas: self
+                    .memory
+                    .deltas
+                    .get_mut(..point_count + PHANTOM_POINT_COUNT)
+                    .ok_or(InsufficientMemory)?,
+                iup: self
+                    .memory
+                    .iup_buffer
+                    .get_mut(..point_count + PHANTOM_POINT_COUNT)
+                    .ok_or(InsufficientMemory)?,
             };
-            let deltas = self
-                .memory
-                .deltas
-                .get_mut(..point_count + PHANTOM_POINT_COUNT)
-                .ok_or(InsufficientMemory)?;
-            let iup_buffer = self
-                .memory
-                .iup_buffer
-                .get_mut(..point_count + PHANTOM_POINT_COUNT)
-                .ok_or(InsufficientMemory)?;
-            if deltas::simple_glyph(gvar, glyph_id, self.coords, glyph, iup_buffer, deltas).is_ok()
+            if gvar
+                .simple_deltas(
+                    glyph_id,
+                    self.coords,
+                    &points[..],
+                    &mut flags[..],
+                    contours,
+                    &mut buffers,
+                )
+                .is_ok()
             {
-                for (point, delta) in points.iter_mut().zip(deltas) {
+                for (point, delta) in points.iter_mut().zip(buffers.deltas.iter()) {
                     *point += *delta;
                 }
             }
@@ -1214,7 +1233,10 @@ impl Scaler for HarfBuzzScaler<'_> {
                 .composite_deltas
                 .get_mut(delta_base..delta_base + count)
                 .ok_or(InsufficientMemory)?;
-            if deltas::composite_glyph(gvar, glyph_id, self.coords, &mut deltas[..]).is_ok() {
+            if gvar
+                .composite_deltas(glyph_id, self.coords, &mut deltas[..])
+                .is_ok()
+            {
                 // Apply deltas to phantom points.
                 for (phantom, delta) in self
                     .phantom
