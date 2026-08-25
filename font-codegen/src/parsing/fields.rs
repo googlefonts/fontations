@@ -42,6 +42,12 @@ pub(crate) struct Field {
     /// the enclosing table; see the `FontReadAt` trait in read-fonts. It is
     /// computed during resolution, from the extern records declared positioned.
     pub(crate) positioned: bool,
+    /// `true` if this field is a record of known, fixed size embedded directly
+    /// in its parent, rather than reached through an array or an offset.
+    ///
+    /// Such a field is read by borrowing it out of the parent's data. Computed
+    /// during resolution, from the records that are zerocopy.
+    pub(crate) fixed_size_record: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -173,9 +179,10 @@ impl Parse for Field {
             attrs,
             name,
             typ,
-            // both computed later
+            // all computed later
             validated_at_parse: false,
             positioned: false,
+            fixed_size_record: false,
         })
     }
 }

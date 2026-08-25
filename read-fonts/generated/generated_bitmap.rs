@@ -1109,8 +1109,11 @@ pub struct IndexSubtable2<'a> {
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> IndexSubtable2<'a> {
-    pub const MIN_SIZE: usize =
-        (u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN);
+    pub const MIN_SIZE: usize = (u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + BigGlyphMetrics::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
     /// Format of this IndexSubTable.
@@ -1138,9 +1141,9 @@ impl<'a> IndexSubtable2<'a> {
     }
 
     /// All glyphs have the same metrics; glyph data may be compressed, byte-aligned, or bit-aligned.
-    pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
+    pub fn big_metrics(&self) -> &'a BigGlyphMetrics {
         let range = self.big_metrics_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data.read_ref_at(range.start).ok().unwrap()
     }
 
     pub fn index_format_byte_range(&self) -> Range<usize> {
@@ -1187,11 +1190,7 @@ impl<'a> SomeTable<'a> for IndexSubtable2<'a> {
             3usize => Some(Field::new("image_size", self.image_size())),
             4usize => Some(Field::new(
                 "big_metrics",
-                traversal::FieldType::array_of_records(
-                    stringify!(BigGlyphMetrics),
-                    self.big_metrics(),
-                    self.offset_data(),
-                ),
+                traversal::FieldType::Record((*self.big_metrics()).traverse(self.offset_data())),
             )),
             _ => None,
         }
@@ -1570,6 +1569,7 @@ impl<'a> IndexSubtable5<'a> {
         + u16::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN
+        + BigGlyphMetrics::RAW_BYTE_LEN
         + u32::RAW_BYTE_LEN);
     basic_table_impls!(impl_the_methods);
 
@@ -1598,15 +1598,15 @@ impl<'a> IndexSubtable5<'a> {
     }
 
     /// All glyphs have the same metrics.
-    pub fn big_metrics(&self) -> &'a [BigGlyphMetrics] {
+    pub fn big_metrics(&self) -> &'a BigGlyphMetrics {
         let range = self.big_metrics_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data.read_ref_at(range.start).ok().unwrap()
     }
 
     /// Array length.
     pub fn num_glyphs(&self) -> u32 {
         let range = self.num_glyphs_byte_range();
-        self.data.read_at(range.start).ok().unwrap_or_default()
+        self.data.read_at(range.start).ok().unwrap()
     }
 
     /// One per glyph, sorted by glyhph ID.
@@ -1673,11 +1673,7 @@ impl<'a> SomeTable<'a> for IndexSubtable5<'a> {
             3usize => Some(Field::new("image_size", self.image_size())),
             4usize => Some(Field::new(
                 "big_metrics",
-                traversal::FieldType::array_of_records(
-                    stringify!(BigGlyphMetrics),
-                    self.big_metrics(),
-                    self.offset_data(),
-                ),
+                traversal::FieldType::Record((*self.big_metrics()).traverse(self.offset_data())),
             )),
             5usize => Some(Field::new("num_glyphs", self.num_glyphs())),
             6usize => Some(Field::new("glyph_array", self.glyph_array())),

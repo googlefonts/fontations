@@ -131,8 +131,7 @@ table IndexSubtable2 {
     /// All the glyphs are of the same size.
     image_size: u32,
     /// All glyphs have the same metrics; glyph data may be compressed, byte-aligned, or bit-aligned.
-    #[count(1)]
-    big_metrics: [BigGlyphMetrics],
+    big_metrics: BigGlyphMetrics,
 }
 
 /// [IndexSubTable3](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtable3-variable-metrics-glyphs-with-2-byte-offsets): variable-metrics glyphs with 2-byte offsets.
@@ -185,8 +184,7 @@ table IndexSubtable5 {
     /// All glyphs have the same data size.
     image_size: u32,
     /// All glyphs have the same metrics.
-    #[count(1)]
-    big_metrics: [BigGlyphMetrics],
+    big_metrics: BigGlyphMetrics,
     /// Array length.
     num_glyphs: u32,
     /// One per glyph, sorted by glyhph ID.

@@ -436,6 +436,15 @@ fn traversal_arm_for_field(
                 .unwrap_or_else(|| fld.offset_getter_data_src());
             quote!(Field::new(#name_str, self.#name() #maybe_try .traversal_type(#offset_data)))
         }
+        // an embedded record is generated, so it already has a `SomeRecord`
+        // impl and needs nothing hand-written. Both a table and a record hand
+        // one out by reference, hence the deref; they are Copy.
+        FieldType::Struct { .. } if fld.fixed_size_record => {
+            let offset_data = pass_data
+                .cloned()
+                .unwrap_or_else(|| fld.offset_getter_data_src());
+            quote!(Field::new(#name_str, traversal::FieldType::Record((*self.#name()).traverse(#offset_data))))
+        }
         FieldType::Struct { .. } => {
             quote!(compile_error!(concat!("another weird type: ", #name_str)))
         }
@@ -518,6 +527,12 @@ impl Field {
         match &self.typ {
             _ if self.is_conditional() => None,
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
+                Some(quote!(#typ :: RAW_BYTE_LEN))
+            }
+            // an embedded record occupies a known number of bytes, so it
+            // both counts toward MIN_SIZE and lets the fields after it be
+            // validated at parse
+            FieldType::Struct { typ } if self.fixed_size_record => {
                 Some(quote!(#typ :: RAW_BYTE_LEN))
             }
             FieldType::Array { .. }
@@ -707,6 +722,14 @@ impl Field {
             return None;
         }
         let return_type = self.raw_getter_return_type();
+        // a table instantiates its fields on access, so an embedded record is
+        // borrowed out of the table's data. (Records hold their fields, and
+        // add this borrow themselves; see `record_getter`.)
+        let return_type = if self.fixed_size_record {
+            quote!(&'a #return_type)
+        } else {
+            return_type
+        };
         if self.is_conditional() {
             Some(quote!(Option<#return_type>))
         } else {
@@ -760,6 +783,11 @@ impl Field {
             quote!( self.data.split_off(range.start).and_then(|d| VarLenArray::read(d).ok()) #maybe_unwrap_or_def )
         } else if is_array {
             quote!(self.data.read_array(range).ok() #maybe_unwrap #maybe_unwrap_or_def)
+        } else if self.fixed_size_record {
+            // there is no default to fall back on for a borrowed record, so
+            // this relies on the field being validated at parse; see
+            // `Field::sanity_check`
+            quote!(self.data.read_ref_at(range.start).ok() #maybe_unwrap)
         } else {
             quote!(self.data.read_at(range.start).ok() #maybe_unwrap #maybe_unwrap_or_def)
         };
