@@ -482,6 +482,21 @@ impl<'a, T> StateTable<'a, T> {
     }
 }
 
+impl<'a> StateTable<'a, NoPayload> {
+    /// Reads a state table whose entries carry no payload.
+    ///
+    /// This exists so that `StateTable::read(data)` still resolves without
+    /// naming the payload type: a type parameter's default does not apply in a
+    /// path expression, only in type position. Without it, adding the payload
+    /// parameter would have broken every existing caller.
+    ///
+    /// Remove this at the next breaking release, so that callers name the
+    /// payload as they do for `ExtendedStateTable`.
+    pub fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <Self as FontRead<'a>>::read(data)
+    }
+}
+
 impl<T> ReadArgs for StateTable<'_, T> {
     type Args = ();
 }
