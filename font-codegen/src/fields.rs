@@ -410,14 +410,9 @@ fn traversal_arm_for_field(
             // in a record we return things by value, so clone
             let maybe_clone = in_record.then(|| quote!(.clone()));
             let typ_str = arr.raw_inner_type().to_string();
-            let ctor = if fld.positioned {
-                quote!(positioned_array)
-            } else {
-                quote!(computed_array)
-            };
             quote!(Field::new(
                     #name_str,
-                    traversal::FieldType::#ctor(
+                    traversal::FieldType::computed_array(
                         #typ_str,
                         self.#name()#maybe_clone #maybe_try,
                         #data
@@ -472,11 +467,7 @@ impl Field {
             FieldType::Struct { typ } => typ.to_token_stream(),
             FieldType::ComputedArray(array) => {
                 let inner = array.type_with_lifetime();
-                if self.positioned {
-                    quote!(PositionedArray<'a, #inner>)
-                } else {
-                    quote!(ComputedArray<'a, #inner>)
-                }
+                quote!(ComputedArray<'a, #inner>)
             }
             FieldType::VarLenArray(_) => quote!(compile_error("VarLenArray not used in records?")),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
@@ -684,11 +675,7 @@ impl Field {
             },
             FieldType::ComputedArray(array) => {
                 let inner = array.type_with_lifetime();
-                if self.positioned {
-                    quote!(PositionedArray<'a, #inner>)
-                } else {
-                    quote!(ComputedArray<'a, #inner>)
-                }
+                quote!(ComputedArray<'a, #inner>)
             }
             FieldType::VarLenArray(array) => {
                 let inner = array.type_with_lifetime();
@@ -745,21 +732,27 @@ impl Field {
             (maybe_unwrap.is_none() && !is_conditional).then(|| quote!( .unwrap_or_default() ));
 
         let range_stmt = self.getter_range_stmt();
-        let mut read_stmt = if let Some(args) = self
+        let mut read_stmt = if self.is_computed_array() {
+            // an array keeps the table's data rather than a slice of it, so
+            // that a positioned item can resolve offsets against the table
+            let get_args = self
+                .attrs
+                .read_with_args
+                .as_ref()
+                .expect("a computed array has read args")
+                .to_tokens_for_table_getter();
+            quote!( ComputedArray::new(self.data, range, #get_args) #maybe_unwrap_or_def )
+        } else if let Some(args) = self
             .attrs
             .read_with_args
             .as_ref()
             .filter(|_| self.positioned)
         {
-            // positioned items keep the table's data rather than a slice of it,
-            // so they get the whole thing plus where they start within it
+            // a positioned item gets the table's whole data plus where it
+            // starts within it
             let get_args = args.to_tokens_for_table_getter();
-            if self.is_computed_array() {
-                quote!( PositionedArray::new(self.data, range, #get_args) #maybe_unwrap_or_def )
-            } else {
-                let typ = self.typ.cooked_type_tokens();
-                quote!( #typ::read_at(self.data, range.start, #get_args) #maybe_unwrap_or_def )
-            }
+            let typ = self.typ.cooked_type_tokens();
+            quote!( #typ::read_at(self.data, range.start, #get_args) #maybe_unwrap_or_def )
         } else if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
             quote!( self.data.read_with_args(range, #get_args) #maybe_unwrap_or_def )
@@ -1108,11 +1101,7 @@ impl Field {
                     .unwrap()
                     .to_tokens_for_validation();
                 let count = self.attrs.count.as_ref().unwrap().count_expr();
-                if self.positioned {
-                    quote!(cursor.read_positioned_array(#count, #args)?)
-                } else {
-                    quote!(cursor.read_computed_array(#count, #args)?)
-                }
+                quote!(cursor.read_computed_array(#count, #args)?)
             }
             FieldType::Scalar { typ } => {
                 if typ == "u8" {

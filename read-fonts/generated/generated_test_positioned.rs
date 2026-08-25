@@ -58,9 +58,9 @@ impl<'a> PositionedTable<'a> {
     }
 
     /// An array of records that are positioned by containment.
-    pub fn pairs(&self) -> PositionedArray<'a, PositionedPair<'a>> {
+    pub fn pairs(&self) -> ComputedArray<'a, PositionedPair<'a>> {
         let range = self.pairs_byte_range();
-        PositionedArray::new(self.data, range, self.positioned_size()).unwrap_or_default()
+        ComputedArray::new(self.data, range, self.positioned_size()).unwrap_or_default()
     }
 
     pub fn positioned_size_byte_range(&self) -> Range<usize> {
@@ -120,7 +120,7 @@ impl<'a> SomeTable<'a> for PositionedTable<'a> {
             2usize => Some(Field::new("pair_count", self.pair_count())),
             3usize => Some(Field::new(
                 "pairs",
-                traversal::FieldType::positioned_array(
+                traversal::FieldType::computed_array(
                     "PositionedPair",
                     self.pairs(),
                     self.offset_data(),
@@ -285,9 +285,9 @@ impl<'a> NestedPositionedTable<'a> {
         self.data.read_at(range.start).ok().unwrap()
     }
 
-    pub fn groups(&self) -> PositionedArray<'a, PositionedGroup<'a>> {
+    pub fn groups(&self) -> ComputedArray<'a, PositionedGroup<'a>> {
         let range = self.groups_byte_range();
-        PositionedArray::new(
+        ComputedArray::new(
             self.data,
             range,
             (self.pairs_per_group(), self.positioned_size()),
@@ -352,7 +352,7 @@ impl<'a> SomeTable<'a> for NestedPositionedTable<'a> {
             2usize => Some(Field::new("group_count", self.group_count())),
             3usize => Some(Field::new(
                 "groups",
-                traversal::FieldType::positioned_array(
+                traversal::FieldType::computed_array(
                     "PositionedGroup",
                     self.groups(),
                     self.offset_data(),
@@ -375,11 +375,11 @@ impl<'a> std::fmt::Debug for NestedPositionedTable<'a> {
 /// no positioned field of its own.
 #[derive(Clone, Debug)]
 pub struct PositionedGroup<'a> {
-    pub pairs: PositionedArray<'a, PositionedPair<'a>>,
+    pub pairs: ComputedArray<'a, PositionedPair<'a>>,
 }
 
 impl<'a> PositionedGroup<'a> {
-    pub fn pairs(&self) -> &PositionedArray<'a, PositionedPair<'a>> {
+    pub fn pairs(&self) -> &ComputedArray<'a, PositionedPair<'a>> {
         &self.pairs
     }
 }
@@ -405,7 +405,7 @@ impl<'a> FontReadAt<'a> for PositionedGroup<'a> {
         let (pairs_per_group, positioned_size) = args;
         Ok(Self {
             pairs: cursor
-                .read_positioned_array(transforms::to_usize(pairs_per_group), positioned_size)?,
+                .read_computed_array(transforms::to_usize(pairs_per_group), positioned_size)?,
         })
     }
 }
@@ -435,7 +435,7 @@ impl<'a> SomeRecord<'a> for PositionedGroup<'a> {
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new(
                     "pairs",
-                    traversal::FieldType::positioned_array(
+                    traversal::FieldType::computed_array(
                         "PositionedPair",
                         self.pairs().clone(),
                         FontData::new(&[]),

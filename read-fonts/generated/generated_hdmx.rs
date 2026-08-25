@@ -80,9 +80,12 @@ impl<'a> Hdmx<'a> {
     /// Array of device records.
     pub fn records(&self) -> ComputedArray<'a, DeviceRecord<'a>> {
         let range = self.records_byte_range();
-        self.data
-            .read_with_args(range, (self.num_glyphs(), self.size_device_record()))
-            .unwrap_or_default()
+        ComputedArray::new(
+            self.data,
+            range,
+            (self.num_glyphs(), self.size_device_record()),
+        )
+        .unwrap_or_default()
     }
 
     pub(crate) fn num_glyphs(&self) -> u16 {

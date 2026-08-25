@@ -87,6 +87,14 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
     // a positioned record keeps the enclosing table's data and its own position
     // within it, so it is read through `FontReadAt` rather than `FontRead`
     let positioned = item.is_positioned();
+    // Either way the record can be an element of a `ComputedArray`, which
+    // reads through `FontReadAt`. A positioned record implements it directly;
+    // one that is not gets the slicing form.
+    let maybe_font_read_at = (!positioned).then(|| {
+        quote! {
+            crate::impl_font_read_at!(#name #lifetime);
+        }
+    });
     let (read_impl, read_ctor_extra_args, read_ctor_body) = if positioned {
         (
             quote! {
@@ -149,6 +157,8 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
         }
 
         #read_impl
+
+        #maybe_font_read_at
 
         #[allow(clippy::needless_lifetimes)]
         impl<'a> #name #lifetime {

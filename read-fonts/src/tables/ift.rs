@@ -134,6 +134,8 @@ impl U8Or16 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct U16Or24(u32);
 
+crate::impl_font_read_at!(U16Or24);
+
 impl ReadArgs for U16Or24 {
     type Args = GlyphKeyedFlags;
 }

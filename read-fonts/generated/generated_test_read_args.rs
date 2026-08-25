@@ -65,9 +65,7 @@ impl<'a> BaseArray<'a> {
     /// Array of BaseRecords, in order of baseCoverage Index.
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
         let range = self.base_records_byte_range();
-        self.data
-            .read_with_args(range, self.mark_class_count())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.mark_class_count()).unwrap_or_default()
     }
 
     pub fn face_count(&self) -> u16 {
@@ -77,9 +75,7 @@ impl<'a> BaseArray<'a> {
 
     pub fn face_records(&self) -> ComputedArray<'a, FaceRecord<'a>> {
         let range = self.face_records_byte_range();
-        self.data
-            .read_with_args(range, self.mark_class_count())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.mark_class_count()).unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -208,6 +204,8 @@ impl<'a> FontRead<'a> for BaseRecord<'a> {
     }
 }
 
+crate::impl_font_read_at!(BaseRecord<'a>);
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseRecord<'a> {
     /// A constructor that requires additional arguments.
@@ -278,6 +276,8 @@ impl<'a> FontRead<'a> for FaceRecord<'a> {
         })
     }
 }
+
+crate::impl_font_read_at!(FaceRecord<'a>);
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> FaceRecord<'a> {

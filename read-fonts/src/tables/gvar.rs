@@ -22,6 +22,8 @@ pub type GlyphVariationData<'a> = TupleVariationData<'a, GlyphDelta>;
 #[derive(Clone, Copy, Debug)]
 pub struct U16Or32(u32);
 
+crate::impl_font_read_at!(U16Or32);
+
 impl ReadArgs for U16Or32 {
     type Args = GvarFlags;
 }

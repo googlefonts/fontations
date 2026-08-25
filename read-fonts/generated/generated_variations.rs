@@ -199,6 +199,8 @@ impl<'a> FontRead<'a> for Tuple<'a> {
     }
 }
 
+crate::impl_font_read_at!(Tuple<'a>);
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Tuple<'a> {
     /// A constructor that requires additional arguments.
@@ -949,9 +951,7 @@ impl<'a> VariationRegionList<'a> {
     /// Array of variation regions.
     pub fn variation_regions(&self) -> ComputedArray<'a, VariationRegion<'a>> {
         let range = self.variation_regions_byte_range();
-        self.data
-            .read_with_args(range, self.axis_count())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.axis_count()).unwrap_or_default()
     }
 
     pub fn axis_count_byte_range(&self) -> Range<usize> {
@@ -1056,6 +1056,8 @@ impl<'a> FontRead<'a> for VariationRegion<'a> {
         })
     }
 }
+
+crate::impl_font_read_at!(VariationRegion<'a>);
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> VariationRegion<'a> {

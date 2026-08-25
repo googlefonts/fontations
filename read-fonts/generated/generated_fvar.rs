@@ -256,8 +256,7 @@ impl<'a> AxisInstanceArrays<'a> {
     /// Instance record array.
     pub fn instances(&self) -> ComputedArray<'a, InstanceRecord<'a>> {
         let range = self.instances_byte_range();
-        self.data
-            .read_with_args(range, (self.axis_count(), self.instance_size()))
+        ComputedArray::new(self.data, range, (self.axis_count(), self.instance_size()))
             .unwrap_or_default()
     }
 

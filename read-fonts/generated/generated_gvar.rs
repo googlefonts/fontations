@@ -112,9 +112,7 @@ impl<'a> Gvar<'a> {
     /// GlyphVariationData table.
     pub fn glyph_variation_data_offsets(&self) -> ComputedArray<'a, U16Or32> {
         let range = self.glyph_variation_data_offsets_byte_range();
-        self.data
-            .read_with_args(range, self.flags())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.flags()).unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -577,9 +575,7 @@ impl<'a> SharedTuples<'a> {
 
     pub fn tuples(&self) -> ComputedArray<'a, Tuple<'a>> {
         let range = self.tuples_byte_range();
-        self.data
-            .read_with_args(range, self.axis_count())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.axis_count()).unwrap_or_default()
     }
 
     pub(crate) fn shared_tuple_count(&self) -> u16 {

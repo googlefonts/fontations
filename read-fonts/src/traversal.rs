@@ -21,7 +21,7 @@ use types::{
 };
 
 use crate::{
-    array::{ComputedArray, PositionedArray, VarLenArray},
+    array::{ComputedArray, VarLenArray},
     read::{ComputeSize, ReadArgs},
     FontData, FontRead, FontReadAt, ReadError, VarSize,
 };
@@ -127,28 +127,10 @@ impl<'a> FieldType<'a> {
         data: FontData<'a>,
     ) -> FieldType<'a>
     where
-        T: FontRead<'a> + ComputeSize + SomeRecord<'a> + 'a,
-        T::Args: Copy + 'static,
-    {
-        ComputedArrayOfRecords {
-            type_name,
-            data,
-            array,
-        }
-        .into()
-    }
-
-    // Convenience method for handling PositionedArrays
-    pub fn positioned_array<T>(
-        type_name: &'static str,
-        array: PositionedArray<'a, T>,
-        data: FontData<'a>,
-    ) -> FieldType<'a>
-    where
         T: FontReadAt<'a> + ComputeSize + SomeRecord<'a> + 'a,
         T::Args: Copy + 'static,
     {
-        PositionedArrayOfRecords {
+        ComputedArrayOfRecords {
             type_name,
             data,
             array,
@@ -416,44 +398,15 @@ struct ComputedArrayOfRecords<'a, T: ReadArgs> {
     pub(crate) array: ComputedArray<'a, T>,
 }
 
-// only used as Box<dyn SomeArray<'a>>
-struct PositionedArrayOfRecords<'a, T: ReadArgs> {
-    pub(crate) type_name: &'static str,
-    pub(crate) data: FontData<'a>,
-    pub(crate) array: PositionedArray<'a, T>,
-}
-
 struct VarLenArrayOfRecords<'a, T> {
     pub(crate) type_name: &'static str,
     pub(crate) data: FontData<'a>,
     pub(crate) array: VarLenArray<'a, T>,
 }
 
-impl<'a, T> SomeArray<'a> for PositionedArrayOfRecords<'a, T>
-where
-    T: FontReadAt<'a> + ComputeSize + SomeRecord<'a> + 'a,
-    T::Args: Copy + 'static,
-    Self: 'a,
-{
-    fn len(&self) -> usize {
-        self.array.len()
-    }
-
-    fn get(&self, idx: usize) -> Option<FieldType<'a>> {
-        self.array
-            .get(idx)
-            .ok()
-            .map(|record| record.traverse(self.data).into())
-    }
-
-    fn type_name(&self) -> &str {
-        self.type_name
-    }
-}
-
 impl<'a, T> SomeArray<'a> for ComputedArrayOfRecords<'a, T>
 where
-    T: FontRead<'a> + ComputeSize + SomeRecord<'a> + 'a,
+    T: FontReadAt<'a> + ComputeSize + SomeRecord<'a> + 'a,
     T::Args: Copy + 'static,
     Self: 'a,
 {

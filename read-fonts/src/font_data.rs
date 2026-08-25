@@ -6,7 +6,7 @@ use std::ops::{Range, RangeBounds};
 use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Scalar};
 
-use crate::array::{ComputedArray, PositionedArray};
+use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontRead, FontReadAt, ReadArgs, ReadError};
 
 /// A reference to raw binary font data.
@@ -307,14 +307,12 @@ impl<'a> Cursor<'a> {
         temp
     }
 
-    // the positioned counterpart of read_computed_array; unused for the same
-    // reason as read_at_with_args above
-    #[allow(dead_code)]
-    pub(crate) fn read_positioned_array<T>(
+    // only used in records that contain arrays :/
+    pub(crate) fn read_computed_array<T>(
         &mut self,
         len: usize,
         args: T::Args,
-    ) -> Result<PositionedArray<'a, T>, ReadError>
+    ) -> Result<ComputedArray<'a, T>, ReadError>
     where
         T: FontReadAt<'a> + ComputeSize,
     {
@@ -325,29 +323,10 @@ impl<'a> Cursor<'a> {
             .pos
             .checked_add(byte_len)
             .ok_or(ReadError::OutOfBounds)?;
-        let temp = PositionedArray::new(self.data, self.pos..range_end, args);
+        let temp = ComputedArray::new(self.data, self.pos..range_end, args);
         self.advance_by(byte_len);
         temp
     }
-
-    // only used in records that contain arrays :/
-    pub(crate) fn read_computed_array<T>(
-        &mut self,
-        len: usize,
-        args: T::Args,
-    ) -> Result<ComputedArray<'a, T>, ReadError>
-    where
-        T: FontRead<'a> + ComputeSize,
-    {
-        let len = len
-            .checked_mul(T::compute_size(args)?)
-            .ok_or(ReadError::OutOfBounds)?;
-        let range_end = self.pos.checked_add(len).ok_or(ReadError::OutOfBounds)?;
-        let temp = self.data.read_with_args(self.pos..range_end, args);
-        self.advance_by(len);
-        temp
-    }
-
     pub(crate) fn read_array<T: AnyBitPattern + FixedSize>(
         &mut self,
         n_elem: usize,
