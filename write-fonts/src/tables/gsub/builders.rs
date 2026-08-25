@@ -91,7 +91,7 @@ impl<T: SplitTable + FontWrite> TableSplitter<T> {
     }
 }
 /// A builder for [`SingleSubst`](super::SingleSubst) subtables.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SingleSubBuilder {
     items: BTreeMap<GlyphId16, GlyphId16>,
 }
@@ -194,7 +194,7 @@ impl Builder for SingleSubBuilder {
 }
 
 /// A builder for [`MultipleSubstFormat1`](super::MultipleSubstFormat1) subtables.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MultipleSubBuilder {
     items: BTreeMap<GlyphId16, Vec<GlyphId16>>,
 }
@@ -243,7 +243,7 @@ impl MultipleSubBuilder {
 }
 
 /// A builder for [`AlternateSubstFormat1`](super::AlternateSubstFormat1) subtables
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AlternateSubBuilder {
     items: BTreeMap<GlyphId16, Vec<GlyphId16>>,
 }
@@ -294,7 +294,7 @@ impl Builder for AlternateSubBuilder {
 }
 
 /// A builder for [`LigatureSubstFormat1`](super::LigatureSubstFormat1) subtables.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LigatureSubBuilder {
     items: BTreeMap<GlyphId16, Vec<(Vec<GlyphId16>, GlyphId16)>>,
 }

@@ -41,7 +41,7 @@ pub trait Builder {
 
 pub(crate) type FilterSetId = u16;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LookupBuilder<T> {
     pub flags: LookupFlag,
     pub mark_set: Option<FilterSetId>,
