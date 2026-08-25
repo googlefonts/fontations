@@ -298,6 +298,11 @@ impl SinglePosBuilder {
             .map(|existing| existing == value)
             .unwrap_or(true)
     }
+
+    /// Returns an iterator over the rules in this builder, in glyph order.
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId16, &ValueRecordBuilder)> + '_ {
+        self.items.iter().map(|(glyph, value)| (*glyph, value))
+    }
 }
 
 impl Builder for SinglePosBuilder {
@@ -515,6 +520,73 @@ impl PairPosBuilder {
     ) {
         self.classes.insert(class1, record1, class2, record2)
     }
+
+    /// Returns an iterator over the glyph-to-glyph rules in this builder.
+    ///
+    /// Rules are yielded in glyph order, first glyph then second.
+    pub fn iter_pairs(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            GlyphId16,
+            GlyphId16,
+            &ValueRecordBuilder,
+            &ValueRecordBuilder,
+        ),
+    > + '_ {
+        self.pairs.0.iter().flat_map(|(glyph1, seconds)| {
+            seconds
+                .iter()
+                .map(move |(glyph2, (record1, record2))| (*glyph1, *glyph2, record1, record2))
+        })
+    }
+
+    /// Returns an iterator over the class-based rules in this builder.
+    ///
+    /// The classes are the glyph sets themselves; the `ClassDef`s that assign
+    /// them ids are not computed until the builder is built. Rules from all of
+    /// this builder's class subtables are yielded, in subtable order; use
+    /// [`iter_class_subtables`](Self::iter_class_subtables) if the subtable
+    /// boundaries matter.
+    pub fn iter_class_pairs(
+        &self,
+    ) -> impl Iterator<
+        Item = (
+            &IntSet<GlyphId16>,
+            &IntSet<GlyphId16>,
+            &ValueRecordBuilder,
+            &ValueRecordBuilder,
+        ),
+    > + '_ {
+        self.iter_class_subtables().flatten()
+    }
+
+    /// Returns an iterator over the class-based subtables in this builder.
+    ///
+    /// Each item is an iterator over the rules of one subtable, in the order
+    /// the subtables will be built. A new subtable is started whenever a class
+    /// overlaps, without being equal to, a class already in the current one,
+    /// so within a subtable the classes on each side are disjoint.
+    pub fn iter_class_subtables(
+        &self,
+    ) -> impl Iterator<
+        Item = impl Iterator<
+            Item = (
+                &IntSet<GlyphId16>,
+                &IntSet<GlyphId16>,
+                &ValueRecordBuilder,
+                &ValueRecordBuilder,
+            ),
+        >,
+    > + '_ {
+        self.classes.0.iter().map(|subtable| {
+            subtable.items.iter().flat_map(|(class1, seconds)| {
+                seconds
+                    .iter()
+                    .map(move |(class2, (record1, record2))| (class1, class2, record1, record2))
+            })
+        })
+    }
 }
 
 impl Builder for PairPosBuilder {
@@ -630,6 +702,18 @@ impl CursivePosBuilder {
     ) {
         self.items.insert(glyph, (entry, exit));
     }
+
+    /// Returns an iterator over the entry/exit anchors in this builder.
+    ///
+    /// Rules are yielded in glyph order. Either anchor may be absent.
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (GlyphId16, Option<&AnchorBuilder>, Option<&AnchorBuilder>)> + '_
+    {
+        self.items
+            .iter()
+            .map(|(glyph, (entry, exit))| (*glyph, entry.as_ref(), exit.as_ref()))
+    }
 }
 
 impl Builder for CursivePosBuilder {
@@ -697,6 +781,25 @@ impl MarkList {
 
     fn glyphs(&self) -> impl Iterator<Item = GlyphId16> + Clone + '_ {
         self.glyphs.keys().copied()
+    }
+
+    /// The name of each mark class, indexed by the class id.
+    ///
+    /// Class ids are assigned densely, in the order the classes are first
+    /// seen, so this is just an inversion of `self.classes`.
+    fn class_names(&self) -> Vec<&str> {
+        let mut names = vec![""; self.classes.len()];
+        for (name, id) in &self.classes {
+            names[*id as usize] = name.as_str();
+        }
+        names
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (GlyphId16, &str, &AnchorBuilder)> + '_ {
+        let names = self.class_names();
+        self.glyphs
+            .iter()
+            .map(move |(glyph, (class, anchor))| (*glyph, names[*class as usize], anchor))
     }
 
     fn get_class(&self, class_name: &str) -> u16 {
@@ -791,6 +894,31 @@ impl MarkToBaseBuilder {
     /// Returns an iterator over all of the mark glyphs
     pub fn mark_glyphs(&self) -> impl Iterator<Item = GlyphId16> + Clone + '_ {
         self.marks.glyphs()
+    }
+
+    /// Returns an iterator over the mark glyphs, with their class and anchor.
+    ///
+    /// The class is identified by name; the numeric class ids used internally
+    /// are assigned per-lookup, in the order the classes are first seen, and so
+    /// are not comparable between two builders.
+    pub fn iter_marks(&self) -> impl Iterator<Item = (GlyphId16, &str, &AnchorBuilder)> + '_ {
+        self.marks.iter()
+    }
+
+    /// Returns an iterator over the base glyphs, with their class and anchor.
+    ///
+    /// A base glyph with anchors for several mark classes is yielded once per
+    /// class. See [`Self::iter_marks`] on why the class is named.
+    pub fn iter_bases(&self) -> impl Iterator<Item = (GlyphId16, &str, &AnchorBuilder)> + '_ {
+        let names = self.marks.class_names();
+        self.bases
+            .iter()
+            .flat_map(|(glyph, anchors)| {
+                anchors
+                    .iter()
+                    .map(move |(class, anchor)| (*glyph, *class, anchor))
+            })
+            .map(move |(glyph, class, anchor)| (glyph, names[class as usize], anchor))
     }
 }
 
@@ -911,6 +1039,28 @@ impl MarkToLigBuilder {
     pub fn lig_glyphs(&self) -> impl Iterator<Item = GlyphId16> + Clone + '_ {
         self.ligatures.keys().copied()
     }
+
+    /// Returns an iterator over the mark glyphs, with their class and anchor.
+    ///
+    /// The class is identified by name; the numeric class ids used internally
+    /// are assigned per-lookup, in the order the classes are first seen, and so
+    /// are not comparable between two builders.
+    pub fn iter_marks(&self) -> impl Iterator<Item = (GlyphId16, &str, &AnchorBuilder)> + '_ {
+        self.marks.iter()
+    }
+
+    /// Returns an iterator over the ligature glyphs and their components.
+    ///
+    /// There is one item in the slice per component of the ligature, in order,
+    /// and each maps mark class name to the anchor for that component. A
+    /// component with no anchor for a class is absent from that map.
+    pub fn iter_ligatures(
+        &self,
+    ) -> impl Iterator<Item = (GlyphId16, &[BTreeMap<String, AnchorBuilder>])> + '_ {
+        self.ligatures
+            .iter()
+            .map(|(glyph, components)| (*glyph, components.as_slice()))
+    }
 }
 
 impl Builder for MarkToLigBuilder {
@@ -1000,6 +1150,31 @@ impl MarkToMarkBuilder {
     pub fn mark2_glyphs(&self) -> impl Iterator<Item = GlyphId16> + Clone + '_ {
         self.base_marks.keys().copied()
     }
+
+    /// Returns an iterator over the mark1 glyphs, with their class and anchor.
+    ///
+    /// The class is identified by name; the numeric class ids used internally
+    /// are assigned per-lookup, in the order the classes are first seen, and so
+    /// are not comparable between two builders.
+    pub fn iter_mark1s(&self) -> impl Iterator<Item = (GlyphId16, &str, &AnchorBuilder)> + '_ {
+        self.attaching_marks.iter()
+    }
+
+    /// Returns an iterator over the mark2 glyphs, with their class and anchor.
+    ///
+    /// A mark2 glyph with anchors for several mark classes is yielded once per
+    /// class. See [`Self::iter_mark1s`] on why the class is named.
+    pub fn iter_mark2s(&self) -> impl Iterator<Item = (GlyphId16, &str, &AnchorBuilder)> + '_ {
+        let names = self.attaching_marks.class_names();
+        self.base_marks
+            .iter()
+            .flat_map(|(glyph, anchors)| {
+                anchors
+                    .iter()
+                    .map(move |(class, anchor)| (*glyph, *class, anchor))
+            })
+            .map(move |(glyph, class, anchor)| (glyph, names[class as usize], anchor))
+    }
 }
 
 impl Builder for MarkToMarkBuilder {
@@ -1031,5 +1206,199 @@ impl Builder for MarkToMarkBuilder {
             mark_array,
             mark2array,
         )]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn gid(raw: u16) -> GlyphId16 {
+        GlyphId16::new(raw)
+    }
+
+    fn advance(val: i16) -> ValueRecordBuilder {
+        ValueRecordBuilder::new().with_x_advance(val)
+    }
+
+    #[test]
+    fn single_pos_round_trip() {
+        let mut builder = SinglePosBuilder::default();
+        builder.insert(gid(5), advance(-10));
+        builder.insert(gid(1), advance(20));
+
+        // yielded in glyph order, not insertion order
+        let items = builder.iter().collect::<Vec<_>>();
+        assert_eq!(items, vec![(gid(1), &advance(20)), (gid(5), &advance(-10))]);
+    }
+
+    #[test]
+    fn pair_pos_round_trip() {
+        let mut builder = PairPosBuilder::default();
+        builder.insert_pair(gid(1), advance(7), gid(2), ValueRecordBuilder::new());
+        builder.insert_classes(
+            [gid(3), gid(4)].into_iter().collect(),
+            advance(9),
+            [gid(5)].into_iter().collect(),
+            ValueRecordBuilder::new(),
+        );
+
+        let pairs = builder
+            .iter_pairs()
+            .map(|(g1, g2, v1, _)| (g1, g2, v1.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(pairs, vec![(gid(1), gid(2), advance(7))]);
+
+        let classes = builder
+            .iter_class_pairs()
+            .map(|(c1, c2, v1, _)| (c1.iter().collect::<Vec<_>>(), c2.len(), v1.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(classes, vec![(vec![gid(3), gid(4)], 1, advance(9))]);
+    }
+
+    #[test]
+    fn class_pair_subtable_boundaries() {
+        let class = |ids: &[u16]| ids.iter().map(|id| gid(*id)).collect::<IntSet<_>>();
+        let mut builder = PairPosBuilder::default();
+        builder.insert_classes(class(&[1, 2]), advance(1), class(&[9]), advance(0));
+        // overlaps the first class without equalling it: new subtable
+        builder.insert_classes(class(&[1, 2, 3]), advance(2), class(&[9]), advance(0));
+        // disjoint from the second subtable's first class: joins it
+        builder.insert_classes(class(&[4]), advance(3), class(&[9]), advance(0));
+
+        let subtables = builder
+            .iter_class_subtables()
+            .map(|rules| rules.map(|(_, _, v1, _)| v1.clone()).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            subtables,
+            vec![vec![advance(1)], vec![advance(2), advance(3)]]
+        );
+        assert_eq!(builder.iter_class_pairs().count(), 3);
+    }
+
+    #[test]
+    fn cursive_round_trip() {
+        let mut builder = CursivePosBuilder::default();
+        builder.insert(gid(1), Some(AnchorBuilder::new(10, 20)), None);
+
+        let items = builder
+            .iter()
+            .map(|(g, entry, exit)| (g, entry.cloned(), exit.cloned()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            items,
+            vec![(gid(1), Some(AnchorBuilder::new(10, 20)), None)]
+        );
+    }
+
+    #[test]
+    fn mark_to_base_round_trip() {
+        let mut builder = MarkToBaseBuilder::default();
+        builder
+            .insert_mark(gid(10), "top", AnchorBuilder::new(1, 2))
+            .unwrap();
+        builder
+            .insert_mark(gid(11), "bottom", AnchorBuilder::new(3, 4))
+            .unwrap();
+        builder.insert_base(gid(1), "top", AnchorBuilder::new(5, 6));
+        builder.insert_base(gid(1), "bottom", AnchorBuilder::new(7, 8));
+
+        let marks = builder
+            .iter_marks()
+            .map(|(g, class, anchor)| (g, class, anchor.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            marks,
+            vec![
+                (gid(10), "top", AnchorBuilder::new(1, 2)),
+                (gid(11), "bottom", AnchorBuilder::new(3, 4)),
+            ]
+        );
+
+        // one item per (glyph, class)
+        let bases = builder
+            .iter_bases()
+            .map(|(g, class, anchor)| (g, class, anchor.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            bases,
+            vec![
+                (gid(1), "top", AnchorBuilder::new(5, 6)),
+                (gid(1), "bottom", AnchorBuilder::new(7, 8)),
+            ]
+        );
+    }
+
+    /// Two builders that saw the same classes in a different order assign them
+    /// different internal ids; iterating by name must hide that.
+    #[test]
+    fn mark_class_names_are_id_order_independent() {
+        let mut first = MarkToBaseBuilder::default();
+        first
+            .insert_mark(gid(10), "top", AnchorBuilder::new(1, 2))
+            .unwrap();
+        first
+            .insert_mark(gid(11), "bottom", AnchorBuilder::new(3, 4))
+            .unwrap();
+        first.insert_base(gid(1), "bottom", AnchorBuilder::new(7, 8));
+
+        let mut second = MarkToBaseBuilder::default();
+        second
+            .insert_mark(gid(11), "bottom", AnchorBuilder::new(3, 4))
+            .unwrap();
+        second
+            .insert_mark(gid(10), "top", AnchorBuilder::new(1, 2))
+            .unwrap();
+        second.insert_base(gid(1), "bottom", AnchorBuilder::new(7, 8));
+
+        assert_eq!(
+            first.iter_bases().map(|(_, c, _)| c).collect::<Vec<_>>(),
+            second.iter_bases().map(|(_, c, _)| c).collect::<Vec<_>>(),
+        );
+        // ...and they really did get different ids internally
+        assert_ne!(first.marks.classes, second.marks.classes);
+    }
+
+    #[test]
+    fn mark_to_mark_round_trip() {
+        let mut builder = MarkToMarkBuilder::default();
+        builder
+            .insert_mark1(gid(10), "top", AnchorBuilder::new(1, 2))
+            .unwrap();
+        builder.insert_mark2(gid(20), "top", AnchorBuilder::new(3, 4));
+
+        assert_eq!(
+            builder
+                .iter_mark1s()
+                .map(|(g, c, _)| (g, c))
+                .collect::<Vec<_>>(),
+            vec![(gid(10), "top")]
+        );
+        assert_eq!(
+            builder
+                .iter_mark2s()
+                .map(|(g, c, _)| (g, c))
+                .collect::<Vec<_>>(),
+            vec![(gid(20), "top")]
+        );
+    }
+
+    #[test]
+    fn mark_to_lig_round_trip() {
+        let mut builder = MarkToLigBuilder::default();
+        builder
+            .insert_mark(gid(10), "top", AnchorBuilder::new(1, 2))
+            .unwrap();
+        builder.insert_ligature(gid(1), "top", vec![Some(AnchorBuilder::new(5, 6)), None]);
+
+        let ligs = builder.iter_ligatures().collect::<Vec<_>>();
+        assert_eq!(ligs.len(), 1);
+        let (glyph, components) = ligs[0];
+        assert_eq!(glyph, gid(1));
+        assert_eq!(components.len(), 2);
+        assert_eq!(components[0].get("top"), Some(&AnchorBuilder::new(5, 6)));
+        // the second component had no anchor for this class
+        assert!(components[1].is_empty());
     }
 }
