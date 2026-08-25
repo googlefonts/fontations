@@ -260,19 +260,29 @@ impl<'a> SimpleGlyph<'a> {
                 break;
             }
         }
-        let mut cursor = FontData::new(self.glyph_data()).cursor();
-        cursor.advance_by(read_flags_bytes);
+        // Both coordinate passes walk one iterator over the bytes the flags
+        // did not use. A cursor would bounds check, build a `Result` and
+        // advance a saturating offset for each of the up to four bytes a point
+        // takes; `next` is a pointer comparison, and the y pass simply carries
+        // on from where the x pass stopped.
+        let coords = self
+            .glyph_data()
+            .get(read_flags_bytes..)
+            .ok_or(ReadError::OutOfBounds)?;
+        let mut bytes = coords.iter();
         let mut x = 0i32;
         for (&point_flags, point) in flags.iter().zip(points.as_mut()) {
             let mut delta = 0i32;
             let flag = SimpleGlyphFlags::from_bits_truncate(point_flags.0);
             if flag.contains(SimpleGlyphFlags::X_SHORT_VECTOR) {
-                delta = cursor.read::<u8>()? as i32;
+                delta = *bytes.next().ok_or(ReadError::OutOfBounds)? as i32;
                 if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
                     delta = -delta;
                 }
             } else if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
-                delta = cursor.read::<i16>()? as i32;
+                let hi = *bytes.next().ok_or(ReadError::OutOfBounds)?;
+                let lo = *bytes.next().ok_or(ReadError::OutOfBounds)?;
+                delta = i16::from_be_bytes([hi, lo]) as i32;
             }
             x = x.wrapping_add(delta);
             point.x = C::from_i32(x);
@@ -282,12 +292,14 @@ impl<'a> SimpleGlyph<'a> {
             let mut delta = 0i32;
             let flag = SimpleGlyphFlags::from_bits_truncate(point_flags.0);
             if flag.contains(SimpleGlyphFlags::Y_SHORT_VECTOR) {
-                delta = cursor.read::<u8>()? as i32;
+                delta = *bytes.next().ok_or(ReadError::OutOfBounds)? as i32;
                 if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
                     delta = -delta;
                 }
             } else if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
-                delta = cursor.read::<i16>()? as i32;
+                let hi = *bytes.next().ok_or(ReadError::OutOfBounds)?;
+                let lo = *bytes.next().ok_or(ReadError::OutOfBounds)?;
+                delta = i16::from_be_bytes([hi, lo]) as i32;
             }
             y = y.wrapping_add(delta);
             point.y = C::from_i32(y);
