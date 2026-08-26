@@ -301,85 +301,113 @@ pub fn entries<'a>(
         if cursor.remaining_bytes() == 0 {
             return None;
         }
-        let token = match parse_token(&mut cursor) {
-            Ok(token) => token,
-            Err(Error::InvalidDictOperator(_)) => {
-                // Some buggy fonts have invalid dict operators. Clear
-                // the stack and attempt to continue.
-                // FreeType only processes known fields:
-                // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffparse.c#L1328>
-                // And then clears the stack regardless:
-                // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffparse.c#L1469>
-                stack.clear();
-                continue;
-            }
-            Err(e) => return Some(Err(e)),
+        // Operands go straight onto the stack rather than through a `Token`:
+        // this loop is the hot part of subfont construction, and a token
+        // carries binary coded decimal state that only one operator reads.
+        const ESCAPE: u8 = 12;
+        let b0 = match cursor.read::<u8>() {
+            Ok(b0) => b0,
+            Err(e) => return Some(Err(e.into())),
         };
-        match token {
-            Token::Operand(number, bcd_components) => {
-                last_bcd_components = bcd_components;
-                match stack.push(number) {
+        let op = match b0 {
+            // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-3-operand-encoding>
+            28 | 29 | 32..=254 => {
+                last_bcd_components = None;
+                match num::parse_int(&mut cursor, b0).and_then(|number| stack.push(number)) {
                     Ok(_) => continue,
                     Err(e) => return Some(Err(e)),
                 }
             }
-            Token::Operator(op) => {
-                if op == Operator::Blend || op == Operator::VariationStoreIndex {
-                    let state = match blend_state.as_mut() {
-                        Some(state) => state,
-                        None => return Some(Err(Error::MissingBlendState)),
-                    };
-                    if op == Operator::VariationStoreIndex {
-                        match stack
-                            .get_i32(0)
-                            .and_then(|ix| state.set_store_index(ix as u16))
-                        {
-                            Ok(_) => {}
-                            Err(e) => return Some(Err(e)),
-                        }
+            30 => {
+                let components = match BcdComponents::parse(&mut cursor) {
+                    Ok(components) => components,
+                    Err(e) => return Some(Err(e)),
+                };
+                let result = stack.push(components.value(false));
+                last_bcd_components = Some(components);
+                match result {
+                    Ok(_) => continue,
+                    Err(e) => return Some(Err(e)),
+                }
+            }
+            _ => {
+                let op = if b0 == ESCAPE {
+                    match cursor.read::<u8>() {
+                        Ok(b1) => Operator::from_extended_opcode(b1),
+                        Err(e) => return Some(Err(e.into())),
                     }
-                    if op == Operator::Blend {
-                        match stack.apply_blend(state) {
-                            Ok(_) => continue,
-                            Err(e) => return Some(Err(e)),
-                        }
+                } else {
+                    Operator::from_opcode(b0)
+                };
+                match op {
+                    Some(op) => op,
+                    None => {
+                        // Some buggy fonts have invalid dict operators. Clear
+                        // the stack and attempt to continue.
+                        // FreeType only processes known fields:
+                        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffparse.c#L1328>
+                        // And then clears the stack regardless:
+                        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffparse.c#L1469>
+                        stack.clear();
+                        continue;
                     }
                 }
-                if op == Operator::BlueScale {
-                    // FreeType parses BlueScale using a scaling factor of
-                    // 1000, presumably to capture more precision in the
-                    // fractional part. We do the same.
-                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/master/src/cff/cfftoken.h?ref_type=heads#L87>
-                    if let Some(bcd_components) = last_bcd_components.take() {
-                        // If the most recent numeric value was parsed as a
-                        // binary coded decimal then recompute the value using
-                        // the desired scaling and replace it on the stack
-                        stack.pop_fixed().ok()?;
-                        stack.push(bcd_components.value(true)).ok()?;
-                    }
+            }
+        };
+        if op == Operator::Blend || op == Operator::VariationStoreIndex {
+            let state = match blend_state.as_mut() {
+                Some(state) => state,
+                None => return Some(Err(Error::MissingBlendState)),
+            };
+            if op == Operator::VariationStoreIndex {
+                match stack
+                    .get_i32(0)
+                    .and_then(|ix| state.set_store_index(ix as u16))
+                {
+                    Ok(_) => {}
+                    Err(e) => return Some(Err(e)),
                 }
-                if op == Operator::FontMatrix {
-                    // FontMatrix is also parsed specially... *sigh*
-                    // Redo the entire thing with special scaling factors
-                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffparse.c#L623>
-                    // Dump the current values
-                    stack.clear();
-                    last_bcd_components = None;
-                    // Now reparse with dynamic scaling
-                    let mut cursor = crate::FontData::new(dict_data).cursor();
-                    cursor.advance_by(cursor_pos);
-                    if let Some(matrix) = ScaledFontMatrix::parse(&mut cursor) {
-                        return Some(Ok(Entry::FontMatrix(matrix)));
-                    }
-                    continue;
+            }
+            if op == Operator::Blend {
+                match stack.apply_blend(state) {
+                    Ok(_) => continue,
+                    Err(e) => return Some(Err(e)),
                 }
-                last_bcd_components = None;
-                let entry = parse_entry(op, &mut stack);
-                stack.clear();
-                cursor_pos = cursor.position().unwrap_or_default();
-                return Some(entry);
             }
         }
+        if op == Operator::BlueScale {
+            // FreeType parses BlueScale using a scaling factor of
+            // 1000, presumably to capture more precision in the
+            // fractional part. We do the same.
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/master/src/cff/cfftoken.h?ref_type=heads#L87>
+            if let Some(bcd_components) = last_bcd_components.take() {
+                // If the most recent numeric value was parsed as a
+                // binary coded decimal then recompute the value using
+                // the desired scaling and replace it on the stack
+                stack.pop_fixed().ok()?;
+                stack.push(bcd_components.value(true)).ok()?;
+            }
+        }
+        if op == Operator::FontMatrix {
+            // FontMatrix is also parsed specially... *sigh*
+            // Redo the entire thing with special scaling factors
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/f1cd6dbfa0c98f352b698448f40ac27e8fb3832e/src/cff/cffparse.c#L623>
+            // Dump the current values
+            stack.clear();
+            last_bcd_components = None;
+            // Now reparse with dynamic scaling
+            let mut cursor = crate::FontData::new(dict_data).cursor();
+            cursor.advance_by(cursor_pos);
+            if let Some(matrix) = ScaledFontMatrix::parse(&mut cursor) {
+                return Some(Ok(Entry::FontMatrix(matrix)));
+            }
+            continue;
+        }
+        last_bcd_components = None;
+        let entry = parse_entry(op, &mut stack);
+        stack.clear();
+        cursor_pos = cursor.position().unwrap_or_default();
+        return Some(entry);
     })
 }
 
