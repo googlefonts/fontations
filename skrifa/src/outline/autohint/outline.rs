@@ -9,7 +9,6 @@ use super::{
     metrics::Scale,
     QuirksMode,
 };
-use crate::collections::SmallVec;
 use core::ops::Range;
 use raw::{
     limits::MAX_OUTLINE_POINTS,
@@ -17,6 +16,7 @@ use raw::{
     types::Point as Coord,
     types::{F26Dot6, F2Dot14, GlyphId},
 };
+use smallvec::SmallVec;
 
 /// Hinting directions.
 ///
@@ -158,8 +158,8 @@ const MAX_INLINE_CONTOURS: usize = 8;
 pub(crate) struct Outline {
     pub units_per_em: i32,
     pub orientation: Option<Orientation>,
-    pub points: SmallVec<Point, MAX_INLINE_POINTS>,
-    pub contours: SmallVec<Contour, MAX_INLINE_CONTOURS>,
+    pub points: SmallVec<[Point; MAX_INLINE_POINTS]>,
+    pub contours: SmallVec<[Contour; MAX_INLINE_CONTOURS]>,
     pub advance: i32,
 }
 
@@ -694,14 +694,14 @@ mod tests {
         let quirks = QuirksMode::Jit;
         outline
             .points
-            .resize_and_fill(u16::MAX as usize + 1, Point::default());
+            .resize(u16::MAX as usize + 1, Point::default());
         outline
             .contours
-            .resize_and_fill(u16::MAX as usize + 1, Contour::default());
+            .resize(u16::MAX as usize + 1, Contour::default());
         assert!(outline.analyze_and_validate(gid, quirks).is_ok());
         outline
             .points
-            .resize_and_fill(u16::MAX as usize + 2, Point::default());
+            .resize(u16::MAX as usize + 2, Point::default());
         assert!(matches!(
             outline.analyze_and_validate(gid, quirks),
             Err(DrawError::TooManyPoints(err_gid)) if err_gid == gid
@@ -709,7 +709,7 @@ mod tests {
         outline.points.clear();
         outline
             .contours
-            .resize_and_fill(u16::MAX as usize + 2, Contour::default());
+            .resize(u16::MAX as usize + 2, Contour::default());
         assert!(matches!(
             outline.analyze_and_validate(gid, quirks),
             Err(DrawError::TooManyPoints(err_gid)) if err_gid == gid
@@ -721,7 +721,7 @@ mod tests {
         let mut outline = Outline::default();
         outline
             .points
-            .resize_and_fill(u16::MAX as usize + 1, Point::default());
+            .resize(u16::MAX as usize + 1, Point::default());
         outline.contours.push(Contour {
             first_ix: 0,
             last_ix: u16::MAX,

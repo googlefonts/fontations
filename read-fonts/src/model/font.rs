@@ -37,7 +37,7 @@ use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
     TableProvider,
 };
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, sync::Arc};
 use cache::{
     CffFont, GlyfLoca, GvarTable, HvarTable, MetricsTable, TableCache, VorgTable, VvarTable,
 };
@@ -46,6 +46,7 @@ use core::{
     str::FromStr,
     sync::atomic::{self, AtomicBool, AtomicU32},
 };
+use smallvec::SmallVec;
 use types::{F2Dot14, Fixed, GlyphId, Point, Tag};
 
 /// A font at one location in its design space.
@@ -532,14 +533,14 @@ impl InstanceBuilder {
                 variations,
             );
         } else {
-            self.instance.coords.resize(0);
+            self.instance.coords.clear();
         }
     }
 
     fn set_coords(&mut self, coords: impl IntoIterator<Item = NormalizedCoord>) {
         if let Ok(fvar) = self.instance.font.tables().fvar() {
             let count = fvar.axis_count() as usize;
-            self.instance.coords.resize(count);
+            self.instance.coords.resize(count, NormalizedCoord::ZERO);
             for (dst, src) in self.instance.coords.as_mut_slice().iter_mut().zip(
                 coords
                     .into_iter()
@@ -547,9 +548,9 @@ impl InstanceBuilder {
             ) {
                 *dst = src;
             }
-            self.instance.coords.clear_if_all_zeroes();
+            clear_if_all_zeroes(&mut self.instance.coords);
         } else {
-            self.instance.coords.resize(0);
+            self.instance.coords.clear();
         }
     }
 
@@ -563,7 +564,7 @@ impl InstanceBuilder {
                 named_instance_variations(&fvar, index),
             );
         } else {
-            self.instance.coords.resize(0);
+            self.instance.coords.clear();
         }
     }
 
@@ -582,7 +583,7 @@ impl InstanceBuilder {
                     .chain(overrides.into_iter().map(Into::into)),
             );
         } else {
-            self.instance.coords.resize(0);
+            self.instance.coords.clear();
         }
     }
 }
@@ -614,7 +615,7 @@ where
     V: IntoIterator,
     V::Item: Into<Variation>,
 {
-    coords.resize(fvar.axis_count() as usize);
+    coords.resize(fvar.axis_count() as usize, NormalizedCoord::ZERO);
     fvar.user_to_normalized(
         avar.as_ref(),
         variations
@@ -623,7 +624,7 @@ where
             .map(|var| (var.tag, Fixed::from_f64(var.value as _))),
         coords.as_mut_slice(),
     );
-    coords.clear_if_all_zeroes();
+    clear_if_all_zeroes(coords);
 }
 
 /// A normalized variation coordinate in 2.14 fixed point in the range
@@ -684,85 +685,19 @@ impl From<&(&str, f32)> for Variation {
     }
 }
 
-/// Maximum number of coordinates we store inline. Chosen to maximize
-/// number of coords while minimizing space overhead.
-const MAX_INLINE_COORDS: usize = 15;
+/// Maximum number of coordinates we store inline. Chosen to maximize the
+/// number of coords without growing the storage: a `SmallVec` is a capacity
+/// alongside a union of the inline array and the heap pointer, so twelve
+/// two byte coords are the most that fit in 32 bytes.
+const MAX_INLINE_COORDS: usize = 12;
 
-enum CoordStorage {
-    None,
-    Inline([NormalizedCoord; MAX_INLINE_COORDS], u8),
-    Heap(Vec<NormalizedCoord>),
-}
+type CoordStorage = SmallVec<[NormalizedCoord; MAX_INLINE_COORDS]>;
 
-impl Default for CoordStorage {
-    fn default() -> Self {
-        Self::None
-    }
-}
-
-impl CoordStorage {
-    /// Empty storage if all the coordinates are zeros. This allows us to
-    /// bypass variation processing for the default instance with a simple
-    /// is_empty() check.
-    fn clear_if_all_zeroes(&mut self) {
-        match self {
-            Self::None => {}
-            Self::Inline(coords, len) => {
-                if coords[..*len as usize]
-                    .iter()
-                    .all(|&c| c == NormalizedCoord::ZERO)
-                {
-                    *len = 0;
-                }
-            }
-            Self::Heap(heap) => {
-                if heap.iter().all(|&c| c == NormalizedCoord::ZERO) {
-                    heap.clear();
-                }
-            }
-        }
-    }
-
-    fn resize(&mut self, new_len: usize) {
-        match self {
-            Self::None => {
-                if new_len > MAX_INLINE_COORDS {
-                    let mut heap = Vec::with_capacity(new_len);
-                    heap.resize(new_len, NormalizedCoord::ZERO);
-                    *self = Self::Heap(heap);
-                } else {
-                    *self = Self::Inline([NormalizedCoord::ZERO; MAX_INLINE_COORDS], new_len as u8);
-                }
-            }
-            Self::Inline(_, len) => {
-                if new_len > MAX_INLINE_COORDS {
-                    let mut heap = Vec::with_capacity(new_len);
-                    heap.resize(new_len, NormalizedCoord::ZERO);
-                    *self = Self::Heap(heap);
-                } else {
-                    *len = new_len as u8;
-                }
-            }
-            Self::Heap(heap) => {
-                heap.resize(new_len, NormalizedCoord::ZERO);
-            }
-        }
-    }
-
-    fn as_slice(&self) -> &[NormalizedCoord] {
-        match self {
-            Self::None => &[],
-            Self::Inline(coords, len) => &coords[..*len as usize],
-            Self::Heap(heap) => heap.as_slice(),
-        }
-    }
-
-    fn as_mut_slice(&mut self) -> &mut [NormalizedCoord] {
-        match self {
-            Self::None => &mut [],
-            Self::Inline(coords, len) => &mut coords[..*len as usize],
-            Self::Heap(heap) => heap.as_mut_slice(),
-        }
+/// Empties `coords` if every coordinate is zero. This lets the default
+/// instance skip variation processing behind a plain `is_empty` check.
+fn clear_if_all_zeroes(coords: &mut CoordStorage) {
+    if coords.iter().all(|&c| c == NormalizedCoord::ZERO) {
+        coords.clear();
     }
 }
 

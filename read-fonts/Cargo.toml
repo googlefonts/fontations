@@ -40,6 +40,7 @@ agl = []
 
 [dependencies]
 foldhash = { workspace = true, optional = true }
+smallvec = { workspace = true }
 font-types = { workspace = true, features = ["bytemuck"] }
 yoke = { workspace = true }
 serde = { version = "1.0", features = ["derive"], optional = true }

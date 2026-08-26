@@ -3,12 +3,12 @@
 #![allow(dead_code)]
 
 use super::DrawError;
-use crate::collections::SmallVec;
 use core::ops::Range;
 use raw::{
     tables::glyf::PointFlags,
     types::{F26Dot6, Point},
 };
+use smallvec::SmallVec;
 
 #[derive(Copy, Clone, Default, Debug)]
 pub(super) struct UnscaledPoint {
@@ -50,7 +50,9 @@ pub(super) trait UnscaledOutlineSink {
 }
 
 // please can I have smallvec?
-pub(super) struct UnscaledOutlineBuf<const INLINE_CAP: usize>(SmallVec<UnscaledPoint, INLINE_CAP>);
+pub(super) struct UnscaledOutlineBuf<const INLINE_CAP: usize>(
+    SmallVec<[UnscaledPoint; INLINE_CAP]>,
+);
 
 impl<const INLINE_CAP: usize> UnscaledOutlineBuf<INLINE_CAP> {
     pub fn new() -> Self {
