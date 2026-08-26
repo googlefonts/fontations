@@ -20,6 +20,10 @@ use raw::tables::glyf::PointFlags;
 const MAX_SCORE: i32 = 32000;
 const MIN_SCORE: i32 = -32000;
 
+/// Defensive cap on how many segments one glyph may produce, so a
+/// pathological outline cannot make the later O(n^2) linking pass expensive.
+const MAX_SEGMENTS: usize = 1000;
+
 /// Computes segments for the Latin writing system.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L1537>
@@ -302,39 +306,39 @@ fn build_segments(outline: &mut Outline, axis: &mut Axis) -> bool {
     axis.segments.clear();
     let major_dir = axis.major_dir.normalize();
     let mut segment_dir = major_dir;
-    let points = outline.points.as_mut_slice();
+    let points = outline.points.as_slice();
     for contour in &outline.contours {
         let is_single_point_contour = contour.range().len() == 1;
-        let mut point_ix = contour.first();
-        let mut last_ix = contour.prev(point_ix);
         let mut state = State::default();
         let mut prev_state = state;
         let mut prev_segment_ix: Option<usize> = None;
         let mut segment_ix = 0;
-        // Check if we're starting on an edge and if so, find
-        // the starting point
+        // If the contour's first point is already inside an edge, walk back to
+        // where that edge starts, so it is not split across the seam.
+        let mut point_ix = contour.first();
         if points[point_ix].out_dir.is_same_axis(major_dir)
-            && points[last_ix].out_dir.is_same_axis(major_dir)
+            && points[contour.last()].out_dir.is_same_axis(major_dir)
         {
-            last_ix = point_ix;
+            let started_at = point_ix;
             loop {
                 point_ix = contour.prev(point_ix);
                 if !points[point_ix].out_dir.is_same_axis(major_dir) {
                     point_ix = contour.next(point_ix);
                     break;
                 }
-                if point_ix == last_ix {
+                if point_ix == started_at {
                     break;
                 }
             }
         }
-        last_ix = point_ix;
+        // Wherever that left us is where the walk below ends.
+        let last_ix = point_ix;
         let mut on_edge = false;
         let mut passed = false;
         loop {
+            let point = &points[point_ix];
             if on_edge {
                 // Get min and max position
-                let point = points[point_ix];
                 state.min_pos = state.min_pos.min(point.u);
                 state.max_pos = state.max_pos.max(point.u);
                 // Get min and max coordinate and flags
@@ -349,14 +353,16 @@ fn build_segments(outline: &mut Outline, axis: &mut Axis) -> bool {
                 }
                 // Get min and max coord of on curve points
                 if point.is_on_curve() {
-                    state.min_on_coord = state.min_on_coord.min(point.v);
-                    state.max_on_coord = state.max_on_coord.max(point.v);
+                    state.min_on_coord = state.min_on_coord.min(v);
+                    state.max_on_coord = state.max_on_coord.max(v);
                 }
                 if point.out_dir != segment_dir || point_ix == last_ix {
-                    prev_segment_ix.take_if(|idx| {
-                        axis.segments[segment_ix].first_ix != axis.segments[*idx].last_ix
+                    // The previous segment can only absorb this one if it
+                    // ends on the same point this one starts from.
+                    let merge_ix = prev_segment_ix.filter(|&ix| {
+                        axis.segments[segment_ix].first_ix == axis.segments[ix].last_ix
                     });
-                    if let Some(prev_segment_ix) = prev_segment_ix {
+                    if let Some(prev_segment_ix) = merge_ix {
                         // The points are the same, so merge the segments
                         let prev_segment = &mut axis.segments[prev_segment_ix];
                         if prev_segment.last_point(points).in_dir == point.in_dir {
@@ -420,9 +426,8 @@ fn build_segments(outline: &mut Outline, axis: &mut Axis) -> bool {
                 }
                 passed = true;
             }
-            let point = points[point_ix];
             if !on_edge && (point.out_dir.is_same_axis(major_dir) || is_single_point_contour) {
-                if axis.segments.len() > 1000 {
+                if axis.segments.len() > MAX_SEGMENTS {
                     axis.segments.clear();
                     return false;
                 }
