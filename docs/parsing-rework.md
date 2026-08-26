@@ -1,5 +1,7 @@
 # Reworking the parsing framework
 
+*For the short version, see [parsing-rework-summary.md](parsing-rework-summary.md).*
+
 Codegen emits this today, for real tables, behind a third mode. Nothing
 existing uses it: the output goes to a parallel tree, so the framework can be
 developed against tables that actually exist without touching the 80,000 lines
@@ -32,6 +34,34 @@ variably sized record, and a table whose header shrinks when a count is zero.
 
 The tests parse the spec's own example bytes and check the results against the
 parser the crate ships, field for field. Traversal is deliberately not emitted.
+
+## Contents
+
+- [What codegen could not express](#what-codegen-could-not-express)
+  - [GPOS `ValueRecord` — a record that needs its parent](#gpos-valuerecord--a-record-that-needs-its-parent)
+  - [fvar `InstanceRecord` — a size the font declares](#fvar-instancerecord--a-size-the-font-declares)
+  - [fvar `AxisInstanceArrays` — a table invented for the emitter](#fvar-axisinstancearrays--a-table-invented-for-the-emitter)
+  - [CFF `INDEX` — a header that is sometimes shorter](#cff-index--a-header-that-is-sometimes-shorter)
+  - [The pattern](#the-pattern)
+- [The model](#the-model)
+  - [1. One trait for tables, three for records](#1-one-trait-for-tables-three-for-records)
+  - [2. Accessors return `Option`, and it does not nest](#2-accessors-return-option-and-it-does-not-nest)
+  - [3. `WithParent<R>`](#3-withparentr)
+  - [4. One array](#4-one-array)
+  - [Where validation happens](#where-validation-happens)
+- [What it looks like generated](#what-it-looks-like-generated)
+  - [fvar `InstanceRecord`](#fvar-instancerecord)
+  - [fvar `AxisInstanceArrays`](#fvar-axisinstancearrays)
+  - [CFF `INDEX`](#cff-index)
+- [What comes out](#what-comes-out)
+- [Sanitize](#sanitize)
+  - [Two passes, not one flag](#two-passes-not-one-flag)
+  - [Bounds](#bounds)
+  - [One check, not one per field](#one-check-not-one-per-field)
+- [New DSL](#new-dsl)
+- [What is left](#what-is-left)
+- [Open questions](#open-questions)
+- [Settled](#settled)
 
 ## What codegen could not express
 
@@ -72,24 +102,6 @@ position — the condition is not about another field's value, it is about wheth
 Still hand-written: `0xFFFF` means "no PostScript name", which no emitter could
 infer. It is now a three-line wrapper over a generated accessor rather than a
 reason to hand-write the record.
-
-### CFF `INDEX`
-
-`#[if_nonzero($count)]` needed no new machinery beyond parsing: `MIN_SIZE`
-already stops at the first conditional field, so it drops from 3 to 2 on its
-own, and the range reads the way the spec does.
-
-```rust
-pub fn off_size_byte_range(&self) -> Range<usize> {
-    let start = self.count_byte_range().end;
-    let end = if self.count() != 0 { start + u8::RAW_BYTE_LEN } else { start };
-    start..end
-}
-```
-
-A two-byte empty INDEX now parses, with `off_size`, `offsets` and `data` all
-`None`; a truncated non-empty one gives `None` from the accessor and is reported
-by [sanitize](#sanitize) as `offsets: field extends past the end`.
 
 ### fvar `AxisInstanceArrays` — a table invented for the emitter
 
@@ -293,8 +305,18 @@ An offset accessor returns `Option<T>` whether or not the offset is declared
 nullable, because **declaring an offset non-nullable says what a well formed
 font contains, not what this one does.** A null in a non-nullable field is a
 thing fonts in the wild actually do, and every caller already has to handle it:
-17 of the 25 places in skrifa, skera and write-fonts that match on a `ReadError`
-variant at all match on `NullOffset`, and all of them do so to skip the entry.
+**10 of the 11 places in skrifa, skera and write-fonts that read a `ReadError`
+variant read `NullOffset`**, and every one of them discards the entry —
+`=> continue` or `=> None`. The eleventh is a skrifa test, asserting on an error
+skrifa itself substituted a few lines earlier.
+
+There are 25 mentions of a `ReadError` variant in those crates, but the other 14
+*construct* one rather than read it: skrifa raising an error of its own from an
+`Option::ok_or` or from checked arithmetic, which this rework does not touch.
+Six of those turn an `Option` into `Err(NullOffset)` — as in
+`var_store.ok_or(ReadError::NullOffset)?` — which is this rework run backwards,
+and gets shorter when the accessor hands back the `Option` to begin with.
+
 So the two nullabilities have the same read-side signature, and `Nullable<O>`
 survives only as the raw accessor's type, which is what the compile side reads.
 
@@ -472,8 +494,8 @@ because the popcount and the `0x8000` device format are semantics the DSL cannot
 state — but it is now an ordinary `ComputedSize` record that codegen calls like
 any other, rather than a shape the framework has no room for.
 
-Records nested two deep, which is the case `codegen-positioned` had to propagate
-positioned-ness for. There is nothing left to propagate:
+Records nested two deep, the case that used to need positioned-ness propagated
+through containment. There is nothing left to propagate:
 
 ```rust
 impl<'a> PairPosFormat2<'a> {
@@ -528,24 +550,6 @@ field. Neither font carries a `postScriptNameID`, so those only prove the field
 is correctly *absent*; four synthetic records cover the present case, the
 `0xFFFF` sentinel, and an `instanceSize` padded beyond the optional field.
 
-### CFF `INDEX`
-
-`#[if_nonzero($count)]` needed no new machinery beyond parsing: `MIN_SIZE`
-already stops at the first conditional field, so it drops from 3 to 2 on its
-own, and the range reads the way the spec does.
-
-```rust
-pub fn off_size_byte_range(&self) -> Range<usize> {
-    let start = self.count_byte_range().end;
-    let end = if self.count() != 0 { start + u8::RAW_BYTE_LEN } else { start };
-    start..end
-}
-```
-
-A two-byte empty INDEX now parses, with `off_size`, `offsets` and `data` all
-`None`; a truncated non-empty one gives `None` from the accessor and is reported
-by [sanitize](#sanitize) as `offsets: field extends past the end`.
-
 ### fvar `AxisInstanceArrays`
 
 What replaced the shim:
@@ -574,6 +578,24 @@ One wart: the offset still needs a declared target, so it is written
 now-duplicate resolver. A bare untargeted offset would be cleaner and is
 probably worth adding on its own account — several tables have offsets that are
 resolved by hand.
+
+### CFF `INDEX`
+
+`#[if_nonzero($count)]` needed no new machinery beyond parsing: `MIN_SIZE`
+already stops at the first conditional field, so it drops from 3 to 2 on its
+own, and the range reads the way the spec does.
+
+```rust
+pub fn off_size_byte_range(&self) -> Range<usize> {
+    let start = self.count_byte_range().end;
+    let end = if self.count() != 0 { start + u8::RAW_BYTE_LEN } else { start };
+    start..end
+}
+```
+
+A two-byte empty INDEX now parses, with `off_size`, `offsets` and `data` all
+`None`; a truncated non-empty one gives `None` from the accessor and is reported
+by [sanitize](#sanitize) as `offsets: field extends past the end`.
 
 ## What comes out
 
