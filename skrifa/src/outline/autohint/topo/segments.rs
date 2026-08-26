@@ -89,57 +89,61 @@ fn link_segments_default(outline: &Outline, axis: &mut Axis, max_width: Option<i
         // Search for stems having opposite directions with seg1 to the
         // "left" of seg2
         for ix2 in 0..segments.len() {
+            // Both are re-read each time around: the loop rewrites the scores
+            // of the segments it links, including this one.
             let seg1 = segments[ix1];
             let seg2 = segments[ix2];
             let pos2 = seg2.pos as i32;
-            if seg1.dir.is_opposite(seg2.dir) && pos2 > pos1 {
-                // Compute distance between the segments
-                // Note: the min/max functions chosen here are intentional
-                let min = seg1.min_coord.max(seg2.min_coord) as i32;
-                let max = seg1.max_coord.min(seg2.max_coord) as i32;
-                // Compute maximum coordinate difference or how much they
-                // overlap
-                let len = max - min;
-                if len >= len_threshold {
-                    // verbatim from FreeType:
-                    // "The score is the sum of two demerits indicating the
-                    //  `badness' of a fit, measured along the segments' main axis
-                    //  and orthogonal to it, respectively.
-                    //
-                    // - The less overlapping along the main axis, the worse it
-                    //   is, causing a larger demerit.
-                    //
-                    // - The nearer the orthogonal distance to a stem width, the
-                    //   better it is, causing a smaller demerit.  For simplicity,
-                    //   however, we only increase the demerit for values that
-                    //   exceed the largest stem width."
-                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L2054>
-                    let dist = pos2 - pos1;
-                    let dist_demerit = if max_width != 0 {
-                        // Distance demerits are based on multiples of max_width
-                        let delta = (dist << 10) / max_width - (1 << 10);
-                        if delta > 10_000 {
-                            MAX_SCORE
-                        } else if delta > 0 {
-                            delta * delta / dist_score
-                        } else {
-                            0
-                        }
-                    } else {
-                        dist
-                    };
-                    let score = dist_demerit + len_score / len;
-                    if score < seg1.score {
-                        let seg1 = &mut segments[ix1];
-                        seg1.score = score;
-                        seg1.link_ix = Some(ix2 as u16);
-                    }
-                    if score < seg2.score {
-                        let seg2 = &mut segments[ix2];
-                        seg2.score = score;
-                        seg2.link_ix = Some(ix1 as u16);
-                    }
+            if !seg1.dir.is_opposite(seg2.dir) || pos2 <= pos1 {
+                continue;
+            }
+            // Compute distance between the segments
+            // Note: the min/max functions chosen here are intentional
+            let min = seg1.min_coord.max(seg2.min_coord) as i32;
+            let max = seg1.max_coord.min(seg2.max_coord) as i32;
+            // Compute maximum coordinate difference or how much they
+            // overlap
+            let len = max - min;
+            if len < len_threshold {
+                continue;
+            }
+            // verbatim from FreeType:
+            // "The score is the sum of two demerits indicating the
+            //  `badness' of a fit, measured along the segments' main axis
+            //  and orthogonal to it, respectively.
+            //
+            // - The less overlapping along the main axis, the worse it
+            //   is, causing a larger demerit.
+            //
+            // - The nearer the orthogonal distance to a stem width, the
+            //   better it is, causing a smaller demerit.  For simplicity,
+            //   however, we only increase the demerit for values that
+            //   exceed the largest stem width."
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/aflatin.c#L2054>
+            let dist = pos2 - pos1;
+            let dist_demerit = if max_width != 0 {
+                // Distance demerits are based on multiples of max_width
+                let delta = (dist << 10) / max_width - (1 << 10);
+                if delta > 10_000 {
+                    MAX_SCORE
+                } else if delta > 0 {
+                    delta * delta / dist_score
+                } else {
+                    0
                 }
+            } else {
+                dist
+            };
+            let score = dist_demerit + len_score / len;
+            // Only the scores move as this runs, so they are the one
+            // thing read back rather than taken from the copies above.
+            if score < segments[ix1].score {
+                segments[ix1].score = score;
+                segments[ix1].link_ix = Some(ix2 as u16);
+            }
+            if score < seg2.score {
+                segments[ix2].score = score;
+                segments[ix2].link_ix = Some(ix1 as u16);
             }
         }
     }
@@ -176,6 +180,8 @@ fn link_segments_cjk(outline: &Outline, axis: &mut Axis, scale: i32) {
         // Search for stems having opposite directions with seg1 to the
         // "left" of seg2
         for ix2 in 0..segments.len() {
+            // Both are re-read each time around: the loop rewrites the score
+            // and length of the segments it links, including this one.
             let seg1 = segments[ix1];
             let seg2 = segments[ix2];
             if ix1 == ix2 || !seg1.dir.is_opposite(seg2.dir) {
@@ -193,24 +199,25 @@ fn link_segments_cjk(outline: &Outline, axis: &mut Axis, scale: i32) {
             // Compute maximum coordinate difference or how much they
             // overlap
             let len = max - min;
-            if len >= len_threshold {
-                let check_seg = |seg: &Segment| {
-                    // Some more magic heuristics...
-                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L896>
-                    (dist * 8 < seg.score * 9) && (dist * 8 < seg.score * 7 || seg.len < len)
-                };
-                if check_seg(&seg1) {
-                    let seg = &mut segments[ix1];
-                    seg.score = dist;
-                    seg.len = len;
-                    seg.link_ix = Some(ix2 as _);
-                }
-                if check_seg(&seg2) {
-                    let seg = &mut segments[ix2];
-                    seg.score = dist;
-                    seg.len = len;
-                    seg.link_ix = Some(ix1 as _);
-                }
+            if len < len_threshold {
+                continue;
+            }
+            let check_seg = |seg: &Segment| {
+                // Some more magic heuristics...
+                // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L896>
+                (dist * 8 < seg.score * 9) && (dist * 8 < seg.score * 7 || seg.len < len)
+            };
+            if check_seg(&seg1) {
+                let seg = &mut segments[ix1];
+                seg.score = dist;
+                seg.len = len;
+                seg.link_ix = Some(ix2 as _);
+            }
+            if check_seg(&seg2) {
+                let seg = &mut segments[ix2];
+                seg.score = dist;
+                seg.len = len;
+                seg.link_ix = Some(ix1 as _);
             }
         }
     }
