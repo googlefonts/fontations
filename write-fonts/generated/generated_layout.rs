@@ -50,7 +50,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ScriptList<'a>> for ScriptList {
     fn from_obj_ref(obj: &read_fonts::tables::layout::ScriptList<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ScriptList {
-            script_records: obj.script_records().to_owned_obj(offset_data),
+            script_records: obj.script_records().as_slice().to_owned_obj(offset_data),
         }
     }
 }
@@ -171,7 +171,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::Script<'a>> for Script {
         let offset_data = obj.offset_data();
         Script {
             default_lang_sys: obj.default_lang_sys().to_owned_table(),
-            lang_sys_records: obj.lang_sys_records().to_owned_obj(offset_data),
+            lang_sys_records: obj.lang_sys_records().as_slice().to_owned_obj(offset_data),
         }
     }
 }
@@ -362,7 +362,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::FeatureList<'a>> for FeatureList
     fn from_obj_ref(obj: &read_fonts::tables::layout::FeatureList<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         FeatureList {
-            feature_records: obj.feature_records().to_owned_obj(offset_data),
+            feature_records: obj.feature_records().as_slice().to_owned_obj(offset_data),
         }
     }
 }
@@ -2966,7 +2966,10 @@ impl<'a> FromObjRef<read_fonts::tables::layout::FeatureVariations<'a>> for Featu
     fn from_obj_ref(obj: &read_fonts::tables::layout::FeatureVariations<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         FeatureVariations {
-            feature_variation_records: obj.feature_variation_records().to_owned_obj(offset_data),
+            feature_variation_records: obj
+                .feature_variation_records()
+                .as_slice()
+                .to_owned_obj(offset_data),
         }
     }
 }

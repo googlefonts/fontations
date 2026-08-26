@@ -808,12 +808,11 @@ pub(crate) fn collect_features_with_retained_subs(
     feature_variations: &FeatureVariations,
     lookup_indices: &IntSet<u16>,
 ) -> IntSet<u16> {
-    let font_data = feature_variations.offset_data();
     let mut out = IntSet::empty();
     for subs in feature_variations
         .feature_variation_records()
         .iter()
-        .filter_map(|rec| rec.feature_table_substitution(font_data))
+        .filter_map(|rec| rec.feature_table_substitution())
     {
         let Ok(subs) = subs else {
             return IntSet::empty();
@@ -864,7 +863,7 @@ pub(crate) fn prune_features(
             continue;
         }
 
-        let Ok(feature) = feature_rec.feature(feature_list.offset_data()) else {
+        let Ok(feature) = feature_rec.feature() else {
             return out;
         };
         // always keep "size" feature even if it's empty
@@ -900,7 +899,7 @@ pub(crate) fn find_duplicate_features(
             continue;
         };
 
-        let Ok(f) = rec.feature(feature_list.offset_data()) else {
+        let Ok(f) = rec.feature() else {
             return out;
         };
 
@@ -918,7 +917,7 @@ pub(crate) fn find_duplicate_features(
                 continue;
             };
 
-            let Ok(other_f) = other_rec.feature(feature_list.offset_data()) else {
+            let Ok(other_f) = other_rec.feature() else {
                 return out;
             };
 
@@ -1044,7 +1043,7 @@ impl<'a> PruneLangSysContext<'a> {
                 if langsys_rec.lang_sys_offset().is_null() {
                     continue;
                 }
-                let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
+                let Ok(l) = langsys_rec.lang_sys() else {
                     return;
                 };
                 if !self.visit_langsys(l.feature_index_count()) {
@@ -1062,7 +1061,7 @@ impl<'a> PruneLangSysContext<'a> {
                 if langsys_rec.lang_sys_offset().is_null() {
                     continue;
                 }
-                let Ok(l) = langsys_rec.lang_sys(script.offset_data()) else {
+                let Ok(l) = langsys_rec.lang_sys() else {
                     return;
                 };
                 if !self.visit_langsys(l.feature_index_count()) {
@@ -1096,7 +1095,7 @@ impl<'a> PruneLangSysContext<'a> {
                 continue;
             }
 
-            let Ok(script) = script_rec.script(script_list.offset_data()) else {
+            let Ok(script) = script_rec.script() else {
                 return (self.script_langsys_map(), self.feature_indices());
             };
             self.prune_script_langsys(i as u16, &script);
@@ -1574,7 +1573,8 @@ impl<'a> SubsetTable<'a> for FeatureVariations<'_> {
 
         let variation_records = self.feature_variation_records();
         for i in 0..num_retained_records {
-            variation_records[i as usize].subset(plan, s, (font_data, feature_index_map, c))?;
+            let record = variation_records.get(i as usize).unwrap();
+            record.subset(plan, s, (font_data, feature_index_map, c))?;
         }
         Ok(())
     }
@@ -1589,11 +1589,11 @@ fn num_variation_record_to_retain(
 ) -> Result<u32, SerializeErrorFlags> {
     let num_records = feature_variations.feature_variation_record_count();
     let variation_records = feature_variations.feature_variation_records();
-    let font_data = feature_variations.offset_data();
 
     for i in (0..num_records).rev() {
-        let Some(feature_substitution) = variation_records[i as usize]
-            .feature_table_substitution(font_data)
+        let record = variation_records.get(i as usize).unwrap();
+        let Some(feature_substitution) = record
+            .feature_table_substitution()
             .transpose()
             .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
         else {

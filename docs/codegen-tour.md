@@ -621,7 +621,7 @@ has a size which can be computed at runtime from some set of arguments.
 
 Records, like tables, can contain offsets. Unlike tables, records do not have
 access to the raw data against which those offsets should be resolved. For the
-purpose of consistency across our geneerated code, however, it *is* important
+purpose of consistency across our generated code, however, it *is* important
 that we have a consistent way of resolving offsets contained in records, and we
 do: you have to pass it in.
 
@@ -637,15 +637,33 @@ The equivalent getter on a record looks like,
 fn coverage(&self, data: FontData<'a>) -> Result<CoverageTable<'a>, ReadError>;
 ```
 
-This... honestly, this is not great ergonomics. It is, however, simple, and is
-relied on by codegen in various places, and when we're generating code we aren't
-too bothered by how ergonomic it is. We might want to revisit this at some
-point; one simple improvement would be to have the caller pass in the parent
-table, but I'm not sure how this would work in cases where a type might be
-referenced by multiple parents. Another option would be to have some kind of
-fancy `RecordData` struct that would be a thin wrapper around a record plus the
-parent data, and which would implement the record getters, but deref to the
-record otherwise.... I'm really not sure.
+This is not great ergonomics, and it is easy to misuse: nothing stops you from
+passing the *wrong* table's data, in which case you silently get a
+wrong-but-plausible answer. To address this, table fields containing arrays of
+offset-bearing fixed-size records do not return a bare `&[T]`; they return the
+`ArrayOfRecordsWithOffsetData` type, which pairs the records with the data of
+the enclosing table. This is a vec-like type (`len`/`get`/`iter`, with an
+`as_slice` escape hatch) whose items are `OffsetResolving<T>`: a thin wrapper
+around a record plus the parent data. For each offset field in the record, we
+generate a no-argument getter on `OffsetResolving<T>` that resolves the offset
+against the stored data; for everything else it derefs to the record.
+
+```rust
+impl<'a> OffsetResolving<'a, ScriptRecord> {
+    pub fn script(&self) -> Result<Script<'a>, ReadError> {
+        self.record().script(self.offset_data())
+    }
+}
+```
+
+The data-taking getters on the record itself remain (codegen and some callers
+rely on them), but most code should never need to supply `FontData` by hand.
+Records whose offsets resolve against something other than the parent table
+(those using the `#[offset_getter]` attribute, like `NameRecord`) are excluded
+and keep the plain `&[T]` representation. This mechanism covers *fixed-size*
+records, which are lazily byte-cast and so cannot store the parent data
+themselves; for non-fixed-size records (which are instantiated on read) the
+plan is for the record to hold the parent data internally.
 
 ### <a id="arrays"></a> arrays
 
@@ -655,7 +673,9 @@ the size and contents of the array:
 - if the contents of an array have a fixed uniform size, known at compile time, then we
   represent the array as a rust slice: `&[T]`. This is true for all scalars
   (including offsets) as well as records that are composed of a fixed number of
-  scalars.
+  scalars. (For fixed-size records that contain offsets, the table getter wraps
+  the slice in `ArrayOfRecordsWithOffsetData`; see [offsets in
+  records](#offsets-in-records).)
 - if the contents of an array have a uniform size, but the size can only be
   determined at runtime, we represent the array using the [`ComputedArray`][] type.
   This requires the inner type to implement [`FontRead`][] with a non-empty

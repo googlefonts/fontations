@@ -65,9 +65,13 @@ impl<'a> Meta<'a> {
     }
 
     /// Array of data map records.
-    pub fn data_maps(&self) -> &'a [DataMapRecord] {
+    pub fn data_maps(&self) -> ArrayOfRecordsWithOffsetData<'a, DataMapRecord> {
         let range = self.data_maps_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -127,7 +131,7 @@ impl<'a> SomeTable<'a> for Meta<'a> {
                 "data_maps",
                 traversal::FieldType::array_of_records(
                     stringify!(DataMapRecord),
-                    self.data_maps(),
+                    self.data_maps().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -185,6 +189,13 @@ impl DataMapRecord {
 
 impl FixedSize for DataMapRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, DataMapRecord> {
+    /// Attempt to resolve [`data_offset`][DataMapRecord::data_offset] against the data of the enclosing table.
+    pub fn data(&self) -> Result<Metadata<'a>, ReadError> {
+        self.record().data(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]

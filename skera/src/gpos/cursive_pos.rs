@@ -108,7 +108,6 @@ impl CollectVariationIndices for CursivePosFormat1<'_> {
             return;
         };
 
-        let font_data = self.offset_data();
         let glyph_set = &plan.glyphset_gsub;
         let entry_exit_records = self.entry_exit_record();
         let record_idxes = intersected_coverage_indices(&coverage, glyph_set);
@@ -116,10 +115,10 @@ impl CollectVariationIndices for CursivePosFormat1<'_> {
             let Some(rec) = entry_exit_records.get(i as usize) else {
                 return;
             };
-            if let Some(Ok(entry_anchor)) = rec.entry_anchor(font_data) {
+            if let Some(Ok(entry_anchor)) = rec.entry_anchor() {
                 entry_anchor.collect_variation_indices(plan, varidx_set);
             }
-            if let Some(Ok(exit_anchor)) = rec.exit_anchor(font_data) {
+            if let Some(Ok(exit_anchor)) = rec.exit_anchor() {
                 exit_anchor.collect_variation_indices(plan, varidx_set);
             }
         }

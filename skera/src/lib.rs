@@ -526,7 +526,7 @@ impl Plan {
     fn collect_variation_selectors(&mut self, font: &FontRef, input_unicodes: &IntSet<u32>) {
         if let Ok(cmap) = font.cmap() {
             let encoding_records = cmap.encoding_records();
-            if let Ok(i) = encoding_records.binary_search_by(|r| {
+            if let Ok(i) = encoding_records.as_slice().binary_search_by(|r| {
                 if r.platform_id() != PlatformId::Unicode {
                     r.platform_id().cmp(&PlatformId::Unicode)
                 } else if r.encoding_id() != 5 {
@@ -535,10 +535,8 @@ impl Plan {
                     std::cmp::Ordering::Equal
                 }
             }) {
-                if let Ok(CmapSubtable::Format14(cmap14)) = encoding_records
-                    .get(i)
-                    .unwrap()
-                    .subtable(cmap.offset_data())
+                if let Ok(CmapSubtable::Format14(cmap14)) =
+                    encoding_records.get(i).unwrap().subtable()
                 {
                     self.unicodes.extend(
                         cmap14

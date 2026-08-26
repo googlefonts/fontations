@@ -11,6 +11,7 @@ use crate::fnv::FnvHashMap;
 use skrifa::raw::tables::cmap::UnicodeRange;
 use write_fonts::{
     read::{
+        array::OffsetResolving,
         collections::IntSet,
         tables::cmap::{
             Cmap, Cmap12, Cmap14, Cmap4, CmapSubtable, DefaultUvs, EncodingRecord, NonDefaultUvs,
@@ -36,7 +37,7 @@ impl Subset for Cmap<'_> {
         s: &mut Serializer,
         _builder: &mut FontBuilder,
     ) -> Result<(), SubsetError> {
-        let retained_encoding_records: Vec<(usize, &EncodingRecord)> = self
+        let retained_encoding_records: Vec<(usize, OffsetResolving<'_, EncodingRecord>)> = self
             .encoding_records()
             .iter()
             .enumerate()
@@ -50,10 +51,7 @@ impl Subset for Cmap<'_> {
         let mut has_format12 = false;
 
         for (_, record) in retained_encoding_records.iter() {
-            if record
-                .subtable(self.offset_data())
-                .is_ok_and(|t| t.format() == 12)
-            {
+            if record.subtable().is_ok_and(|t| t.format() == 12) {
                 has_format12 = true;
             }
 
@@ -95,7 +93,7 @@ fn can_drop_format12(
     cmap12_record: &EncodingRecord,
     cmap12_subset_unicodes: &IntSet<u32>,
     cmap: &Cmap,
-    retained_encoding_records: &[(usize, &EncodingRecord)],
+    retained_encoding_records: &[(usize, OffsetResolving<'_, EncodingRecord>)],
     unicodes_cache: &mut SubtableUnicodeCache,
     subset_unicodes: &IntSet<u32>,
     num_glyphs: usize,
@@ -123,7 +121,7 @@ fn can_drop_format12(
         .language();
 
     for (rec_idx, rec) in retained_encoding_records.iter() {
-        let Ok(subtable) = rec.subtable(cmap.offset_data()) else {
+        let Ok(subtable) = rec.subtable() else {
             continue;
         };
         if rec.platform_id() != target_platform
@@ -150,7 +148,7 @@ fn serialize_cmap(
     cmap: &Cmap,
     s: &mut Serializer,
     plan: &Plan,
-    retained_encoding_records: &[(usize, &EncodingRecord)],
+    retained_encoding_records: &[(usize, OffsetResolving<'_, EncodingRecord>)],
 ) -> Result<(), SerializeErrorFlags> {
     // allocate header: version + numTables
     s.allocate_size(HEADER_SIZE, false)?;
@@ -166,7 +164,7 @@ fn serialize_cmap(
             return Err(s.error());
         }
 
-        let Ok(subtable) = record.subtable(cmap.offset_data()) else {
+        let Ok(subtable) = record.subtable() else {
             continue;
         };
 
@@ -763,7 +761,7 @@ impl Serialize for Cmap14<'_> {
         // numVarSelectorRecords, initialized to 0, update later
         let num_records_pos = s.embed(0_u32)?;
 
-        let retained_records: Vec<&VariationSelector> = self
+        let retained_records: Vec<OffsetResolving<'_, VariationSelector>> = self
             .var_selector()
             .iter()
             .filter(|r| plan.unicodes.contains(r.var_selector().to_u32()))

@@ -223,6 +223,194 @@ pub(crate) fn get_pair<T>(slice: &[T], idx: usize) -> Result<&[T; 2], ReadError>
         .ok_or(ReadError::OutOfBounds)
 }
 
+/// An array of records paired with the data of the enclosing table.
+///
+/// Records may contain offsets, and these offsets are resolved against the
+/// data of the table that contains the record; a bare record has no way of
+/// getting at that data, which is why the record's generated offset getters
+/// require it to be passed in. Bundling the data up with the records lets
+/// the items of this array (each an [`OffsetResolving`]) resolve their own
+/// offsets, unburdening the user from needing to determine the appropriate
+/// input data (and making it impossible to pass the *wrong* data).
+///
+/// This is the analog, for arrays of records containing offsets, of
+/// [`ArrayOfOffsets`][crate::offset_array::ArrayOfOffsets].
+pub struct ArrayOfRecordsWithOffsetData<'a, T> {
+    data: FontData<'a>,
+    records: &'a [T],
+}
+
+impl<'a, T> ArrayOfRecordsWithOffsetData<'a, T> {
+    pub(crate) fn new(records: &'a [T], data: FontData<'a>) -> Self {
+        Self { data, records }
+    }
+
+    /// The number of records in the array.
+    pub fn len(&self) -> usize {
+        self.records.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.records.is_empty()
+    }
+
+    /// Return the record at `idx`, or `None` if it is out of bounds.
+    pub fn get(&self, idx: usize) -> Option<OffsetResolving<'a, T>> {
+        self.records.get(idx).map(|record| OffsetResolving {
+            data: self.data,
+            record,
+        })
+    }
+
+    /// Return an iterator over the records in this array.
+    pub fn iter(&self) -> ArrayOfRecordsIter<'a, T> {
+        ArrayOfRecordsIter {
+            data: self.data,
+            inner: self.records.iter(),
+        }
+    }
+
+    /// The records, as a plain slice.
+    ///
+    /// This is an escape hatch for slice-only APIs like `binary_search_by`;
+    /// pair the resulting index with [`get`][Self::get] to recover an
+    /// offset-resolving record.
+    pub fn as_slice(&self) -> &'a [T] {
+        self.records
+    }
+
+    /// The data of the enclosing table, against which record offsets resolve.
+    pub fn offset_data(&self) -> FontData<'a> {
+        self.data
+    }
+}
+
+impl<T> Clone for ArrayOfRecordsWithOffsetData<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ArrayOfRecordsWithOffsetData<'_, T> {}
+
+impl<T> Default for ArrayOfRecordsWithOffsetData<'_, T> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default(),
+            records: &[],
+        }
+    }
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for ArrayOfRecordsWithOffsetData<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_list().entries(self.records).finish()
+    }
+}
+
+impl<'a, T> IntoIterator for ArrayOfRecordsWithOffsetData<'a, T> {
+    type Item = OffsetResolving<'a, T>;
+    type IntoIter = ArrayOfRecordsIter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &ArrayOfRecordsWithOffsetData<'a, T> {
+    type Item = OffsetResolving<'a, T>;
+    type IntoIter = ArrayOfRecordsIter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+/// An iterator over an [`ArrayOfRecordsWithOffsetData`].
+pub struct ArrayOfRecordsIter<'a, T> {
+    data: FontData<'a>,
+    inner: std::slice::Iter<'a, T>,
+}
+
+impl<'a, T> Iterator for ArrayOfRecordsIter<'a, T> {
+    type Item = OffsetResolving<'a, T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let record = self.inner.next()?;
+        Some(OffsetResolving {
+            data: self.data,
+            record,
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<T> DoubleEndedIterator for ArrayOfRecordsIter<'_, T> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let record = self.inner.next_back()?;
+        Some(OffsetResolving {
+            data: self.data,
+            record,
+        })
+    }
+}
+
+impl<T> ExactSizeIterator for ArrayOfRecordsIter<'_, T> {}
+
+impl<T> Clone for ArrayOfRecordsIter<'_, T> {
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data,
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+/// A record paired with the data of the enclosing table.
+///
+/// This derefs to the record itself, so all of the record's methods are
+/// available; in addition, for each offset in the record, codegen provides
+/// a getter *on this type* that resolves the offset without requiring the
+/// caller to pass in the enclosing table's data.
+pub struct OffsetResolving<'a, T> {
+    data: FontData<'a>,
+    record: &'a T,
+}
+
+impl<'a, T> OffsetResolving<'a, T> {
+    /// The underlying record.
+    pub fn record(&self) -> &'a T {
+        self.record
+    }
+
+    /// The data of the enclosing table, against which offsets resolve.
+    pub fn offset_data(&self) -> FontData<'a> {
+        self.data
+    }
+}
+
+impl<T> std::ops::Deref for OffsetResolving<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.record
+    }
+}
+
+impl<T> Clone for OffsetResolving<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for OffsetResolving<'_, T> {}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for OffsetResolving<'_, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.record.fmt(f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

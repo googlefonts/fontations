@@ -28,7 +28,6 @@ impl CollectVariationIndices for MarkLigPosFormat1<'_> {
         };
 
         let glyph_set = &plan.glyphset_gsub;
-        let mark_array_data = mark_array.offset_data();
         let mark_records = mark_array.mark_records();
 
         let mark_record_idxes = intersected_coverage_indices(&mark_coverage, glyph_set);
@@ -38,7 +37,7 @@ impl CollectVariationIndices for MarkLigPosFormat1<'_> {
                 return;
             };
             let class = mark_record.mark_class();
-            collect_mark_record_varidx(mark_record, plan, varidx_set, mark_array_data);
+            collect_mark_record_varidx(mark_record, plan, varidx_set);
             retained_mark_classes.insert(class);
         }
 

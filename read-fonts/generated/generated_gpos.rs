@@ -1154,9 +1154,13 @@ impl<'a> MarkArray<'a> {
 
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
-    pub fn mark_records(&self) -> &'a [MarkRecord] {
+    pub fn mark_records(&self) -> ArrayOfRecordsWithOffsetData<'a, MarkRecord> {
         let range = self.mark_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn mark_count_byte_range(&self) -> Range<usize> {
@@ -1196,7 +1200,7 @@ impl<'a> SomeTable<'a> for MarkArray<'a> {
                 "mark_records",
                 traversal::FieldType::array_of_records(
                     stringify!(MarkRecord),
-                    self.mark_records(),
+                    self.mark_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -1246,6 +1250,13 @@ impl MarkRecord {
 
 impl FixedSize for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, MarkRecord> {
+    /// Attempt to resolve [`mark_anchor_offset`][MarkRecord::mark_anchor_offset] against the data of the enclosing table.
+    pub fn mark_anchor(&self) -> Result<AnchorTable<'a>, ReadError> {
+        self.record().mark_anchor(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -2682,9 +2693,13 @@ impl<'a> CursivePosFormat1<'a> {
     }
 
     /// Array of EntryExit records, in Coverage index order.
-    pub fn entry_exit_record(&self) -> &'a [EntryExitRecord] {
+    pub fn entry_exit_record(&self) -> ArrayOfRecordsWithOffsetData<'a, EntryExitRecord> {
         let range = self.entry_exit_record_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -2744,7 +2759,7 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
                 "entry_exit_record",
                 traversal::FieldType::array_of_records(
                     stringify!(EntryExitRecord),
-                    self.entry_exit_record(),
+                    self.entry_exit_record().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -2814,6 +2829,18 @@ impl EntryExitRecord {
 
 impl FixedSize for EntryExitRecord {
     const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, EntryExitRecord> {
+    /// Attempt to resolve [`entry_anchor_offset`][EntryExitRecord::entry_anchor_offset] against the data of the enclosing table.
+    pub fn entry_anchor(&self) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        self.record().entry_anchor(self.offset_data())
+    }
+
+    /// Attempt to resolve [`exit_anchor_offset`][EntryExitRecord::exit_anchor_offset] against the data of the enclosing table.
+    pub fn exit_anchor(&self) -> Option<Result<AnchorTable<'a>, ReadError>> {
+        self.record().exit_anchor(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]

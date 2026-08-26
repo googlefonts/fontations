@@ -211,13 +211,13 @@ impl<'a> Shaper<'a> {
         for script in script_tags.iter().filter_map(|tag| {
             tag.and_then(|tag| script_list.index_for_tag(tag))
                 .and_then(|ix| script_list.script_records().get(ix as usize))
-                .and_then(|rec| rec.script(script_list.offset_data()).ok())
+                .and_then(|rec| rec.script().ok())
         }) {
             // And all language systems for each script
             for langsys in script
                 .lang_sys_records()
                 .iter()
-                .filter_map(|rec| rec.lang_sys(script.offset_data()).ok())
+                .filter_map(|rec| rec.lang_sys().ok())
                 .chain(script.default_lang_sys().transpose().ok().flatten())
             {
                 for feature_ix in langsys.feature_indices() {
@@ -228,7 +228,7 @@ impl<'a> Shaper<'a> {
                             // If our style has a feature tag, we only look at that specific
                             // feature; otherwise, handle all of them
                             if style.feature == Some(rec.feature_tag()) || style.feature.is_none() {
-                                rec.feature(feature_list.offset_data()).ok()
+                                rec.feature().ok()
                             } else {
                                 None
                             }

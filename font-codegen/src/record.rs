@@ -48,6 +48,7 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
         }
     });
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
+    let maybe_offset_resolving_impl = generate_offset_resolving_impl(item);
     let maybe_extra_traits = item
         .gets_extra_traits(all_items)
         .then(|| quote!(PartialEq, Eq, PartialOrd, Ord, Hash,));
@@ -65,8 +66,28 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
 
     #maybe_impl_fixed_size
     #maybe_impl_read_with_args
+    #maybe_offset_resolving_impl
     #traversal_impl
         })
+}
+
+/// For a fixed-size record with offsets, getters on `OffsetResolving<Record>`
+/// that resolve those offsets against the stored data.
+fn generate_offset_resolving_impl(item: &Record) -> Option<TokenStream> {
+    if !item.has_offset_resolving_getters() {
+        return None;
+    }
+    let name = &item.name;
+    let getters = item
+        .fields
+        .iter()
+        .filter_map(|fld| fld.offset_resolving_getter(name))
+        .collect::<Vec<_>>();
+    Some(quote! {
+        impl<'a> OffsetResolving<'a, #name> {
+            #( #getters )*
+        }
+    })
 }
 
 fn generate_read_with_args(item: &Record) -> TokenStream {
@@ -391,6 +412,22 @@ impl Record {
 
     fn is_zerocopy(&self) -> bool {
         self.fields.iter().all(Field::is_zerocopy_compatible)
+    }
+
+    /// `true` if this is a fixed-size record with at least one generated
+    /// offset getter.
+    ///
+    /// Arrays of such records are wrapped in `ArrayOfRecordsWithOffsetData`,
+    /// and the record gets resolving getters on `OffsetResolving<Self>`.
+    /// Offsets with an `#[offset_getter]` attribute don't count: their getters
+    /// are written by hand, and codegen cannot know what data they resolve
+    /// against (`NameRecord` resolves against a separate storage area, for
+    /// instance).
+    pub(crate) fn has_offset_resolving_getters(&self) -> bool {
+        self.is_zerocopy()
+            && self.fields.iter().any(|fld| {
+                matches!(fld.typ, FieldType::Offset { .. }) && fld.attrs.offset_getter.is_none()
+            })
     }
 
     fn gets_extra_traits(&self, all_items: &Items) -> bool {

@@ -483,6 +483,38 @@ impl Items {
             }
         }
 
+        // Now that struct references are resolved, find the table fields that
+        // are arrays of records with generated offset getters; these are
+        // wrapped in `ArrayOfRecordsWithOffsetData` so that the records can
+        // resolve their offsets without being passed the table's data.
+        //
+        // Records defined in another module (`extern record`) are opaque to
+        // us, so their arrays stay bare slices.
+        let offset_bearing_records = self
+            .items
+            .values()
+            .filter_map(|item| match item {
+                Item::Record(record) if record.has_offset_resolving_getters() => {
+                    Some(record.name.clone())
+                }
+                _ => None,
+            })
+            .collect::<std::collections::HashSet<_>>();
+        for item in self.iter_mut() {
+            // only table fields: a record has no data of its own to pair
+            // an array of records with
+            let Item::Table(table) = item else { continue };
+            for field in table.fields.fields.iter_mut() {
+                if let FieldType::Array { inner_typ } = &field.typ {
+                    if matches!(inner_typ.as_ref(),
+                        FieldType::Struct { typ } if offset_bearing_records.contains(typ))
+                    {
+                        field.array_of_offset_bearing_records = true;
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 

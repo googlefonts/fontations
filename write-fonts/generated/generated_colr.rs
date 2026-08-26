@@ -281,7 +281,10 @@ impl<'a> FromObjRef<read_fonts::tables::colr::BaseGlyphList<'a>> for BaseGlyphLi
         let offset_data = obj.offset_data();
         BaseGlyphList {
             num_base_glyph_paint_records: obj.num_base_glyph_paint_records(),
-            base_glyph_paint_records: obj.base_glyph_paint_records().to_owned_obj(offset_data),
+            base_glyph_paint_records: obj
+                .base_glyph_paint_records()
+                .as_slice()
+                .to_owned_obj(offset_data),
         }
     }
 }
@@ -466,7 +469,7 @@ impl<'a> FromObjRef<read_fonts::tables::colr::ClipList<'a>> for ClipList {
         ClipList {
             format: obj.format(),
             num_clips: obj.num_clips(),
-            clips: obj.clips().to_owned_obj(offset_data),
+            clips: obj.clips().as_slice().to_owned_obj(offset_data),
         }
     }
 }

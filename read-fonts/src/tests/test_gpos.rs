@@ -93,7 +93,7 @@ fn cursiveposformat1() {
     assert_eq!(table.entry_exit_count(), 2);
     assert_eq!(table.entry_exit_record().len(), 2);
 
-    let record2 = &table.entry_exit_record()[1];
+    let record2 = table.entry_exit_record().get(1).unwrap();
     let entry2: AnchorFormat1 = record2
         .entry_anchor_offset()
         .resolve(table.offset_data())

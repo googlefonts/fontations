@@ -460,10 +460,11 @@ mod tests {
             let new_mark_idx = new_subtable.mark_coverage().unwrap().get(mark_gid).unwrap();
             let new_base_idx = new_subtable.base_coverage().unwrap().get(base_gid).unwrap();
             let new_mark_array = new_subtable.mark_array().unwrap();
-            let new_mark_record = &new_mark_array.mark_records()[new_mark_idx as usize];
-            let new_mark_anchor = new_mark_record
-                .mark_anchor(new_mark_array.offset_data())
+            let new_mark_record = new_mark_array
+                .mark_records()
+                .get(new_mark_idx as usize)
                 .unwrap();
+            let new_mark_anchor = new_mark_record.mark_anchor().unwrap();
             let new_base_array = new_subtable.base_array().unwrap();
             let new_base_anchor = new_base_array
                 .base_records()
@@ -562,8 +563,8 @@ mod tests {
             .expect("should exist in some subtable");
         let new_cov_idx = subtable.mark_coverage().unwrap().get(gid).unwrap();
         let mark_array = subtable.mark_array().unwrap();
-        let mark_record = &mark_array.mark_records()[new_cov_idx as usize];
-        let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).unwrap();
+        let mark_record = mark_array.mark_records().get(new_cov_idx as usize).unwrap();
+        let mark_anchor = mark_record.mark_anchor().unwrap();
         let rgpos::AnchorTable::Format3(mark_anchor) = mark_anchor else {
             panic!("wrong format")
         };

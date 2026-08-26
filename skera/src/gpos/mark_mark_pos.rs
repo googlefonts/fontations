@@ -27,7 +27,6 @@ impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
         };
 
         let glyph_set = &plan.glyphset_gsub;
-        let mark1_array_data = mark1_array.offset_data();
         let mark1_records = mark1_array.mark_records();
 
         let mark1_record_idxes = intersected_coverage_indices(&mark1_coverage, glyph_set);
@@ -37,7 +36,7 @@ impl CollectVariationIndices for MarkMarkPosFormat1<'_> {
                 return;
             };
             let class = mark1_record.mark_class();
-            collect_mark_record_varidx(mark1_record, plan, varidx_set, mark1_array_data);
+            collect_mark_record_varidx(mark1_record, plan, varidx_set);
             retained_mark_classes.insert(class);
         }
 

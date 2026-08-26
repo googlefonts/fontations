@@ -4,7 +4,7 @@ use font_types::{GlyphId, GlyphId16};
 use crate::{collections::IntSet, tables::variations::NO_VARIATION_INDEX, ResolveOffset};
 
 use super::{
-    Clip, ClipBox, ClipBoxFormat2, ClipList, ColorLine, ColorStop, Colr, Paint, PaintColrGlyph,
+    Clip, ClipBox, ClipBoxFormat2, ColorLine, ColorStop, Colr, Paint, PaintColrGlyph,
     PaintColrLayers, PaintComposite, PaintGlyph, PaintLinearGradient, PaintRadialGradient,
     PaintRotate, PaintRotateAroundCenter, PaintScale, PaintScaleAroundCenter, PaintScaleUniform,
     PaintScaleUniformAroundCenter, PaintSkew, PaintSkewAroundCenter, PaintSolid,
@@ -81,7 +81,6 @@ impl Colr<'_> {
             Colrv1ClosureContext::new(layer_indices, palette_indices, variation_indices, self);
         if let Some(Ok(base_glyph_list)) = self.base_glyph_list() {
             let base_glyph_records = base_glyph_list.base_glyph_paint_records();
-            let offset_data = base_glyph_list.offset_data();
             let num_records = base_glyph_records.len() as u32;
             let bit_storage = u32::BITS - num_records.leading_zeros();
             if glyph_set.is_inverted() || num_records <= glyph_set.len() as u32 * bit_storage {
@@ -90,7 +89,7 @@ impl Colr<'_> {
                     if !glyph_set.contains(GlyphId::from(gid)) {
                         continue;
                     }
-                    if let Ok(paint) = record.paint(offset_data) {
+                    if let Ok(paint) = record.paint() {
                         c.dispatch(&paint);
                     }
                 }
@@ -99,16 +98,18 @@ impl Colr<'_> {
                     let Ok(glyph_id) = glyph_id.try_into() else {
                         continue;
                     };
-                    let record = match base_glyph_records
+                    let Some(record) = base_glyph_records
+                        .as_slice()
                         .binary_search_by(|rec| rec.glyph_id().cmp(&glyph_id))
-                    {
-                        Ok(idx) => &base_glyph_records[idx],
-                        _ => continue,
+                        .ok()
+                        .and_then(|idx| base_glyph_records.get(idx))
+                    else {
+                        continue;
                     };
                     if record.paint_offset().is_null() {
                         continue;
                     }
-                    if let Ok(paint) = record.paint(offset_data) {
+                    if let Ok(paint) = record.paint() {
                         c.dispatch(&paint);
                     }
                 }
@@ -119,7 +120,7 @@ impl Colr<'_> {
         if let Some(Ok(clip_list)) = self.clip_list() {
             c.glyph_set.union(glyph_set);
             for clip_record in clip_list.clips() {
-                clip_record.v1_closure(&mut c, &clip_list);
+                clip_record.v1_closure(&mut c);
             }
         }
     }
@@ -430,11 +431,15 @@ impl PaintColrGlyph<'_> {
             return;
         };
         let records = list.base_glyph_paint_records();
-        let record = match records.binary_search_by(|rec| rec.glyph_id().cmp(&glyph_id)) {
-            Ok(ix) => &records[ix],
-            _ => return,
+        let Some(record) = records
+            .as_slice()
+            .binary_search_by(|rec| rec.glyph_id().cmp(&glyph_id))
+            .ok()
+            .and_then(|ix| records.get(ix))
+        else {
+            return;
         };
-        if let Ok(paint) = record.paint(list.offset_data()) {
+        if let Ok(paint) = record.paint() {
             c.add_glyph_id(glyph_id);
             c.dispatch(&paint);
         }
@@ -631,9 +636,9 @@ impl PaintComposite<'_> {
     }
 }
 
-impl Clip {
-    fn v1_closure(&self, c: &mut Colrv1ClosureContext, clip_list: &ClipList) {
-        let Ok(clip_box) = self.clip_box(clip_list.offset_data()) else {
+impl crate::array::OffsetResolving<'_, Clip> {
+    fn v1_closure(&self, c: &mut Colrv1ClosureContext) {
+        let Ok(clip_box) = self.clip_box() else {
             return;
         };
         let start_id = GlyphId::from(self.start_glyph_id());

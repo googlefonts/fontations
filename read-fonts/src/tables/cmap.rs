@@ -43,7 +43,7 @@ impl<'a> Cmap<'a> {
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         let codepoint = codepoint.into();
         for record in self.encoding_records() {
-            if let Ok(subtable) = record.subtable(self.offset_data()) {
+            if let Ok(subtable) = record.subtable() {
                 if let Some(gid) = subtable.map_codepoint(codepoint) {
                     return Some(gid);
                 }
@@ -63,14 +63,13 @@ impl<'a> Cmap<'a> {
     pub fn best_subtable(&self) -> Option<(u16, EncodingRecord, CmapSubtable<'a>)> {
         // Follows the HarfBuzz approach
         // See <https://github.com/harfbuzz/harfbuzz/blob/a9a78e1bff9d4a62429d22277fea4e0e76e9ac7e/src/hb-ot-cmap-table.hh#L1962>
-        let offset_data = self.offset_data();
         let records = self.encoding_records();
         let find = |platform_id, encoding_id| {
             for (index, record) in records.iter().enumerate() {
                 if record.platform_id() != platform_id || record.encoding_id() != encoding_id {
                     continue;
                 }
-                if let Ok(subtable) = record.subtable(offset_data) {
+                if let Ok(subtable) = record.subtable() {
                     match subtable {
                         CmapSubtable::Format0(_)
                         | CmapSubtable::Format4(_)
@@ -110,9 +109,8 @@ impl<'a> Cmap<'a> {
     /// This is always a [format 14](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences)
     /// subtable.
     pub fn uvs_subtable(&self) -> Option<(u16, Cmap14<'a>)> {
-        let offset_data = self.offset_data();
         for (index, record) in self.encoding_records().iter().enumerate() {
-            if let Ok(CmapSubtable::Format14(cmap14)) = record.subtable(offset_data) {
+            if let Ok(CmapSubtable::Format14(cmap14)) = record.subtable() {
                 return Some((index as u16, cmap14));
             };
         }
@@ -124,13 +122,13 @@ impl<'a> Cmap<'a> {
         self.encoding_records()
             .get(index as usize)
             .ok_or(ReadError::OutOfBounds)
-            .and_then(|encoding| encoding.subtable(self.offset_data()))
+            .and_then(|encoding| encoding.subtable())
     }
 
     #[cfg(feature = "std")]
     pub fn closure_glyphs(&self, unicodes: &IntSet<u32>, glyph_set: &mut IntSet<GlyphId>) {
         for record in self.encoding_records() {
-            if let Ok(subtable) = record.subtable(self.offset_data()) {
+            if let Ok(subtable) = record.subtable() {
                 match subtable {
                     CmapSubtable::Format14(format14) => {
                         format14.closure_glyphs(unicodes, glyph_set);
@@ -763,6 +761,7 @@ impl<'a> Cmap14<'a> {
         // Variation selector records are sorted in order of var_selector. Binary search to find
         // the appropriate record.
         let selector_record = selector_records
+            .as_slice()
             .binary_search_by(|rec| {
                 let rec_selector: u32 = rec.var_selector().into();
                 rec_selector.cmp(&selector)
@@ -773,7 +772,7 @@ impl<'a> Cmap14<'a> {
         // (start_unicode_value, start_unicode_value + additional_count) to find the requested codepoint.
         // If found, ignore the selector and return a value indicating that the default cmap mapping
         // should be used.
-        if let Some(Ok(default_uvs)) = selector_record.default_uvs(self.offset_data()) {
+        if let Some(Ok(default_uvs)) = selector_record.default_uvs() {
             use core::cmp::Ordering;
             let found_default_uvs = default_uvs
                 .ranges()
@@ -793,7 +792,7 @@ impl<'a> Cmap14<'a> {
             }
         }
         // Binary search the non-default UVS table if present. This maps codepoint+selector to a variant glyph.
-        let non_default_uvs = selector_record.non_default_uvs(self.offset_data())?.ok()?;
+        let non_default_uvs = selector_record.non_default_uvs()?.ok()?;
         let mapping = non_default_uvs.uvs_mapping();
         let ix = mapping
             .binary_search_by(|map| {
@@ -828,12 +827,7 @@ impl<'a> Cmap14<'a> {
             if !unicodes.contains(selector.var_selector().to_u32()) {
                 continue;
             }
-            if let Some(non_default_uvs) = selector
-                .non_default_uvs(self.offset_data())
-                .transpose()
-                .ok()
-                .flatten()
-            {
+            if let Some(non_default_uvs) = selector.non_default_uvs().transpose().ok().flatten() {
                 glyph_set.extend(
                     non_default_uvs
                         .uvs_mapping()
@@ -850,8 +844,7 @@ impl<'a> Cmap14<'a> {
 /// in the subtable.
 #[derive(Clone)]
 pub struct Cmap14Iter<'a> {
-    offset_data: FontData<'a>,
-    records: core::slice::Iter<'a, VariationSelector>,
+    records: crate::array::ArrayOfRecordsIter<'a, VariationSelector>,
     cur_selector: Option<u32>,
     default_uvs: Option<DefaultUvsIter<'a>>,
     non_default_uvs: Option<NonDefaultUvsIter<'a>>,
@@ -867,7 +860,6 @@ impl<'a> Cmap14Iter<'a> {
             (u32::MAX, u32::MAX)
         };
         Self {
-            offset_data: subtable.offset_data(),
             records: subtable.var_selector().iter(),
             cur_selector: None,
             default_uvs: None,
@@ -894,13 +886,13 @@ impl<'a> Cmap14Iter<'a> {
             }
             self.cur_selector = Some(selector);
             self.default_uvs = record
-                .default_uvs(self.offset_data)
+                .default_uvs()
                 .transpose()
                 .ok()
                 .flatten()
                 .map(DefaultUvsIter::new);
             self.non_default_uvs = record
-                .non_default_uvs(self.offset_data)
+                .non_default_uvs()
                 .transpose()
                 .ok()
                 .flatten()
@@ -1680,7 +1672,7 @@ mod tests {
     fn find_cmap4<'a>(cmap: &Cmap<'a>) -> Option<Cmap4<'a>> {
         cmap.encoding_records()
             .iter()
-            .filter_map(|record| record.subtable(cmap.offset_data()).ok())
+            .filter_map(|record| record.subtable().ok())
             .find_map(|subtable| match subtable {
                 CmapSubtable::Format4(cmap4) => Some(cmap4),
                 _ => None,
@@ -1690,7 +1682,7 @@ mod tests {
     fn find_cmap12<'a>(cmap: &Cmap<'a>) -> Option<Cmap12<'a>> {
         cmap.encoding_records()
             .iter()
-            .filter_map(|record| record.subtable(cmap.offset_data()).ok())
+            .filter_map(|record| record.subtable().ok())
             .find_map(|subtable| match subtable {
                 CmapSubtable::Format12(cmap12) => Some(cmap12),
                 _ => None,
@@ -1700,7 +1692,7 @@ mod tests {
     fn find_cmap14<'a>(cmap: &Cmap<'a>) -> Option<Cmap14<'a>> {
         cmap.encoding_records()
             .iter()
-            .filter_map(|record| record.subtable(cmap.offset_data()).ok())
+            .filter_map(|record| record.subtable().ok())
             .find_map(|subtable| match subtable {
                 CmapSubtable::Format14(cmap14) => Some(cmap14),
                 _ => None,

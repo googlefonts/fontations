@@ -499,7 +499,7 @@ impl CollectVariationIndices for BaseScriptList<'_> {
                 continue;
             }
 
-            let Ok(base_script) = script_record.base_script(self.offset_data()) else {
+            let Ok(base_script) = script_record.base_script() else {
                 return;
             };
             base_script.collect_variation_indices(plan, varidx_set);
@@ -521,7 +521,7 @@ impl CollectVariationIndices for BaseScript<'_> {
             if record.min_max_offset().is_null() {
                 continue;
             }
-            if let Ok(min_max) = record.min_max(self.offset_data()) {
+            if let Ok(min_max) = record.min_max() {
                 min_max.collect_variation_indices(plan, varidx_set);
             }
         }
@@ -552,11 +552,11 @@ impl CollectVariationIndices for MinMax<'_> {
                 continue;
             }
 
-            if let Some(Ok(min_coord)) = record.min_coord(self.offset_data()) {
+            if let Some(Ok(min_coord)) = record.min_coord() {
                 min_coord.collect_variation_indices(plan, varidx_set);
             }
 
-            if let Some(Ok(max_coord)) = record.max_coord(self.offset_data()) {
+            if let Some(Ok(max_coord)) = record.max_coord() {
                 max_coord.collect_variation_indices(plan, varidx_set);
             }
         }

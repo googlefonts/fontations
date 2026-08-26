@@ -10,6 +10,89 @@
 
 pub mod records {
     include!("../generated/generated_test_records.rs");
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use font_test_data::bebuffer::BeBuffer;
+
+        fn contains_offset_records_data() -> BeBuffer {
+            BeBuffer::new()
+                .push(2u16) // record_count
+                // two ContainsOffsets records
+                .extend([1u16, 18]) // off_array_count, array_offset
+                .push(36u32) // other_offset
+                .extend([2u16, 24])
+                .push(36u32)
+                // SimpleRecord array at 18: [(1, 2)]
+                .push(1u16)
+                .push(2u32)
+                // SimpleRecord array at 24: [(3, 4), (5, 6)]
+                .push(3u16)
+                .push(4u32)
+                .push(5u16)
+                .push(6u32)
+                // empty BasicTable at 36
+                .extend([0u16, 0])
+                .push(0u32)
+        }
+
+        #[test]
+        fn array_of_offset_records_resolvers() {
+            let buf = contains_offset_records_data();
+            let table = ContainsOffsetRecords::read(buf.data().into()).unwrap();
+            let records = table.offset_records();
+            assert_eq!(records.len(), 2);
+            assert!(!records.is_empty());
+
+            // scalar getters pass through via Deref
+            let counts = records
+                .iter()
+                .map(|rec| rec.off_array_count())
+                .collect::<Vec<_>>();
+            assert_eq!(counts, [1, 2]);
+
+            // no-arg resolvers match the old data-taking form
+            for rec in &records {
+                assert_eq!(
+                    rec.array().unwrap(),
+                    rec.record().array(table.offset_data()).unwrap()
+                );
+            }
+            let vals = records
+                .iter()
+                .map(|rec| {
+                    rec.array()
+                        .unwrap()
+                        .iter()
+                        .map(|simple| simple.val1())
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(vals, [vec![1], vec![3, 5]]);
+
+            assert_eq!(records.get(1).unwrap().other().unwrap().simple_count(), 0);
+            assert!(records.get(2).is_none());
+        }
+
+        #[test]
+        fn array_of_offset_records_slice_consistency() {
+            let buf = contains_offset_records_data();
+            let table = ContainsOffsetRecords::read(buf.data().into()).unwrap();
+            let records = table.offset_records();
+
+            let slice = records.as_slice();
+            assert_eq!(slice.len(), records.len());
+            for (i, raw) in slice.iter().enumerate() {
+                let wrapped = records.get(i).unwrap();
+                assert_eq!(wrapped.record().off_array_count(), raw.off_array_count());
+            }
+
+            assert_eq!(records.iter().len(), 2);
+            let last = records.iter().next_back().unwrap();
+            assert_eq!(last.off_array_count(), 2);
+        }
+    }
 }
 
 pub mod formats {

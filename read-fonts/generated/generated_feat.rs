@@ -60,9 +60,13 @@ impl<'a> Feat<'a> {
     }
 
     /// The feature name array, sorted by feature type.
-    pub fn names(&self) -> &'a [FeatureName] {
+    pub fn names(&self) -> ArrayOfRecordsWithOffsetData<'a, FeatureName> {
         let range = self.names_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -121,7 +125,7 @@ impl<'a> SomeTable<'a> for Feat<'a> {
                 "names",
                 traversal::FieldType::array_of_records(
                     stringify!(FeatureName),
-                    self.names(),
+                    self.names().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -203,6 +207,13 @@ impl FixedSize for FeatureName {
         + Offset32::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + NameId::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, FeatureName> {
+    /// Attempt to resolve [`setting_table_offset`][FeatureName::setting_table_offset] against the data of the enclosing table.
+    pub fn setting_table(&self) -> Result<SettingNameArray<'a>, ReadError> {
+        self.record().setting_table(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]

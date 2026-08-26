@@ -260,7 +260,10 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseScriptList<'a>> for BaseScript
     fn from_obj_ref(obj: &read_fonts::tables::base::BaseScriptList<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         BaseScriptList {
-            base_script_records: obj.base_script_records().to_owned_obj(offset_data),
+            base_script_records: obj
+                .base_script_records()
+                .as_slice()
+                .to_owned_obj(offset_data),
         }
     }
 }
@@ -397,7 +400,10 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseScript<'a>> for BaseScript {
         BaseScript {
             base_values: obj.base_values().to_owned_table(),
             default_min_max: obj.default_min_max().to_owned_table(),
-            base_lang_sys_records: obj.base_lang_sys_records().to_owned_obj(offset_data),
+            base_lang_sys_records: obj
+                .base_lang_sys_records()
+                .as_slice()
+                .to_owned_obj(offset_data),
         }
     }
 }
@@ -606,7 +612,10 @@ impl<'a> FromObjRef<read_fonts::tables::base::MinMax<'a>> for MinMax {
         MinMax {
             min_coord: obj.min_coord().to_owned_table(),
             max_coord: obj.max_coord().to_owned_table(),
-            feat_min_max_records: obj.feat_min_max_records().to_owned_obj(offset_data),
+            feat_min_max_records: obj
+                .feat_min_max_records()
+                .as_slice()
+                .to_owned_obj(offset_data),
         }
     }
 }

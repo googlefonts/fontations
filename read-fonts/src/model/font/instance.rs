@@ -501,7 +501,7 @@ pub(crate) fn feature_variation_index(
         if rec.condition_set_offset().is_null() {
             return Some(index as u32);
         }
-        let Some(Ok(condition_set)) = rec.condition_set(feature_vars.offset_data()) else {
+        let Some(Ok(condition_set)) = rec.condition_set() else {
             continue;
         };
         // Otherwise, all conditions must be satisfied.

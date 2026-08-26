@@ -54,7 +54,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap<'a>> for Cmap {
     fn from_obj_ref(obj: &read_fonts::tables::cmap::Cmap<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Cmap {
-            encoding_records: obj.encoding_records().to_owned_obj(offset_data),
+            encoding_records: obj.encoding_records().as_slice().to_owned_obj(offset_data),
         }
     }
 }
@@ -1225,7 +1225,7 @@ impl<'a> FromObjRef<read_fonts::tables::cmap::Cmap14<'a>> for Cmap14 {
         Cmap14 {
             length: obj.length(),
             num_var_selector_records: obj.num_var_selector_records(),
-            var_selector: obj.var_selector().to_owned_obj(offset_data),
+            var_selector: obj.var_selector().as_slice().to_owned_obj(offset_data),
         }
     }
 }

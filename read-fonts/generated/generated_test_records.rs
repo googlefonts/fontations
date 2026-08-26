@@ -317,6 +317,18 @@ impl FixedSize for ContainsOffsets {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+impl<'a> OffsetResolving<'a, ContainsOffsets> {
+    /// Attempt to resolve [`array_offset`][ContainsOffsets::array_offset] against the data of the enclosing table.
+    pub fn array(&self) -> Result<&'a [SimpleRecord], ReadError> {
+        self.record().array(self.offset_data())
+    }
+
+    /// Attempt to resolve [`other_offset`][ContainsOffsets::other_offset] against the data of the enclosing table.
+    pub fn other(&self) -> Result<BasicTable<'a>, ReadError> {
+        self.record().other(self.offset_data())
+    }
+}
+
 #[cfg(feature = "experimental_traverse")]
 impl<'a> SomeRecord<'a> for ContainsOffsets {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -341,6 +353,110 @@ impl<'a> SomeRecord<'a> for ContainsOffsets {
             }),
             data,
         }
+    }
+}
+
+impl<'a> MinByteRange<'a> for ContainsOffsetRecords<'a> {
+    fn min_byte_range(&self) -> Range<usize> {
+        0..self.offset_records_byte_range().end
+    }
+    fn min_table_bytes(&self) -> &'a [u8] {
+        let range = self.min_byte_range();
+        self.data.as_bytes().get(range).unwrap_or_default()
+    }
+}
+
+impl ReadArgs for ContainsOffsetRecords<'_> {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ContainsOffsetRecords<'a> {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        #[allow(clippy::absurd_extreme_comparisons)]
+        if data.len() < Self::MIN_SIZE {
+            return Err(ReadError::OutOfBounds);
+        }
+        Ok(Self { data })
+    }
+}
+
+#[derive(Clone)]
+pub struct ContainsOffsetRecords<'a> {
+    data: FontData<'a>,
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> ContainsOffsetRecords<'a> {
+    pub const MIN_SIZE: usize = u16::RAW_BYTE_LEN;
+    basic_table_impls!(impl_the_methods);
+
+    pub fn record_count(&self) -> u16 {
+        let range = self.record_count_byte_range();
+        self.data.read_at(range.start).ok().unwrap()
+    }
+
+    pub fn offset_records(&self) -> ArrayOfRecordsWithOffsetData<'a, ContainsOffsets> {
+        let range = self.offset_records_byte_range();
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
+    }
+
+    pub fn record_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        let end = start + u16::RAW_BYTE_LEN;
+        start..end
+    }
+
+    pub fn offset_records_byte_range(&self) -> Range<usize> {
+        let record_count = self.record_count();
+        let start = self.record_count_byte_range().end;
+        let end = start
+            + (transforms::to_usize(record_count)).saturating_mul(ContainsOffsets::RAW_BYTE_LEN);
+        start..end
+    }
+}
+
+const _: () = assert!(FontData::default_data_long_enough(
+    ContainsOffsetRecords::MIN_SIZE
+));
+
+impl Default for ContainsOffsetRecords<'_> {
+    fn default() -> Self {
+        Self {
+            data: FontData::default_table_data(),
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+impl<'a> SomeTable<'a> for ContainsOffsetRecords<'a> {
+    fn type_name(&self) -> &str {
+        "ContainsOffsetRecords"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("record_count", self.record_count())),
+            1usize => Some(Field::new(
+                "offset_records",
+                traversal::FieldType::array_of_records(
+                    stringify!(ContainsOffsets),
+                    self.offset_records().as_slice(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "experimental_traverse")]
+#[allow(clippy::needless_lifetimes)]
+impl<'a> std::fmt::Debug for ContainsOffsetRecords<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
