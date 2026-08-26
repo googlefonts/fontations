@@ -260,11 +260,12 @@ impl<'a> SimpleGlyph<'a> {
                 break;
             }
         }
-        // Both coordinate passes walk one iterator over the bytes the flags
-        // did not use. A cursor would bounds check, build a `Result` and
-        // advance a saturating offset for each of the up to four bytes a point
-        // takes; `next` is a pointer comparison, and the y pass simply carries
-        // on from where the x pass stopped.
+        // This used to use a `Cursor` but that implies saturating
+        // arithmetic, bounds checking and `Result` building for each byte
+        // read.
+        //
+        // A byte slice iterator is just a pointer comparison and is
+        // significantly faster.
         let coords = self
             .glyph_data()
             .get(read_flags_bytes..)
