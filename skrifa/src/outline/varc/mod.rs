@@ -12,9 +12,9 @@ use read_fonts::{
     types::{F2Dot14, GlyphId, Matrix},
     FontRef, ReadError, TableProvider,
 };
+use smallvec::SmallVec;
 
 use crate::{
-    collections::SmallVec,
     instance::Size,
     outline::{cff, glyf, metrics::GlyphHMetrics, pen::PathStyle, DrawError, OutlinePen},
     provider::MetadataProvider,
@@ -27,12 +27,12 @@ use core_maths::CoreFloat;
 
 use super::OutlineKind;
 
-type GlyphStack = SmallVec<GlyphId, 8>;
-type CoordVec = SmallVec<F2Dot14, 64>;
-type AxisIndexVec = SmallVec<u16, 64>;
-type AxisValueVec = SmallVec<f32, 64>;
-type DeltaVec = SmallVec<f32, 64>;
-type ScalarCacheVec = SmallVec<f32, 128>;
+type GlyphStack = SmallVec<[GlyphId; 8]>;
+type CoordVec = SmallVec<[F2Dot14; 64]>;
+type AxisIndexVec = SmallVec<[u16; 64]>;
+type AxisValueVec = SmallVec<[f32; 64]>;
+type DeltaVec = SmallVec<[f32; 64]>;
+type ScalarCacheVec = SmallVec<[f32; 128]>;
 type Affine = Matrix<f32>;
 
 struct Scratchpad {
@@ -537,7 +537,10 @@ impl<'a> Outlines<'a> {
             out.clear();
             return Ok(());
         };
-        out.resize_and_fill(count, 0.0);
+        // `packed` may yield fewer than `count` values, so every slot is set
+        // here rather than only the ones the loop below reaches.
+        out.clear();
+        out.resize(count, 0.0);
         for (slot, value) in out.iter_mut().zip(packed.iter().by_ref().take(count)) {
             *slot = value as f32;
         }
@@ -774,7 +777,7 @@ impl ScalarCache {
 
     fn new(count: usize) -> Self {
         Self {
-            values: ScalarCacheVec::with_len(count, Self::INVALID),
+            values: ScalarCacheVec::from_elem(Self::INVALID, count),
         }
     }
 
@@ -790,7 +793,10 @@ impl ScalarCache {
 }
 
 fn expand_coords(out: &mut CoordVec, axis_count: usize, coords: &[F2Dot14]) {
-    out.resize_and_fill(axis_count, F2Dot14::ZERO);
+    // `coords` may be shorter than `axis_count`, so the tail has to be zeroed
+    // rather than left holding whatever the last call put there.
+    out.clear();
+    out.resize(axis_count, F2Dot14::ZERO);
     for (slot, value) in out.iter_mut().zip(coords.iter().copied()) {
         *slot = value;
     }
@@ -805,7 +811,10 @@ fn compute_tuple_deltas(
     cache: &mut ScalarCache,
     out: &mut DeltaVec,
 ) -> Result<(), ReadError> {
-    out.resize_and_fill(tuple_len, 0.0);
+    // Deltas accumulate into this, and it is reused across calls, so it starts
+    // at zero rather than at the previous call's values.
+    out.clear();
+    out.resize(tuple_len, 0.0);
     if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
         return Ok(());
     }
@@ -1188,7 +1197,7 @@ mod tests {
             .unwrap_or(0);
 
         let mut coords = CoordVec::new();
-        coords.resize_and_fill(outlines.axis_count, F2Dot14::ZERO);
+        coords.resize(outlines.axis_count, F2Dot14::ZERO);
         for (i, c) in coords.iter_mut().enumerate() {
             *c = match i % 4 {
                 0 => coord(0.5),

@@ -40,7 +40,6 @@ pub mod outline;
 pub mod setting;
 pub mod string;
 
-mod collections;
 mod decycler;
 mod glyph_name;
 mod provider;

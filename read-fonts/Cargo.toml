@@ -38,6 +38,7 @@ libm = ["dep:core_maths"]
 agl = []
 
 [dependencies]
+smallvec = { workspace = true }
 font-types = { workspace = true, features = ["bytemuck"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 core_maths = { workspace = true, optional = true }
