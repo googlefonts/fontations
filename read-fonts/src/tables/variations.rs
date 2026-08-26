@@ -56,7 +56,7 @@ impl TupleIndex {
     pub const TUPLE_INDEX_MASK: u16 = 0x0FFF;
 
     #[inline(always)]
-    fn tuple_len(self, axis_count: u16, flag: usize) -> usize {
+    pub(crate) fn tuple_len(self, axis_count: u16, flag: usize) -> usize {
         if flag == 0 {
             self.embedded_peak_tuple() as usize * axis_count as usize
         } else {

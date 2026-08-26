@@ -110,6 +110,19 @@ macro_rules! impl_offset {
         impl NullValue for $name {
             const NULL: $name = $name(<$rawty>::MIN);
         }
+
+        /// A null offset.
+        ///
+        /// Present for offsets that are not declared nullable as well, because
+        /// that declaration says what a well formed font contains and not what
+        /// the one in front of us does. It is what lets a record holding an
+        /// offset derive `Default`, so a caller reaching past the end of a
+        /// slice can write `.copied().unwrap_or_default()`.
+        impl Default for $name {
+            fn default() -> Self {
+                <Self as NullValue>::NULL
+            }
+        }
     };
 }
 

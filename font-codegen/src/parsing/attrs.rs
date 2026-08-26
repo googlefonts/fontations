@@ -61,6 +61,13 @@ pub(crate) struct TableAttrs {
     pub(crate) write_only: Option<syn::Path>,
     /// Custom validation behaviour, must be a fn(&self, &mut ValidationCtx) for the type
     pub(crate) validate: Option<Attr<syn::Ident>>,
+    /// The record's size in bytes, named by one of its read args.
+    ///
+    /// For a record whose length the font declares rather than one that can be
+    /// worked out by adding up its fields: an fvar `InstanceRecord` occupies
+    /// `instanceSize` bytes, which the spec allows to be larger than the fields
+    /// it holds.
+    pub(crate) record_size: Option<Attr<syn::Ident>>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -78,6 +85,14 @@ pub(crate) struct FieldAttrs {
     /// used to adjust the write position of offsets.
     //TODO: this could maybe be combined with offset_data?
     pub(crate) offset_adjustment: Option<Attr<InlineExpr>>,
+    /// This field starts at the position another field's offset names, rather
+    /// than immediately after the preceding field.
+    ///
+    /// For a table that points at several consecutive arrays with one offset.
+    /// fvar does this: `axisInstanceArraysOffset` locates the axis array, and
+    /// the instance array follows it. Without this, the arrays have to be
+    /// wrapped in a shim table that exists only to be the offset's target.
+    pub(crate) at_offset: Option<Attr<syn::Ident>>,
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<Attr<syn::LitInt>>,
     pub(crate) count: Option<Attr<Count>>,
@@ -129,7 +144,25 @@ pub(crate) struct FieldReadArgs {
 #[derive(Clone, Debug)]
 pub(crate) enum Condition {
     SinceVersion(VersionSpec),
-    IfFlag { field: syn::Ident, flag: syn::Path },
+    IfFlag {
+        field: syn::Ident,
+        flag: syn::Path,
+    },
+    /// Present only when another field is non-zero.
+    ///
+    /// A count of zero can mean the rest of the table is simply not there. A
+    /// CFF `INDEX` is the case: an empty one is two bytes, just its count, with
+    /// no `offSize` after it. Without this the fixed header is taken to include
+    /// `offSize`, and a legal empty INDEX fails to parse.
+    IfNonZero {
+        field: syn::Ident,
+    },
+    /// Present if the field fits inside the record's declared size.
+    ///
+    /// For a trailing optional field in a record whose length the font
+    /// declares: an fvar `InstanceRecord` has a `postScriptNameID` only when
+    /// `instanceSize` leaves room for it. Requires `#[record_size(..)]`.
+    IfFits,
 }
 
 #[derive(Clone, Debug)]
@@ -262,6 +295,9 @@ static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
 static SINCE_VERSION: &str = "since_version";
 static IF_FLAG: &str = "if_flag";
+static IF_FITS: &str = "if_fits";
+static IF_NON_ZERO: &str = "if_nonzero";
+static AT_OFFSET: &str = "at_offset";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static OFFSET_GETTER: &str = "offset_getter";
@@ -287,6 +323,7 @@ static SKIP_CONSTRUCTOR: &str = "skip_constructor";
 static READ_ARGS: &str = "read_args";
 static GENERIC_OFFSET: &str = "generic_offset";
 static TAG: &str = "tag";
+static RECORD_SIZE: &str = "record_size";
 
 // ── Parse impls for attr containers ─────────────────────────────────
 
@@ -337,6 +374,26 @@ impl Parse for FieldAttrs {
             } else if ident == IF_FLAG {
                 let condition = parse_if_flag(&attr)?;
                 this.checked_set_condition(ident, condition)?;
+            } else if ident == IF_FITS {
+                this.checked_set_condition(ident, Condition::IfFits)?;
+            } else if ident == IF_NON_ZERO {
+                let arg: CountArg = attr.parse_args()?;
+                let CountArg::Field(field) = arg else {
+                    return Err(logged_syn_error(
+                        ident.span(),
+                        "#[if_nonzero(..)] takes a field, as in #[if_nonzero($count)]",
+                    ));
+                };
+                this.checked_set_condition(ident, Condition::IfNonZero { field })?;
+            } else if ident == AT_OFFSET {
+                let arg: CountArg = attr.parse_args()?;
+                let CountArg::Field(field) = arg else {
+                    return Err(logged_syn_error(
+                        ident.span(),
+                        "#[at_offset(..)] takes a field, as in #[at_offset($foo_offset)]",
+                    ));
+                };
+                this.at_offset = Some(Attr::new(ident.clone(), field));
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_OFFSET_WITH {
@@ -393,6 +450,15 @@ impl Parse for TableAttrs {
                 this.tag = Some(Attr::new(ident.clone(), tag))
             } else if ident == VALIDATE {
                 this.validate = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == RECORD_SIZE {
+                let arg: CountArg = attr.parse_args()?;
+                let CountArg::Field(ident_arg) = arg else {
+                    return Err(logged_syn_error(
+                        ident.span(),
+                        "#[record_size(..)] takes a read arg, as in #[record_size($instance_size)]",
+                    ));
+                };
+                this.record_size = Some(Attr::new(ident.clone(), ident_arg));
             } else {
                 return Err(logged_syn_error(
                     ident.span(),
