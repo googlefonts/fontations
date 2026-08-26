@@ -84,19 +84,26 @@ pub(crate) fn compute_edges(
                 continue;
             }
         }
-        // Look for a corresponding edge for this segment
-        let mut best_dist = i32::MAX;
-        let mut best_edge_ix = None;
-        for edge_ix in 0..axis.edges.len() {
-            let edge = &axis.edges[edge_ix];
-            let dist = (segment.pos as i32 - edge.fpos as i32).abs();
-            if dist < edge_distance_threshold && edge.dir == segment.dir && dist < best_dist {
-                if group == ScriptGroup::Default {
-                    best_edge_ix = Some(edge_ix);
-                    break;
+        // Look for a corresponding edge for this segment. The two script
+        // groups disagree on which candidate wins, so they are separate
+        // searches rather than one loop retesting the group per edge.
+        let best_edge_ix = if group == ScriptGroup::Default {
+            // The first edge within the threshold takes the segment
+            axis.edges.iter().position(|edge| {
+                (segment.pos as i32 - edge.fpos as i32).abs() < edge_distance_threshold
+                    && edge.dir == segment.dir
+            })
+        } else {
+            // CJK looks for the nearest one instead, with some added checks
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1073>
+            let mut best_dist = i32::MAX;
+            let mut best_edge_ix = None;
+            for edge_ix in 0..axis.edges.len() {
+                let edge = &axis.edges[edge_ix];
+                let dist = (segment.pos as i32 - edge.fpos as i32).abs();
+                if dist >= edge_distance_threshold || edge.dir != segment.dir || dist >= best_dist {
+                    continue;
                 }
-                // For CJK, we add some additional checks
-                // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/autofit/afcjk.c#L1073>
                 if let Some(link) = segment.link(&axis.segments).copied() {
                     // Check whether all linked segments of the candidate edge
                     // can make a single edge
@@ -126,7 +133,8 @@ pub(crate) fn compute_edges(
                 best_dist = dist;
                 best_edge_ix = Some(edge_ix);
             }
-        }
+            best_edge_ix
+        };
         if let Some(edge_ix) = best_edge_ix {
             axis.append_segment_to_edge(segment_ix, edge_ix);
         } else {
@@ -155,16 +163,9 @@ pub(crate) fn compute_edges(
             }
             // Try to find an edge that coincides with this segment within the
             // threshold
-            if let Some(edge_ix) = axis
-                .edges
-                .iter()
-                .enumerate()
-                .filter_map(|(ix, edge)| {
-                    ((segment.pos as i32 - edge.fpos as i32).abs() < edge_distance_threshold)
-                        .then_some(ix)
-                })
-                .next()
-            {
+            if let Some(edge_ix) = axis.edges.iter().position(|edge| {
+                (segment.pos as i32 - edge.fpos as i32).abs() < edge_distance_threshold
+            }) {
                 // We found an edge, link everything up
                 axis.append_segment_to_edge(segment_ix, edge_ix);
             }
