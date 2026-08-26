@@ -1,7 +1,8 @@
 # Reworking the parsing framework — summary
 
 The long version, with the reasoning and the code, is
-[parsing-rework.md](parsing-rework.md).
+[parsing-rework.md](parsing-rework.md). What it would cost Skia is
+[parsing-rework-skia-impact.md](parsing-rework-skia-impact.md).
 
 ## The problem
 
@@ -124,7 +125,9 @@ parser the crate ships, field for field.
 ## What is not done
 
 - **No consumer uses it.** Pointing skrifa's GPOS path at it is the next real
-  test — roughly 1,230 accessor call sites across skrifa, skera and ift.
+  test — roughly 1,230 accessor call sites across skrifa, skera and ift. That is
+  churn inside this workspace; Skia's direct use of read-fonts comes to four
+  lines.
 - **Traversal is not emitted**, deliberately.
 - **write-fonts is untouched**, and is no longer expected to be a problem: its
   `from_obj` already discards the errors it would lose, so the migration looks

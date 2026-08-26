@@ -1,6 +1,7 @@
 # Reworking the parsing framework
 
-*For the short version, see [parsing-rework-summary.md](parsing-rework-summary.md).*
+*Short version: [parsing-rework-summary.md](parsing-rework-summary.md).
+Downstream cost: [parsing-rework-skia-impact.md](parsing-rework-skia-impact.md).*
 
 Codegen emits this today, for real tables, behind a third mode. Nothing
 existing uses it: the output goes to a parallel tree, so the framework can be
@@ -709,7 +710,10 @@ existing emitter, so the two cannot drift.
 ## What is left
 
 - **skrifa, skera, ift.** Nothing consumes the new tree yet. This is where the
-  ~1,230 accessor call sites get tested, and the next thing worth doing.
+  ~1,230 accessor call sites get tested, and the next thing worth doing. Note
+  that this is churn *inside* the workspace: Skia's direct use of read-fonts
+  comes to four lines, measured in
+  [parsing-rework-skia-impact.md](parsing-rework-skia-impact.md).
 - **write-fonts.** Not touched, and no longer expected to be a problem. An
   earlier draft called the compile side the one real risk, on the theory that
   `from_obj` distinguishes "malformed" from "absent" and would stop being able
