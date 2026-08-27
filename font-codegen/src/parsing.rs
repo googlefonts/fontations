@@ -546,6 +546,21 @@ impl Items {
             }
         }
 
+        // now that field types are resolved we can work out which of them are
+        // read at an offset within their enclosing table
+        let positioned = self.build_positioned_set();
+        for item in self.iter_mut() {
+            let fields = match item {
+                Item::Record(item) => &mut item.fields.fields,
+                Item::Table(item) => &mut item.fields.fields,
+                _ => continue,
+            };
+            for field in fields.iter_mut() {
+                field.positioned =
+                    positioned_dep(&field.typ).is_some_and(|typ| positioned.contains(typ));
+            }
+        }
+
         Ok(())
     }
 

@@ -1436,11 +1436,9 @@ impl<'a> SinglePosFormat1<'a> {
 
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
-    pub fn value_record(&self) -> ValueRecord {
+    pub fn value_record(&self) -> ValueRecord<'a> {
         let range = self.value_record_byte_range();
-        self.data
-            .read_with_args(range, self.value_format())
-            .unwrap_or_default()
+        ValueRecord::read_at(self.data, range.start, self.value_format()).unwrap_or_default()
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -1585,7 +1583,7 @@ impl<'a> SinglePosFormat2<'a> {
     }
 
     /// Array of ValueRecords — positioning values applied to glyphs.
-    pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
+    pub fn value_records(&self) -> ComputedArray<'a, ValueRecord<'a>> {
         let range = self.value_records_byte_range();
         ComputedArray::new(self.data, range, self.value_format()).unwrap_or_default()
     }
@@ -2020,7 +2018,7 @@ impl<'a> PairSet<'a> {
 
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
-    pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
+    pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord<'a>> {
         let range = self.pair_value_records_byte_range();
         ComputedArray::new(
             self.data,
@@ -2102,17 +2100,17 @@ impl<'a> std::fmt::Debug for PairSet<'a> {
 
 /// Part of [PairSet]
 #[derive(Clone, Debug)]
-pub struct PairValueRecord {
+pub struct PairValueRecord<'a> {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
     pub second_glyph: BigEndian<GlyphId16>,
     /// Positioning data for the first glyph in the pair.
-    pub value_record1: ValueRecord,
+    pub value_record1: ValueRecord<'a>,
     /// Positioning data for the second glyph in the pair.
-    pub value_record2: ValueRecord,
+    pub value_record2: ValueRecord<'a>,
 }
 
-impl PairValueRecord {
+impl<'a> PairValueRecord<'a> {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
     pub fn second_glyph(&self) -> GlyphId16 {
@@ -2120,21 +2118,21 @@ impl PairValueRecord {
     }
 
     /// Positioning data for the first glyph in the pair.
-    pub fn value_record1(&self) -> &ValueRecord {
+    pub fn value_record1(&self) -> &ValueRecord<'a> {
         &self.value_record1
     }
 
     /// Positioning data for the second glyph in the pair.
-    pub fn value_record2(&self) -> &ValueRecord {
+    pub fn value_record2(&self) -> &ValueRecord<'a> {
         &self.value_record2
     }
 }
 
-impl ReadArgs for PairValueRecord {
+impl ReadArgs for PairValueRecord<'_> {
     type Args = (ValueFormat, ValueFormat);
 }
 
-impl ComputeSize for PairValueRecord {
+impl ComputeSize for PairValueRecord<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: (ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
         let (value_format1, value_format2) = args;
@@ -2152,41 +2150,42 @@ impl ComputeSize for PairValueRecord {
     }
 }
 
-impl<'a> FontRead<'a> for PairValueRecord {
-    fn read_with_args(
+impl<'a> FontReadAt<'a> for PairValueRecord<'a> {
+    fn read_at(
         data: FontData<'a>,
+        offset: usize,
         args: (ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        cursor.advance_by(offset);
         let (value_format1, value_format2) = args;
         Ok(Self {
             second_glyph: cursor.read_be()?,
-            value_record1: cursor.read_with_args(value_format1)?,
-            value_record2: cursor.read_with_args(value_format2)?,
+            value_record1: cursor.read_at_with_args(value_format1)?,
+            value_record2: cursor.read_at_with_args(value_format2)?,
         })
     }
 }
 
-crate::impl_font_read_at!(PairValueRecord);
-
 #[allow(clippy::needless_lifetimes)]
-impl<'a> PairValueRecord {
+impl<'a> PairValueRecord<'a> {
     /// A constructor that requires additional arguments.
     ///
     /// This type requires some external state in order to be
     /// parsed.
     pub fn read(
         data: FontData<'a>,
+        offset: usize,
         value_format1: ValueFormat,
         value_format2: ValueFormat,
     ) -> Result<Self, ReadError> {
         let args = (value_format1, value_format2);
-        Self::read_with_args(data, args)
+        Self::read_at(data, offset, args)
     }
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for PairValueRecord {
+impl<'a> SomeRecord<'a> for PairValueRecord<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "PairValueRecord",
@@ -2451,12 +2450,12 @@ impl<'a> std::fmt::Debug for PairPosFormat2<'a> {
 #[derive(Clone, Debug)]
 pub struct Class1Record<'a> {
     /// Array of Class2 records, ordered by classes in classDef2.
-    pub class2_records: ComputedArray<'a, Class2Record>,
+    pub class2_records: ComputedArray<'a, Class2Record<'a>>,
 }
 
 impl<'a> Class1Record<'a> {
     /// Array of Class2 records, ordered by classes in classDef2.
-    pub fn class2_records(&self) -> &ComputedArray<'a, Class2Record> {
+    pub fn class2_records(&self) -> &ComputedArray<'a, Class2Record<'a>> {
         &self.class2_records
     }
 }
@@ -2476,12 +2475,14 @@ impl ComputeSize for Class1Record<'_> {
     }
 }
 
-impl<'a> FontRead<'a> for Class1Record<'a> {
-    fn read_with_args(
+impl<'a> FontReadAt<'a> for Class1Record<'a> {
+    fn read_at(
         data: FontData<'a>,
+        offset: usize,
         args: (u16, ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        cursor.advance_by(offset);
         let (class2_count, value_format1, value_format2) = args;
         Ok(Self {
             class2_records: cursor.read_computed_array(
@@ -2492,8 +2493,6 @@ impl<'a> FontRead<'a> for Class1Record<'a> {
     }
 }
 
-crate::impl_font_read_at!(Class1Record<'a>);
-
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Class1Record<'a> {
     /// A constructor that requires additional arguments.
@@ -2502,12 +2501,13 @@ impl<'a> Class1Record<'a> {
     /// parsed.
     pub fn read(
         data: FontData<'a>,
+        offset: usize,
         class2_count: u16,
         value_format1: ValueFormat,
         value_format2: ValueFormat,
     ) -> Result<Self, ReadError> {
         let args = (class2_count, value_format1, value_format2);
-        Self::read_with_args(data, args)
+        Self::read_at(data, offset, args)
     }
 }
 
@@ -2534,30 +2534,30 @@ impl<'a> SomeRecord<'a> for Class1Record<'a> {
 
 /// Part of [PairPosFormat2]
 #[derive(Clone, Debug)]
-pub struct Class2Record {
+pub struct Class2Record<'a> {
     /// Positioning for first glyph — empty if valueFormat1 = 0.
-    pub value_record1: ValueRecord,
+    pub value_record1: ValueRecord<'a>,
     /// Positioning for second glyph — empty if valueFormat2 = 0.
-    pub value_record2: ValueRecord,
+    pub value_record2: ValueRecord<'a>,
 }
 
-impl Class2Record {
+impl<'a> Class2Record<'a> {
     /// Positioning for first glyph — empty if valueFormat1 = 0.
-    pub fn value_record1(&self) -> &ValueRecord {
+    pub fn value_record1(&self) -> &ValueRecord<'a> {
         &self.value_record1
     }
 
     /// Positioning for second glyph — empty if valueFormat2 = 0.
-    pub fn value_record2(&self) -> &ValueRecord {
+    pub fn value_record2(&self) -> &ValueRecord<'a> {
         &self.value_record2
     }
 }
 
-impl ReadArgs for Class2Record {
+impl ReadArgs for Class2Record<'_> {
     type Args = (ValueFormat, ValueFormat);
 }
 
-impl ComputeSize for Class2Record {
+impl ComputeSize for Class2Record<'_> {
     #[allow(clippy::needless_question_mark)]
     fn compute_size(args: (ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
         let (value_format1, value_format2) = args;
@@ -2572,40 +2572,41 @@ impl ComputeSize for Class2Record {
     }
 }
 
-impl<'a> FontRead<'a> for Class2Record {
-    fn read_with_args(
+impl<'a> FontReadAt<'a> for Class2Record<'a> {
+    fn read_at(
         data: FontData<'a>,
+        offset: usize,
         args: (ValueFormat, ValueFormat),
     ) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        cursor.advance_by(offset);
         let (value_format1, value_format2) = args;
         Ok(Self {
-            value_record1: cursor.read_with_args(value_format1)?,
-            value_record2: cursor.read_with_args(value_format2)?,
+            value_record1: cursor.read_at_with_args(value_format1)?,
+            value_record2: cursor.read_at_with_args(value_format2)?,
         })
     }
 }
 
-crate::impl_font_read_at!(Class2Record);
-
 #[allow(clippy::needless_lifetimes)]
-impl<'a> Class2Record {
+impl<'a> Class2Record<'a> {
     /// A constructor that requires additional arguments.
     ///
     /// This type requires some external state in order to be
     /// parsed.
     pub fn read(
         data: FontData<'a>,
+        offset: usize,
         value_format1: ValueFormat,
         value_format2: ValueFormat,
     ) -> Result<Self, ReadError> {
         let args = (value_format1, value_format2);
-        Self::read_with_args(data, args)
+        Self::read_at(data, offset, args)
     }
 }
 
 #[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Class2Record {
+impl<'a> SomeRecord<'a> for Class2Record<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "Class2Record",

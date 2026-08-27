@@ -425,12 +425,10 @@ fn traversal_arm_for_field(
             quote!(Field::new(#name_str, traversal::FieldType::var_array(#typ_str, self.#name()#maybe_try, #data)))
         }
         // a positioned record is hand-written and supplies its own traversal;
-        // the two named types are the same arrangement predating that.
-        // See if there are better ways to handle these hardcoded types
+        // SbitLineMetrics is the same arrangement predating that.
+        // See if there is a better way to handle this hardcoded type
         // <https://github.com/googlefonts/fontations/issues/659>
-        FieldType::Struct { typ }
-            if fld.positioned || typ == "ValueRecord" || typ == "SbitLineMetrics" =>
-        {
+        FieldType::Struct { typ } if fld.positioned || typ == "SbitLineMetrics" => {
             let offset_data = pass_data
                 .cloned()
                 .unwrap_or_else(|| fld.offset_getter_data_src());
