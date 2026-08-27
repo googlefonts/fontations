@@ -9,9 +9,6 @@ use crate::{
 };
 use types::{BigEndian, GlyphId, Tag};
 
-#[cfg(feature = "experimental_traverse")]
-use crate::traversal;
-
 /// The [loca] table.
 ///
 /// [loca]: https://docs.microsoft.com/en-us/typography/opentype/spec/loca
@@ -96,42 +93,6 @@ impl<'a> FontRead<'a> for Loca<'a> {
         } else {
             data.read_array(0..data.len()).map(Loca::Short)
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> traversal::SomeTable<'a> for Loca<'a> {
-    fn type_name(&self) -> &str {
-        "loca"
-    }
-
-    fn get_field(&self, idx: usize) -> Option<traversal::Field<'a>> {
-        match idx {
-            0usize => Some(traversal::Field::new("offsets", self.clone())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> traversal::SomeArray<'a> for Loca<'a> {
-    fn len(&self) -> usize {
-        self.len()
-    }
-
-    fn get(&self, idx: usize) -> Option<traversal::FieldType<'a>> {
-        self.get_raw(idx).map(|off| off.into())
-    }
-
-    fn type_name(&self) -> &str {
-        "Offset32"
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> std::fmt::Debug for Loca<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn traversal::SomeTable<'a>).fmt(f)
     }
 }
 

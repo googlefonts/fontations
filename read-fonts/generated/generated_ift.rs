@@ -303,13 +303,6 @@ impl font_types::Scalar for PatchMapFieldPresenceFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<PatchMapFieldPresenceFlags> for FieldType<'a> {
-    fn from(src: PatchMapFieldPresenceFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 impl<'a> MinByteRange<'a> for IftPatchMap<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.url_template_byte_range().end
@@ -540,73 +533,6 @@ impl Default for IftPatchMap<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IftPatchMap<'a> {
-    fn type_name(&self) -> &str {
-        "IftPatchMap"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("field_flags", self.field_flags())),
-            2usize => Some(Field::new(
-                "compatibility_id",
-                traversal::FieldType::Unknown,
-            )),
-            3usize => Some(Field::new(
-                "default_patch_format",
-                self.default_patch_format(),
-            )),
-            4usize => Some(Field::new("entry_count", self.entry_count())),
-            5usize => Some(Field::new(
-                "entries_offset",
-                FieldType::offset(self.entries_offset(), self.entries()),
-            )),
-            6usize => Some(Field::new(
-                "entry_id_string_data_offset",
-                FieldType::offset(
-                    self.entry_id_string_data_offset(),
-                    self.entry_id_string_data(),
-                ),
-            )),
-            7usize => Some(Field::new(
-                "url_template_length",
-                self.url_template_length(),
-            )),
-            8usize => Some(Field::new("url_template", self.url_template())),
-            9usize
-                if self
-                    .field_flags()
-                    .contains(PatchMapFieldPresenceFlags::CFF_CHARSTRINGS_OFFSET) =>
-            {
-                Some(Field::new(
-                    "cff_charstrings_offset",
-                    self.cff_charstrings_offset()?,
-                ))
-            }
-            10usize
-                if self
-                    .field_flags()
-                    .contains(PatchMapFieldPresenceFlags::CFF2_CHARSTRINGS_OFFSET) =>
-            {
-                Some(Field::new(
-                    "cff2_charstrings_offset",
-                    self.cff2_charstrings_offset()?,
-                ))
-            }
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for IftPatchMap<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for MappingEntries<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.entry_data_byte_range().end
@@ -662,27 +588,6 @@ impl Default for MappingEntries<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MappingEntries<'a> {
-    fn type_name(&self) -> &str {
-        "MappingEntries"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("entry_data", self.entry_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MappingEntries<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -872,79 +777,6 @@ impl Default for EntryData<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for EntryData<'a> {
-    fn type_name(&self) -> &str {
-        "EntryData"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format_flags", self.format_flags())),
-            1usize
-                if self
-                    .format_flags()
-                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) =>
-            {
-                Some(Field::new("feature_count", self.feature_count()?))
-            }
-            2usize
-                if self
-                    .format_flags()
-                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) =>
-            {
-                Some(Field::new("feature_tags", self.feature_tags()?))
-            }
-            3usize
-                if self
-                    .format_flags()
-                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) =>
-            {
-                Some(Field::new("design_space_count", self.design_space_count()?))
-            }
-            4usize
-                if self
-                    .format_flags()
-                    .contains(EntryFormatFlags::FEATURES_AND_DESIGN_SPACE) =>
-            {
-                Some(Field::new(
-                    "design_space_segments",
-                    traversal::FieldType::array_of_records(
-                        stringify!(DesignSpaceSegment),
-                        self.design_space_segments()?,
-                        self.offset_data(),
-                    ),
-                ))
-            }
-            5usize
-                if self
-                    .format_flags()
-                    .contains(EntryFormatFlags::CHILD_INDICES) =>
-            {
-                Some(Field::new(
-                    "match_mode_and_count",
-                    traversal::FieldType::Unknown,
-                ))
-            }
-            6usize
-                if self
-                    .format_flags()
-                    .contains(EntryFormatFlags::CHILD_INDICES) =>
-            {
-                Some(Field::new("child_indices", self.child_indices()?))
-            }
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for EntryData<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1271,13 +1103,6 @@ impl font_types::Scalar for EntryFormatFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<EntryFormatFlags> for FieldType<'a> {
-    fn from(src: EntryFormatFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -1303,22 +1128,6 @@ impl DesignSpaceSegment {
 
 impl FixedSize for DesignSpaceSegment {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for DesignSpaceSegment {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "DesignSpaceSegment",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("axis_tag", self.axis_tag())),
-                1usize => Some(Field::new("start", self.start())),
-                2usize => Some(Field::new("end", self.end())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for IdStringData<'a> {
@@ -1376,27 +1185,6 @@ impl Default for IdStringData<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IdStringData<'a> {
-    fn type_name(&self) -> &str {
-        "IdStringData"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("id_data", self.id_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for IdStringData<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1509,33 +1297,6 @@ impl Default for TableKeyedPatch<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for TableKeyedPatch<'a> {
-    fn type_name(&self) -> &str {
-        "TableKeyedPatch"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "compatibility_id",
-                traversal::FieldType::Unknown,
-            )),
-            2usize => Some(Field::new("patches_count", self.patches_count())),
-            3usize => Some(Field::new("patch_offsets", FieldType::from(self.patches()))),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for TableKeyedPatch<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for TablePatch<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.brotli_stream_byte_range().end
@@ -1625,33 +1386,6 @@ impl Default for TablePatch<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for TablePatch<'a> {
-    fn type_name(&self) -> &str {
-        "TablePatch"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("tag", self.tag())),
-            1usize => Some(Field::new("flags", self.flags())),
-            2usize => Some(Field::new(
-                "max_uncompressed_length",
-                self.max_uncompressed_length(),
-            )),
-            3usize => Some(Field::new("brotli_stream", self.brotli_stream())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for TablePatch<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1953,13 +1687,6 @@ impl font_types::Scalar for TablePatchFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<TablePatchFlags> for FieldType<'a> {
-    fn from(src: TablePatchFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 impl<'a> MinByteRange<'a> for GlyphKeyedPatch<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.brotli_stream_byte_range().end
@@ -2071,37 +1798,6 @@ impl Default for GlyphKeyedPatch<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for GlyphKeyedPatch<'a> {
-    fn type_name(&self) -> &str {
-        "GlyphKeyedPatch"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("flags", self.flags())),
-            2usize => Some(Field::new(
-                "compatibility_id",
-                traversal::FieldType::Unknown,
-            )),
-            3usize => Some(Field::new(
-                "max_uncompressed_length",
-                self.max_uncompressed_length(),
-            )),
-            4usize => Some(Field::new("brotli_stream", self.brotli_stream())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for GlyphKeyedPatch<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2403,13 +2099,6 @@ impl font_types::Scalar for GlyphKeyedFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<GlyphKeyedFlags> for FieldType<'a> {
-    fn from(src: GlyphKeyedFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 impl<'a> MinByteRange<'a> for GlyphPatches<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_offsets_byte_range().end
@@ -2545,34 +2234,6 @@ impl Default for GlyphPatches<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for GlyphPatches<'a> {
-    fn type_name(&self) -> &str {
-        "GlyphPatches"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("glyph_count", self.glyph_count())),
-            1usize => Some(Field::new("table_count", self.table_count())),
-            2usize => Some(Field::new("glyph_ids", traversal::FieldType::Unknown)),
-            3usize => Some(Field::new("tables", self.tables())),
-            4usize => Some(Field::new(
-                "glyph_data_offsets",
-                FieldType::from(self.glyph_data()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for GlyphPatches<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for GlyphData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -2628,26 +2289,5 @@ impl Default for GlyphData<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for GlyphData<'a> {
-    fn type_name(&self) -> &str {
-        "GlyphData"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for GlyphData<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

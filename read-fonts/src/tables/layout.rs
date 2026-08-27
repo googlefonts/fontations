@@ -35,11 +35,6 @@ impl<'a, T: FontRead<'a, Args = ()>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
         self.resolve_offset(offset)
     }
-
-    #[cfg(feature = "experimental_traverse")]
-    fn traverse_lookup_flag(&self) -> traversal::FieldType<'a> {
-        self.lookup_flag().to_bits().into()
-    }
 }
 
 /// A trait that abstracts the behaviour of an extension subtable
@@ -130,25 +125,6 @@ impl<'a> FontRead<'a> for FeatureParams<'a> {
             // NOTE: what even is our error condition here? an offset exists but
             // we don't know the tag?
             _ => Err(ReadError::InvalidFormat(0xdead)),
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for FeatureParams<'a> {
-    fn type_name(&self) -> &str {
-        match self {
-            FeatureParams::StylisticSet(table) => table.type_name(),
-            FeatureParams::Size(table) => table.type_name(),
-            FeatureParams::CharacterVariant(table) => table.type_name(),
-        }
-    }
-
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match self {
-            FeatureParams::StylisticSet(table) => table.get_field(idx),
-            FeatureParams::Size(table) => table.get_field(idx),
-            FeatureParams::CharacterVariant(table) => table.get_field(idx),
         }
     }
 }

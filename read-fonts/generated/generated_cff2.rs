@@ -140,33 +140,6 @@ impl Default for Cff2Header<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cff2Header<'a> {
-    fn type_name(&self) -> &str {
-        "Cff2Header"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("major_version", self.major_version())),
-            1usize => Some(Field::new("minor_version", self.minor_version())),
-            2usize => Some(Field::new("header_size", self.header_size())),
-            3usize => Some(Field::new("top_dict_length", self.top_dict_length())),
-            4usize => Some(Field::new("_padding", self._padding())),
-            5usize => Some(Field::new("top_dict_data", self.top_dict_data())),
-            6usize => Some(Field::new("trailing_data", self.trailing_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cff2Header<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Index<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -262,29 +235,5 @@ impl Default for Index<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Index<'a> {
-    fn type_name(&self) -> &str {
-        "Index"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("count", self.count())),
-            1usize => Some(Field::new("off_size", self.off_size())),
-            2usize => Some(Field::new("offsets", self.offsets())),
-            3usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Index<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

@@ -6,8 +6,6 @@ use types::{FixedSize, Offset16};
 use super::ValueFormat;
 use crate::{tables::layout::DeviceOrVariationIndex, ResolveNullableOffset};
 
-#[cfg(feature = "experimental_traverse")]
-use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord};
 use crate::{ComputeSize, FontData, FontReadAt, ReadArgs, ReadError};
 
 impl ValueFormat {
@@ -227,74 +225,6 @@ impl std::fmt::Debug for ValueRecord<'_> {
             }
         }
         f.finish()
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> ValueRecord<'a> {
-    pub(crate) fn traversal_type(&self, data: FontData<'a>) -> FieldType<'a> {
-        FieldType::Record(self.traverse(data))
-    }
-
-    pub(crate) fn get_field(&self, idx: usize, _data: FontData<'a>) -> Option<Field<'a>> {
-        let fields = [
-            (self.x_placement().is_some()).then_some("x_placement"),
-            (self.y_placement().is_some()).then_some("y_placement"),
-            (self.x_advance().is_some()).then_some("x_advance"),
-            (self.y_advance().is_some()).then_some("y_advance"),
-            self.present_device(ValueFormat::X_PLACEMENT_DEVICE)
-                .then_some("x_placement_device"),
-            self.present_device(ValueFormat::Y_PLACEMENT_DEVICE)
-                .then_some("y_placement_device"),
-            self.present_device(ValueFormat::X_ADVANCE_DEVICE)
-                .then_some("x_advance_device"),
-            self.present_device(ValueFormat::Y_ADVANCE_DEVICE)
-                .then_some("y_advance_device"),
-        ];
-
-        let name = fields.iter().filter_map(|x| *x).nth(idx)?;
-        let typ: FieldType = match name {
-            "x_placement" => self.x_placement().unwrap().into(),
-            "y_placement" => self.y_placement().unwrap().into(),
-            "x_advance" => self.x_advance().unwrap().into(),
-            "y_advance" => self.y_advance().unwrap().into(),
-            "x_placement_device" => FieldType::offset(
-                self.device_offset(ValueFormat::X_PLACEMENT_DEVICE)?,
-                self.x_placement_device(),
-            ),
-            "y_placement_device" => FieldType::offset(
-                self.device_offset(ValueFormat::Y_PLACEMENT_DEVICE)?,
-                self.y_placement_device(),
-            ),
-            "x_advance_device" => FieldType::offset(
-                self.device_offset(ValueFormat::X_ADVANCE_DEVICE)?,
-                self.x_advance_device(),
-            ),
-            "y_advance_device" => FieldType::offset(
-                self.device_offset(ValueFormat::Y_ADVANCE_DEVICE)?,
-                self.y_advance_device(),
-            ),
-            _ => panic!("hmm"),
-        };
-
-        Some(Field::new(name, typ))
-    }
-
-    /// Whether a device field is present and not null.
-    fn present_device(&self, field: ValueFormat) -> bool {
-        self.device_offset(field)
-            .is_some_and(|offset| !offset.is_null())
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ValueRecord<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ValueRecord",
-            data,
-            get_field: Box::new(move |idx, data| self.get_field(idx, data)),
-        }
     }
 }
 

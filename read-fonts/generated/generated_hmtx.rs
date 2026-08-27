@@ -108,35 +108,6 @@ impl Default for Hmtx<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Hmtx<'a> {
-    fn type_name(&self) -> &str {
-        "Hmtx"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "h_metrics",
-                traversal::FieldType::array_of_records(
-                    stringify!(LongMetric),
-                    self.h_metrics(),
-                    self.offset_data(),
-                ),
-            )),
-            1usize => Some(Field::new("left_side_bearings", self.left_side_bearings())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Hmtx<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -161,19 +132,4 @@ impl LongMetric {
 
 impl FixedSize for LongMetric {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for LongMetric {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "LongMetric",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("advance", self.advance())),
-                1usize => Some(Field::new("side_bearing", self.side_bearing())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

@@ -126,44 +126,6 @@ impl Default for BaseArray<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseArray<'a> {
-    fn type_name(&self) -> &str {
-        "BaseArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("base_count", self.base_count())),
-            1usize => Some(Field::new(
-                "base_records",
-                traversal::FieldType::computed_array(
-                    "BaseRecord",
-                    self.base_records(),
-                    self.offset_data(),
-                ),
-            )),
-            2usize => Some(Field::new("face_count", self.face_count())),
-            3usize => Some(Field::new(
-                "face_records",
-                traversal::FieldType::computed_array(
-                    "FaceRecord",
-                    self.face_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Contains a scalar array
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseRecord<'a> {
@@ -215,23 +177,6 @@ impl<'a> BaseRecord<'a> {
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
         Self::read_with_args(data, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for BaseRecord<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "BaseRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "base_anchor_offsets",
-                    self.base_anchor_offsets(),
-                )),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -291,23 +236,6 @@ impl<'a> FaceRecord<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for FaceRecord<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "FaceRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "face_offsets",
-                    FieldType::from(self.faces(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 impl<'a> MinByteRange<'a> for Face<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.field_byte_range().end
@@ -361,26 +289,5 @@ impl Default for Face<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Face<'a> {
-    fn type_name(&self) -> &str {
-        "Face"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("field", self.field())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Face<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

@@ -74,6 +74,8 @@ extern crate core as std;
 extern crate alloc;
 
 pub mod array;
+#[cfg(any(test, feature = "codegen_test"))]
+pub mod codegen_test;
 pub mod collections;
 mod font_data;
 pub mod model;
@@ -84,11 +86,6 @@ mod read;
 mod table_provider;
 mod table_ref;
 pub mod tables;
-#[cfg(feature = "experimental_traverse")]
-pub mod traversal;
-
-#[cfg(any(test, feature = "codegen_test"))]
-pub mod codegen_test;
 
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
@@ -115,9 +112,6 @@ pub(crate) mod codegen_prelude {
     pub use std::ops::Range;
 
     pub use types::*;
-
-    #[cfg(feature = "experimental_traverse")]
-    pub use crate::traversal::{self, Field, FieldType, RecordResolver, SomeRecord, SomeTable};
 
     /// named transforms used in 'count', e.g
     pub(crate) mod transforms {

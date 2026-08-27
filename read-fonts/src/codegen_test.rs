@@ -230,28 +230,6 @@ pub mod positioned {
         }
     }
 
-    #[cfg(feature = "experimental_traverse")]
-    impl<'a> Positioned<'a> {
-        pub(crate) fn traversal_type(&self, data: FontData<'a>) -> FieldType<'a> {
-            FieldType::Record(self.traverse(data))
-        }
-    }
-
-    #[cfg(feature = "experimental_traverse")]
-    impl<'a> SomeRecord<'a> for Positioned<'a> {
-        fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-            RecordResolver {
-                name: "Positioned",
-                data,
-                get_field: Box::new(move |idx, _data| match idx {
-                    0 => Some(Field::new("value", self.value()?)),
-                    1 => Some(Field::new("target_offset", self.target_offset()?)),
-                    _ => None,
-                }),
-            }
-        }
-    }
-
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -548,40 +526,6 @@ pub mod offsets_arrays {
         assert_eq!(kids[1].bytes, &[1, 1]);
         assert_eq!(kids[2].bytes, &[7, 7, 7, 7, 7]);
         assert_eq!(table.other_field(), 0xdeadbeef)
-    }
-
-    #[test]
-    #[cfg(feature = "experimental_traverse")]
-    fn array_offsets_traverse() {
-        let mut builder = BeBuffer::new()
-            .push(MajorMinor::VERSION_1_1)
-            .push(22_u16) // offset to [0xf00, 0xba4]
-            .push(0u16) // nullable
-            .push(2u16) // array len
-            .push(26u16) // offset to [69, 70]
-            .push(30u16) // record_array_offset
-            .push(0u16) // versioned_nullable_record_array_offset
-            .push(42u16) // versioned nonnullable offset
-            .push(0u32); // versioned nullable offset
-                         //
-        let data_start = builder.len();
-        assert_eq!(data_start, 22);
-        builder = builder
-            .extend([0xf00u16, 0xba4])
-            .extend([69u16, 70])
-            .push(3u16) // shmecord[0]
-            .push(9u32)
-            .push(5u16) // shmecord[1]
-            .push(0xdead_beefu32)
-            .extend([0xb01du16, 0xface]); // versioned nonnullable offset;
-
-        let table = KindsOfOffsets::read(builder.data().into()).unwrap();
-        // traversal should not crash
-        let _ = format!("{table:?}");
-        assert_eq!(
-            table.versioned_nonnullable().unwrap().unwrap().value(),
-            0xb01d
-        );
     }
 
     #[test]

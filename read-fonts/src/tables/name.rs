@@ -76,33 +76,6 @@ impl<'a> NameString<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> traversal::SomeString<'a> for NameString<'a> {
-    fn iter_chars(&self) -> Box<dyn Iterator<Item = char> + 'a> {
-        Box::new(self.into_iter())
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl NameRecord {
-    fn traverse_string<'a>(&self, data: FontData<'a>) -> traversal::FieldType<'a> {
-        FieldType::StringOffset(traversal::StringOffset {
-            offset: self.string_offset().into(),
-            target: self.string(data).map(|s| Box::new(s) as _),
-        })
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl LangTagRecord {
-    fn traverse_lang_tag<'a>(&self, data: FontData<'a>) -> traversal::FieldType<'a> {
-        FieldType::StringOffset(traversal::StringOffset {
-            offset: self.lang_tag_offset().into(),
-            target: self.lang_tag(data).map(|s| Box::new(s) as _),
-        })
-    }
-}
-
 impl<'a> IntoIterator for NameString<'a> {
     type Item = char;
     type IntoIter = CharIter<'a>;

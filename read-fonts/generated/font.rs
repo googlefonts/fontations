@@ -126,39 +126,6 @@ impl Default for TableDirectory<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for TableDirectory<'a> {
-    fn type_name(&self) -> &str {
-        "TableDirectory"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("sfnt_version", self.sfnt_version())),
-            1usize => Some(Field::new("num_tables", self.num_tables())),
-            2usize => Some(Field::new("search_range", self.search_range())),
-            3usize => Some(Field::new("entry_selector", self.entry_selector())),
-            4usize => Some(Field::new("range_shift", self.range_shift())),
-            5usize => Some(Field::new(
-                "table_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(TableRecord),
-                    self.table_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for TableDirectory<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Record for a table in a font.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -199,23 +166,6 @@ impl TableRecord {
 impl FixedSize for TableRecord {
     const RAW_BYTE_LEN: usize =
         Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for TableRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "TableRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("tag", self.tag())),
-                1usize => Some(Field::new("checksum", self.checksum())),
-                2usize => Some(Field::new("offset", self.offset())),
-                3usize => Some(Field::new("length", self.length())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for TTCHeader<'a> {
@@ -364,41 +314,5 @@ impl Default for TTCHeader<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for TTCHeader<'a> {
-    fn type_name(&self) -> &str {
-        "TTCHeader"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("ttc_tag", self.ttc_tag())),
-            1usize => Some(Field::new("version", self.version())),
-            2usize => Some(Field::new("num_fonts", self.num_fonts())),
-            3usize => Some(Field::new(
-                "table_directory_offsets",
-                self.table_directory_offsets(),
-            )),
-            4usize if self.version().compatible((2u16, 0u16)) => {
-                Some(Field::new("dsig_tag", self.dsig_tag()?))
-            }
-            5usize if self.version().compatible((2u16, 0u16)) => {
-                Some(Field::new("dsig_length", self.dsig_length()?))
-            }
-            6usize if self.version().compatible((2u16, 0u16)) => {
-                Some(Field::new("dsig_offset", self.dsig_offset()?))
-            }
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for TTCHeader<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

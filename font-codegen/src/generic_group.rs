@@ -12,7 +12,6 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
 
     let mut variant_decls = Vec::new();
     let mut read_match_arms = Vec::new();
-    let mut dyn_inner_arms = Vec::new();
     let mut of_unit_arms = Vec::new();
     for var in &item.variants {
         let var_name = &var.name;
@@ -21,7 +20,6 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
         variant_decls.push(quote! { #var_name ( #inner <'a, #typ<'a>> ) });
         read_match_arms
             .push(quote! { #type_id => Ok(#name :: #var_name (FontRead::read(bytes)?)) });
-        dyn_inner_arms.push(quote! { #name :: #var_name(table) => table });
         of_unit_arms.push(quote! { #name :: #var_name(inner) => inner.of_unit_type()  });
     }
 
@@ -69,33 +67,6 @@ pub(crate) fn generate(item: &GenericGroup) -> syn::Result<TokenStream> {
             }
         }
 
-        #[cfg(feature = "experimental_traverse")]
-        impl<'a> #name <'a> {
-            fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
-                match self {
-                    #( #dyn_inner_arms, )*
-                }
-            }
-        }
-
-        #[cfg(feature = "experimental_traverse")]
-        impl<'a> SomeTable<'a> for #name <'a> {
-
-            fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-                self.dyn_inner().get_field(idx)
-            }
-
-            fn type_name(&self) -> &str {
-                self.dyn_inner().type_name()
-            }
-        }
-
-        #[cfg(feature = "experimental_traverse")]
-        impl std::fmt::Debug for #name<'_> {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.dyn_inner().fmt(f)
-            }
-        }
     })
 }
 

@@ -112,48 +112,6 @@ impl Default for BasicTable<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BasicTable<'a> {
-    fn type_name(&self) -> &str {
-        "BasicTable"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("simple_count", self.simple_count())),
-            1usize => Some(Field::new(
-                "simple_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(SimpleRecord),
-                    self.simple_records(),
-                    self.offset_data(),
-                ),
-            )),
-            2usize => Some(Field::new("arrays_inner_count", self.arrays_inner_count())),
-            3usize => Some(Field::new(
-                "array_records_count",
-                self.array_records_count(),
-            )),
-            4usize => Some(Field::new(
-                "array_records",
-                traversal::FieldType::computed_array(
-                    "ContainsArrays",
-                    self.array_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BasicTable<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -174,21 +132,6 @@ impl SimpleRecord {
 
 impl FixedSize for SimpleRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SimpleRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SimpleRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("val1", self.val1())),
-                1usize => Some(Field::new("va2", self.va2())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -253,28 +196,6 @@ impl<'a> ContainsArrays<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ContainsArrays<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ContainsArrays",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("scalars", self.scalars())),
-                1usize => Some(Field::new(
-                    "records",
-                    traversal::FieldType::array_of_records(
-                        stringify!(SimpleRecord),
-                        self.records(),
-                        _data,
-                    ),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -315,33 +236,6 @@ impl ContainsOffsets {
 
 impl FixedSize for ContainsOffsets {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ContainsOffsets {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ContainsOffsets",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("off_array_count", self.off_array_count())),
-                1usize => Some(Field::new(
-                    "array_offset",
-                    traversal::FieldType::offset_to_array_of_records(
-                        self.array_offset(),
-                        self.array(_data),
-                        stringify!(SimpleRecord),
-                        _data,
-                    ),
-                )),
-                2usize => Some(Field::new(
-                    "other_offset",
-                    FieldType::offset(self.other_offset(), self.other(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for VarLenItem<'a> {
@@ -409,27 +303,5 @@ impl Default for VarLenItem<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for VarLenItem<'a> {
-    fn type_name(&self) -> &str {
-        "VarLenItem"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("length", self.length())),
-            1usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for VarLenItem<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

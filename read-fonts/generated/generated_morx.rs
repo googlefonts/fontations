@@ -105,32 +105,6 @@ impl Default for Morx<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Morx<'a> {
-    fn type_name(&self) -> &str {
-        "Morx"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("n_chains", self.n_chains())),
-            2usize => Some(Field::new(
-                "chains",
-                traversal::FieldType::var_array("Chain", self.chains(), self.offset_data()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Morx<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Chain<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtables_byte_range().end
@@ -260,42 +234,6 @@ impl Default for Chain<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Chain<'a> {
-    fn type_name(&self) -> &str {
-        "Chain"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("default_flags", self.default_flags())),
-            1usize => Some(Field::new("chain_length", self.chain_length())),
-            2usize => Some(Field::new("n_feature_entries", self.n_feature_entries())),
-            3usize => Some(Field::new("n_subtables", self.n_subtables())),
-            4usize => Some(Field::new(
-                "features",
-                traversal::FieldType::array_of_records(
-                    stringify!(Feature),
-                    self.features(),
-                    self.offset_data(),
-                ),
-            )),
-            5usize => Some(Field::new(
-                "subtables",
-                traversal::FieldType::var_array("Subtable", self.subtables(), self.offset_data()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Chain<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Used to compute the sub-feature flags for a list of requested features and settings.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -336,23 +274,6 @@ impl Feature {
 impl FixedSize for Feature {
     const RAW_BYTE_LEN: usize =
         u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Feature {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Feature",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("feature_type", self.feature_type())),
-                1usize => Some(Field::new("feature_settings", self.feature_settings())),
-                2usize => Some(Field::new("enable_flags", self.enable_flags())),
-                3usize => Some(Field::new("disable_flags", self.disable_flags())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for Subtable<'a> {
@@ -450,30 +371,6 @@ impl Default for Subtable<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Subtable<'a> {
-    fn type_name(&self) -> &str {
-        "Subtable"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("length", self.length())),
-            1usize => Some(Field::new("coverage", self.coverage())),
-            2usize => Some(Field::new("sub_feature_flags", self.sub_feature_flags())),
-            3usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Subtable<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Entry payload in a contextual subtable state machine.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -503,21 +400,6 @@ impl ContextualEntryData {
 
 impl FixedSize for ContextualEntryData {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ContextualEntryData {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ContextualEntryData",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("mark_index", self.mark_index())),
-                1usize => Some(Field::new("current_index", self.current_index())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// Entry payload in an insertion subtable state machine.
@@ -555,25 +437,4 @@ impl InsertionEntryData {
 
 impl FixedSize for InsertionEntryData {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for InsertionEntryData {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "InsertionEntryData",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "current_insert_index",
-                    self.current_insert_index(),
-                )),
-                1usize => Some(Field::new(
-                    "marked_insert_index",
-                    self.marked_insert_index(),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

@@ -88,29 +88,6 @@ impl Default for OtKern<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for OtKern<'a> {
-    fn type_name(&self) -> &str {
-        "OtKern"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("n_tables", self.n_tables())),
-            2usize => Some(Field::new("subtable_data", self.subtable_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for OtKern<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for AatKern<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.subtable_data_byte_range().end
@@ -191,29 +168,6 @@ impl Default for AatKern<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AatKern<'a> {
-    fn type_name(&self) -> &str {
-        "AatKern"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("n_tables", self.n_tables())),
-            2usize => Some(Field::new("subtable_data", self.subtable_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AatKern<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -312,30 +266,6 @@ impl Default for OtSubtable<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for OtSubtable<'a> {
-    fn type_name(&self) -> &str {
-        "OtSubtable"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new("coverage", self.coverage())),
-            3usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for OtSubtable<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for AatSubtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -428,30 +358,6 @@ impl Default for AatSubtable<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AatSubtable<'a> {
-    fn type_name(&self) -> &str {
-        "AatSubtable"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("length", self.length())),
-            1usize => Some(Field::new("coverage", self.coverage())),
-            2usize => Some(Field::new("tuple_index", self.tuple_index())),
-            3usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AatSubtable<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -564,38 +470,6 @@ impl Default for Subtable0<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Subtable0<'a> {
-    fn type_name(&self) -> &str {
-        "Subtable0"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("n_pairs", self.n_pairs())),
-            1usize => Some(Field::new("search_range", self.search_range())),
-            2usize => Some(Field::new("entry_selector", self.entry_selector())),
-            3usize => Some(Field::new("range_shift", self.range_shift())),
-            4usize => Some(Field::new(
-                "pairs",
-                traversal::FieldType::array_of_records(
-                    stringify!(Subtable0Pair),
-                    self.pairs(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Subtable0<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Subtable2ClassTable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.offsets_byte_range().end
@@ -678,29 +552,6 @@ impl Default for Subtable2ClassTable<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Subtable2ClassTable<'a> {
-    fn type_name(&self) -> &str {
-        "Subtable2ClassTable"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("first_glyph", self.first_glyph())),
-            1usize => Some(Field::new("n_glyphs", self.n_glyphs())),
-            2usize => Some(Field::new("offsets", self.offsets())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Subtable2ClassTable<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -867,34 +718,5 @@ impl Default for Subtable3<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Subtable3<'a> {
-    fn type_name(&self) -> &str {
-        "Subtable3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("glyph_count", self.glyph_count())),
-            1usize => Some(Field::new("kern_value_count", self.kern_value_count())),
-            2usize => Some(Field::new("left_class_count", self.left_class_count())),
-            3usize => Some(Field::new("right_class_count", self.right_class_count())),
-            4usize => Some(Field::new("flags", self.flags())),
-            5usize => Some(Field::new("kern_value", self.kern_value())),
-            6usize => Some(Field::new("left_class", self.left_class())),
-            7usize => Some(Field::new("right_class", self.right_class())),
-            8usize => Some(Field::new("kern_index", self.kern_index())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Subtable3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

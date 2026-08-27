@@ -105,32 +105,6 @@ impl Default for Kerx<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Kerx<'a> {
-    fn type_name(&self) -> &str {
-        "Kerx"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("n_tables", self.n_tables())),
-            2usize => Some(Field::new(
-                "subtables",
-                traversal::FieldType::var_array("Subtable", self.subtables(), self.offset_data()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Kerx<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Subtable<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -223,30 +197,6 @@ impl Default for Subtable<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Subtable<'a> {
-    fn type_name(&self) -> &str {
-        "Subtable"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("length", self.length())),
-            1usize => Some(Field::new("coverage", self.coverage())),
-            2usize => Some(Field::new("tuple_count", self.tuple_count())),
-            3usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Subtable<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -359,38 +309,6 @@ impl Default for Subtable0<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Subtable0<'a> {
-    fn type_name(&self) -> &str {
-        "Subtable0"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("n_pairs", self.n_pairs())),
-            1usize => Some(Field::new("search_range", self.search_range())),
-            2usize => Some(Field::new("entry_selector", self.entry_selector())),
-            3usize => Some(Field::new("range_shift", self.range_shift())),
-            4usize => Some(Field::new(
-                "pairs",
-                traversal::FieldType::array_of_records(
-                    stringify!(Subtable0Pair),
-                    self.pairs(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Subtable0<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// The type 0 `kerx` subtable kerning record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -424,20 +342,4 @@ impl Subtable0Pair {
 impl FixedSize for Subtable0Pair {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Subtable0Pair {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Subtable0Pair",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("left", self.left())),
-                1usize => Some(Field::new("right", self.right())),
-                2usize => Some(Field::new("value", self.value())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

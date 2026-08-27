@@ -32,7 +32,6 @@ require refinement.
         - [offsets in records](#offsets-in-records)
     - [arrays](#arrays)
     - [flags and enums](#flags-and-enums)
-    - [traversal](#traversal)
 - [`write-fonts`](#write-fonts)
     - [tables and records](#write-tables-records)
     - [fields and `#[compile(..)]`](#table-fields)
@@ -699,29 +698,6 @@ and enums. In the case of flags, we generate implementations based on the
 [`bitflags`][] crate, and in the case of enums, we generate a rust enum.
 These code paths are not currently very heavily used.
 
-### <a id="traversal"></a> traversal
-
-There is one last piece of code that we generate in `read-fonts`, and that is
-our 'traversal' code.
-
-This is experimental and likely subject to significant change, but the general
-idea is that it is a mechanism for recursively traversing a graph of
-tables, without needing to worry about the specific type of any *particular* table. It
-does this by using [trait objects][trait-objects], which allow us to refer to
-multiple distinct types in terms of a trait that they implement. The core of this is the
-[`SomeTable`][] trait, which is implemented for each table; through this, we can
-get the name of a table, as well as iterate through that tables fields.
-
-For each field, the table returns the name of the field (as a string) along with
-some *value*; the set of possible values is covered by the [`FieldType`][]
-enum. Importantly, the table resolves any contained offsets, and returns the
-referenced tables as `SomeTable` trait objects as well, which can then also be
-traversed recursively.
-
-We do not currently make very heavy use of this mechanism, but it *is* the basis
-for the generated implementations of the `Debug` trait, and it is used in the
-[otexplorer][] sample project.
-
 ## <a id="write-fonts"></a> `write-fonts`
 
 The `write-fonts` crate is significantly simpler than the `read-fonts` crate
@@ -879,10 +855,6 @@ clarify.
 [ot-data-types]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#data-types
 [endianness]: https://en.wikipedia.org/wiki/Endianness
 [`Compatible`]: https://docs.rs/font-types/latest/font_types/trait.Compatible.html
-[trait-objects]: http://doc.rust-lang.org/1.64.0/book/ch17-02-trait-objects.html
-[`SomeTable`]: https://docs.rs/read-fonts/latest/read_fonts/traversal/trait.SomeTable.html
-[`FieldType`]: https://docs.rs/read-fonts/latest/read_fonts/traversal/enum.FieldType.html
-[otexplorer]: https://github.com/cmyr/fontations/tree/main/otexplorer
 [`OffsetMarker`]: https://docs.rs/write-fonts/latest/write_fonts/struct.OffsetMarker.html
 [`FromObjRef`]: https://docs.rs/write-fonts/latest/write_fonts/from_obj/trait.FromObjRef.html
 [`FromTableRef`]: https://docs.rs/write-fonts/latest/write_fonts/from_obj/trait.FromTableRef.html

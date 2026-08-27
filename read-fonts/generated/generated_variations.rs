@@ -128,31 +128,6 @@ impl Default for TupleVariationHeader<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for TupleVariationHeader<'a> {
-    fn type_name(&self) -> &str {
-        "TupleVariationHeader"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "variation_data_size",
-                self.variation_data_size(),
-            )),
-            1usize => Some(Field::new("tuple_index", self.traverse_tuple_index())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for TupleVariationHeader<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// A [Tuple Record](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-records)
 ///
 /// The tuple variation store formats reference regions within the font’s
@@ -210,20 +185,6 @@ impl<'a> Tuple<'a> {
     pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
         let args = axis_count;
         Self::read_with_args(data, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Tuple<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Tuple",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("values", self.values())),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -331,30 +292,6 @@ impl Default for DeltaSetIndexMapFormat0<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat0<'a> {
-    fn type_name(&self) -> &str {
-        "DeltaSetIndexMapFormat0"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("entry_format", self.entry_format())),
-            2usize => Some(Field::new("map_count", self.map_count())),
-            3usize => Some(Field::new("map_data", self.map_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for DeltaSetIndexMapFormat0<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for DeltaSetIndexMapFormat1<'_> {
     const FORMAT: u8 = 1;
 }
@@ -459,30 +396,6 @@ impl Default for DeltaSetIndexMapFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for DeltaSetIndexMapFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "DeltaSetIndexMapFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("entry_format", self.entry_format())),
-            2usize => Some(Field::new("map_count", self.map_count())),
-            3usize => Some(Field::new("map_data", self.map_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for DeltaSetIndexMapFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table
 #[derive(Clone)]
 pub enum DeltaSetIndexMap<'a> {
@@ -558,33 +471,6 @@ impl<'a> MinByteRange<'a> for DeltaSetIndexMap<'a> {
             Self::Format0(item) => item.min_table_bytes(),
             Self::Format1(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> DeltaSetIndexMap<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format0(table) => table,
-            Self::Format1(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for DeltaSetIndexMap<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for DeltaSetIndexMap<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -892,13 +778,6 @@ impl font_types::Scalar for EntryFormat {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<EntryFormat> for FieldType<'a> {
-    fn from(src: EntryFormat) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 impl<'a> MinByteRange<'a> for VariationRegionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.variation_regions_byte_range().end
@@ -989,36 +868,6 @@ impl Default for VariationRegionList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for VariationRegionList<'a> {
-    fn type_name(&self) -> &str {
-        "VariationRegionList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("axis_count", self.axis_count())),
-            1usize => Some(Field::new("region_count", self.region_count())),
-            2usize => Some(Field::new(
-                "variation_regions",
-                traversal::FieldType::computed_array(
-                    "VariationRegion",
-                    self.variation_regions(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for VariationRegionList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// The [VariationRegion](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariationRegion<'a> {
@@ -1071,27 +920,6 @@ impl<'a> VariationRegion<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for VariationRegion<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "VariationRegion",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "region_axes",
-                    traversal::FieldType::array_of_records(
-                        stringify!(RegionAxisCoordinates),
-                        self.region_axes(),
-                        _data,
-                    ),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1125,22 +953,6 @@ impl RegionAxisCoordinates {
 impl FixedSize for RegionAxisCoordinates {
     const RAW_BYTE_LEN: usize =
         F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for RegionAxisCoordinates {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "RegionAxisCoordinates",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("start_coord", self.start_coord())),
-                1usize => Some(Field::new("peak_coord", self.peak_coord())),
-                2usize => Some(Field::new("end_coord", self.end_coord())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for ItemVariationStore<'a> {
@@ -1259,42 +1071,6 @@ impl Default for ItemVariationStore<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ItemVariationStore<'a> {
-    fn type_name(&self) -> &str {
-        "ItemVariationStore"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "variation_region_list_offset",
-                FieldType::offset(
-                    self.variation_region_list_offset(),
-                    self.variation_region_list(),
-                ),
-            )),
-            2usize => Some(Field::new(
-                "item_variation_data_count",
-                self.item_variation_data_count(),
-            )),
-            3usize => Some(Field::new(
-                "item_variation_data_offsets",
-                FieldType::from(self.item_variation_data()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ItemVariationStore<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for ItemVariationData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.delta_sets_byte_range().end
@@ -1408,30 +1184,5 @@ impl Default for ItemVariationData<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ItemVariationData<'a> {
-    fn type_name(&self) -> &str {
-        "ItemVariationData"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("item_count", self.item_count())),
-            1usize => Some(Field::new("word_delta_count", self.word_delta_count())),
-            2usize => Some(Field::new("region_index_count", self.region_index_count())),
-            3usize => Some(Field::new("region_indexes", self.region_indexes())),
-            4usize => Some(Field::new("delta_sets", self.delta_sets())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ItemVariationData<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

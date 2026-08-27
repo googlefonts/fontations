@@ -121,32 +121,6 @@ impl<T> Default for MyLookup<'_, T> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for MyLookup<'a, T> {
-    fn type_name(&self) -> &str {
-        "MyLookup"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("lookup_type", self.lookup_type())),
-            1usize => Some(Field::new("sub_table_count", self.sub_table_count())),
-            2usize => Some(Field::new(
-                "subtable_offsets",
-                FieldType::from(self.subtables()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug for MyLookup<'a, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// A concrete subtable with a format field (format group)
 #[derive(Clone)]
 pub enum MySubtable<'a> {
@@ -204,33 +178,6 @@ impl<'a> MinByteRange<'a> for MySubtable<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> MySubtable<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for MySubtable<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MySubtable<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -307,28 +254,6 @@ impl Default for MySubtableFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MySubtableFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "MySubtableFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("value", self.value())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MySubtableFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for MySubtableFormat2<'_> {
     const FORMAT: u16 = 2;
 }
@@ -402,29 +327,6 @@ impl<'a> MySubtableFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MySubtableFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "MySubtableFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("count", self.count())),
-            2usize => Some(Field::new("values", self.values())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MySubtableFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// The group enum dispatching on lookup_type.
 pub enum MyLookupGroup<'a> {
     TypeOne(MyLookup<'a, MySubtable<'a>>),
@@ -462,33 +364,6 @@ impl<'a> MyLookupGroup<'a> {
             MyLookupGroup::TypeOne(inner) => inner.of_unit_type(),
             MyLookupGroup::TypeTwo(inner) => inner.of_unit_type(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> MyLookupGroup<'a> {
-    fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
-        match self {
-            MyLookupGroup::TypeOne(table) => table,
-            MyLookupGroup::TypeTwo(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MyLookupGroup<'a> {
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for MyLookupGroup<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
     }
 }
 
@@ -564,30 +439,5 @@ impl Default for ContainsLookupGroup<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ContainsLookupGroup<'a> {
-    fn type_name(&self) -> &str {
-        "ContainsLookupGroup"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "lookup_offset",
-                FieldType::offset(self.lookup_offset(), self.lookup()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ContainsLookupGroup<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

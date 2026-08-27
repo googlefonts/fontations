@@ -135,44 +135,6 @@ impl Default for Mvar<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Mvar<'a> {
-    fn type_name(&self) -> &str {
-        "Mvar"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("value_record_size", self.value_record_size())),
-            2usize => Some(Field::new("value_record_count", self.value_record_count())),
-            3usize => Some(Field::new(
-                "item_variation_store_offset",
-                FieldType::offset(
-                    self.item_variation_store_offset(),
-                    self.item_variation_store(),
-                ),
-            )),
-            4usize => Some(Field::new(
-                "value_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(ValueRecord),
-                    self.value_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Mvar<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [ValueRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/mvar#table-formats) metrics variation record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -205,26 +167,4 @@ impl ValueRecord {
 
 impl FixedSize for ValueRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ValueRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ValueRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("value_tag", self.value_tag())),
-                1usize => Some(Field::new(
-                    "delta_set_outer_index",
-                    self.delta_set_outer_index(),
-                )),
-                2usize => Some(Field::new(
-                    "delta_set_inner_index",
-                    self.delta_set_inner_index(),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

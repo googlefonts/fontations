@@ -177,50 +177,6 @@ impl Default for Stat<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Stat<'a> {
-    fn type_name(&self) -> &str {
-        "Stat"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("design_axis_size", self.design_axis_size())),
-            2usize => Some(Field::new("design_axis_count", self.design_axis_count())),
-            3usize => Some(Field::new(
-                "design_axes_offset",
-                traversal::FieldType::offset_to_array_of_records(
-                    self.design_axes_offset(),
-                    self.design_axes(),
-                    stringify!(AxisRecord),
-                    self.offset_data(),
-                ),
-            )),
-            4usize => Some(Field::new("axis_value_count", self.axis_value_count())),
-            5usize => Some(Field::new(
-                "offset_to_axis_value_offsets",
-                FieldType::offset(
-                    self.offset_to_axis_value_offsets(),
-                    self.offset_to_axis_values(),
-                ),
-            )),
-            6usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
-                "elided_fallback_name_id",
-                self.elided_fallback_name_id()?,
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Stat<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [Axis Records](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-records)
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -259,22 +215,6 @@ impl AxisRecord {
 
 impl FixedSize for AxisRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for AxisRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "AxisRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("axis_tag", self.axis_tag())),
-                1usize => Some(Field::new("axis_name_id", self.axis_name_id())),
-                2usize => Some(Field::new("axis_ordering", self.axis_ordering())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for AxisValueArray<'a> {
@@ -365,30 +305,6 @@ impl Default for AxisValueArray<'_> {
             data: FontData::default_table_data(),
             axis_value_count: Default::default(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AxisValueArray<'a> {
-    fn type_name(&self) -> &str {
-        "AxisValueArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "axis_value_offsets",
-                FieldType::from(self.axis_values()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AxisValueArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -483,35 +399,6 @@ impl<'a> MinByteRange<'a> for AxisValue<'a> {
             Self::Format3(item) => item.min_table_bytes(),
             Self::Format4(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> AxisValue<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-            Self::Format3(table) => table,
-            Self::Format4(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for AxisValue<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AxisValue<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -631,31 +518,6 @@ impl Default for AxisValueFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AxisValueFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "AxisValueFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("axis_index", self.axis_index())),
-            2usize => Some(Field::new("flags", self.flags())),
-            3usize => Some(Field::new("value_name_id", self.value_name_id())),
-            4usize => Some(Field::new("value", self.value())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AxisValueFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -794,33 +656,6 @@ impl<'a> AxisValueFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AxisValueFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "AxisValueFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("axis_index", self.axis_index())),
-            2usize => Some(Field::new("flags", self.flags())),
-            3usize => Some(Field::new("value_name_id", self.value_name_id())),
-            4usize => Some(Field::new("nominal_value", self.nominal_value())),
-            5usize => Some(Field::new("range_min_value", self.range_min_value())),
-            6usize => Some(Field::new("range_max_value", self.range_max_value())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AxisValueFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for AxisValueFormat3<'_> {
     const FORMAT: u16 = 3;
 }
@@ -941,32 +776,6 @@ impl<'a> AxisValueFormat3<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AxisValueFormat3<'a> {
-    fn type_name(&self) -> &str {
-        "AxisValueFormat3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("axis_index", self.axis_index())),
-            2usize => Some(Field::new("flags", self.flags())),
-            3usize => Some(Field::new("value_name_id", self.value_name_id())),
-            4usize => Some(Field::new("value", self.value())),
-            5usize => Some(Field::new("linked_value", self.linked_value())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AxisValueFormat3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for AxisValueFormat4<'_> {
     const FORMAT: u16 = 4;
 }
@@ -1075,38 +884,6 @@ impl<'a> AxisValueFormat4<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AxisValueFormat4<'a> {
-    fn type_name(&self) -> &str {
-        "AxisValueFormat4"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("axis_count", self.axis_count())),
-            2usize => Some(Field::new("flags", self.flags())),
-            3usize => Some(Field::new("value_name_id", self.value_name_id())),
-            4usize => Some(Field::new(
-                "axis_values",
-                traversal::FieldType::array_of_records(
-                    stringify!(AxisValueRecord),
-                    self.axis_values(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AxisValueFormat4<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [AxisValueFormat4]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1134,21 +911,6 @@ impl AxisValueRecord {
 
 impl FixedSize for AxisValueRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for AxisValueRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "AxisValueRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("axis_index", self.axis_index())),
-                1usize => Some(Field::new("value", self.value())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags).
@@ -1459,12 +1221,5 @@ impl font_types::Scalar for AxisValueTableFlags {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u16>::from_raw(raw);
         Self::from_bits_truncate(t)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<AxisValueTableFlags> for FieldType<'a> {
-    fn from(src: AxisValueTableFlags) -> FieldType<'a> {
-        src.bits().into()
     }
 }

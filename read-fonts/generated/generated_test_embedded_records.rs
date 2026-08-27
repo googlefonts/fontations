@@ -41,24 +41,6 @@ impl FixedSize for ValueAndDevice {
     const RAW_BYTE_LEN: usize = i16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ValueAndDevice {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ValueAndDevice",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("value", self.value())),
-                1usize => Some(Field::new(
-                    "device_offset",
-                    FieldType::offset(self.device_offset(), self.device(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 impl<'a> MinByteRange<'a> for Device<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.marker_byte_range().end
@@ -116,27 +98,6 @@ impl Default for Device<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Device<'a> {
-    fn type_name(&self) -> &str {
-        "Device"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("marker", self.marker())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Device<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// A record embedded in another record, which already worked; here to catch a
 /// regression.
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
@@ -159,27 +120,6 @@ impl Pair {
 
 impl FixedSize for Pair {
     const RAW_BYTE_LEN: usize = ValueAndDevice::RAW_BYTE_LEN + ValueAndDevice::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Pair {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Pair",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "first",
-                    traversal::FieldType::Record((*self.first()).traverse(_data)),
-                )),
-                1usize => Some(Field::new(
-                    "second",
-                    traversal::FieldType::Record((*self.second()).traverse(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for EmbeddedRecords<'a> {
@@ -319,45 +259,6 @@ impl Default for EmbeddedRecords<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for EmbeddedRecords<'a> {
-    fn type_name(&self) -> &str {
-        "EmbeddedRecords"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "first",
-                traversal::FieldType::Record((*self.first()).traverse(self.offset_data())),
-            )),
-            2usize => Some(Field::new(
-                "second",
-                traversal::FieldType::Record((*self.second()).traverse(self.offset_data())),
-            )),
-            3usize => Some(Field::new("middle", self.middle())),
-            4usize => Some(Field::new(
-                "third",
-                traversal::FieldType::Record((*self.third()).traverse(self.offset_data())),
-            )),
-            5usize => Some(Field::new(
-                "pair",
-                traversal::FieldType::Record((*self.pair()).traverse(self.offset_data())),
-            )),
-            6usize => Some(Field::new("trailer", self.trailer())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for EmbeddedRecords<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for RecordThenArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.values_byte_range().end
@@ -438,31 +339,5 @@ impl Default for RecordThenArray<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for RecordThenArray<'a> {
-    fn type_name(&self) -> &str {
-        "RecordThenArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "metrics",
-                traversal::FieldType::Record((*self.metrics()).traverse(self.offset_data())),
-            )),
-            1usize => Some(Field::new("value_count", self.value_count())),
-            2usize => Some(Field::new("values", self.values())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for RecordThenArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

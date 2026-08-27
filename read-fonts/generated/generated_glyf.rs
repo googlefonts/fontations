@@ -47,29 +47,6 @@ impl Default for Glyf<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Glyf<'a> {
-    fn type_name(&self) -> &str {
-        "Glyf"
-    }
-
-    #[allow(unused_variables)]
-    #[allow(clippy::match_single_binding)]
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Glyf<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for SimpleGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_byte_range().end
@@ -236,38 +213,6 @@ impl Default for SimpleGlyph<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SimpleGlyph<'a> {
-    fn type_name(&self) -> &str {
-        "SimpleGlyph"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("number_of_contours", self.number_of_contours())),
-            1usize => Some(Field::new("x_min", self.x_min())),
-            2usize => Some(Field::new("y_min", self.y_min())),
-            3usize => Some(Field::new("x_max", self.x_max())),
-            4usize => Some(Field::new("y_max", self.y_max())),
-            5usize => Some(Field::new(
-                "end_pts_of_contours",
-                self.end_pts_of_contours(),
-            )),
-            6usize => Some(Field::new("instruction_length", self.instruction_length())),
-            7usize => Some(Field::new("instructions", self.instructions())),
-            8usize => Some(Field::new("glyph_data", self.glyph_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SimpleGlyph<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -662,13 +607,6 @@ impl font_types::Scalar for SimpleGlyphFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<SimpleGlyphFlags> for FieldType<'a> {
-    fn from(src: SimpleGlyphFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 impl<'a> MinByteRange<'a> for CompositeGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_data_byte_range().end
@@ -792,32 +730,6 @@ impl Default for CompositeGlyph<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
-    fn type_name(&self) -> &str {
-        "CompositeGlyph"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("number_of_contours", self.number_of_contours())),
-            1usize => Some(Field::new("x_min", self.x_min())),
-            2usize => Some(Field::new("y_min", self.y_min())),
-            3usize => Some(Field::new("x_max", self.x_max())),
-            4usize => Some(Field::new("y_max", self.y_max())),
-            5usize => Some(Field::new("component_data", self.component_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CompositeGlyph<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1192,13 +1104,6 @@ impl font_types::Scalar for CompositeGlyphFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<CompositeGlyphFlags> for FieldType<'a> {
-    fn from(src: CompositeGlyphFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 /// Simple or composite glyph.
 #[derive(Clone)]
 pub enum Glyph<'a> {
@@ -1293,32 +1198,5 @@ impl<'a> MinByteRange<'a> for Glyph<'a> {
             Self::Simple(item) => item.min_table_bytes(),
             Self::Composite(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> Glyph<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Simple(table) => table,
-            Self::Composite(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for Glyph<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Glyph<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }

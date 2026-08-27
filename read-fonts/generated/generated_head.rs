@@ -332,13 +332,6 @@ impl font_types::Scalar for MacStyle {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<MacStyle> for FieldType<'a> {
-    fn from(src: MacStyle) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 /// The `flags` field for the head table.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -685,13 +678,6 @@ impl font_types::Scalar for Flags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<Flags> for FieldType<'a> {
-    fn from(src: Flags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 impl<'a> MinByteRange<'a> for Head<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_format_byte_range().end
@@ -970,51 +956,5 @@ impl Default for Head<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Head<'a> {
-    fn type_name(&self) -> &str {
-        "Head"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("font_revision", self.font_revision())),
-            2usize => Some(Field::new(
-                "checksum_adjustment",
-                self.checksum_adjustment(),
-            )),
-            3usize => Some(Field::new("magic_number", self.magic_number())),
-            4usize => Some(Field::new("flags", self.flags())),
-            5usize => Some(Field::new("units_per_em", self.units_per_em())),
-            6usize => Some(Field::new("created", self.created())),
-            7usize => Some(Field::new("modified", self.modified())),
-            8usize => Some(Field::new("x_min", self.x_min())),
-            9usize => Some(Field::new("y_min", self.y_min())),
-            10usize => Some(Field::new("x_max", self.x_max())),
-            11usize => Some(Field::new("y_max", self.y_max())),
-            12usize => Some(Field::new("mac_style", self.mac_style())),
-            13usize => Some(Field::new("lowest_rec_ppem", self.lowest_rec_ppem())),
-            14usize => Some(Field::new(
-                "font_direction_hint",
-                self.font_direction_hint(),
-            )),
-            15usize => Some(Field::new(
-                "index_to_loc_format",
-                self.index_to_loc_format(),
-            )),
-            16usize => Some(Field::new("glyph_data_format", self.glyph_data_format())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Head<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

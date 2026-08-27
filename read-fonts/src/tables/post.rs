@@ -2,7 +2,6 @@
 
 include!("../../generated/generated_post.rs");
 
-#[allow(clippy::needless_lifetimes)] // 'a is used with experimental_traverse feature below
 impl<'a> Post<'a> {
     /// The number of glyph names covered by this table
     pub fn num_names(&self) -> usize {
@@ -55,10 +54,6 @@ impl<'a> Post<'a> {
 
     //FIXME: how do we want to traverse this? I want to stop needing to
     // add special cases for things...
-    #[cfg(feature = "experimental_traverse")]
-    fn traverse_string_data(&self) -> FieldType<'a> {
-        FieldType::I8(-42) // meaningless value
-    }
 }
 
 /// A string in the post table.

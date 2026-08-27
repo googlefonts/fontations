@@ -109,43 +109,6 @@ impl Default for Vorg<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Vorg<'a> {
-    fn type_name(&self) -> &str {
-        "Vorg"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "default_vert_origin_y",
-                self.default_vert_origin_y(),
-            )),
-            2usize => Some(Field::new(
-                "num_vert_origin_y_metrics",
-                self.num_vert_origin_y_metrics(),
-            )),
-            3usize => Some(Field::new(
-                "vert_origin_y_metrics",
-                traversal::FieldType::array_of_records(
-                    stringify!(VertOriginYMetrics),
-                    self.vert_origin_y_metrics(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Vorg<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Vertical origin Y metrics record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -171,19 +134,4 @@ impl VertOriginYMetrics {
 
 impl FixedSize for VertOriginYMetrics {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for VertOriginYMetrics {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "VertOriginYMetrics",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("glyph_index", self.glyph_index())),
-                1usize => Some(Field::new("vert_origin_y", self.vert_origin_y())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

@@ -50,7 +50,6 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let optional_format_trait_impl = item.impl_format_trait();
     let optional_discriminant_trait_impl = item.impl_discriminant_trait();
     let font_read = generate_font_read(item)?;
-    let debug = generate_debug(item)?;
     let top_level = item.attrs.tag.as_ref().map(|tag| {
         let tag_str = tag.value();
         let doc = format!(" `{tag_str}`");
@@ -149,7 +148,6 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
         #impl_default
 
-        #debug
     })
 }
 
@@ -217,47 +215,6 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             }
         }
         #maybe_custom_read_fn
-    })
-}
-
-fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
-    let name = item.raw_name();
-    let name_str = name.to_string();
-    let generic = item.attrs.generic_offset.as_ref();
-    let generic_bounds = generic
-        .is_some()
-        .then(|| quote!(: FontRead<'a, Args = ()> + SomeTable<'a> + 'a));
-    let field_arms = item.fields.iter_field_traversal_match_arms(false);
-    let attrs = item.fields.fields.is_empty().then(|| {
-        quote! {
-            #[allow(unused_variables)]
-            #[allow(clippy::match_single_binding)]
-        }
-    });
-
-    Ok(quote! {
-        #[cfg(feature = "experimental_traverse")]
-        impl<'a, #generic #generic_bounds> SomeTable<'a> for #name <'a, #generic> {
-            fn type_name(&self) -> &str {
-                #name_str
-            }
-
-            #attrs
-            fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-                match idx {
-                    #( #field_arms, )*
-                    _ => None,
-                }
-            }
-        }
-
-        #[cfg(feature = "experimental_traverse")]
-        #[allow(clippy::needless_lifetimes)]
-        impl<'a, #generic #generic_bounds> std::fmt::Debug for #name<'a, #generic> {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                (self as &dyn SomeTable<'a>).fmt(f)
-            }
-        }
     })
 }
 

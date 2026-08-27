@@ -154,11 +154,6 @@ impl types::Scalar for TupleVariationCount {
 }
 
 impl<'a> TupleVariationHeader<'a> {
-    #[cfg(feature = "experimental_traverse")]
-    fn traverse_tuple_index(&self) -> traversal::FieldType<'a> {
-        self.tuple_index().0.into()
-    }
-
     /// Peak tuple record for this tuple variation table — optional,
     /// determined by flags in the tupleIndex value.  Note that this
     /// must always be included in the 'cvar' table.

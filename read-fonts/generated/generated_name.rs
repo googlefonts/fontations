@@ -143,48 +143,6 @@ impl Default for Name<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Name<'a> {
-    fn type_name(&self) -> &str {
-        "Name"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("count", self.count())),
-            2usize => Some(Field::new("storage_offset", self.storage_offset())),
-            3usize => Some(Field::new(
-                "name_record",
-                traversal::FieldType::array_of_records(
-                    stringify!(NameRecord),
-                    self.name_record(),
-                    self.string_data(),
-                ),
-            )),
-            4usize if self.version().compatible(1u16) => {
-                Some(Field::new("lang_tag_count", self.lang_tag_count()?))
-            }
-            5usize if self.version().compatible(1u16) => Some(Field::new(
-                "lang_tag_record",
-                traversal::FieldType::array_of_records(
-                    stringify!(LangTagRecord),
-                    self.lang_tag_record()?,
-                    self.string_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Name<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [Name]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -212,21 +170,6 @@ impl LangTagRecord {
 
 impl FixedSize for LangTagRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for LangTagRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "LangTagRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("length", self.length())),
-                1usize => Some(Field::new("lang_tag_offset", self.traverse_lang_tag(_data))),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
@@ -287,23 +230,4 @@ impl FixedSize for NameRecord {
         + NameId::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for NameRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "NameRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("platform_id", self.platform_id())),
-                1usize => Some(Field::new("encoding_id", self.encoding_id())),
-                2usize => Some(Field::new("language_id", self.language_id())),
-                3usize => Some(Field::new("name_id", self.name_id())),
-                4usize => Some(Field::new("length", self.length())),
-                5usize => Some(Field::new("string_offset", self.traverse_string(_data))),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

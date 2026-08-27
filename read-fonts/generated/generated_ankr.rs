@@ -113,36 +113,6 @@ impl Default for Ankr<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Ankr<'a> {
-    fn type_name(&self) -> &str {
-        "Ankr"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("flags", self.flags())),
-            2usize => Some(Field::new(
-                "lookup_table_offset",
-                FieldType::offset(self.lookup_table_offset(), self.lookup_table()),
-            )),
-            3usize => Some(Field::new(
-                "glyph_data_table_offset",
-                self.glyph_data_table_offset(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Ankr<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for GlyphDataEntry<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.anchor_points_byte_range().end
@@ -214,35 +184,6 @@ impl Default for GlyphDataEntry<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for GlyphDataEntry<'a> {
-    fn type_name(&self) -> &str {
-        "GlyphDataEntry"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("num_points", self.num_points())),
-            1usize => Some(Field::new(
-                "anchor_points",
-                traversal::FieldType::array_of_records(
-                    stringify!(AnchorPoint),
-                    self.anchor_points(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for GlyphDataEntry<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Individual anchor point.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -264,19 +205,4 @@ impl AnchorPoint {
 
 impl FixedSize for AnchorPoint {
     const RAW_BYTE_LEN: usize = i16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for AnchorPoint {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "AnchorPoint",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("x", self.x())),
-                1usize => Some(Field::new("y", self.y())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

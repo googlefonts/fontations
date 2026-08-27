@@ -7,7 +7,6 @@ members = [
     "font-codegen",
     "font-test-data",
     "write-fonts",
-    "otexplorer",
     "skrifa",
     "fauntlet",
     "skera",
