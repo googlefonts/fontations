@@ -46,6 +46,8 @@ mod records {
         let basic = BasicTable::new(simple.clone(), vec![contains_arrays]);
         let contains_offsets = ContainsOffsets::new(simple, basic);
         assert_eq!(contains_offsets.other.simple_records.len(), 1);
+        let contains_offset_records = ContainsOffsetRecords::new(vec![contains_offsets]);
+        assert_eq!(contains_offset_records.offset_records.len(), 1);
     }
 }
 

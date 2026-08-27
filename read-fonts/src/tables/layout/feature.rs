@@ -8,12 +8,7 @@ impl<'a> FeatureList<'a> {
         self.feature_records()
             .get(index as usize)
             .ok_or(ReadError::OutOfBounds)
-            .and_then(|rec| {
-                Ok(TaggedElement::new(
-                    rec.feature_tag(),
-                    rec.feature(self.offset_data())?,
-                ))
-            })
+            .and_then(|rec| Ok(TaggedElement::new(rec.feature_tag(), rec.feature()?)))
     }
 }
 

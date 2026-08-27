@@ -35,6 +35,15 @@ pub(crate) struct Field {
     /// These fields must be present, which means reads can unwrap (and could even
     /// be unsafe.)
     pub(crate) validated_at_parse: bool,
+    /// `true` for a table field that is an array of records with generated
+    /// offset getters.
+    ///
+    /// Such fields are wrapped in `ArrayOfRecordsWithOffsetData`, which pairs
+    /// the records with the table's data so that their offsets can be resolved
+    /// without the caller needing to pass that data in.
+    ///
+    /// Like `validated_at_parse`, this is computed during resolution.
+    pub(crate) array_of_offset_bearing_records: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -168,6 +177,7 @@ impl Parse for Field {
             typ,
             // computed later
             validated_at_parse: false,
+            array_of_offset_bearing_records: false,
         })
     }
 }

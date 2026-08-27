@@ -455,9 +455,13 @@ impl<'a> BaseGlyphList<'a> {
         self.data.read_at(range.start).ok().unwrap()
     }
 
-    pub fn base_glyph_paint_records(&self) -> &'a [BaseGlyphPaint] {
+    pub fn base_glyph_paint_records(&self) -> ArrayOfRecordsWithOffsetData<'a, BaseGlyphPaint> {
         let range = self.base_glyph_paint_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn num_base_glyph_paint_records_byte_range(&self) -> Range<usize> {
@@ -501,7 +505,7 @@ impl<'a> SomeTable<'a> for BaseGlyphList<'a> {
                 "base_glyph_paint_records",
                 traversal::FieldType::array_of_records(
                     stringify!(BaseGlyphPaint),
-                    self.base_glyph_paint_records(),
+                    self.base_glyph_paint_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -551,6 +555,13 @@ impl BaseGlyphPaint {
 
 impl FixedSize for BaseGlyphPaint {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, BaseGlyphPaint> {
+    /// Attempt to resolve [`paint_offset`][BaseGlyphPaint::paint_offset] against the data of the enclosing table.
+    pub fn paint(&self) -> Result<Paint<'a>, ReadError> {
+        self.record().paint(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -718,9 +729,13 @@ impl<'a> ClipList<'a> {
     }
 
     /// Clip records. Sorted by startGlyphID.
-    pub fn clips(&self) -> &'a [Clip] {
+    pub fn clips(&self) -> ArrayOfRecordsWithOffsetData<'a, Clip> {
         let range = self.clips_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -766,7 +781,7 @@ impl<'a> SomeTable<'a> for ClipList<'a> {
                 "clips",
                 traversal::FieldType::array_of_records(
                     stringify!(Clip),
-                    self.clips(),
+                    self.clips().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -824,6 +839,13 @@ impl Clip {
 impl FixedSize for Clip {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, Clip> {
+    /// Attempt to resolve [`clip_box_offset`][Clip::clip_box_offset] against the data of the enclosing table.
+    pub fn clip_box(&self) -> Result<ClipBox<'a>, ReadError> {
+        self.record().clip_box(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]

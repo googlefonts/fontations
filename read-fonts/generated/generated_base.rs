@@ -411,9 +411,13 @@ impl<'a> BaseScriptList<'a> {
 
     /// Array of BaseScriptRecords, in alphabetical order by
     /// baseScriptTag
-    pub fn base_script_records(&self) -> &'a [BaseScriptRecord] {
+    pub fn base_script_records(&self) -> ArrayOfRecordsWithOffsetData<'a, BaseScriptRecord> {
         let range = self.base_script_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn base_script_count_byte_range(&self) -> Range<usize> {
@@ -454,7 +458,7 @@ impl<'a> SomeTable<'a> for BaseScriptList<'a> {
                 "base_script_records",
                 traversal::FieldType::array_of_records(
                     stringify!(BaseScriptRecord),
-                    self.base_script_records(),
+                    self.base_script_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -504,6 +508,13 @@ impl BaseScriptRecord {
 
 impl FixedSize for BaseScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, BaseScriptRecord> {
+    /// Attempt to resolve [`base_script_offset`][BaseScriptRecord::base_script_offset] against the data of the enclosing table.
+    pub fn base_script(&self) -> Result<BaseScript<'a>, ReadError> {
+        self.record().base_script(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -592,9 +603,13 @@ impl<'a> BaseScript<'a> {
 
     /// Array of BaseLangSysRecords, in alphabetical order by
     /// BaseLangSysTag
-    pub fn base_lang_sys_records(&self) -> &'a [BaseLangSysRecord] {
+    pub fn base_lang_sys_records(&self) -> ArrayOfRecordsWithOffsetData<'a, BaseLangSysRecord> {
         let range = self.base_lang_sys_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn base_values_offset_byte_range(&self) -> Range<usize> {
@@ -658,7 +673,7 @@ impl<'a> SomeTable<'a> for BaseScript<'a> {
                 "base_lang_sys_records",
                 traversal::FieldType::array_of_records(
                     stringify!(BaseLangSysRecord),
-                    self.base_lang_sys_records(),
+                    self.base_lang_sys_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -708,6 +723,13 @@ impl BaseLangSysRecord {
 
 impl FixedSize for BaseLangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, BaseLangSysRecord> {
+    /// Attempt to resolve [`min_max_offset`][BaseLangSysRecord::min_max_offset] against the data of the enclosing table.
+    pub fn min_max(&self) -> Result<MinMax<'a>, ReadError> {
+        self.record().min_max(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -923,9 +945,13 @@ impl<'a> MinMax<'a> {
 
     /// Array of FeatMinMaxRecords, in alphabetical order by
     /// featureTableTag
-    pub fn feat_min_max_records(&self) -> &'a [FeatMinMaxRecord] {
+    pub fn feat_min_max_records(&self) -> ArrayOfRecordsWithOffsetData<'a, FeatMinMaxRecord> {
         let range = self.feat_min_max_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn min_coord_offset_byte_range(&self) -> Range<usize> {
@@ -986,7 +1012,7 @@ impl<'a> SomeTable<'a> for MinMax<'a> {
                 "feat_min_max_records",
                 traversal::FieldType::array_of_records(
                     stringify!(FeatMinMaxRecord),
-                    self.feat_min_max_records(),
+                    self.feat_min_max_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -1059,6 +1085,18 @@ impl FeatMinMaxRecord {
 
 impl FixedSize for FeatMinMaxRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, FeatMinMaxRecord> {
+    /// Attempt to resolve [`min_coord_offset`][FeatMinMaxRecord::min_coord_offset] against the data of the enclosing table.
+    pub fn min_coord(&self) -> Option<Result<BaseCoord<'a>, ReadError>> {
+        self.record().min_coord(self.offset_data())
+    }
+
+    /// Attempt to resolve [`max_coord_offset`][FeatMinMaxRecord::max_coord_offset] against the data of the enclosing table.
+    pub fn max_coord(&self) -> Option<Result<BaseCoord<'a>, ReadError>> {
+        self.record().max_coord(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]

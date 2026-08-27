@@ -103,18 +103,15 @@ mod tests {
     #[test]
     fn parse_simple() {
         let table = Meta::read(test_data::SIMPLE_META_TABLE.into()).unwrap();
-        let rec1 = table.data_maps()[0];
-        let rec2 = table.data_maps()[1];
+        let rec1 = table.data_maps().get(0).unwrap();
+        let rec2 = table.data_maps().get(1).unwrap();
 
         assert_eq!(rec1.tag(), Tag::new(b"dlng"));
         assert_eq!(rec2.tag(), Tag::new(b"slng"));
         assert!(expect_script_lang_tags(
-            rec1.data(table.offset_data()).unwrap(),
+            rec1.data().unwrap(),
             &["en-latn", "latn"]
         ));
-        assert!(expect_script_lang_tags(
-            rec2.data(table.offset_data()).unwrap(),
-            &["latn"]
-        ));
+        assert!(expect_script_lang_tags(rec2.data().unwrap(), &["latn"]));
     }
 }

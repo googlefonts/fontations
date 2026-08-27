@@ -588,7 +588,7 @@ mod tests {
         );
 
         for encoding_record in cmap.encoding_records() {
-            let CmapSubtable::Format4(cmap4) = encoding_record.subtable(font_data).unwrap() else {
+            let CmapSubtable::Format4(cmap4) = encoding_record.subtable().unwrap() else {
                 panic!("Expected a cmap4 in {encoding_record:?}");
             };
 
@@ -698,14 +698,9 @@ mod tests {
         mappings
     }
 
-    fn assert_cmap12_groups(
-        font_data: FontData,
-        cmap: &Cmap,
-        record_index: usize,
-        expected: &[(u32, u32, u32)],
-    ) {
-        let rec = &cmap.encoding_records()[record_index];
-        let CmapSubtable::Format12(subtable) = rec.subtable(font_data).unwrap() else {
+    fn assert_cmap12_groups(cmap: &Cmap, record_index: usize, expected: &[(u32, u32, u32)]) {
+        let rec = cmap.encoding_records().get(record_index).unwrap();
+        let CmapSubtable::Format12(subtable) = rec.subtable().unwrap() else {
             panic!("Expected a cmap12 in {rec:?}");
         };
         let groups = subtable
@@ -743,12 +738,9 @@ mod tests {
         );
 
         let encoding_records = cmap.encoding_records();
-        let first_rec = &encoding_records[0];
+        let first_rec = encoding_records.get(0).unwrap();
         assert!(
-            matches!(
-                first_rec.subtable(font_data).unwrap(),
-                CmapSubtable::Format4(_)
-            ),
+            matches!(first_rec.subtable().unwrap(), CmapSubtable::Format4(_)),
             "Expected a cmap4 in {first_rec:?}"
         );
 
@@ -762,8 +754,8 @@ mod tests {
             (0x1f134, 0x1f134, 486),
             (0x1f136, 0x1f136, 488),
         ];
-        assert_cmap12_groups(font_data, &cmap, 1, &expected_groups);
-        assert_cmap12_groups(font_data, &cmap, 3, &expected_groups);
+        assert_cmap12_groups(&cmap, 1, &expected_groups);
+        assert_cmap12_groups(&cmap, 3, &expected_groups);
     }
 
     #[test]
@@ -796,8 +788,8 @@ mod tests {
             (0x1f134, 0x1f134, 486),
             (0x1f136, 0x1f136, 488),
         ];
-        assert_cmap12_groups(font_data, &cmap, 0, &expected_groups);
-        assert_cmap12_groups(font_data, &cmap, 1, &expected_groups);
+        assert_cmap12_groups(&cmap, 0, &expected_groups);
+        assert_cmap12_groups(&cmap, 1, &expected_groups);
     }
 
     #[test]

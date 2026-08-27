@@ -47,9 +47,13 @@ impl<'a> ScriptList<'a> {
     }
 
     /// Array of ScriptRecords, listed alphabetically by script tag
-    pub fn script_records(&self) -> &'a [ScriptRecord] {
+    pub fn script_records(&self) -> ArrayOfRecordsWithOffsetData<'a, ScriptRecord> {
         let range = self.script_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn script_count_byte_range(&self) -> Range<usize> {
@@ -89,7 +93,7 @@ impl<'a> SomeTable<'a> for ScriptList<'a> {
                 "script_records",
                 traversal::FieldType::array_of_records(
                     stringify!(ScriptRecord),
-                    self.script_records(),
+                    self.script_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -139,6 +143,13 @@ impl ScriptRecord {
 
 impl FixedSize for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, ScriptRecord> {
+    /// Attempt to resolve [`script_offset`][ScriptRecord::script_offset] against the data of the enclosing table.
+    pub fn script(&self) -> Result<Script<'a>, ReadError> {
+        self.record().script(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -215,9 +226,13 @@ impl<'a> Script<'a> {
     }
 
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
-    pub fn lang_sys_records(&self) -> &'a [LangSysRecord] {
+    pub fn lang_sys_records(&self) -> ArrayOfRecordsWithOffsetData<'a, LangSysRecord> {
         let range = self.lang_sys_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn default_lang_sys_offset_byte_range(&self) -> Range<usize> {
@@ -267,7 +282,7 @@ impl<'a> SomeTable<'a> for Script<'a> {
                 "lang_sys_records",
                 traversal::FieldType::array_of_records(
                     stringify!(LangSysRecord),
-                    self.lang_sys_records(),
+                    self.lang_sys_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -316,6 +331,13 @@ impl LangSysRecord {
 
 impl FixedSize for LangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, LangSysRecord> {
+    /// Attempt to resolve [`lang_sys_offset`][LangSysRecord::lang_sys_offset] against the data of the enclosing table.
+    pub fn lang_sys(&self) -> Result<LangSys<'a>, ReadError> {
+        self.record().lang_sys(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -500,9 +522,13 @@ impl<'a> FeatureList<'a> {
 
     /// Array of FeatureRecords — zero-based (first feature has
     /// FeatureIndex = 0), listed alphabetically by feature tag
-    pub fn feature_records(&self) -> &'a [FeatureRecord] {
+    pub fn feature_records(&self) -> ArrayOfRecordsWithOffsetData<'a, FeatureRecord> {
         let range = self.feature_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn feature_count_byte_range(&self) -> Range<usize> {
@@ -542,7 +568,7 @@ impl<'a> SomeTable<'a> for FeatureList<'a> {
                 "feature_records",
                 traversal::FieldType::array_of_records(
                     stringify!(FeatureRecord),
-                    self.feature_records(),
+                    self.feature_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -593,6 +619,13 @@ impl FeatureRecord {
 
 impl FixedSize for FeatureRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, FeatureRecord> {
+    /// Attempt to resolve [`feature_offset`][FeatureRecord::feature_offset] against the data of the enclosing table.
+    pub fn feature(&self) -> Result<Feature<'a>, ReadError> {
+        self.record().feature(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -4616,9 +4649,15 @@ impl<'a> FeatureVariations<'a> {
     }
 
     /// Array of feature variation records.
-    pub fn feature_variation_records(&self) -> &'a [FeatureVariationRecord] {
+    pub fn feature_variation_records(
+        &self,
+    ) -> ArrayOfRecordsWithOffsetData<'a, FeatureVariationRecord> {
         let range = self.feature_variation_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -4671,7 +4710,7 @@ impl<'a> SomeTable<'a> for FeatureVariations<'a> {
                 "feature_variation_records",
                 traversal::FieldType::array_of_records(
                     stringify!(FeatureVariationRecord),
-                    self.feature_variation_records(),
+                    self.feature_variation_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -4741,6 +4780,20 @@ impl FeatureVariationRecord {
 
 impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, FeatureVariationRecord> {
+    /// Attempt to resolve [`condition_set_offset`][FeatureVariationRecord::condition_set_offset] against the data of the enclosing table.
+    pub fn condition_set(&self) -> Option<Result<ConditionSet<'a>, ReadError>> {
+        self.record().condition_set(self.offset_data())
+    }
+
+    /// Attempt to resolve [`feature_table_substitution_offset`][FeatureVariationRecord::feature_table_substitution_offset] against the data of the enclosing table.
+    pub fn feature_table_substitution(
+        &self,
+    ) -> Option<Result<FeatureTableSubstitution<'a>, ReadError>> {
+        self.record().feature_table_substitution(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]

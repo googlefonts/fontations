@@ -20,6 +20,7 @@ impl<'a> ScriptList<'a> {
     /// Returns the index of the script with the given tag.
     pub fn index_for_tag(&self, tag: Tag) -> Option<u16> {
         self.script_records()
+            .as_slice()
             .binary_search_by_key(&tag, |rec| rec.script_tag())
             .map(|index| index as u16)
             .ok()
@@ -30,12 +31,7 @@ impl<'a> ScriptList<'a> {
         self.script_records()
             .get(index as usize)
             .ok_or(ReadError::OutOfBounds)
-            .and_then(|rec| {
-                Ok(TaggedElement::new(
-                    rec.script_tag(),
-                    rec.script(self.offset_data())?,
-                ))
-            })
+            .and_then(|rec| Ok(TaggedElement::new(rec.script_tag(), rec.script()?)))
     }
 
     /// Finds the first available script that matches one of the given tags.
@@ -85,6 +81,7 @@ impl<'a> Script<'a> {
     /// the index.
     pub fn lang_sys_index_for_tag(&self, tag: Tag) -> Option<u16> {
         self.lang_sys_records()
+            .as_slice()
             .binary_search_by_key(&tag, |rec| rec.lang_sys_tag())
             .map(|index| index as u16)
             .ok()
@@ -95,12 +92,7 @@ impl<'a> Script<'a> {
         self.lang_sys_records()
             .get(index as usize)
             .ok_or(ReadError::OutOfBounds)
-            .and_then(|rec| {
-                Ok(TaggedElement::new(
-                    rec.lang_sys_tag(),
-                    rec.lang_sys(self.offset_data())?,
-                ))
-            })
+            .and_then(|rec| Ok(TaggedElement::new(rec.lang_sys_tag(), rec.lang_sys()?)))
     }
 }
 

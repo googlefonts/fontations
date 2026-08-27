@@ -26,7 +26,7 @@ impl BitmapSize {
             ..BitmapLocation::default()
         };
         for record in subtable_list.index_subtable_records() {
-            let subtable = record.index_subtable(subtable_list.offset_data())?;
+            let subtable = record.index_subtable()?;
             if !(record.first_glyph_index()..=record.last_glyph_index()).contains(&glyph_id) {
                 continue;
             }

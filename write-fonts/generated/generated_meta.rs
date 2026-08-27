@@ -55,7 +55,7 @@ impl<'a> FromObjRef<read_fonts::tables::meta::Meta<'a>> for Meta {
     fn from_obj_ref(obj: &read_fonts::tables::meta::Meta<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Meta {
-            data_maps: obj.data_maps().to_owned_obj(offset_data),
+            data_maps: obj.data_maps().as_slice().to_owned_obj(offset_data),
         }
     }
 }

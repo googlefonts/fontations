@@ -628,7 +628,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::MarkArray<'a>> for MarkArray {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkArray<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         MarkArray {
-            mark_records: obj.mark_records().to_owned_obj(offset_data),
+            mark_records: obj.mark_records().as_slice().to_owned_obj(offset_data),
         }
     }
 }
@@ -1456,7 +1456,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::CursivePosFormat1<'a>> for Cursive
         let offset_data = obj.offset_data();
         CursivePosFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            entry_exit_record: obj.entry_exit_record().to_owned_obj(offset_data),
+            entry_exit_record: obj.entry_exit_record().as_slice().to_owned_obj(offset_data),
         }
     }
 }

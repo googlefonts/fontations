@@ -159,15 +159,15 @@ impl<'a> SubsetTable<'a> for IndexSubtableList<'a> {
         let init_len = s.length();
         // serialize subtables in reverse order
         for idx in (0..src_num_records).rev() {
-            let record = records[idx];
+            let record = records.get(idx).unwrap();
             if record.index_subtable_offset().is_null() {
                 continue;
             }
-            let Ok(subtable) = record.index_subtable(self.offset_data()) else {
+            let Ok(subtable) = record.index_subtable() else {
                 return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
             };
             s.push()?;
-            match subset_index_subtable(&subtable, plan, s, &record, args.0, args.1) {
+            match subset_index_subtable(&subtable, plan, s, record.record(), args.0, args.1) {
                 Ok((start_gid, end_gid, table_size)) => {
                     let Some(obj_idx) = s.pop_pack(true) else {
                         return Err(s.error());
@@ -192,7 +192,7 @@ impl<'a> SubsetTable<'a> for IndexSubtableList<'a> {
         let mut min_start_gid = GlyphId::from(u16::MAX);
         let mut max_end_gid = GlyphId::NOTDEF;
         for (record_idx, objidx, start_gid, end_gid) in obj_idxes.iter().rev() {
-            let record = records[*record_idx];
+            let record = records.get(*record_idx).unwrap();
             record.subset(plan, s, (*objidx, *start_gid, *end_gid))?;
 
             min_start_gid = min_start_gid.min(*start_gid);

@@ -53,15 +53,18 @@ impl<'a> Colr<'a> {
         };
         let list = self.base_glyph_list().ok_or(ReadError::NullOffset)??;
         let records = list.base_glyph_paint_records();
-        let record = match records.binary_search_by(|rec| rec.glyph_id().cmp(&glyph_id)) {
-            Ok(ix) => &records[ix],
+        let record = match records
+            .as_slice()
+            .binary_search_by(|rec| rec.glyph_id().cmp(&glyph_id))
+        {
+            Ok(ix) => records.get(ix).ok_or(ReadError::OutOfBounds)?,
             _ => return Ok(None),
         };
-        let offset_data = list.offset_data();
         // Use the address of the paint as an identifier for the recursion
         // blacklist.
-        let id = record.paint_offset().to_u32() as usize + offset_data.as_ref().as_ptr() as usize;
-        Ok(Some((record.paint(offset_data)?, id)))
+        let id = record.paint_offset().to_u32() as usize
+            + record.offset_data().as_ref().as_ptr() as usize;
+        Ok(Some((record.paint()?, id)))
     }
 
     /// Returns the COLRv1 layer at the given index.
@@ -90,7 +93,7 @@ impl<'a> Colr<'a> {
         };
         let list = self.clip_list().ok_or(ReadError::NullOffset)??;
         let clips = list.clips();
-        let clip = match clips.binary_search_by(|clip| {
+        let clip = match clips.as_slice().binary_search_by(|clip| {
             if glyph_id < clip.start_glyph_id() {
                 Ordering::Greater
             } else if glyph_id > clip.end_glyph_id() {
@@ -99,9 +102,9 @@ impl<'a> Colr<'a> {
                 Ordering::Equal
             }
         }) {
-            Ok(ix) => &clips[ix],
+            Ok(ix) => clips.get(ix).ok_or(ReadError::OutOfBounds)?,
             _ => return Ok(None),
         };
-        Ok(Some(clip.clip_box(list.offset_data())?))
+        Ok(Some(clip.clip_box()?))
     }
 }

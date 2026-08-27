@@ -792,9 +792,13 @@ impl<'a> IndexSubtableList<'a> {
     basic_table_impls!(impl_the_methods);
 
     /// Array of IndexSubtableRecords.
-    pub fn index_subtable_records(&self) -> &'a [IndexSubtableRecord] {
+    pub fn index_subtable_records(&self) -> ArrayOfRecordsWithOffsetData<'a, IndexSubtableRecord> {
         let range = self.index_subtable_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub(crate) fn number_of_index_subtables(&self) -> u32 {
@@ -836,7 +840,7 @@ impl<'a> SomeTable<'a> for IndexSubtableList<'a> {
                 "index_subtable_records",
                 traversal::FieldType::array_of_records(
                     stringify!(IndexSubtableRecord),
-                    self.index_subtable_records(),
+                    self.index_subtable_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -894,6 +898,13 @@ impl IndexSubtableRecord {
 impl FixedSize for IndexSubtableRecord {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, IndexSubtableRecord> {
+    /// Attempt to resolve [`index_subtable_offset`][IndexSubtableRecord::index_subtable_offset] against the data of the enclosing table.
+    pub fn index_subtable(&self) -> Result<IndexSubtable<'a>, ReadError> {
+        self.record().index_subtable(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]

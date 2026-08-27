@@ -43,6 +43,13 @@ record ContainsOffsets {
     other_offset: Offset32<BasicTable>,
 }
 
+table ContainsOffsetRecords {
+    #[compile(array_len($offset_records))]
+    record_count: u16,
+    #[count($record_count)]
+    offset_records: [ContainsOffsets],
+}
+
 #[skip_constructor]
 table VarLenItem {
     length: u32,

@@ -5,7 +5,7 @@ include!("../../generated/generated_feat.rs");
 impl Feat<'_> {
     /// Returns the name for the given feature code.
     pub fn find(&self, feature: u16) -> Option<FeatureName> {
-        let names = self.names();
+        let names = self.names().as_slice();
         let ix = names
             .binary_search_by(|name| name.feature().cmp(&feature))
             .ok()?;
@@ -74,7 +74,7 @@ mod tests {
         let setting_names = names
             .iter()
             .map(|name| {
-                let settings = name.setting_table(feat.offset_data()).unwrap();
+                let settings = name.setting_table().unwrap();
                 settings
                     .settings()
                     .iter()

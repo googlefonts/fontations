@@ -231,6 +231,74 @@ impl FromObjRef<read_fonts::codegen_test::records::ContainsOffsets> for Contains
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ContainsOffsetRecords {
+    pub offset_records: Vec<ContainsOffsets>,
+}
+
+impl ContainsOffsetRecords {
+    /// Construct a new `ContainsOffsetRecords`
+    pub fn new(offset_records: Vec<ContainsOffsets>) -> Self {
+        Self { offset_records }
+    }
+}
+
+impl FontWrite for ContainsOffsetRecords {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (u16::try_from(array_len(&self.offset_records)).unwrap()).write_into(writer);
+        self.offset_records.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ContainsOffsetRecords")
+    }
+}
+
+impl Validate for ContainsOffsetRecords {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ContainsOffsetRecords", |ctx| {
+            ctx.in_field("offset_records", |ctx| {
+                if self.offset_records.len() > to_usize(u16::MAX) {
+                    ctx.report("array exceeds max length");
+                }
+                self.offset_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::records::ContainsOffsetRecords<'a>>
+    for ContainsOffsetRecords
+{
+    fn from_obj_ref(
+        obj: &read_fonts::codegen_test::records::ContainsOffsetRecords<'a>,
+        _: FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        ContainsOffsetRecords {
+            offset_records: obj.offset_records().as_slice().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[allow(clippy::needless_lifetimes)]
+impl<'a> FromTableRef<read_fonts::codegen_test::records::ContainsOffsetRecords<'a>>
+    for ContainsOffsetRecords
+{
+}
+
+impl ReadArgs for ContainsOffsetRecords {
+    type Args = ();
+}
+
+impl<'a> FontRead<'a> for ContainsOffsetRecords {
+    fn read_with_args(data: FontData<'a>, _: ()) -> Result<Self, ReadError> {
+        <read_fonts::codegen_test::records::ContainsOffsetRecords as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct VarLenItem {
     pub length: u32,
     pub data: Vec<u8>,

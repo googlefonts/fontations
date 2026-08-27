@@ -20,7 +20,7 @@ use read_fonts::{
         CmapIterLimits, CmapSubtable, EncodingRecord, PlatformId,
     },
     types::GlyphId,
-    FontData, FontRef, TableProvider,
+    FontRef, TableProvider,
 };
 
 pub use read_fonts::tables::cmap::MapVariant;
@@ -178,11 +178,10 @@ impl MappingIndex {
             return Default::default();
         };
         let records = cmap.encoding_records();
-        let data = cmap.offset_data();
         Charmap {
             codepoint_subtable: self
                 .codepoint_subtable
-                .and_then(|index| get_subtable(data, records, index))
+                .and_then(|index| get_subtable(records, index))
                 .and_then(SupportedSubtable::new)
                 .map(|subtable| CodepointSubtable {
                     subtable,
@@ -190,7 +189,7 @@ impl MappingIndex {
                 }),
             variant_subtable: self
                 .variant_subtable
-                .and_then(|index| get_subtable(data, records, index))
+                .and_then(|index| get_subtable(records, index))
                 .and_then(|subtable| match subtable {
                     CmapSubtable::Format14(cmap14) => Some(cmap14),
                     _ => None,
@@ -248,14 +247,13 @@ impl Iterator for VariantMappings<'_> {
     }
 }
 
-fn get_subtable<'a>(
-    data: FontData<'a>,
-    records: &[EncodingRecord],
+fn get_subtable(
+    records: read_fonts::array::ArrayOfRecordsWithOffsetData<'_, EncodingRecord>,
     index: u16,
-) -> Option<CmapSubtable<'a>> {
+) -> Option<CmapSubtable<'_>> {
     records
         .get(index as usize)
-        .and_then(|record| record.subtable(data).ok())
+        .and_then(|record| record.subtable().ok())
 }
 
 #[derive(Clone)]
@@ -310,8 +308,10 @@ impl<'a> SupportedSubtable<'a> {
         })
     }
 
-    fn from_cmap_record(cmap: &Cmap<'a>, record: &cmap::EncodingRecord) -> Option<Self> {
-        Self::new(record.subtable(cmap.offset_data()).ok()?)
+    fn from_cmap_record(
+        record: read_fonts::array::OffsetResolving<'a, cmap::EncodingRecord>,
+    ) -> Option<Self> {
+        Self::new(record.subtable().ok()?)
     }
 }
 
@@ -374,9 +374,7 @@ impl<'a> MappingSelection<'a> {
             match (record.platform_id(), record.encoding_id()) {
                 (PlatformId::Unicode, ENCODING_APPLE_ID_VARIANT_SELECTOR) => {
                     // Unicode variation sequences
-                    if let Ok(CmapSubtable::Format14(subtable)) =
-                        record.subtable(cmap.offset_data())
-                    {
+                    if let Ok(CmapSubtable::Format14(subtable)) = record.subtable() {
                         if variant_subtable.is_none() {
                             mapping_index.variant_subtable = Some(i as u16);
                             variant_subtable = Some(subtable);
@@ -385,14 +383,14 @@ impl<'a> MappingSelection<'a> {
                 }
                 (PlatformId::Windows, ENCODING_MS_SYMBOL) => {
                     // Symbol
-                    if let Some(subtable) = SupportedSubtable::from_cmap_record(cmap, record) {
+                    if let Some(subtable) = SupportedSubtable::from_cmap_record(record) {
                         maybe_choose_subtable(MappingKind::Symbol, i, subtable);
                     }
                 }
                 (PlatformId::Windows, ENCODING_MS_ID_UCS_4)
                 | (PlatformId::Unicode, ENCODING_APPLE_ID_UNICODE_32) => {
                     // Unicode full repertoire
-                    if let Some(subtable) = SupportedSubtable::from_cmap_record(cmap, record) {
+                    if let Some(subtable) = SupportedSubtable::from_cmap_record(record) {
                         maybe_choose_subtable(MappingKind::UnicodeFull, i, subtable);
                     }
                 }
@@ -400,7 +398,7 @@ impl<'a> MappingSelection<'a> {
                 | (PlatformId::Unicode, _)
                 | (PlatformId::Windows, ENCODING_MS_UNICODE_CS) => {
                     // Unicode BMP only
-                    if let Some(subtable) = SupportedSubtable::from_cmap_record(cmap, record) {
+                    if let Some(subtable) = SupportedSubtable::from_cmap_record(record) {
                         maybe_choose_subtable(MappingKind::UnicodeBmp, i, subtable);
                     }
                 }

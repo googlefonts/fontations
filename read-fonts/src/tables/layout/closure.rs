@@ -109,23 +109,24 @@ impl ScriptList<'_> {
         let mut c =
             CollectFeaturesContext::new(features, layout_table_head, feature_list, &mut out);
         let script_records = self.script_records();
-        let font_data = self.offset_data();
         if scripts.is_inverted() {
             for record in script_records {
                 let tag = record.script_tag();
                 if !scripts.contains(tag) || record.script_offset().is_null() {
                     continue;
                 }
-                let script = record.script(font_data)?;
+                let script = record.script()?;
                 script.collect_features(&mut c, languages)?;
             }
         } else {
             for idx in scripts.iter().filter_map(|tag| self.index_for_tag(tag)) {
-                let record = script_records[idx as usize];
+                let Some(record) = script_records.get(idx as usize) else {
+                    continue;
+                };
                 if record.script_offset().is_null() {
                     continue;
                 }
-                let script = record.script(font_data)?;
+                let script = record.script()?;
                 script.collect_features(&mut c, languages)?;
             }
         }
@@ -144,7 +145,6 @@ impl Script<'_> {
         }
 
         let lang_sys_records = self.lang_sys_records();
-        let font_data = self.offset_data();
 
         if let Some(default_lang_sys) = self.default_lang_sys().transpose()? {
             default_lang_sys.collect_features(c);
@@ -156,7 +156,7 @@ impl Script<'_> {
                 if !languages.contains(tag) || record.lang_sys_offset().is_null() {
                     continue;
                 }
-                let lang_sys = record.lang_sys(font_data)?;
+                let lang_sys = record.lang_sys()?;
                 lang_sys.collect_features(c);
             }
         } else {
@@ -164,11 +164,13 @@ impl Script<'_> {
                 .iter()
                 .filter_map(|tag| self.lang_sys_index_for_tag(tag))
             {
-                let record = lang_sys_records[idx as usize];
+                let Some(record) = lang_sys_records.get(idx as usize) else {
+                    continue;
+                };
                 if record.lang_sys_offset().is_null() {
                     continue;
                 }
-                let lang_sys = record.lang_sys(font_data)?;
+                let lang_sys = record.lang_sys()?;
                 lang_sys.collect_features(c);
             }
         }
@@ -225,7 +227,6 @@ impl FeatureList<'_> {
     ) -> Result<IntSet<u16>, ReadError> {
         let features_records = self.feature_records();
         let num_features = self.feature_count();
-        let font_data = self.offset_data();
         let mut lookup_idxes = IntSet::empty();
 
         if feature_indices.is_inverted() {
@@ -238,7 +239,7 @@ impl FeatureList<'_> {
                 if feature_rec.feature_offset().is_null() {
                     continue;
                 }
-                lookup_idxes.extend_unsorted(feature_rec.feature(font_data)?.collect_lookups());
+                lookup_idxes.extend_unsorted(feature_rec.feature()?.collect_lookups());
             }
         } else {
             for feature_rec in feature_indices
@@ -248,7 +249,7 @@ impl FeatureList<'_> {
                 if feature_rec.feature_offset().is_null() {
                     continue;
                 }
-                lookup_idxes.extend_unsorted(feature_rec.feature(font_data)?.collect_lookups());
+                lookup_idxes.extend_unsorted(feature_rec.feature()?.collect_lookups());
             }
         }
         Ok(lookup_idxes)
@@ -263,10 +264,7 @@ impl FeatureVariations<'_> {
         let mut out = IntSet::empty();
 
         for variation_rec in self.feature_variation_records() {
-            let Some(subs) = variation_rec
-                .feature_table_substitution(self.offset_data())
-                .transpose()?
-            else {
+            let Some(subs) = variation_rec.feature_table_substitution().transpose()? else {
                 continue;
             };
 

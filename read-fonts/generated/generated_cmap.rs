@@ -57,9 +57,13 @@ impl<'a> Cmap<'a> {
         self.data.read_at(range.start).ok().unwrap()
     }
 
-    pub fn encoding_records(&self) -> &'a [EncodingRecord] {
+    pub fn encoding_records(&self) -> ArrayOfRecordsWithOffsetData<'a, EncodingRecord> {
         let range = self.encoding_records_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn version_byte_range(&self) -> Range<usize> {
@@ -106,7 +110,7 @@ impl<'a> SomeTable<'a> for Cmap<'a> {
                 "encoding_records",
                 traversal::FieldType::array_of_records(
                     stringify!(EncodingRecord),
-                    self.encoding_records(),
+                    self.encoding_records().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -167,6 +171,13 @@ impl EncodingRecord {
 impl FixedSize for EncodingRecord {
     const RAW_BYTE_LEN: usize =
         PlatformId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, EncodingRecord> {
+    /// Attempt to resolve [`subtable_offset`][EncodingRecord::subtable_offset] against the data of the enclosing table.
+    pub fn subtable(&self) -> Result<CmapSubtable<'a>, ReadError> {
+        self.record().subtable(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]
@@ -1827,9 +1838,13 @@ impl<'a> Cmap14<'a> {
     }
 
     /// Array of VariationSelector records.
-    pub fn var_selector(&self) -> &'a [VariationSelector] {
+    pub fn var_selector(&self) -> ArrayOfRecordsWithOffsetData<'a, VariationSelector> {
         let range = self.var_selector_byte_range();
-        self.data.read_array(range).ok().unwrap_or_default()
+        self.data
+            .read_array(range)
+            .ok()
+            .map(|records| ArrayOfRecordsWithOffsetData::new(records, self.offset_data()))
+            .unwrap_or_default()
     }
 
     pub fn format_byte_range(&self) -> Range<usize> {
@@ -1877,7 +1892,7 @@ impl<'a> SomeTable<'a> for Cmap14<'a> {
                 "var_selector",
                 traversal::FieldType::array_of_records(
                     stringify!(VariationSelector),
-                    self.var_selector(),
+                    self.var_selector().as_slice(),
                     self.offset_data(),
                 ),
             )),
@@ -1952,6 +1967,18 @@ impl VariationSelector {
 impl FixedSize for VariationSelector {
     const RAW_BYTE_LEN: usize =
         Uint24::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+impl<'a> OffsetResolving<'a, VariationSelector> {
+    /// Attempt to resolve [`default_uvs_offset`][VariationSelector::default_uvs_offset] against the data of the enclosing table.
+    pub fn default_uvs(&self) -> Option<Result<DefaultUvs<'a>, ReadError>> {
+        self.record().default_uvs(self.offset_data())
+    }
+
+    /// Attempt to resolve [`non_default_uvs_offset`][VariationSelector::non_default_uvs_offset] against the data of the enclosing table.
+    pub fn non_default_uvs(&self) -> Option<Result<NonDefaultUvs<'a>, ReadError>> {
+        self.record().non_default_uvs(self.offset_data())
+    }
 }
 
 #[cfg(feature = "experimental_traverse")]

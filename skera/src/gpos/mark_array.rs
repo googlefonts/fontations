@@ -7,6 +7,7 @@ use crate::{
 };
 use write_fonts::{
     read::{
+        array::OffsetResolving,
         collections::IntSet,
         tables::{
             gpos::{MarkArray, MarkRecord},
@@ -19,12 +20,11 @@ use write_fonts::{
 };
 
 pub(crate) fn collect_mark_record_varidx(
-    mark_record: &MarkRecord,
+    mark_record: OffsetResolving<'_, MarkRecord>,
     plan: &Plan,
     varidx_set: &mut IntSet<u32>,
-    font_data: FontData,
 ) {
-    if let Ok(mark_anchor) = mark_record.mark_anchor(font_data) {
+    if let Ok(mark_anchor) = mark_record.mark_anchor() {
         mark_anchor.collect_variation_indices(plan, varidx_set);
     };
 }
