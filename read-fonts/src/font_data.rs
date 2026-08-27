@@ -7,7 +7,7 @@ use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Scalar};
 
 use crate::array::ComputedArray;
-use crate::read::{ComputeSize, FontRead, ReadArgs, ReadError};
+use crate::read::{ComputeSize, FontRead, FontReadAt, ReadArgs, ReadError};
 
 /// A reference to raw binary font data.
 ///
@@ -285,6 +285,28 @@ impl<'a> Cursor<'a> {
         temp
     }
 
+    /// Read an item positioned at the cursor and advance past it.
+    ///
+    /// Unlike [`read_with_args`][Self::read_with_args] the item is given the
+    /// cursor's whole data plus its position, rather than data sliced to it, so
+    /// it can resolve offsets relative to the enclosing table.
+    // emitted by codegen for positioned record fields; the only records that
+    // use it today are in `codegen_test`, so a plain library build has no
+    // callers. Drop this once a shipping record is positioned.
+    #[allow(dead_code)]
+    pub(crate) fn read_at_with_args<T>(&mut self, args: T::Args) -> Result<T, ReadError>
+    where
+        T: FontReadAt<'a> + ComputeSize,
+    {
+        let len = T::compute_size(args)?;
+        // check the item actually fits before handing out a handle to it
+        let range_end = self.pos.checked_add(len).ok_or(ReadError::OutOfBounds)?;
+        self.data.check_in_bounds(range_end)?;
+        let temp = T::read_at(self.data, self.pos, args);
+        self.advance_by(len);
+        temp
+    }
+
     // only used in records that contain arrays :/
     pub(crate) fn read_computed_array<T>(
         &mut self,
@@ -292,17 +314,19 @@ impl<'a> Cursor<'a> {
         args: T::Args,
     ) -> Result<ComputedArray<'a, T>, ReadError>
     where
-        T: FontRead<'a> + ComputeSize,
+        T: FontReadAt<'a> + ComputeSize,
     {
-        let len = len
+        let byte_len = len
             .checked_mul(T::compute_size(args)?)
             .ok_or(ReadError::OutOfBounds)?;
-        let range_end = self.pos.checked_add(len).ok_or(ReadError::OutOfBounds)?;
-        let temp = self.data.read_with_args(self.pos..range_end, args);
-        self.advance_by(len);
+        let range_end = self
+            .pos
+            .checked_add(byte_len)
+            .ok_or(ReadError::OutOfBounds)?;
+        let temp = ComputedArray::new(self.data, self.pos..range_end, args);
+        self.advance_by(byte_len);
         temp
     }
-
     pub(crate) fn read_array<T: AnyBitPattern + FixedSize>(
         &mut self,
         n_elem: usize,

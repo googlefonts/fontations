@@ -61,9 +61,7 @@ impl<'a> BasicTable<'a> {
 
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
         let range = self.array_records_byte_range();
-        self.data
-            .read_with_args(range, self.arrays_inner_count())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.arrays_inner_count()).unwrap_or_default()
     }
 
     pub fn simple_count_byte_range(&self) -> Range<usize> {
@@ -240,6 +238,8 @@ impl<'a> FontRead<'a> for ContainsArrays<'a> {
         })
     }
 }
+
+crate::impl_font_read_at!(ContainsArrays<'a>);
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ContainsArrays<'a> {

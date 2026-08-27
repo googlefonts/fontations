@@ -5,7 +5,11 @@ mod fields;
 pub(crate) use attrs::*;
 pub(crate) use fields::*;
 
-use std::{backtrace::Backtrace, collections::HashMap, fmt::Display};
+use std::{
+    backtrace::Backtrace,
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
 use indexmap::IndexMap;
 use log::{debug, trace};
@@ -149,7 +153,15 @@ pub(crate) struct BitFlags {
 #[derive(Debug, Clone)]
 pub(crate) enum ExternType {
     Scalar,
-    Record,
+    /// A record the codegen user defines themselves.
+    ///
+    /// A `positioned` record is declared with a lifetime (`extern record Foo<'a>;`)
+    /// and is read at an offset within the enclosing table's data rather than
+    /// from data sliced to it, so that it can resolve offsets relative to that
+    /// table. Any record containing one is positioned too.
+    Record {
+        positioned: bool,
+    },
 }
 
 /// A scalar or record that the codegen user must define themselves
@@ -329,11 +341,31 @@ impl Parse for Extern {
             ExternType::Scalar
         } else if lookahead.peek(kw::record) {
             input.parse::<kw::record>()?;
-            ExternType::Record
+            ExternType::Record { positioned: false }
         } else {
             return Err(lookahead.error());
         };
         let name = input.parse::<syn::Ident>()?;
+        // a lifetime marks an extern record as positioned
+        let positioned = input
+            .peek(Token![<])
+            .then(|| {
+                input.parse::<Token![<]>()?;
+                input.parse::<syn::Lifetime>()?;
+                input.parse::<Token![>]>().map(|_| true)
+            })
+            .transpose()?
+            .unwrap_or(false);
+        let typ = match (typ, positioned) {
+            (ExternType::Record { .. }, positioned) => ExternType::Record { positioned },
+            (other, false) => other,
+            (_, true) => {
+                return Err(logged_syn_error(
+                    name.span(),
+                    "only extern records may have a lifetime",
+                ))
+            }
+        };
         let _ = input.parse::<Token![;]>();
         Ok(Extern { name, typ })
     }
@@ -483,7 +515,67 @@ impl Items {
             }
         }
 
+        // now that field types are resolved we can work out which of them are
+        // read at an offset within their enclosing table
+        let positioned = self.build_positioned_set();
+        for item in self.iter_mut() {
+            let fields = match item {
+                Item::Record(item) => &mut item.fields.fields,
+                Item::Table(item) => &mut item.fields.fields,
+                _ => continue,
+            };
+            for field in fields.iter_mut() {
+                field.positioned =
+                    positioned_dep(&field.typ).is_some_and(|typ| positioned.contains(typ));
+            }
+        }
+
         Ok(())
+    }
+
+    /// The names of every type that must be read at an offset within enclosing
+    /// data.
+    ///
+    /// Seeded from the extern records declared positioned, then closed over
+    /// containment: a record holding a positioned field cannot itself be read
+    /// from sliced data without losing the enclosing table, so it is positioned
+    /// too. Tables are never positioned; they already own their data.
+    fn build_positioned_set(&self) -> HashSet<syn::Ident> {
+        let mut positioned: HashSet<syn::Ident> = self
+            .items
+            .values()
+            .filter_map(|item| match item {
+                Item::Extern(Extern {
+                    name,
+                    typ: ExternType::Record { positioned: true },
+                }) => Some(name.clone()),
+                _ => None,
+            })
+            .collect();
+
+        // containment can nest (a record holding an array of positioned
+        // records), so iterate until nothing new is learned
+        loop {
+            let mut changed = false;
+            for item in self.items.values() {
+                let Item::Record(record) = item else {
+                    continue;
+                };
+                if positioned.contains(&record.name) {
+                    continue;
+                }
+                let depends = record.fields.iter().any(|fld| {
+                    positioned_dep(&fld.typ).is_some_and(|typ| positioned.contains(typ))
+                });
+                if depends {
+                    positioned.insert(record.name.clone());
+                    changed = true;
+                }
+            }
+            if !changed {
+                break positioned;
+            }
+        }
     }
 
     // we return a new structure instead of resolving against self because
@@ -496,7 +588,7 @@ impl Items {
                     Item::Table(_)
                     | Item::Record(_)
                     | Item::Extern(Extern {
-                        typ: ExternType::Record,
+                        typ: ExternType::Record { .. },
                         ..
                     }) => FieldType::Struct {
                         typ: value.name().clone(),
@@ -514,6 +606,18 @@ impl Items {
                 Some((key.clone(), value))
             })
             .collect()
+    }
+}
+
+/// The type a field depends on for positioned-ness, if any.
+///
+/// Only direct containment matters: an offset to a positioned type is fine,
+/// since the offset is resolved against data the target is given separately.
+fn positioned_dep(typ: &FieldType) -> Option<&syn::Ident> {
+    match typ {
+        FieldType::Struct { typ } => Some(typ),
+        FieldType::ComputedArray(array) => Some(array.raw_inner_type()),
+        _ => None,
     }
 }
 

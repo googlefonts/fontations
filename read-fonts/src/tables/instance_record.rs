@@ -19,6 +19,8 @@ pub struct InstanceRecord<'a> {
     pub post_script_name_id: Option<NameId>,
 }
 
+crate::impl_font_read_at!(InstanceRecord<'a>);
+
 impl ReadArgs for InstanceRecord<'_> {
     type Args = (u16, u16);
 }

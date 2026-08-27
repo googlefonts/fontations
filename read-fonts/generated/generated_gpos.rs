@@ -1587,9 +1587,7 @@ impl<'a> SinglePosFormat2<'a> {
     /// Array of ValueRecords — positioning values applied to glyphs.
     pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
         let range = self.value_records_byte_range();
-        self.data
-            .read_with_args(range, self.value_format())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.value_format()).unwrap_or_default()
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -2024,9 +2022,12 @@ impl<'a> PairSet<'a> {
     /// glyph.
     pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
         let range = self.pair_value_records_byte_range();
-        self.data
-            .read_with_args(range, (self.value_format1(), self.value_format2()))
-            .unwrap_or_default()
+        ComputedArray::new(
+            self.data,
+            range,
+            (self.value_format1(), self.value_format2()),
+        )
+        .unwrap_or_default()
     }
 
     pub(crate) fn value_format1(&self) -> ValueFormat {
@@ -2165,6 +2166,8 @@ impl<'a> FontRead<'a> for PairValueRecord {
         })
     }
 }
+
+crate::impl_font_read_at!(PairValueRecord);
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> PairValueRecord {
@@ -2323,16 +2326,16 @@ impl<'a> PairPosFormat2<'a> {
     /// Array of Class1 records, ordered by classes in classDef1.
     pub fn class1_records(&self) -> ComputedArray<'a, Class1Record<'a>> {
         let range = self.class1_records_byte_range();
-        self.data
-            .read_with_args(
-                range,
-                (
-                    self.class2_count(),
-                    self.value_format1(),
-                    self.value_format2(),
-                ),
-            )
-            .unwrap_or_default()
+        ComputedArray::new(
+            self.data,
+            range,
+            (
+                self.class2_count(),
+                self.value_format1(),
+                self.value_format2(),
+            ),
+        )
+        .unwrap_or_default()
     }
 
     pub fn pos_format_byte_range(&self) -> Range<usize> {
@@ -2489,6 +2492,8 @@ impl<'a> FontRead<'a> for Class1Record<'a> {
     }
 }
 
+crate::impl_font_read_at!(Class1Record<'a>);
+
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Class1Record<'a> {
     /// A constructor that requires additional arguments.
@@ -2580,6 +2585,8 @@ impl<'a> FontRead<'a> for Class2Record {
         })
     }
 }
+
+crate::impl_font_read_at!(Class2Record);
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Class2Record {
@@ -3094,9 +3101,7 @@ impl<'a> BaseArray<'a> {
     /// Array of BaseRecords, in order of baseCoverage Index.
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
         let range = self.base_records_byte_range();
-        self.data
-            .read_with_args(range, self.mark_class_count())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.mark_class_count()).unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -3213,6 +3218,8 @@ impl<'a> FontRead<'a> for BaseRecord<'a> {
         })
     }
 }
+
+crate::impl_font_read_at!(BaseRecord<'a>);
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> BaseRecord<'a> {
@@ -3629,9 +3636,7 @@ impl<'a> LigatureAttach<'a> {
     /// Array of Component records, ordered in writing direction.
     pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
         let range = self.component_records_byte_range();
-        self.data
-            .read_with_args(range, self.mark_class_count())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.mark_class_count()).unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -3749,6 +3754,8 @@ impl<'a> FontRead<'a> for ComponentRecord<'a> {
         })
     }
 }
+
+crate::impl_font_read_at!(ComponentRecord<'a>);
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> ComponentRecord<'a> {
@@ -4036,9 +4043,7 @@ impl<'a> Mark2Array<'a> {
     /// Array of Mark2Records, in Coverage order.
     pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
         let range = self.mark2_records_byte_range();
-        self.data
-            .read_with_args(range, self.mark_class_count())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.mark_class_count()).unwrap_or_default()
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -4155,6 +4160,8 @@ impl<'a> FontRead<'a> for Mark2Record<'a> {
         })
     }
 }
+
+crate::impl_font_read_at!(Mark2Record<'a>);
 
 #[allow(clippy::needless_lifetimes)]
 impl<'a> Mark2Record<'a> {

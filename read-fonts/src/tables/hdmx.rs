@@ -53,6 +53,8 @@ impl<'a> DeviceRecord<'a> {
     }
 }
 
+crate::impl_font_read_at!(DeviceRecord<'a>);
+
 impl ReadArgs for DeviceRecord<'_> {
     type Args = (u16, u32);
 }

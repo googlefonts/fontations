@@ -84,6 +84,53 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
     let constructor_args = args.constructor_args();
     let args_from_constructor_args = args.read_args_from_constructor_args();
 
+    // a positioned record keeps the enclosing table's data and its own position
+    // within it, so it is read through `FontReadAt` rather than `FontRead`
+    let positioned = item.is_positioned();
+    // Either way the record can be an element of a `ComputedArray`, which
+    // reads through `FontReadAt`. A positioned record implements it directly;
+    // one that is not gets the slicing form.
+    let maybe_font_read_at = (!positioned).then(|| {
+        quote! {
+            crate::impl_font_read_at!(#name #lifetime);
+        }
+    });
+    let (read_impl, read_ctor_extra_args, read_ctor_body) = if positioned {
+        (
+            quote! {
+                impl<'a> FontReadAt<'a> for #name #lifetime {
+                    fn read_at(data: FontData<'a>, offset: usize, args: #args_type) -> Result<Self, ReadError> {
+                        let mut cursor = data.cursor();
+                        cursor.advance_by(offset);
+                        #destructure_pattern
+                        Ok(Self {
+                            #( #field_inits, )*
+                        })
+                    }
+                }
+            },
+            vec![quote!(offset: usize,)],
+            quote!(Self::read_at(data, offset, args)),
+        )
+    } else {
+        (
+            quote! {
+                impl<'a> FontRead<'a> for #name #lifetime {
+                    fn read_with_args(data: FontData<'a>, args: #args_type) -> Result<Self, ReadError> {
+                        let mut cursor = data.cursor();
+                        #destructure_pattern
+                        Ok(Self {
+                            #( #field_inits, )*
+                        })
+
+                    }
+                }
+            },
+            Vec::new(),
+            quote!(Self::read_with_args(data, args)),
+        )
+    };
+
     let comp_size_expr = match field_size_expr.as_slice() {
         [] => panic!("should never be empty"),
         [one_expr] => quote!( Ok(#one_expr) ),
@@ -109,16 +156,9 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
             }
         }
 
-        impl<'a> FontRead<'a> for #name #lifetime {
-            fn read_with_args(data: FontData<'a>, args: #args_type) -> Result<Self, ReadError> {
-                let mut cursor = data.cursor();
-                #destructure_pattern
-                Ok(Self {
-                    #( #field_inits, )*
-                })
+        #read_impl
 
-            }
-        }
+        #maybe_font_read_at
 
         #[allow(clippy::needless_lifetimes)]
         impl<'a> #name #lifetime {
@@ -126,9 +166,9 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
             ///
             /// This type requires some external state in order to be
             /// parsed.
-            pub fn read(data: FontData<'a>, #( #constructor_args, )* ) -> Result<Self, ReadError> {
+            pub fn read(data: FontData<'a>, #( #read_ctor_extra_args )* #( #constructor_args, )* ) -> Result<Self, ReadError> {
                 let args = #args_from_constructor_args;
-                Self::read_with_args(data, args)
+                #read_ctor_body
             }
         }
     }
@@ -372,18 +412,23 @@ fn generate_from_obj_impl(item: &Record, parse_module: &syn::Path) -> syn::Resul
 impl Record {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         self.fields.sanity_check(phase)?;
+        // positioned-ness is only known after resolution, and it is one of the
+        // things that requires a lifetime, so defer this check to that point
+        if let Phase::Parse = phase {
+            return Ok(());
+        }
         let field_needs_lifetime = self
             .fields
             .iter()
-            .find(|fld| fld.is_computed_array() || fld.is_array());
+            .find(|fld| fld.is_computed_array() || fld.is_array() || fld.positioned);
         match (field_needs_lifetime, &self.lifetime) {
             (Some(_), None) => Err(logged_syn_error(
                 self.name.span(),
-                "This record contains an array, and so must have a lifetime",
+                "This record contains an array or positioned field, and so must have a lifetime",
             )),
             (None, Some(_)) => Err(logged_syn_error(
                 self.name.span(),
-                "unexpected lifetime; record contains no array",
+                "unexpected lifetime; record contains no array or positioned field",
             )),
             _ => Ok(()),
         }
@@ -391,6 +436,15 @@ impl Record {
 
     fn is_zerocopy(&self) -> bool {
         self.fields.iter().all(Field::is_zerocopy_compatible)
+    }
+
+    /// Whether this record must be read at an offset within enclosing data.
+    ///
+    /// True when it holds a field that resolves offsets against the enclosing
+    /// table, since reading from data sliced to the record would lose that
+    /// table. Computed during resolution; see `Items::build_positioned_set`.
+    pub(crate) fn is_positioned(&self) -> bool {
+        self.fields.iter().any(|fld| fld.positioned)
     }
 
     fn gets_extra_traits(&self, all_items: &Items) -> bool {

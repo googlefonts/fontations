@@ -2471,9 +2471,7 @@ impl<'a> GlyphPatches<'a> {
 
     pub fn glyph_ids(&self) -> ComputedArray<'a, U16Or24> {
         let range = self.glyph_ids_byte_range();
-        self.data
-            .read_with_args(range, self.flags())
-            .unwrap_or_default()
+        ComputedArray::new(self.data, range, self.flags()).unwrap_or_default()
     }
 
     pub fn tables(&self) -> &'a [BigEndian<Tag>] {

@@ -297,6 +297,8 @@ impl ValueRecord {
     }
 }
 
+crate::impl_font_read_at!(ValueRecord);
+
 impl ReadArgs for ValueRecord {
     type Args = ValueFormat;
 }

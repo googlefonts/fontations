@@ -23,7 +23,7 @@ use types::{
 use crate::{
     array::{ComputedArray, VarLenArray},
     read::{ComputeSize, ReadArgs},
-    FontData, FontRead, ReadError, VarSize,
+    FontData, FontRead, FontReadAt, ReadError, VarSize,
 };
 
 /// Types of fields in font tables.
@@ -127,7 +127,7 @@ impl<'a> FieldType<'a> {
         data: FontData<'a>,
     ) -> FieldType<'a>
     where
-        T: FontRead<'a> + ComputeSize + SomeRecord<'a> + 'a,
+        T: FontReadAt<'a> + ComputeSize + SomeRecord<'a> + 'a,
         T::Args: Copy + 'static,
     {
         ComputedArrayOfRecords {
@@ -406,7 +406,7 @@ struct VarLenArrayOfRecords<'a, T> {
 
 impl<'a, T> SomeArray<'a> for ComputedArrayOfRecords<'a, T>
 where
-    T: FontRead<'a> + ComputeSize + SomeRecord<'a> + 'a,
+    T: FontReadAt<'a> + ComputeSize + SomeRecord<'a> + 'a,
     T::Args: Copy + 'static,
     Self: 'a,
 {

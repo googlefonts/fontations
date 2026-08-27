@@ -20,6 +20,326 @@ pub mod read_args {
     include!("../generated/generated_test_read_args.rs");
 }
 
+pub mod positioned {
+
+    include!("../generated/generated_test_positioned.rs");
+
+    /// A record read at an offset within the enclosing table's data.
+    ///
+    /// Its second field is an offset measured from the start of that table, so
+    /// the record can only resolve it by holding the table's data rather than a
+    /// slice of its own bytes. That is the whole reason positioned records
+    /// exist; the assertions below check the base survives.
+    ///
+    /// On disk: a `u16` value, then a `u16` offset to another `u16`. The record
+    /// is declared with an explicit size so that a record wider than the fields
+    /// it defines still strides correctly.
+    #[derive(Copy, Clone, Default, Debug)]
+    pub struct Positioned<'a> {
+        /// The enclosing table's data, not a slice of this record.
+        data: FontData<'a>,
+        offset: u32,
+        size: u16,
+    }
+
+    impl<'a> Positioned<'a> {
+        pub fn new(data: FontData<'a>, offset: usize, size: u16) -> Self {
+            Self {
+                data,
+                offset: u32::try_from(offset).unwrap_or(u32::MAX),
+                size,
+            }
+        }
+
+        /// Where this record starts within [`offset_data`](Self::offset_data).
+        pub fn offset(&self) -> usize {
+            self.offset as usize
+        }
+
+        /// The enclosing table's data.
+        pub fn offset_data(&self) -> FontData<'a> {
+            self.data
+        }
+
+        /// How many bytes this record occupies, which comes from the read args
+        /// rather than the fields it defines.
+        pub fn size(&self) -> u16 {
+            self.size
+        }
+
+        pub fn value(&self) -> Option<u16> {
+            self.data.read_at(self.offset as usize).ok()
+        }
+
+        /// The raw offset, measured from the start of the enclosing table.
+        pub fn target_offset(&self) -> Option<u16> {
+            self.data.read_at(self.offset as usize + 2).ok()
+        }
+
+        /// The value the offset points at, resolved against the enclosing
+        /// table. This is what would be unreachable if the record only had its
+        /// own bytes.
+        pub fn target(&self) -> Option<u16> {
+            self.data.read_at(self.target_offset()? as usize).ok()
+        }
+    }
+
+    impl ReadArgs for Positioned<'_> {
+        type Args = u16;
+    }
+
+    impl ComputeSize for Positioned<'_> {
+        fn compute_size(args: u16) -> Result<usize, ReadError> {
+            Ok(args as usize)
+        }
+    }
+
+    impl<'a> FontReadAt<'a> for Positioned<'a> {
+        fn read_at(data: FontData<'a>, offset: usize, args: u16) -> Result<Self, ReadError> {
+            Ok(Self::new(data, offset, args))
+        }
+    }
+
+    #[cfg(feature = "experimental_traverse")]
+    impl<'a> Positioned<'a> {
+        pub(crate) fn traversal_type(&self, data: FontData<'a>) -> FieldType<'a> {
+            FieldType::Record(self.traverse(data))
+        }
+    }
+
+    #[cfg(feature = "experimental_traverse")]
+    impl<'a> SomeRecord<'a> for Positioned<'a> {
+        fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+            RecordResolver {
+                name: "Positioned",
+                data,
+                get_field: Box::new(move |idx, _data| match idx {
+                    0 => Some(Field::new("value", self.value()?)),
+                    1 => Some(Field::new("target_offset", self.target_offset()?)),
+                    _ => None,
+                }),
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use font_test_data::bebuffer::BeBuffer;
+
+        const SIZE: u16 = 4;
+        /// tag + two records
+        const PAIR_LEN: usize = 2 + (SIZE as usize * 2);
+
+        /// A table with one solo record and two pairs, whose five records point
+        /// at five values laid out after them.
+        ///
+        /// The targets deliberately sit past every record, so a record that
+        /// resolved against its own bytes could not reach them.
+        fn positioned_table() -> BeBuffer {
+            BeBuffer::new()
+                .push(SIZE) // positioned_size
+                .push(0x1111u16) // solo.value
+                .push(28u16) // solo.target_offset
+                .push(2u16) // pair_count
+                .push(0xAAAAu16) // pairs[0].tag
+                .push(0x2222u16)
+                .push(30u16)
+                .push(0x3333u16)
+                .push(32u16)
+                .push(0xBBBBu16) // pairs[1].tag
+                .push(0x4444u16)
+                .push(34u16)
+                .push(0x5555u16)
+                .push(36u16)
+                // the targets, at 28..38
+                .push(0xDEADu16)
+                .push(0xBEEFu16)
+                .push(0xCAFEu16)
+                .push(0xF00Du16)
+                .push(0x1234u16)
+        }
+
+        /// A field of positioned type is handed the table's data plus where it
+        /// starts, so an offset inside it still resolves.
+        #[test]
+        fn table_field_keeps_table_data() {
+            let buf = positioned_table();
+            let table = PositionedTable::read(FontData::new(buf.data())).unwrap();
+            let solo = table.solo();
+
+            assert_eq!(solo.offset(), table.solo_byte_range().start);
+            assert_eq!(solo.offset(), 2);
+            assert_eq!(solo.value(), Some(0x1111));
+            assert_eq!(solo.target_offset(), Some(28));
+            // resolved against the table, not against the record
+            assert_eq!(solo.target(), Some(0xDEAD));
+            assert_eq!(solo.offset_data().len(), buf.data().len());
+        }
+
+        /// Array items are located by stride from the array's start, and each
+        /// one keeps the table's data.
+        #[test]
+        fn array_items_are_located_not_sliced() {
+            let buf = positioned_table();
+            let table = PositionedTable::read(FontData::new(buf.data())).unwrap();
+            let pairs = table.pairs();
+            assert_eq!(pairs.len(), 2);
+
+            let start = table.pairs_byte_range().start;
+            let expected = [
+                (
+                    0xAAAAu16,
+                    [(0x2222u16, 30u16, 0xBEEFu16), (0x3333, 32, 0xCAFE)],
+                ),
+                (0xBBBB, [(0x4444, 34, 0xF00D), (0x5555, 36, 0x1234)]),
+            ];
+
+            for (i, (tag, records)) in expected.into_iter().enumerate() {
+                let pair = pairs.get(i).unwrap();
+                assert_eq!(pair.tag(), tag);
+                let got = [pair.first(), pair.second()];
+                for (j, (value, target_offset, target)) in records.into_iter().enumerate() {
+                    let rec = got[j];
+                    assert_eq!(
+                        rec.offset(),
+                        start + i * PAIR_LEN + 2 + j * SIZE as usize,
+                        "pair {i} record {j}"
+                    );
+                    assert_eq!(rec.value(), Some(value));
+                    assert_eq!(rec.target_offset(), Some(target_offset));
+                    assert_eq!(rec.target(), Some(target), "pair {i} record {j}");
+                }
+            }
+
+            // iterating agrees with indexing, and the iterator walks offsets
+            // statefully, so check it is repeatable and cloneable
+            let offsets = |it: &mut dyn Iterator<Item = Result<PositionedPair, ReadError>>| {
+                it.map(|p| {
+                    let p = p.unwrap();
+                    (p.tag(), p.first().offset(), p.second().offset())
+                })
+                .collect::<Vec<_>>()
+            };
+            let expected_offsets =
+                offsets(&mut (0..pairs.len()).map(|i| Ok(pairs.get(i).unwrap())));
+            assert_eq!(offsets(&mut pairs.iter()), expected_offsets);
+            // a second call starts over rather than resuming
+            assert_eq!(offsets(&mut pairs.iter()), expected_offsets);
+            // and a clone resumes from where it was taken
+            let mut it = pairs.iter();
+            it.next().unwrap().unwrap();
+            assert_eq!(offsets(&mut it.clone()), expected_offsets[1..].to_vec());
+        }
+
+        /// A record that is positioned only because it holds an array of
+        /// positioned records must still pass the table's data down.
+        #[test]
+        fn nested_arrays_keep_table_data() {
+            const PAIRS_PER_GROUP: u16 = 2;
+            const GROUPS: u16 = 2;
+            // header, then GROUPS * PAIRS_PER_GROUP pairs
+            let header = 6;
+            let body = GROUPS as usize * PAIRS_PER_GROUP as usize * PAIR_LEN;
+            let targets_at = header + body;
+
+            let mut buf = BeBuffer::new()
+                .push(SIZE)
+                .push(PAIRS_PER_GROUP)
+                .push(GROUPS);
+            // every record points at a distinct target after the body
+            let mut next_target = targets_at;
+            for i in 0..(GROUPS as usize * PAIRS_PER_GROUP as usize) {
+                buf = buf.push(0xA000u16 + i as u16);
+                for _ in 0..2 {
+                    buf = buf.push(0u16).push(next_target as u16);
+                    next_target += 2;
+                }
+            }
+            for i in 0..(GROUPS as usize * PAIRS_PER_GROUP as usize * 2) {
+                buf = buf.push(0xD000u16 + i as u16);
+            }
+
+            let data = FontData::new(buf.data());
+            let table = NestedPositionedTable::read(data).unwrap();
+            let groups = table.groups();
+            assert_eq!(groups.len(), GROUPS as usize);
+
+            let mut seen = 0;
+            for g in 0..groups.len() {
+                let group = groups.get(g).unwrap();
+                let pairs = group.pairs();
+                assert_eq!(pairs.len(), PAIRS_PER_GROUP as usize);
+                for p in 0..pairs.len() {
+                    let pair = pairs.get(p).unwrap();
+                    for rec in [pair.first(), pair.second()] {
+                        // two levels down, still resolving against the table
+                        assert_eq!(
+                            rec.target(),
+                            Some(0xD000 + seen as u16),
+                            "group {g} pair {p}"
+                        );
+                        assert_eq!(rec.offset_data().len(), buf.data().len());
+                        seen += 1;
+                    }
+                }
+            }
+            assert_eq!(seen, GROUPS as usize * PAIRS_PER_GROUP as usize * 2);
+        }
+
+        /// The stride comes from the runtime size, so a record declared wider
+        /// than its fields still lands in the right place.
+        #[test]
+        fn stride_follows_computed_size() {
+            const WIDE: u16 = 6; // two bytes of padding per record
+            let buf = BeBuffer::new()
+                .push(WIDE) // positioned_size
+                .push(0u16) // solo.value
+                .push(0u16) // solo.target_offset
+                .push(0u16) // solo padding
+                .push(1u16) // pair_count
+                .push(0xAAAAu16) // pairs[0].tag
+                .push(0x2222u16)
+                .push(0u16)
+                .push(0u16) // first, padded
+                .push(0x3333u16)
+                .push(0u16)
+                .push(0u16); // second, padded
+
+            let table = PositionedTable::read(FontData::new(buf.data())).unwrap();
+            let pairs = table.pairs();
+            assert_eq!(pairs.len(), 1);
+            let pair = pairs.get(0).unwrap();
+            assert_eq!(pair.first().value(), Some(0x2222));
+            assert_eq!(pair.second().value(), Some(0x3333));
+            assert_eq!(pair.first().size(), WIDE);
+            // the second record starts a full WIDE bytes after the first
+            assert_eq!(
+                pair.second().offset() - pair.first().offset(),
+                WIDE as usize
+            );
+        }
+
+        #[test]
+        fn out_of_range_and_truncated() {
+            let buf = positioned_table();
+            let table = PositionedTable::read(FontData::new(buf.data())).unwrap();
+            let pairs = table.pairs();
+            assert!(pairs.get(pairs.len()).is_err());
+
+            // a declared array that doesn't fit yields nothing rather than
+            // handing out records pointing past the end
+            let truncated = BeBuffer::new()
+                .push(SIZE)
+                .push(0u16)
+                .push(0u16) // solo
+                .push(9u16); // pair_count, with no pairs following
+            let table = PositionedTable::read(FontData::new(truncated.data())).unwrap();
+            assert!(table.pairs().is_empty());
+        }
+    }
+}
+
 pub mod offsets_arrays {
 
     include!("../generated/generated_test_offsets_arrays.rs");
