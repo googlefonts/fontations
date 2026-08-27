@@ -504,6 +504,37 @@ impl Items {
             for field in fields.iter_mut() {
                 fields::resolve_field(&known, field)?;
             }
+        }
+
+        // Now that field types are resolved we can work out which of them are
+        // read at an offset within their enclosing table, and which are records
+        // of a known fixed size. This has to precede the `validated_at_parse`
+        // pass below, which asks each field for its minimum size, and an
+        // embedded record only knows its size once it has been marked.
+        let positioned = self.build_positioned_set();
+        let fixed_size = self.build_fixed_size_record_set();
+        for item in self.iter_mut() {
+            let fields = match item {
+                Item::Record(item) => &mut item.fields.fields,
+                Item::Table(item) => &mut item.fields.fields,
+                _ => continue,
+            };
+            for field in fields.iter_mut() {
+                field.positioned =
+                    positioned_dep(&field.typ).is_some_and(|typ| positioned.contains(typ));
+                field.fixed_size_record = match &field.typ {
+                    FieldType::Struct { typ } => fixed_size.contains(typ),
+                    _ => false,
+                };
+            }
+        }
+
+        for item in self.iter_mut() {
+            let fields = match item {
+                Item::Record(item) => &mut item.fields.fields,
+                Item::Table(item) => &mut item.fields.fields,
+                _ => continue,
+            };
             // Mark fields as validated_at_parse if they have a known, fixed size
             // and appear before any variable-length fields (arrays).
             // Arrays return Some(empty token), so we stop when we see one.
@@ -531,6 +562,21 @@ impl Items {
         }
 
         Ok(())
+    }
+
+    /// The names of every record with a size known at compile time.
+    ///
+    /// These are the zerocopy records: a field of one can be borrowed straight
+    /// out of the parent's data, whether the parent is a record or a table.
+    /// Extern records are excluded, since codegen cannot know their shape.
+    fn build_fixed_size_record_set(&self) -> HashSet<syn::Ident> {
+        self.items
+            .values()
+            .filter_map(|item| match item {
+                Item::Record(record) if record.is_zerocopy() => Some(record.name.clone()),
+                _ => None,
+            })
+            .collect()
     }
 
     /// The names of every type that must be read at an offset within enclosing

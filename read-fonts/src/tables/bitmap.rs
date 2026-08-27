@@ -55,8 +55,7 @@ impl BitmapSize {
                         .mul(data_size)
                         .add(st.image_data_offset() as usize)
                         .ok_or_oob()?;
-                    location.metrics =
-                        Some(*st.big_metrics().first().ok_or(ReadError::OutOfBounds)?);
+                    location.metrics = Some(*st.big_metrics());
                 }
                 IndexSubtable::Format3(st) => {
                     location.format = st.image_format();
@@ -106,8 +105,7 @@ impl BitmapSize {
                         .mul(data_size)
                         .add(st.image_data_offset() as usize)
                         .ok_or_oob()?;
-                    location.metrics =
-                        Some(*st.big_metrics().first().ok_or(ReadError::OutOfBounds)?);
+                    location.metrics = Some(*st.big_metrics());
                 }
             }
             return Ok(location);

@@ -434,7 +434,7 @@ impl Record {
         }
     }
 
-    fn is_zerocopy(&self) -> bool {
+    pub(crate) fn is_zerocopy(&self) -> bool {
         self.fields.iter().all(Field::is_zerocopy_compatible)
     }
 

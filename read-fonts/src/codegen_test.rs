@@ -20,6 +20,136 @@ pub mod read_args {
     include!("../generated/generated_test_read_args.rs");
 }
 
+pub mod embedded_records {
+
+    include!("../generated/generated_test_embedded_records.rs");
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use font_test_data::bebuffer::BeBuffer;
+
+        const REC: usize = 4; // i16 + Offset16
+
+        /// A table whose embedded records point at device tables laid out after
+        /// the fixed part, so we can tell a resolved offset from a stray read.
+        fn embedded_table() -> BeBuffer {
+            // version, 2 records, middle, 1 record, a pair of records, trailer
+            let fixed = 2 + REC * 2 + 2 + REC + REC * 2 + 2;
+            let mut buf = BeBuffer::new().push(0x0100u16); // version
+            let mut device_at = fixed;
+            // first, second
+            for value in [11i16, 22] {
+                buf = buf.push(value).push(device_at as u16);
+                device_at += 2;
+            }
+            buf = buf.push(0xABCDu16); // middle
+                                       // third
+            buf = buf.push(33i16).push(device_at as u16);
+            device_at += 2;
+            // pair.first, pair.second
+            for value in [44i16, 55] {
+                buf = buf.push(value).push(device_at as u16);
+                device_at += 2;
+            }
+            buf = buf.push(0xEF01u16); // trailer
+                                       // the device tables, one u16 marker each
+            for marker in 0xD0u16..0xD5 {
+                buf = buf.push(marker);
+            }
+            buf
+        }
+
+        #[test]
+        fn records_are_read_in_place() {
+            let buf = embedded_table();
+            let table = EmbeddedRecords::read(FontData::new(buf.data())).unwrap();
+
+            // the scalars around the records still land correctly, which is the
+            // real test that each record occupies exactly its own bytes
+            assert_eq!(table.version(), 0x0100);
+            assert_eq!(table.middle(), 0xABCD);
+            assert_eq!(table.trailer(), 0xEF01);
+
+            assert_eq!(table.first().value(), 11);
+            assert_eq!(table.second().value(), 22);
+            assert_eq!(table.third().value(), 33);
+            // a record embedded in a record, reached through one embedded in a table
+            assert_eq!(table.pair().first().value(), 44);
+            assert_eq!(table.pair().second().value(), 55);
+        }
+
+        /// The offsets inside an embedded record are measured from the table, so
+        /// resolving one has to be given the table's data.
+        #[test]
+        fn embedded_offsets_resolve_against_the_table() {
+            let buf = embedded_table();
+            let data = FontData::new(buf.data());
+            let table = EmbeddedRecords::read(data).unwrap();
+            let offset_data = table.offset_data();
+
+            let markers = [
+                table.first().device(offset_data),
+                table.second().device(offset_data),
+                table.third().device(offset_data),
+                table.pair().first().device(offset_data),
+                table.pair().second().device(offset_data),
+            ];
+            for (i, device) in markers.into_iter().enumerate() {
+                let device = device.expect("offset is not null").unwrap();
+                assert_eq!(device.marker(), 0xD0 + i as u16, "device {i}");
+            }
+        }
+
+        /// Each record must be located where the byte ranges say, so that a
+        /// table full of them stays in step.
+        #[test]
+        fn byte_ranges_are_contiguous() {
+            let buf = embedded_table();
+            let table = EmbeddedRecords::read(FontData::new(buf.data())).unwrap();
+
+            assert_eq!(table.version_byte_range(), 0..2);
+            assert_eq!(table.first_byte_range(), 2..2 + REC);
+            assert_eq!(table.second_byte_range(), 2 + REC..2 + REC * 2);
+            assert_eq!(table.middle_byte_range().start, 2 + REC * 2);
+            // the pair is two records wide
+            assert_eq!(table.pair_byte_range().len(), REC * 2);
+            assert_eq!(table.trailer_byte_range().end, EmbeddedRecords::MIN_SIZE);
+        }
+
+        /// An embedded record counts toward the table's minimum size, so a
+        /// table too short to hold it is rejected rather than read.
+        #[test]
+        fn short_table_is_rejected() {
+            let buf = embedded_table();
+            let full = buf.data();
+            assert!(EmbeddedRecords::read(FontData::new(full)).is_ok());
+            for len in 0..EmbeddedRecords::MIN_SIZE {
+                assert!(
+                    EmbeddedRecords::read(FontData::new(&full[..len])).is_err(),
+                    "a table of {len} bytes should not read"
+                );
+            }
+        }
+
+        /// A record may be followed by variable-length data; it is still within
+        /// the minimum size.
+        #[test]
+        fn record_followed_by_array() {
+            let buf = BeBuffer::new()
+                .push(7i16) // metrics.value
+                .push(0u16) // metrics.device_offset, null
+                .push(3u16) // value_count
+                .extend([10u16, 20, 30]);
+            let table = RecordThenArray::read(FontData::new(buf.data())).unwrap();
+            assert_eq!(table.metrics().value(), 7);
+            assert!(table.metrics().device(table.offset_data()).is_none());
+            let values: Vec<u16> = table.values().iter().map(|v| v.get()).collect();
+            assert_eq!(values, vec![10u16, 20, 30]);
+        }
+    }
+}
+
 pub mod positioned {
 
     include!("../generated/generated_test_positioned.rs");

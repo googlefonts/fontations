@@ -354,6 +354,18 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
 impl Table {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         for fld in self.fields.iter() {
+            // A table reads its fields on demand, so an embedded record is
+            // borrowed out of the table's data. A borrow has no default to
+            // fall back on when the data is short, so the getter unwraps,
+            // which is only sound if MIN_SIZE covers the field. (Records
+            // hold their fields outright and are unaffected.)
+            if matches!(phase, Phase::Analysis) && fld.fixed_size_record && !fld.validated_at_parse
+            {
+                return Err(logged_syn_error(
+                    fld.name.span(),
+                    "an embedded record must precede any variable-length field, so that it is covered by the table's minimum size",
+                ));
+            }
             if fld.attrs.discriminant.is_some() && self.attrs.generic_offset.is_none() {
                 return Err(logged_syn_error(
                     fld.attrs.discriminant.as_ref().unwrap().span(),
