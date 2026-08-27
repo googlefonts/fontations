@@ -472,6 +472,7 @@ struct ClassDefSizeEstimator {
     included_glyphs: IntSet<u32>,
     format1_size: usize,
     format2_size: usize,
+    coverage_size: usize,
 }
 
 impl ClassDefSizeEstimator {
@@ -490,6 +491,7 @@ impl ClassDefSizeEstimator {
                 included_classes: IntSet::empty(),
                 format1_size: Self::CLASSDEF_FORMAT1_MIN_SIZE,
                 format2_size: Self::CLASSDEF_FORMAT2_MIN_SIZE,
+                coverage_size: Self::COVERAGE_MIN_SIZE,
             };
         }
         let num_classes = gid_and_class.iter().map(|&(_, c)| c).max().unwrap_or(0) as usize + 1;
@@ -514,6 +516,7 @@ impl ClassDefSizeEstimator {
             included_classes: IntSet::empty(),
             format1_size: Self::CLASSDEF_FORMAT1_MIN_SIZE,
             format2_size: Self::CLASSDEF_FORMAT2_MIN_SIZE,
+            coverage_size: Self::COVERAGE_MIN_SIZE,
         }
     }
 
@@ -530,7 +533,12 @@ impl ClassDefSizeEstimator {
         if glyphs.is_empty() {
             return cur_size;
         }
+
+        let num_glyphs = self.included_glyphs.len();
         self.included_glyphs.union(glyphs);
+        if num_glyphs != self.included_glyphs.len() {
+            self.compute_coverage_size();
+        }
 
         let min_glyph = self.included_glyphs.first().unwrap();
         let max_glyph = self.included_glyphs.last().unwrap();
@@ -544,18 +552,23 @@ impl ClassDefSizeEstimator {
     }
 
     fn coverage_size(&self) -> usize {
+        self.coverage_size
+    }
+
+    fn compute_coverage_size(&mut self) {
         let format_1_size =
             Self::COVERAGE_MIN_SIZE + Self::BYTES_PER_GLYPH * self.included_glyphs.len() as usize;
 
         let format_2_size = Self::COVERAGE_MIN_SIZE
             + Self::BYTES_PER_RANGE * self.included_glyphs.iter_ranges().count();
 
-        format_1_size.min(format_2_size)
+        self.coverage_size = format_1_size.min(format_2_size);
     }
 
     fn reset(&mut self) {
         self.format1_size = Self::CLASSDEF_FORMAT1_MIN_SIZE;
         self.format2_size = Self::CLASSDEF_FORMAT2_MIN_SIZE;
+        self.coverage_size = Self::COVERAGE_MIN_SIZE;
         self.included_classes.clear();
         self.included_glyphs.clear();
     }
