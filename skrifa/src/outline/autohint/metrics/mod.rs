@@ -11,9 +11,10 @@ use super::{
     topo::Dimension,
     QuirksMode,
 };
-use crate::{attribute::Style, collections::SmallVec, FontRef};
+use crate::{attribute::Style, FontRef};
 use alloc::vec::Vec;
 use raw::types::{F2Dot14, Fixed, GlyphId};
+use smallvec::SmallVec;
 #[cfg(feature = "std")]
 use std::sync::{Arc, RwLock};
 
@@ -233,7 +234,7 @@ pub struct WidthMetrics {
     pub is_extra_light: bool,
 }
 
-pub(crate) type UnscaledWidths = SmallVec<i32, MAX_WIDTHS>;
+pub(crate) type UnscaledWidths = SmallVec<[i32; MAX_WIDTHS]>;
 
 /// A scaled stem width.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
@@ -244,7 +245,7 @@ pub struct ScaledWidth {
     pub fitted: i32,
 }
 
-pub(crate) type ScaledWidths = SmallVec<ScaledWidth, MAX_WIDTHS>;
+pub(crate) type ScaledWidths = SmallVec<[ScaledWidth; MAX_WIDTHS]>;
 
 /// Flags that define how scaling and hinting is applied.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]

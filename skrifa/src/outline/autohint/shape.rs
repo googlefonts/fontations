@@ -1,7 +1,7 @@
 //! Shaping support for autohinting.
 
 use super::style::{GlyphStyle, StyleClass};
-use crate::{charmap::Charmap, collections::SmallVec, FontRef, GlyphId, MetadataProvider};
+use crate::{charmap::Charmap, FontRef, GlyphId, MetadataProvider};
 use core::ops::Range;
 use raw::{
     tables::{
@@ -15,6 +15,7 @@ use raw::{
     types::Tag,
     ReadError, TableProvider,
 };
+use smallvec::SmallVec;
 
 // To prevent infinite recursion in contextual lookups. Matches HB
 // <https://github.com/harfbuzz/harfbuzz/blob/c7ef6a2ed58ae8ec108ee0962bef46f42c73a60c/src/hb-limits.hh#L53>
@@ -61,7 +62,7 @@ const SHAPED_CLUSTER_INLINE_SIZE: usize = 16;
 /// Some of our input "characters" for metrics computations are actually
 /// multi-character [grapheme clusters](https://www.unicode.org/reports/tr29/#Grapheme_Cluster_Boundaries)
 /// that may expand to multiple glyphs.
-pub(crate) type ShapedCluster = SmallVec<ShapedGlyph, SHAPED_CLUSTER_INLINE_SIZE>;
+pub(crate) type ShapedCluster = SmallVec<[ShapedGlyph; SHAPED_CLUSTER_INLINE_SIZE]>;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(crate) enum ShaperCoverageKind {

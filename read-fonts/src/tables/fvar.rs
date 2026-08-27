@@ -6,7 +6,7 @@ include!("../../generated/generated_fvar.rs");
 mod instance_record;
 
 use super::{avar::Avar, variations::DeltaSetIndex};
-use alloc::vec::Vec;
+use smallvec::SmallVec;
 
 pub use instance_record::InstanceRecord;
 
@@ -60,14 +60,8 @@ fn normalize_user_coords<T>(
         return;
     }
     // Above MAX_NORMALIZE_QUADRATIC_AXES, use an indexed path to avoid O(n^2) behavior
-    let mut stack_axis_order = [0u16; MAX_INLINE_NORMALIZE_AXES];
-    let mut heap_axis_order = Vec::new();
-    let axis_order = if axis_count > MAX_INLINE_NORMALIZE_AXES {
-        heap_axis_order.resize(axis_count, 0);
-        heap_axis_order.as_mut_slice()
-    } else {
-        &mut stack_axis_order[..axis_count]
-    };
+    let mut axis_order = SmallVec::<[u16; MAX_INLINE_NORMALIZE_AXES]>::from_elem(0, axis_count);
+    let axis_order = axis_order.as_mut_slice();
     // Initialize axis_order with the identity mapping
     for (i, axis_index) in axis_order.iter_mut().enumerate() {
         *axis_index = i as u16;
@@ -147,14 +141,9 @@ impl<'a> Fvar<'a> {
         let actual_len = axes.len().min(normalized_coords.len());
         let normalized_coords = &mut normalized_coords[..actual_len];
 
-        let mut stack_fixed_coords = [Fixed::ZERO; MAX_INLINE_AVAR2_AXES];
-        let mut heap_fixed_coords = Vec::new();
-        let fixed_coords = if actual_len > MAX_INLINE_AVAR2_AXES {
-            heap_fixed_coords.resize(actual_len, Fixed::ZERO);
-            heap_fixed_coords.as_mut_slice()
-        } else {
-            &mut stack_fixed_coords[..actual_len]
-        };
+        let mut fixed_coords =
+            SmallVec::<[Fixed; MAX_INLINE_AVAR2_AXES]>::from_elem(Fixed::ZERO, actual_len);
+        let fixed_coords = fixed_coords.as_mut_slice();
         normalize_user_coords(axes, user_coords, fixed_coords, core::convert::identity);
         apply_avar_mappings(avar, fixed_coords, |coord| *coord, core::convert::identity);
 
@@ -170,14 +159,9 @@ impl<'a> Fvar<'a> {
         let var_store = avar.var_store();
         let var_index_map = avar.axis_index_map();
 
-        let mut stack_coords_2dot14 = [F2Dot14::ZERO; MAX_INLINE_AVAR2_AXES];
-        let mut heap_coords_2dot14 = Vec::new();
-        let coords_2dot14 = if actual_len > MAX_INLINE_AVAR2_AXES {
-            heap_coords_2dot14.resize(actual_len, F2Dot14::ZERO);
-            heap_coords_2dot14.as_mut_slice()
-        } else {
-            &mut stack_coords_2dot14[..actual_len]
-        };
+        let mut coords_2dot14 =
+            SmallVec::<[F2Dot14; MAX_INLINE_AVAR2_AXES]>::from_elem(F2Dot14::ZERO, actual_len);
+        let coords_2dot14 = coords_2dot14.as_mut_slice();
         for (coord_2dot14, coord) in coords_2dot14.iter_mut().zip(fixed_coords.iter()) {
             *coord_2dot14 = coord.to_f2dot14();
         }

@@ -30,7 +30,7 @@ pub(crate) type PaintDecycler = Decycler<usize, MAX_TRAVERSAL_DEPTH>;
 // <https://docs.google.com/document/d/1S47f3E--yqvFdG7lmmufxRoFi_wMzotC03v8UvS_p54/edit?tab=t.0#heading=h.bfj7urloz3oe>
 const MAX_INLINE_COLOR_STOPS: usize = 32;
 
-pub(crate) type ColorStopVec = crate::collections::SmallVec<ColorStop, MAX_INLINE_COLOR_STOPS>;
+pub(crate) type ColorStopVec = smallvec::SmallVec<[ColorStop; MAX_INLINE_COLOR_STOPS]>;
 
 impl From<DecyclerError> for PaintError {
     fn from(value: DecyclerError) -> Self {

@@ -8,9 +8,10 @@ use super::{
     },
     ScaledWidth,
 };
-use crate::{collections::SmallVec, FontRef, MetadataProvider};
+use crate::{FontRef, MetadataProvider};
 use raw::types::F2Dot14;
 use raw::TableProvider;
+use smallvec::SmallVec;
 
 /// Maximum number of blue values.
 ///
@@ -151,7 +152,7 @@ pub struct UnscaledBlue {
     pub zones: BlueZones,
 }
 
-pub(crate) type UnscaledBlues = SmallVec<UnscaledBlue, MAX_BLUES>;
+pub(crate) type UnscaledBlues = SmallVec<[UnscaledBlue; MAX_BLUES]>;
 
 /// A scaled alignment zone.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
@@ -166,7 +167,7 @@ pub struct ScaledBlue {
     pub is_active: bool,
 }
 
-pub(crate) type ScaledBlues = SmallVec<ScaledBlue, MAX_BLUES>;
+pub(crate) type ScaledBlues = SmallVec<[ScaledBlue; MAX_BLUES]>;
 
 /// Compute unscaled blues values for each axis.
 pub(crate) fn compute_unscaled_blues(
