@@ -276,9 +276,9 @@ impl<'a> Cursor<'a> {
 
     /// Read an item positioned at the cursor and advance past it.
     ///
-    /// The item is given the cursor's whole data plus its position,
-    /// rather than data sliced to it, so it can resolve offsets relative
-    /// to the enclosing table.
+    /// Unlike [`read_with_args`][Self::read_with_args] the item is given the
+    /// cursor's whole data plus its position, rather than data sliced to it, so
+    /// it can resolve offsets relative to the enclosing table.
     pub(crate) fn read_at_with_args<T>(&mut self, args: T::Args) -> Result<T, ReadError>
     where
         T: FontReadAt<'a> + ComputeSize,

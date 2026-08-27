@@ -426,7 +426,7 @@ fn traversal_arm_for_field(
         }
         // a positioned record is hand-written and supplies its own traversal;
         // SbitLineMetrics is the same arrangement predating that.
-        // See if there are a better way to handle this hardcoded type
+        // See if there is a better way to handle this hardcoded type
         // <https://github.com/googlefonts/fontations/issues/659>
         FieldType::Struct { typ } if fld.positioned || typ == "SbitLineMetrics" => {
             let offset_data = pass_data

@@ -719,9 +719,6 @@ impl Graph {
             return Ok(());
         }
 
-        for i in self.vertices.iter_mut() {
-            i.distance = u64::MAX / 2;
-        }
         let root_idx = self.root_idx();
         self.vertices[root_idx].distance = 0;
 
@@ -730,7 +727,7 @@ impl Graph {
         queue.push((0_u64, root_idx));
 
         let mut visited = vec![false; count];
-        let mut distance_map = vec![0; count];
+        let mut distance_map = vec![u64::MAX / 2; count];
         while let Some((next_distance, next_idx)) = queue.pop() {
             if visited[next_idx] {
                 continue;
@@ -755,7 +752,7 @@ impl Graph {
                 let child_weight =
                     child_v.tail - child_v.head + (1 << (link_width * 8)) * (child_v.space + 1);
                 let child_distance = next_distance + child_weight as u64;
-                if child_distance < child_v.distance {
+                if child_distance < distance_map[child_idx] {
                     distance_map[child_idx] = child_distance;
                     queue.push((child_distance, child_idx));
                 }
