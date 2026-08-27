@@ -437,16 +437,11 @@ mod tests {
         };
 
         assert_eq!(sub1.value_format(), ValueFormat::empty());
-        assert_eq!(sub1.value_record(), read_gpos::ValueRecord::default());
+        assert!(sub1.value_record().is_empty());
 
         assert_eq!(sub2.value_format(), ValueFormat::X_ADVANCE);
-        assert_eq!(
-            sub2.value_record(),
-            read_gpos::ValueRecord {
-                x_advance: Some(500.into()),
-                ..Default::default()
-            }
-        );
+        assert_eq!(sub2.value_record().x_advance(), Some(500));
+        assert_eq!(sub2.value_record().y_advance(), None);
     }
 
     // shared between a pair of tests below

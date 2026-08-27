@@ -206,20 +206,24 @@ impl Validate for ValueRecord {
     fn validate_impl(&self, _ctx: &mut crate::validate::ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::tables::gpos::ValueRecord> for ValueRecord {
-    fn from_obj_ref(from: &read_fonts::tables::gpos::ValueRecord, data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::gpos::ValueRecord<'_>> for ValueRecord {
+    fn from_obj_ref(from: &read_fonts::tables::gpos::ValueRecord, _data: FontData) -> Self {
+        // a value record carries the data its device offsets resolve against,
+        // which is the table containing it; that is not necessarily the data
+        // our caller has, so prefer the record's own.
+        let data = from.offset_data();
         ValueRecord {
             // we want to always preserve the format of an incoming record;
             // otherwise there's no way to correctly determine the format later
-            explicit_format: Some(from.format),
+            explicit_format: Some(from.format()),
             x_placement: from.x_placement(),
             y_placement: from.y_placement(),
             x_advance: from.x_advance(),
             y_advance: from.y_advance(),
-            x_placement_device: from.x_placement_device(data).to_owned_obj(data),
-            y_placement_device: from.y_placement_device(data).to_owned_obj(data),
-            x_advance_device: from.x_advance_device(data).to_owned_obj(data),
-            y_advance_device: from.y_advance_device(data).to_owned_obj(data),
+            x_placement_device: from.x_placement_device().to_owned_obj(data),
+            y_placement_device: from.y_placement_device().to_owned_obj(data),
+            x_advance_device: from.x_advance_device().to_owned_obj(data),
+            y_advance_device: from.y_advance_device().to_owned_obj(data),
         }
     }
 }
@@ -244,10 +248,15 @@ mod tests {
         my_record.set_explicit_value_format(ValueFormat::X_ADVANCE | ValueFormat::X_ADVANCE_DEVICE);
         let bytes = crate::dump_table(&my_record).unwrap();
         assert_eq!(bytes.len(), 4);
-        let read_back =
-            read_fonts::tables::gpos::ValueRecord::read(FontData::new(&bytes), my_record.format())
-                .unwrap();
-        assert!(read_back.x_advance_device.get().is_null());
+        let read_back = read_fonts::tables::gpos::ValueRecord::new(
+            FontData::new(&bytes),
+            0,
+            my_record.format(),
+        );
+        assert!(read_back
+            .device_offset(ValueFormat::X_ADVANCE_DEVICE)
+            .unwrap()
+            .is_null());
     }
 
     #[test]
@@ -275,9 +284,9 @@ mod tests {
         assert_eq!(bytes.len(), 4);
 
         let read_back =
-            read_fonts::tables::gpos::ValueRecord::read(bytes.as_slice().into(), format).unwrap();
+            read_fonts::tables::gpos::ValueRecord::new(bytes.as_slice().into(), 0, format);
         assert_eq!(read_back.x_advance(), Some(5));
-        assert!(read_back.x_advance_device(FontData::EMPTY).is_none());
+        assert!(read_back.x_advance_device().is_none());
 
         let owned: ValueRecord = read_back.to_owned_obj(FontData::EMPTY);
         assert_eq!(owned.explicit_format, Some(format))

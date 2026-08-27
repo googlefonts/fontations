@@ -333,7 +333,7 @@ fn split_off_ppf2(
 // returns the number of non-null offsets encountered in this record
 fn copy_value_rec(
     target: &mut TableData,
-    rec: &rgpos::ValueRecord,
+    rec: &rgpos::ValueRecord<'_>,
     format: ValueFormat,
     dev_offsets: &[OffsetRecord],
 ) -> usize {
@@ -348,12 +348,16 @@ fn copy_value_rec(
                 target.write(val);
             }
         };
-        ($fld:ident, $flag:expr) => {
-            if !rec.$fld.get().is_null() {
+    }
+    // device fields are addressed by their format bit rather than by name,
+    // since a located record reads them on demand
+    macro_rules! write_device_field {
+        ($field:expr) => {
+            if rec.device_offset($field).is_some_and(|off| !off.is_null()) {
                 // we write this in a funny way to dodge a clippy warning
                 seen_offsets += 1;
                 target.add_offset(dev_offsets[seen_offsets - 1].object, 2, 0);
-            } else if $flag {
+            } else if format.contains($field) {
                 target.write(0u16); // null offset
             }
         };
@@ -363,22 +367,10 @@ fn copy_value_rec(
     write_opt_field!(x_advance);
     write_opt_field!(y_advance);
 
-    write_opt_field!(
-        x_placement_device,
-        format.contains(ValueFormat::X_PLACEMENT_DEVICE)
-    );
-    write_opt_field!(
-        y_placement_device,
-        format.contains(ValueFormat::Y_PLACEMENT_DEVICE)
-    );
-    write_opt_field!(
-        x_advance_device,
-        format.contains(ValueFormat::X_ADVANCE_DEVICE)
-    );
-    write_opt_field!(
-        y_advance_device,
-        format.contains(ValueFormat::Y_ADVANCE_DEVICE)
-    );
+    write_device_field!(ValueFormat::X_PLACEMENT_DEVICE);
+    write_device_field!(ValueFormat::Y_PLACEMENT_DEVICE);
+    write_device_field!(ValueFormat::X_ADVANCE_DEVICE);
+    write_device_field!(ValueFormat::Y_ADVANCE_DEVICE);
     seen_offsets
 }
 
@@ -463,7 +455,7 @@ fn count_num_ranges(glyphs: &BTreeSet<GlyphId16>) -> u16 {
 }
 
 fn size_of_value_record_children(
-    record: &rgpos::ValueRecord,
+    record: &rgpos::ValueRecord<'_>,
     graph: &Graph,
     offsets: &[OffsetRecord],
     // gets incremented every time we see a device offset
@@ -471,13 +463,14 @@ fn size_of_value_record_children(
     seen: &mut HashSet<ObjectId>,
 ) -> usize {
     let subtables = [
-        record.x_placement_device.get(),
-        record.y_placement_device.get(),
-        record.x_advance_device.get(),
-        record.y_advance_device.get(),
+        ValueFormat::X_PLACEMENT_DEVICE,
+        ValueFormat::Y_PLACEMENT_DEVICE,
+        ValueFormat::X_ADVANCE_DEVICE,
+        ValueFormat::Y_ADVANCE_DEVICE,
     ];
     subtables
         .iter()
+        .filter_map(|field| record.device_offset(*field))
         .filter_map(|offset| (!offset.is_null()).then_some(*offset.offset()))
         .map(|_| {
             let obj = offsets[*next_offset_idx].object;
