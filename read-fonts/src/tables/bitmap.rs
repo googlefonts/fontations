@@ -340,13 +340,6 @@ fn read_big_metrics(cursor: &mut Cursor) -> Result<BigGlyphMetrics, ReadError> {
     Ok(cursor.read_array::<BigGlyphMetrics>(1)?[0])
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl SbitLineMetrics {
-    pub(crate) fn traversal_type<'a>(&self, data: FontData<'a>) -> FieldType<'a> {
-        FieldType::Record(self.traverse(data))
-    }
-}
-
 /// [IndexSubtables](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtables) format type.
 #[derive(Clone)]
 pub enum IndexSubtable<'a> {
@@ -439,36 +432,6 @@ impl<'a> MinByteRange<'a> for IndexSubtable<'a> {
             Self::Format4(item) => item.min_table_bytes(),
             Self::Format5(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> IndexSubtable<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-            Self::Format3(table) => table,
-            Self::Format4(table) => table,
-            Self::Format5(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for IndexSubtable<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IndexSubtable<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 

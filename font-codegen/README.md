@@ -47,8 +47,6 @@ The basics:
 - If there are any errors, add [attributes](#annotations) as to your table
   as appropriate. Look at other tables for examples.
 - Update `read-fonts/src/table_provider.rs` to provide a getter for your table.
-- Update `otexplorer` to add support for your table. Run the `otexplorer` tool,
-  and ensure it is producing reasonable output.
 - Repeat this process for the `write-fonts` crate.
 
 

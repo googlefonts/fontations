@@ -108,36 +108,6 @@ impl Default for Feat<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Feat<'a> {
-    fn type_name(&self) -> &str {
-        "Feat"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("feature_name_count", self.feature_name_count())),
-            2usize => Some(Field::new(
-                "names",
-                traversal::FieldType::array_of_records(
-                    stringify!(FeatureName),
-                    self.names(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Feat<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Type, flags and names for a feature.
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -203,27 +173,6 @@ impl FixedSize for FeatureName {
         + Offset32::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + NameId::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for FeatureName {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "FeatureName",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("feature", self.feature())),
-                1usize => Some(Field::new("n_settings", self.n_settings())),
-                2usize => Some(Field::new(
-                    "setting_table_offset",
-                    FieldType::offset(self.setting_table_offset(), self.setting_table(_data)),
-                )),
-                3usize => Some(Field::new("feature_flags", self.feature_flags())),
-                4usize => Some(Field::new("name_index", self.name_index())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for SettingNameArray<'a> {
@@ -307,34 +256,6 @@ impl Default for SettingNameArray<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SettingNameArray<'a> {
-    fn type_name(&self) -> &str {
-        "SettingNameArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "settings",
-                traversal::FieldType::array_of_records(
-                    stringify!(SettingName),
-                    self.settings(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SettingNameArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Associates a setting with a name identifier.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -360,19 +281,4 @@ impl SettingName {
 
 impl FixedSize for SettingName {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SettingName {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SettingName",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("setting", self.setting())),
-                1usize => Some(Field::new("name_index", self.name_index())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

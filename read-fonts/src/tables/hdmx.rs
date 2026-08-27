@@ -95,22 +95,6 @@ impl<'a> DeviceRecord<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for DeviceRecord<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "DeviceRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("pixel_size", self.pixel_size())),
-                1usize => Some(Field::new("max_width", self.max_width())),
-                2usize => Some(Field::new("widths", self.widths())),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

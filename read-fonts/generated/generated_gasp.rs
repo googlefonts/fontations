@@ -94,36 +94,6 @@ impl Default for Gasp<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Gasp<'a> {
-    fn type_name(&self) -> &str {
-        "Gasp"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("num_ranges", self.num_ranges())),
-            2usize => Some(Field::new(
-                "gasp_ranges",
-                traversal::FieldType::array_of_records(
-                    stringify!(GaspRange),
-                    self.gasp_ranges(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Gasp<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -148,24 +118,6 @@ impl GaspRange {
 
 impl FixedSize for GaspRange {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + GaspRangeBehavior::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for GaspRange {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "GaspRange",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("range_max_ppem", self.range_max_ppem())),
-                1usize => Some(Field::new(
-                    "range_gasp_behavior",
-                    self.range_gasp_behavior(),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
@@ -478,12 +430,5 @@ impl font_types::Scalar for GaspRangeBehavior {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u16>::from_raw(raw);
         Self::from_bits_truncate(t)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<GaspRangeBehavior> for FieldType<'a> {
-    fn from(src: GaspRangeBehavior) -> FieldType<'a> {
-        src.bits().into()
     }
 }

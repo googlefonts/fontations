@@ -256,73 +256,6 @@ impl Default for Colr<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Colr<'a> {
-    fn type_name(&self) -> &str {
-        "Colr"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "num_base_glyph_records",
-                self.num_base_glyph_records(),
-            )),
-            2usize => Some(Field::new(
-                "base_glyph_records_offset",
-                traversal::FieldType::offset_to_array_of_records(
-                    self.base_glyph_records_offset(),
-                    self.base_glyph_records(),
-                    stringify!(BaseGlyph),
-                    self.offset_data(),
-                ),
-            )),
-            3usize => Some(Field::new(
-                "layer_records_offset",
-                traversal::FieldType::offset_to_array_of_records(
-                    self.layer_records_offset(),
-                    self.layer_records(),
-                    stringify!(Layer),
-                    self.offset_data(),
-                ),
-            )),
-            4usize => Some(Field::new("num_layer_records", self.num_layer_records())),
-            5usize if self.version().compatible(1u16) => Some(Field::new(
-                "base_glyph_list_offset",
-                FieldType::offset(self.base_glyph_list_offset()?, self.base_glyph_list()),
-            )),
-            6usize if self.version().compatible(1u16) => Some(Field::new(
-                "layer_list_offset",
-                FieldType::offset(self.layer_list_offset()?, self.layer_list()),
-            )),
-            7usize if self.version().compatible(1u16) => Some(Field::new(
-                "clip_list_offset",
-                FieldType::offset(self.clip_list_offset()?, self.clip_list()),
-            )),
-            8usize if self.version().compatible(1u16) => Some(Field::new(
-                "var_index_map_offset",
-                FieldType::offset(self.var_index_map_offset()?, self.var_index_map()),
-            )),
-            9usize if self.version().compatible(1u16) => Some(Field::new(
-                "item_variation_store_offset",
-                FieldType::offset(
-                    self.item_variation_store_offset()?,
-                    self.item_variation_store(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Colr<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -357,22 +290,6 @@ impl FixedSize for BaseGlyph {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for BaseGlyph {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "BaseGlyph",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("glyph_id", self.glyph_id())),
-                1usize => Some(Field::new("first_layer_index", self.first_layer_index())),
-                2usize => Some(Field::new("num_layers", self.num_layers())),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 /// [Layer](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -398,21 +315,6 @@ impl Layer {
 
 impl FixedSize for Layer {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Layer {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Layer",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("glyph_id", self.glyph_id())),
-                1usize => Some(Field::new("palette_index", self.palette_index())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for BaseGlyphList<'a> {
@@ -486,38 +388,6 @@ impl Default for BaseGlyphList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseGlyphList<'a> {
-    fn type_name(&self) -> &str {
-        "BaseGlyphList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "num_base_glyph_paint_records",
-                self.num_base_glyph_paint_records(),
-            )),
-            1usize => Some(Field::new(
-                "base_glyph_paint_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(BaseGlyphPaint),
-                    self.base_glyph_paint_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseGlyphList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [BaseGlyphPaint](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -551,24 +421,6 @@ impl BaseGlyphPaint {
 
 impl FixedSize for BaseGlyphPaint {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for BaseGlyphPaint {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "BaseGlyphPaint",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("glyph_id", self.glyph_id())),
-                1usize => Some(Field::new(
-                    "paint_offset",
-                    FieldType::offset(self.paint_offset(), self.paint(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for LayerList<'a> {
@@ -645,28 +497,6 @@ impl Default for LayerList<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for LayerList<'a> {
-    fn type_name(&self) -> &str {
-        "LayerList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("num_layers", self.num_layers())),
-            1usize => Some(Field::new("paint_offsets", FieldType::from(self.paints()))),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for LayerList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -753,36 +583,6 @@ impl Default for ClipList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ClipList<'a> {
-    fn type_name(&self) -> &str {
-        "ClipList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("num_clips", self.num_clips())),
-            2usize => Some(Field::new(
-                "clips",
-                traversal::FieldType::array_of_records(
-                    stringify!(Clip),
-                    self.clips(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ClipList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [Clip](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -824,25 +624,6 @@ impl Clip {
 impl FixedSize for Clip {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Clip {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Clip",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
-                1usize => Some(Field::new("end_glyph_id", self.end_glyph_id())),
-                2usize => Some(Field::new(
-                    "clip_box_offset",
-                    FieldType::offset(self.clip_box_offset(), self.clip_box(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// [ClipBox](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
@@ -935,33 +716,6 @@ impl<'a> MinByteRange<'a> for ClipBox<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> ClipBox<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for ClipBox<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ClipBox<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -1076,31 +830,6 @@ impl Default for ClipBoxFormat1<'_> {
         Self {
             data: FontData::default_format_1_u8_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ClipBoxFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "ClipBoxFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("x_min", self.x_min())),
-            2usize => Some(Field::new("y_min", self.y_min())),
-            3usize => Some(Field::new("x_max", self.x_max())),
-            4usize => Some(Field::new("y_max", self.y_max())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ClipBoxFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1221,32 +950,6 @@ impl<'a> ClipBoxFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ClipBoxFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "ClipBoxFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("x_min", self.x_min())),
-            2usize => Some(Field::new("y_min", self.y_min())),
-            3usize => Some(Field::new("x_max", self.x_max())),
-            4usize => Some(Field::new("y_max", self.y_max())),
-            5usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ClipBoxFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [ColorIndex](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1272,21 +975,6 @@ impl ColorIndex {
 
 impl FixedSize for ColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ColorIndex {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ColorIndex",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("palette_index", self.palette_index())),
-                1usize => Some(Field::new("alpha", self.alpha())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// [VarColorIndex](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
@@ -1323,22 +1011,6 @@ impl FixedSize for VarColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for VarColorIndex {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "VarColorIndex",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("palette_index", self.palette_index())),
-                1usize => Some(Field::new("alpha", self.alpha())),
-                2usize => Some(Field::new("var_index_base", self.var_index_base())),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 /// [ColorStop](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1371,22 +1043,6 @@ impl ColorStop {
 
 impl FixedSize for ColorStop {
     const RAW_BYTE_LEN: usize = F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ColorStop {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ColorStop",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("stop_offset", self.stop_offset())),
-                1usize => Some(Field::new("palette_index", self.palette_index())),
-                2usize => Some(Field::new("alpha", self.alpha())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// [VarColorStop](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
@@ -1429,23 +1085,6 @@ impl VarColorStop {
 impl FixedSize for VarColorStop {
     const RAW_BYTE_LEN: usize =
         F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for VarColorStop {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "VarColorStop",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("stop_offset", self.stop_offset())),
-                1usize => Some(Field::new("palette_index", self.palette_index())),
-                2usize => Some(Field::new("alpha", self.alpha())),
-                3usize => Some(Field::new("var_index_base", self.var_index_base())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for ColorLine<'a> {
@@ -1527,36 +1166,6 @@ impl Default for ColorLine<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ColorLine<'a> {
-    fn type_name(&self) -> &str {
-        "ColorLine"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("extend", self.extend())),
-            1usize => Some(Field::new("num_stops", self.num_stops())),
-            2usize => Some(Field::new(
-                "color_stops",
-                traversal::FieldType::array_of_records(
-                    stringify!(ColorStop),
-                    self.color_stops(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ColorLine<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1644,36 +1253,6 @@ impl Default for VarColorLine<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for VarColorLine<'a> {
-    fn type_name(&self) -> &str {
-        "VarColorLine"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("extend", self.extend())),
-            1usize => Some(Field::new("num_stops", self.num_stops())),
-            2usize => Some(Field::new(
-                "color_stops",
-                traversal::FieldType::array_of_records(
-                    stringify!(VarColorStop),
-                    self.color_stops(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for VarColorLine<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [Extend](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) enumeration
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -1711,13 +1290,6 @@ impl font_types::Scalar for Extend {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u8>::from_raw(raw);
         Self::new(t)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<Extend> for FieldType<'a> {
-    fn from(src: Extend) -> FieldType<'a> {
-        (src as u8).into()
     }
 }
 
@@ -1972,63 +1544,6 @@ impl<'a> MinByteRange<'a> for Paint<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> Paint<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::ColrLayers(table) => table,
-            Self::Solid(table) => table,
-            Self::VarSolid(table) => table,
-            Self::LinearGradient(table) => table,
-            Self::VarLinearGradient(table) => table,
-            Self::RadialGradient(table) => table,
-            Self::VarRadialGradient(table) => table,
-            Self::SweepGradient(table) => table,
-            Self::VarSweepGradient(table) => table,
-            Self::Glyph(table) => table,
-            Self::ColrGlyph(table) => table,
-            Self::Transform(table) => table,
-            Self::VarTransform(table) => table,
-            Self::Translate(table) => table,
-            Self::VarTranslate(table) => table,
-            Self::Scale(table) => table,
-            Self::VarScale(table) => table,
-            Self::ScaleAroundCenter(table) => table,
-            Self::VarScaleAroundCenter(table) => table,
-            Self::ScaleUniform(table) => table,
-            Self::VarScaleUniform(table) => table,
-            Self::ScaleUniformAroundCenter(table) => table,
-            Self::VarScaleUniformAroundCenter(table) => table,
-            Self::Rotate(table) => table,
-            Self::VarRotate(table) => table,
-            Self::RotateAroundCenter(table) => table,
-            Self::VarRotateAroundCenter(table) => table,
-            Self::Skew(table) => table,
-            Self::VarSkew(table) => table,
-            Self::SkewAroundCenter(table) => table,
-            Self::VarSkewAroundCenter(table) => table,
-            Self::Composite(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for Paint<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Paint<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-}
-
 impl Format<u8> for PaintColrLayers<'_> {
     const FORMAT: u8 = 1;
 }
@@ -2117,29 +1632,6 @@ impl Default for PaintColrLayers<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintColrLayers<'a> {
-    fn type_name(&self) -> &str {
-        "PaintColrLayers"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("num_layers", self.num_layers())),
-            2usize => Some(Field::new("first_layer_index", self.first_layer_index())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintColrLayers<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintSolid<'_> {
     const FORMAT: u8 = 2;
 }
@@ -2213,29 +1705,6 @@ impl<'a> PaintSolid<'a> {
         let start = self.palette_index_byte_range().end;
         let end = start + F2Dot14::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintSolid<'a> {
-    fn type_name(&self) -> &str {
-        "PaintSolid"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("palette_index", self.palette_index())),
-            2usize => Some(Field::new("alpha", self.alpha())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintSolid<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2325,30 +1794,6 @@ impl<'a> PaintVarSolid<'a> {
         let start = self.alpha_byte_range().end;
         let end = start + u32::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarSolid<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarSolid"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("palette_index", self.palette_index())),
-            2usize => Some(Field::new("alpha", self.alpha())),
-            3usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarSolid<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2498,37 +1943,6 @@ impl<'a> PaintLinearGradient<'a> {
         let start = self.x2_byte_range().end;
         let end = start + FWord::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintLinearGradient<'a> {
-    fn type_name(&self) -> &str {
-        "PaintLinearGradient"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "color_line_offset",
-                FieldType::offset(self.color_line_offset(), self.color_line()),
-            )),
-            2usize => Some(Field::new("x0", self.x0())),
-            3usize => Some(Field::new("y0", self.y0())),
-            4usize => Some(Field::new("x1", self.x1())),
-            5usize => Some(Field::new("y1", self.y1())),
-            6usize => Some(Field::new("x2", self.x2())),
-            7usize => Some(Field::new("y2", self.y2())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintLinearGradient<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2700,38 +2114,6 @@ impl<'a> PaintVarLinearGradient<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarLinearGradient<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarLinearGradient"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "color_line_offset",
-                FieldType::offset(self.color_line_offset(), self.color_line()),
-            )),
-            2usize => Some(Field::new("x0", self.x0())),
-            3usize => Some(Field::new("y0", self.y0())),
-            4usize => Some(Field::new("x1", self.x1())),
-            5usize => Some(Field::new("y1", self.y1())),
-            6usize => Some(Field::new("x2", self.x2())),
-            7usize => Some(Field::new("y2", self.y2())),
-            8usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarLinearGradient<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintRadialGradient<'_> {
     const FORMAT: u8 = 6;
 }
@@ -2878,37 +2260,6 @@ impl<'a> PaintRadialGradient<'a> {
         let start = self.y1_byte_range().end;
         let end = start + UfWord::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintRadialGradient<'a> {
-    fn type_name(&self) -> &str {
-        "PaintRadialGradient"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "color_line_offset",
-                FieldType::offset(self.color_line_offset(), self.color_line()),
-            )),
-            2usize => Some(Field::new("x0", self.x0())),
-            3usize => Some(Field::new("y0", self.y0())),
-            4usize => Some(Field::new("radius0", self.radius0())),
-            5usize => Some(Field::new("x1", self.x1())),
-            6usize => Some(Field::new("y1", self.y1())),
-            7usize => Some(Field::new("radius1", self.radius1())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintRadialGradient<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -3078,38 +2429,6 @@ impl<'a> PaintVarRadialGradient<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarRadialGradient<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarRadialGradient"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "color_line_offset",
-                FieldType::offset(self.color_line_offset(), self.color_line()),
-            )),
-            2usize => Some(Field::new("x0", self.x0())),
-            3usize => Some(Field::new("y0", self.y0())),
-            4usize => Some(Field::new("radius0", self.radius0())),
-            5usize => Some(Field::new("x1", self.x1())),
-            6usize => Some(Field::new("y1", self.y1())),
-            7usize => Some(Field::new("radius1", self.radius1())),
-            8usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarRadialGradient<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintSweepGradient<'_> {
     const FORMAT: u8 = 8;
 }
@@ -3232,35 +2551,6 @@ impl<'a> PaintSweepGradient<'a> {
         let start = self.start_angle_byte_range().end;
         let end = start + F2Dot14::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintSweepGradient<'a> {
-    fn type_name(&self) -> &str {
-        "PaintSweepGradient"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "color_line_offset",
-                FieldType::offset(self.color_line_offset(), self.color_line()),
-            )),
-            2usize => Some(Field::new("center_x", self.center_x())),
-            3usize => Some(Field::new("center_y", self.center_y())),
-            4usize => Some(Field::new("start_angle", self.start_angle())),
-            5usize => Some(Field::new("end_angle", self.end_angle())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintSweepGradient<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -3404,36 +2694,6 @@ impl<'a> PaintVarSweepGradient<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarSweepGradient<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarSweepGradient"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "color_line_offset",
-                FieldType::offset(self.color_line_offset(), self.color_line()),
-            )),
-            2usize => Some(Field::new("center_x", self.center_x())),
-            3usize => Some(Field::new("center_y", self.center_y())),
-            4usize => Some(Field::new("start_angle", self.start_angle())),
-            5usize => Some(Field::new("end_angle", self.end_angle())),
-            6usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarSweepGradient<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintGlyph<'_> {
     const FORMAT: u8 = 10;
 }
@@ -3517,32 +2777,6 @@ impl<'a> PaintGlyph<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintGlyph<'a> {
-    fn type_name(&self) -> &str {
-        "PaintGlyph"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("glyph_id", self.glyph_id())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintGlyph<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintColrGlyph<'_> {
     const FORMAT: u8 = 11;
 }
@@ -3604,28 +2838,6 @@ impl<'a> PaintColrGlyph<'a> {
         let start = self.format_byte_range().end;
         let end = start + GlyphId16::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintColrGlyph<'a> {
-    fn type_name(&self) -> &str {
-        "PaintColrGlyph"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("glyph_id", self.glyph_id())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintColrGlyph<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -3718,35 +2930,6 @@ impl<'a> PaintTransform<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintTransform<'a> {
-    fn type_name(&self) -> &str {
-        "PaintTransform"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new(
-                "transform_offset",
-                FieldType::offset(self.transform_offset(), self.transform()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintTransform<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintVarTransform<'_> {
     const FORMAT: u8 = 13;
 }
@@ -3833,35 +3016,6 @@ impl<'a> PaintVarTransform<'a> {
         let start = self.paint_offset_byte_range().end;
         let end = start + Offset24::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarTransform<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarTransform"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new(
-                "transform_offset",
-                FieldType::offset(self.transform_offset(), self.transform()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarTransform<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -3985,32 +3139,6 @@ impl Default for Affine2x3<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Affine2x3<'a> {
-    fn type_name(&self) -> &str {
-        "Affine2x3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("xx", self.xx())),
-            1usize => Some(Field::new("yx", self.yx())),
-            2usize => Some(Field::new("xy", self.xy())),
-            3usize => Some(Field::new("yy", self.yy())),
-            4usize => Some(Field::new("dx", self.dx())),
-            5usize => Some(Field::new("dy", self.dy())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Affine2x3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -4154,33 +3282,6 @@ impl Default for VarAffine2x3<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for VarAffine2x3<'a> {
-    fn type_name(&self) -> &str {
-        "VarAffine2x3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("xx", self.xx())),
-            1usize => Some(Field::new("yx", self.yx())),
-            2usize => Some(Field::new("xy", self.xy())),
-            3usize => Some(Field::new("yy", self.yy())),
-            4usize => Some(Field::new("dx", self.dx())),
-            5usize => Some(Field::new("dy", self.dy())),
-            6usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for VarAffine2x3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintTranslate<'_> {
     const FORMAT: u8 = 14;
 }
@@ -4273,33 +3374,6 @@ impl<'a> PaintTranslate<'a> {
         let start = self.dx_byte_range().end;
         let end = start + FWord::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintTranslate<'a> {
-    fn type_name(&self) -> &str {
-        "PaintTranslate"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("dx", self.dx())),
-            3usize => Some(Field::new("dy", self.dy())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintTranslate<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -4413,34 +3487,6 @@ impl<'a> PaintVarTranslate<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarTranslate<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarTranslate"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("dx", self.dx())),
-            3usize => Some(Field::new("dy", self.dy())),
-            4usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarTranslate<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintScale<'_> {
     const FORMAT: u8 = 16;
 }
@@ -4533,33 +3579,6 @@ impl<'a> PaintScale<'a> {
         let start = self.scale_x_byte_range().end;
         let end = start + F2Dot14::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintScale<'a> {
-    fn type_name(&self) -> &str {
-        "PaintScale"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("scale_x", self.scale_x())),
-            3usize => Some(Field::new("scale_y", self.scale_y())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintScale<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -4672,34 +3691,6 @@ impl<'a> PaintVarScale<'a> {
         let start = self.scale_y_byte_range().end;
         let end = start + u32::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarScale<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarScale"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("scale_x", self.scale_x())),
-            3usize => Some(Field::new("scale_y", self.scale_y())),
-            4usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarScale<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -4823,35 +3814,6 @@ impl<'a> PaintScaleAroundCenter<'a> {
         let start = self.center_x_byte_range().end;
         let end = start + FWord::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintScaleAroundCenter<'a> {
-    fn type_name(&self) -> &str {
-        "PaintScaleAroundCenter"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("scale_x", self.scale_x())),
-            3usize => Some(Field::new("scale_y", self.scale_y())),
-            4usize => Some(Field::new("center_x", self.center_x())),
-            5usize => Some(Field::new("center_y", self.center_y())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintScaleAroundCenter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -4995,36 +3957,6 @@ impl<'a> PaintVarScaleAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarScaleAroundCenter<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarScaleAroundCenter"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("scale_x", self.scale_x())),
-            3usize => Some(Field::new("scale_y", self.scale_y())),
-            4usize => Some(Field::new("center_x", self.center_x())),
-            5usize => Some(Field::new("center_y", self.center_y())),
-            6usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarScaleAroundCenter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintScaleUniform<'_> {
     const FORMAT: u8 = 20;
 }
@@ -5104,32 +4036,6 @@ impl<'a> PaintScaleUniform<'a> {
         let start = self.paint_offset_byte_range().end;
         let end = start + F2Dot14::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintScaleUniform<'a> {
-    fn type_name(&self) -> &str {
-        "PaintScaleUniform"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("scale", self.scale())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintScaleUniform<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -5226,33 +4132,6 @@ impl<'a> PaintVarScaleUniform<'a> {
         let start = self.scale_byte_range().end;
         let end = start + u32::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarScaleUniform<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarScaleUniform"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("scale", self.scale())),
-            3usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarScaleUniform<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -5363,34 +4242,6 @@ impl<'a> PaintScaleUniformAroundCenter<'a> {
         let start = self.center_x_byte_range().end;
         let end = start + FWord::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintScaleUniformAroundCenter<'a> {
-    fn type_name(&self) -> &str {
-        "PaintScaleUniformAroundCenter"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("scale", self.scale())),
-            3usize => Some(Field::new("center_x", self.center_x())),
-            4usize => Some(Field::new("center_y", self.center_y())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintScaleUniformAroundCenter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -5520,35 +4371,6 @@ impl<'a> PaintVarScaleUniformAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarScaleUniformAroundCenter<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarScaleUniformAroundCenter"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("scale", self.scale())),
-            3usize => Some(Field::new("center_x", self.center_x())),
-            4usize => Some(Field::new("center_y", self.center_y())),
-            5usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarScaleUniformAroundCenter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintRotate<'_> {
     const FORMAT: u8 = 24;
 }
@@ -5629,32 +4451,6 @@ impl<'a> PaintRotate<'a> {
         let start = self.paint_offset_byte_range().end;
         let end = start + F2Dot14::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintRotate<'a> {
-    fn type_name(&self) -> &str {
-        "PaintRotate"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("angle", self.angle())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintRotate<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -5751,33 +4547,6 @@ impl<'a> PaintVarRotate<'a> {
         let start = self.angle_byte_range().end;
         let end = start + u32::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarRotate<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarRotate"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("angle", self.angle())),
-            3usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarRotate<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -5889,34 +4658,6 @@ impl<'a> PaintRotateAroundCenter<'a> {
         let start = self.center_x_byte_range().end;
         let end = start + FWord::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintRotateAroundCenter<'a> {
-    fn type_name(&self) -> &str {
-        "PaintRotateAroundCenter"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("angle", self.angle())),
-            3usize => Some(Field::new("center_x", self.center_x())),
-            4usize => Some(Field::new("center_y", self.center_y())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintRotateAroundCenter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -6046,35 +4787,6 @@ impl<'a> PaintVarRotateAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarRotateAroundCenter<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarRotateAroundCenter"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("angle", self.angle())),
-            3usize => Some(Field::new("center_x", self.center_x())),
-            4usize => Some(Field::new("center_y", self.center_y())),
-            5usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarRotateAroundCenter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintSkew<'_> {
     const FORMAT: u8 = 28;
 }
@@ -6169,33 +4881,6 @@ impl<'a> PaintSkew<'a> {
         let start = self.x_skew_angle_byte_range().end;
         let end = start + F2Dot14::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintSkew<'a> {
-    fn type_name(&self) -> &str {
-        "PaintSkew"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("x_skew_angle", self.x_skew_angle())),
-            3usize => Some(Field::new("y_skew_angle", self.y_skew_angle())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintSkew<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -6310,34 +4995,6 @@ impl<'a> PaintVarSkew<'a> {
         let start = self.y_skew_angle_byte_range().end;
         let end = start + u32::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarSkew<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarSkew"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("x_skew_angle", self.x_skew_angle())),
-            3usize => Some(Field::new("y_skew_angle", self.y_skew_angle())),
-            4usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarSkew<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -6463,35 +5120,6 @@ impl<'a> PaintSkewAroundCenter<'a> {
         let start = self.center_x_byte_range().end;
         let end = start + FWord::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintSkewAroundCenter<'a> {
-    fn type_name(&self) -> &str {
-        "PaintSkewAroundCenter"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("x_skew_angle", self.x_skew_angle())),
-            3usize => Some(Field::new("y_skew_angle", self.y_skew_angle())),
-            4usize => Some(Field::new("center_x", self.center_x())),
-            5usize => Some(Field::new("center_y", self.center_y())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintSkewAroundCenter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -6637,36 +5265,6 @@ impl<'a> PaintVarSkewAroundCenter<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintVarSkewAroundCenter<'a> {
-    fn type_name(&self) -> &str {
-        "PaintVarSkewAroundCenter"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "paint_offset",
-                FieldType::offset(self.paint_offset(), self.paint()),
-            )),
-            2usize => Some(Field::new("x_skew_angle", self.x_skew_angle())),
-            3usize => Some(Field::new("y_skew_angle", self.y_skew_angle())),
-            4usize => Some(Field::new("center_x", self.center_x())),
-            5usize => Some(Field::new("center_y", self.center_y())),
-            6usize => Some(Field::new("var_index_base", self.var_index_base())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintVarSkewAroundCenter<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u8> for PaintComposite<'_> {
     const FORMAT: u8 = 32;
 }
@@ -6770,36 +5368,6 @@ impl<'a> PaintComposite<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PaintComposite<'a> {
-    fn type_name(&self) -> &str {
-        "PaintComposite"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "source_paint_offset",
-                FieldType::offset(self.source_paint_offset(), self.source_paint()),
-            )),
-            2usize => Some(Field::new("composite_mode", self.composite_mode())),
-            3usize => Some(Field::new(
-                "backdrop_paint_offset",
-                FieldType::offset(self.backdrop_paint_offset(), self.backdrop_paint()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PaintComposite<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [CompositeMode](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) enumeration
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -6887,12 +5455,5 @@ impl font_types::Scalar for CompositeMode {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u8>::from_raw(raw);
         Self::new(t)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<CompositeMode> for FieldType<'a> {
-    fn from(src: CompositeMode) -> FieldType<'a> {
-        (src as u8).into()
     }
 }

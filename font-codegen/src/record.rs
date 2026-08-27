@@ -25,7 +25,6 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
         quote!( #( #docs )* )
     });
     let getters = item.fields.iter().map(|fld| fld.record_getter(item));
-    let traversal_impl = generate_traversal(item)?;
 
     let lifetime = &item.lifetime;
     let is_zerocopy = item.is_zerocopy();
@@ -65,7 +64,6 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
 
     #maybe_impl_fixed_size
     #maybe_impl_read_with_args
-    #traversal_impl
         })
 }
 
@@ -172,29 +170,6 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
             }
         }
     }
-}
-
-fn generate_traversal(item: &Record) -> syn::Result<TokenStream> {
-    let name = &item.name;
-    let name_str = name.to_string();
-    let lifetime = &item.lifetime;
-    let field_arms = item.fields.iter_field_traversal_match_arms(true);
-
-    Ok(quote! {
-        #[cfg(feature = "experimental_traverse")]
-        impl<'a> SomeRecord<'a> for #name #lifetime {
-            fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-                RecordResolver {
-                    name: #name_str,
-                    get_field: Box::new(move |idx, _data| match idx {
-                        #( #field_arms, )*
-                        _ => None,
-                    }),
-                    data,
-                }
-            }
-        }
-    })
 }
 
 pub(crate) fn generate_compile(

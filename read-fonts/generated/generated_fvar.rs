@@ -154,38 +154,6 @@ impl Default for Fvar<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Fvar<'a> {
-    fn type_name(&self) -> &str {
-        "Fvar"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "axis_instance_arrays_offset",
-                FieldType::offset(
-                    self.axis_instance_arrays_offset(),
-                    self.axis_instance_arrays(),
-                ),
-            )),
-            2usize => Some(Field::new("axis_count", self.axis_count())),
-            3usize => Some(Field::new("axis_size", self.axis_size())),
-            4usize => Some(Field::new("instance_count", self.instance_count())),
-            5usize => Some(Field::new("instance_size", self.instance_size())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Fvar<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for AxisInstanceArrays<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.instances_byte_range().end
@@ -311,42 +279,6 @@ impl Default for AxisInstanceArrays<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AxisInstanceArrays<'a> {
-    fn type_name(&self) -> &str {
-        "AxisInstanceArrays"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "axes",
-                traversal::FieldType::array_of_records(
-                    stringify!(VariationAxisRecord),
-                    self.axes(),
-                    self.offset_data(),
-                ),
-            )),
-            1usize => Some(Field::new(
-                "instances",
-                traversal::FieldType::computed_array(
-                    "InstanceRecord",
-                    self.instances(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AxisInstanceArrays<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// The [VariationAxisRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#variationaxisrecord)
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -405,23 +337,4 @@ impl FixedSize for VariationAxisRecord {
         + Fixed::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + NameId::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for VariationAxisRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "VariationAxisRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("axis_tag", self.axis_tag())),
-                1usize => Some(Field::new("min_value", self.min_value())),
-                2usize => Some(Field::new("default_value", self.default_value())),
-                3usize => Some(Field::new("max_value", self.max_value())),
-                4usize => Some(Field::new("flags", self.flags())),
-                5usize => Some(Field::new("axis_name_id", self.axis_name_id())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

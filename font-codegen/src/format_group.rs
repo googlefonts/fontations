@@ -50,15 +50,6 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
 
     let maybe_allow_lint = has_any_match_stmt.then(|| quote!(#[allow(clippy::redundant_guards)]));
 
-    let traversal_arms = item
-        .variants
-        .iter()
-        .filter(|variant| variant.attrs.write_only.is_none())
-        .map(|variant| {
-            let name = &variant.name;
-            quote!(Self::#name(table) => table)
-        });
-
     let format_offset = item
         .format_offset
         .as_ref()
@@ -135,32 +126,6 @@ pub(crate) fn generate(item: &TableFormat, items: &Items) -> syn::Result<TokenSt
             }
         }
 
-        #[cfg(feature = "experimental_traverse")]
-        impl<'a> #name<'a> {
-            fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-                match self {
-                    #( #traversal_arms, )*
-                }
-            }
-        }
-
-        #[cfg(feature = "experimental_traverse")]
-        impl std::fmt::Debug for #name<'_> {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.dyn_inner().fmt(f)
-            }
-        }
-
-        #[cfg(feature = "experimental_traverse")]
-        impl<'a> SomeTable<'a> for #name<'a> {
-            fn type_name(&self) -> &str {
-                self.dyn_inner().type_name()
-            }
-
-            fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-                self.dyn_inner().get_field(idx)
-            }
-        }
     })
 }
 

@@ -106,37 +106,6 @@ impl Default for Ltag<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Ltag<'a> {
-    fn type_name(&self) -> &str {
-        "Ltag"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("flags", self.flags())),
-            2usize => Some(Field::new("num_tags", self.num_tags())),
-            3usize => Some(Field::new(
-                "tag_ranges",
-                traversal::FieldType::array_of_records(
-                    stringify!(FTStringRange),
-                    self.tag_ranges(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Ltag<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Offset and length of string in `ltag` table.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -162,19 +131,4 @@ impl FTStringRange {
 
 impl FixedSize for FTStringRange {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for FTStringRange {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "FTStringRange",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("offset", self.offset())),
-                1usize => Some(Field::new("length", self.length())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

@@ -722,29 +722,6 @@ impl Iterator for ComponentGlyphIdFlagsIter<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Component {
-    fn type_name(&self) -> &str {
-        "Component"
-    }
-
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0 => Some(Field::new("flags", self.flags.bits())),
-            1 => Some(Field::new("glyph", self.glyph)),
-            2 => match self.anchor {
-                Anchor::Point { base, .. } => Some(Field::new("base", base)),
-                Anchor::Offset { x, .. } => Some(Field::new("x", x)),
-            },
-            3 => match self.anchor {
-                Anchor::Point { component, .. } => Some(Field::new("component", component)),
-                Anchor::Offset { y, .. } => Some(Field::new("y", y)),
-            },
-            _ => None,
-        }
-    }
-}
-
 impl Anchor {
     /// Compute the flags that describe this anchor
     pub fn compute_flags(&self) -> CompositeGlyphFlags {

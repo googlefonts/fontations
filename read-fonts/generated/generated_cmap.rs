@@ -93,36 +93,6 @@ impl Default for Cmap<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("num_tables", self.num_tables())),
-            2usize => Some(Field::new(
-                "encoding_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(EncodingRecord),
-                    self.encoding_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -169,25 +139,6 @@ impl FixedSize for EncodingRecord {
         PlatformId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for EncodingRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "EncodingRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("platform_id", self.platform_id())),
-                1usize => Some(Field::new("encoding_id", self.encoding_id())),
-                2usize => Some(Field::new(
-                    "subtable_offset",
-                    FieldType::offset(self.subtable_offset(), self.subtable(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids>
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -229,13 +180,6 @@ impl font_types::Scalar for PlatformId {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u16>::from_raw(raw);
         Self::new(t)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<PlatformId> for FieldType<'a> {
-    fn from(src: PlatformId) -> FieldType<'a> {
-        (src as u16).into()
     }
 }
 
@@ -342,40 +286,6 @@ impl<'a> MinByteRange<'a> for CmapSubtable<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> CmapSubtable<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format0(table) => table,
-            Self::Format2(table) => table,
-            Self::Format4(table) => table,
-            Self::Format6(table) => table,
-            Self::Format8(table) => table,
-            Self::Format10(table) => table,
-            Self::Format12(table) => table,
-            Self::Format13(table) => table,
-            Self::Format14(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for CmapSubtable<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CmapSubtable<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-}
-
 impl Format<u16> for Cmap0<'_> {
     const FORMAT: u16 = 0;
 }
@@ -476,30 +386,6 @@ impl Default for Cmap0<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap0<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap0"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("glyph_id_array", self.glyph_id_array())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap0<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for Cmap2<'_> {
     const FORMAT: u16 = 2;
 }
@@ -591,30 +477,6 @@ impl<'a> Cmap2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap2<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("sub_header_keys", self.sub_header_keys())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [Cmap2]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -655,23 +517,6 @@ impl SubHeader {
 impl FixedSize for SubHeader {
     const RAW_BYTE_LEN: usize =
         u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SubHeader {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SubHeader",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("first_code", self.first_code())),
-                1usize => Some(Field::new("entry_count", self.entry_count())),
-                2usize => Some(Field::new("id_delta", self.id_delta())),
-                3usize => Some(Field::new("id_range_offset", self.id_range_offset())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u16> for Cmap4<'_> {
@@ -881,38 +726,6 @@ impl<'a> Cmap4<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap4<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap4"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("seg_count_x2", self.seg_count_x2())),
-            4usize => Some(Field::new("search_range", self.search_range())),
-            5usize => Some(Field::new("entry_selector", self.entry_selector())),
-            6usize => Some(Field::new("range_shift", self.range_shift())),
-            7usize => Some(Field::new("end_code", self.end_code())),
-            8usize => Some(Field::new("start_code", self.start_code())),
-            9usize => Some(Field::new("id_delta", self.id_delta())),
-            10usize => Some(Field::new("id_range_offsets", self.id_range_offsets())),
-            11usize => Some(Field::new("glyph_id_array", self.glyph_id_array())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap4<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for Cmap6<'_> {
     const FORMAT: u16 = 6;
 }
@@ -1028,32 +841,6 @@ impl<'a> Cmap6<'a> {
         let start = self.entry_count_byte_range().end;
         let end = start + (transforms::to_usize(entry_count)).saturating_mul(u16::RAW_BYTE_LEN);
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap6<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap6"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("first_code", self.first_code())),
-            4usize => Some(Field::new("entry_count", self.entry_count())),
-            5usize => Some(Field::new("glyph_id_array", self.glyph_id_array())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap6<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1185,39 +972,6 @@ impl<'a> Cmap8<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap8<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap8"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("is32", self.is32())),
-            4usize => Some(Field::new("num_groups", self.num_groups())),
-            5usize => Some(Field::new(
-                "groups",
-                traversal::FieldType::array_of_records(
-                    stringify!(SequentialMapGroup),
-                    self.groups(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap8<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Used in [Cmap8] and [Cmap12]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1258,22 +1012,6 @@ impl SequentialMapGroup {
 
 impl FixedSize for SequentialMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SequentialMapGroup {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SequentialMapGroup",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("start_char_code", self.start_char_code())),
-                1usize => Some(Field::new("end_char_code", self.end_char_code())),
-                2usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u16> for Cmap10<'_> {
@@ -1401,32 +1139,6 @@ impl<'a> Cmap10<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap10<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap10"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("start_char_code", self.start_char_code())),
-            4usize => Some(Field::new("num_chars", self.num_chars())),
-            5usize => Some(Field::new("glyph_id_array", self.glyph_id_array())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap10<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for Cmap12<'_> {
     const FORMAT: u16 = 12;
 }
@@ -1537,38 +1249,6 @@ impl<'a> Cmap12<'a> {
         let end = start
             + (transforms::to_usize(num_groups)).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN);
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap12<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap12"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("num_groups", self.num_groups())),
-            4usize => Some(Field::new(
-                "groups",
-                traversal::FieldType::array_of_records(
-                    stringify!(SequentialMapGroup),
-                    self.groups(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap12<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1685,38 +1365,6 @@ impl<'a> Cmap13<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap13<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap13"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("num_groups", self.num_groups())),
-            4usize => Some(Field::new(
-                "groups",
-                traversal::FieldType::array_of_records(
-                    stringify!(ConstantMapGroup),
-                    self.groups(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap13<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [Cmap13]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1751,22 +1399,6 @@ impl ConstantMapGroup {
 
 impl FixedSize for ConstantMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ConstantMapGroup {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ConstantMapGroup",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("start_char_code", self.start_char_code())),
-                1usize => Some(Field::new("end_char_code", self.end_char_code())),
-                2usize => Some(Field::new("glyph_id", self.glyph_id())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u16> for Cmap14<'_> {
@@ -1860,40 +1492,6 @@ impl<'a> Cmap14<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cmap14<'a> {
-    fn type_name(&self) -> &str {
-        "Cmap14"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("length", self.length())),
-            2usize => Some(Field::new(
-                "num_var_selector_records",
-                self.num_var_selector_records(),
-            )),
-            3usize => Some(Field::new(
-                "var_selector",
-                traversal::FieldType::array_of_records(
-                    stringify!(VariationSelector),
-                    self.var_selector(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cmap14<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [Cmap14]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1952,28 +1550,6 @@ impl VariationSelector {
 impl FixedSize for VariationSelector {
     const RAW_BYTE_LEN: usize =
         Uint24::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for VariationSelector {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "VariationSelector",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("var_selector", self.var_selector())),
-                1usize => Some(Field::new(
-                    "default_uvs_offset",
-                    FieldType::offset(self.default_uvs_offset(), self.default_uvs(_data)),
-                )),
-                2usize => Some(Field::new(
-                    "non_default_uvs_offset",
-                    FieldType::offset(self.non_default_uvs_offset(), self.non_default_uvs(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for DefaultUvs<'a> {
@@ -2049,38 +1625,6 @@ impl Default for DefaultUvs<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for DefaultUvs<'a> {
-    fn type_name(&self) -> &str {
-        "DefaultUvs"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "num_unicode_value_ranges",
-                self.num_unicode_value_ranges(),
-            )),
-            1usize => Some(Field::new(
-                "ranges",
-                traversal::FieldType::array_of_records(
-                    stringify!(UnicodeRange),
-                    self.ranges(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for DefaultUvs<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for NonDefaultUvs<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.uvs_mapping_byte_range().end
@@ -2151,35 +1695,6 @@ impl Default for NonDefaultUvs<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for NonDefaultUvs<'a> {
-    fn type_name(&self) -> &str {
-        "NonDefaultUvs"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("num_uvs_mappings", self.num_uvs_mappings())),
-            1usize => Some(Field::new(
-                "uvs_mapping",
-                traversal::FieldType::array_of_records(
-                    stringify!(UvsMapping),
-                    self.uvs_mapping(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for NonDefaultUvs<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [Cmap14]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -2207,21 +1722,6 @@ impl FixedSize for UvsMapping {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for UvsMapping {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "UvsMapping",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("unicode_value", self.unicode_value())),
-                1usize => Some(Field::new("glyph_id", self.glyph_id())),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 /// Part of [Cmap14]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -2247,22 +1747,4 @@ impl UnicodeRange {
 
 impl FixedSize for UnicodeRange {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for UnicodeRange {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "UnicodeRange",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "start_unicode_value",
-                    self.start_unicode_value(),
-                )),
-                1usize => Some(Field::new("additional_count", self.additional_count())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

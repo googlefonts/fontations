@@ -574,7 +574,12 @@ mod tests {
         let font_data = FontData::new(&bytes);
         let cmap = Cmap::read(font_data).unwrap();
 
-        assert_eq!(2, cmap.encoding_records().len(), "{cmap:?}");
+        assert_eq!(
+            2,
+            cmap.encoding_records().len(),
+            "{:?}",
+            cmap.encoding_records()
+        );
         assert_eq!(
             vec![
                 (PlatformId::Unicode, UNICODE_BMP_ENCODING),
@@ -583,8 +588,7 @@ mod tests {
             cmap.encoding_records()
                 .iter()
                 .map(|er| (er.platform_id(), er.encoding_id()))
-                .collect::<Vec<_>>(),
-            "{cmap:?}"
+                .collect::<Vec<_>>()
         );
 
         for encoding_record in cmap.encoding_records() {
@@ -727,7 +731,12 @@ mod tests {
         let font_data = FontData::new(&bytes);
         let cmap = Cmap::read(font_data).unwrap();
 
-        assert_eq!(4, cmap.encoding_records().len(), "{cmap:?}");
+        assert_eq!(
+            4,
+            cmap.encoding_records().len(),
+            "{:?}",
+            cmap.encoding_records()
+        );
         assert_eq!(
             vec![
                 (PlatformId::Unicode, UNICODE_BMP_ENCODING),
@@ -738,8 +747,7 @@ mod tests {
             cmap.encoding_records()
                 .iter()
                 .map(|er| (er.platform_id(), er.encoding_id()))
-                .collect::<Vec<_>>(),
-            "{cmap:?}"
+                .collect::<Vec<_>>()
         );
 
         let encoding_records = cmap.encoding_records();
@@ -776,7 +784,12 @@ mod tests {
         let font_data = FontData::new(&bytes);
         let cmap = Cmap::read(font_data).unwrap();
 
-        assert_eq!(2, cmap.encoding_records().len(), "{cmap:?}");
+        assert_eq!(
+            2,
+            cmap.encoding_records().len(),
+            "{:?}",
+            cmap.encoding_records()
+        );
         assert_eq!(
             vec![
                 (PlatformId::Unicode, UNICODE_FULL_REPERTOIRE_ENCODING),
@@ -785,8 +798,7 @@ mod tests {
             cmap.encoding_records()
                 .iter()
                 .map(|er| (er.platform_id(), er.encoding_id()))
-                .collect::<Vec<_>>(),
-            "{cmap:?}"
+                .collect::<Vec<_>>()
         );
 
         // (start_char_code, end_char_code, start_glyph_id)

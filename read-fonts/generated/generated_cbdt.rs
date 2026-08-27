@@ -79,25 +79,3 @@ impl Default for Cbdt<'_> {
         }
     }
 }
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cbdt<'a> {
-    fn type_name(&self) -> &str {
-        "Cbdt"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("major_version", self.major_version())),
-            1usize => Some(Field::new("minor_version", self.minor_version())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cbdt<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}

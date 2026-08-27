@@ -155,44 +155,6 @@ impl Default for Avar<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Avar<'a> {
-    fn type_name(&self) -> &str {
-        "Avar"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("axis_count", self.axis_count())),
-            2usize => Some(Field::new(
-                "axis_segment_maps",
-                traversal::FieldType::var_array(
-                    "SegmentMaps",
-                    self.axis_segment_maps(),
-                    self.offset_data(),
-                ),
-            )),
-            3usize if self.version().compatible((2u16, 0u16)) => Some(Field::new(
-                "axis_index_map_offset",
-                FieldType::offset(self.axis_index_map_offset()?, self.axis_index_map()),
-            )),
-            4usize if self.version().compatible((2u16, 0u16)) => Some(Field::new(
-                "var_store_offset",
-                FieldType::offset(self.var_store_offset()?, self.var_store()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Avar<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SegmentMaps<'a> {
@@ -211,28 +173,6 @@ impl<'a> SegmentMaps<'a> {
     /// The array of axis value map records for this axis.
     pub fn axis_value_maps(&self) -> &'a [AxisValueMap] {
         self.axis_value_maps
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SegmentMaps<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SegmentMaps",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("position_map_count", self.position_map_count())),
-                1usize => Some(Field::new(
-                    "axis_value_maps",
-                    traversal::FieldType::array_of_records(
-                        stringify!(AxisValueMap),
-                        self.axis_value_maps(),
-                        _data,
-                    ),
-                )),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -261,19 +201,4 @@ impl AxisValueMap {
 
 impl FixedSize for AxisValueMap {
     const RAW_BYTE_LEN: usize = F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for AxisValueMap {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "AxisValueMap",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("from_coordinate", self.from_coordinate())),
-                1usize => Some(Field::new("to_coordinate", self.to_coordinate())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

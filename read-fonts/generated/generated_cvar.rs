@@ -116,33 +116,3 @@ impl Default for Cvar<'_> {
         }
     }
 }
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cvar<'a> {
-    fn type_name(&self) -> &str {
-        "Cvar"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "tuple_variation_count",
-                traversal::FieldType::Unknown,
-            )),
-            2usize => Some(Field::new("data_offset", traversal::FieldType::Unknown)),
-            3usize => Some(Field::new(
-                "tuple_variation_headers",
-                traversal::FieldType::Unknown,
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cvar<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}

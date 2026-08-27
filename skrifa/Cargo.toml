@@ -18,7 +18,6 @@ all-features = true
 [features]
 default = ["std", "autohint_shaping"]
 std = ["read-fonts/std"]
-traversal = ["std", "read-fonts/experimental_traverse"]
 # Enables extended shaping support for the autohinter. Enabled by default.
 # This exists as a feature because shaping support is "best effort" and
 # we want the ability to disable it for testing against FreeType.

@@ -107,37 +107,6 @@ impl Default for Dsig<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Dsig<'a> {
-    fn type_name(&self) -> &str {
-        "Dsig"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("num_signatures", self.num_signatures())),
-            2usize => Some(Field::new("flags", self.flags())),
-            3usize => Some(Field::new(
-                "signature_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(SignatureRecord),
-                    self.signature_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Dsig<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [Permission flags](https://learn.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure)
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -435,13 +404,6 @@ impl font_types::Scalar for PermissionFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<PermissionFlags> for FieldType<'a> {
-    fn from(src: PermissionFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 /// [Signature Record](https://learn.microsoft.com/en-us/typography/opentype/spec/dsig#table-structure)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -474,25 +436,6 @@ impl SignatureRecord {
 
 impl FixedSize for SignatureRecord {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SignatureRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SignatureRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("format", self.format())),
-                1usize => Some(Field::new("length", self.length())),
-                2usize => Some(Field::new(
-                    "signature_block_offset",
-                    FieldType::offset(self.signature_block_offset(), self.signature_block(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for SignatureBlockFormat1<'a> {
@@ -577,27 +520,5 @@ impl Default for SignatureBlockFormat1<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SignatureBlockFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "SignatureBlockFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("signature_length", self.signature_length())),
-            1usize => Some(Field::new("signature", self.signature())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SignatureBlockFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

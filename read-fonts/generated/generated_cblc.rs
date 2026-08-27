@@ -105,34 +105,3 @@ impl Default for Cblc<'_> {
         }
     }
 }
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cblc<'a> {
-    fn type_name(&self) -> &str {
-        "Cblc"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("major_version", self.major_version())),
-            1usize => Some(Field::new("minor_version", self.minor_version())),
-            2usize => Some(Field::new("num_sizes", self.num_sizes())),
-            3usize => Some(Field::new(
-                "bitmap_sizes",
-                traversal::FieldType::array_of_records(
-                    stringify!(BitmapSize),
-                    self.bitmap_sizes(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cblc<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}

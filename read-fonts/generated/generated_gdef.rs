@@ -198,57 +198,6 @@ impl Default for Gdef<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Gdef<'a> {
-    fn type_name(&self) -> &str {
-        "Gdef"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "glyph_class_def_offset",
-                FieldType::offset(self.glyph_class_def_offset(), self.glyph_class_def()),
-            )),
-            2usize => Some(Field::new(
-                "attach_list_offset",
-                FieldType::offset(self.attach_list_offset(), self.attach_list()),
-            )),
-            3usize => Some(Field::new(
-                "lig_caret_list_offset",
-                FieldType::offset(self.lig_caret_list_offset(), self.lig_caret_list()),
-            )),
-            4usize => Some(Field::new(
-                "mark_attach_class_def_offset",
-                FieldType::offset(
-                    self.mark_attach_class_def_offset(),
-                    self.mark_attach_class_def(),
-                ),
-            )),
-            5usize if self.version().compatible((1u16, 2u16)) => Some(Field::new(
-                "mark_glyph_sets_def_offset",
-                FieldType::offset(
-                    self.mark_glyph_sets_def_offset()?,
-                    self.mark_glyph_sets_def(),
-                ),
-            )),
-            6usize if self.version().compatible((1u16, 3u16)) => Some(Field::new(
-                "item_var_store_offset",
-                FieldType::offset(self.item_var_store_offset()?, self.item_var_store()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Gdef<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -288,13 +237,6 @@ impl font_types::Scalar for GlyphClassDef {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u16>::from_raw(raw);
         Self::new(t)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<GlyphClassDef> for FieldType<'a> {
-    fn from(src: GlyphClassDef) -> FieldType<'a> {
-        (src as u16).into()
     }
 }
 
@@ -396,35 +338,6 @@ impl Default for AttachList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AttachList<'a> {
-    fn type_name(&self) -> &str {
-        "AttachList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            1usize => Some(Field::new("glyph_count", self.glyph_count())),
-            2usize => Some(Field::new(
-                "attach_point_offsets",
-                FieldType::from(self.attach_points()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AttachList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for AttachPoint<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.point_indices_byte_range().end
@@ -493,28 +406,6 @@ impl Default for AttachPoint<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AttachPoint<'a> {
-    fn type_name(&self) -> &str {
-        "AttachPoint"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("point_count", self.point_count())),
-            1usize => Some(Field::new("point_indices", self.point_indices())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AttachPoint<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -616,35 +507,6 @@ impl Default for LigCaretList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for LigCaretList<'a> {
-    fn type_name(&self) -> &str {
-        "LigCaretList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            1usize => Some(Field::new("lig_glyph_count", self.lig_glyph_count())),
-            2usize => Some(Field::new(
-                "lig_glyph_offsets",
-                FieldType::from(self.lig_glyphs()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for LigCaretList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for LigGlyph<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.caret_value_offsets_byte_range().end
@@ -725,31 +587,6 @@ impl Default for LigGlyph<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for LigGlyph<'a> {
-    fn type_name(&self) -> &str {
-        "LigGlyph"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("caret_count", self.caret_count())),
-            1usize => Some(Field::new(
-                "caret_value_offsets",
-                FieldType::from(self.caret_values()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for LigGlyph<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [Caret Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caret-value-tables)
 #[derive(Clone)]
 pub enum CaretValue<'a> {
@@ -814,34 +651,6 @@ impl<'a> MinByteRange<'a> for CaretValue<'a> {
             Self::Format2(item) => item.min_table_bytes(),
             Self::Format3(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> CaretValue<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-            Self::Format3(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for CaretValue<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CaretValue<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -921,28 +730,6 @@ impl Default for CaretValueFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CaretValueFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "CaretValueFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("caret_value_format", self.caret_value_format())),
-            1usize => Some(Field::new("coordinate", self.coordinate())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CaretValueFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for CaretValueFormat2<'_> {
     const FORMAT: u16 = 2;
 }
@@ -1004,31 +791,6 @@ impl<'a> CaretValueFormat2<'a> {
         let start = self.caret_value_format_byte_range().end;
         let end = start + u16::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CaretValueFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "CaretValueFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("caret_value_format", self.caret_value_format())),
-            1usize => Some(Field::new(
-                "caret_value_point_index",
-                self.caret_value_point_index(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CaretValueFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1113,32 +875,6 @@ impl<'a> CaretValueFormat3<'a> {
         let start = self.coordinate_byte_range().end;
         let end = start + Offset16::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CaretValueFormat3<'a> {
-    fn type_name(&self) -> &str {
-        "CaretValueFormat3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("caret_value_format", self.caret_value_format())),
-            1usize => Some(Field::new("coordinate", self.coordinate())),
-            2usize => Some(Field::new(
-                "device_offset",
-                FieldType::offset(self.device_offset(), self.device()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CaretValueFormat3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1235,34 +971,5 @@ impl Default for MarkGlyphSets<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
-    fn type_name(&self) -> &str {
-        "MarkGlyphSets"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "mark_glyph_set_count",
-                self.mark_glyph_set_count(),
-            )),
-            2usize => Some(Field::new(
-                "coverage_offsets",
-                FieldType::from(self.coverages()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MarkGlyphSets<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

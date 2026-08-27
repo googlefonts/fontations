@@ -127,32 +127,6 @@ impl Default for CffHeader<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CffHeader<'a> {
-    fn type_name(&self) -> &str {
-        "CffHeader"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("major", self.major())),
-            1usize => Some(Field::new("minor", self.minor())),
-            2usize => Some(Field::new("hdr_size", self.hdr_size())),
-            3usize => Some(Field::new("off_size", self.off_size())),
-            4usize => Some(Field::new("_padding", self._padding())),
-            5usize => Some(Field::new("trailing_data", self.trailing_data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CffHeader<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Index<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -251,30 +225,6 @@ impl Default for Index<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Index<'a> {
-    fn type_name(&self) -> &str {
-        "Index"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("count", self.count())),
-            1usize => Some(Field::new("off_size", self.off_size())),
-            2usize => Some(Field::new("offsets", self.offsets())),
-            3usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Index<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Associates a glyph identifier with a Font DICT.
 #[derive(Clone)]
 pub enum FdSelect<'a> {
@@ -339,34 +289,6 @@ impl<'a> MinByteRange<'a> for FdSelect<'a> {
             Self::Format3(item) => item.min_table_bytes(),
             Self::Format4(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> FdSelect<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format0(table) => table,
-            Self::Format3(table) => table,
-            Self::Format4(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for FdSelect<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for FdSelect<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -444,28 +366,6 @@ impl Default for FdSelectFormat0<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for FdSelectFormat0<'a> {
-    fn type_name(&self) -> &str {
-        "FdSelectFormat0"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("fds", self.fds())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for FdSelectFormat0<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -559,37 +459,6 @@ impl<'a> FdSelectFormat3<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for FdSelectFormat3<'a> {
-    fn type_name(&self) -> &str {
-        "FdSelectFormat3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("n_ranges", self.n_ranges())),
-            2usize => Some(Field::new(
-                "ranges",
-                traversal::FieldType::array_of_records(
-                    stringify!(FdSelectRange3),
-                    self.ranges(),
-                    self.offset_data(),
-                ),
-            )),
-            3usize => Some(Field::new("sentinel", self.sentinel())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for FdSelectFormat3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Range struct for FdSelect format 3.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -615,21 +484,6 @@ impl FdSelectRange3 {
 
 impl FixedSize for FdSelectRange3 {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for FdSelectRange3 {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "FdSelectRange3",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("first", self.first())),
-                1usize => Some(Field::new("fd", self.fd())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u8> for FdSelectFormat4<'_> {
@@ -722,37 +576,6 @@ impl<'a> FdSelectFormat4<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for FdSelectFormat4<'a> {
-    fn type_name(&self) -> &str {
-        "FdSelectFormat4"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("n_ranges", self.n_ranges())),
-            2usize => Some(Field::new(
-                "ranges",
-                traversal::FieldType::array_of_records(
-                    stringify!(FdSelectRange4),
-                    self.ranges(),
-                    self.offset_data(),
-                ),
-            )),
-            3usize => Some(Field::new("sentinel", self.sentinel())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for FdSelectFormat4<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Range struct for FdSelect format 4.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -778,21 +601,6 @@ impl FdSelectRange4 {
 
 impl FixedSize for FdSelectRange4 {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for FdSelectRange4 {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "FdSelectRange4",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("first", self.first())),
-                1usize => Some(Field::new("fd", self.fd())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// Charset with custom glyph id to string id mappings.
@@ -859,34 +667,6 @@ impl<'a> MinByteRange<'a> for CustomCharset<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> CustomCharset<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format0(table) => table,
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for CustomCharset<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CustomCharset<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -962,28 +742,6 @@ impl Default for CharsetFormat0<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CharsetFormat0<'a> {
-    fn type_name(&self) -> &str {
-        "CharsetFormat0"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("glyph", self.glyph())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CharsetFormat0<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1063,35 +821,6 @@ impl Default for CharsetFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CharsetFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "CharsetFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "ranges",
-                traversal::FieldType::array_of_records(
-                    stringify!(CharsetRange1),
-                    self.ranges(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CharsetFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Range struct for Charset format 1.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1117,21 +846,6 @@ impl CharsetRange1 {
 
 impl FixedSize for CharsetRange1 {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for CharsetRange1 {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "CharsetRange1",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("first", self.first())),
-                1usize => Some(Field::new("n_left", self.n_left())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u8> for CharsetFormat2<'_> {
@@ -1200,35 +914,6 @@ impl<'a> CharsetFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CharsetFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "CharsetFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "ranges",
-                traversal::FieldType::array_of_records(
-                    stringify!(CharsetRange2),
-                    self.ranges(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CharsetFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Range struct for Charset format 2.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1254,21 +939,6 @@ impl CharsetRange2 {
 
 impl FixedSize for CharsetRange2 {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for CharsetRange2 {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "CharsetRange2",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("first", self.first())),
-                1usize => Some(Field::new("n_left", self.n_left())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// Range struct for Encoding format 1.
@@ -1298,21 +968,6 @@ impl FixedSize for EncodingRange1 {
     const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for EncodingRange1 {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "EncodingRange1",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("first", self.first())),
-                1usize => Some(Field::new("n_left", self.n_left())),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 /// Supplemental encoding record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1338,19 +993,4 @@ impl EncodingSupplement {
 
 impl FixedSize for EncodingSupplement {
     const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for EncodingSupplement {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "EncodingSupplement",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("code", self.code())),
-                1usize => Some(Field::new("glyph", self.glyph())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

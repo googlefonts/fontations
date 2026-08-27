@@ -93,31 +93,6 @@ impl Default for Svg<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Svg<'a> {
-    fn type_name(&self) -> &str {
-        "Svg"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "svg_document_list_offset",
-                FieldType::offset(self.svg_document_list_offset(), self.svg_document_list()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Svg<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for SVGDocumentList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.document_records_byte_range().end
@@ -192,35 +167,6 @@ impl Default for SVGDocumentList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SVGDocumentList<'a> {
-    fn type_name(&self) -> &str {
-        "SVGDocumentList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("num_entries", self.num_entries())),
-            1usize => Some(Field::new(
-                "document_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(SVGDocumentRecord),
-                    self.document_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SVGDocumentList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [SVGDocumentRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/svg)
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -263,21 +209,4 @@ impl SVGDocumentRecord {
 impl FixedSize for SVGDocumentRecord {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SVGDocumentRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SVGDocumentRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
-                1usize => Some(Field::new("end_glyph_id", self.end_glyph_id())),
-                2usize => Some(Field::new("svg_doc_offset", self.svg_doc_offset())),
-                3usize => Some(Field::new("svg_doc_length", self.svg_doc_length())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

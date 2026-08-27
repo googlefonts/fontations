@@ -160,50 +160,6 @@ impl Default for Varc<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Varc<'a> {
-    fn type_name(&self) -> &str {
-        "Varc"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new(
-                "multi_var_store_offset",
-                FieldType::offset(self.multi_var_store_offset(), self.multi_var_store()),
-            )),
-            3usize => Some(Field::new(
-                "condition_list_offset",
-                FieldType::offset(self.condition_list_offset(), self.condition_list()),
-            )),
-            4usize => Some(Field::new(
-                "axis_indices_list_offset",
-                FieldType::offset(self.axis_indices_list_offset(), self.axis_indices_list()),
-            )),
-            5usize => Some(Field::new(
-                "var_composite_glyphs_offset",
-                FieldType::offset(
-                    self.var_composite_glyphs_offset(),
-                    self.var_composite_glyphs(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Varc<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for MultiItemVariationStore<'_> {
     const FORMAT: u16 = 1;
 }
@@ -316,39 +272,6 @@ impl Default for MultiItemVariationStore<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
-    fn type_name(&self) -> &str {
-        "MultiItemVariationStore"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "region_list_offset",
-                FieldType::offset(self.region_list_offset(), self.region_list()),
-            )),
-            2usize => Some(Field::new(
-                "variation_data_count",
-                self.variation_data_count(),
-            )),
-            3usize => Some(Field::new(
-                "variation_data_offsets",
-                FieldType::from(self.variation_data()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MultiItemVariationStore<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for SparseVariationRegionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.region_offsets_byte_range().end
@@ -427,31 +350,6 @@ impl Default for SparseVariationRegionList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
-    fn type_name(&self) -> &str {
-        "SparseVariationRegionList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("region_count", self.region_count())),
-            1usize => Some(Field::new(
-                "region_offsets",
-                FieldType::from(self.regions()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SparseVariationRegionList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for SparseVariationRegion<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.region_axes_byte_range().end
@@ -524,35 +422,6 @@ impl Default for SparseVariationRegion<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SparseVariationRegion<'a> {
-    fn type_name(&self) -> &str {
-        "SparseVariationRegion"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("region_axis_count", self.region_axis_count())),
-            1usize => Some(Field::new(
-                "region_axes",
-                traversal::FieldType::array_of_records(
-                    stringify!(SparseRegionAxisCoordinates),
-                    self.region_axes(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SparseVariationRegion<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -584,23 +453,6 @@ impl SparseRegionAxisCoordinates {
 impl FixedSize for SparseRegionAxisCoordinates {
     const RAW_BYTE_LEN: usize =
         u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SparseRegionAxisCoordinates {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SparseRegionAxisCoordinates",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("axis_index", self.axis_index())),
-                1usize => Some(Field::new("start", self.start())),
-                2usize => Some(Field::new("peak", self.peak())),
-                3usize => Some(Field::new("end", self.end())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u8> for MultiItemVariationData<'_> {
@@ -701,30 +553,6 @@ impl Default for MultiItemVariationData<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MultiItemVariationData<'a> {
-    fn type_name(&self) -> &str {
-        "MultiItemVariationData"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("region_index_count", self.region_index_count())),
-            2usize => Some(Field::new("region_indices", self.region_indices())),
-            3usize => Some(Field::new("raw_delta_sets", self.raw_delta_sets())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MultiItemVariationData<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for ConditionList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.condition_offsets_byte_range().end
@@ -798,31 +626,6 @@ impl Default for ConditionList<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ConditionList<'a> {
-    fn type_name(&self) -> &str {
-        "ConditionList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("condition_count", self.condition_count())),
-            1usize => Some(Field::new(
-                "condition_offsets",
-                FieldType::from(self.conditions()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ConditionList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1214,12 +1017,5 @@ impl font_types::Scalar for VarcFlags {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u32>::from_raw(raw);
         Self::from_bits_truncate(t)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<VarcFlags> for FieldType<'a> {
-    fn from(src: VarcFlags) -> FieldType<'a> {
-        src.bits().into()
     }
 }

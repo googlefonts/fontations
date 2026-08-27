@@ -126,36 +126,6 @@ impl Default for Trak<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Trak<'a> {
-    fn type_name(&self) -> &str {
-        "Trak"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("format", self.format())),
-            2usize => Some(Field::new(
-                "horiz_offset",
-                FieldType::offset(self.horiz_offset(), self.horiz()),
-            )),
-            3usize => Some(Field::new(
-                "vert_offset",
-                FieldType::offset(self.vert_offset(), self.vert()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Trak<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for TrackData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.track_table_byte_range().end
@@ -252,37 +222,6 @@ impl Default for TrackData<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for TrackData<'a> {
-    fn type_name(&self) -> &str {
-        "TrackData"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("n_tracks", self.n_tracks())),
-            1usize => Some(Field::new("n_sizes", self.n_sizes())),
-            2usize => Some(Field::new("size_table_offset", self.size_table_offset())),
-            3usize => Some(Field::new(
-                "track_table",
-                traversal::FieldType::array_of_records(
-                    stringify!(TrackTableEntry),
-                    self.track_table(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for TrackData<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Single entry in a tracking table.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -315,20 +254,4 @@ impl TrackTableEntry {
 
 impl FixedSize for TrackTableEntry {
     const RAW_BYTE_LEN: usize = Fixed::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for TrackTableEntry {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "TrackTableEntry",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("track", self.track())),
-                1usize => Some(Field::new("name_index", self.name_index())),
-                2usize => Some(Field::new("offset", self.offset())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

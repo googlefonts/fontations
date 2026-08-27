@@ -73,28 +73,6 @@ impl Default for CountAll16<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CountAll16<'a> {
-    fn type_name(&self) -> &str {
-        "CountAll16"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("some_field", self.some_field())),
-            1usize => Some(Field::new("remainder", self.remainder())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CountAll16<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for CountAll32<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.remainder_byte_range().end
@@ -160,27 +138,5 @@ impl Default for CountAll32<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CountAll32<'a> {
-    fn type_name(&self) -> &str {
-        "CountAll32"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("some_field", self.some_field())),
-            1usize => Some(Field::new("remainder", self.remainder())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CountAll32<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

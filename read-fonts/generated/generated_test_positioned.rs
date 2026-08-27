@@ -105,40 +105,6 @@ impl Default for PositionedTable<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PositionedTable<'a> {
-    fn type_name(&self) -> &str {
-        "PositionedTable"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("positioned_size", self.positioned_size())),
-            1usize => Some(Field::new(
-                "solo",
-                self.solo().traversal_type(self.offset_data()),
-            )),
-            2usize => Some(Field::new("pair_count", self.pair_count())),
-            3usize => Some(Field::new(
-                "pairs",
-                traversal::FieldType::computed_array(
-                    "PositionedPair",
-                    self.pairs(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PositionedTable<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Positioned because it contains positioned fields.
 #[derive(Clone, Debug)]
 pub struct PositionedPair<'a> {
@@ -213,22 +179,6 @@ impl<'a> PositionedPair<'a> {
     ) -> Result<Self, ReadError> {
         let args = positioned_size;
         Self::read_at(data, offset, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for PositionedPair<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "PositionedPair",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("tag", self.tag())),
-                1usize => Some(Field::new("first", self.first().traversal_type(_data))),
-                2usize => Some(Field::new("second", self.second().traversal_type(_data))),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -340,37 +290,6 @@ impl Default for NestedPositionedTable<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for NestedPositionedTable<'a> {
-    fn type_name(&self) -> &str {
-        "NestedPositionedTable"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("positioned_size", self.positioned_size())),
-            1usize => Some(Field::new("pairs_per_group", self.pairs_per_group())),
-            2usize => Some(Field::new("group_count", self.group_count())),
-            3usize => Some(Field::new(
-                "groups",
-                traversal::FieldType::computed_array(
-                    "PositionedGroup",
-                    self.groups(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for NestedPositionedTable<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Positioned only because it contains an array of positioned records; it has
 /// no positioned field of its own.
 #[derive(Clone, Debug)]
@@ -424,26 +343,5 @@ impl<'a> PositionedGroup<'a> {
     ) -> Result<Self, ReadError> {
         let args = (pairs_per_group, positioned_size);
         Self::read_at(data, offset, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for PositionedGroup<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "PositionedGroup",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "pairs",
-                    traversal::FieldType::computed_array(
-                        "PositionedPair",
-                        self.pairs().clone(),
-                        FontData::new(&[]),
-                    ),
-                )),
-                _ => None,
-            }),
-            data,
-        }
     }
 }

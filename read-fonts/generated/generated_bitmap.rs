@@ -115,40 +115,6 @@ impl FixedSize for BitmapSize {
         + BitmapFlags::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for BitmapSize {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "BitmapSize",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "index_subtable_list_offset",
-                    self.index_subtable_list_offset(),
-                )),
-                1usize => Some(Field::new(
-                    "index_subtable_list_size",
-                    self.index_subtable_list_size(),
-                )),
-                2usize => Some(Field::new(
-                    "number_of_index_subtables",
-                    self.number_of_index_subtables(),
-                )),
-                3usize => Some(Field::new("color_ref", self.color_ref())),
-                4usize => Some(Field::new("hori", self.hori().traversal_type(_data))),
-                5usize => Some(Field::new("vert", self.vert().traversal_type(_data))),
-                6usize => Some(Field::new("start_glyph_index", self.start_glyph_index())),
-                7usize => Some(Field::new("end_glyph_index", self.end_glyph_index())),
-                8usize => Some(Field::new("ppem_x", self.ppem_x())),
-                9usize => Some(Field::new("ppem_y", self.ppem_y())),
-                10usize => Some(Field::new("bit_depth", self.bit_depth())),
-                11usize => Some(Field::new("flags", self.flags())),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 /// [SbitLineMetrics](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#sbitlinemetrics-record) record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -231,37 +197,6 @@ impl FixedSize for SbitLineMetrics {
         + i8::RAW_BYTE_LEN
         + i8::RAW_BYTE_LEN
         + i8::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SbitLineMetrics {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SbitLineMetrics",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("ascender", self.ascender())),
-                1usize => Some(Field::new("descender", self.descender())),
-                2usize => Some(Field::new("width_max", self.width_max())),
-                3usize => Some(Field::new(
-                    "caret_slope_numerator",
-                    self.caret_slope_numerator(),
-                )),
-                4usize => Some(Field::new(
-                    "caret_slope_denominator",
-                    self.caret_slope_denominator(),
-                )),
-                5usize => Some(Field::new("caret_offset", self.caret_offset())),
-                6usize => Some(Field::new("min_origin_sb", self.min_origin_sb())),
-                7usize => Some(Field::new("min_advance_sb", self.min_advance_sb())),
-                8usize => Some(Field::new("max_before_bl", self.max_before_bl())),
-                9usize => Some(Field::new("min_after_bl", self.min_after_bl())),
-                10usize => Some(Field::new("pad1", self.pad1())),
-                11usize => Some(Field::new("pad2", self.pad2())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// [Bitmap flags](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#bitmap-flags).
@@ -565,13 +500,6 @@ impl font_types::Scalar for BitmapFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<BitmapFlags> for FieldType<'a> {
-    fn from(src: BitmapFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 /// [BigGlyphMetrics](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#bigglyphmetrics) record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -648,27 +576,6 @@ impl FixedSize for BigGlyphMetrics {
         + u8::RAW_BYTE_LEN;
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for BigGlyphMetrics {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "BigGlyphMetrics",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("height", self.height())),
-                1usize => Some(Field::new("width", self.width())),
-                2usize => Some(Field::new("hori_bearing_x", self.hori_bearing_x())),
-                3usize => Some(Field::new("hori_bearing_y", self.hori_bearing_y())),
-                4usize => Some(Field::new("hori_advance", self.hori_advance())),
-                5usize => Some(Field::new("vert_bearing_x", self.vert_bearing_x())),
-                6usize => Some(Field::new("vert_bearing_y", self.vert_bearing_y())),
-                7usize => Some(Field::new("vert_advance", self.vert_advance())),
-                _ => None,
-            }),
-            data,
-        }
-    }
-}
-
 /// [SmallGlyphMetrics](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#smallglyphmetrics) record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -719,24 +626,6 @@ impl FixedSize for SmallGlyphMetrics {
         + i8::RAW_BYTE_LEN
         + i8::RAW_BYTE_LEN
         + u8::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SmallGlyphMetrics {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SmallGlyphMetrics",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("height", self.height())),
-                1usize => Some(Field::new("width", self.width())),
-                2usize => Some(Field::new("bearing_x", self.bearing_x())),
-                3usize => Some(Field::new("bearing_y", self.bearing_y())),
-                4usize => Some(Field::new("advance", self.advance())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for IndexSubtableList<'a> {
@@ -825,34 +714,6 @@ impl Default for IndexSubtableList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IndexSubtableList<'a> {
-    fn type_name(&self) -> &str {
-        "IndexSubtableList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "index_subtable_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(IndexSubtableRecord),
-                    self.index_subtable_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for IndexSubtableList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -894,25 +755,6 @@ impl IndexSubtableRecord {
 impl FixedSize for IndexSubtableRecord {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for IndexSubtableRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "IndexSubtableRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("first_glyph_index", self.first_glyph_index())),
-                1usize => Some(Field::new("last_glyph_index", self.last_glyph_index())),
-                2usize => Some(Field::new(
-                    "index_subtable_offset",
-                    FieldType::offset(self.index_subtable_offset(), self.index_subtable(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u16> for IndexSubtable1<'_> {
@@ -1049,30 +891,6 @@ impl Default for IndexSubtable1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IndexSubtable1<'a> {
-    fn type_name(&self) -> &str {
-        "IndexSubtable1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("index_format", self.index_format())),
-            1usize => Some(Field::new("image_format", self.image_format())),
-            2usize => Some(Field::new("image_data_offset", self.image_data_offset())),
-            3usize => Some(Field::new("sbit_offsets", self.sbit_offsets())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for IndexSubtable1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for IndexSubtable2<'_> {
     const FORMAT: u16 = 2;
 }
@@ -1174,34 +992,6 @@ impl<'a> IndexSubtable2<'a> {
         let start = self.image_size_byte_range().end;
         let end = start + BigGlyphMetrics::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IndexSubtable2<'a> {
-    fn type_name(&self) -> &str {
-        "IndexSubtable2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("index_format", self.index_format())),
-            1usize => Some(Field::new("image_format", self.image_format())),
-            2usize => Some(Field::new("image_data_offset", self.image_data_offset())),
-            3usize => Some(Field::new("image_size", self.image_size())),
-            4usize => Some(Field::new(
-                "big_metrics",
-                traversal::FieldType::Record((*self.big_metrics()).traverse(self.offset_data())),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for IndexSubtable2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1327,30 +1117,6 @@ impl<'a> IndexSubtable3<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IndexSubtable3<'a> {
-    fn type_name(&self) -> &str {
-        "IndexSubtable3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("index_format", self.index_format())),
-            1usize => Some(Field::new("image_format", self.image_format())),
-            2usize => Some(Field::new("image_data_offset", self.image_data_offset())),
-            3usize => Some(Field::new("sbit_offsets", self.sbit_offsets())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for IndexSubtable3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for IndexSubtable4<'_> {
     const FORMAT: u16 = 4;
 }
@@ -1455,38 +1221,6 @@ impl<'a> IndexSubtable4<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IndexSubtable4<'a> {
-    fn type_name(&self) -> &str {
-        "IndexSubtable4"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("index_format", self.index_format())),
-            1usize => Some(Field::new("image_format", self.image_format())),
-            2usize => Some(Field::new("image_data_offset", self.image_data_offset())),
-            3usize => Some(Field::new("num_glyphs", self.num_glyphs())),
-            4usize => Some(Field::new(
-                "glyph_array",
-                traversal::FieldType::array_of_records(
-                    stringify!(GlyphIdOffsetPair),
-                    self.glyph_array(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for IndexSubtable4<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [GlyphIdOffsetPair](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#glyphidoffsetpair-record) record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1512,21 +1246,6 @@ impl GlyphIdOffsetPair {
 
 impl FixedSize for GlyphIdOffsetPair {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for GlyphIdOffsetPair {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "GlyphIdOffsetPair",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("glyph_id", self.glyph_id())),
-                1usize => Some(Field::new("sbit_offset", self.sbit_offset())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u16> for IndexSubtable5<'_> {
@@ -1660,36 +1379,6 @@ impl<'a> IndexSubtable5<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for IndexSubtable5<'a> {
-    fn type_name(&self) -> &str {
-        "IndexSubtable5"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("index_format", self.index_format())),
-            1usize => Some(Field::new("image_format", self.image_format())),
-            2usize => Some(Field::new("image_data_offset", self.image_data_offset())),
-            3usize => Some(Field::new("image_size", self.image_size())),
-            4usize => Some(Field::new(
-                "big_metrics",
-                traversal::FieldType::Record((*self.big_metrics()).traverse(self.offset_data())),
-            )),
-            5usize => Some(Field::new("num_glyphs", self.num_glyphs())),
-            6usize => Some(Field::new("glyph_array", self.glyph_array())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for IndexSubtable5<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [EbdtComponent](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#ebdtcomponent-record) record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1722,20 +1411,4 @@ impl BdtComponent {
 
 impl FixedSize for BdtComponent {
     const RAW_BYTE_LEN: usize = GlyphId16::RAW_BYTE_LEN + i8::RAW_BYTE_LEN + i8::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for BdtComponent {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "BdtComponent",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("glyph_id", self.glyph_id())),
-                1usize => Some(Field::new("x_offset", self.x_offset())),
-                2usize => Some(Field::new("y_offset", self.y_offset())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

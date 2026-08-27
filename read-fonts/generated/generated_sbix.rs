@@ -306,13 +306,6 @@ impl font_types::Scalar for HeaderFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<HeaderFlags> for FieldType<'a> {
-    fn from(src: HeaderFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 impl<'a> MinByteRange<'a> for Sbix<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.strike_offsets_byte_range().end
@@ -443,33 +436,6 @@ impl Default for Sbix<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Sbix<'a> {
-    fn type_name(&self) -> &str {
-        "Sbix"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("flags", self.flags())),
-            2usize => Some(Field::new("num_strikes", self.num_strikes())),
-            3usize => Some(Field::new(
-                "strike_offsets",
-                FieldType::from(self.strikes()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Sbix<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Strike<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.glyph_data_offsets_byte_range().end
@@ -572,29 +538,6 @@ impl Default for Strike<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Strike<'a> {
-    fn type_name(&self) -> &str {
-        "Strike"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("ppem", self.ppem())),
-            1usize => Some(Field::new("ppi", self.ppi())),
-            2usize => Some(Field::new("glyph_data_offsets", self.glyph_data_offsets())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Strike<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for GlyphData<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.data_byte_range().end
@@ -687,29 +630,5 @@ impl Default for GlyphData<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for GlyphData<'a> {
-    fn type_name(&self) -> &str {
-        "GlyphData"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("origin_offset_x", self.origin_offset_x())),
-            1usize => Some(Field::new("origin_offset_y", self.origin_offset_y())),
-            2usize => Some(Field::new("graphic_type", self.graphic_type())),
-            3usize => Some(Field::new("data", self.data())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for GlyphData<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

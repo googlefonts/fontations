@@ -129,39 +129,6 @@ impl Default for Base<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Base<'a> {
-    fn type_name(&self) -> &str {
-        "Base"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "horiz_axis_offset",
-                FieldType::offset(self.horiz_axis_offset(), self.horiz_axis()),
-            )),
-            2usize => Some(Field::new(
-                "vert_axis_offset",
-                FieldType::offset(self.vert_axis_offset(), self.vert_axis()),
-            )),
-            3usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
-                "item_var_store_offset",
-                FieldType::offset(self.item_var_store_offset()?, self.item_var_store()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Base<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Axis<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_script_list_offset_byte_range().end
@@ -245,34 +212,6 @@ impl Default for Axis<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Axis<'a> {
-    fn type_name(&self) -> &str {
-        "Axis"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "base_tag_list_offset",
-                FieldType::offset(self.base_tag_list_offset(), self.base_tag_list()),
-            )),
-            1usize => Some(Field::new(
-                "base_script_list_offset",
-                FieldType::offset(self.base_script_list_offset(), self.base_script_list()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Axis<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for BaseTagList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.baseline_tags_byte_range().end
@@ -343,28 +282,6 @@ impl Default for BaseTagList<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseTagList<'a> {
-    fn type_name(&self) -> &str {
-        "BaseTagList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("base_tag_count", self.base_tag_count())),
-            1usize => Some(Field::new("baseline_tags", self.baseline_tags())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseTagList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -442,35 +359,6 @@ impl Default for BaseScriptList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseScriptList<'a> {
-    fn type_name(&self) -> &str {
-        "BaseScriptList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("base_script_count", self.base_script_count())),
-            1usize => Some(Field::new(
-                "base_script_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(BaseScriptRecord),
-                    self.base_script_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseScriptList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [BaseScriptRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptrecord)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -504,24 +392,6 @@ impl BaseScriptRecord {
 
 impl FixedSize for BaseScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for BaseScriptRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "BaseScriptRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("base_script_tag", self.base_script_tag())),
-                1usize => Some(Field::new(
-                    "base_script_offset",
-                    FieldType::offset(self.base_script_offset(), self.base_script(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for BaseScript<'a> {
@@ -635,46 +505,6 @@ impl Default for BaseScript<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseScript<'a> {
-    fn type_name(&self) -> &str {
-        "BaseScript"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "base_values_offset",
-                FieldType::offset(self.base_values_offset(), self.base_values()),
-            )),
-            1usize => Some(Field::new(
-                "default_min_max_offset",
-                FieldType::offset(self.default_min_max_offset(), self.default_min_max()),
-            )),
-            2usize => Some(Field::new(
-                "base_lang_sys_count",
-                self.base_lang_sys_count(),
-            )),
-            3usize => Some(Field::new(
-                "base_lang_sys_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(BaseLangSysRecord),
-                    self.base_lang_sys_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseScript<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [BaseLangSysRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -708,24 +538,6 @@ impl BaseLangSysRecord {
 
 impl FixedSize for BaseLangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for BaseLangSysRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "BaseLangSysRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("base_lang_sys_tag", self.base_lang_sys_tag())),
-                1usize => Some(Field::new(
-                    "min_max_offset",
-                    FieldType::offset(self.min_max_offset(), self.min_max(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for BaseValues<'a> {
@@ -821,35 +633,6 @@ impl Default for BaseValues<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseValues<'a> {
-    fn type_name(&self) -> &str {
-        "BaseValues"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "default_baseline_index",
-                self.default_baseline_index(),
-            )),
-            1usize => Some(Field::new("base_coord_count", self.base_coord_count())),
-            2usize => Some(Field::new(
-                "base_coord_offsets",
-                FieldType::from(self.base_coords()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseValues<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -966,43 +749,6 @@ impl Default for MinMax<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MinMax<'a> {
-    fn type_name(&self) -> &str {
-        "MinMax"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "min_coord_offset",
-                FieldType::offset(self.min_coord_offset(), self.min_coord()),
-            )),
-            1usize => Some(Field::new(
-                "max_coord_offset",
-                FieldType::offset(self.max_coord_offset(), self.max_coord()),
-            )),
-            2usize => Some(Field::new("feat_min_max_count", self.feat_min_max_count())),
-            3usize => Some(Field::new(
-                "feat_min_max_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(FeatMinMaxRecord),
-                    self.feat_min_max_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MinMax<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [FeatMinMaxRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1059,28 +805,6 @@ impl FeatMinMaxRecord {
 
 impl FixedSize for FeatMinMaxRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for FeatMinMaxRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "FeatMinMaxRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("feature_table_tag", self.feature_table_tag())),
-                1usize => Some(Field::new(
-                    "min_coord_offset",
-                    FieldType::offset(self.min_coord_offset(), self.min_coord(_data)),
-                )),
-                2usize => Some(Field::new(
-                    "max_coord_offset",
-                    FieldType::offset(self.max_coord_offset(), self.max_coord(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -1158,34 +882,6 @@ impl<'a> MinByteRange<'a> for BaseCoord<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> BaseCoord<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-            Self::Format3(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for BaseCoord<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseCoord<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-}
-
 impl Format<u16> for BaseCoordFormat1<'_> {
     const FORMAT: u16 = 1;
 }
@@ -1259,28 +955,6 @@ impl Default for BaseCoordFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseCoordFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "BaseCoordFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("base_coord_format", self.base_coord_format())),
-            1usize => Some(Field::new("coordinate", self.coordinate())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseCoordFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1373,30 +1047,6 @@ impl<'a> BaseCoordFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseCoordFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "BaseCoordFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("base_coord_format", self.base_coord_format())),
-            1usize => Some(Field::new("coordinate", self.coordinate())),
-            2usize => Some(Field::new("reference_glyph", self.reference_glyph())),
-            3usize => Some(Field::new("base_coord_point", self.base_coord_point())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseCoordFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for BaseCoordFormat3<'_> {
     const FORMAT: u16 = 3;
 }
@@ -1478,31 +1128,5 @@ impl<'a> BaseCoordFormat3<'a> {
         let start = self.coordinate_byte_range().end;
         let end = start + Offset16::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseCoordFormat3<'a> {
-    fn type_name(&self) -> &str {
-        "BaseCoordFormat3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("base_coord_format", self.base_coord_format())),
-            1usize => Some(Field::new("coordinate", self.coordinate())),
-            2usize => Some(Field::new(
-                "device_offset",
-                FieldType::offset(self.device_offset(), self.device()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseCoordFormat3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

@@ -227,69 +227,6 @@ impl Default for KindsOfOffsets<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
-    fn type_name(&self) -> &str {
-        "KindsOfOffsets"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "nonnullable_offset",
-                FieldType::offset(self.nonnullable_offset(), self.nonnullable()),
-            )),
-            2usize => Some(Field::new(
-                "nullable_offset",
-                FieldType::offset(self.nullable_offset(), self.nullable()),
-            )),
-            3usize => Some(Field::new("array_offset_count", self.array_offset_count())),
-            4usize => Some(Field::new(
-                "array_offset",
-                FieldType::offset_to_array_of_scalars(self.array_offset(), self.array()),
-            )),
-            5usize => Some(Field::new(
-                "record_array_offset",
-                traversal::FieldType::offset_to_array_of_records(
-                    self.record_array_offset(),
-                    self.record_array(),
-                    stringify!(Shmecord),
-                    self.offset_data(),
-                ),
-            )),
-            6usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
-                "versioned_nullable_record_array_offset",
-                traversal::FieldType::offset_to_array_of_records(
-                    self.versioned_nullable_record_array_offset()?,
-                    self.versioned_nullable_record_array(),
-                    stringify!(Shmecord),
-                    self.offset_data(),
-                ),
-            )),
-            7usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
-                "versioned_nonnullable_offset",
-                FieldType::offset(
-                    self.versioned_nonnullable_offset()?,
-                    self.versioned_nonnullable()?,
-                ),
-            )),
-            8usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
-                "versioned_nullable_offset",
-                FieldType::offset(self.versioned_nullable_offset()?, self.versioned_nullable()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for KindsOfOffsets<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for KindsOfArraysOfOffsets<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.nullable_offsets_byte_range().end
@@ -453,44 +390,6 @@ impl Default for KindsOfArraysOfOffsets<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
-    fn type_name(&self) -> &str {
-        "KindsOfArraysOfOffsets"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("count", self.count())),
-            2usize => Some(Field::new(
-                "nonnullable_offsets",
-                FieldType::from(self.nonnullables()),
-            )),
-            3usize => Some(Field::new(
-                "nullable_offsets",
-                FieldType::from(self.nullables()),
-            )),
-            4usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
-                "versioned_nonnullable_offsets",
-                FieldType::from(self.versioned_nonnullables()?),
-            )),
-            5usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
-                "versioned_nullable_offsets",
-                FieldType::from(self.versioned_nullables()?),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for KindsOfArrays<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.records_byte_range().end
@@ -623,48 +522,6 @@ impl Default for KindsOfArrays<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for KindsOfArrays<'a> {
-    fn type_name(&self) -> &str {
-        "KindsOfArrays"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("count", self.count())),
-            2usize => Some(Field::new("scalars", self.scalars())),
-            3usize => Some(Field::new(
-                "records",
-                traversal::FieldType::array_of_records(
-                    stringify!(Shmecord),
-                    self.records(),
-                    self.offset_data(),
-                ),
-            )),
-            4usize if self.version().compatible(1u16) => {
-                Some(Field::new("versioned_scalars", self.versioned_scalars()?))
-            }
-            5usize if self.version().compatible(1u16) => Some(Field::new(
-                "versioned_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(Shmecord),
-                    self.versioned_records()?,
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for VarLenHaver<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.other_field_byte_range().end
@@ -751,29 +608,6 @@ impl Default for VarLenHaver<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for VarLenHaver<'a> {
-    fn type_name(&self) -> &str {
-        "VarLenHaver"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("count", self.count())),
-            1usize => Some(Field::new("var_len", traversal::FieldType::Unknown)),
-            2usize => Some(Field::new("other_field", self.other_field())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for VarLenHaver<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Dummy<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self._reserved_byte_range().end
@@ -836,27 +670,6 @@ impl Default for Dummy<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Dummy<'a> {
-    fn type_name(&self) -> &str {
-        "Dummy"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("value", self.value())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Dummy<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -877,19 +690,4 @@ impl Shmecord {
 
 impl FixedSize for Shmecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Shmecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Shmecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("length", self.length())),
-                1usize => Some(Field::new("breadth", self.breadth())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

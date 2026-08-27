@@ -149,43 +149,6 @@ impl Default for Gpos<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Gpos<'a> {
-    fn type_name(&self) -> &str {
-        "Gpos"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "script_list_offset",
-                FieldType::offset(self.script_list_offset(), self.script_list()),
-            )),
-            2usize => Some(Field::new(
-                "feature_list_offset",
-                FieldType::offset(self.feature_list_offset(), self.feature_list()),
-            )),
-            3usize => Some(Field::new(
-                "lookup_list_offset",
-                FieldType::offset(self.lookup_list_offset(), self.lookup_list()),
-            )),
-            4usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
-                "feature_variations_offset",
-                FieldType::offset(self.feature_variations_offset()?, self.feature_variations()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Gpos<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// A [GPOS Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#gsubLookupTypeEnum) subtable.
 pub enum PositionLookup<'a> {
     Single(Lookup<'a, SinglePos<'a>>),
@@ -244,40 +207,6 @@ impl<'a> PositionLookup<'a> {
             PositionLookup::ChainContextual(inner) => inner.of_unit_type(),
             PositionLookup::Extension(inner) => inner.of_unit_type(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> PositionLookup<'a> {
-    fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
-        match self {
-            PositionLookup::Single(table) => table,
-            PositionLookup::Pair(table) => table,
-            PositionLookup::Cursive(table) => table,
-            PositionLookup::MarkToBase(table) => table,
-            PositionLookup::MarkToLig(table) => table,
-            PositionLookup::MarkToMark(table) => table,
-            PositionLookup::Contextual(table) => table,
-            PositionLookup::ChainContextual(table) => table,
-            PositionLookup::Extension(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PositionLookup<'a> {
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for PositionLookup<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
     }
 }
 
@@ -617,13 +546,6 @@ impl font_types::Scalar for ValueFormat {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<ValueFormat> for FieldType<'a> {
-    fn from(src: ValueFormat) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 /// [Anchor Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-tables)
 /// position one glyph with respect to another.
 #[derive(Clone)]
@@ -707,34 +629,6 @@ impl<'a> MinByteRange<'a> for AnchorTable<'a> {
             Self::Format2(item) => item.min_table_bytes(),
             Self::Format3(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> AnchorTable<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-            Self::Format3(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for AnchorTable<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AnchorTable<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -824,29 +718,6 @@ impl Default for AnchorFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AnchorFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "AnchorFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("anchor_format", self.anchor_format())),
-            1usize => Some(Field::new("x_coordinate", self.x_coordinate())),
-            2usize => Some(Field::new("y_coordinate", self.y_coordinate())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AnchorFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for AnchorFormat2<'_> {
     const FORMAT: u16 = 2;
 }
@@ -933,30 +804,6 @@ impl<'a> AnchorFormat2<'a> {
         let start = self.y_coordinate_byte_range().end;
         let end = start + u16::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AnchorFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "AnchorFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("anchor_format", self.anchor_format())),
-            1usize => Some(Field::new("x_coordinate", self.x_coordinate())),
-            2usize => Some(Field::new("y_coordinate", self.y_coordinate())),
-            3usize => Some(Field::new("anchor_point", self.anchor_point())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AnchorFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1080,37 +927,6 @@ impl<'a> AnchorFormat3<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AnchorFormat3<'a> {
-    fn type_name(&self) -> &str {
-        "AnchorFormat3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("anchor_format", self.anchor_format())),
-            1usize => Some(Field::new("x_coordinate", self.x_coordinate())),
-            2usize => Some(Field::new("y_coordinate", self.y_coordinate())),
-            3usize => Some(Field::new(
-                "x_device_offset",
-                FieldType::offset(self.x_device_offset(), self.x_device()),
-            )),
-            4usize => Some(Field::new(
-                "y_device_offset",
-                FieldType::offset(self.y_device_offset(), self.y_device()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AnchorFormat3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for MarkArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark_records_byte_range().end
@@ -1184,35 +1000,6 @@ impl Default for MarkArray<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MarkArray<'a> {
-    fn type_name(&self) -> &str {
-        "MarkArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("mark_count", self.mark_count())),
-            1usize => Some(Field::new(
-                "mark_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(MarkRecord),
-                    self.mark_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MarkArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [MarkArray]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1246,24 +1033,6 @@ impl MarkRecord {
 
 impl FixedSize for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for MarkRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "MarkRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("mark_class", self.mark_class())),
-                1usize => Some(Field::new(
-                    "mark_anchor_offset",
-                    FieldType::offset(self.mark_anchor_offset(), self.mark_anchor(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
@@ -1340,33 +1109,6 @@ impl<'a> MinByteRange<'a> for SinglePos<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SinglePos<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for SinglePos<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SinglePos<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -1476,36 +1218,6 @@ impl Default for SinglePosFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SinglePosFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "SinglePosFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("value_format", self.value_format())),
-            3usize => Some(Field::new(
-                "value_record",
-                self.value_record().traversal_type(self.offset_data()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SinglePosFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1623,41 +1335,6 @@ impl<'a> SinglePosFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "SinglePosFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("value_format", self.value_format())),
-            3usize => Some(Field::new("value_count", self.value_count())),
-            4usize => Some(Field::new(
-                "value_records",
-                traversal::FieldType::computed_array(
-                    "ValueRecord",
-                    self.value_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SinglePosFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
 #[derive(Clone)]
 pub enum PairPos<'a> {
@@ -1742,33 +1419,6 @@ impl<'a> MinByteRange<'a> for PairPos<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> PairPos<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for PairPos<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PairPos<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -1917,38 +1567,6 @@ impl Default for PairPosFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "PairPosFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("value_format1", self.value_format1())),
-            3usize => Some(Field::new("value_format2", self.value_format2())),
-            4usize => Some(Field::new("pair_set_count", self.pair_set_count())),
-            5usize => Some(Field::new(
-                "pair_set_offsets",
-                FieldType::from(self.pair_sets()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PairPosFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for PairSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.pair_value_records_byte_range().end
@@ -2069,35 +1687,6 @@ impl Default for PairSet<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PairSet<'a> {
-    fn type_name(&self) -> &str {
-        "PairSet"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pair_value_count", self.pair_value_count())),
-            1usize => Some(Field::new(
-                "pair_value_records",
-                traversal::FieldType::computed_array(
-                    "PairValueRecord",
-                    self.pair_value_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PairSet<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [PairSet]
 #[derive(Clone, Debug)]
 pub struct PairValueRecord<'a> {
@@ -2181,28 +1770,6 @@ impl<'a> PairValueRecord<'a> {
     ) -> Result<Self, ReadError> {
         let args = (value_format1, value_format2);
         Self::read_at(data, offset, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for PairValueRecord<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "PairValueRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("second_glyph", self.second_glyph())),
-                1usize => Some(Field::new(
-                    "value_record1",
-                    self.value_record1().traversal_type(_data),
-                )),
-                2usize => Some(Field::new(
-                    "value_record2",
-                    self.value_record2().traversal_type(_data),
-                )),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -2401,51 +1968,6 @@ impl<'a> PairPosFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "PairPosFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("value_format1", self.value_format1())),
-            3usize => Some(Field::new("value_format2", self.value_format2())),
-            4usize => Some(Field::new(
-                "class_def1_offset",
-                FieldType::offset(self.class_def1_offset(), self.class_def1()),
-            )),
-            5usize => Some(Field::new(
-                "class_def2_offset",
-                FieldType::offset(self.class_def2_offset(), self.class_def2()),
-            )),
-            6usize => Some(Field::new("class1_count", self.class1_count())),
-            7usize => Some(Field::new("class2_count", self.class2_count())),
-            8usize => Some(Field::new(
-                "class1_records",
-                traversal::FieldType::computed_array(
-                    "Class1Record",
-                    self.class1_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for PairPosFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [PairPosFormat2]
 #[derive(Clone, Debug)]
 pub struct Class1Record<'a> {
@@ -2508,27 +2030,6 @@ impl<'a> Class1Record<'a> {
     ) -> Result<Self, ReadError> {
         let args = (class2_count, value_format1, value_format2);
         Self::read_at(data, offset, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Class1Record<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Class1Record",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "class2_records",
-                    traversal::FieldType::computed_array(
-                        "Class2Record",
-                        self.class2_records().clone(),
-                        FontData::new(&[]),
-                    ),
-                )),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -2602,27 +2103,6 @@ impl<'a> Class2Record<'a> {
     ) -> Result<Self, ReadError> {
         let args = (value_format1, value_format2);
         Self::read_at(data, offset, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Class2Record<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Class2Record",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "value_record1",
-                    self.value_record1().traversal_type(_data),
-                )),
-                1usize => Some(Field::new(
-                    "value_record2",
-                    self.value_record2().traversal_type(_data),
-                )),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -2735,40 +2215,6 @@ impl Default for CursivePosFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "CursivePosFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("entry_exit_count", self.entry_exit_count())),
-            3usize => Some(Field::new(
-                "entry_exit_record",
-                traversal::FieldType::array_of_records(
-                    stringify!(EntryExitRecord),
-                    self.entry_exit_record(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CursivePosFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [CursivePosFormat1]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -2822,27 +2268,6 @@ impl EntryExitRecord {
 
 impl FixedSize for EntryExitRecord {
     const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for EntryExitRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "EntryExitRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "entry_anchor_offset",
-                    FieldType::offset(self.entry_anchor_offset(), self.entry_anchor(_data)),
-                )),
-                1usize => Some(Field::new(
-                    "exit_anchor_offset",
-                    FieldType::offset(self.exit_anchor_offset(), self.exit_anchor(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u16> for MarkBasePosFormat1<'_> {
@@ -3003,44 +2428,6 @@ impl Default for MarkBasePosFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MarkBasePosFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "MarkBasePosFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new(
-                "mark_coverage_offset",
-                FieldType::offset(self.mark_coverage_offset(), self.mark_coverage()),
-            )),
-            2usize => Some(Field::new(
-                "base_coverage_offset",
-                FieldType::offset(self.base_coverage_offset(), self.base_coverage()),
-            )),
-            3usize => Some(Field::new("mark_class_count", self.mark_class_count())),
-            4usize => Some(Field::new(
-                "mark_array_offset",
-                FieldType::offset(self.mark_array_offset(), self.mark_array()),
-            )),
-            5usize => Some(Field::new(
-                "base_array_offset",
-                FieldType::offset(self.base_array_offset(), self.base_array()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MarkBasePosFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for BaseArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.base_records_byte_range().end
@@ -3137,35 +2524,6 @@ impl Default for BaseArray<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for BaseArray<'a> {
-    fn type_name(&self) -> &str {
-        "BaseArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("base_count", self.base_count())),
-            1usize => Some(Field::new(
-                "base_records",
-                traversal::FieldType::computed_array(
-                    "BaseRecord",
-                    self.base_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for BaseArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [BaseArray]
 #[derive(Clone, Debug)]
 pub struct BaseRecord<'a> {
@@ -3231,23 +2589,6 @@ impl<'a> BaseRecord<'a> {
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
         Self::read_with_args(data, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for BaseRecord<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "BaseRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "base_anchor_offsets",
-                    FieldType::from(self.base_anchors(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -3409,44 +2750,6 @@ impl Default for MarkLigPosFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MarkLigPosFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "MarkLigPosFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new(
-                "mark_coverage_offset",
-                FieldType::offset(self.mark_coverage_offset(), self.mark_coverage()),
-            )),
-            2usize => Some(Field::new(
-                "ligature_coverage_offset",
-                FieldType::offset(self.ligature_coverage_offset(), self.ligature_coverage()),
-            )),
-            3usize => Some(Field::new("mark_class_count", self.mark_class_count())),
-            4usize => Some(Field::new(
-                "mark_array_offset",
-                FieldType::offset(self.mark_array_offset(), self.mark_array()),
-            )),
-            5usize => Some(Field::new(
-                "ligature_array_offset",
-                FieldType::offset(self.ligature_array_offset(), self.ligature_array()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MarkLigPosFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for LigatureArray<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ligature_attach_offsets_byte_range().end
@@ -3551,31 +2854,6 @@ impl Default for LigatureArray<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for LigatureArray<'a> {
-    fn type_name(&self) -> &str {
-        "LigatureArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("ligature_count", self.ligature_count())),
-            1usize => Some(Field::new(
-                "ligature_attach_offsets",
-                FieldType::from(self.ligature_attaches()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for LigatureArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for LigatureAttach<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.component_records_byte_range().end
@@ -3673,35 +2951,6 @@ impl Default for LigatureAttach<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for LigatureAttach<'a> {
-    fn type_name(&self) -> &str {
-        "LigatureAttach"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("component_count", self.component_count())),
-            1usize => Some(Field::new(
-                "component_records",
-                traversal::FieldType::computed_array(
-                    "ComponentRecord",
-                    self.component_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for LigatureAttach<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
 pub struct ComponentRecord<'a> {
@@ -3767,23 +3016,6 @@ impl<'a> ComponentRecord<'a> {
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
         Self::read_with_args(data, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ComponentRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "ligature_anchor_offsets",
-                    FieldType::from(self.ligature_anchors(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -3945,44 +3177,6 @@ impl Default for MarkMarkPosFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MarkMarkPosFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "MarkMarkPosFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new(
-                "mark1_coverage_offset",
-                FieldType::offset(self.mark1_coverage_offset(), self.mark1_coverage()),
-            )),
-            2usize => Some(Field::new(
-                "mark2_coverage_offset",
-                FieldType::offset(self.mark2_coverage_offset(), self.mark2_coverage()),
-            )),
-            3usize => Some(Field::new("mark_class_count", self.mark_class_count())),
-            4usize => Some(Field::new(
-                "mark1_array_offset",
-                FieldType::offset(self.mark1_array_offset(), self.mark1_array()),
-            )),
-            5usize => Some(Field::new(
-                "mark2_array_offset",
-                FieldType::offset(self.mark2_array_offset(), self.mark2_array()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MarkMarkPosFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Mark2Array<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.mark2_records_byte_range().end
@@ -4079,35 +3273,6 @@ impl Default for Mark2Array<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Mark2Array<'a> {
-    fn type_name(&self) -> &str {
-        "Mark2Array"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("mark2_count", self.mark2_count())),
-            1usize => Some(Field::new(
-                "mark2_records",
-                traversal::FieldType::computed_array(
-                    "Mark2Record",
-                    self.mark2_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Mark2Array<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [MarkMarkPosFormat1]
 #[derive(Clone, Debug)]
 pub struct Mark2Record<'a> {
@@ -4173,23 +3338,6 @@ impl<'a> Mark2Record<'a> {
     pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
         let args = mark_class_count;
         Self::read_with_args(data, args)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for Mark2Record<'a> {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "Mark2Record",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "mark2_anchor_offsets",
-                    FieldType::from(self.mark2_anchors(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
     }
 }
 
@@ -4315,39 +3463,6 @@ impl<T> Default for ExtensionPosFormat1<'_, T> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a>
-    for ExtensionPosFormat1<'a, T>
-{
-    fn type_name(&self) -> &str {
-        "ExtensionPosFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new(
-                "extension_lookup_type",
-                self.extension_lookup_type(),
-            )),
-            2usize => Some(Field::new(
-                "extension_offset",
-                FieldType::offset(self.extension_offset(), self.extension()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug
-    for ExtensionPosFormat1<'a, T>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// A [GPOS Extension Positioning](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#lookuptype-9-extension-positioning) subtable
 pub enum ExtensionSubtable<'a> {
     Single(ExtensionPosFormat1<'a, SinglePos<'a>>),
@@ -4403,38 +3518,5 @@ impl<'a> ExtensionSubtable<'a> {
             ExtensionSubtable::Contextual(inner) => inner.of_unit_type(),
             ExtensionSubtable::ChainContextual(inner) => inner.of_unit_type(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> ExtensionSubtable<'a> {
-    fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
-        match self {
-            ExtensionSubtable::Single(table) => table,
-            ExtensionSubtable::Pair(table) => table,
-            ExtensionSubtable::Cursive(table) => table,
-            ExtensionSubtable::MarkToBase(table) => table,
-            ExtensionSubtable::MarkToLig(table) => table,
-            ExtensionSubtable::MarkToMark(table) => table,
-            ExtensionSubtable::Contextual(table) => table,
-            ExtensionSubtable::ChainContextual(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ExtensionSubtable<'a> {
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for ExtensionSubtable<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
     }
 }

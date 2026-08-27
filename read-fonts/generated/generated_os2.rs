@@ -351,13 +351,6 @@ impl font_types::Scalar for SelectionFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<SelectionFlags> for FieldType<'a> {
-    fn from(src: SelectionFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 impl<'a> MinByteRange<'a> for Os2<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.us_win_descent_byte_range().end
@@ -997,110 +990,5 @@ impl Default for Os2<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Os2<'a> {
-    fn type_name(&self) -> &str {
-        "Os2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("x_avg_char_width", self.x_avg_char_width())),
-            2usize => Some(Field::new("us_weight_class", self.us_weight_class())),
-            3usize => Some(Field::new("us_width_class", self.us_width_class())),
-            4usize => Some(Field::new("fs_type", self.fs_type())),
-            5usize => Some(Field::new("y_subscript_x_size", self.y_subscript_x_size())),
-            6usize => Some(Field::new("y_subscript_y_size", self.y_subscript_y_size())),
-            7usize => Some(Field::new(
-                "y_subscript_x_offset",
-                self.y_subscript_x_offset(),
-            )),
-            8usize => Some(Field::new(
-                "y_subscript_y_offset",
-                self.y_subscript_y_offset(),
-            )),
-            9usize => Some(Field::new(
-                "y_superscript_x_size",
-                self.y_superscript_x_size(),
-            )),
-            10usize => Some(Field::new(
-                "y_superscript_y_size",
-                self.y_superscript_y_size(),
-            )),
-            11usize => Some(Field::new(
-                "y_superscript_x_offset",
-                self.y_superscript_x_offset(),
-            )),
-            12usize => Some(Field::new(
-                "y_superscript_y_offset",
-                self.y_superscript_y_offset(),
-            )),
-            13usize => Some(Field::new("y_strikeout_size", self.y_strikeout_size())),
-            14usize => Some(Field::new(
-                "y_strikeout_position",
-                self.y_strikeout_position(),
-            )),
-            15usize => Some(Field::new("s_family_class", self.s_family_class())),
-            16usize => Some(Field::new("panose_10", self.panose_10())),
-            17usize => Some(Field::new("ul_unicode_range_1", self.ul_unicode_range_1())),
-            18usize => Some(Field::new("ul_unicode_range_2", self.ul_unicode_range_2())),
-            19usize => Some(Field::new("ul_unicode_range_3", self.ul_unicode_range_3())),
-            20usize => Some(Field::new("ul_unicode_range_4", self.ul_unicode_range_4())),
-            21usize => Some(Field::new("ach_vend_id", self.ach_vend_id())),
-            22usize => Some(Field::new("fs_selection", self.fs_selection())),
-            23usize => Some(Field::new(
-                "us_first_char_index",
-                self.us_first_char_index(),
-            )),
-            24usize => Some(Field::new("us_last_char_index", self.us_last_char_index())),
-            25usize => Some(Field::new("s_typo_ascender", self.s_typo_ascender())),
-            26usize => Some(Field::new("s_typo_descender", self.s_typo_descender())),
-            27usize => Some(Field::new("s_typo_line_gap", self.s_typo_line_gap())),
-            28usize => Some(Field::new("us_win_ascent", self.us_win_ascent())),
-            29usize => Some(Field::new("us_win_descent", self.us_win_descent())),
-            30usize if self.version().compatible(1u16) => Some(Field::new(
-                "ul_code_page_range_1",
-                self.ul_code_page_range_1()?,
-            )),
-            31usize if self.version().compatible(1u16) => Some(Field::new(
-                "ul_code_page_range_2",
-                self.ul_code_page_range_2()?,
-            )),
-            32usize if self.version().compatible(2u16) => {
-                Some(Field::new("sx_height", self.sx_height()?))
-            }
-            33usize if self.version().compatible(2u16) => {
-                Some(Field::new("s_cap_height", self.s_cap_height()?))
-            }
-            34usize if self.version().compatible(2u16) => {
-                Some(Field::new("us_default_char", self.us_default_char()?))
-            }
-            35usize if self.version().compatible(2u16) => {
-                Some(Field::new("us_break_char", self.us_break_char()?))
-            }
-            36usize if self.version().compatible(2u16) => {
-                Some(Field::new("us_max_context", self.us_max_context()?))
-            }
-            37usize if self.version().compatible(5u16) => Some(Field::new(
-                "us_lower_optical_point_size",
-                self.us_lower_optical_point_size()?,
-            )),
-            38usize if self.version().compatible(5u16) => Some(Field::new(
-                "us_upper_optical_point_size",
-                self.us_upper_optical_point_size()?,
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Os2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

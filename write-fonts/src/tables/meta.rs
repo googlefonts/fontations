@@ -161,9 +161,6 @@ mod tests {
 
         let round_trip = crate::dump_table(&table).unwrap();
         let read_back = Meta::read(round_trip.as_slice().into()).unwrap();
-        let readr = read_fonts::tables::meta::Meta::read(round_trip.as_slice().into()).unwrap();
-        dbg!(readr);
-
         //eprintln!("{read_back:#?}");
 
         assert_eq!(table, read_back);

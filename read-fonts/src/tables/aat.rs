@@ -229,17 +229,6 @@ impl<'a, T> FontRead<'a> for TypedLookup<'a, T> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a, T> SomeTable<'a> for TypedLookup<'a, T> {
-    fn type_name(&self) -> &str {
-        "TypedLookup"
-    }
-
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.lookup.get_field(idx)
-    }
-}
-
 /// Trait for values that can be read from lookup tables.
 pub trait LookupValue: Copy + Scalar + bytemuck::AnyBitPattern {
     fn from_u16(v: u16) -> Self;
@@ -528,17 +517,6 @@ impl<'a, T> FontRead<'a> for StateTable<'a, T> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a, T> SomeTable<'a> for StateTable<'a, T> {
-    fn type_name(&self) -> &str {
-        "StateTable"
-    }
-
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.header.get_field(idx)
-    }
-}
-
 #[derive(Clone)]
 pub struct ExtendedStateTable<'a, T = NoPayload> {
     pub n_classes: usize,
@@ -670,17 +648,6 @@ impl<'a, T> FontRead<'a> for ExtendedStateTable<'a, T> {
             entry_table,
             _marker: std::marker::PhantomData,
         })
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a, T> SomeTable<'a> for ExtendedStateTable<'a, T> {
-    fn type_name(&self) -> &str {
-        "ExtendedStateTable"
-    }
-
-    fn get_field(&self, _idx: usize) -> Option<Field<'a>> {
-        None
     }
 }
 

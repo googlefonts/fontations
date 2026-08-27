@@ -150,43 +150,6 @@ impl Default for Gsub<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Gsub<'a> {
-    fn type_name(&self) -> &str {
-        "Gsub"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "script_list_offset",
-                FieldType::offset(self.script_list_offset(), self.script_list()),
-            )),
-            2usize => Some(Field::new(
-                "feature_list_offset",
-                FieldType::offset(self.feature_list_offset(), self.feature_list()),
-            )),
-            3usize => Some(Field::new(
-                "lookup_list_offset",
-                FieldType::offset(self.lookup_list_offset(), self.lookup_list()),
-            )),
-            4usize if self.version().compatible((1u16, 1u16)) => Some(Field::new(
-                "feature_variations_offset",
-                FieldType::offset(self.feature_variations_offset()?, self.feature_variations()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Gsub<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// A [GSUB Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsubLookupTypeEnum) subtable.
 pub enum SubstitutionLookup<'a> {
     Single(Lookup<'a, SingleSubst<'a>>),
@@ -242,39 +205,6 @@ impl<'a> SubstitutionLookup<'a> {
             SubstitutionLookup::Extension(inner) => inner.of_unit_type(),
             SubstitutionLookup::Reverse(inner) => inner.of_unit_type(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SubstitutionLookup<'a> {
-    fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
-        match self {
-            SubstitutionLookup::Single(table) => table,
-            SubstitutionLookup::Multiple(table) => table,
-            SubstitutionLookup::Alternate(table) => table,
-            SubstitutionLookup::Ligature(table) => table,
-            SubstitutionLookup::Contextual(table) => table,
-            SubstitutionLookup::ChainContextual(table) => table,
-            SubstitutionLookup::Extension(table) => table,
-            SubstitutionLookup::Reverse(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SubstitutionLookup<'a> {
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for SubstitutionLookup<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
     }
 }
 
@@ -345,33 +275,6 @@ impl<'a> MinByteRange<'a> for SingleSubst<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SingleSubst<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for SingleSubst<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SingleSubst<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -470,32 +373,6 @@ impl Default for SingleSubstFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SingleSubstFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "SingleSubstFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("subst_format", self.subst_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("delta_glyph_id", self.delta_glyph_id())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SingleSubstFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for SingleSubstFormat2<'_> {
     const FORMAT: u16 = 2;
 }
@@ -590,36 +467,6 @@ impl<'a> SingleSubstFormat2<'a> {
         let end =
             start + (transforms::to_usize(glyph_count)).saturating_mul(GlyphId16::RAW_BYTE_LEN);
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SingleSubstFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "SingleSubstFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("subst_format", self.subst_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("glyph_count", self.glyph_count())),
-            3usize => Some(Field::new(
-                "substitute_glyph_ids",
-                self.substitute_glyph_ids(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SingleSubstFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -740,36 +587,6 @@ impl Default for MultipleSubstFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "MultipleSubstFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("subst_format", self.subst_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("sequence_count", self.sequence_count())),
-            3usize => Some(Field::new(
-                "sequence_offsets",
-                FieldType::from(self.sequences()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MultipleSubstFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for Sequence<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.substitute_glyph_ids_byte_range().end
@@ -840,31 +657,6 @@ impl Default for Sequence<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Sequence<'a> {
-    fn type_name(&self) -> &str {
-        "Sequence"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("glyph_count", self.glyph_count())),
-            1usize => Some(Field::new(
-                "substitute_glyph_ids",
-                self.substitute_glyph_ids(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Sequence<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -985,39 +777,6 @@ impl Default for AlternateSubstFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "AlternateSubstFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("subst_format", self.subst_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new(
-                "alternate_set_count",
-                self.alternate_set_count(),
-            )),
-            3usize => Some(Field::new(
-                "alternate_set_offsets",
-                FieldType::from(self.alternate_sets()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AlternateSubstFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for AlternateSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.alternate_glyph_ids_byte_range().end
@@ -1087,31 +846,6 @@ impl Default for AlternateSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for AlternateSet<'a> {
-    fn type_name(&self) -> &str {
-        "AlternateSet"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("glyph_count", self.glyph_count())),
-            1usize => Some(Field::new(
-                "alternate_glyph_ids",
-                self.alternate_glyph_ids(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for AlternateSet<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1232,36 +966,6 @@ impl Default for LigatureSubstFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "LigatureSubstFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("subst_format", self.subst_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("ligature_set_count", self.ligature_set_count())),
-            3usize => Some(Field::new(
-                "ligature_set_offsets",
-                FieldType::from(self.ligature_sets()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for LigatureSubstFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for LigatureSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ligature_offsets_byte_range().end
@@ -1339,31 +1043,6 @@ impl Default for LigatureSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for LigatureSet<'a> {
-    fn type_name(&self) -> &str {
-        "LigatureSet"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("ligature_count", self.ligature_count())),
-            1usize => Some(Field::new(
-                "ligature_offsets",
-                FieldType::from(self.ligatures()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for LigatureSet<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1450,32 +1129,6 @@ impl Default for Ligature<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Ligature<'a> {
-    fn type_name(&self) -> &str {
-        "Ligature"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("ligature_glyph", self.ligature_glyph())),
-            1usize => Some(Field::new("component_count", self.component_count())),
-            2usize => Some(Field::new(
-                "component_glyph_ids",
-                self.component_glyph_ids(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Ligature<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1601,39 +1254,6 @@ impl<T> Default for ExtensionSubstFormat1<'_, T> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a>
-    for ExtensionSubstFormat1<'a, T>
-{
-    fn type_name(&self) -> &str {
-        "ExtensionSubstFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("subst_format", self.subst_format())),
-            1usize => Some(Field::new(
-                "extension_lookup_type",
-                self.extension_lookup_type(),
-            )),
-            2usize => Some(Field::new(
-                "extension_offset",
-                FieldType::offset(self.extension_offset(), self.extension()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug
-    for ExtensionSubstFormat1<'a, T>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// A [GSUB Extension Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#ES) subtable
 pub enum ExtensionSubtable<'a> {
     Single(ExtensionSubstFormat1<'a, SingleSubst<'a>>),
@@ -1686,38 +1306,6 @@ impl<'a> ExtensionSubtable<'a> {
             ExtensionSubtable::ChainContextual(inner) => inner.of_unit_type(),
             ExtensionSubtable::Reverse(inner) => inner.of_unit_type(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> ExtensionSubtable<'a> {
-    fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
-        match self {
-            ExtensionSubtable::Single(table) => table,
-            ExtensionSubtable::Multiple(table) => table,
-            ExtensionSubtable::Alternate(table) => table,
-            ExtensionSubtable::Ligature(table) => table,
-            ExtensionSubtable::Contextual(table) => table,
-            ExtensionSubtable::ChainContextual(table) => table,
-            ExtensionSubtable::Reverse(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ExtensionSubtable<'a> {
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for ExtensionSubtable<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
     }
 }
 
@@ -1899,51 +1487,5 @@ impl Default for ReverseChainSingleSubstFormat1<'_> {
         Self {
             data: FontData::default_format_1_u16_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "ReverseChainSingleSubstFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("subst_format", self.subst_format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new(
-                "backtrack_glyph_count",
-                self.backtrack_glyph_count(),
-            )),
-            3usize => Some(Field::new(
-                "backtrack_coverage_offsets",
-                FieldType::from(self.backtrack_coverages()),
-            )),
-            4usize => Some(Field::new(
-                "lookahead_glyph_count",
-                self.lookahead_glyph_count(),
-            )),
-            5usize => Some(Field::new(
-                "lookahead_coverage_offsets",
-                FieldType::from(self.lookahead_coverages()),
-            )),
-            6usize => Some(Field::new("glyph_count", self.glyph_count())),
-            7usize => Some(Field::new(
-                "substitute_glyph_ids",
-                self.substitute_glyph_ids(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ReverseChainSingleSubstFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

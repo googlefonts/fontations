@@ -77,35 +77,6 @@ impl Default for ScriptList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ScriptList<'a> {
-    fn type_name(&self) -> &str {
-        "ScriptList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("script_count", self.script_count())),
-            1usize => Some(Field::new(
-                "script_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(ScriptRecord),
-                    self.script_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ScriptList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -139,24 +110,6 @@ impl ScriptRecord {
 
 impl FixedSize for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ScriptRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ScriptRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("script_tag", self.script_tag())),
-                1usize => Some(Field::new(
-                    "script_offset",
-                    FieldType::offset(self.script_offset(), self.script(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for Script<'a> {
@@ -251,39 +204,6 @@ impl Default for Script<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Script<'a> {
-    fn type_name(&self) -> &str {
-        "Script"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "default_lang_sys_offset",
-                FieldType::offset(self.default_lang_sys_offset(), self.default_lang_sys()),
-            )),
-            1usize => Some(Field::new("lang_sys_count", self.lang_sys_count())),
-            2usize => Some(Field::new(
-                "lang_sys_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(LangSysRecord),
-                    self.lang_sys_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Script<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
@@ -316,24 +236,6 @@ impl LangSysRecord {
 
 impl FixedSize for LangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for LangSysRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "LangSysRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("lang_sys_tag", self.lang_sys_tag())),
-                1usize => Some(Field::new(
-                    "lang_sys_offset",
-                    FieldType::offset(self.lang_sys_offset(), self.lang_sys(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for LangSys<'a> {
@@ -428,35 +330,6 @@ impl Default for LangSys<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for LangSys<'a> {
-    fn type_name(&self) -> &str {
-        "LangSys"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "required_feature_index",
-                self.required_feature_index(),
-            )),
-            1usize => Some(Field::new(
-                "feature_index_count",
-                self.feature_index_count(),
-            )),
-            2usize => Some(Field::new("feature_indices", self.feature_indices())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for LangSys<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for FeatureList<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.feature_records_byte_range().end
@@ -530,35 +403,6 @@ impl Default for FeatureList<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for FeatureList<'a> {
-    fn type_name(&self) -> &str {
-        "FeatureList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("feature_count", self.feature_count())),
-            1usize => Some(Field::new(
-                "feature_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(FeatureRecord),
-                    self.feature_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for FeatureList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [FeatureList]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -593,24 +437,6 @@ impl FeatureRecord {
 
 impl FixedSize for FeatureRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for FeatureRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "FeatureRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("feature_tag", self.feature_tag())),
-                1usize => Some(Field::new(
-                    "feature_offset",
-                    FieldType::offset(self.feature_offset(), self.feature(_data)),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for Feature<'a> {
@@ -724,35 +550,6 @@ impl Default for Feature<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Feature<'a> {
-    fn type_name(&self) -> &str {
-        "Feature"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "feature_params_offset",
-                FieldType::offset(self.feature_params_offset(), self.feature_params()),
-            )),
-            1usize => Some(Field::new("lookup_index_count", self.lookup_index_count())),
-            2usize => Some(Field::new(
-                "lookup_list_indices",
-                self.lookup_list_indices(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Feature<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a, T> MinByteRange<'a> for LookupList<'a, T> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.lookup_offsets_byte_range().end
@@ -851,31 +648,6 @@ impl<T> Default for LookupList<'_, T> {
             data: FontData::default_table_data(),
             offset_type: std::marker::PhantomData,
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, T> {
-    fn type_name(&self) -> &str {
-        "LookupList"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("lookup_count", self.lookup_count())),
-            1usize => Some(Field::new(
-                "lookup_offsets",
-                FieldType::from(self.lookups()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1031,40 +803,6 @@ impl<T> Default for Lookup<'_, T> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
-    fn type_name(&self) -> &str {
-        "Lookup"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("lookup_type", self.lookup_type())),
-            1usize => Some(Field::new("lookup_flag", self.traverse_lookup_flag())),
-            2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
-            3usize => Some(Field::new(
-                "subtable_offsets",
-                FieldType::from(self.subtables()),
-            )),
-            4usize
-                if self
-                    .lookup_flag()
-                    .contains(LookupFlag::USE_MARK_FILTERING_SET) =>
-            {
-                Some(Field::new("mark_filtering_set", self.mark_filtering_set()?))
-            }
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a, T: FontRead<'a, Args = ()> + SomeTable<'a> + 'a> std::fmt::Debug for Lookup<'a, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for CoverageFormat1<'_> {
     const FORMAT: u16 = 1;
 }
@@ -1155,29 +893,6 @@ impl Default for CoverageFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CoverageFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "CoverageFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("coverage_format", self.coverage_format())),
-            1usize => Some(Field::new("glyph_count", self.glyph_count())),
-            2usize => Some(Field::new("glyph_array", self.glyph_array())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CoverageFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for CoverageFormat2<'_> {
     const FORMAT: u16 = 2;
 }
@@ -1256,36 +971,6 @@ impl<'a> CoverageFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CoverageFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "CoverageFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("coverage_format", self.coverage_format())),
-            1usize => Some(Field::new("range_count", self.range_count())),
-            2usize => Some(Field::new(
-                "range_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(RangeRecord),
-                    self.range_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Used in [CoverageFormat2]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1319,25 +1004,6 @@ impl RangeRecord {
 impl FixedSize for RangeRecord {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for RangeRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "RangeRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
-                1usize => Some(Field::new("end_glyph_id", self.end_glyph_id())),
-                2usize => Some(Field::new(
-                    "start_coverage_index",
-                    self.start_coverage_index(),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
@@ -1398,33 +1064,6 @@ impl<'a> MinByteRange<'a> for CoverageTable<'a> {
             Self::Format1(item) => item.min_table_bytes(),
             Self::Format2(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> CoverageTable<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for CoverageTable<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CoverageTable<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -1529,30 +1168,6 @@ impl Default for ClassDefFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ClassDefFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "ClassDefFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("class_format", self.class_format())),
-            1usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
-            2usize => Some(Field::new("glyph_count", self.glyph_count())),
-            3usize => Some(Field::new("class_value_array", self.class_value_array())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ClassDefFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for ClassDefFormat2<'_> {
     const FORMAT: u16 = 2;
 }
@@ -1632,36 +1247,6 @@ impl<'a> ClassDefFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ClassDefFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "ClassDefFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("class_format", self.class_format())),
-            1usize => Some(Field::new("class_range_count", self.class_range_count())),
-            2usize => Some(Field::new(
-                "class_range_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(ClassRangeRecord),
-                    self.class_range_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Used in [ClassDefFormat2]
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1695,22 +1280,6 @@ impl ClassRangeRecord {
 impl FixedSize for ClassRangeRecord {
     const RAW_BYTE_LEN: usize =
         GlyphId16::RAW_BYTE_LEN + GlyphId16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ClassRangeRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ClassRangeRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
-                1usize => Some(Field::new("end_glyph_id", self.end_glyph_id())),
-                2usize => Some(Field::new("class", self.class())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 /// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
@@ -1774,33 +1343,6 @@ impl<'a> MinByteRange<'a> for ClassDef<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> ClassDef<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for ClassDef<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ClassDef<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-}
-
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -1826,21 +1368,6 @@ impl SequenceLookupRecord {
 
 impl FixedSize for SequenceLookupRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for SequenceLookupRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "SequenceLookupRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("sequence_index", self.sequence_index())),
-                1usize => Some(Field::new("lookup_list_index", self.lookup_list_index())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl Format<u16> for SequenceContextFormat1<'_> {
@@ -1960,36 +1487,6 @@ impl Default for SequenceContextFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "SequenceContextFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new("seq_rule_set_count", self.seq_rule_set_count())),
-            3usize => Some(Field::new(
-                "seq_rule_set_offsets",
-                FieldType::from(self.seq_rule_sets()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SequenceContextFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for SequenceRuleSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.seq_rule_offsets_byte_range().end
@@ -2069,31 +1566,6 @@ impl Default for SequenceRuleSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
-    fn type_name(&self) -> &str {
-        "SequenceRuleSet"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("seq_rule_count", self.seq_rule_count())),
-            1usize => Some(Field::new(
-                "seq_rule_offsets",
-                FieldType::from(self.seq_rules()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SequenceRuleSet<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2193,37 +1665,6 @@ impl Default for SequenceRule<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SequenceRule<'a> {
-    fn type_name(&self) -> &str {
-        "SequenceRule"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("glyph_count", self.glyph_count())),
-            1usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
-            2usize => Some(Field::new("input_sequence", self.input_sequence())),
-            3usize => Some(Field::new(
-                "seq_lookup_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(SequenceLookupRecord),
-                    self.seq_lookup_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SequenceRule<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2355,43 +1796,6 @@ impl<'a> SequenceContextFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "SequenceContextFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new(
-                "class_def_offset",
-                FieldType::offset(self.class_def_offset(), self.class_def()),
-            )),
-            3usize => Some(Field::new(
-                "class_seq_rule_set_count",
-                self.class_seq_rule_set_count(),
-            )),
-            4usize => Some(Field::new(
-                "class_seq_rule_set_offsets",
-                FieldType::from(self.class_seq_rule_sets()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SequenceContextFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for ClassSequenceRuleSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.class_seq_rule_offsets_byte_range().end
@@ -2471,34 +1875,6 @@ impl Default for ClassSequenceRuleSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
-    fn type_name(&self) -> &str {
-        "ClassSequenceRuleSet"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "class_seq_rule_count",
-                self.class_seq_rule_count(),
-            )),
-            1usize => Some(Field::new(
-                "class_seq_rule_offsets",
-                FieldType::from(self.class_seq_rules()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ClassSequenceRuleSet<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2601,37 +1977,6 @@ impl Default for ClassSequenceRule<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ClassSequenceRule<'a> {
-    fn type_name(&self) -> &str {
-        "ClassSequenceRule"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("glyph_count", self.glyph_count())),
-            1usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
-            2usize => Some(Field::new("input_sequence", self.input_sequence())),
-            3usize => Some(Field::new(
-                "seq_lookup_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(SequenceLookupRecord),
-                    self.seq_lookup_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ClassSequenceRule<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2748,41 +2093,6 @@ impl<'a> SequenceContextFormat3<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
-    fn type_name(&self) -> &str {
-        "SequenceContextFormat3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("glyph_count", self.glyph_count())),
-            2usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
-            3usize => Some(Field::new(
-                "coverage_offsets",
-                FieldType::from(self.coverages()),
-            )),
-            4usize => Some(Field::new(
-                "seq_lookup_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(SequenceLookupRecord),
-                    self.seq_lookup_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SequenceContextFormat3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone)]
 pub enum SequenceContext<'a> {
     Format1(SequenceContextFormat1<'a>),
@@ -2846,34 +2156,6 @@ impl<'a> MinByteRange<'a> for SequenceContext<'a> {
             Self::Format2(item) => item.min_table_bytes(),
             Self::Format3(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SequenceContext<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-            Self::Format3(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for SequenceContext<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SequenceContext<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -2997,39 +2279,6 @@ impl Default for ChainedSequenceContextFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "ChainedSequenceContextFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new(
-                "chained_seq_rule_set_count",
-                self.chained_seq_rule_set_count(),
-            )),
-            3usize => Some(Field::new(
-                "chained_seq_rule_set_offsets",
-                FieldType::from(self.chained_seq_rule_sets()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ChainedSequenceContextFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for ChainedSequenceRuleSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.chained_seq_rule_offsets_byte_range().end
@@ -3109,34 +2358,6 @@ impl Default for ChainedSequenceRuleSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
-    fn type_name(&self) -> &str {
-        "ChainedSequenceRuleSet"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "chained_seq_rule_count",
-                self.chained_seq_rule_count(),
-            )),
-            1usize => Some(Field::new(
-                "chained_seq_rule_offsets",
-                FieldType::from(self.chained_seq_rules()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ChainedSequenceRuleSet<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -3292,47 +2513,6 @@ impl Default for ChainedSequenceRule<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ChainedSequenceRule<'a> {
-    fn type_name(&self) -> &str {
-        "ChainedSequenceRule"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "backtrack_glyph_count",
-                self.backtrack_glyph_count(),
-            )),
-            1usize => Some(Field::new("backtrack_sequence", self.backtrack_sequence())),
-            2usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
-            3usize => Some(Field::new("input_sequence", self.input_sequence())),
-            4usize => Some(Field::new(
-                "lookahead_glyph_count",
-                self.lookahead_glyph_count(),
-            )),
-            5usize => Some(Field::new("lookahead_sequence", self.lookahead_sequence())),
-            6usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
-            7usize => Some(Field::new(
-                "seq_lookup_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(SequenceLookupRecord),
-                    self.seq_lookup_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ChainedSequenceRule<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -3506,57 +2686,6 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "ChainedSequenceContextFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "coverage_offset",
-                FieldType::offset(self.coverage_offset(), self.coverage()),
-            )),
-            2usize => Some(Field::new(
-                "backtrack_class_def_offset",
-                FieldType::offset(
-                    self.backtrack_class_def_offset(),
-                    self.backtrack_class_def(),
-                ),
-            )),
-            3usize => Some(Field::new(
-                "input_class_def_offset",
-                FieldType::offset(self.input_class_def_offset(), self.input_class_def()),
-            )),
-            4usize => Some(Field::new(
-                "lookahead_class_def_offset",
-                FieldType::offset(
-                    self.lookahead_class_def_offset(),
-                    self.lookahead_class_def(),
-                ),
-            )),
-            5usize => Some(Field::new(
-                "chained_class_seq_rule_set_count",
-                self.chained_class_seq_rule_set_count(),
-            )),
-            6usize => Some(Field::new(
-                "chained_class_seq_rule_set_offsets",
-                FieldType::from(self.chained_class_seq_rule_sets()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ChainedSequenceContextFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for ChainedClassSequenceRuleSet<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.chained_class_seq_rule_offsets_byte_range().end
@@ -3639,34 +2768,6 @@ impl Default for ChainedClassSequenceRuleSet<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
-    fn type_name(&self) -> &str {
-        "ChainedClassSequenceRuleSet"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "chained_class_seq_rule_count",
-                self.chained_class_seq_rule_count(),
-            )),
-            1usize => Some(Field::new(
-                "chained_class_seq_rule_offsets",
-                FieldType::from(self.chained_class_seq_rules()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ChainedClassSequenceRuleSet<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -3822,47 +2923,6 @@ impl Default for ChainedClassSequenceRule<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ChainedClassSequenceRule<'a> {
-    fn type_name(&self) -> &str {
-        "ChainedClassSequenceRule"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "backtrack_glyph_count",
-                self.backtrack_glyph_count(),
-            )),
-            1usize => Some(Field::new("backtrack_sequence", self.backtrack_sequence())),
-            2usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
-            3usize => Some(Field::new("input_sequence", self.input_sequence())),
-            4usize => Some(Field::new(
-                "lookahead_glyph_count",
-                self.lookahead_glyph_count(),
-            )),
-            5usize => Some(Field::new("lookahead_sequence", self.lookahead_sequence())),
-            6usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
-            7usize => Some(Field::new(
-                "seq_lookup_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(SequenceLookupRecord),
-                    self.seq_lookup_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ChainedClassSequenceRule<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -4048,57 +3108,6 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
-    fn type_name(&self) -> &str {
-        "ChainedSequenceContextFormat3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "backtrack_glyph_count",
-                self.backtrack_glyph_count(),
-            )),
-            2usize => Some(Field::new(
-                "backtrack_coverage_offsets",
-                FieldType::from(self.backtrack_coverages()),
-            )),
-            3usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
-            4usize => Some(Field::new(
-                "input_coverage_offsets",
-                FieldType::from(self.input_coverages()),
-            )),
-            5usize => Some(Field::new(
-                "lookahead_glyph_count",
-                self.lookahead_glyph_count(),
-            )),
-            6usize => Some(Field::new(
-                "lookahead_coverage_offsets",
-                FieldType::from(self.lookahead_coverages()),
-            )),
-            7usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
-            8usize => Some(Field::new(
-                "seq_lookup_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(SequenceLookupRecord),
-                    self.seq_lookup_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ChainedSequenceContextFormat3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone)]
 pub enum ChainedSequenceContext<'a> {
     Format1(ChainedSequenceContextFormat1<'a>),
@@ -4165,34 +3174,6 @@ impl<'a> MinByteRange<'a> for ChainedSequenceContext<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> ChainedSequenceContext<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1(table) => table,
-            Self::Format2(table) => table,
-            Self::Format3(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for ChainedSequenceContext<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ChainedSequenceContext<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
-    }
-}
-
 /// [Device](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 /// delta formats
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -4237,13 +3218,6 @@ impl font_types::Scalar for DeltaFormat {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u16>::from_raw(raw);
         Self::new(t)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<DeltaFormat> for FieldType<'a> {
-    fn from(src: DeltaFormat) -> FieldType<'a> {
-        (src as u16).into()
     }
 }
 
@@ -4346,30 +3320,6 @@ impl Default for Device<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Device<'a> {
-    fn type_name(&self) -> &str {
-        "Device"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("start_size", self.start_size())),
-            1usize => Some(Field::new("end_size", self.end_size())),
-            2usize => Some(Field::new("delta_format", self.delta_format())),
-            3usize => Some(Field::new("delta_value", self.delta_value())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Device<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for VariationIndex<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.delta_format_byte_range().end
@@ -4454,35 +3404,6 @@ impl Default for VariationIndex<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for VariationIndex<'a> {
-    fn type_name(&self) -> &str {
-        "VariationIndex"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "delta_set_outer_index",
-                self.delta_set_outer_index(),
-            )),
-            1usize => Some(Field::new(
-                "delta_set_inner_index",
-                self.delta_set_inner_index(),
-            )),
-            2usize => Some(Field::new("delta_format", self.delta_format())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for VariationIndex<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
 #[derive(Clone)]
 pub enum DeviceOrVariationIndex<'a> {
@@ -4539,33 +3460,6 @@ impl<'a> MinByteRange<'a> for DeviceOrVariationIndex<'a> {
             Self::Device(item) => item.min_table_bytes(),
             Self::VariationIndex(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> DeviceOrVariationIndex<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Device(table) => table,
-            Self::VariationIndex(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for DeviceOrVariationIndex<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for DeviceOrVariationIndex<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -4655,39 +3549,6 @@ impl Default for FeatureVariations<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for FeatureVariations<'a> {
-    fn type_name(&self) -> &str {
-        "FeatureVariations"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "feature_variation_record_count",
-                self.feature_variation_record_count(),
-            )),
-            2usize => Some(Field::new(
-                "feature_variation_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(FeatureVariationRecord),
-                    self.feature_variation_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for FeatureVariations<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Part of [FeatureVariations]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -4741,30 +3602,6 @@ impl FeatureVariationRecord {
 
 impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for FeatureVariationRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "FeatureVariationRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new(
-                    "condition_set_offset",
-                    FieldType::offset(self.condition_set_offset(), self.condition_set(_data)),
-                )),
-                1usize => Some(Field::new(
-                    "feature_table_substitution_offset",
-                    FieldType::offset(
-                        self.feature_table_substitution_offset(),
-                        self.feature_table_substitution(_data),
-                    ),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for ConditionSet<'a> {
@@ -4847,31 +3684,6 @@ impl Default for ConditionSet<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ConditionSet<'a> {
-    fn type_name(&self) -> &str {
-        "ConditionSet"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("condition_count", self.condition_count())),
-            1usize => Some(Field::new(
-                "condition_offsets",
-                FieldType::from(self.conditions()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ConditionSet<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
 ///
 /// Formats 2..5 are implementations of specification changes currently under debate at ISO for an OFF
@@ -4951,36 +3763,6 @@ impl<'a> MinByteRange<'a> for Condition<'a> {
             Self::Format4Or(item) => item.min_table_bytes(),
             Self::Format5Negate(item) => item.min_table_bytes(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> Condition<'a> {
-    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
-        match self {
-            Self::Format1AxisRange(table) => table,
-            Self::Format2VariableValue(table) => table,
-            Self::Format3And(table) => table,
-            Self::Format4Or(table) => table,
-            Self::Format5Negate(table) => table,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl std::fmt::Debug for Condition<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.dyn_inner().fmt(f)
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Condition<'a> {
-    fn type_name(&self) -> &str {
-        self.dyn_inner().type_name()
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -5088,36 +3870,6 @@ impl Default for ConditionFormat1<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ConditionFormat1<'a> {
-    fn type_name(&self) -> &str {
-        "ConditionFormat1"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("axis_index", self.axis_index())),
-            2usize => Some(Field::new(
-                "filter_range_min_value",
-                self.filter_range_min_value(),
-            )),
-            3usize => Some(Field::new(
-                "filter_range_max_value",
-                self.filter_range_max_value(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ConditionFormat1<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for ConditionFormat2<'_> {
     const FORMAT: u16 = 2;
 }
@@ -5191,29 +3943,6 @@ impl<'a> ConditionFormat2<'a> {
         let start = self.default_value_byte_range().end;
         let end = start + u32::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ConditionFormat2<'a> {
-    fn type_name(&self) -> &str {
-        "ConditionFormat2"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("default_value", self.default_value())),
-            2usize => Some(Field::new("var_index", self.var_index())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ConditionFormat2<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -5302,32 +4031,6 @@ impl<'a> ConditionFormat3<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ConditionFormat3<'a> {
-    fn type_name(&self) -> &str {
-        "ConditionFormat3"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("condition_count", self.condition_count())),
-            2usize => Some(Field::new(
-                "condition_offsets",
-                FieldType::from(self.conditions()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ConditionFormat3<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for ConditionFormat4<'_> {
     const FORMAT: u16 = 4;
 }
@@ -5413,32 +4116,6 @@ impl<'a> ConditionFormat4<'a> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ConditionFormat4<'a> {
-    fn type_name(&self) -> &str {
-        "ConditionFormat4"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("condition_count", self.condition_count())),
-            2usize => Some(Field::new(
-                "condition_offsets",
-                FieldType::from(self.conditions()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ConditionFormat4<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl Format<u16> for ConditionFormat5<'_> {
     const FORMAT: u16 = 5;
 }
@@ -5506,31 +4183,6 @@ impl<'a> ConditionFormat5<'a> {
         let start = self.format_byte_range().end;
         let end = start + Offset24::RAW_BYTE_LEN;
         start..end
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for ConditionFormat5<'a> {
-    fn type_name(&self) -> &str {
-        "ConditionFormat5"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "condition_offset",
-                FieldType::offset(self.condition_offset(), self.condition()),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for ConditionFormat5<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -5621,36 +4273,6 @@ impl Default for FeatureTableSubstitution<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for FeatureTableSubstitution<'a> {
-    fn type_name(&self) -> &str {
-        "FeatureTableSubstitution"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("substitution_count", self.substitution_count())),
-            2usize => Some(Field::new(
-                "substitutions",
-                traversal::FieldType::array_of_records(
-                    stringify!(FeatureTableSubstitutionRecord),
-                    self.substitutions(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for FeatureTableSubstitution<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// Used in [FeatureTableSubstitution]
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -5678,27 +4300,6 @@ impl FeatureTableSubstitutionRecord {
 
 impl FixedSize for FeatureTableSubstitutionRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for FeatureTableSubstitutionRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "FeatureTableSubstitutionRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("feature_index", self.feature_index())),
-                1usize => Some(Field::new(
-                    "alternate_feature_offset",
-                    FieldType::offset(
-                        self.alternate_feature_offset(),
-                        self.alternate_feature(_data),
-                    ),
-                )),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }
 
 impl<'a> MinByteRange<'a> for SizeParams<'a> {
@@ -5830,31 +4431,6 @@ impl Default for SizeParams<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for SizeParams<'a> {
-    fn type_name(&self) -> &str {
-        "SizeParams"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("design_size", self.design_size())),
-            1usize => Some(Field::new("identifier", self.identifier())),
-            2usize => Some(Field::new("name_entry", self.name_entry())),
-            3usize => Some(Field::new("range_start", self.range_start())),
-            4usize => Some(Field::new("range_end", self.range_end())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for SizeParams<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 impl<'a> MinByteRange<'a> for StylisticSetParams<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.ui_name_id_byte_range().end
@@ -5930,28 +4506,6 @@ impl Default for StylisticSetParams<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for StylisticSetParams<'a> {
-    fn type_name(&self) -> &str {
-        "StylisticSetParams"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("ui_name_id", self.ui_name_id())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for StylisticSetParams<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -6116,48 +4670,5 @@ impl Default for CharacterVariantParams<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for CharacterVariantParams<'a> {
-    fn type_name(&self) -> &str {
-        "CharacterVariantParams"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new(
-                "feat_ui_label_name_id",
-                self.feat_ui_label_name_id(),
-            )),
-            2usize => Some(Field::new(
-                "feat_ui_tooltip_text_name_id",
-                self.feat_ui_tooltip_text_name_id(),
-            )),
-            3usize => Some(Field::new(
-                "sample_text_name_id",
-                self.sample_text_name_id(),
-            )),
-            4usize => Some(Field::new(
-                "num_named_parameters",
-                self.num_named_parameters(),
-            )),
-            5usize => Some(Field::new(
-                "first_param_ui_label_name_id",
-                self.first_param_ui_label_name_id(),
-            )),
-            6usize => Some(Field::new("char_count", self.char_count())),
-            7usize => Some(Field::new("character", self.character())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for CharacterVariantParams<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

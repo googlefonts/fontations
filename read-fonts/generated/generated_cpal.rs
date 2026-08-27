@@ -239,67 +239,6 @@ impl Default for Cpal<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Cpal<'a> {
-    fn type_name(&self) -> &str {
-        "Cpal"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new(
-                "num_palette_entries",
-                self.num_palette_entries(),
-            )),
-            2usize => Some(Field::new("num_palettes", self.num_palettes())),
-            3usize => Some(Field::new("num_color_records", self.num_color_records())),
-            4usize => Some(Field::new(
-                "color_records_array_offset",
-                traversal::FieldType::offset_to_array_of_records(
-                    self.color_records_array_offset(),
-                    self.color_records_array(),
-                    stringify!(ColorRecord),
-                    self.offset_data(),
-                ),
-            )),
-            5usize => Some(Field::new(
-                "color_record_indices",
-                self.color_record_indices(),
-            )),
-            6usize if self.version().compatible(1u16) => Some(Field::new(
-                "palette_types_array_offset",
-                FieldType::offset_to_array_of_scalars(
-                    self.palette_types_array_offset()?,
-                    self.palette_types_array(),
-                ),
-            )),
-            7usize if self.version().compatible(1u16) => Some(Field::new(
-                "palette_labels_array_offset",
-                FieldType::offset_to_array_of_scalars(
-                    self.palette_labels_array_offset()?,
-                    self.palette_labels_array(),
-                ),
-            )),
-            8usize if self.version().compatible(1u16) => Some(Field::new(
-                "palette_entry_labels_array_offset",
-                FieldType::offset_to_array_of_scalars(
-                    self.palette_entry_labels_array_offset()?,
-                    self.palette_entry_labels_array(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Cpal<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 /// The [PaletteType](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) flags.
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -607,13 +546,6 @@ impl font_types::Scalar for PaletteType {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<PaletteType> for FieldType<'a> {
-    fn from(src: PaletteType) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
 ///
 /// Contains a color in non-premultiplied BGRA form, in the sRGB color space.
@@ -656,21 +588,4 @@ impl ColorRecord {
 impl FixedSize for ColorRecord {
     const RAW_BYTE_LEN: usize =
         u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for ColorRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "ColorRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("blue", self.blue())),
-                1usize => Some(Field::new("green", self.green())),
-                2usize => Some(Field::new("red", self.red())),
-                3usize => Some(Field::new("alpha", self.alpha())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

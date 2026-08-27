@@ -113,37 +113,6 @@ impl Default for Meta<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for Meta<'a> {
-    fn type_name(&self) -> &str {
-        "Meta"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("flags", self.flags())),
-            2usize => Some(Field::new("data_maps_count", self.data_maps_count())),
-            3usize => Some(Field::new(
-                "data_maps",
-                traversal::FieldType::array_of_records(
-                    stringify!(DataMapRecord),
-                    self.data_maps(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for Meta<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 ///  <https://learn.microsoft.com/en-us/typography/opentype/spec/meta#table-formats>
 #[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
@@ -185,20 +154,4 @@ impl DataMapRecord {
 
 impl FixedSize for DataMapRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeRecord<'a> for DataMapRecord {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "DataMapRecord",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("tag", self.tag())),
-                1usize => Some(Field::new("data_offset", traversal::FieldType::Unknown)),
-                2usize => Some(Field::new("data_length", self.data_length())),
-                _ => None,
-            }),
-            data,
-        }
-    }
 }

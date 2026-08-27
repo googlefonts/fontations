@@ -108,34 +108,6 @@ impl Default for MajorMinorVersion<'_> {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for MajorMinorVersion<'a> {
-    fn type_name(&self) -> &str {
-        "MajorMinorVersion"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("always_present", self.always_present())),
-            2usize if self.version().compatible((1u16, 1u16)) => {
-                Some(Field::new("if_11", self.if_11()?))
-            }
-            3usize if self.version().compatible((2u16, 0u16)) => {
-                Some(Field::new("if_20", self.if_20()?))
-            }
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for MajorMinorVersion<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
 #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
@@ -434,13 +406,6 @@ impl font_types::Scalar for GotFlags {
     }
 }
 
-#[cfg(feature = "experimental_traverse")]
-impl<'a> From<GotFlags> for FieldType<'a> {
-    fn from(src: GotFlags) -> FieldType<'a> {
-        src.bits().into()
-    }
-}
-
 impl<'a> MinByteRange<'a> for FlagDay<'a> {
     fn min_byte_range(&self) -> Range<usize> {
         0..self.flags_byte_range().end
@@ -539,29 +504,5 @@ impl Default for FlagDay<'_> {
         Self {
             data: FontData::default_table_data(),
         }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-impl<'a> SomeTable<'a> for FlagDay<'a> {
-    fn type_name(&self) -> &str {
-        "FlagDay"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("volume", self.volume())),
-            1usize => Some(Field::new("flags", self.flags())),
-            2usize if self.flags().contains(GotFlags::FOO) => Some(Field::new("foo", self.foo()?)),
-            3usize if self.flags().contains(GotFlags::BAR) => Some(Field::new("bar", self.bar()?)),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "experimental_traverse")]
-#[allow(clippy::needless_lifetimes)]
-impl<'a> std::fmt::Debug for FlagDay<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
