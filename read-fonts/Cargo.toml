@@ -25,6 +25,14 @@ ift = []
 # this feature is not stable, but provides untyped traversal of font tables.
 # we do not consider this feature public API for the purposes of semver.
 experimental_traverse = ["std"]
+# deciding whether a font is well formed, for the experimental parsing
+# framework. Generates an impl per table, and carries no strings.
+fast_sanitize = []
+# as above, but reporting every problem with the path and field name that leads
+# to it. That detail is string literals in the binary, which is why it is a
+# separate walk and a separate feature; it implies the fast one, since a build
+# that can diagnose should also be able to answer quickly.
+sanitize = ["fast_sanitize"]
 # Enables experimental implementations of proposed changes to the spec
 # as discussed at https://github.com/harfbuzz/boring-expansion-spec
 spec_next = []

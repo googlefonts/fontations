@@ -63,6 +63,10 @@ fn run_plan(path: &Path) -> miette::Result<()> {
             generated.len(),
             op.target.display()
         );
+        if let Some(parent) = op.target.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| miette!("failed to create '{}': {e}", parent.display()))?;
+        }
         std::fs::write(&op.target, generated)
             .map_err(|e| miette!("error writing '{}': {}", op.target.display(), e))?;
     }

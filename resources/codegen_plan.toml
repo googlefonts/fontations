@@ -2,7 +2,7 @@
 # in order to regenerate all of this project's generated code.
 
 # a list of directories that will be cleaned
-clean = ["read-fonts/generated", "write-fonts/generated"]
+clean = ["read-fonts/generated", "read-fonts/generated/exp", "write-fonts/generated"]
 
 # TODO: support a 'copy' step
 
@@ -548,3 +548,32 @@ target = "read-fonts/generated/generated_test_generic_group.rs"
 mode = "compile"
 source = "resources/codegen_inputs/test_generic_group.rs"
 target = "write-fonts/generated/generated_test_generic_group.rs"
+
+# --- parsing-rework spike ------------------------------------------------
+# Read-side only, emitted into a parallel tree so nothing existing changes.
+# See docs/parsing-rework.md.
+
+[[generate]]
+mode = "exp"
+source = "resources/codegen_inputs/variations.rs"
+target = "read-fonts/generated/exp/generated_variations.rs"
+
+[[generate]]
+mode = "exp"
+source = "resources/codegen_inputs/layout.rs"
+target = "read-fonts/generated/exp/generated_layout.rs"
+
+[[generate]]
+mode = "exp"
+source = "resources/codegen_inputs/gpos.rs"
+target = "read-fonts/generated/exp/generated_gpos.rs"
+
+[[generate]]
+mode = "exp"
+source = "resources/codegen_inputs/exp_fvar.rs"
+target = "read-fonts/generated/exp/generated_fvar.rs"
+
+[[generate]]
+mode = "exp"
+source = "resources/codegen_inputs/exp_cff.rs"
+target = "read-fonts/generated/exp/generated_cff.rs"

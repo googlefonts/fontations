@@ -199,6 +199,8 @@ impl Fields {
                                 ctx.report(format!("field must be present for version {version}"));
                             }
                         },
+                        // exp-only; the compile side never sees one
+                        Condition::IfFits | Condition::IfNonZero { .. } => Default::default(),
                         Condition::IfFlag { flag, .. } => {
                             let flag = stringify_path(flag);
                             let flag_missing = format!("'{name}' is present but {flag} not set",);
@@ -289,6 +291,13 @@ impl Condition {
         match self {
             Condition::SinceVersion(version) => quote!(self.version().compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field().contains(#flag)),
+            Condition::IfNonZero { field } => quote!(self.#field() != 0),
+            // the condition is on the field's own extent, so it cannot be
+            // written without knowing where the field starts; the exp emitter
+            // builds it in `byte_range_fns` instead
+            Condition::IfFits => quote!(compile_error!(
+                "#[if_fits] is only supported by the exp emitter"
+            )),
         }
     }
 
@@ -296,6 +305,10 @@ impl Condition {
         match self {
             Condition::SinceVersion(version) => quote!(version.compatible(#version)),
             Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
+            Condition::IfNonZero { field } => quote!(self.#field != 0),
+            Condition::IfFits => quote!(compile_error!(
+                "#[if_fits] is only supported by the exp emitter"
+            )),
         }
     }
 }
@@ -562,7 +575,7 @@ impl Field {
         matches!(&self.typ, FieldType::ComputedArray { .. })
     }
 
-    fn is_var_array(&self) -> bool {
+    pub(crate) fn is_var_array(&self) -> bool {
         matches!(&self.typ, FieldType::VarLenArray { .. })
     }
 
@@ -641,7 +654,7 @@ impl Field {
         Ok(())
     }
 
-    fn is_nullable(&self) -> bool {
+    pub(crate) fn is_nullable(&self) -> bool {
         self.attrs.nullable.is_some()
     }
 
@@ -981,7 +994,7 @@ impl Field {
         self.attrs.count.is_some()
     }
 
-    fn is_offset_or_array_of_offsets(&self) -> bool {
+    pub(crate) fn is_offset_or_array_of_offsets(&self) -> bool {
         match &self.typ {
             FieldType::Offset { .. } => true,
             FieldType::Array { inner_typ }
@@ -1506,14 +1519,14 @@ fn stringify_path(path: &syn::Path) -> String {
 }
 
 impl FieldReadArgs {
-    fn to_tokens_for_table_getter(&self) -> TokenStream {
+    pub(crate) fn to_tokens_for_table_getter(&self) -> TokenStream {
         match self.inputs.as_slice() {
             [arg] => quote!(self.#arg()),
             args => quote!( ( #( self.#args() ),* ) ),
         }
     }
 
-    fn to_tokens_for_validation(&self) -> TokenStream {
+    pub(crate) fn to_tokens_for_validation(&self) -> TokenStream {
         match self.inputs.as_slice() {
             [arg] => arg.to_token_stream(),
             args => quote!( ( #( #args ),* ) ),

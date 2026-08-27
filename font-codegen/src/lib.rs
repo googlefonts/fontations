@@ -7,6 +7,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 
 mod error;
+mod exp;
 mod fields;
 mod flags_enums;
 mod format_group;
@@ -28,6 +29,9 @@ pub enum Mode {
     Parse,
     /// Generate compilation code
     Compile,
+    /// Generate parsing code for the reworked framework (see
+    /// `docs/parsing-rework.md`). Read side only: no compile, no traversal.
+    Exp,
 }
 
 /// we check invariants twice
@@ -57,6 +61,7 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     let tables = match &mode {
         Mode::Parse => generate_parse_module(&items),
         Mode::Compile => generate_compile_module(&items),
+        Mode::Exp => exp::generate_module(&items),
     }?;
 
     // 4. Touchup
@@ -135,8 +140,9 @@ impl std::str::FromStr for Mode {
         match s {
             "parse" => Ok(Self::Parse),
             "compile" => Ok(Self::Compile),
+            "exp" => Ok(Self::Exp),
             other => Err(miette::Error::msg(format!(
-                "expected one of 'parse' or 'compile' (found {other})"
+                "expected one of 'parse', 'compile' or 'exp' (found {other})"
             ))),
         }
     }
