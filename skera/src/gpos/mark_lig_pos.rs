@@ -315,12 +315,13 @@ mod test {
         let markligpos_table = sub_tables.get(0).unwrap();
 
         let subset_state = SubsetState::default();
-        let mut plan = Plan::default();
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 69],
+            ..Default::default()
+        };
 
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(67_u32), GlyphId::from(1_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(68_u32), GlyphId::from(2_u32));
+        plan.glyph_map_gsub[67] = GlyphId::from(1_u32);
+        plan.glyph_map_gsub[68] = GlyphId::from(2_u32);
 
         plan.glyphset_gsub.insert(GlyphId::from(67_u32));
         plan.glyphset_gsub.insert(GlyphId::from(68_u32));
@@ -362,14 +363,14 @@ mod test {
         let markligpos_table = sub_tables.get(0).unwrap();
 
         let subset_state = SubsetState::default();
-        let mut plan = Plan::default();
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 988],
+            ..Default::default()
+        };
 
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(30_u32), GlyphId::from(1_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(987_u32), GlyphId::from(3_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(216_u32), GlyphId::from(2_u32));
+        plan.glyph_map_gsub[30] = GlyphId::from(1_u32);
+        plan.glyph_map_gsub[216] = GlyphId::from(2_u32);
+        plan.glyph_map_gsub[987] = GlyphId::from(3_u32);
 
         plan.glyphset_gsub.insert(GlyphId::from(30_u32));
         plan.glyphset_gsub.insert(GlyphId::from(216_u32));
