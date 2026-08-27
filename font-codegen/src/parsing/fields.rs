@@ -40,7 +40,8 @@ pub(crate) struct Field {
     ///
     /// This is required by fields whose type holds offsets that resolve against
     /// the enclosing table; see the `FontReadAt` trait in read-fonts. It is
-    /// computed during resolution, from the extern records declared positioned.
+    /// computed during resolution: seeded from the extern records declared with
+    /// a lifetime, then closed over containment. See `build_positioned_set`.
     pub(crate) positioned: bool,
 }
 
