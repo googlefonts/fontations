@@ -141,7 +141,7 @@ impl Stack {
         if self.value_is_fixed[index] {
             // FreeType returns an error here rather than converting
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psstack.c#L145>
-            Err(Error::ExpectedI32StackEntry(index))
+            Err(Error::ExpectedInt)
         } else {
             Ok(value)
         }

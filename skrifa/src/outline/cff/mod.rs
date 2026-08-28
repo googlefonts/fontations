@@ -63,7 +63,7 @@ impl<'a> Outlines<'a> {
         // So we always pass 0 for Top DICT index when reading from an
         // OpenType font.
         // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff>
-        let top_dict_data = cff1.top_dicts().get(0).ok()?;
+        let top_dict_data = cff1.top_dicts().get(0)?;
         let top_dict = TopDict::new(cff1.offset_data().as_bytes(), top_dict_data, false).ok()?;
         Some(Self {
             font: font.clone(),
@@ -253,7 +253,9 @@ impl<'a> Outlines<'a> {
     ) -> Result<Option<f32>, Error> {
         let cff_data = self.offset_data.as_bytes();
         let charstrings = self.top_dict.charstrings.clone();
-        let charstring_data = charstrings.get(glyph_id.to_u32() as usize)?;
+        let charstring_data = charstrings
+            .get(glyph_id.to_u32() as usize)
+            .ok_or(Error::Malformed)?;
         let subrs = subfont.subrs(self)?;
         let blend_state = subfont.blend_state(self, coords)?;
         let cs_eval = CharstringEvaluator {
@@ -332,7 +334,11 @@ impl<'a> Outlines<'a> {
         if self.top_dict.font_dicts.count() != 0 {
             // If we have a font dict array, extract the private dict range
             // from the font dict at the given index.
-            let font_dict_data = self.top_dict.font_dicts.get(subfont_index as usize)?;
+            let font_dict_data = self
+                .top_dict
+                .font_dicts
+                .get(subfont_index as usize)
+                .ok_or(Error::Malformed)?;
             FontDict::new(font_dict_data)
         } else {
             // Use the private dict range from the top dict.
