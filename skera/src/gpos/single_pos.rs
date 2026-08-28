@@ -3,7 +3,7 @@
 use crate::fnv::FnvHashMap;
 use crate::{
     gpos::value_record::compute_effective_format,
-    layout::{intersected_coverage_indices, intersected_glyphs_and_indices},
+    layout::{intersected_coverage_indices, intersected_glyphs_and_indices, map_gsub_glyph},
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
@@ -56,8 +56,7 @@ impl<'a> SubsetTable<'a> for SinglePosFormat1<'_> {
         let retained_glyphs: Vec<GlyphId> = coverage
             .intersect_set(&plan.glyphset_gsub)
             .iter()
-            .filter_map(|g| plan.glyph_map_gsub.get(&g))
-            .copied()
+            .filter_map(|g| map_gsub_glyph(&plan.glyph_map_gsub, g))
             .collect();
         if retained_glyphs.is_empty() {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
@@ -297,10 +296,12 @@ mod test {
         let singlepos_table = sub_tables.get(0).unwrap();
 
         let subset_state = SubsetState::default();
-        let mut plan = Plan::default();
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 5988],
+            ..Default::default()
+        };
 
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(5987_u32), GlyphId::from(3_u32));
+        plan.glyph_map_gsub[5987] = GlyphId::from(3_u32);
         plan.glyphset_gsub.insert(GlyphId::from(5987_u32));
 
         let mut s = Serializer::new(1024);
@@ -335,13 +336,14 @@ mod test {
         let singlepos_table = sub_tables.get(4).unwrap();
 
         let subset_state = SubsetState::default();
-        let mut plan = Plan::default();
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 2350],
+            ..Default::default()
+        };
 
         // test case 1: subsetted output is still format 2
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(2270_u32), GlyphId::from(3_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(2349_u32), GlyphId::from(4_u32));
+        plan.glyph_map_gsub[2270] = GlyphId::from(3_u32);
+        plan.glyph_map_gsub[2349] = GlyphId::from(4_u32);
         plan.glyphset_gsub.insert(GlyphId::from(2270_u32));
         plan.glyphset_gsub.insert(GlyphId::from(2349_u32));
 
@@ -363,11 +365,9 @@ mod test {
         assert_eq!(subsetted_data, expected_data);
 
         // test case 2: subsetted output is optimized to format 1
-        plan.glyph_map_gsub.clear();
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(2270_u32), GlyphId::from(3_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(6179_u32), GlyphId::from(4_u32));
+        plan.glyph_map_gsub = vec![crate::INVALID_GID; 6180];
+        plan.glyph_map_gsub[2270] = GlyphId::from(3_u32);
+        plan.glyph_map_gsub[6179] = GlyphId::from(4_u32);
 
         plan.glyphset_gsub.clear();
         plan.glyphset_gsub.insert(GlyphId::from(2270_u32));
