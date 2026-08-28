@@ -108,13 +108,7 @@ where
 
     #[inline]
     pub fn get(&self, idx: usize) -> Result<T, ReadError> {
-        if idx >= self.len {
-            return Err(ReadError::OutOfBounds);
-        }
-        let item_start = idx
-            .checked_mul(self.item_len)
-            .and_then(|start| start.checked_add(self.start))
-            .ok_or(ReadError::OutOfBounds)?;
+        let item_start = self.start + idx * self.item_len;
         T::read_at(self.data, item_start, self.args)
     }
 }

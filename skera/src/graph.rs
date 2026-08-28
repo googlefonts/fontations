@@ -590,21 +590,21 @@ impl Graph {
     }
 
     pub(crate) fn vertex(&self, obj_idx: ObjIdx) -> Option<&Vertex> {
-        self.vertices.get(obj_idx)
+        Some(unsafe { self.vertices.get_unchecked(obj_idx) })
     }
 
     fn mut_vertex(&mut self, obj_idx: ObjIdx) -> Option<&mut Vertex> {
-        self.vertices.get_mut(obj_idx)
+        Some(unsafe { self.vertices.get_unchecked_mut(obj_idx) })
     }
 
     fn vertex_data(&self, obj_idx: ObjIdx) -> Option<&[u8]> {
         let v = self.vertex(obj_idx)?;
-        self.data.get(v.head..v.tail)
+        Some(unsafe { self.data.get_unchecked(v.head..v.tail) })
     }
 
     fn vertex_data_mut(&mut self, obj_idx: ObjIdx) -> Option<&mut [u8]> {
-        let v = self.vertices.get(obj_idx)?;
-        self.data.get_mut(v.head..v.tail)
+        let v = unsafe { self.vertices.get_unchecked(obj_idx) };
+        Some(unsafe { self.data.get_unchecked_mut(v.head..v.tail) })
     }
 
     // Generates a new topological sorting of graph ordered by the shortest
@@ -643,16 +643,16 @@ impl Graph {
                 // we're out of ids, meaning we've visited the same node more than once
                 return Err(RepackError::GraphErrorCycleDetected);
             }
-            new_ordering[pos] = next_id;
+            unsafe { *new_ordering.get_unchecked_mut(pos) = next_id; }
             pos += 1;
 
-            let next_v = &self.vertices[next_id];
+            let next_v = unsafe { self.vertices.get_unchecked(next_id) };
             for link in next_v.all_links() {
                 let child_idx = link.obj_idx();
-                removed_edges[child_idx] += 1;
+                unsafe { *removed_edges.get_unchecked_mut(child_idx) += 1; }
 
-                let child_v = &self.vertices[child_idx];
-                if child_v.incoming_edges() == removed_edges[child_idx] {
+                let child_v = unsafe { self.vertices.get_unchecked(child_idx) };
+                if child_v.incoming_edges() == unsafe { *removed_edges.get_unchecked(child_idx) } {
                     queue.push((child_v.modified_distance(order), child_idx));
                     order += 1;
                 }
@@ -668,7 +668,7 @@ impl Graph {
     }
 
     fn root(&self) -> &Vertex {
-        &self.vertices[self.root_idx()]
+        unsafe { self.vertices.get_unchecked(self.root_idx()) }
     }
 
     pub(crate) fn update_parents(&mut self) -> Result<(), RepackError> {
@@ -681,7 +681,7 @@ impl Graph {
         }
 
         for idx in 0..self.vertices.len() {
-            let v = &self.vertices[idx];
+            let v = unsafe { self.vertices.get_unchecked(idx) };
 
             self.ordering_scratch.clear();
             for l in v.real_links() {
@@ -694,16 +694,12 @@ impl Graph {
             }
 
             for child_idx in &self.ordering_scratch[0..num_real_links] {
-                let Some(v) = self.vertices.get_mut(*child_idx) else {
-                    return Err(RepackError::GraphErrorInvalidObjIndex);
-                };
+                let v = unsafe { self.vertices.get_unchecked_mut(*child_idx) };
                 v.add_parent(idx, false);
             }
 
             for child_idx in &self.ordering_scratch[num_real_links..] {
-                let Some(v) = self.vertices.get_mut(*child_idx) else {
-                    return Err(RepackError::GraphErrorInvalidObjIndex);
-                };
+                let v = unsafe { self.vertices.get_unchecked_mut(*child_idx) };
                 v.add_parent(idx, true);
             }
         }
@@ -720,7 +716,7 @@ impl Graph {
         }
 
         let root_idx = self.root_idx();
-        self.vertices[root_idx].distance = 0;
+        unsafe { self.vertices.get_unchecked_mut(root_idx) }.distance = 0;
 
         let count = self.vertices.len();
         let mut queue = PriorityQueue::with_capacity(count);
@@ -729,20 +725,20 @@ impl Graph {
         let mut visited = vec![false; count];
         let mut distance_map = vec![u64::MAX / 2; count];
         while let Some((next_distance, next_idx)) = queue.pop() {
-            if visited[next_idx] {
+            if unsafe { *visited.get_unchecked(next_idx) } {
                 continue;
             }
 
-            let next_v = &self.vertices[next_idx];
-            visited[next_idx] = true;
+            let next_v = unsafe { self.vertices.get_unchecked(next_idx) };
+            unsafe { *visited.get_unchecked_mut(next_idx) = true; }
 
             for link in next_v.all_links() {
                 let child_idx = link.obj_idx();
-                if visited[child_idx] {
+                if unsafe { *visited.get_unchecked(child_idx) } {
                     continue;
                 }
 
-                let child_v = &self.vertices[child_idx];
+                let child_v = unsafe { self.vertices.get_unchecked(child_idx) };
                 let link_width = if link.link_width() == LinkWidth::Zero {
                     4
                 } else {
@@ -752,8 +748,8 @@ impl Graph {
                 let child_weight =
                     child_v.tail - child_v.head + (1 << (link_width * 8)) * (child_v.space + 1);
                 let child_distance = next_distance + child_weight as u64;
-                if child_distance < distance_map[child_idx] {
-                    distance_map[child_idx] = child_distance;
+                if child_distance < unsafe { *distance_map.get_unchecked(child_idx) } {
+                    unsafe { *distance_map.get_unchecked_mut(child_idx) = child_distance; }
                     queue.push((child_distance, child_idx));
                 }
             }
@@ -773,7 +769,7 @@ impl Graph {
     }
 
     pub(crate) fn root_idx(&self) -> usize {
-        self.ordering[0]
+        unsafe { *self.ordering.get_unchecked(0) }
     }
 
     pub(crate) fn is_fully_connected(&mut self) -> Result<(), RepackError> {
@@ -973,7 +969,7 @@ impl Graph {
             connected.insert(start_idx as u32);
         }
 
-        let v = &self.vertices[start_idx];
+        let v = unsafe { self.vertices.get_unchecked(start_idx) };
         for l in v.all_links() {
             self.find_connected_nodes(l.obj_idx(), targets, visited, connected);
         }
@@ -992,9 +988,7 @@ impl Graph {
             if visited.contains(*i as u32) {
                 continue;
             }
-            let Some(v) = vertices.get(*i) else {
-                return Err(RepackError::GraphErrorInvalidObjIndex);
-            };
+            let v = unsafe { vertices.get_unchecked(*i) };
             for l in v.real_links() {
                 if l.is_signed() {
                     continue;
@@ -1035,7 +1029,7 @@ impl Graph {
             return;
         }
 
-        let v = &self.vertices[obj_idx];
+        let v = unsafe { self.vertices.get_unchecked(obj_idx) };
         for l in v.all_links() {
             self.find_subgraph_nodes(l.obj_idx(), subgraph);
         }
@@ -1046,7 +1040,7 @@ impl Graph {
         start_idx: ObjIdx,
         subgraph_map: &mut FnvHashMap<u32, usize>,
     ) {
-        let v = &self.vertices[start_idx];
+        let v = unsafe { self.vertices.get_unchecked(start_idx) };
         for l in v.all_links() {
             let obj_idx = l.obj_idx();
             let v = subgraph_map
@@ -1089,7 +1083,7 @@ impl Graph {
 
     // Finds the topmost children of 32bit offsets in the subgraph starting at obj_idx
     fn find_32bit_roots(&self, obj_idx: ObjIdx, roots: &mut IntSet<u32>) {
-        let v = &self.vertices[obj_idx];
+        let v = unsafe { self.vertices.get_unchecked(obj_idx) };
         for l in v.real_links() {
             let child_idx = l.obj_idx();
             if !l.is_signed() && l.link_width() == LinkWidth::Four {
@@ -1120,7 +1114,7 @@ impl Graph {
             let obj_idx = *idx as usize;
             assert!(obj_idx < len);
             // duplicate objects with incoming links from outside the subgraph.
-            if *num_incoming_edges < self.vertices[obj_idx].incoming_edges() {
+            if *num_incoming_edges < unsafe { self.vertices.get_unchecked(obj_idx) }.incoming_edges() {
                 self.duplicate_subgraph(obj_idx, &mut index_map)?;
             }
         }
@@ -1235,7 +1229,7 @@ impl Graph {
         let clone_idx = self.duplicate_vertex(start_idx, false)?;
         index_map.insert(start_idx, clone_idx);
 
-        let start_v = &self.vertices[start_idx];
+        let start_v = unsafe { self.vertices.get_unchecked(start_idx) };
         let child_idxes: Vec<ObjIdx> = start_v
             .real_links
             .iter()
@@ -1400,13 +1394,13 @@ impl Graph {
         let children: Vec<usize> = self.vertices[parent_idx]
             .real_links
             .iter()
-            .chain(self.vertices[parent_idx].virtual_links.iter())
+            .chain(unsafe { self.vertices.get_unchecked(parent_idx) }.virtual_links.iter())
             .map(|l| l.obj_idx())
             .collect();
 
         let mut made_changes = false;
         for obj_idx in children {
-            made_changes |= self.vertices[obj_idx].raise_priority();
+            made_changes |= unsafe { self.vertices.get_unchecked_mut(obj_idx) }.raise_priority();
         }
         made_changes
     }
@@ -1425,7 +1419,7 @@ impl Graph {
         }
 
         self.update_parents()?;
-        let child_v = &self.vertices[child_idx];
+        let child_v = unsafe { self.vertices.get_unchecked(child_idx) };
         if child_v.has_incoming_virtual_edges {
             return Ok(None);
         }
@@ -1443,7 +1437,7 @@ impl Graph {
         let mut old_to_new_idx_parents = Vec::new();
         for parent_idx in parents.iter() {
             let parent_idx = parent_idx as usize;
-            for l in self.vertices[parent_idx].real_links.iter_mut() {
+            for l in unsafe { self.vertices.get_unchecked_mut(parent_idx) }.real_links.iter_mut() {
                 if l.obj_idx() != child_idx {
                     continue;
                 }
@@ -1451,7 +1445,7 @@ impl Graph {
                 old_to_new_idx_parents.push((child_idx, clone_idx, parent_idx, false));
             }
 
-            for l in self.vertices[parent_idx].virtual_links.iter_mut() {
+            for l in unsafe { self.vertices.get_unchecked_mut(parent_idx) }.virtual_links.iter_mut() {
                 if l.obj_idx() != child_idx {
                     continue;
                 }
@@ -1493,7 +1487,7 @@ impl Graph {
         };
 
         if parents.len() > 1 {
-            self.vertices[ret].give_max_priority();
+            unsafe { self.vertices.get_unchecked_mut(ret) }.give_max_priority();
         }
         Ok(true)
     }
@@ -1508,14 +1502,14 @@ impl Graph {
         // try resolving the furthest overflows first
         for overflow in overflows.iter().rev() {
             let child_idx = overflow.child();
-            if self.vertices[child_idx].is_shared()
+            if unsafe { self.vertices.get_unchecked(child_idx) }.is_shared()
                 && self.resolve_shared_overflow(overflow, overflows)?
             {
                 return Ok(true);
             }
 
             let parent_idx = overflow.parent();
-            if self.vertices[child_idx].is_leaf()
+            if unsafe { self.vertices.get_unchecked(child_idx) }.is_leaf()
                 && !priority_bumped_parents.contains(parent_idx as u32)
                 && self.raise_childrens_priority(parent_idx)
             {
@@ -1848,7 +1842,7 @@ pub(crate) mod test {
             let vec = match self {
                 RealLinks::Unsorted(v) | RealLinks::Sorted(v) => v,
             };
-            &vec[index]
+            unsafe { vec.get_unchecked(index) }
         }
     }
 
@@ -1859,7 +1853,9 @@ pub(crate) mod test {
 
         let obj_a = link_a.obj_idx();
         let obj_b = link_b.obj_idx();
-        graph_a.vertices[obj_a].equals(&graph_b.vertices[obj_b], graph_a, graph_b)
+        let va = unsafe { graph_a.vertices.get_unchecked(obj_a) };
+        let vb = unsafe { graph_b.vertices.get_unchecked(obj_b) };
+        va.equals(vb, graph_a, graph_b)
     }
 
     impl Graph {

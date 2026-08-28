@@ -654,7 +654,7 @@ impl<'a> Serialize<'a> for CoverageTable<'a> {
 
         let glyph_count = glyphs.len();
         let mut num_ranges = 1_u16;
-        let mut last = glyphs[0].to_u32();
+        let mut last = unsafe { glyphs.get_unchecked(0) }.to_u32();
 
         for g in glyphs.iter().skip(1) {
             let gid = g.to_u32();
@@ -705,7 +705,7 @@ impl<'a> Serialize<'a> for CoverageFormat2<'a> {
 
         // range records
         let pos = s.allocate_size((range_count as usize) * RangeRecord::RAW_BYTE_LEN, true)?;
-        let mut last = glyphs[0].to_u32() as u16;
+        let mut last = unsafe { glyphs.get_unchecked(0) }.to_u32() as u16;
         // copy start glyph of first record
         s.copy_assign(pos, last);
         // copy coverage index of firstr ecord

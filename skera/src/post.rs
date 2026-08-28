@@ -146,14 +146,14 @@ fn find_glyph_name<'a>(
     string_data: &'a [u8],
     index_to_offset: &[usize],
 ) -> Option<&'a [u8]> {
-    let offset = index_to_offset.get(idx - 258)?;
-    let len = string_data.get(*offset)?;
+    let offset = unsafe { index_to_offset.get_unchecked(idx - 258) };
+    let len = unsafe { string_data.get_unchecked(*offset) };
     if *len == 0 {
         return None;
     }
     let start = *offset;
     let end = start + *len as usize + 1;
-    string_data.get(start..end)
+    Some(unsafe { string_data.get_unchecked(start..end) })
 }
 
 // get() in PString is slow, we need to precompute offset into string_data for each index
@@ -168,7 +168,7 @@ fn index_to_offset(
     let mut pos = 0;
 
     while pos < total_len && index_to_offset.len() < 65535 {
-        let cur_len = string_data[pos] as usize;
+        let cur_len = unsafe { *string_data.get_unchecked(pos) } as usize;
         if pos + cur_len >= total_len {
             break;
         }

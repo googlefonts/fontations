@@ -291,7 +291,7 @@ impl Serializer {
         let size = bytes.len();
 
         let ret = self.allocate_size(size, false)?;
-        self.data[ret..ret + size].copy_from_slice(bytes);
+        unsafe { self.data.get_unchecked_mut(ret..ret + size) }.copy_from_slice(bytes);
         Ok(ret)
     }
 
@@ -299,7 +299,7 @@ impl Serializer {
     pub fn embed_bytes(&mut self, bytes: &[u8]) -> Result<usize, SerializeErrorFlags> {
         let len = bytes.len();
         let ret = self.allocate_size(len, false)?;
-        self.data[ret..ret + len].copy_from_slice(bytes);
+        unsafe { self.data.get_unchecked_mut(ret..ret + len) }.copy_from_slice(bytes);
         Ok(ret)
     }
 
@@ -311,7 +311,7 @@ impl Serializer {
     /// get single Scalar value at certain position
     pub(crate) fn get_value_at<T: Scalar>(&self, pos: usize) -> Option<T> {
         let len = T::RAW_BYTE_LEN;
-        let bytes = self.data.get(pos..pos + len)?;
+        let bytes = unsafe { self.data.get_unchecked(pos..pos + len) };
         T::read(bytes)
     }
 
@@ -334,27 +334,19 @@ impl Serializer {
         let bytes = raw.as_ref();
         let size = bytes.len();
 
-        let Some(to) = self.data.get_mut(pos..pos + size) else {
-            self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
-            return;
-        };
-
+        let to = unsafe { self.data.get_unchecked_mut(pos..pos + size) };
         to.copy_from_slice(bytes);
     }
 
     /// copy from bytes
     pub(crate) fn copy_assign_from_bytes(&mut self, pos: usize, from_bytes: &[u8]) {
         let size = from_bytes.len();
-        let Some(to) = self.data.get_mut(pos..pos + size) else {
-            self.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
-            return;
-        };
-
+        let to = unsafe { self.data.get_unchecked_mut(pos..pos + size) };
         to.copy_from_slice(from_bytes);
     }
 
     pub(crate) fn get_mut_data(&mut self, range: Range<usize>) -> Option<&mut [u8]> {
-        self.data.get_mut(range)
+        Some(unsafe { self.data.get_unchecked_mut(range) })
     }
 
     /// Allocate size
@@ -372,10 +364,7 @@ impl Serializer {
         }
 
         if clear {
-            self.data
-                .get_mut(self.head..self.head + size)
-                .unwrap()
-                .fill(0);
+            unsafe { self.data.get_unchecked_mut(self.head..self.head + size) }.fill(0);
         }
         let ret = self.head;
         self.head += size;

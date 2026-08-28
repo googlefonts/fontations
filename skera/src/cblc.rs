@@ -159,7 +159,7 @@ impl<'a> SubsetTable<'a> for IndexSubtableList<'a> {
         let init_len = s.length();
         // serialize subtables in reverse order
         for idx in (0..src_num_records).rev() {
-            let record = records[idx];
+            let record = unsafe { *records.get_unchecked(idx) };
             if record.index_subtable_offset().is_null() {
                 continue;
             }
@@ -280,8 +280,8 @@ impl<'a> SubsetTable<'a> for IndexSubtable1<'a> {
         let mut end_glyph = None;
         for gid in retained_glyphs.iter().rev() {
             let idx = gid.to_u32() as usize - src_gid_min;
-            let offset_start = src_offsets[idx].get();
-            let offset_end = src_offsets[idx + 1].get();
+            let offset_start = unsafe { src_offsets.get_unchecked(idx) }.get();
+            let offset_end = unsafe { src_offsets.get_unchecked(idx + 1) }.get();
 
             if offset_end > offset_start {
                 end_glyph = Some(gid);
@@ -313,8 +313,8 @@ impl<'a> SubsetTable<'a> for IndexSubtable1<'a> {
             .filter(|&(_, g)| retained_glyphs.contains(*g))
         {
             let idx = old_gid.to_u32() as usize - src_gid_min;
-            let offset_start = src_offsets[idx].get();
-            let offset_end = src_offsets[idx + 1].get();
+            let offset_start = unsafe { src_offsets.get_unchecked(idx) }.get();
+            let offset_end = unsafe { src_offsets.get_unchecked(idx + 1) }.get();
 
             // for retain-gids
             if start_glyph.is_some() {
@@ -398,8 +398,8 @@ impl<'a> SubsetTable<'a> for IndexSubtable3<'a> {
         let mut end_glyph = None;
         for gid in retained_glyphs.iter().rev() {
             let idx = gid.to_u32() as usize - src_gid_min;
-            let offset_start = src_offsets[idx].get();
-            let offset_end = src_offsets[idx + 1].get();
+            let offset_start = unsafe { src_offsets.get_unchecked(idx) }.get();
+            let offset_end = unsafe { src_offsets.get_unchecked(idx + 1) }.get();
 
             if offset_end > offset_start {
                 end_glyph = Some(gid);
@@ -432,8 +432,8 @@ impl<'a> SubsetTable<'a> for IndexSubtable3<'a> {
             .filter(|&(_, g)| retained_glyphs.contains(*g))
         {
             let idx = old_gid.to_u32() as usize - src_gid_min;
-            let offset_start = src_offsets[idx].get();
-            let offset_end = src_offsets[idx + 1].get();
+            let offset_start = unsafe { src_offsets.get_unchecked(idx) }.get();
+            let offset_end = unsafe { src_offsets.get_unchecked(idx + 1) }.get();
 
             // for retain-gids
             if start_glyph.is_some() {

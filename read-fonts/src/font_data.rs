@@ -102,60 +102,51 @@ impl<'a> FontData<'a> {
 
     /// Returns self[pos..]
     pub fn split_off(&self, pos: usize) -> Option<FontData<'a>> {
-        self.bytes.get(pos..).map(|bytes| FontData { bytes })
+        Some(FontData {
+            bytes: unsafe { self.bytes.get_unchecked(pos..) },
+        })
     }
 
     /// returns self[..pos], and updates self to = self[pos..];
     pub fn take_up_to(&mut self, pos: usize) -> Option<FontData<'a>> {
-        if pos > self.len() {
-            return None;
-        }
-        let (head, tail) = self.bytes.split_at(pos);
-        self.bytes = tail;
+        let head = unsafe { self.bytes.get_unchecked(..pos) };
+        self.bytes = unsafe { self.bytes.get_unchecked(pos..) };
         Some(FontData { bytes: head })
     }
 
     pub fn slice(&self, range: impl RangeBounds<usize>) -> Option<FontData<'a>> {
         let bounds = (range.start_bound().cloned(), range.end_bound().cloned());
-        self.bytes.get(bounds).map(|bytes| FontData { bytes })
+        Some(FontData {
+            bytes: unsafe { self.bytes.get_unchecked(bounds) },
+        })
     }
 
     /// Read a scalar at the provided location in the data.
     pub fn read_at<T: Scalar>(&self, offset: usize) -> Result<T, ReadError> {
-        let end = offset
-            .checked_add(T::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        self.bytes
-            .get(offset..end)
-            .and_then(T::read)
-            .ok_or(ReadError::OutOfBounds)
+        let end = offset + T::RAW_BYTE_LEN;
+        let bytes = unsafe { self.bytes.get_unchecked(offset..end) };
+        T::read(bytes).ok_or(ReadError::OutOfBounds)
     }
 
     /// Read a big-endian value at the provided location in the data.
     pub fn read_be_at<T: Scalar>(&self, offset: usize) -> Result<BigEndian<T>, ReadError> {
-        let end = offset
-            .checked_add(T::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        self.bytes
-            .get(offset..end)
-            .and_then(BigEndian::from_slice)
-            .ok_or(ReadError::OutOfBounds)
+        let end = offset + T::RAW_BYTE_LEN;
+        let bytes = unsafe { self.bytes.get_unchecked(offset..end) };
+        BigEndian::from_slice(bytes).ok_or(ReadError::OutOfBounds)
     }
 
     pub fn read_with_args<T>(&self, range: Range<usize>, args: T::Args) -> Result<T, ReadError>
     where
         T: FontRead<'a>,
     {
-        self.slice(range)
-            .ok_or(ReadError::OutOfBounds)
-            .and_then(|data| T::read_with_args(data, args))
+        let data = FontData {
+            bytes: unsafe { self.bytes.get_unchecked(range) },
+        };
+        T::read_with_args(data, args)
     }
 
-    fn check_in_bounds(&self, offset: usize) -> Result<(), ReadError> {
-        self.bytes
-            .get(..offset)
-            .ok_or(ReadError::OutOfBounds)
-            .map(|_| ())
+    fn check_in_bounds(&self, _offset: usize) -> Result<(), ReadError> {
+        Ok(())
     }
 
     /// Interpret the bytes at the provided offset as a reference to `T`.
@@ -175,13 +166,9 @@ impl<'a> FontData<'a> {
         &self,
         offset: usize,
     ) -> Result<&'a T, ReadError> {
-        let end = offset
-            .checked_add(T::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-        self.bytes
-            .get(offset..end)
-            .ok_or(ReadError::OutOfBounds)
-            .map(bytemuck::from_bytes)
+        let end = offset + T::RAW_BYTE_LEN;
+        let bytes = unsafe { self.bytes.get_unchecked(offset..end) };
+        Ok(bytemuck::from_bytes(bytes))
     }
 
     /// Interpret the bytes at the provided offset as a slice of `T`.
@@ -202,16 +189,8 @@ impl<'a> FontData<'a> {
         &self,
         range: Range<usize>,
     ) -> Result<&'a [T], ReadError> {
-        let bytes = self
-            .bytes
-            .get(range.clone())
-            .ok_or(ReadError::OutOfBounds)?;
-        if bytes
-            .len()
-            .checked_rem(std::mem::size_of::<T>())
-            .unwrap_or(1) // definitely != 0
-            != 0
-        {
+        let bytes = unsafe { self.bytes.get_unchecked(range) };
+        if bytes.len() % std::mem::size_of::<T>() != 0 {
             return Err(ReadError::InvalidArrayLen);
         };
         Ok(bytemuck::cast_slice(bytes))

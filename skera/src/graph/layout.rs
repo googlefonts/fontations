@@ -144,7 +144,7 @@ impl Graph {
         ext_subtable.reset(lookup_type);
 
         // Make extension point at the subtable
-        self.vertices[ext_idx].add_link(LinkWidth::Four, subtable_idx, 4, false);
+        unsafe { self.vertices.get_unchecked_mut(ext_idx) }.add_link(LinkWidth::Four, subtable_idx, 4, false);
         Ok(ext_idx)
     }
 
@@ -172,12 +172,12 @@ impl Graph {
             idx
         };
 
-        for l in self.vertices[lookup_idx].real_links.iter_mut() {
+        for l in unsafe { self.vertices.get_unchecked_mut(lookup_idx) }.real_links.iter_mut() {
             if l.obj_idx() == subtable_idx {
                 l.update_obj_idx(ext_idx);
             }
         }
-        self.vertices[ext_idx].add_parent(lookup_idx, false);
+        unsafe { self.vertices.get_unchecked_mut(ext_idx) }.add_parent(lookup_idx, false);
         Ok(ext_idx)
     }
 

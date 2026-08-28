@@ -137,7 +137,8 @@ impl<'a> Serialize<'a> for SingleSubst<'_> {
             return Err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER);
         }
 
-        let delta = sub_glyphs[0].to_u32() as i32 - glyphs[0].to_u32() as i32;
+        let delta = unsafe { sub_glyphs.get_unchecked(0) }.to_u32() as i32
+            - unsafe { glyphs.get_unchecked(0) }.to_u32() as i32;
         if glyphs
             .iter()
             .zip(sub_glyphs)

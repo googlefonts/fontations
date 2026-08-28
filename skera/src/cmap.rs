@@ -477,7 +477,7 @@ fn to_ranges(
     while i < total_num {
         // Start a new run
         {
-            let pair = cp_to_new_gid_list[i];
+            let pair = unsafe { *cp_to_new_gid_list.get_unchecked(i) };
             start_cp = pair.0 as u16;
             prev_run_start_cp = start_cp;
             run_start_cp = start_cp;
@@ -493,7 +493,7 @@ fn to_ranges(
 
         while i < total_num {
             // Process range
-            let pair = cp_to_new_gid_list[i];
+            let pair = unsafe { *cp_to_new_gid_list.get_unchecked(i) };
             let next_cp = pair.0 as u16;
             let next_gid = pair.1.to_u32() as u16;
             if next_cp != end_cp + 1 {

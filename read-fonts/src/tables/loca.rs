@@ -54,8 +54,8 @@ impl<'a> Loca<'a> {
     /// Attempt to return the offset for a given glyph id.
     pub fn get_raw(&self, idx: usize) -> Option<u32> {
         match self {
-            Loca::Short(data) => data.get(idx).map(|x| x.get() as u32 * 2),
-            Loca::Long(data) => data.get(idx).map(|x| x.get()),
+            Loca::Short(data) => Some(unsafe { data.get_unchecked(idx) }.get() as u32 * 2),
+            Loca::Long(data) => Some(unsafe { data.get_unchecked(idx) }.get()),
         }
     }
 

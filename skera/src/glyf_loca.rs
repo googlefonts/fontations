@@ -142,7 +142,7 @@ fn write_glyf_loca(
                 loca_out.extend_from_slice(&value);
                 last += 1;
             }
-            let g = &subset_glyphs[i as usize];
+            let g = unsafe { subset_glyphs.get_unchecked(i as usize) };
             offset += g.len() as u32;
             value = offset.to_be_bytes();
             loca_out.extend_from_slice(&value);
@@ -194,9 +194,7 @@ fn subset_simple_glyph(g: &SimpleGlyph, plan: &Plan) -> Vec<u8> {
 
     let glyph_bytes = g.offset_data().as_bytes();
     let header_len = 10 + 2 * g.end_pts_of_contours().len() + 2;
-    let Some(header_slice) = glyph_bytes.get(0..header_len) else {
-        return out;
-    };
+    let header_slice = unsafe { glyph_bytes.get_unchecked(0..header_len) };
     out.extend_from_slice(header_slice);
 
     if plan
@@ -204,26 +202,24 @@ fn subset_simple_glyph(g: &SimpleGlyph, plan: &Plan) -> Vec<u8> {
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
     {
         // drop hints: set instructionLength field to 0
-        out[header_len - 2] = 0;
-        out[header_len - 1] = 0;
+        unsafe {
+            *out.get_unchecked_mut(header_len - 2) = 0;
+            *out.get_unchecked_mut(header_len - 1) = 0;
+        }
     } else {
         let instruction_end = header_len + g.instruction_length() as usize;
-        let Some(instruction_slice) = glyph_bytes.get(header_len..instruction_end) else {
-            return Vec::new();
-        };
+        let instruction_slice = unsafe { glyph_bytes.get_unchecked(header_len..instruction_end) };
         out.extend_from_slice(instruction_slice);
     }
 
-    let Some(trimmed_slice) = glyph_data.get(0..i) else {
-        return Vec::new();
-    };
+    let trimmed_slice = unsafe { glyph_data.get_unchecked(0..i) };
     let first_flag_index = out.len();
     out.extend_from_slice(trimmed_slice);
     if plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_SET_OVERLAPS_FLAG)
     {
-        out[first_flag_index] |= SimpleGlyphFlags::OVERLAP_SIMPLE.bits();
+        unsafe { *out.get_unchecked_mut(first_flag_index) |= SimpleGlyphFlags::OVERLAP_SIMPLE.bits(); }
     }
     out
 }
@@ -240,7 +236,7 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
         if i + 3 >= len {
             return Vec::new();
         }
-        let flags = u16::from_be_bytes([out[i], out[i + 1]]);
+        let flags = u16::from_be_bytes([unsafe { *out.get_unchecked(i) }, unsafe { *out.get_unchecked(i + 1) }]);
         let mut flags = CompositeGlyphFlags::from_bits_truncate(flags);
 
         if flags.contains(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS) {
@@ -250,8 +246,7 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
                 .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
             {
                 flags.remove(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS);
-                out.get_mut(i..i + 2)
-                    .unwrap()
+                unsafe { out.get_unchecked_mut(i..i + 2) }
                     .copy_from_slice(&flags.bits().to_be_bytes());
             }
         }
@@ -263,18 +258,19 @@ fn subset_composite_glyph(g: &CompositeGlyph, plan: &Plan) -> Vec<u8> {
             && i == 10
         {
             flags.insert(CompositeGlyphFlags::OVERLAP_COMPOUND);
-            out.get_mut(i..i + 2)
-                .unwrap()
+            unsafe { out.get_unchecked_mut(i..i + 2) }
                 .copy_from_slice(&flags.bits().to_be_bytes());
         }
 
-        let old_gid = u16::from_be_bytes([out[i + 2], out[i + 3]]);
+        let old_gid = u16::from_be_bytes([unsafe { *out.get_unchecked(i + 2) }, unsafe { *out.get_unchecked(i + 3) }]);
         let Some(new_gid) = plan.glyph_map.get(&GlyphId::from(old_gid)) else {
             return Vec::new();
         };
         let new_gid = new_gid.to_u32() as u16;
-        out[i + 2] = (new_gid >> 8) as u8;
-        out[i + 3] = (new_gid & 0xFF) as u8;
+        unsafe {
+            *out.get_unchecked_mut(i + 2) = (new_gid >> 8) as u8;
+            *out.get_unchecked_mut(i + 3) = (new_gid & 0xFF) as u8;
+        }
 
         i += 4;
 
@@ -318,7 +314,7 @@ fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
     let length = glyph_data.len();
     let mut i: usize = 0;
     while i < length {
-        let flag = SimpleGlyphFlags::from_bits_truncate(glyph_data[i]);
+        let flag = SimpleGlyphFlags::from_bits_truncate(unsafe { *glyph_data.get_unchecked(i) });
         i += 1;
 
         let mut repeat: u8 = 1;
@@ -326,7 +322,7 @@ fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
             if i >= length {
                 return 0;
             }
-            repeat = glyph_data[i] + 1;
+            repeat = unsafe { *glyph_data.get_unchecked(i) } + 1;
             i += 1;
         }
 
@@ -360,8 +356,7 @@ fn trim_simple_glyph_padding(glyph_data: &[u8], num_coords: u16) -> usize {
 
 fn subset_head(head: &Head, loca_format: u8) -> Vec<u8> {
     let mut out = head.offset_data().as_bytes().to_owned();
-    out.get_mut(50..52)
-        .unwrap()
+    unsafe { out.get_unchecked_mut(50..52) }
         .copy_from_slice(&[0, loca_format]);
     out
 }
