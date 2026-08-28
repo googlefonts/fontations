@@ -10,7 +10,6 @@ use super::{
 use crate::{
     model::pen::OutlinePen,
     types::{BoundingBox, Fixed, GlyphId},
-    ReadError,
 };
 use alloc::{string::String, vec::Vec};
 use core::ops::Range;
@@ -37,9 +36,8 @@ pub struct Type1Font {
 impl Type1Font {
     /// Creates a new Type1 font from the given data.
     pub fn new(data: &[u8]) -> Result<Self, Error> {
-        // Any failure to parse is simply represented by an invalid font format
-        // error
-        Self::new_impl(data).ok_or(Error::InvalidFontFormat)
+        // any failure to parse is simply malformed data
+        Self::new_impl(data).ok_or(Error::Malformed)
     }
 
     fn new_impl(data: &[u8]) -> Option<Self> {
@@ -294,10 +292,7 @@ impl Type1Font {
         gid: GlyphId,
         sink: &mut impl CommandSink,
     ) -> Result<Option<Fixed>, Error> {
-        let charstring_data = self
-            .charstrings
-            .get(gid.to_u32())
-            .ok_or(ReadError::OutOfBounds)?;
+        let charstring_data = self.charstrings.get(gid.to_u32()).ok_or(Error::Malformed)?;
         cs::evaluate(self, None, charstring_data, sink)
     }
 
@@ -339,7 +334,7 @@ impl CharstringContext for Type1Font {
     }
 
     fn subr(&self, index: i32) -> Result<&[u8], Error> {
-        Ok(self.subrs.get(index as u32).ok_or(ReadError::OutOfBounds)?)
+        self.subrs.get(index as u32).ok_or(Error::Malformed)
     }
 
     fn global_subr(&self, _index: i32) -> Result<&[u8], Error> {

@@ -20,7 +20,7 @@ impl<'a> Get<'a> for Option<Result<Index2<'a>, ReadError>> {
     fn get(self, nth: usize) -> Result<&'a [u8], ReadError> {
         self.transpose()?
             .ok_or(ReadError::NullOffset)
-            .and_then(|index| index.get(nth).map_err(|_| ReadError::OutOfBounds))
+            .and_then(|index| index.get(nth).ok_or(ReadError::OutOfBounds))
     }
 }
 
@@ -451,7 +451,7 @@ impl<'a> MultiItemVariationData<'a> {
     /// Equivalent to calling [Self::delta_sets], fetching item i, and parsing as [PackedDeltas]
     pub fn delta_set(&self, i: usize) -> Result<PackedDeltas<'a>, ReadError> {
         let index = self.delta_sets()?;
-        let raw_deltas = index.get(i).map_err(|_| ReadError::OutOfBounds)?;
+        let raw_deltas = index.get(i).ok_or(ReadError::OutOfBounds)?;
         Ok(PackedDeltas::consume_all(raw_deltas.into()))
     }
 }

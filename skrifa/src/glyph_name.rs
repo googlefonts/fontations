@@ -55,7 +55,7 @@ impl<'a> GlyphNames<'a> {
         if let Some((cff, charset)) = font
             .cff()
             .ok()
-            .and_then(|cff| Some((cff.clone(), cff.charset(0).ok()??)))
+            .and_then(|cff| Some((cff.clone(), cff.charset(0)?)))
         {
             return Self {
                 inner: Inner::Cff(cff, charset),
@@ -92,7 +92,6 @@ impl<'a> GlyphNames<'a> {
             Inner::Post(post, _) => GlyphName::from_post(post, glyph_id),
             Inner::Cff(cff, charset) => charset
                 .string_id(glyph_id)
-                .ok()
                 .and_then(|sid| GlyphName::from_cff_sid(cff, sid)),
             _ => None,
         };

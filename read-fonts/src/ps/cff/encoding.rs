@@ -8,7 +8,7 @@
 use super::charset::Charset;
 use crate::{
     ps::{encoding::PredefinedEncoding, string::Sid},
-    FontData, GlyphId, ReadError,
+    FontData, GlyphId,
 };
 
 #[doc(inline)]
@@ -28,19 +28,18 @@ impl<'a> Encoding<'a> {
     ///
     /// Special offsets 0 and 1 are parsed as the predefined standard and
     /// expert encodings, respectively.
-    pub fn new(data: &'a [u8], offset: usize) -> Result<Self, ReadError> {
+    pub fn new(data: &'a [u8], offset: usize) -> Option<Self> {
         match offset {
-            0 => Ok(Self::Predefined(PredefinedEncoding::Standard)),
-            1 => Ok(Self::Predefined(PredefinedEncoding::Expert)),
-            _ => CustomEncoding::new(data.get(offset..).ok_or(ReadError::OutOfBounds)?)
-                .map(Self::Custom),
+            0 => Some(Self::Predefined(PredefinedEncoding::Standard)),
+            1 => Some(Self::Predefined(PredefinedEncoding::Expert)),
+            _ => CustomEncoding::new(data.get(offset..)?).map(Self::Custom),
         }
     }
 
     /// Maps a character code to a glyph identifier.
     pub fn map(&self, charset: &Charset, code: u8) -> Option<GlyphId> {
         match self {
-            Self::Predefined(predefined) => charset.glyph_id(predefined.sid(code)?).ok(),
+            Self::Predefined(predefined) => charset.glyph_id(predefined.sid(code)?),
             Self::Custom(custom) => custom.map(charset, code),
         }
     }
@@ -58,16 +57,16 @@ pub enum CustomEncoding<'a> {
 
 impl<'a> CustomEncoding<'a> {
     /// Parses a custom encoding from the given data.
-    pub fn new(data: &'a [u8]) -> Result<Self, ReadError> {
+    pub fn new(data: &'a [u8]) -> Option<Self> {
         let mut cursor = FontData::new(data).cursor();
-        let header = cursor.read::<u8>()?;
+        let header = cursor.read::<u8>().ok()?;
         let has_supplement = header & 0x80 != 0;
         // Macro because a closure cannot borrow cursor mutably
         macro_rules! read_supplement {
             () => {
                 if has_supplement {
-                    let count = cursor.read::<u8>()?;
-                    cursor.read_array::<Supplement>(count as usize)?
+                    let count = cursor.read::<u8>().ok()?;
+                    cursor.read_array::<Supplement>(count as usize).ok()?
                 } else {
                     &[]
                 }
@@ -76,18 +75,19 @@ impl<'a> CustomEncoding<'a> {
         let format = header & 0x7F;
         match format {
             0 => {
-                let n_codes = cursor.read::<u8>()?;
-                let codes = cursor.read_array(n_codes as usize)?;
+                let n_codes = cursor.read::<u8>().ok()?;
+                let codes = cursor.read_array(n_codes as usize).ok()?;
                 let supp = read_supplement!();
-                Ok(Self::Format0(codes, supp))
+                Some(Self::Format0(codes, supp))
             }
             1 => {
-                let n_ranges = cursor.read::<u8>()?;
-                let ranges = cursor.read_array(n_ranges as usize)?;
+                let n_ranges = cursor.read::<u8>().ok()?;
+                let ranges = cursor.read_array(n_ranges as usize).ok()?;
                 let supp = read_supplement!();
-                Ok(Self::Format1(ranges, supp))
+                Some(Self::Format1(ranges, supp))
             }
-            _ => Err(ReadError::InvalidFormat(format as _)),
+            // the spec allows only 0 and 1
+            _ => None,
         }
     }
 
@@ -96,7 +96,7 @@ impl<'a> CustomEncoding<'a> {
         let read_sup = |sup: &[Supplement]| {
             sup.iter()
                 .find(|s| s.code == code)
-                .and_then(|s| charset.glyph_id(Sid::new(s.glyph.get())).ok())
+                .and_then(|s| charset.glyph_id(Sid::new(s.glyph.get())))
         };
         match self {
             Self::Format0(codes, sup) => read_sup(sup).or_else(|| {

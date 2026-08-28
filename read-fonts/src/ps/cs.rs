@@ -79,27 +79,37 @@ impl<'a> CharstringContext for (&'a [u8], &'a Index<'a>, &'a Index<'a>, &'a Inde
     fn seac_components(&self, base_code: i32, accent_code: i32) -> Result<[&[u8]; 2], Error> {
         let cff = Cff::read(FontData::new(self.0))?;
         let charset = cff
-            .charset(0)?
-            .or_else(|| Charset::new(FontData::default(), 0, self.1.count()).ok())
+            .charset(0)
+            .or_else(|| Charset::new(FontData::default(), 0, self.1.count()))
             .ok_or(Error::MissingCharset)?;
         let seac_to_gid = |code: i32| {
             let code: u8 = code.try_into().ok()?;
             let sid = *super::encoding::STANDARD_ENCODING.get(code as usize)?;
-            charset.glyph_id(Sid::new(sid as u16)).ok()
+            charset.glyph_id(Sid::new(sid as u16))
         };
         let accent_gid = seac_to_gid(accent_code).ok_or(Error::InvalidSeacCode(accent_code))?;
         let base_gid = seac_to_gid(base_code).ok_or(Error::InvalidSeacCode(base_code))?;
-        let accent_charstring = self.1.get(accent_gid.to_u32() as usize)?;
-        let base_charstring = self.1.get(base_gid.to_u32() as usize)?;
+        let accent_charstring = self
+            .1
+            .get(accent_gid.to_u32() as usize)
+            .ok_or(Error::Malformed)?;
+        let base_charstring = self
+            .1
+            .get(base_gid.to_u32() as usize)
+            .ok_or(Error::Malformed)?;
         Ok([base_charstring, accent_charstring])
     }
 
     fn global_subr(&self, index: i32) -> Result<&[u8], Error> {
-        self.2.get((index + self.2.subr_bias()) as usize)
+        self.2
+            .get((index + self.2.subr_bias()) as usize)
+            .ok_or(Error::Malformed)
     }
 
     fn subr(&self, index: i32) -> Result<&[u8], Error> {
-        self.3.get((index + self.3.subr_bias()) as usize)
+        self.3
+            .get((index + self.3.subr_bias()) as usize)
+            .ok_or(Error::Malformed)
     }
 }
 
@@ -284,7 +294,7 @@ where
                     // FreeType ignores reserved (unknown) operators.
                     // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L703>
                     // and fontations issue <https://github.com/googlefonts/fontations/issues/1680>
-                    if let Ok(operator) = Operator::read(&mut cursor, b0) {
+                    if let Some(operator) = Operator::read(&mut cursor, b0) {
                         seen_endchar |= operator == Operator::EndChar;
                         if !self.evaluate_operator(operator, &mut cursor, nesting_depth)? {
                             break;
@@ -905,9 +915,7 @@ where
         let weight_vector = self.context.weight_vector();
         let num_points = (subr_idx - 13) as usize + (subr_idx == 18) as usize;
         if num_args != num_points * weight_vector.len() {
-            return Err(Error::Read(crate::ReadError::MalformedData(
-                "incorrect number of multiple masters arguments",
-            )));
+            return Err(Error::Malformed);
         }
         // The stack is setup to contain `num_points` values followed
         // by `num_points * (num_weights - 1)` deltas for each point.
@@ -1102,16 +1110,14 @@ enum Operator {
 }
 
 impl Operator {
-    fn read(cursor: &mut Cursor, b0: u8) -> Result<Self, Error> {
+    fn read(cursor: &mut Cursor, b0: u8) -> Option<Self> {
         // Escape opcode for accessing two byte operators
         const ESCAPE: u8 = 12;
-        let (opcode, operator) = if b0 == ESCAPE {
-            let b1 = cursor.read::<u8>()?;
-            (b1, Self::from_two_byte_opcode(b1))
+        if b0 == ESCAPE {
+            Self::from_two_byte_opcode(cursor.read::<u8>().ok()?)
         } else {
-            (b0, Self::from_opcode(b0))
-        };
-        operator.ok_or(Error::InvalidCharstringOperator(opcode))
+            Self::from_opcode(b0)
+        }
     }
 
     /// Creates an operator from the given opcode.

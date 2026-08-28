@@ -13,7 +13,7 @@ use crate::{
         transform::ScaledFontMatrix,
     },
     types::Fixed,
-    Cursor, ReadError,
+    Cursor,
 };
 use std::ops::Range;
 
@@ -161,6 +161,19 @@ impl Operator {
 pub enum Token {
     /// An operator parsed from a DICT.
     Operator(Operator),
+    /// An opcode that is not a known operator.
+    ///
+    /// Reported rather than refused: a DICT containing one is still a DICT,
+    /// and what to do about it is the caller's decision. FreeType ignores
+    /// unknown operators and clears the stack, which is what
+    /// [`entries`] does; refusing here would leave a caller no way to do the
+    /// same through the raw view.
+    InvalidOperator(u8),
+    /// As [`InvalidOperator`][Self::InvalidOperator], for the two-byte form.
+    ///
+    /// Carries the extended opcode only; the byte before it is always the
+    /// escape.
+    InvalidTwoByteOperator(u8),
     /// A number parsed from a DICT. If the source was in
     /// binary coded decimal format, then the second field
     /// contains the parsed components.
@@ -204,7 +217,10 @@ fn parse_token(cursor: &mut Cursor) -> Result<Token, Error> {
     let b0 = cursor.read::<u8>()?;
     Ok(if b0 == ESCAPE {
         let b1 = cursor.read::<u8>()?;
-        Token::Operator(Operator::from_extended_opcode(b1).ok_or(Error::InvalidDictOperator(b1))?)
+        match Operator::from_extended_opcode(b1) {
+            Some(op) => Token::Operator(op),
+            None => Token::InvalidTwoByteOperator(b1),
+        }
     } else {
         // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-3-operand-encoding>
         match b0 {
@@ -213,7 +229,10 @@ fn parse_token(cursor: &mut Cursor) -> Result<Token, Error> {
                 let components = BcdComponents::parse(cursor)?;
                 Token::Operand(components.value(false).into(), Some(components))
             }
-            _ => Token::Operator(Operator::from_opcode(b0).ok_or(Error::InvalidDictOperator(b0))?),
+            _ => match Operator::from_opcode(b0) {
+                Some(op) => Token::Operator(op),
+                None => Token::InvalidOperator(b0),
+            },
         }
     })
 }
@@ -429,7 +448,7 @@ fn parse_entry(op: Operator, stack: &mut Stack) -> Result<Entry, Error> {
         PrivateDictRange => {
             let len = stack.get_i32(0)? as usize;
             let start = stack.get_i32(1)? as usize;
-            let end = start.checked_add(len).ok_or(ReadError::OutOfBounds)?;
+            let end = start.checked_add(len).ok_or(Error::Malformed)?;
             Entry::PrivateDictRange(start..end)
         }
         VariationStoreOffset => Entry::VariationStoreOffset(stack.pop_i32()? as usize),
@@ -513,6 +532,31 @@ mod tests {
         TableProvider,
     };
     use font_test_data::bebuffer::BeBuffer;
+
+    /// An unknown operator is a token, not the end of the iteration.
+    ///
+    /// This is the whole point of reporting it that way: `entries` skips
+    /// unknown operators and clears the stack, as FreeType does, and a caller
+    /// working from the raw view has to be able to do the same. Refusing here
+    /// would end the walk at the first buggy font.
+    #[test]
+    fn unknown_operators_are_tokens() {
+        // a single byte operand encodes `b0 - 139`; 25 is not a one byte
+        // operator and 12/77 is not a two byte one
+        let dict = [139u8, 25, 139, 12, 77, 139, 17];
+        let tokens: Vec<_> = tokens(&dict).map(|tok| tok.unwrap()).collect();
+        assert_eq!(
+            &tokens,
+            &[
+                0.into(),
+                Token::InvalidOperator(25),
+                0.into(),
+                Token::InvalidTwoByteOperator(77),
+                0.into(),
+                Operator::CharstringsOffset.into(),
+            ]
+        );
+    }
 
     #[test]
     fn example_top_dict_tokens() {

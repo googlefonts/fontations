@@ -1006,8 +1006,8 @@ impl GlyphDataOffsetArray for CFFAndCharStrings<'_> {
     fn offset_for(&self, gid: GlyphId) -> Result<u32, PatchingError> {
         self.charstrings
             .get_offset(gid.to_u32() as usize)
-            .map_err(|_| PatchingError::FontParsingFailed(ReadError::OutOfBounds))
             .map(|offset| offset as u32)
+            .ok_or(PatchingError::FontParsingFailed(ReadError::OutOfBounds))
     }
 
     fn all_offsets_are_ascending(&self) -> bool {
