@@ -14,7 +14,7 @@ pub use outline::{Outline, ScaledOutline};
 use super::{DrawError, GlyphHMetrics, Hinting};
 use crate::{GLYF_COMPOSITE_RECURSION_LIMIT, MAX_GLYF_POINTS, MAX_GRAPH_EDGES};
 use memory::{FreeTypeOutlineMemory, HarfBuzzOutlineMemory};
-use raw::{FontRef, ReadError};
+use raw::FontRef;
 use read_fonts::{
     tables::{
         glyf::{
@@ -153,7 +153,10 @@ impl<'a> Outlines<'a> {
             has_variations: self.gvar.is_some(),
             ..Default::default()
         };
-        let glyph = self.loca.get_glyf(glyph_id, &self.glyf)?;
+        let glyph = self
+            .loca
+            .get_glyf(glyph_id, &self.glyf)
+            .map_err(|_| DrawError::Malformed)?;
         if let Some(glyph) = glyph.as_ref() {
             self.outline_rec(glyph, &mut outline, 0, 0, &mut 0)?;
         }
@@ -216,7 +219,10 @@ impl Outlines<'_> {
                 let point_base = outline.points;
                 for (component, flags) in composite.component_glyphs_and_flags() {
                     outline.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
-                    let component_glyph = self.loca.get_glyf(component.into(), &self.glyf)?;
+                    let component_glyph = self
+                        .loca
+                        .get_glyf(component.into(), &self.glyf)
+                        .map_err(|_| DrawError::Malformed)?;
                     let Some(component_glyph) = component_glyph else {
                         continue;
                     };
@@ -618,7 +624,9 @@ impl Scaler for FreeTypeScaler<'_> {
             .ok_or(InsufficientMemory)?;
         // Read our unscaled points and flags (up to point_count which does not
         // include phantom points).
-        glyph.read_points_fast(&mut unscaled[..point_count], &mut flags[..point_count])?;
+        glyph
+            .read_points_fast(&mut unscaled[..point_count], &mut flags[..point_count])
+            .map_err(|_| DrawError::Malformed)?;
         // Compute the range for our contour end point buffer and slice it.
         let contours_start = self.contour_count;
         let contour_end_pts = glyph.end_pts_of_contours();
@@ -635,10 +643,9 @@ impl Scaler for FreeTypeScaler<'_> {
         for (end_pt, contour) in contour_end_pts.iter().zip(contours.iter_mut()) {
             let end_pt = end_pt.get();
             if end_pt < last_end_pt {
-                return Err(ReadError::MalformedData(
-                    "unordered contour end points in TrueType glyph",
-                )
-                .into());
+                // unordered contour end points: malformed, like every other
+                // way the data can fail to make sense
+                return Err(DrawError::Malformed);
             }
             last_end_pt = end_pt;
             *contour = end_pt;
@@ -856,7 +863,8 @@ impl Scaler for FreeTypeScaler<'_> {
             let component_glyph = self
                 .outlines
                 .loca
-                .get_glyf(component.glyph.into(), &self.outlines.glyf)?;
+                .get_glyf(component.glyph.into(), &self.outlines.glyf)
+                .map_err(|_| DrawError::Malformed)?;
             self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component
@@ -1141,7 +1149,9 @@ impl Scaler for HarfBuzzScaler<'_> {
             .flags
             .get_mut(point_range)
             .ok_or(InsufficientMemory)?;
-        glyph.read_points_fast(&mut points[..point_count], &mut flags[..point_count])?;
+        glyph
+            .read_points_fast(&mut points[..point_count], &mut flags[..point_count])
+            .map_err(|_| DrawError::Malformed)?;
         // Compute the range for our contour end point buffer and slice it.
         let contours_start = self.contour_count;
         let contour_end_pts = glyph.end_pts_of_contours();
@@ -1263,7 +1273,8 @@ impl Scaler for HarfBuzzScaler<'_> {
             let component_glyph = self
                 .outlines
                 .loca
-                .get_glyf(component.glyph.into(), &self.outlines.glyf)?;
+                .get_glyf(component.glyph.into(), &self.outlines.glyf)
+                .map_err(|_| DrawError::Malformed)?;
             self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component

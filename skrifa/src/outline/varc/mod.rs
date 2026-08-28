@@ -10,7 +10,7 @@ use read_fonts::{
         variations::NO_VARIATION_INDEX,
     },
     types::{F2Dot14, GlyphId, Matrix},
-    FontRef, ReadError, TableProvider,
+    FontRef, TableProvider,
 };
 
 use crate::{
@@ -196,7 +196,7 @@ impl<'a> Outlines<'a> {
         self.base.base_outline_kind(glyph_id)
     }
 
-    pub fn outline(&self, glyph_id: GlyphId) -> Result<Option<Outline>, ReadError> {
+    pub fn outline(&self, glyph_id: GlyphId) -> Result<Option<Outline>, DrawError> {
         let Some(coverage_index) = self.coverage.get(glyph_id) else {
             return Ok(None);
         };
@@ -209,7 +209,7 @@ impl<'a> Outlines<'a> {
     }
 
     /// Lightweight coverage lookup without computing max_component_memory.
-    fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u16>, ReadError> {
+    fn coverage_index(&self, glyph_id: GlyphId) -> Result<Option<u16>, DrawError> {
         Ok(self.coverage.get(glyph_id))
     }
 
@@ -217,7 +217,7 @@ impl<'a> Outlines<'a> {
         &self,
         glyph_id: GlyphId,
         coverage_index: u16,
-    ) -> Result<usize, ReadError> {
+    ) -> Result<usize, DrawError> {
         let mut stack = GlyphStack::new();
         let mut edges_left = MAX_GRAPH_EDGES;
         self.max_component_memory_for_glyph(glyph_id, coverage_index, &mut stack, &mut edges_left)
@@ -229,7 +229,7 @@ impl<'a> Outlines<'a> {
         coverage_index: u16,
         stack: &mut GlyphStack,
         edges_left: &mut usize,
-    ) -> Result<usize, ReadError> {
+    ) -> Result<usize, DrawError> {
         if stack.contains(&glyph_id) {
             return Ok(0);
         }
@@ -244,9 +244,12 @@ impl<'a> Outlines<'a> {
         *edges_left -= 1;
         stack.push(glyph_id);
         let mut max_memory = 0usize;
-        let glyph = self.varc.glyph(coverage_index as usize)?;
+        let glyph = self
+            .varc
+            .glyph(coverage_index as usize)
+            .map_err(|_| DrawError::Malformed)?;
         for component in glyph.components() {
-            let component = component?;
+            let component = component.map_err(|_| DrawError::Malformed)?;
             let component_gid = component.gid();
             let component_memory = if component_gid == glyph_id {
                 self.base.base_outline_memory(component_gid)
@@ -336,14 +339,17 @@ impl<'a> Outlines<'a> {
             return Err(DrawError::RecursionLimitExceeded(glyph_id));
         }
         scratch.edges_left -= 1;
-        let glyph = self.varc.glyph(coverage_index as usize)?;
+        let glyph = self
+            .varc
+            .glyph(coverage_index as usize)
+            .map_err(|_| DrawError::Malformed)?;
         stack.push(glyph_id);
         let coverage = ctx.coverage;
         let store_regions = ctx.store_regions;
         let mut component_coords_buffer = CoordVec::new();
         let mut child_scalar_cache: Option<ScalarCache> = None;
         for component in glyph.components() {
-            let component = component?;
+            let component = component.map_err(|_| DrawError::Malformed)?;
             if !self.component_condition_met(
                 &component,
                 current_coords,
@@ -482,14 +488,12 @@ impl<'a> Outlines<'a> {
             return Ok(());
         }
 
-        let axis_indices_index = component
-            .axis_indices_index()
-            .ok_or(ReadError::MalformedData("Missing axisIndicesIndex"))?;
+        let axis_indices_index = component.axis_indices_index().ok_or(DrawError::Malformed)?;
         let num_axes = self.axis_indices(axis_indices_index as usize, &mut scratch.axis_indices)?;
 
         self.axis_values(component, num_axes, &mut scratch.axis_values)?;
         if let Some(var_idx) = component.axis_values_var_index() {
-            let (store, regions) = store_regions.ok_or(ReadError::NullOffset)?;
+            let (store, regions) = store_regions.ok_or(DrawError::Malformed)?;
             compute_tuple_deltas(
                 store,
                 regions,
@@ -510,7 +514,7 @@ impl<'a> Outlines<'a> {
             .zip(scratch.axis_values.iter().copied())
         {
             let Some(slot) = coords.get_mut(*axis_index as usize) else {
-                return Err(DrawError::Read(ReadError::OutOfBounds));
+                return Err(DrawError::Malformed);
             };
             let raw = value.round().clamp(i16::MIN as f32, i16::MAX as f32) as i16;
             *slot = F2Dot14::from_bits(raw);
@@ -519,7 +523,10 @@ impl<'a> Outlines<'a> {
     }
 
     fn axis_indices(&self, nth: usize, out: &mut AxisIndexVec) -> Result<usize, DrawError> {
-        let packed = self.varc.axis_indices(nth)?;
+        let packed = self
+            .varc
+            .axis_indices(nth)
+            .map_err(|_| DrawError::Malformed)?;
         out.clear();
         for value in packed.iter() {
             out.push(value as u16);
@@ -576,7 +583,7 @@ impl<'a> Outlines<'a> {
             return Ok(());
         }
 
-        let (store, regions) = store_regions.ok_or(ReadError::NullOffset)?;
+        let (store, regions) = store_regions.ok_or(DrawError::Malformed)?;
         compute_tuple_deltas(
             store,
             regions,
@@ -653,11 +660,14 @@ impl<'a> Outlines<'a> {
             return Ok(true);
         };
         let Some(condition_list) = self.varc.condition_list() else {
-            return Err(DrawError::Read(ReadError::NullOffset));
+            return Err(DrawError::Malformed);
         };
-        let condition_list = condition_list?;
-        let condition = condition_list.conditions().get(condition_index as usize)?;
-        let (store, regions) = store_regions.ok_or(ReadError::NullOffset)?;
+        let condition_list = condition_list.map_err(|_| DrawError::Malformed)?;
+        let condition = condition_list
+            .conditions()
+            .get(condition_index as usize)
+            .map_err(|_| DrawError::Malformed)?;
+        let (store, regions) = store_regions.ok_or(DrawError::Malformed)?;
         Self::eval_condition(&condition, coords, store, regions, scalar_cache, scratch, 0)
     }
 
@@ -701,7 +711,7 @@ impl<'a> Outlines<'a> {
             }
             Condition::Format3And(condition) => {
                 for nested in condition.conditions().iter() {
-                    let nested = nested?;
+                    let nested = nested.map_err(|_| DrawError::Malformed)?;
                     if !Self::eval_condition(
                         &nested,
                         coords,
@@ -718,7 +728,7 @@ impl<'a> Outlines<'a> {
             }
             Condition::Format4Or(condition) => {
                 for nested in condition.conditions().iter() {
-                    let nested = nested?;
+                    let nested = nested.map_err(|_| DrawError::Malformed)?;
                     if Self::eval_condition(
                         &nested,
                         coords,
@@ -734,7 +744,7 @@ impl<'a> Outlines<'a> {
                 Ok(false)
             }
             Condition::Format5Negate(condition) => {
-                let nested = condition.condition()?;
+                let nested = condition.condition().map_err(|_| DrawError::Malformed)?;
                 Ok(!Self::eval_condition(
                     &nested,
                     coords,
@@ -755,10 +765,13 @@ impl<'a> Outlines<'a> {
         // The VARC `multiVarStore` offset is nullable, so a valid font may omit the
         // store entirely. In that case there are no variation regions and an empty
         // cache is correct: any component that references variation data will fail
-        // gracefully with `ReadError::NullOffset` when it resolves the missing store,
-        // rather than us panicking here.
+        // gracefully when it resolves the missing store, rather than us
+        // panicking here.
         let region_count = match store {
-            Some(store) => store.region_list()?.region_count() as usize,
+            Some(store) => store
+                .region_list()
+                .map_err(|_| DrawError::Malformed)?
+                .region_count() as usize,
             None => 0,
         };
         Ok(ScalarCache::new(region_count))
@@ -804,7 +817,7 @@ fn compute_tuple_deltas(
     tuple_len: usize,
     cache: &mut ScalarCache,
     out: &mut DeltaVec,
-) -> Result<(), ReadError> {
+) -> Result<(), DrawError> {
     out.resize_and_fill(tuple_len, 0.0);
     if tuple_len == 0 || var_idx == NO_VARIATION_INDEX {
         return Ok(());
@@ -814,9 +827,12 @@ fn compute_tuple_deltas(
     let data = store
         .variation_data()
         .get(outer)
-        .map_err(|_| ReadError::InvalidCollectionIndex(outer as _))?;
+        .map_err(|_| DrawError::Malformed)?;
     let region_indices = data.region_indices();
-    let mut deltas = data.delta_set(inner)?.fetcher();
+    let mut deltas = data
+        .delta_set(inner)
+        .map_err(|_| DrawError::Malformed)?
+        .fetcher();
     let regions = regions.regions();
     let out_slice = out.as_mut_slice();
 
@@ -825,7 +841,10 @@ fn compute_tuple_deltas(
         let region_idx = region_index.get() as usize;
         let mut scalar = cache.get(region_idx);
         if scalar >= 2.0 {
-            scalar = regions.get(region_idx)?.compute_scalar_f32(coords);
+            scalar = regions
+                .get(region_idx)
+                .map_err(|_| DrawError::Malformed)?
+                .compute_scalar_f32(coords);
             cache.set(region_idx, scalar);
         }
         // We skip lazily. Reduces work at the tail end.
@@ -833,10 +852,12 @@ fn compute_tuple_deltas(
             skip += out_slice.len();
         } else {
             if skip != 0 {
-                deltas.skip(skip)?;
+                deltas.skip(skip).map_err(|_| DrawError::Malformed)?;
                 skip = 0;
             }
-            deltas.add_to_f32_scaled(out_slice, scalar)?;
+            deltas
+                .add_to_f32_scaled(out_slice, scalar)
+                .map_err(|_| DrawError::Malformed)?;
         }
     }
 
@@ -1006,7 +1027,9 @@ mod tests {
 
         let err = compute_tuple_deltas(&store, &regions, 0xFFFF_0000, &[], 1, &mut cache, &mut out)
             .unwrap_err();
-        assert!(matches!(err, ReadError::InvalidCollectionIndex(_)));
+        // an outer index past the end of the variation data is refused,
+        // rather than silently contributing zero deltas
+        assert!(matches!(err, DrawError::Malformed));
     }
 
     #[test]
@@ -1114,8 +1137,8 @@ mod tests {
             return Ok(());
         }
 
-        let store = var_store.ok_or(ReadError::NullOffset)?;
-        let regions = regions.ok_or(ReadError::NullOffset)?;
+        let store = var_store.ok_or(DrawError::Malformed)?;
+        let regions = regions.ok_or(DrawError::Malformed)?;
         compute_tuple_deltas(
             store,
             regions,
