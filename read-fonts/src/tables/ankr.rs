@@ -6,17 +6,13 @@ include!("../../generated/generated_ankr.rs");
 
 impl<'a> Ankr<'a> {
     /// Returns the set of anchor points for the given glyph.
-    pub fn anchor_points(&self, glyph_id: GlyphId) -> Result<&'a [AnchorPoint], ReadError> {
-        let glyph_id: GlyphId16 = glyph_id.try_into().map_err(|_| ReadError::OutOfBounds)?;
-        let entry_offset = self.lookup_table()?.value(glyph_id.to_u16())?;
-        let full_offset = (self.glyph_data_table_offset() as usize)
-            .checked_add(entry_offset as usize)
-            .ok_or(ReadError::OutOfBounds)?;
-        let data = self
-            .offset_data()
-            .split_off(full_offset)
-            .ok_or(ReadError::OutOfBounds)?;
-        Ok(GlyphDataEntry::read(data)?.anchor_points())
+    pub fn anchor_points(&self, glyph_id: GlyphId) -> Option<&'a [AnchorPoint]> {
+        let glyph_id: GlyphId16 = glyph_id.try_into().ok()?;
+        let entry_offset = self.lookup_table().ok()?.value(glyph_id.to_u16())?;
+        let full_offset =
+            (self.glyph_data_table_offset() as usize).checked_add(entry_offset as usize)?;
+        let data = self.offset_data().split_off(full_offset)?;
+        Some(GlyphDataEntry::read(data).ok()?.anchor_points())
     }
 }
 

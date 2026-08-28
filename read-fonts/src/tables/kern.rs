@@ -170,10 +170,10 @@ impl<'a> Subtable<'a> {
     }
 
     /// Returns an enum representing the actual subtable data.    
-    pub fn kind(&self) -> Result<SubtableKind<'a>, ReadError> {
+    pub fn kind(&self) -> Option<SubtableKind<'a>> {
         let (data, format) = self.data_and_format();
         let is_aat = matches!(self, Self::Aat(_));
-        SubtableKind::read_with_args(FontData::new(data), (format, is_aat))
+        SubtableKind::read_with_args(FontData::new(data), (format, is_aat)).ok()
     }
 
     fn data_and_format(&self) -> (&'a [u8], u8) {

@@ -14,7 +14,7 @@ pub mod class {
 }
 
 impl Lookup0<'_> {
-    pub fn values<T: LookupValue>(&self) -> Result<&[BigEndian<T>], ReadError> {
+    pub fn values<T: LookupValue>(&self) -> Option<&[BigEndian<T>]> {
         let data = self.values_data();
         let data_len = data.len();
         let n_elems = data_len / T::RAW_BYTE_LEN;
@@ -22,13 +22,11 @@ impl Lookup0<'_> {
         FontData::new(&data[..len_in_bytes])
             .cursor()
             .read_array::<BigEndian<T>>(n_elems)
+            .ok()
     }
     #[inline]
-    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
-        self.values::<T>()?
-            .get(index as usize)
-            .map(|val| val.get())
-            .ok_or(ReadError::OutOfBounds)
+    pub fn value<T: LookupValue>(&self, index: u16) -> Option<T> {
+        self.values::<T>()?.get(index as usize).map(|val| val.get())
     }
 }
 
@@ -54,63 +52,56 @@ impl<T: LookupValue> FixedSize for LookupSegment2<T> {
 
 impl Lookup2<'_> {
     #[inline]
-    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Option<T> {
         let segments = self.segments::<T>()?;
         let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
             Ok(ix) => ix,
             Err(ix) => ix.saturating_sub(1),
         };
-        let segment = segments.get(ix).ok_or(ReadError::OutOfBounds)?;
+        let segment = segments.get(ix)?;
         if (segment.first_glyph.get()..=segment.last_glyph.get()).contains(&index) {
             let value = segment.value;
-            return Ok(value.get());
+            return Some(value.get());
         }
-        Err(ReadError::OutOfBounds)
+        None
     }
 
-    pub fn segments<T: LookupValue>(&self) -> Result<&[LookupSegment2<T>], ReadError> {
+    pub fn segments<T: LookupValue>(&self) -> Option<&[LookupSegment2<T>]> {
         FontData::new(self.segments_data())
             .cursor()
             .read_array(self.n_units() as usize)
+            .ok()
     }
 }
 
 impl Lookup4<'_> {
     #[inline]
-    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Option<T> {
         let segments = self.segments();
         let ix = match segments.binary_search_by(|segment| segment.first_glyph.get().cmp(&index)) {
             Ok(ix) => ix,
             Err(ix) => ix.saturating_sub(1),
         };
-        let segment = segments.get(ix).ok_or(ReadError::OutOfBounds)?;
+        let segment = segments.get(ix)?;
         if (segment.first_glyph.get()..=segment.last_glyph.get()).contains(&index) {
             let base_offset = segment.value_offset() as usize;
-            let offset = base_offset
-                + index
-                    .checked_sub(segment.first_glyph())
-                    .ok_or(ReadError::OutOfBounds)? as usize
-                    * T::RAW_BYTE_LEN;
-            return self.offset_data().read_at(offset);
+            let offset =
+                base_offset + index.checked_sub(segment.first_glyph())? as usize * T::RAW_BYTE_LEN;
+            return self.offset_data().read_at(offset).ok();
         }
-        Err(ReadError::OutOfBounds)
+        None
     }
-    pub fn segment_values<T: LookupValue>(
-        &self,
-        segment: usize,
-    ) -> Result<&[BigEndian<T>], ReadError> {
-        let segment = self.segments().get(segment).ok_or(ReadError::OutOfBounds)?;
+    pub fn segment_values<T: LookupValue>(&self, segment: usize) -> Option<&[BigEndian<T>]> {
+        let segment = self.segments().get(segment)?;
         let base_offset = segment.value_offset() as usize;
         let n_elems = segment
             .last_glyph
             .get()
-            .checked_sub(segment.first_glyph.get())
-            .ok_or(ReadError::MalformedData(
-                "invalid segment in format 4 AAT lookup table",
-            ))? as usize
+            .checked_sub(segment.first_glyph.get())? as usize
             + 1;
         self.offset_data()
             .read_array::<BigEndian<T>>(base_offset..base_offset + n_elems * T::RAW_BYTE_LEN)
+            .ok()
     }
 }
 
@@ -134,64 +125,56 @@ impl<T: LookupValue> FixedSize for LookupSingle<T> {
 
 impl Lookup6<'_> {
     #[inline]
-    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Option<T> {
         let entries = self.entries::<T>()?;
         if let Ok(ix) = entries.binary_search_by_key(&index, |entry| entry.glyph.get()) {
             let entry = &entries[ix];
             let value = entry.value;
-            return Ok(value.get());
+            return Some(value.get());
         }
-        Err(ReadError::OutOfBounds)
+        None
     }
 
-    pub fn entries<T: LookupValue>(&self) -> Result<&[LookupSingle<T>], ReadError> {
+    pub fn entries<T: LookupValue>(&self) -> Option<&[LookupSingle<T>]> {
         FontData::new(self.entries_data())
             .cursor()
             .read_array(self.n_units() as usize)
+            .ok()
     }
 }
 
 impl Lookup8<'_> {
     #[inline]
-    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
-        index
-            .checked_sub(self.first_glyph())
-            .and_then(|ix| {
-                self.value_array()
-                    .get(ix as usize)
-                    .map(|val| T::from_u16(val.get()))
-            })
-            .ok_or(ReadError::OutOfBounds)
+    pub fn value<T: LookupValue>(&self, index: u16) -> Option<T> {
+        index.checked_sub(self.first_glyph()).and_then(|ix| {
+            self.value_array()
+                .get(ix as usize)
+                .map(|val| T::from_u16(val.get()))
+        })
     }
 }
 
 impl Lookup10<'_> {
     #[inline]
-    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
-        let ix = index
-            .checked_sub(self.first_glyph())
-            .ok_or(ReadError::OutOfBounds)? as usize;
+    pub fn value<T: LookupValue>(&self, index: u16) -> Option<T> {
+        let ix = index.checked_sub(self.first_glyph())? as usize;
         let unit_size = self.unit_size() as usize;
         let offset = ix.wrapping_mul(unit_size);
         let mut cursor = FontData::new(self.values_data()).cursor();
         cursor.advance_by(offset);
         let val = match unit_size {
-            1 => cursor.read::<u8>()? as u32,
-            2 => cursor.read::<u16>()? as u32,
-            4 => cursor.read::<u32>()?,
-            _ => {
-                return Err(ReadError::MalformedData(
-                    "invalid unit_size in format 10 AAT lookup table",
-                ))
-            }
+            1 => cursor.read::<u8>().ok()? as u32,
+            2 => cursor.read::<u16>().ok()? as u32,
+            4 => cursor.read::<u32>().ok()?,
+            _ => return None,
         };
-        Ok(T::from_u32(val))
+        Some(T::from_u32(val))
     }
 }
 
 impl Lookup<'_> {
     #[inline]
-    pub fn value<T: LookupValue>(&self, index: u16) -> Result<T, ReadError> {
+    pub fn value<T: LookupValue>(&self, index: u16) -> Option<T> {
         match self {
             Lookup::Format0(lookup) => lookup.value::<T>(index),
             Lookup::Format2(lookup) => lookup.value::<T>(index),
@@ -211,7 +194,7 @@ pub struct TypedLookup<'a, T> {
 
 impl<T: LookupValue> TypedLookup<'_, T> {
     /// Returns the value associated with the given index.
-    pub fn value(&self, index: u16) -> Result<T, ReadError> {
+    pub fn value(&self, index: u16) -> Option<T> {
         self.lookup.value::<T>(index)
     }
 }
@@ -353,15 +336,14 @@ where
     T: FixedSize + bytemuck::AnyBitPattern,
 {
     /// Returns the class table entry for the given glyph identifier.
-    pub fn class(&self, glyph_id: GlyphId16) -> Result<u8, ReadError> {
+    pub fn class(&self, glyph_id: GlyphId16) -> Option<u8> {
         let glyph_id = glyph_id.to_u16();
         if glyph_id == 0xFFFF {
-            return Ok(class::DELETED_GLYPH);
+            return Some(class::DELETED_GLYPH);
         }
         glyph_id
             .checked_sub(self.class_first_glyph)
             .and_then(|ix| self.class_array.get(ix as usize).copied())
-            .ok_or(ReadError::OutOfBounds)
     }
 
     /// Returns the first covered glyph and its consecutive class values.
@@ -371,7 +353,7 @@ where
 
     /// Returns the entry for the given state and class.
     #[inline(always)]
-    pub fn entry(&self, state: u16, class: u8) -> Result<StateEntry<T>, ReadError> {
+    pub fn entry(&self, state: u16, class: u8) -> Option<StateEntry<T>> {
         let mut class = class as usize;
         if class >= self.n_classes {
             class = class::OUT_OF_BOUNDS as usize;
@@ -379,14 +361,10 @@ where
         let entry_ix = self
             .state_array
             .get(state as usize * self.n_classes + class)
-            .copied()
-            .ok_or(ReadError::OutOfBounds)? as usize;
+            .copied()? as usize;
         let entry_offset = entry_ix.wrapping_mul(StateEntry::<T>::RAW_BYTE_LEN);
-        let entry_data = self
-            .entry_table
-            .get(entry_offset..)
-            .ok_or(ReadError::OutOfBounds)?;
-        let mut entry = StateEntry::read(FontData::new(entry_data))?;
+        let entry_data = self.entry_table.get(entry_offset..)?;
+        let mut entry = StateEntry::read(FontData::new(entry_data)).ok()?;
         // For legacy state tables, the newState is a byte offset into
         // the state array. Convert this to an index for consistency.
         let offset = self.header.state_array_offset().to_u32() as i32;
@@ -399,13 +377,13 @@ where
         } else {
             diff / self.n_classes as i32
         };
-        entry.new_state = new_state.try_into().map_err(|_| ReadError::OutOfBounds)?;
-        Ok(entry)
+        entry.new_state = new_state.try_into().ok()?;
+        Some(entry)
     }
 
     /// Reads scalar values that are referenced from state table entries.
-    pub fn read_value<S: Scalar>(&self, offset: usize) -> Result<S, ReadError> {
-        self.header.offset_data().read_at::<S>(offset)
+    pub fn read_value<S: Scalar>(&self, offset: usize) -> Option<S> {
+        self.header.offset_data().read_at::<S>(offset).ok()
     }
 }
 
@@ -421,9 +399,9 @@ pub struct LegacyStateTableParts {
 
 impl LegacyStateTableParts {
     /// Reads the header of a legacy state table at the start of `data`.
-    pub fn read(data: FontData) -> Result<Self, ReadError> {
-        let header = StateHeader::read(data)?;
-        Ok(Self {
+    pub fn read(data: FontData) -> Option<Self> {
+        let header = StateHeader::read(data).ok()?;
+        Some(Self {
             n_classes: header.state_size(),
             class_table_offset: header.class_table_offset().to_u32() as u16,
             state_array_offset: header.state_array_offset().to_u32() as u16,
@@ -436,30 +414,20 @@ impl<'a, T> StateTable<'a, T> {
     /// Builds the state table from `data` and offsets previously captured
     /// with [LegacyStateTableParts::read] on the same data.
     #[inline]
-    pub fn from_parts(
-        data: FontData<'a>,
-        parts: &LegacyStateTableParts,
-    ) -> Result<Self, ReadError> {
+    pub fn from_parts(data: FontData<'a>, parts: &LegacyStateTableParts) -> Option<Self> {
         let n_classes = parts.n_classes as usize;
         if n_classes == 0 {
-            return Err(ReadError::MalformedData("empty AAT state table"));
+            // Every entry lookup divides by this.
+            return None;
         }
-        let class_table = ClassSubtable::read(
-            data.split_off(parts.class_table_offset as usize)
-                .ok_or(ReadError::OutOfBounds)?,
-        )?;
+        let class_table =
+            ClassSubtable::read(data.split_off(parts.class_table_offset as usize)?).ok()?;
         let class_first_glyph = class_table.first_glyph();
         let class_array = class_table.class_array();
-        let state_array = data
-            .as_bytes()
-            .get(parts.state_array_offset as usize..)
-            .ok_or(ReadError::OutOfBounds)?;
-        let entry_table = data
-            .as_bytes()
-            .get(parts.entry_table_offset as usize..)
-            .ok_or(ReadError::OutOfBounds)?;
-        Ok(Self {
-            header: StateHeader::read(data)?,
+        let state_array = data.as_bytes().get(parts.state_array_offset as usize..)?;
+        let entry_table = data.as_bytes().get(parts.entry_table_offset as usize..)?;
+        Some(Self {
+            header: StateHeader::read(data).ok()?,
             n_classes,
             class_first_glyph,
             class_array,
@@ -545,20 +513,17 @@ where
 {
     /// Returns the class table entry for the given glyph identifier.
     #[inline]
-    pub fn class(&self, glyph_id: GlyphId) -> Result<u16, ReadError> {
-        let glyph_id: u16 = glyph_id
-            .to_u32()
-            .try_into()
-            .map_err(|_| ReadError::OutOfBounds)?;
+    pub fn class(&self, glyph_id: GlyphId) -> Option<u16> {
+        let glyph_id: u16 = glyph_id.to_u32().try_into().ok()?;
         if glyph_id == 0xFFFF {
-            return Ok(class::DELETED_GLYPH as u16);
+            return Some(class::DELETED_GLYPH as u16);
         }
         self.class_table.value(glyph_id)
     }
 
     /// Returns the entry for the given state and class.
     #[inline]
-    pub fn entry(&self, state: u16, class: u16) -> Result<StateEntry<T>, ReadError> {
+    pub fn entry(&self, state: u16, class: u16) -> Option<StateEntry<T>> {
         let mut class = class as usize;
         if class >= self.n_classes {
             class = class::OUT_OF_BOUNDS as usize;
@@ -566,18 +531,10 @@ where
         let state_ix = (state as usize)
             .wrapping_mul(self.n_classes)
             .wrapping_add(class);
-        let entry_ix = self
-            .state_array
-            .get(state_ix)
-            .copied()
-            .ok_or(ReadError::OutOfBounds)?
-            .get() as usize;
+        let entry_ix = self.state_array.get(state_ix).copied()?.get() as usize;
         let entry_offset = entry_ix.wrapping_mul(StateEntry::<T>::RAW_BYTE_LEN);
-        let entry_data = self
-            .entry_table
-            .get(entry_offset..)
-            .ok_or(ReadError::OutOfBounds)?;
-        StateEntry::read(FontData::new(entry_data))
+        let entry_data = self.entry_table.get(entry_offset..)?;
+        StateEntry::read(FontData::new(entry_data)).ok()
     }
 }
 
@@ -595,9 +552,9 @@ pub struct StateTableParts {
 
 impl StateTableParts {
     /// Reads the header of an extended state table at the start of `data`.
-    pub fn read(data: FontData) -> Result<Self, ReadError> {
-        let header = StxHeader::read(data)?;
-        Ok(StateTableParts {
+    pub fn read(data: FontData) -> Option<Self> {
+        let header = StxHeader::read(data).ok()?;
+        Some(StateTableParts {
             n_classes: header.n_classes(),
             class_table_offset: header.class_table_offset().to_u32(),
             state_array_offset: header.state_array_offset().to_u32(),
@@ -610,17 +567,12 @@ impl<'a, T> ExtendedStateTable<'a, T> {
     /// Builds the state table from `data` and offsets previously captured
     /// with [StateTableParts::read] on the same data.
     #[inline]
-    pub fn from_parts(data: FontData<'a>, parts: &StateTableParts) -> Result<Self, ReadError> {
-        let class_table = LookupU16::read(
-            data.split_off(parts.class_table_offset as usize)
-                .ok_or(ReadError::OutOfBounds)?,
-        )?;
-        let state_array = safe_read_array_to_end(&data, parts.state_array_offset as usize)?;
-        let entry_table = data
-            .as_bytes()
-            .get(parts.entry_table_offset as usize..)
-            .ok_or(ReadError::OutOfBounds)?;
-        Ok(Self {
+    pub fn from_parts(data: FontData<'a>, parts: &StateTableParts) -> Option<Self> {
+        let class_table =
+            LookupU16::read(data.split_off(parts.class_table_offset as usize)?).ok()?;
+        let state_array = safe_read_array_to_end(&data, parts.state_array_offset as usize).ok()?;
+        let entry_table = data.as_bytes().get(parts.entry_table_offset as usize..)?;
+        Some(Self {
             n_classes: parts.n_classes as usize,
             class_table,
             state_array,
@@ -689,7 +641,7 @@ mod tests {
         for gid in 0..=8 {
             assert_eq!(lookup.value(gid).unwrap(), gid * 2);
         }
-        assert!(lookup.value(9).is_err());
+        assert!(lookup.value(9).is_none());
     }
 
     // Taken from example 2 at https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6morx.html
@@ -717,7 +669,7 @@ mod tests {
             }
         }
         for fail in [0, 10, 19, 29, 0xFFFF] {
-            assert!(lookup.value(fail).is_err());
+            assert!(lookup.value(fail).is_none());
         }
     }
 
@@ -757,7 +709,7 @@ mod tests {
             assert_eq!(lookup.value(in_glyph).unwrap(), out_glyph);
         }
         for fail in [0, 10, 19, 29, 0xFFFF] {
-            assert!(lookup.value(fail).is_err());
+            assert!(lookup.value(fail).is_none());
         }
     }
 
@@ -785,7 +737,7 @@ mod tests {
             assert_eq!(lookup.value(in_glyph).unwrap(), out_glyph);
         }
         for fail in [0, 10, 49, 52, 203, 0xFFFF] {
-            assert!(lookup.value(fail).is_err());
+            assert!(lookup.value(fail).is_none());
         }
     }
 
@@ -806,7 +758,7 @@ mod tests {
             assert_eq!(lookup.value(gid).unwrap(), *expected);
         }
         for fail in [0, 10, 200, 210, 0xFFFF] {
-            assert!(lookup.value(fail).is_err());
+            assert!(lookup.value(fail).is_none());
         }
     }
 
@@ -828,7 +780,7 @@ mod tests {
             assert_eq!(lookup.value(gid).unwrap(), expected);
         }
         for fail in [0, 10, 200, 210, 0xFFFF] {
-            assert!(lookup.value(fail).is_err());
+            assert!(lookup.value(fail).is_none());
         }
     }
 

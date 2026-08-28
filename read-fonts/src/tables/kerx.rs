@@ -61,11 +61,12 @@ impl<'a> Subtable<'a> {
     }
 
     /// Returns an enum representing the actual subtable data.
-    pub fn kind(&self) -> Result<SubtableKind<'a>, ReadError> {
+    pub fn kind(&self) -> Option<SubtableKind<'a>> {
         SubtableKind::read_with_args(
             FontData::new(self.data()),
             (self.coverage(), self.tuple_count()),
         )
+        .ok()
     }
 }
 

@@ -48,8 +48,8 @@ impl<'a> Subtable<'a> {
     }
 
     /// Returns the format-specific subtable data.
-    pub fn kind(&self) -> Result<SubtableKind<'a>, ReadError> {
-        SubtableKind::read_with_args(FontData::new(self.data()), self.coverage())
+    pub fn kind(&self) -> Option<SubtableKind<'a>> {
+        SubtableKind::read_with_args(FontData::new(self.data()), self.coverage()).ok()
     }
 }
 
@@ -92,55 +92,52 @@ pub struct SubtableParts {
 
 impl SubtableKind<'_> {
     /// Captures the offsets needed to rebuild this subtable kind from the same data.
-    pub fn parts(data: FontData, coverage: u16) -> Result<SubtableParts, ReadError> {
+    pub fn parts(data: FontData, coverage: u16) -> Option<SubtableParts> {
         let format = (coverage & 0xFF) as u8;
         let mut parts = SubtableParts {
             format,
             ..Default::default()
         };
         if format == 4 {
-            return Ok(parts);
+            return Some(parts);
         }
         parts.state = LegacyStateTableParts::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(StateTable::<NoPayload>::HEADER_LEN);
         match format {
-            1 | 5 => parts.extra[0] = cursor.read::<u16>()?,
+            1 | 5 => parts.extra[0] = cursor.read::<u16>().ok()?,
             2 => {
-                parts.extra[0] = cursor.read::<u16>()?;
-                parts.extra[1] = cursor.read::<u16>()?;
-                parts.extra[2] = cursor.read::<u16>()?;
+                parts.extra[0] = cursor.read::<u16>().ok()?;
+                parts.extra[1] = cursor.read::<u16>().ok()?;
+                parts.extra[2] = cursor.read::<u16>().ok()?;
             }
             _ => {}
         }
-        Ok(parts)
+        Some(parts)
     }
 
     /// Rebuilds a subtable kind from data and previously captured offsets.
     #[inline]
-    pub fn from_parts<'a>(
-        data: FontData<'a>,
-        parts: &SubtableParts,
-    ) -> Result<SubtableKind<'a>, ReadError> {
+    pub fn from_parts<'a>(data: FontData<'a>, parts: &SubtableParts) -> Option<SubtableKind<'a>> {
         match parts.format {
-            0 => Ok(SubtableKind::Rearrangement(StateTable::from_parts(
+            0 => Some(SubtableKind::Rearrangement(StateTable::from_parts(
                 data,
                 &parts.state,
             )?)),
-            1 => Ok(SubtableKind::Contextual(ContextualSubtable {
+            1 => Some(SubtableKind::Contextual(ContextualSubtable {
                 state_table: StateTable::from_parts(data, &parts.state)?,
                 data,
             })),
-            2 => Ok(SubtableKind::Ligature(LigatureSubtable {
+            2 => Some(SubtableKind::Ligature(LigatureSubtable {
                 state_table: StateTable::from_parts(data, &parts.state)?,
                 data,
             })),
-            4 => Ok(SubtableKind::NonContextual(LookupU16::read(data)?)),
-            5 => Ok(SubtableKind::Insertion(InsertionSubtable {
+            4 => Some(SubtableKind::NonContextual(LookupU16::read(data).ok()?)),
+            5 => Some(SubtableKind::Insertion(InsertionSubtable {
                 state_table: StateTable::from_parts(data, &parts.state)?,
-                glyphs: safe_read_array_to_end(&data, parts.extra[0] as usize)?,
+                glyphs: safe_read_array_to_end(&data, parts.extra[0] as usize).ok()?,
             })),
-            format => Err(ReadError::InvalidFormat(format as _)),
+            _ => None,
         }
     }
 }
@@ -154,15 +151,12 @@ pub struct ContextualSubtable<'a> {
 
 impl ContextualSubtable<'_> {
     /// Resolves a legacy signed word offset for the specified glyph.
-    pub fn substitution(&self, offset: i16, glyph: GlyphId16) -> Result<GlyphId16, ReadError> {
-        let word = i32::from(offset)
-            .checked_add(i32::from(glyph.to_u16()))
-            .ok_or(ReadError::OutOfBounds)?;
+    pub fn substitution(&self, offset: i16, glyph: GlyphId16) -> Option<GlyphId16> {
+        let word = i32::from(offset).checked_add(i32::from(glyph.to_u16()))?;
         let byte = usize::try_from(word)
             .ok()
-            .and_then(|word| word.checked_mul(u16::RAW_BYTE_LEN))
-            .ok_or(ReadError::OutOfBounds)?;
-        self.data.read_at(byte)
+            .and_then(|word| word.checked_mul(u16::RAW_BYTE_LEN))?;
+        self.data.read_at(byte).ok()
     }
 }
 
@@ -189,22 +183,21 @@ pub struct LigatureSubtable<'a> {
 
 impl LigatureSubtable<'_> {
     /// Reads an action at an absolute byte offset from the subtable start.
-    pub fn ligature_action(&self, offset: usize) -> Result<u32, ReadError> {
-        self.data.read_at(offset)
+    pub fn ligature_action(&self, offset: usize) -> Option<u32> {
+        self.data.read_at(offset).ok()
     }
 
     /// Reads a component at an absolute word offset from the subtable start.
-    pub fn component(&self, offset: i32) -> Result<u16, ReadError> {
+    pub fn component(&self, offset: i32) -> Option<u16> {
         let byte = usize::try_from(offset)
             .ok()
-            .and_then(|offset| offset.checked_mul(u16::RAW_BYTE_LEN))
-            .ok_or(ReadError::OutOfBounds)?;
-        self.data.read_at(byte)
+            .and_then(|offset| offset.checked_mul(u16::RAW_BYTE_LEN))?;
+        self.data.read_at(byte).ok()
     }
 
     /// Reads a ligature glyph at an absolute byte offset from the subtable start.
-    pub fn ligature(&self, offset: usize) -> Result<GlyphId16, ReadError> {
-        self.data.read_at(offset)
+    pub fn ligature(&self, offset: usize) -> Option<GlyphId16> {
+        self.data.read_at(offset).ok()
     }
 }
 

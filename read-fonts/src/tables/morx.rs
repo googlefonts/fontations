@@ -57,8 +57,8 @@ impl<'a> Subtable<'a> {
     }
 
     /// Returns an enum representing the actual subtable data.
-    pub fn kind(&self) -> Result<SubtableKind<'a>, ReadError> {
-        SubtableKind::read_with_args(FontData::new(self.data()), self.coverage())
+    pub fn kind(&self) -> Option<SubtableKind<'a>> {
+        SubtableKind::read_with_args(FontData::new(self.data()), self.coverage()).ok()
     }
 }
 
@@ -110,7 +110,7 @@ pub struct SubtableParts {
 impl<'a> SubtableKind<'a> {
     /// Captures the offsets needed to rebuild this subtable kind from the
     /// same data with [SubtableKind::from_parts].
-    pub fn parts(data: FontData<'a>, coverage: u32) -> Result<SubtableParts, ReadError> {
+    pub fn parts(data: FontData<'a>, coverage: u32) -> Option<SubtableParts> {
         let format = (coverage & 0xFF) as u8;
         let mut parts = SubtableParts {
             format,
@@ -118,31 +118,31 @@ impl<'a> SubtableKind<'a> {
         };
         if format == 4 {
             // Non-contextual: a bare lookup table, no state header.
-            return Ok(parts);
+            return Some(parts);
         }
         parts.state = StateTableParts::read(data)?;
         let mut cursor = data.cursor();
         cursor.advance_by(ExtendedStateTable::<()>::HEADER_LEN);
         match format {
             1 | 5 => {
-                parts.extra[0] = cursor.read::<u32>()?;
+                parts.extra[0] = cursor.read::<u32>().ok()?;
             }
             2 => {
-                parts.extra[0] = cursor.read::<u32>()?;
-                parts.extra[1] = cursor.read::<u32>()?;
-                parts.extra[2] = cursor.read::<u32>()?;
+                parts.extra[0] = cursor.read::<u32>().ok()?;
+                parts.extra[1] = cursor.read::<u32>().ok()?;
+                parts.extra[2] = cursor.read::<u32>().ok()?;
             }
             _ => {}
         }
-        Ok(parts)
+        Some(parts)
     }
 
     /// Rebuilds the subtable kind from `data` and offsets previously
     /// captured with [SubtableKind::parts] on the same data.
     #[inline]
-    pub fn from_parts(data: FontData<'a>, parts: &SubtableParts) -> Result<Self, ReadError> {
+    pub fn from_parts(data: FontData<'a>, parts: &SubtableParts) -> Option<Self> {
         match parts.format {
-            0 => Ok(Self::Rearrangement(ExtendedStateTable::from_parts(
+            0 => Some(Self::Rearrangement(ExtendedStateTable::from_parts(
                 data,
                 &parts.state,
             )?)),
@@ -150,26 +150,27 @@ impl<'a> SubtableKind<'a> {
                 let state_table = ExtendedStateTable::from_parts(data, &parts.state)?;
                 let offset = parts.extra[0] as usize;
                 let end = data.len();
-                let offsets_data = FontData::new(data.read_array(offset..end)?);
-                let raw_offsets: &[BigEndian<Offset32>] = safe_read_array_to_end(&offsets_data, 0)?;
+                let offsets_data = FontData::new(data.read_array(offset..end).ok()?);
+                let raw_offsets: &[BigEndian<Offset32>] =
+                    safe_read_array_to_end(&offsets_data, 0).ok()?;
                 let lookups = ArrayOfOffsets::new(raw_offsets, offsets_data, ());
-                Ok(Self::Contextual(ContextualSubtable {
+                Some(Self::Contextual(ContextualSubtable {
                     state_table,
                     lookups,
                 }))
             }
-            2 => Ok(Self::Ligature(LigatureSubtable {
+            2 => Some(Self::Ligature(LigatureSubtable {
                 state_table: ExtendedStateTable::from_parts(data, &parts.state)?,
-                ligature_actions: safe_read_array_to_end(&data, parts.extra[0] as usize)?,
-                components: safe_read_array_to_end(&data, parts.extra[1] as usize)?,
-                ligatures: safe_read_array_to_end(&data, parts.extra[2] as usize)?,
+                ligature_actions: safe_read_array_to_end(&data, parts.extra[0] as usize).ok()?,
+                components: safe_read_array_to_end(&data, parts.extra[1] as usize).ok()?,
+                ligatures: safe_read_array_to_end(&data, parts.extra[2] as usize).ok()?,
             })),
-            4 => Ok(Self::NonContextual(LookupU16::read(data)?)),
-            5 => Ok(Self::Insertion(InsertionSubtable {
+            4 => Some(Self::NonContextual(LookupU16::read(data).ok()?)),
+            5 => Some(Self::Insertion(InsertionSubtable {
                 state_table: ExtendedStateTable::from_parts(data, &parts.state)?,
-                glyphs: safe_read_array_to_end(&data, parts.extra[0] as usize)?,
+                glyphs: safe_read_array_to_end(&data, parts.extra[0] as usize).ok()?,
             })),
-            _ => Err(ReadError::InvalidFormat(parts.format as _)),
+            _ => None,
         }
     }
 }
@@ -316,7 +317,7 @@ mod tests {
         };
         let lookup = kind.lookups.get(0).unwrap();
         let expected = [None, None, Some(7u16), Some(8), Some(9), Some(10), Some(11)];
-        let values = (0..7).map(|gid| lookup.value(gid).ok()).collect::<Vec<_>>();
+        let values = (0..7).map(|gid| lookup.value(gid)).collect::<Vec<_>>();
         assert_eq!(values, &expected);
     }
 
@@ -369,7 +370,7 @@ mod tests {
             panic!("expected non-contextual subtable!");
         };
         let expected_values = [None, None, Some(5u16), None, Some(7)];
-        let values = (0..5).map(|gid| kind.value(gid).ok()).collect::<Vec<_>>();
+        let values = (0..5).map(|gid| kind.value(gid)).collect::<Vec<_>>();
         assert_eq!(values, &expected_values);
     }
 
