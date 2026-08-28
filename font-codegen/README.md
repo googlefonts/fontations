@@ -224,10 +224,6 @@ The following annotations are supported on top-level objects:
 - `#[validate(arg)]`: arg is either the literal 'skip' or the name of a method.
   If the name of a method, that method will be called during validation, and can
   implement custom validation logic.
-- `#[traverse_with(method name)]`: uncommon/hacky: provides a method name that
-  will be called in traversal code to get the `FieldType` for this field.
-  To skip traversing this field, you can use the 'skip' keyword
-  (`#[traverse_with(skip)]`).
 - `#[to_owned(expr)]`: uncommon/hacky: provide an expression that will be used
   in `FromObjRef` to convert the parse type to the compile type.
 

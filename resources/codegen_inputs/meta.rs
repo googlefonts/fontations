@@ -28,7 +28,6 @@ record DataMapRecord {
     tag: Tag,
     /// Offset in bytes from the beginning of the metadata table to the data for this tag.
     #[read_offset_with($tag, $data_length)]
-    #[traverse_with(skip)]
     #[validate(validate_data_type)]
     data_offset: Offset32<Metadata>,
     /// Length of the data, in bytes. The data is not required to be padded to any byte boundary.

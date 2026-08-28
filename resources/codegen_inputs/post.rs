@@ -53,6 +53,5 @@ table Post {
     #[count(..)]
     #[validate(skip)]
     #[since_version(2.0)]
-    #[traverse_with(traverse_string_data)]
     string_data: VarLenArray<PString<'a>>,
 }

@@ -119,7 +119,6 @@ table Lookup {
     #[discriminant]
     lookup_type: u16,
     /// Lookup qualifiers
-    #[traverse_with(traverse_lookup_flag)]
     lookup_flag: LookupFlag,
     /// Number of subtables for this lookup
     #[compile(array_len($subtable_offsets))]
