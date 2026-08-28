@@ -533,12 +533,12 @@ impl<'a> PackedDeltaFetcher<'a> {
     }
 
     #[inline(always)]
-    fn ensure_run(&mut self) -> Result<(), ReadError> {
+    fn ensure_run(&mut self) -> Option<()> {
         if self.run_count > 0 {
-            return Ok(());
+            return Some(());
         }
         if self.pos >= self.end {
-            return Err(ReadError::OutOfBounds);
+            return None;
         }
         let control = self.data[self.pos];
         self.pos += 1;
@@ -547,15 +547,15 @@ impl<'a> PackedDeltaFetcher<'a> {
         let width = self.value_type as usize;
         let needed = self.run_count * width;
         if self.pos + needed > self.end {
-            return Err(ReadError::OutOfBounds);
+            return None;
         }
-        Ok(())
+        Some(())
     }
 
-    pub fn skip(&mut self, mut n: usize) -> Result<(), ReadError> {
+    pub fn skip(&mut self, mut n: usize) -> Option<()> {
         if let Some(remaining_total) = self.remaining_total {
             if n > remaining_total {
-                return Err(ReadError::OutOfBounds);
+                return None;
             }
             self.remaining_total = Some(remaining_total - n);
         }
@@ -567,14 +567,14 @@ impl<'a> PackedDeltaFetcher<'a> {
             self.run_count -= take;
             n -= take;
         }
-        Ok(())
+        Some(())
     }
 
-    pub fn add_to_f32_scaled(&mut self, out: &mut [f32], scale: f32) -> Result<(), ReadError> {
+    pub fn add_to_f32_scaled(&mut self, out: &mut [f32], scale: f32) -> Option<()> {
         let mut remaining = out.len();
         if let Some(remaining_total) = self.remaining_total {
             if remaining > remaining_total {
-                return Err(ReadError::OutOfBounds);
+                return None;
             }
             self.remaining_total = Some(remaining_total - remaining);
         }
@@ -618,7 +618,7 @@ impl<'a> PackedDeltaFetcher<'a> {
             self.run_count -= take;
             remaining -= take;
         }
-        Ok(())
+        Some(())
     }
 }
 
@@ -1098,7 +1098,7 @@ impl TupleVariation<'_, GlyphDelta> {
         &self,
         deltas: &mut [Point<D>],
         scalar: Fixed,
-    ) -> Result<(), ReadError> {
+    ) -> Option<()> {
         let (_, packed_deltas) = self.point_numbers_and_packed_deltas();
         let mut cursor = packed_deltas.cursor();
         if scalar == Fixed::ONE {
@@ -1118,7 +1118,7 @@ impl TupleVariation<'_, GlyphDelta> {
                 delta.y += D::from_fixed(Fixed::from_i32(new_delta) * scalar);
             })?;
         }
-        Ok(())
+        Some(())
     }
 
     /// Reads the set of deltas from this tuple variation.
@@ -1147,7 +1147,7 @@ impl TupleVariation<'_, GlyphDelta> {
         deltas: &mut [Point<D>],
         flags: &mut [PointFlags],
         scalar: Fixed,
-    ) -> Result<(), ReadError> {
+    ) -> Option<()> {
         let (point_numbers, packed_deltas) = self.point_numbers_and_packed_deltas();
         let mut cursor = packed_deltas.cursor();
         let count = point_numbers.count() as usize;
@@ -1178,7 +1178,7 @@ impl TupleVariation<'_, GlyphDelta> {
                 }
             })?;
         }
-        Ok(())
+        Some(())
     }
 }
 
@@ -1190,32 +1190,30 @@ fn read_dense_deltas<T>(
     cursor: &mut Cursor,
     deltas: &mut [T],
     mut f: impl FnMut(&mut T, i32),
-) -> Result<(), ReadError> {
+) -> Option<()> {
     let count = deltas.len();
     let mut cur = 0;
     while cur < count {
-        let control: u8 = cursor.read()?;
+        let control: u8 = cursor.read().ok()?;
         let value_type = DeltaRunType::new(control);
         let run_count = ((control & DELTA_RUN_COUNT_MASK) + 1) as usize;
-        let dest = deltas
-            .get_mut(cur..cur + run_count)
-            .ok_or(ReadError::OutOfBounds)?;
+        let dest = deltas.get_mut(cur..cur + run_count)?;
         match value_type {
             DeltaRunType::Zero => {}
             DeltaRunType::I8 => {
-                let packed_deltas = cursor.read_array::<i8>(run_count)?;
+                let packed_deltas = cursor.read_array::<i8>(run_count).ok()?;
                 for (delta, new_delta) in dest.iter_mut().zip(packed_deltas) {
                     f(delta, *new_delta as i32);
                 }
             }
             DeltaRunType::I16 => {
-                let packed_deltas = cursor.read_array::<BigEndian<i16>>(run_count)?;
+                let packed_deltas = cursor.read_array::<BigEndian<i16>>(run_count).ok()?;
                 for (delta, new_delta) in dest.iter_mut().zip(packed_deltas) {
                     f(delta, new_delta.get() as i32);
                 }
             }
             DeltaRunType::I32 => {
-                let packed_deltas = cursor.read_array::<BigEndian<i32>>(run_count)?;
+                let packed_deltas = cursor.read_array::<BigEndian<i32>>(run_count).ok()?;
                 for (delta, new_delta) in dest.iter_mut().zip(packed_deltas) {
                     f(delta, new_delta.get());
                 }
@@ -1223,7 +1221,7 @@ fn read_dense_deltas<T>(
         }
         cur += run_count;
     }
-    Ok(())
+    Some(())
 }
 
 /// See [read_dense_deltas] docs.
@@ -1232,34 +1230,34 @@ fn read_sparse_deltas(
     point_numbers: &PackedPointNumbers,
     count: usize,
     mut f: impl FnMut(usize, i32),
-) -> Result<(), ReadError> {
+) -> Option<()> {
     let mut cur = 0;
     let mut points_iter = point_numbers.iter().map(|ix| ix as usize);
     while cur < count {
-        let control: u8 = cursor.read()?;
+        let control: u8 = cursor.read().ok()?;
         let value_type = DeltaRunType::new(control);
         let run_count = ((control & DELTA_RUN_COUNT_MASK) + 1) as usize;
         match value_type {
             DeltaRunType::Zero => {
                 for _ in 0..run_count {
-                    let point_ix = points_iter.next().ok_or(ReadError::OutOfBounds)?;
+                    let point_ix = points_iter.next()?;
                     f(point_ix, 0);
                 }
             }
             DeltaRunType::I8 => {
-                let packed_deltas = cursor.read_array::<i8>(run_count)?;
+                let packed_deltas = cursor.read_array::<i8>(run_count).ok()?;
                 for (new_delta, point_ix) in packed_deltas.iter().zip(points_iter.by_ref()) {
                     f(point_ix, *new_delta as i32);
                 }
             }
             DeltaRunType::I16 => {
-                let packed_deltas = cursor.read_array::<BigEndian<i16>>(run_count)?;
+                let packed_deltas = cursor.read_array::<BigEndian<i16>>(run_count).ok()?;
                 for (new_delta, point_ix) in packed_deltas.iter().zip(points_iter.by_ref()) {
                     f(point_ix, new_delta.get() as i32);
                 }
             }
             DeltaRunType::I32 => {
-                let packed_deltas = cursor.read_array::<BigEndian<i32>>(run_count)?;
+                let packed_deltas = cursor.read_array::<BigEndian<i32>>(run_count).ok()?;
                 for (new_delta, point_ix) in packed_deltas.iter().zip(points_iter.by_ref()) {
                     f(point_ix, new_delta.get());
                 }
@@ -1267,7 +1265,7 @@ fn read_sparse_deltas(
         }
         cur += run_count;
     }
-    Ok(())
+    Some(())
 }
 
 /// Compute the fixed point scalar for this tuple at the given location in
@@ -1438,13 +1436,13 @@ impl EntryFormat {
 
 impl DeltaSetIndexMap<'_> {
     /// Returns the delta set index for the specified value.
-    pub fn get(&self, index: u32) -> Result<DeltaSetIndex, ReadError> {
+    pub fn get(&self, index: u32) -> Option<DeltaSetIndex> {
         let (entry_format, map_count, data) = match self {
             Self::Format0(fmt) => (fmt.entry_format(), fmt.map_count() as u32, fmt.map_data()),
             Self::Format1(fmt) => (fmt.entry_format(), fmt.map_count(), fmt.map_data()),
         };
         if map_count == 0 {
-            return Ok(DeltaSetIndex {
+            return Some(DeltaSetIndex {
                 outer: (index >> 16) as u16,
                 inner: index as u16,
             });
@@ -1458,18 +1456,14 @@ impl DeltaSetIndexMap<'_> {
         let index = index.min(map_count.saturating_sub(1));
         let offset = index as usize * entry_size as usize;
         let entry = match entry_size {
-            1 => data.read_at::<u8>(offset)? as u32,
-            2 => data.read_at::<u16>(offset)? as u32,
-            3 => data.read_at::<Uint24>(offset)?.into(),
-            4 => data.read_at::<u32>(offset)?,
-            _ => {
-                return Err(ReadError::MalformedData(
-                    "invalid entry size in DeltaSetIndexMap",
-                ))
-            }
+            1 => data.read_at::<u8>(offset).ok()? as u32,
+            2 => data.read_at::<u16>(offset).ok()? as u32,
+            3 => data.read_at::<Uint24>(offset).ok()?.into(),
+            4 => data.read_at::<u32>(offset).ok()?,
+            _ => return None,
         };
         let bit_count = entry_format.bit_count();
-        Ok(DeltaSetIndex {
+        Some(DeltaSetIndex {
             outer: (entry >> bit_count) as u16,
             inner: (entry & ((1 << bit_count) - 1)) as u16,
         })
@@ -1479,35 +1473,26 @@ impl DeltaSetIndexMap<'_> {
 impl ItemVariationStore<'_> {
     /// Computes the delta value for the specified index and set of normalized
     /// variation coordinates.
-    pub fn compute_delta(
-        &self,
-        index: DeltaSetIndex,
-        coords: &[F2Dot14],
-    ) -> Result<i32, ReadError> {
+    pub fn compute_delta(&self, index: DeltaSetIndex, coords: &[F2Dot14]) -> Option<i32> {
         if coords.is_empty() || index == DeltaSetIndex::NO_VARIATION_INDEX {
-            return Ok(0);
+            return Some(0);
         }
         let data = match self.item_variation_data().get(index.outer as usize) {
-            Some(data) => data?,
-            None => return Ok(0),
+            Some(data) => data.ok()?,
+            None => return Some(0),
         };
-        let regions = self.variation_region_list()?.variation_regions();
+        let regions = self.variation_region_list().ok()?.variation_regions();
         let region_indices = data.region_indexes();
         // Compute deltas with 64-bit precision.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/7ab541a2/src/truetype/ttgxvar.c#L1094>
         let mut accum = 0i64;
         for (i, region_delta) in data.delta_set(index.inner).enumerate() {
-            let region_index = region_indices
-                .get(i)
-                .ok_or(ReadError::MalformedData(
-                    "invalid delta sets in ItemVariationStore",
-                ))?
-                .get() as usize;
-            let region = regions.get(region_index)?;
+            let region_index = region_indices.get(i)?.get() as usize;
+            let region = regions.get(region_index).ok()?;
             let scalar = region.compute_scalar(coords);
             accum += region_delta as i64 * scalar.to_bits() as i64;
         }
-        Ok(((accum + 0x8000) >> 16) as i32)
+        Some(((accum + 0x8000) >> 16) as i32)
     }
 
     /// Computes the delta value in floating point for the specified index and set
@@ -1516,30 +1501,25 @@ impl ItemVariationStore<'_> {
         &self,
         index: DeltaSetIndex,
         coords: &[F2Dot14],
-    ) -> Result<FloatItemDelta, ReadError> {
+    ) -> Option<FloatItemDelta> {
         if coords.is_empty() {
-            return Ok(FloatItemDelta::ZERO);
+            return Some(FloatItemDelta::ZERO);
         }
         let data = match self.item_variation_data().get(index.outer as usize) {
-            Some(data) => data?,
-            None => return Ok(FloatItemDelta::ZERO),
+            Some(data) => data.ok()?,
+            None => return Some(FloatItemDelta::ZERO),
         };
-        let regions = self.variation_region_list()?.variation_regions();
+        let regions = self.variation_region_list().ok()?.variation_regions();
         let region_indices = data.region_indexes();
         // Compute deltas in 64-bit floating point.
         let mut accum = 0f64;
         for (i, region_delta) in data.delta_set(index.inner).enumerate() {
-            let region_index = region_indices
-                .get(i)
-                .ok_or(ReadError::MalformedData(
-                    "invalid delta sets in ItemVariationStore",
-                ))?
-                .get() as usize;
-            let region = regions.get(region_index)?;
+            let region_index = region_indices.get(i)?.get() as usize;
+            let region = regions.get(region_index).ok()?;
             let scalar = region.compute_scalar_f32(coords);
             accum += region_delta as f64 * scalar as f64;
         }
-        Ok(FloatItemDelta(accum))
+        Some(FloatItemDelta(accum))
     }
 }
 
@@ -1746,13 +1726,13 @@ pub(crate) fn advance_delta(
     }
     let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid).ok()?,
+        Some(Ok(dsim)) => dsim.get(gid)?,
         _ => DeltaSetIndex {
             outer: 0,
             inner: gid as _,
         },
     };
-    Some(Fixed::from_i32(ivs.ok()?.compute_delta(ix, coords).ok()?))
+    Some(Fixed::from_i32(ivs.ok()?.compute_delta(ix, coords)?))
 }
 
 pub(crate) fn item_delta(
@@ -1766,10 +1746,10 @@ pub(crate) fn item_delta(
     }
     let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid).ok()?,
+        Some(Ok(dsim)) => dsim.get(gid)?,
         _ => return None,
     };
-    Some(Fixed::from_i32(ivs.ok()?.compute_delta(ix, coords).ok()?))
+    Some(Fixed::from_i32(ivs.ok()?.compute_delta(ix, coords)?))
 }
 
 #[cfg(test)]
@@ -1925,10 +1905,7 @@ mod tests {
         }
 
         let mut fetcher = deltas.fetcher();
-        assert!(matches!(
-            fetcher.skip(expected.len() + 1),
-            Err(ReadError::OutOfBounds)
-        ));
+        assert!(fetcher.skip(expected.len() + 1).is_none());
     }
 
     #[test]
@@ -1945,10 +1922,7 @@ mod tests {
 
         // Bounded fetcher should now be exhausted.
         let mut extra = [0.0f32; 1];
-        assert!(matches!(
-            fetcher.add_to_f32_scaled(&mut extra, 1.0),
-            Err(ReadError::OutOfBounds)
-        ));
+        assert!(fetcher.add_to_f32_scaled(&mut extra, 1.0).is_none());
     }
 
     #[test]
@@ -2083,10 +2057,7 @@ mod tests {
 
             // Bounded fetcher should be exhausted after consuming all remaining entries.
             let mut extra = [0.0f32; 1];
-            assert!(matches!(
-                fetcher.add_to_f32_scaled(&mut extra, 1.0),
-                Err(ReadError::OutOfBounds)
-            ));
+            assert!(fetcher.add_to_f32_scaled(&mut extra, 1.0).is_none());
         }
     }
 

@@ -186,8 +186,8 @@ impl<'a> Fvar<'a> {
             for (i, coord) in fixed_coords.iter_mut().enumerate() {
                 let var_index = if let Some(Ok(ref map)) = var_index_map {
                     match map.get(i as u32) {
-                        Ok(index) => index,
-                        Err(_) => continue,
+                        Some(index) => index,
+                        None => continue,
                     }
                 } else {
                     DeltaSetIndex {
@@ -195,7 +195,7 @@ impl<'a> Fvar<'a> {
                         inner: i as u16,
                     }
                 };
-                if let Ok(delta) = varstore.compute_float_delta(var_index, coords_2dot14) {
+                if let Some(delta) = varstore.compute_float_delta(var_index, coords_2dot14) {
                     *coord =
                         apply_avar2_delta(*coord, delta.to_f64()).clamp(Fixed::NEG_ONE, Fixed::ONE);
                 }

@@ -26,17 +26,17 @@ impl<'a> Get<'a> for Option<Result<Index2<'a>, ReadError>> {
 
 impl Varc<'_> {
     /// Friendlier accessor than directly using raw data via [Index2]
-    pub fn axis_indices(&self, nth: usize) -> Result<PackedDeltas<'_>, ReadError> {
-        let raw = self.axis_indices_list().get(nth)?;
-        Ok(PackedDeltas::consume_all(raw.into()))
+    pub fn axis_indices(&self, nth: usize) -> Option<PackedDeltas<'_>> {
+        let raw = self.axis_indices_list().get(nth).ok()?;
+        Some(PackedDeltas::consume_all(raw.into()))
     }
 
     /// Friendlier accessor than directly using raw data via [Index2]
     ///
     /// nth would typically be obtained by looking up a [GlyphId] in [Self::coverage].
-    pub fn glyph(&self, nth: usize) -> Result<VarcGlyph<'_>, ReadError> {
-        let raw = Some(self.var_composite_glyphs()).get(nth)?;
-        Ok(VarcGlyph {
+    pub fn glyph(&self, nth: usize) -> Option<VarcGlyph<'_>> {
+        let raw = Some(self.var_composite_glyphs()).get(nth).ok()?;
+        Some(VarcGlyph {
             table: self,
             data: raw.into(),
         })
@@ -161,7 +161,8 @@ impl<'a> VarcComponent<'a> {
             // <https://github.com/harfbuzz/harfbuzz/blob/0c2f5ecd51d11e32836ee136a1bc765d650a4ec0/src/OT/Var/VARC/VARC.cc#L195-L206>
             let axis_indices_index = cursor.read_u32_var()?;
             let num_axis_values = table
-                .axis_indices(axis_indices_index as usize)?
+                .axis_indices(axis_indices_index as usize)
+                .ok_or(ReadError::OutOfBounds)?
                 .count_or_compute();
             // we need to consume num_axis_values entries in packed delta format
             let deltas = if num_axis_values > 0 {
@@ -442,17 +443,17 @@ impl DecomposedTransform {
 
 impl<'a> MultiItemVariationData<'a> {
     /// An [Index2] where each item is a [PackedDeltas]
-    pub fn delta_sets(&self) -> Result<Index2<'a>, ReadError> {
-        Index2::read(self.raw_delta_sets().into())
+    pub fn delta_sets(&self) -> Option<Index2<'a>> {
+        Index2::read(self.raw_delta_sets().into()).ok()
     }
 
     /// Read a specific delta set.
     ///
     /// Equivalent to calling [Self::delta_sets], fetching item i, and parsing as [PackedDeltas]
-    pub fn delta_set(&self, i: usize) -> Result<PackedDeltas<'a>, ReadError> {
+    pub fn delta_set(&self, i: usize) -> Option<PackedDeltas<'a>> {
         let index = self.delta_sets()?;
-        let raw_deltas = index.get(i).ok_or(ReadError::OutOfBounds)?;
-        Ok(PackedDeltas::consume_all(raw_deltas.into()))
+        let raw_deltas = index.get(i)?;
+        Some(PackedDeltas::consume_all(raw_deltas.into()))
     }
 }
 
@@ -707,7 +708,7 @@ mod tests {
 
         let font = FontRef::new(&bytes).unwrap();
         let table = font.varc().unwrap();
-        assert!(matches!(table.axis_indices(0), Err(ReadError::OutOfBounds)));
+        assert!(table.axis_indices(0).is_none());
     }
 
     #[test]
@@ -723,7 +724,7 @@ mod tests {
 
         let font = FontRef::new(&bytes).unwrap();
         let table = font.varc().unwrap();
-        assert!(matches!(table.glyph(0), Err(ReadError::OutOfBounds)));
+        assert!(table.glyph(0).is_none());
     }
 
     #[test]
@@ -1010,14 +1011,12 @@ mod tests {
 
         let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
         let mut out = [0.0; 5];
-        assert!(matches!(
-            component
-                .axis_values()
-                .unwrap()
-                .fetcher()
-                .add_to_f32_scaled(&mut out, 1.0),
-            Err(ReadError::OutOfBounds)
-        ));
+        assert!(component
+            .axis_values()
+            .unwrap()
+            .fetcher()
+            .add_to_f32_scaled(&mut out, 1.0)
+            .is_none());
     }
 
     #[test]
@@ -1041,14 +1040,12 @@ mod tests {
 
         let component = super::VarcComponent::parse(&table, &mut cursor).unwrap();
         let mut out = [0.0; 5];
-        assert!(matches!(
-            component
-                .axis_values()
-                .unwrap()
-                .fetcher()
-                .add_to_f32_scaled(&mut out, 1.0),
-            Err(ReadError::OutOfBounds)
-        ));
+        assert!(component
+            .axis_values()
+            .unwrap()
+            .fetcher()
+            .add_to_f32_scaled(&mut out, 1.0)
+            .is_none());
     }
 
     #[test]

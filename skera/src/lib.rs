@@ -708,7 +708,7 @@ impl Plan {
                     delta_set_indices.extend(variation_indices.iter());
                     variation_indices.clear();
                     for idx in delta_set_indices.iter() {
-                        if let Ok(var_idx) = var_index_map.get(idx) {
+                        if let Some(var_idx) = var_index_map.get(idx) {
                             let var_idx = ((var_idx.outer as u32) << 16) + var_idx.inner as u32;
                             variation_indices.insert(var_idx);
                             deltaset_idx_var_idx_map.insert(idx, var_idx);

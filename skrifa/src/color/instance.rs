@@ -67,7 +67,7 @@ impl<'a> ColrInstance<'a> {
         if let Some(index_map) = self.index_map.as_ref() {
             for (i, delta) in deltas.iter_mut().enumerate().take(actual_count) {
                 let var_index = var_index_base + i as u32;
-                if let Ok(delta_ix) = index_map.get(var_index) {
+                if let Some(delta_ix) = index_map.get(var_index) {
                     *delta = var_store
                         .compute_float_delta(delta_ix, self.coords)
                         .unwrap_or_default();

@@ -150,7 +150,7 @@ impl IndexMapSubsetPlan {
         for (gid, old_gid) in plan.new_to_old_gid_list.iter().rev() {
             let old_gid = old_gid.to_u32();
             let val = match index_map {
-                Some(m) => m.get(old_gid)?,
+                Some(m) => m.get(old_gid).ok_or(ReadError::OutOfBounds)?,
                 None => DeltaSetIndex {
                     outer: (old_gid >> 16) as u16,
                     inner: (old_gid & 0xFFFF) as u16,
@@ -182,7 +182,10 @@ impl IndexMapSubsetPlan {
                     break;
                 }
 
-                let v = index_map.unwrap().get(old_gid.to_u32())?;
+                let v = index_map
+                    .unwrap()
+                    .get(old_gid.to_u32())
+                    .ok_or(ReadError::OutOfBounds)?;
                 let outer = v.outer as usize;
                 if outer >= this.max_inners.len() {
                     break;

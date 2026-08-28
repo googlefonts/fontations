@@ -247,7 +247,7 @@ impl<'a> Outlines<'a> {
         let glyph = self
             .varc
             .glyph(coverage_index as usize)
-            .map_err(|_| DrawError::Malformed)?;
+            .ok_or(DrawError::Malformed)?;
         for component in glyph.components() {
             let component = component.map_err(|_| DrawError::Malformed)?;
             let component_gid = component.gid();
@@ -342,7 +342,7 @@ impl<'a> Outlines<'a> {
         let glyph = self
             .varc
             .glyph(coverage_index as usize)
-            .map_err(|_| DrawError::Malformed)?;
+            .ok_or(DrawError::Malformed)?;
         stack.push(glyph_id);
         let coverage = ctx.coverage;
         let store_regions = ctx.store_regions;
@@ -523,10 +523,7 @@ impl<'a> Outlines<'a> {
     }
 
     fn axis_indices(&self, nth: usize, out: &mut AxisIndexVec) -> Result<usize, DrawError> {
-        let packed = self
-            .varc
-            .axis_indices(nth)
-            .map_err(|_| DrawError::Malformed)?;
+        let packed = self.varc.axis_indices(nth).ok_or(DrawError::Malformed)?;
         out.clear();
         for value in packed.iter() {
             out.push(value as u16);
@@ -829,10 +826,7 @@ fn compute_tuple_deltas(
         .get(outer)
         .map_err(|_| DrawError::Malformed)?;
     let region_indices = data.region_indices();
-    let mut deltas = data
-        .delta_set(inner)
-        .map_err(|_| DrawError::Malformed)?
-        .fetcher();
+    let mut deltas = data.delta_set(inner).ok_or(DrawError::Malformed)?.fetcher();
     let regions = regions.regions();
     let out_slice = out.as_mut_slice();
 
@@ -852,12 +846,12 @@ fn compute_tuple_deltas(
             skip += out_slice.len();
         } else {
             if skip != 0 {
-                deltas.skip(skip).map_err(|_| DrawError::Malformed)?;
+                deltas.skip(skip).ok_or(DrawError::Malformed)?;
                 skip = 0;
             }
             deltas
                 .add_to_f32_scaled(out_slice, scalar)
-                .map_err(|_| DrawError::Malformed)?;
+                .ok_or(DrawError::Malformed)?;
         }
     }
 
@@ -1453,7 +1447,7 @@ mod tests {
         for gid16 in outlines.coverage.iter() {
             let gid: GlyphId = gid16.into();
             let coverage_index = outlines.coverage.get(gid)?;
-            let glyph = outlines.varc.glyph(coverage_index as usize).ok()?;
+            let glyph = outlines.varc.glyph(coverage_index as usize)?;
             for component in glyph.components() {
                 let component = component.ok()?;
                 // Pick an unconditional child edge so the traversal always attempts

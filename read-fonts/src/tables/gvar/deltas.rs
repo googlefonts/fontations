@@ -138,7 +138,9 @@ impl GlyphVariationData<'_> {
             for flag in flags.iter_mut() {
                 flag.clear_marker(PointMarker::HAS_DELTA);
             }
-            tuple.accumulate_sparse_deltas(iup, flags, scalar)?;
+            tuple
+                .accumulate_sparse_deltas(iup, flags, scalar)
+                .ok_or(ReadError::OutOfBounds)?;
             interpolate_deltas(points, flags, contours, &mut iup[..])
                 .ok_or(ReadError::OutOfBounds)?;
             for ((delta, point), iup_point) in deltas.iter_mut().zip(points).zip(iup.iter()) {
@@ -195,7 +197,9 @@ impl GlyphVariationData<'_> {
             if tuple.has_deltas_for_all_points() {
                 // Fast path: the tuple covers every point, so the deltas can be
                 // accumulated directly with no interpolation.
-                tuple.accumulate_dense_deltas(deltas, scalar)?;
+                tuple
+                    .accumulate_dense_deltas(deltas, scalar)
+                    .ok_or(ReadError::OutOfBounds)?;
             } else {
                 apply_sparse_tuple(scalar, tuple, deltas)?;
             }
