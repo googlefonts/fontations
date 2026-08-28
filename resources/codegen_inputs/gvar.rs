@@ -41,7 +41,6 @@ table Gvar {
     /// GlyphVariationData table.
     #[count(add($glyph_count, 1))]
     #[read_with($flags)]
-    #[traverse_with(skip)]
     #[compile_with(compile_variation_data)]
     #[compile_type(Vec<GlyphVariationData>)]
     glyph_variation_data_offsets: ComputedArray<U16Or32>,
@@ -69,16 +68,13 @@ table GlyphVariationDataHeader {
     /// are the number of tuple variation tables for this glyph. The
     /// number of tuple variation tables can be any number between 1
     /// and 4095.
-    #[traverse_with(skip)]
     tuple_variation_count: TupleVariationCount,
     /// Offset from the start of the GlyphVariationData table to the
     /// serialized data
-    #[traverse_with(skip)]
     #[compile(skip)]
     serialized_data_offset: Offset16<FontData>,
     /// Array of tuple variation headers.
     #[count(..)]
-    #[traverse_with(skip)]
     tuple_variation_headers: VarLenArray<TupleVariationHeader<'_>>,
 }
 

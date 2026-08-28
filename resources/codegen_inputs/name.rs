@@ -39,7 +39,6 @@ record LangTagRecord {
     /// Language-tag string offset from start of storage area (in
     /// bytes).
     #[offset_getter(lang_tag)]
-    #[traverse_with(traverse_lang_tag)]
     #[compile_type(OffsetMarker<String>)]
     #[compile_with(compile_name_string)]
     #[validate(skip)]
@@ -60,7 +59,6 @@ record NameRecord {
     #[compile(skip)]
     length: u16,
     /// String offset from start of storage area (in bytes).
-    #[traverse_with(traverse_string)]
     #[offset_getter(string)]
     #[compile_type(OffsetMarker<String>)]
     #[compile_with(compile_name_string)]

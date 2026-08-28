@@ -15,7 +15,7 @@ use crate::{
         transform::{self, ScaledFontMatrix, Transform},
     },
     tables::{cff, cff2, variations::ItemVariationStore},
-    FontData, FontRead, ReadError,
+    FontData, FontRead,
 };
 use core::ops::Range;
 use types::{BoundingBox, F2Dot14, Fixed, GlyphId};
@@ -47,7 +47,8 @@ impl<'a> CffFontRef<'a> {
         match version {
             1 => Self::new_cff(data, top_dict_index, upem),
             2 => Self::new_cff2(data, upem),
-            _ => Err(Error::InvalidFontFormat),
+            // the first byte says neither 1 nor 2
+            _ => Err(Error::Malformed),
         }
     }
 
@@ -57,10 +58,11 @@ impl<'a> CffFontRef<'a> {
     /// from the `head` table. Otherwise, 1000 will be assumed.
     pub fn new_cff(data: &'a [u8], top_dict_index: u32, upem: Option<i32>) -> Result<Self, Error> {
         let cff = cff::Cff::read(data.into())?;
-        let top_dict_data = cff.top_dicts().get(top_dict_index as usize)?;
-        let top_dict_index: u16 = top_dict_index
-            .try_into()
-            .map_err(|_| ReadError::OutOfBounds)?;
+        let top_dict_data = cff
+            .top_dicts()
+            .get(top_dict_index as usize)
+            .ok_or(Error::Malformed)?;
+        let top_dict_index: u16 = top_dict_index.try_into().map_err(|_| Error::Malformed)?;
         Self::new_impl(
             data,
             false,
@@ -161,7 +163,7 @@ impl<'a> CffFontRef<'a> {
     pub fn string(&self, sid: Sid) -> Option<&'a [u8]> {
         match sid.resolve_standard() {
             Ok(s) => Some(s),
-            Err(idx) => self.strings()?.get(idx).ok(),
+            Err(idx) => self.strings()?.get(idx),
         }
     }
 
@@ -175,13 +177,12 @@ impl<'a> CffFontRef<'a> {
             self.top_dict.charset_offset.get()?,
             self.top_dict.charstrings.count(),
         )
-        .ok()
     }
 
     /// Returns the mapping from character codes to glyph identifiers.
     pub fn encoding(&self) -> Option<Encoding<'a>> {
         let charset = self.charset()?;
-        let encoding = RawEncoding::new(self.data, self.top_dict.encoding_offset.get()?).ok()?;
+        let encoding = RawEncoding::new(self.data, self.top_dict.encoding_offset.get()?)?;
         Some(Encoding { encoding, charset })
     }
 
@@ -234,7 +235,8 @@ impl<'a> CffFontRef<'a> {
                 None,
             ),
             CffFontKind::Cid { fd_array, .. } | CffFontKind::Cff2 { fd_array, .. } => {
-                let font_dict = FontDict::new(fd_array.get(index as usize)?)?;
+                let font_dict =
+                    FontDict::new(fd_array.get(index as usize).ok_or(Error::Malformed)?)?;
                 Subfont::new(
                     self.data,
                     font_dict.private_dict_range,
@@ -261,7 +263,8 @@ impl<'a> CffFontRef<'a> {
                 None,
             ),
             CffFontKind::Cid { fd_array, .. } | CffFontKind::Cff2 { fd_array, .. } => {
-                let font_dict = FontDict::new(fd_array.get(index as usize)?)?;
+                let font_dict =
+                    FontDict::new(fd_array.get(index as usize).ok_or(Error::Malformed)?)?;
                 Subfont::new_hinted(
                     self.data,
                     font_dict.private_dict_range,
@@ -351,12 +354,14 @@ impl<'a> CffFontRef<'a> {
             let data = self
                 .data
                 .get(subfont.subrs_offset as usize..)
-                .ok_or(ReadError::OutOfBounds)?;
+                .ok_or(Error::Malformed)?;
             Index::new(data, self.is_cff2)?
         } else {
             Index::Empty
         };
-        let charstring_data = charstrings.get(gid.to_u32() as usize)?;
+        let charstring_data = charstrings
+            .get(gid.to_u32() as usize)
+            .ok_or(Error::Malformed)?;
         let ctx = (self.data, &charstrings, &self.global_subrs, &subrs);
         if let Some(width) = cs::evaluate(&ctx, blend, charstring_data, sink)? {
             Ok(Some(width + subfont.nominal_width))
@@ -480,15 +485,12 @@ impl Subfont {
             matrix,
             ..Default::default()
         };
-        let data = data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
+        let data = data.get(range.clone()).ok_or(Error::Malformed)?;
         for entry in dict::entries(data, blend).filter_map(|e| e.ok()) {
             match entry {
                 dict::Entry::SubrsOffset(offset) => {
-                    subfont.subrs_offset = range
-                        .start
-                        .checked_add(offset)
-                        .ok_or(ReadError::OutOfBounds)?
-                        as u32;
+                    subfont.subrs_offset =
+                        range.start.checked_add(offset).ok_or(Error::Malformed)? as u32;
                 }
                 dict::Entry::VariationStoreIndex(index) => subfont.vs_index = index,
                 // FreeType truncates the width values to int on read
@@ -511,15 +513,12 @@ impl Subfont {
             ..Default::default()
         };
         let mut params = HintingParams::default();
-        let data = data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
+        let data = data.get(range.clone()).ok_or(Error::Malformed)?;
         for entry in dict::entries(data, blend).filter_map(|e| e.ok()) {
             match entry {
                 dict::Entry::SubrsOffset(offset) => {
-                    subfont.subrs_offset = range
-                        .start
-                        .checked_add(offset)
-                        .ok_or(ReadError::OutOfBounds)?
-                        as u32;
+                    subfont.subrs_offset =
+                        range.start.checked_add(offset).ok_or(Error::Malformed)? as u32;
                 }
                 dict::Entry::VariationStoreIndex(index) => subfont.vs_index = index,
                 // FreeType truncates the width values to int on read
@@ -642,7 +641,7 @@ impl<'a> TopDict<'a> {
                 }
                 dict::Entry::PrivateDictRange(range) => {
                     // Fail early if our private dictionary is out of bounds
-                    let _ = cff_data.get(range.clone()).ok_or(ReadError::OutOfBounds)?;
+                    let _ = cff_data.get(range.clone()).ok_or(Error::Malformed)?;
                     private_dict_range = range;
                 }
                 dict::Entry::FontMatrix(font_matrix) => {
@@ -654,7 +653,7 @@ impl<'a> TopDict<'a> {
                     // IVS is preceded by a 2 byte length, but ensure that
                     // we don't overflow
                     // See <https://github.com/googlefonts/fontations/issues/1223>
-                    let offset = offset.checked_add(2).ok_or(ReadError::OutOfBounds)?;
+                    let offset = offset.checked_add(2).ok_or(Error::Malformed)?;
                     var_store = Some(ItemVariationStore::read(
                         cff_data.get(offset..).unwrap_or_default().into(),
                     )?);
@@ -748,11 +747,11 @@ impl<'a> Metadata<'a> {
         let get_str = |sid: Sid| {
             let bytes = match sid.resolve_standard() {
                 Ok(bytes) => bytes,
-                Err(idx) => strings.get(idx).ok()?,
+                Err(idx) => strings.get(idx)?,
             };
             core::str::from_utf8(bytes).ok()
         };
-        let top_dict_data = cff.top_dicts().get(top_dict_index as usize).ok()?;
+        let top_dict_data = cff.top_dicts().get(top_dict_index as usize)?;
         let name = cff
             .name(top_dict_index as usize)
             .and_then(|bytes| core::str::from_utf8(bytes).ok());
