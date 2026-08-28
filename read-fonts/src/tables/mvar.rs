@@ -100,7 +100,7 @@ impl Mvar<'_> {
     /// Returns the metric delta for the specified tag and normalized
     /// variation coordinates. Possible tags are found in the [tags]
     /// module.
-    pub fn metric_delta(&self, tag: Tag, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
+    pub fn metric_delta(&self, tag: Tag, coords: &[F2Dot14]) -> Option<Fixed> {
         use std::cmp::Ordering;
         let records = self.value_records();
         let mut lo = 0;
@@ -116,17 +116,20 @@ impl Mvar<'_> {
                     lo = i + 1;
                 }
                 Ordering::Equal => {
-                    let ivs = self.item_variation_store().ok_or(ReadError::NullOffset)??;
-                    return Ok(Fixed::from_i32(ivs.compute_delta(
-                        DeltaSetIndex {
-                            outer: record.delta_set_outer_index(),
-                            inner: record.delta_set_inner_index(),
-                        },
-                        coords,
-                    )?));
+                    let ivs = self.item_variation_store()?.ok()?;
+                    return Some(Fixed::from_i32(
+                        ivs.compute_delta(
+                            DeltaSetIndex {
+                                outer: record.delta_set_outer_index(),
+                                inner: record.delta_set_inner_index(),
+                            },
+                            coords,
+                        )
+                        .ok()?,
+                    ));
                 }
             }
         }
-        Err(ReadError::MetricIsMissing(tag))
+        None
     }
 }

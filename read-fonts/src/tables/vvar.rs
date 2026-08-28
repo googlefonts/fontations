@@ -7,11 +7,7 @@ include!("../../generated/generated_vvar.rs");
 impl Vvar<'_> {
     /// Returns the advance height delta for the specified glyph identifier and
     /// normalized variation coordinates.
-    pub fn advance_height_delta(
-        &self,
-        glyph_id: GlyphId,
-        coords: &[F2Dot14],
-    ) -> Result<Fixed, ReadError> {
+    pub fn advance_height_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<Fixed> {
         variations::advance_delta(
             self.advance_height_mapping(),
             self.item_variation_store(),
@@ -22,7 +18,7 @@ impl Vvar<'_> {
 
     /// Returns the top side bearing delta for the specified glyph identifier and
     /// normalized variation coordinates.
-    pub fn tsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
+    pub fn tsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<Fixed> {
         variations::item_delta(
             self.tsb_mapping(),
             self.item_variation_store(),
@@ -33,7 +29,7 @@ impl Vvar<'_> {
 
     /// Returns the bottom side bearing delta for the specified glyph identifier and
     /// normalized variation coordinates.
-    pub fn bsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
+    pub fn bsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<Fixed> {
         variations::item_delta(
             self.bsb_mapping(),
             self.item_variation_store(),
@@ -44,7 +40,7 @@ impl Vvar<'_> {
 
     /// Returns the vertical origin delta for the specified glyph identifier and
     /// normalized variation coordinates.
-    pub fn v_org_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
+    pub fn v_org_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<Fixed> {
         variations::item_delta(
             self.v_org_mapping(),
             self.item_variation_store(),

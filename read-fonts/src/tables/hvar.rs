@@ -7,11 +7,7 @@ include!("../../generated/generated_hvar.rs");
 impl Hvar<'_> {
     /// Returns the advance width delta for the specified glyph identifier and
     /// normalized variation coordinates.
-    pub fn advance_width_delta(
-        &self,
-        glyph_id: GlyphId,
-        coords: &[F2Dot14],
-    ) -> Result<Fixed, ReadError> {
+    pub fn advance_width_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<Fixed> {
         variations::advance_delta(
             self.advance_width_mapping(),
             self.item_variation_store(),
@@ -22,7 +18,7 @@ impl Hvar<'_> {
 
     /// Returns the left side bearing delta for the specified glyph identifier and
     /// normalized variation coordinates.
-    pub fn lsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
+    pub fn lsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<Fixed> {
         variations::item_delta(
             self.lsb_mapping(),
             self.item_variation_store(),
@@ -33,7 +29,7 @@ impl Hvar<'_> {
 
     /// Returns the left side bearing delta for the specified glyph identifier and
     /// normalized variation coordinates.
-    pub fn rsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
+    pub fn rsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<Fixed> {
         variations::item_delta(
             self.rsb_mapping(),
             self.item_variation_store(),

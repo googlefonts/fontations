@@ -1740,19 +1740,19 @@ pub(crate) fn advance_delta(
     ivs: Result<ItemVariationStore, ReadError>,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
-) -> Result<Fixed, ReadError> {
+) -> Option<Fixed> {
     if coords.is_empty() {
-        return Ok(Fixed::ZERO);
+        return Some(Fixed::ZERO);
     }
     let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid)?,
+        Some(Ok(dsim)) => dsim.get(gid).ok()?,
         _ => DeltaSetIndex {
             outer: 0,
             inner: gid as _,
         },
     };
-    Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?))
+    Some(Fixed::from_i32(ivs.ok()?.compute_delta(ix, coords).ok()?))
 }
 
 pub(crate) fn item_delta(
@@ -1760,16 +1760,16 @@ pub(crate) fn item_delta(
     ivs: Result<ItemVariationStore, ReadError>,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
-) -> Result<Fixed, ReadError> {
+) -> Option<Fixed> {
     if coords.is_empty() {
-        return Ok(Fixed::ZERO);
+        return Some(Fixed::ZERO);
     }
     let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid)?,
-        _ => return Err(ReadError::NullOffset),
+        Some(Ok(dsim)) => dsim.get(gid).ok()?,
+        _ => return None,
     };
-    Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?))
+    Some(Fixed::from_i32(ivs.ok()?.compute_delta(ix, coords).ok()?))
 }
 
 #[cfg(test)]
