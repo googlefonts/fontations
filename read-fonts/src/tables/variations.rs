@@ -1515,64 +1515,6 @@ impl ItemVariationStore<'_> {
         }
         Ok(accum)
     }
-
-    /// Computes the delta value in floating point for the specified index and set
-    /// of normalized variation coordinates.
-    pub fn compute_float_delta(
-        &self,
-        index: DeltaSetIndex,
-        coords: &[F2Dot14],
-    ) -> Result<FloatItemDelta, ReadError> {
-        // The exact 48.16 sum, converted once -- to_f64 is exact for it --
-        // so this is the integer path's value before its rounding.
-        Ok(FloatItemDelta(self.compute_delta(index, coords)?.to_f64()))
-    }
-}
-
-/// Floating point item delta computed by an item variation store.
-///
-/// These can be applied to types that implement [`FloatItemDeltaTarget`].
-#[derive(Copy, Clone, Default, Debug)]
-pub struct FloatItemDelta(f64);
-
-impl FloatItemDelta {
-    pub const ZERO: Self = Self(0.0);
-
-    /// Returns the (unrounded) delta value as a 64-bit float.
-    pub fn to_f64(self) -> f64 {
-        self.0
-    }
-}
-
-/// Trait for applying floating point item deltas to target values.
-pub trait FloatItemDeltaTarget {
-    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32;
-}
-
-impl FloatItemDeltaTarget for Fixed {
-    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
-        const FIXED_TO_FLOAT: f64 = 1.0 / 65536.0;
-        self.to_f32() + (delta.0 * FIXED_TO_FLOAT) as f32
-    }
-}
-
-impl FloatItemDeltaTarget for FWord {
-    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
-        self.to_i16() as f32 + delta.0 as f32
-    }
-}
-
-impl FloatItemDeltaTarget for UfWord {
-    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
-        self.to_u16() as f32 + delta.0 as f32
-    }
-}
-
-impl FloatItemDeltaTarget for F2Dot14 {
-    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
-        const F2DOT14_TO_FLOAT: f64 = 1.0 / 16384.0;
-        self.to_f32() + (delta.0 * F2DOT14_TO_FLOAT) as f32
-    }
 }
 
 impl<'a> VariationRegion<'a> {
@@ -2132,20 +2074,21 @@ mod tests {
                         inner: inner_ix,
                     };
                     // Check the deltas against all possible target values
-                    let orig_delta = ivs.compute_delta(delta_ix, &coords).unwrap().to_i32();
-                    let float_delta = ivs.compute_float_delta(delta_ix, &coords).unwrap();
+                    let delta = ivs.compute_delta(delta_ix, &coords).unwrap();
+                    let orig_delta = delta.to_i32();
+                    let float_delta = delta.to_f64();
                     // For font unit types, we need to accept both rounding and
                     // truncation to account for the additional accumulation of
                     // fractional bits in floating point
                     assert!(
-                        orig_delta == float_delta.0.round() as i32
-                            || orig_delta == float_delta.0.trunc() as i32
+                        orig_delta == float_delta.round() as i32
+                            || orig_delta == float_delta.trunc() as i32
                     );
                     // For the fixed point types, check with an epsilon
                     const EPSILON: f32 = 1e12;
-                    let fixed_delta = Fixed::ZERO.apply_float_delta(float_delta);
+                    let fixed_delta = Fixed::ZERO.apply_delta(delta);
                     assert!((Fixed::from_bits(orig_delta).to_f32() - fixed_delta).abs() < EPSILON);
-                    let f2dot14_delta = F2Dot14::ZERO.apply_float_delta(float_delta);
+                    let f2dot14_delta = F2Dot14::ZERO.apply_delta(delta);
                     assert!(
                         (F2Dot14::from_bits(orig_delta as i16).to_f32() - f2dot14_delta).abs()
                             < EPSILON
