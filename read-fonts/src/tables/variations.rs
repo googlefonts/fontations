@@ -2205,7 +2205,7 @@ mod tests {
     fn accumulate_dense() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let gvar = font.gvar().unwrap();
-        let gvar_data = gvar.glyph_variation_data(GlyphId::new(1)).unwrap().unwrap();
+        let gvar_data = gvar.glyph_variation_data(GlyphId::new(1)).unwrap();
         let mut count = 0;
         for tuple in gvar_data.tuples() {
             if !tuple.has_deltas_for_all_points() {
@@ -2234,7 +2234,7 @@ mod tests {
     fn accumulate_sparse() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let gvar = font.gvar().unwrap();
-        let gvar_data = gvar.glyph_variation_data(GlyphId::new(2)).unwrap().unwrap();
+        let gvar_data = gvar.glyph_variation_data(GlyphId::new(2)).unwrap();
         let mut count = 0;
         for tuple in gvar_data.tuples() {
             if tuple.has_deltas_for_all_points() {

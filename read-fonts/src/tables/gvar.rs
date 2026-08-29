@@ -65,62 +65,55 @@ impl<'a> GlyphVariationDataHeader<'a> {
 impl<'a> Gvar<'a> {
     /// Return the raw data for this gid.
     ///
-    /// If there is no variation data for the glyph, returns `Ok(None)`.
-    pub fn data_for_gid(&self, gid: GlyphId) -> Result<Option<FontData<'a>>, ReadError> {
+    /// Answers `None` when the glyph has no variation data, which includes an
+    /// empty range in the offsets array.
+    pub fn data_for_gid(&self, gid: GlyphId) -> Option<FontData<'a>> {
         let range = self.data_range_for_gid(gid)?;
         if range.is_empty() {
-            return Ok(None);
+            return None;
         }
-        match self.data.slice(range) {
-            Some(data) => Ok(Some(data)),
-            None => Err(ReadError::OutOfBounds),
-        }
+        self.data.slice(range)
     }
 
     pub fn glyph_variation_data_for_range(
         &self,
         offset_range: Range<usize>,
-    ) -> Result<FontData<'a>, ReadError> {
+    ) -> Option<FontData<'a>> {
         let base = self.glyph_variation_data_array_offset() as usize;
-        let start = base
-            .checked_add(offset_range.start)
-            .ok_or(ReadError::OutOfBounds)?;
-        let end = base
-            .checked_add(offset_range.end)
-            .ok_or(ReadError::OutOfBounds)?;
-        self.data.slice(start..end).ok_or(ReadError::OutOfBounds)
+        let start = base.checked_add(offset_range.start)?;
+        let end = base.checked_add(offset_range.end)?;
+        self.data.slice(start..end)
     }
 
     pub fn as_bytes(&self) -> &[u8] {
         self.data.as_bytes()
     }
 
-    fn data_range_for_gid(&self, gid: GlyphId) -> Result<Range<usize>, ReadError> {
+    fn data_range_for_gid(&self, gid: GlyphId) -> Option<Range<usize>> {
         let start_idx = gid.to_u32() as usize;
         let end_idx = start_idx + 1;
         let data_start = self.glyph_variation_data_array_offset();
-        let start =
-            data_start.checked_add(self.glyph_variation_data_offsets().get(start_idx)?.get());
-        let end = data_start.checked_add(self.glyph_variation_data_offsets().get(end_idx)?.get());
-        let (Some(start), Some(end)) = (start, end) else {
-            return Err(ReadError::OutOfBounds);
-        };
-        Ok(start as usize..end as usize)
+        let start = data_start.checked_add(
+            self.glyph_variation_data_offsets()
+                .get(start_idx)
+                .ok()?
+                .get(),
+        )?;
+        let end =
+            data_start.checked_add(self.glyph_variation_data_offsets().get(end_idx).ok()?.get())?;
+        Some(start as usize..end as usize)
     }
 
     /// Get the variation data for a specific glyph.
     ///
-    /// Returns `Ok(None)` if there is no variation data for this glyph, and
-    /// returns an error if there is data but it is malformed.
-    pub fn glyph_variation_data(
-        &self,
-        gid: GlyphId,
-    ) -> Result<Option<GlyphVariationData<'a>>, ReadError> {
-        let shared_tuples = self.shared_tuples()?;
+    /// Answers `None` when the glyph has no variation data and when what it
+    /// has cannot be read; a glyph that cannot be varied and one whose tuples
+    /// do not parse are the same to a caller applying deltas.
+    pub fn glyph_variation_data(&self, gid: GlyphId) -> Option<GlyphVariationData<'a>> {
+        let shared_tuples = self.shared_tuples().ok()?;
         let axis_count = self.axis_count();
         let data = self.data_for_gid(gid)?;
-        data.map(|data| GlyphVariationData::new(data, axis_count, shared_tuples))
-            .transpose()
+        GlyphVariationData::new(data, axis_count, shared_tuples)
     }
 
     /// Returns the phantom point deltas for the given variation coordinates
@@ -134,7 +127,7 @@ impl<'a> Gvar<'a> {
         loca: &Loca,
         coords: &[F2Dot14],
         glyph_id: GlyphId,
-    ) -> Result<Option<[Point<Fixed>; 4]>, ReadError> {
+    ) -> Option<[Point<Fixed>; 4]> {
         // For any given glyph, there's only one outline that contributes to
         // metrics deltas (via "phantom points"). For simple glyphs, that is
         // the glyph itself. For composite glyphs, it is the last component
@@ -148,9 +141,7 @@ impl<'a> Gvar<'a> {
         let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0)?;
         let mut phantom_deltas = [Point::default(); 4];
         let phantom_range = point_count..point_count + 4;
-        let Some(var_data) = self.glyph_variation_data(glyph_id)? else {
-            return Ok(None);
-        };
+        let var_data = self.glyph_variation_data(glyph_id)?;
         // Note that phantom points can never belong to a contour so we don't have
         // to handle the IUP case here.
         for (tuple, scalar) in var_data.active_tuples_at(coords) {
@@ -161,7 +152,7 @@ impl<'a> Gvar<'a> {
                 }
             }
         }
-        Ok(Some(phantom_deltas))
+        Some(phantom_deltas)
     }
 }
 
@@ -170,12 +161,12 @@ impl<'a> GlyphVariationData<'a> {
         data: FontData<'a>,
         axis_count: u16,
         shared_tuples: SharedTuples<'a>,
-    ) -> Result<Self, ReadError> {
-        let header = GlyphVariationDataHeader::read(data)?;
+    ) -> Option<Self> {
+        let header = GlyphVariationDataHeader::read(data).ok()?;
 
         let header_data = header.raw_tuple_header_data();
         let count = header.tuple_variation_count();
-        let data = header.serialized_data()?;
+        let data = header.serialized_data().ok()?;
 
         // if there are shared point numbers, get them now
         let (shared_point_numbers, serialized_data) =
@@ -186,7 +177,7 @@ impl<'a> GlyphVariationData<'a> {
                 (None, data)
             };
 
-        Ok(GlyphVariationData {
+        Some(GlyphVariationData {
             tuple_count: count,
             axis_count,
             shared_tuples: Some(shared_tuples.tuples()),
@@ -245,24 +236,22 @@ fn find_glyph_and_point_count(
     loca: &Loca,
     glyph_id: GlyphId,
     recurse_depth: usize,
-) -> Result<(GlyphId, usize), ReadError> {
+) -> Option<(GlyphId, usize)> {
     // Matches HB's nesting limit
     const RECURSION_LIMIT: usize = 64;
     if recurse_depth > RECURSION_LIMIT {
-        return Err(ReadError::MalformedData(
-            "nesting too deep in composite glyph",
-        ));
+        return None;
     }
-    let glyph = loca.get_glyf(glyph_id, glyf)?;
+    let glyph = loca.get_glyf(glyph_id, glyf).ok()?;
     let Some(glyph) = glyph else {
         // Empty glyphs might still contain gvar data that
         // only affects phantom points
-        return Ok((glyph_id, 0));
+        return Some((glyph_id, 0));
     };
     match glyph {
         Glyph::Simple(simple) => {
             // Simple glyphs always use their own metrics
-            Ok((glyph_id, simple.num_points()))
+            Some((glyph_id, simple.num_points()))
         }
         Glyph::Composite(composite) => {
             // For composite glyphs, recurse into the glyph referenced by the
@@ -283,7 +272,7 @@ fn find_glyph_and_point_count(
             if let Some(component) = inherit_metrics {
                 find_glyph_and_point_count(glyf, loca, component.into(), recurse_depth + 1)
             } else {
-                Ok((glyph_id, count))
+                Some((glyph_id, count))
             }
         }
     }
@@ -423,7 +412,7 @@ mod tests {
             .unwrap()
             .gvar()
             .unwrap();
-        let a_glyph_var = gvar.glyph_variation_data(GlyphId::new(1)).unwrap().unwrap();
+        let a_glyph_var = gvar.glyph_variation_data(GlyphId::new(1)).unwrap();
         assert_eq!(a_glyph_var.axis_count, 1);
         let mut tuples = a_glyph_var.tuples();
         let tup1 = tuples.next().unwrap();
@@ -457,7 +446,7 @@ mod tests {
             .unwrap()
             .gvar()
             .unwrap();
-        let agrave_glyph_var = gvar.glyph_variation_data(GlyphId::new(2)).unwrap().unwrap();
+        let agrave_glyph_var = gvar.glyph_variation_data(GlyphId::new(2)).unwrap();
         let mut tuples = agrave_glyph_var.tuples();
         let tup1 = tuples.next().unwrap();
         assert_eq!(
@@ -481,7 +470,7 @@ mod tests {
             .unwrap()
             .gvar()
             .unwrap();
-        let grave_glyph_var = gvar.glyph_variation_data(GlyphId::new(3)).unwrap().unwrap();
+        let grave_glyph_var = gvar.glyph_variation_data(GlyphId::new(3)).unwrap();
         let mut tuples = grave_glyph_var.tuples();
         let tup1 = tuples.next().unwrap();
         let tup2 = tuples.next().unwrap();
@@ -549,7 +538,6 @@ mod tests {
             .map(|coord| F2Dot14::from_f32(*coord))
             .collect::<Vec<_>>();
         gvar.phantom_point_deltas(&glyf, &loca, &coords, glyph_id)
-            .unwrap()
             .unwrap()
             .map(|delta| delta.map(Fixed::to_f32))
             .map(|p| (p.x, p.y))

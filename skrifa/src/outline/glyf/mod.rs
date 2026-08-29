@@ -572,7 +572,7 @@ impl Scaler for FreeTypeScaler<'_> {
         let scale = self.scale;
         let mut unscaled = self.phantom.map(|point| point.map(|x| x.to_bits()));
         if self.outlines.gvar.is_some() && !self.coords.is_empty() {
-            if let Ok(Some(deltas)) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
+            if let Some(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
                 &self.outlines.glyf,
                 &self.outlines.loca,
                 self.coords,
@@ -687,7 +687,7 @@ impl Scaler for FreeTypeScaler<'_> {
                     contours,
                     &mut buffers,
                 )
-                .is_ok()
+                .is_some()
             {
                 have_deltas = true;
             }
@@ -831,7 +831,7 @@ impl Scaler for FreeTypeScaler<'_> {
                 .ok_or(InsufficientMemory)?;
             if gvar
                 .composite_deltas(glyph_id, self.coords, &mut deltas[..])
-                .is_ok()
+                .is_some()
             {
                 // Apply deltas to phantom points.
                 for (phantom, delta) in self
@@ -1114,7 +1114,7 @@ impl Scaler for HarfBuzzScaler<'_> {
             && self.outlines.gvar.is_some()
             && !self.coords.is_empty()
         {
-            if let Ok(Some(deltas)) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
+            if let Some(deltas) = self.outlines.gvar.as_ref().unwrap().phantom_point_deltas(
                 &self.outlines.glyf,
                 &self.outlines.loca,
                 self.coords,
@@ -1198,7 +1198,7 @@ impl Scaler for HarfBuzzScaler<'_> {
                     contours,
                     &mut buffers,
                 )
-                .is_ok()
+                .is_some()
             {
                 for (point, delta) in points.iter_mut().zip(buffers.deltas.iter()) {
                     *point += *delta;
@@ -1245,7 +1245,7 @@ impl Scaler for HarfBuzzScaler<'_> {
                 .ok_or(InsufficientMemory)?;
             if gvar
                 .composite_deltas(glyph_id, self.coords, &mut deltas[..])
-                .is_ok()
+                .is_some()
             {
                 // Apply deltas to phantom points.
                 for (phantom, delta) in self

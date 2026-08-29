@@ -41,8 +41,6 @@ impl Subset for Gvar<'_> {
                     return None;
                 }
                 self.data_for_gid(x.0)
-                    .ok()
-                    .flatten()
                     .map(|data| data.len() + data.len() % 2)
             })
             .sum();
@@ -134,10 +132,7 @@ fn subset_with_offset_type<OffsetType: GvarOffset>(
             last += 1;
         }
 
-        if let Some(glyph_var_data) = gvar
-            .data_for_gid(*old_gid)
-            .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?
-        {
+        if let Some(glyph_var_data) = gvar.data_for_gid(*old_gid) {
             s.embed_bytes(glyph_var_data.as_bytes())
                 .map_err(|_| SubsetError::SubsetTableError(Gvar::TAG))?;
 

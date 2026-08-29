@@ -854,8 +854,8 @@ impl GlyphDataOffsetArray for Gvar<'_> {
 
     fn get(&self, range: Range<usize>) -> Result<&[u8], PatchingError> {
         self.glyph_variation_data_for_range(range)
-            .map_err(PatchingError::FontParsingFailed)
             .map(|fd| fd.as_bytes())
+            .ok_or(PatchingError::FontParsingFailed(ReadError::OutOfBounds))
     }
 
     fn add_to_font(
@@ -1762,46 +1762,30 @@ pub(crate) mod tests {
 
         let gid0_data = vec![1u8; 131066];
         assert_eq!(
-            new_gvar
-                .data_for_gid(GlyphId::new(0))
-                .unwrap()
-                .unwrap()
-                .as_bytes(),
+            new_gvar.data_for_gid(GlyphId::new(0)).unwrap().as_bytes(),
             &gid0_data
         );
 
-        assert!(new_gvar.data_for_gid(GlyphId::new(1)).unwrap().is_none());
+        assert!(new_gvar.data_for_gid(GlyphId::new(1)).is_none());
 
         assert_eq!(
-            new_gvar
-                .data_for_gid(GlyphId::new(2))
-                .unwrap()
-                .unwrap()
-                .as_bytes(),
+            new_gvar.data_for_gid(GlyphId::new(2)).unwrap().as_bytes(),
             b"mn"
         );
 
-        assert!(new_gvar.data_for_gid(GlyphId::new(6)).unwrap().is_none());
+        assert!(new_gvar.data_for_gid(GlyphId::new(6)).is_none());
 
         assert_eq!(
-            new_gvar
-                .data_for_gid(GlyphId::new(7))
-                .unwrap()
-                .unwrap()
-                .as_bytes(),
+            new_gvar.data_for_gid(GlyphId::new(7)).unwrap().as_bytes(),
             b"opq",
         );
 
         assert_eq!(
-            new_gvar
-                .data_for_gid(GlyphId::new(8))
-                .unwrap()
-                .unwrap()
-                .as_bytes(),
+            new_gvar.data_for_gid(GlyphId::new(8)).unwrap().as_bytes(),
             b"r",
         );
 
-        assert!(new_gvar.data_for_gid(GlyphId::new(9)).unwrap().is_none());
+        assert!(new_gvar.data_for_gid(GlyphId::new(9)).is_none());
     }
 
     #[test]

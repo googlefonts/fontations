@@ -17,7 +17,6 @@ use crate::{
         variations::TupleVariation,
     },
     types::{F2Dot14, Fixed, GlyphId, Point},
-    ReadError,
 };
 
 /// Caller-provided storage for [`Gvar::simple_deltas`] and
@@ -51,19 +50,19 @@ impl Gvar<'_> {
         flags: &mut [PointFlags],
         contours: &[u16],
         buffers: &mut DeltaBuffers<'_, D>,
-    ) -> Result<bool, ReadError>
+    ) -> Option<bool>
     where
         C: PointCoord,
         D: PointCoord + From<C>,
     {
         check_simple_buffers(points, flags, buffers)?;
-        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
-            // Missing or malformed variation data for a glyph is not an error.
+        let Some(var_data) = self.glyph_variation_data(glyph_id) else {
+            // Missing or malformed variation data for a glyph is not a failure.
             zero(buffers.deltas);
-            return Ok(false);
+            return Some(false);
         };
         var_data.simple_deltas(coords, points, flags, contours, buffers)?;
-        Ok(true)
+        Some(true)
     }
 
     /// Computes the deltas for the component offsets of a composite glyph at
@@ -82,13 +81,13 @@ impl Gvar<'_> {
         glyph_id: GlyphId,
         coords: &[F2Dot14],
         deltas: &mut [Point<D>],
-    ) -> Result<bool, ReadError> {
-        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
+    ) -> Option<bool> {
+        let Some(var_data) = self.glyph_variation_data(glyph_id) else {
             zero(deltas);
-            return Ok(false);
+            return Some(false);
         };
         var_data.composite_deltas(coords, deltas)?;
-        Ok(true)
+        Some(true)
     }
 }
 
@@ -120,7 +119,7 @@ impl GlyphVariationData<'_> {
         flags: &mut [PointFlags],
         contours: &[u16],
         buffers: &mut DeltaBuffers<'_, D>,
-    ) -> Result<(), ReadError>
+    ) -> Option<()>
     where
         C: PointCoord,
         D: PointCoord + From<C>,
@@ -138,15 +137,12 @@ impl GlyphVariationData<'_> {
             for flag in flags.iter_mut() {
                 flag.clear_marker(PointMarker::HAS_DELTA);
             }
-            tuple
-                .accumulate_sparse_deltas(iup, flags, scalar)
-                .ok_or(ReadError::OutOfBounds)?;
-            interpolate_deltas(points, flags, contours, &mut iup[..])
-                .ok_or(ReadError::OutOfBounds)?;
+            tuple.accumulate_sparse_deltas(iup, flags, scalar)?;
+            interpolate_deltas(points, flags, contours, &mut iup[..])?;
             for ((delta, point), iup_point) in deltas.iter_mut().zip(points).zip(iup.iter()) {
                 *delta += *iup_point - point.map(D::from);
             }
-            Ok(())
+            Some(())
         })
     }
 
@@ -164,7 +160,7 @@ impl GlyphVariationData<'_> {
         &self,
         coords: &[F2Dot14],
         deltas: &mut [Point<D>],
-    ) -> Result<(), ReadError> {
+    ) -> Option<()> {
         self.accumulate_deltas(coords, deltas, |scalar, tuple, deltas| {
             for tuple_delta in tuple.deltas() {
                 let ix = tuple_delta.position as usize;
@@ -172,7 +168,7 @@ impl GlyphVariationData<'_> {
                     *delta += tuple_delta.apply_scalar(scalar);
                 }
             }
-            Ok(())
+            Some(())
         })
     }
 
@@ -189,22 +185,20 @@ impl GlyphVariationData<'_> {
             Fixed,
             TupleVariation<GlyphDelta>,
             &mut [Point<D>],
-        ) -> Result<(), ReadError>,
-    ) -> Result<(), ReadError> {
+        ) -> Option<()>,
+    ) -> Option<()> {
         // Callers must never observe values left over from a previous glyph.
         zero(deltas);
         for (tuple, scalar) in self.active_tuples_at(coords) {
             if tuple.has_deltas_for_all_points() {
                 // Fast path: the tuple covers every point, so the deltas can be
                 // accumulated directly with no interpolation.
-                tuple
-                    .accumulate_dense_deltas(deltas, scalar)
-                    .ok_or(ReadError::OutOfBounds)?;
+                tuple.accumulate_dense_deltas(deltas, scalar)?;
             } else {
                 apply_sparse_tuple(scalar, tuple, deltas)?;
             }
         }
-        Ok(())
+        Some(())
     }
 }
 
@@ -219,16 +213,16 @@ fn check_simple_buffers<C: PointCoord, D: PointCoord>(
     points: &[Point<C>],
     flags: &[PointFlags],
     buffers: &DeltaBuffers<'_, D>,
-) -> Result<(), ReadError> {
+) -> Option<()> {
     let count = points.len();
     if count < PHANTOM_POINT_COUNT
         || flags.len() < count
         || buffers.deltas.len() < count
         || buffers.iup.len() < count
     {
-        return Err(ReadError::InvalidArrayLen);
+        return None;
     }
-    Ok(())
+    Some(())
 }
 
 fn zero<D: PointCoord>(deltas: &mut [Point<D>]) {
@@ -740,10 +734,9 @@ mod tests {
             deltas: &mut deltas,
             iup: &mut iup,
         };
-        assert!(matches!(
-            gvar.simple_deltas(VAR_GID, &[], &points, &mut flags, &[7], &mut buffers),
-            Err(ReadError::InvalidArrayLen)
-        ));
+        assert!(gvar
+            .simple_deltas(VAR_GID, &[], &points, &mut flags, &[7], &mut buffers)
+            .is_none());
     }
 
     #[test]
@@ -759,10 +752,9 @@ mod tests {
             deltas: &mut deltas,
             iup: &mut iup,
         };
-        assert!(matches!(
-            gvar.simple_deltas(VAR_GID, &[], &points, &mut flags, &[2], &mut buffers),
-            Err(ReadError::InvalidArrayLen)
-        ));
+        assert!(gvar
+            .simple_deltas(VAR_GID, &[], &points, &mut flags, &[2], &mut buffers)
+            .is_none());
     }
 
     #[test]
@@ -801,7 +793,7 @@ mod tests {
         let mut deltas = [Point::<Fixed>::default(); 1];
         assert!(gvar
             .composite_deltas(COMPOSITE_GID, &coords, &mut deltas)
-            .is_ok());
+            .is_some());
     }
 
     /// Going through `Gvar` is the same as looking the data up and calling
@@ -843,7 +835,7 @@ mod tests {
                 )
                 .unwrap();
 
-            let var_data = gvar.glyph_variation_data(glyph_id).unwrap();
+            let var_data = gvar.glyph_variation_data(glyph_id);
             assert_eq!(had_data, var_data.is_some(), "gid {gid}");
             let Some(var_data) = var_data else { continue };
 
@@ -905,7 +897,7 @@ mod tests {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let gvar = font.gvar().unwrap();
         let glyph_id = GlyphId::new(2);
-        let var_data = gvar.glyph_variation_data(glyph_id).unwrap().unwrap();
+        let var_data = gvar.glyph_variation_data(glyph_id).unwrap();
         const COUNT: usize = 8;
 
         // Each case leaves one buffer one element short of `points`.
@@ -922,17 +914,14 @@ mod tests {
                 iup: &mut iup,
             };
             assert!(
-                matches!(
-                    gvar.simple_deltas(glyph_id, &[], &points, &mut flags, &[7], &mut buffers),
-                    Err(ReadError::InvalidArrayLen)
-                ),
+                gvar.simple_deltas(glyph_id, &[], &points, &mut flags, &[7], &mut buffers)
+                    .is_none(),
                 "Gvar accepted a short {short}"
             );
             assert!(
-                matches!(
-                    var_data.simple_deltas(&[], &points, &mut flags, &[7], &mut buffers),
-                    Err(ReadError::InvalidArrayLen)
-                ),
+                var_data
+                    .simple_deltas(&[], &points, &mut flags, &[7], &mut buffers)
+                    .is_none(),
                 "GlyphVariationData accepted a short {short}"
             );
         }
@@ -948,6 +937,6 @@ mod tests {
         };
         assert!(gvar
             .simple_deltas(glyph_id, &[], &points, &mut flags, &[7], &mut buffers)
-            .is_ok());
+            .is_some());
     }
 }
