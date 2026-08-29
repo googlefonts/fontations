@@ -6,7 +6,7 @@ use skrifa::{
     raw::{
         ps::{cff::CffFontRef, type1::Type1Font},
         types::F2Dot14,
-        FontRef, ReadError, TableProvider,
+        FontRef, TableProvider,
     },
     GlyphId, MetadataProvider, OutlineGlyphCollection,
 };
@@ -214,7 +214,7 @@ impl<'a> SkrifaCffInstance<'a> {
         let subfont = self.font.subfont(
             self.font
                 .subfont_index(glyph_id)
-                .ok_or(ReadError::OutOfBounds)?,
+                .ok_or(DrawError::Malformed)?,
             &[],
         )?;
         Ok(self.font.draw(&subfont, glyph_id, &[], self.ppem, pen)?)

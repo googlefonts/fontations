@@ -53,7 +53,7 @@ pub use read_fonts::tables::colr::{CompositeMode, Extend};
 
 use read_fonts::{
     types::{BoundingBox, GlyphId, Point},
-    ReadError, TableProvider,
+    TableProvider,
 };
 
 #[doc(inline)]
@@ -82,7 +82,12 @@ pub type Transform = read_fonts::types::Matrix<f32>;
 /// parse errors from read-fonts.
 #[derive(Debug, Clone)]
 pub enum PaintError {
-    ParseError(ReadError),
+    /// The font data does not make sense: absent where it was required, too
+    /// short, or self-inconsistent.
+    ///
+    /// Carries nothing, for the reason given on
+    /// [`DrawError::Malformed`][crate::outline::DrawError::Malformed].
+    Malformed,
     GlyphNotFound(GlyphId),
     PaintCycleDetected,
     DepthLimitExceeded,
@@ -91,9 +96,7 @@ pub enum PaintError {
 impl std::fmt::Display for PaintError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            PaintError::ParseError(read_error) => {
-                write!(f, "Error parsing font data: {read_error}")
-            }
+            PaintError::Malformed => write!(f, "font data was absent or malformed"),
             PaintError::GlyphNotFound(glyph_id) => {
                 write!(f, "No COLRv1 glyph found for glyph id: {glyph_id}")
             }
@@ -105,16 +108,7 @@ impl std::fmt::Display for PaintError {
 
 impl core::error::Error for PaintError {
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            PaintError::ParseError(read_error) => Some(read_error),
-            _ => None,
-        }
-    }
-}
-
-impl From<ReadError> for PaintError {
-    fn from(value: ReadError) -> Self {
-        PaintError::ParseError(value)
+        None
     }
 }
 
@@ -318,7 +312,7 @@ pub struct ColorGlyph<'a> {
 #[derive(Clone)]
 enum ColorGlyphRoot<'a> {
     V0Range(Range<usize>),
-    V1Paint(colr::Paint<'a>, PaintId, GlyphId, Result<u16, ReadError>),
+    V1Paint(colr::Paint<'a>, PaintId, GlyphId, Option<u16>),
 }
 
 impl<'a> ColorGlyph<'a> {
@@ -354,7 +348,7 @@ impl<'a> ColorGlyph<'a> {
                     instance::ColrInstance::new(self.colr.clone(), location.into().coords());
                 let resolved_bounding_box = get_clipbox_font_units(&instance, *glyph_id);
                 resolved_bounding_box.map(|bounding_box| {
-                    let scale_factor = size.linear_scale((*upem).clone().unwrap_or(0));
+                    let scale_factor = size.linear_scale(upem.unwrap_or(0));
                     bounding_box.scale(scale_factor)
                 })
             }
@@ -418,14 +412,14 @@ impl<'a> ColorGlyph<'a> {
 #[derive(Clone)]
 pub struct ColorGlyphCollection<'a> {
     colr: Option<colr::Colr<'a>>,
-    upem: Result<u16, ReadError>,
+    upem: Option<u16>,
 }
 
 impl<'a> ColorGlyphCollection<'a> {
     /// Creates a new collection of paintable color glyphs for the given font.
     pub fn new(font: &FontRef<'a>) -> Self {
         let colr = font.colr().ok();
-        let upem = font.head().map(|h| h.units_per_em());
+        let upem = font.head().map(|h| h.units_per_em()).ok();
 
         Self { colr, upem }
     }
@@ -441,12 +435,12 @@ impl<'a> ColorGlyphCollection<'a> {
 
         let root_paint_ref = match glyph_format {
             ColorGlyphFormat::ColrV0 => {
-                let layer_range = colr.v0_base_glyph(glyph_id).ok()??;
+                let layer_range = colr.v0_base_glyph(glyph_id)?;
                 ColorGlyphRoot::V0Range(layer_range)
             }
             ColorGlyphFormat::ColrV1 => {
-                let (paint, paint_id) = colr.v1_base_glyph(glyph_id).ok()??;
-                ColorGlyphRoot::V1Paint(paint, paint_id, glyph_id, self.upem.clone())
+                let (paint, paint_id) = colr.v1_base_glyph(glyph_id)?;
+                ColorGlyphRoot::V1Paint(paint, paint_id, glyph_id, self.upem)
             }
         };
         Some(ColorGlyph {

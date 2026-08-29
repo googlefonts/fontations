@@ -13,7 +13,7 @@ use read_fonts::{
     },
     tables::variations::ItemVariationStore,
     types::{F2Dot14, Fixed, GlyphId},
-    FontData, FontRead, FontRef, ReadError, TableProvider,
+    FontData, FontRead, FontRef, TableProvider,
 };
 use std::ops::Range;
 
@@ -463,12 +463,8 @@ impl PrivateDict {
                 LanguageGroup(group) => dict.hint_params.language_group = group,
                 // Subrs offset is relative to the private DICT
                 SubrsOffset(offset) => {
-                    dict.subrs_offset = Some(
-                        range
-                            .start
-                            .checked_add(offset)
-                            .ok_or(ReadError::OutOfBounds)?,
-                    )
+                    dict.subrs_offset =
+                        Some(range.start.checked_add(offset).ok_or(Error::Malformed)?)
                 }
                 VariationStoreIndex(index) => dict.store_index = index,
                 _ => {}
@@ -549,7 +545,7 @@ impl<'a> TopDict<'a> {
                     // IVS is preceded by a 2 byte length, but ensure that
                     // we don't overflow
                     // See <https://github.com/googlefonts/fontations/issues/1223>
-                    let offset = offset.checked_add(2).ok_or(ReadError::OutOfBounds)?;
+                    let offset = offset.checked_add(2).ok_or(Error::Malformed)?;
                     items.var_store = Some(ItemVariationStore::read(FontData::new(
                         table_data.get(offset..).unwrap_or_default(),
                     ))?);
