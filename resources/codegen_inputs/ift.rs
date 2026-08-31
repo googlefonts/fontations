@@ -28,7 +28,6 @@ table IftPatchMap {
   field_flags: PatchMapFieldPresenceFlags,
 
   /// Unique ID that identifies compatible patches.
-  #[traverse_with(skip)]
   compatibility_id: CompatibilityId,
 
   /// Patch format number for patches referenced by this mapping.
@@ -78,7 +77,6 @@ table EntryData {
 
   // CHILD_INDICES
   #[if_flag($format_flags, EntryFormatFlags::CHILD_INDICES)]
-  #[traverse_with(skip)]
   #[compile(skip)] // TODO remove this once write fonts side is implemented.]
   match_mode_and_count: MatchModeAndCount,
   #[if_flag($format_flags, EntryFormatFlags::CHILD_INDICES)]
@@ -143,7 +141,6 @@ table TableKeyedPatch {
   _reserved: u32,
 
   /// Unique ID that identifies compatible patches.
-  #[traverse_with(skip)]
   compatibility_id: CompatibilityId,
 
   patches_count: u16,
@@ -173,7 +170,6 @@ table GlyphKeyedPatch {
   #[compile(0)]
   _reserved: u32,
   flags: GlyphKeyedFlags,
-  #[traverse_with(skip)]
   compatibility_id: CompatibilityId,
   max_uncompressed_length: u32,
   #[count(..)]
@@ -193,7 +189,6 @@ table GlyphPatches {
 
   #[count($glyph_count)]
   #[read_with($flags)]
-  #[traverse_with(skip)]
   #[compile(skip)] // TODO remove this once write fonts side is implemented.
   glyph_ids: ComputedArray<U16Or24>,
 

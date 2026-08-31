@@ -11,7 +11,6 @@ use read_fonts::{
         variations::{DeltaSetIndex, DeltaSetIndexMap, ItemVariationStore},
     },
     types::{BoundingBox, F2Dot14, F48Dot16, GlyphId16, Point},
-    ReadError,
 };
 
 /// Unique paint identifier used for detecting cycles in the paint graph.
@@ -711,7 +710,7 @@ fn make_sorted_resolved_stops(
 pub fn resolve_paint<'a>(
     instance: &ColrInstance<'a>,
     paint: &Paint<'a>,
-) -> Result<ResolvedPaint<'a>, ReadError> {
+) -> Result<ResolvedPaint<'a>, PaintError> {
     Ok(match paint {
         Paint::ColrLayers(layers) => {
             let start = layers.first_layer_index() as usize;
@@ -731,7 +730,7 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::LinearGradient(gradient) => {
-            let color_line = gradient.color_line()?;
+            let color_line = gradient.color_line().map_err(|_| PaintError::Malformed)?;
             let extend = color_line.extend();
             ResolvedPaint::LinearGradient {
                 x0: gradient.x0().to_i16() as f32,
@@ -745,7 +744,7 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::VarLinearGradient(gradient) => {
-            let color_line = gradient.color_line()?;
+            let color_line = gradient.color_line().map_err(|_| PaintError::Malformed)?;
             let extend = color_line.extend();
             let deltas = instance.var_deltas::<6>(gradient.var_index_base());
             ResolvedPaint::LinearGradient {
@@ -760,7 +759,7 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::RadialGradient(gradient) => {
-            let color_line = gradient.color_line()?;
+            let color_line = gradient.color_line().map_err(|_| PaintError::Malformed)?;
             let extend = color_line.extend();
             ResolvedPaint::RadialGradient {
                 x0: gradient.x0().to_i16() as f32,
@@ -774,7 +773,7 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::VarRadialGradient(gradient) => {
-            let color_line = gradient.color_line()?;
+            let color_line = gradient.color_line().map_err(|_| PaintError::Malformed)?;
             let extend = color_line.extend();
             let deltas = instance.var_deltas::<6>(gradient.var_index_base());
             ResolvedPaint::RadialGradient {
@@ -789,7 +788,7 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::SweepGradient(gradient) => {
-            let color_line = gradient.color_line()?;
+            let color_line = gradient.color_line().map_err(|_| PaintError::Malformed)?;
             let extend = color_line.extend();
             ResolvedPaint::SweepGradient {
                 center_x: gradient.center_x().to_i16() as f32,
@@ -801,7 +800,7 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::VarSweepGradient(gradient) => {
-            let color_line = gradient.color_line()?;
+            let color_line = gradient.color_line().map_err(|_| PaintError::Malformed)?;
             let extend = color_line.extend();
             let deltas = instance.var_deltas::<4>(gradient.var_index_base());
             ResolvedPaint::SweepGradient {
@@ -815,14 +814,14 @@ pub fn resolve_paint<'a>(
         }
         Paint::Glyph(glyph) => ResolvedPaint::Glyph {
             glyph_id: glyph.glyph_id(),
-            paint: glyph.paint()?,
+            paint: glyph.paint().map_err(|_| PaintError::Malformed)?,
         },
         Paint::ColrGlyph(glyph) => ResolvedPaint::ColrGlyph {
             glyph_id: glyph.glyph_id(),
         },
         Paint::Transform(transform) => {
-            let affine = transform.transform()?;
-            let paint = transform.paint()?;
+            let affine = transform.transform().map_err(|_| PaintError::Malformed)?;
+            let paint = transform.paint().map_err(|_| PaintError::Malformed)?;
             ResolvedPaint::Transform {
                 xx: affine.xx().to_f32(),
                 yx: affine.yx().to_f32(),
@@ -834,8 +833,8 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::VarTransform(transform) => {
-            let affine = transform.transform()?;
-            let paint = transform.paint()?;
+            let affine = transform.transform().map_err(|_| PaintError::Malformed)?;
+            let paint = transform.paint().map_err(|_| PaintError::Malformed)?;
             let deltas = instance.var_deltas::<6>(affine.var_index_base());
             ResolvedPaint::Transform {
                 xx: affine.xx().apply_delta(deltas[0]),
@@ -850,21 +849,21 @@ pub fn resolve_paint<'a>(
         Paint::Translate(transform) => ResolvedPaint::Translate {
             dx: transform.dx().to_i16() as f32,
             dy: transform.dy().to_i16() as f32,
-            paint: transform.paint()?,
+            paint: transform.paint().map_err(|_| PaintError::Malformed)?,
         },
         Paint::VarTranslate(transform) => {
             let deltas = instance.var_deltas::<2>(transform.var_index_base());
             ResolvedPaint::Translate {
-                dx: transform.dx().apply_delta(deltas[0]),
-                dy: transform.dy().apply_delta(deltas[1]),
-                paint: transform.paint()?,
+                dx: transform.dx().apply_float_delta(deltas[0]),
+                dy: transform.dy().apply_float_delta(deltas[1]),
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::Scale(transform) => ResolvedPaint::Scale {
             scale_x: transform.scale_x().to_f32(),
             scale_y: transform.scale_y().to_f32(),
             around_center: None,
-            paint: transform.paint()?,
+            paint: transform.paint().map_err(|_| PaintError::Malformed)?,
         },
         Paint::VarScale(transform) => {
             let deltas = instance.var_deltas::<2>(transform.var_index_base());
@@ -872,7 +871,7 @@ pub fn resolve_paint<'a>(
                 scale_x: transform.scale_x().apply_delta(deltas[0]),
                 scale_y: transform.scale_y().apply_delta(deltas[1]),
                 around_center: None,
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::ScaleAroundCenter(transform) => ResolvedPaint::Scale {
@@ -882,7 +881,7 @@ pub fn resolve_paint<'a>(
                 transform.center_x().to_i16() as f32,
                 transform.center_y().to_i16() as f32,
             )),
-            paint: transform.paint()?,
+            paint: transform.paint().map_err(|_| PaintError::Malformed)?,
         },
         Paint::VarScaleAroundCenter(transform) => {
             let deltas = instance.var_deltas::<4>(transform.var_index_base());
@@ -893,7 +892,7 @@ pub fn resolve_paint<'a>(
                     transform.center_x().apply_delta(deltas[2]),
                     transform.center_y().apply_delta(deltas[3]),
                 )),
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::ScaleUniform(transform) => {
@@ -902,7 +901,7 @@ pub fn resolve_paint<'a>(
                 scale_x: scale,
                 scale_y: scale,
                 around_center: None,
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::VarScaleUniform(transform) => {
@@ -912,7 +911,7 @@ pub fn resolve_paint<'a>(
                 scale_x: scale,
                 scale_y: scale,
                 around_center: None,
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::ScaleUniformAroundCenter(transform) => {
@@ -924,7 +923,7 @@ pub fn resolve_paint<'a>(
                     transform.center_x().to_i16() as f32,
                     transform.center_y().to_i16() as f32,
                 )),
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::VarScaleUniformAroundCenter(transform) => {
@@ -937,20 +936,20 @@ pub fn resolve_paint<'a>(
                     transform.center_x().apply_delta(deltas[1]),
                     transform.center_y().apply_delta(deltas[2]),
                 )),
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::Rotate(transform) => ResolvedPaint::Rotate {
             angle: transform.angle().to_f32(),
             around_center: None,
-            paint: transform.paint()?,
+            paint: transform.paint().map_err(|_| PaintError::Malformed)?,
         },
         Paint::VarRotate(transform) => {
             let deltas = instance.var_deltas::<1>(transform.var_index_base());
             ResolvedPaint::Rotate {
                 angle: transform.angle().apply_delta(deltas[0]),
                 around_center: None,
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::RotateAroundCenter(transform) => ResolvedPaint::Rotate {
@@ -959,7 +958,7 @@ pub fn resolve_paint<'a>(
                 transform.center_x().to_i16() as f32,
                 transform.center_y().to_i16() as f32,
             )),
-            paint: transform.paint()?,
+            paint: transform.paint().map_err(|_| PaintError::Malformed)?,
         },
         Paint::VarRotateAroundCenter(transform) => {
             let deltas = instance.var_deltas::<3>(transform.var_index_base());
@@ -969,14 +968,14 @@ pub fn resolve_paint<'a>(
                     transform.center_x().apply_delta(deltas[1]),
                     transform.center_y().apply_delta(deltas[2]),
                 )),
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::Skew(transform) => ResolvedPaint::Skew {
             x_skew_angle: transform.x_skew_angle().to_f32(),
             y_skew_angle: transform.y_skew_angle().to_f32(),
             around_center: None,
-            paint: transform.paint()?,
+            paint: transform.paint().map_err(|_| PaintError::Malformed)?,
         },
         Paint::VarSkew(transform) => {
             let deltas = instance.var_deltas::<2>(transform.var_index_base());
@@ -984,7 +983,7 @@ pub fn resolve_paint<'a>(
                 x_skew_angle: transform.x_skew_angle().apply_delta(deltas[0]),
                 y_skew_angle: transform.y_skew_angle().apply_delta(deltas[1]),
                 around_center: None,
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::SkewAroundCenter(transform) => ResolvedPaint::Skew {
@@ -994,7 +993,7 @@ pub fn resolve_paint<'a>(
                 transform.center_x().to_i16() as f32,
                 transform.center_y().to_i16() as f32,
             )),
-            paint: transform.paint()?,
+            paint: transform.paint().map_err(|_| PaintError::Malformed)?,
         },
         Paint::VarSkewAroundCenter(transform) => {
             let deltas = instance.var_deltas::<4>(transform.var_index_base());
@@ -1005,13 +1004,17 @@ pub fn resolve_paint<'a>(
                     transform.center_x().apply_delta(deltas[2]),
                     transform.center_y().apply_delta(deltas[3]),
                 )),
-                paint: transform.paint()?,
+                paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
         Paint::Composite(composite) => ResolvedPaint::Composite {
-            source_paint: composite.source_paint()?,
+            source_paint: composite
+                .source_paint()
+                .map_err(|_| PaintError::Malformed)?,
             mode: composite.composite_mode(),
-            backdrop_paint: composite.backdrop_paint()?,
+            backdrop_paint: composite
+                .backdrop_paint()
+                .map_err(|_| PaintError::Malformed)?,
         },
     })
 }

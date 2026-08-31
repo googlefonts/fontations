@@ -104,6 +104,7 @@ const MAX_NESTING_LEVEL: u8 = 64;
 // this causes tests to fail with 'subtract with overflow error'.
 // See <https://github.com/googlefonts/fontations/issues/997>
 const MAX_GID: GlyphId = GlyphId::new(0xFFFFFFFF);
+pub(crate) const INVALID_GID: GlyphId = GlyphId::new(u32::MAX);
 
 // ref: <https://github.com/harfbuzz/harfbuzz/blob/689383d05b2609a67efa307a9860b85cf40bf8c3/src/hb-subset-input.cc#L82>
 pub static DEFAULT_LAYOUT_FEATURES: &[Tag] = &[
@@ -324,7 +325,7 @@ pub struct Plan {
     /// Old->New glyph id mapping,
     glyph_map: FnvHashMap<GlyphId, GlyphId>,
     // Old->New glyph id (in glyph_set_gsub) mapping
-    glyph_map_gsub: FnvHashMap<GlyphId, GlyphId>,
+    glyph_map_gsub: Vec<GlyphId>,
     /// New->Old glyph id mapping,
     reverse_glyph_map: FnvHashMap<GlyphId, GlyphId>,
 
@@ -646,12 +647,16 @@ impl Plan {
     }
 
     fn create_glyph_map_gsub(&mut self) {
-        let map: FnvHashMap<GlyphId, GlyphId> = self
-            .glyphset_gsub
-            .iter()
-            .filter_map(|g| self.glyph_map.get(&g).map(|new_gid| (g, *new_gid)))
-            .collect();
-        let _ = std::mem::replace(&mut self.glyph_map_gsub, map);
+        let Some(max_gid) = self.glyphset_gsub.last() else {
+            return;
+        };
+        self.glyph_map_gsub
+            .resize(max_gid.to_u32() as usize + 1, INVALID_GID);
+        for g in self.glyphset_gsub.iter() {
+            if let Some(new_gid) = self.glyph_map.get(&g) {
+                self.glyph_map_gsub[g.to_u32() as usize] = *new_gid;
+            }
+        }
     }
 
     fn colr_closure(&mut self, font: &FontRef) {

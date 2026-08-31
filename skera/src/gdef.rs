@@ -1,7 +1,7 @@
 //! impl subset() for GDEF
 
 use crate::{
-    layout::ClassDefSubsetStruct,
+    layout::{map_gsub_glyph, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::{IterNullableHelper, SubsetOffsetArray},
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -265,20 +265,20 @@ impl SubsetTable<'_> for AttachList<'_> {
         let mut count = 0_u16;
         let src_glyph_count = self.glyph_count() as usize;
         let mut retained_glyphs =
-            Vec::with_capacity(plan.glyph_map_gsub.len().min(src_glyph_count));
+            Vec::with_capacity((plan.glyphset_gsub.len() as usize).min(src_glyph_count));
 
         for (idx, glyph) in coverage
             .iter()
             .enumerate()
             .take(plan.font_num_glyphs.min(src_glyph_count))
         {
-            let Some(new_gid) = plan.glyph_map_gsub.get(&GlyphId::from(glyph)) else {
+            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, GlyphId::from(glyph)) else {
                 continue;
             };
 
             if !attach_points.subset_offset(idx, s, plan, ()).is_empty()? {
                 count += 1;
-                retained_glyphs.push(*new_gid);
+                retained_glyphs.push(new_gid);
             }
         }
 
@@ -329,20 +329,20 @@ impl SubsetTable<'_> for LigCaretList<'_> {
         let mut count = 0_u16;
         let src_lig_glyph_count = self.lig_glyph_count() as usize;
         let mut retained_glyphs =
-            Vec::with_capacity(plan.glyph_map_gsub.len().min(src_lig_glyph_count));
+            Vec::with_capacity((plan.glyphset_gsub.len() as usize).min(src_lig_glyph_count));
 
         for (idx, glyph) in coverage
             .iter()
             .enumerate()
             .take(plan.font_num_glyphs.min(src_lig_glyph_count))
         {
-            let Some(new_gid) = plan.glyph_map_gsub.get(&GlyphId::from(glyph)) else {
+            let Some(new_gid) = map_gsub_glyph(&plan.glyph_map_gsub, GlyphId::from(glyph)) else {
                 continue;
             };
 
             if !lig_glyphs.subset_offset(idx, s, plan, ()).is_empty()? {
                 count += 1;
-                retained_glyphs.push(*new_gid);
+                retained_glyphs.push(new_gid);
             }
         }
 

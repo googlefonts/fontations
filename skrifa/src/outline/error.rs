@@ -3,7 +3,7 @@
 use core::fmt;
 use read_fonts::types::GlyphId;
 
-pub use read_fonts::{ps::error::Error as CffError, ReadError};
+pub use read_fonts::ps::error::Error as CffError;
 
 pub use super::glyf::HintError;
 pub use super::path::ToPathError;
@@ -29,8 +29,13 @@ pub enum DrawError {
     PostScript(CffError),
     /// Conversion from outline to path failed.
     ToPath(ToPathError),
-    /// Error occurred when reading font data.
-    Read(ReadError),
+    /// The font data does not make sense: absent where it was required, too
+    /// short, or self-inconsistent.
+    ///
+    /// Carries nothing. A table that is missing, one that is truncated and one
+    /// whose offsets do not resolve are the same answer to "can this glyph be
+    /// drawn", and there is nothing a caller can do differently between them.
+    Malformed,
     /// HarfBuzz style drawing with hints is not supported
     // Error rather than silently returning unhinted per f2f discussion.
     HarfBuzzHintingUnsupported,
@@ -45,12 +50,6 @@ impl From<HintError> for DrawError {
 impl From<ToPathError> for DrawError {
     fn from(e: ToPathError) -> Self {
         Self::ToPath(e)
-    }
-}
-
-impl From<ReadError> for DrawError {
-    fn from(e: ReadError) -> Self {
-        Self::Read(e)
     }
 }
 
@@ -79,7 +78,7 @@ impl fmt::Display for DrawError {
             ),
             Self::PostScript(e) => write!(f, "{e}"),
             Self::ToPath(e) => write!(f, "{e}"),
-            Self::Read(e) => write!(f, "{e}"),
+            Self::Malformed => write!(f, "font data was absent or malformed"),
             Self::HarfBuzzHintingUnsupported => write!(
                 f,
                 "HarfBuzz style paths with hinting is not (yet?) supported"

@@ -13,7 +13,7 @@ use raw::{
         varc::CoverageTable,
     },
     types::Tag,
-    ReadError, TableProvider,
+    TableProvider,
 };
 
 // To prevent infinite recursion in contextual lookups. Matches HB
@@ -479,7 +479,7 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
                             // required and if we're not under a contextual
                             // lookup
                             if self.need_blue_substs && self.lookup_depth == 1 {
-                                self.check_blue_coverage(Ok(coverage));
+                                self.check_blue_coverage(Some(coverage));
                             }
                         }
                         SingleSubst::Format2(table) => {
@@ -488,7 +488,7 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
                             }
                             // See above
                             if self.need_blue_substs && self.lookup_depth == 1 {
-                                self.check_blue_coverage(table.coverage());
+                                self.check_blue_coverage(table.coverage().ok());
                             }
                         }
                     }
@@ -503,7 +503,7 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
                     }
                     // See above
                     if self.need_blue_substs && self.lookup_depth == 1 {
-                        self.check_blue_coverage(table.coverage());
+                        self.check_blue_coverage(table.coverage().ok());
                     }
                 }
             }
@@ -643,8 +643,8 @@ impl<'a, 'b> GsubHandler<'a, 'b> {
 
     /// Checks the given coverage table for any characters in the blue
     /// strings associated with our current style.
-    fn check_blue_coverage(&mut self, coverage: Result<CoverageTable<'a>, ReadError>) {
-        let Ok(coverage) = coverage else {
+    fn check_blue_coverage(&mut self, coverage: Option<CoverageTable<'a>>) {
+        let Some(coverage) = coverage else {
             return;
         };
         for (blue_str, _) in self.style.script.blues {

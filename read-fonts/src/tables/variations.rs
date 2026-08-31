@@ -2077,6 +2077,7 @@ mod tests {
                     let delta = ivs.compute_delta(delta_ix, &coords).unwrap();
                     let orig_delta = delta.to_i32();
                     let float_delta = delta.to_f64();
+
                     // For font unit types, we need to accept both rounding and
                     // truncation to account for the additional accumulation of
                     // fractional bits in floating point

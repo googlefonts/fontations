@@ -1,7 +1,7 @@
 //! impl subset() for AlternateSubst subtable
 use crate::fnv::FnvHashMap;
 use crate::{
-    layout::intersected_glyphs_and_indices,
+    layout::{intersected_glyphs_and_indices, map_gsub_glyph},
     offset::SerializeSerialize,
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -86,7 +86,7 @@ impl SubsetTable<'_> for AlternateSet<'_> {
         let glyph_map = &plan.glyph_map_gsub;
         let alt_glyphs = self.alternate_glyph_ids();
         for g in alt_glyphs {
-            let Some(new_g) = glyph_map.get(&GlyphId::from(g.get())) else {
+            let Some(new_g) = map_gsub_glyph(glyph_map, GlyphId::from(g.get())) else {
                 continue;
             };
             s.embed(new_g.to_u32() as u16)?;
@@ -122,14 +122,14 @@ mod test {
             panic!("Wrong type of lookup table!");
         };
         let alt_subst_table = sub_tables.get(0).unwrap();
-        let mut plan = Plan::default();
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 19],
+            ..Default::default()
+        };
 
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(3_u32), GlyphId::from(1_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(10_u32), GlyphId::from(2_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(18_u32), GlyphId::from(3_u32));
+        plan.glyph_map_gsub[3] = GlyphId::from(1_u32);
+        plan.glyph_map_gsub[10] = GlyphId::from(2_u32);
+        plan.glyph_map_gsub[18] = GlyphId::from(3_u32);
 
         plan.glyphset_gsub.insert(GlyphId::from(3_u32));
         plan.glyphset_gsub.insert(GlyphId::from(10_u32));

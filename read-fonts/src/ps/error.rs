@@ -6,17 +6,11 @@ use core::fmt;
 /// Errors that are specific to PostScript processing.
 #[derive(Clone, Debug)]
 pub enum Error {
-    InvalidFontFormat,
-    InvalidIndexOffsetSize(u8),
-    ZeroOffsetInIndex,
-    InvalidVariationStoreIndex(u16),
+    InvalidVariationStoreIndex,
     StackOverflow,
     StackUnderflow,
-    InvalidStackAccess(usize),
-    ExpectedI32StackEntry(usize),
+    ExpectedInt,
     InvalidNumber,
-    InvalidDictOperator(u8),
-    InvalidCharstringOperator(u8),
     CharstringNestingDepthLimitExceeded,
     MissingSubroutines,
     MissingBlendState,
@@ -25,32 +19,28 @@ pub enum Error {
     MissingCharstrings,
     MissingCharset,
     InvalidSeacCode(i32),
-    Read(ReadError),
+    /// The data does not make sense: absent where it was required, too short,
+    /// or self-inconsistent.
+    ///
+    /// Carries nothing. This module answers a malformed read with `None`
+    /// wherever it can; this is what it says where a `Result` is required.
+    Malformed,
 }
 
+/// Kept so the `?` inside this module still reads well. It is `read-fonts`
+/// converting one of its own error types into another, which is why it can
+/// stay: nothing outside the crate has to name `ReadError` to use `Error`.
 impl From<ReadError> for Error {
-    fn from(value: ReadError) -> Self {
-        Self::Read(value)
+    fn from(_: ReadError) -> Self {
+        Self::Malformed
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidFontFormat => {
-                write!(f, "invalid font format")
-            }
-            Self::InvalidIndexOffsetSize(size) => {
-                write!(f, "invalid offset size of {size} for INDEX (expected 1-4)")
-            }
-            Self::ZeroOffsetInIndex => {
-                write!(f, "invalid offset of 0 in INDEX (must be >= 1)")
-            }
-            Self::InvalidVariationStoreIndex(index) => {
-                write!(
-                    f,
-                    "variation store index {index} referenced an invalid variation region"
-                )
+            Self::InvalidVariationStoreIndex => {
+                write!(f, "variation store index referenced an invalid region")
             }
             Self::StackOverflow => {
                 write!(f, "attempted to push a value to a full stack")
@@ -58,20 +48,14 @@ impl fmt::Display for Error {
             Self::StackUnderflow => {
                 write!(f, "attempted to pop a value from an empty stack")
             }
-            Self::InvalidStackAccess(index) => {
-                write!(f, "invalid stack access for index {index}")
-            }
-            Self::ExpectedI32StackEntry(index) => {
-                write!(f, "attempted to read an integer at stack index {index}, but found a fixed point value")
+            Self::ExpectedInt => {
+                write!(
+                    f,
+                    "expected an integer on the stack, found a fixed point value"
+                )
             }
             Self::InvalidNumber => {
                 write!(f, "number is in an invalid format")
-            }
-            Self::InvalidDictOperator(operator) => {
-                write!(f, "dictionary operator {operator} is invalid")
-            }
-            Self::InvalidCharstringOperator(operator) => {
-                write!(f, "charstring operator {operator} is invalid")
             }
             Self::CharstringNestingDepthLimitExceeded => {
                 write!(
@@ -107,16 +91,9 @@ impl fmt::Display for Error {
             Self::InvalidSeacCode(code) => {
                 write!(f, "seac code {code} is not valid")
             }
-            Self::Read(err) => write!(f, "{err}"),
+            Self::Malformed => write!(f, "font data was absent or malformed"),
         }
     }
 }
 
-impl core::error::Error for Error {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Read(err) => Some(err),
-            _ => None,
-        }
-    }
-}
+impl core::error::Error for Error {}

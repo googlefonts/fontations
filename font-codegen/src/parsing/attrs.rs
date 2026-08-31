@@ -87,9 +87,6 @@ pub(crate) struct FieldAttrs {
     pub(crate) compile_type: Option<Attr<syn::Type>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
     pub(crate) read_offset_args: Option<Attr<FieldReadArgs>>,
-    /// If present, a custom method that returns a FieldType for this field,
-    /// during traversal.
-    pub(crate) traverse_with: Option<Attr<syn::Ident>>,
     pub(crate) to_owned: Option<Attr<InlineExpr>>,
     /// Custom validation behaviour
     pub(crate) validate: Option<Attr<FieldValidation>>,
@@ -273,7 +270,6 @@ static COMPILE_TYPE: &str = "compile_type";
 static DEFAULT: &str = "default";
 static READ_WITH: &str = "read_with";
 static READ_OFFSET_WITH: &str = "read_offset_with";
-static TRAVERSE_WITH: &str = "traverse_with";
 static TO_OWNED: &str = "to_owned";
 static VALIDATE: &str = "validate";
 static DISCRIMINANT: &str = "discriminant";
@@ -341,8 +337,6 @@ impl Parse for FieldAttrs {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_OFFSET_WITH {
                 this.read_offset_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
-            } else if ident == TRAVERSE_WITH {
-                this.traverse_with = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == FORMAT {
                 this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(&attr)?))
             } else if ident == DISCRIMINANT {

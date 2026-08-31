@@ -277,16 +277,15 @@ mod test {
         let markmarkpos_table = sub_tables.get(0).unwrap();
 
         let subset_state = SubsetState::default();
-        let mut plan = Plan::default();
+        let mut plan = Plan {
+            glyph_map_gsub: vec![crate::INVALID_GID; 75],
+            ..Default::default()
+        };
 
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(66_u32), GlyphId::from(2_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(67_u32), GlyphId::from(3_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(70_u32), GlyphId::from(4_u32));
-        plan.glyph_map_gsub
-            .insert(GlyphId::from(74_u32), GlyphId::from(5_u32));
+        plan.glyph_map_gsub[66] = GlyphId::from(2_u32);
+        plan.glyph_map_gsub[67] = GlyphId::from(3_u32);
+        plan.glyph_map_gsub[70] = GlyphId::from(4_u32);
+        plan.glyph_map_gsub[74] = GlyphId::from(5_u32);
 
         plan.glyphset_gsub.insert(GlyphId::from(66_u32));
         plan.glyphset_gsub.insert(GlyphId::from(67_u32));

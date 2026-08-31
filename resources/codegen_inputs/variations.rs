@@ -11,7 +11,6 @@ table TupleVariationHeader {
     variation_data_size: u16,
     /// A packed field. The high 4 bits are flags (see below). The low
     /// 12 bits are an index into a shared tuple records array.
-    #[traverse_with(traverse_tuple_index)]
     tuple_index: TupleIndex,
     /// Peak tuple record for this tuple variation table — optional,
     /// determined by flags in the tupleIndex value.  Note that this

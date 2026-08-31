@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use raw::{tables::colr::Paint, ReadError};
+use raw::tables::colr::Paint;
 use read_fonts::{
     tables::colr::CompositeMode,
     types::{BoundingBox, GlyphId},
@@ -63,7 +63,7 @@ pub(crate) fn get_clipbox_font_units(
     colr_instance: &ColrInstance,
     glyph_id: GlyphId,
 ) -> Option<BoundingBox<f32>> {
-    let maybe_clipbox = (*colr_instance).v1_clip_box(glyph_id).ok().flatten()?;
+    let maybe_clipbox = (*colr_instance).v1_clip_box(glyph_id)?;
     Some(resolve_clip_box(colr_instance, &maybe_clipbox))
 }
 
@@ -102,7 +102,7 @@ impl<'a, P: ColorPainter> TraversalState<'a, P> {
             .nodes_left
             .checked_sub(1)
             .ok_or(PaintError::DepthLimitExceeded)?;
-        Ok(super::instance::resolve_paint(&self.instance, paint)?)
+        super::instance::resolve_paint(&self.instance, paint)
     }
 }
 
@@ -119,7 +119,10 @@ pub(crate) fn traverse_with_callbacks<'a, P: ColorPainter>(
         ResolvedPaint::ColrLayers { range } => {
             for layer_index in range.clone() {
                 // Perform cycle detection with paint id here, second part of the tuple.
-                let (layer_paint, paint_id) = state.instance.v1_layer(layer_index)?;
+                let (layer_paint, paint_id) = state
+                    .instance
+                    .v1_layer(layer_index)
+                    .ok_or(PaintError::Malformed)?;
                 let mut cycle_guard = decycler.enter(paint_id)?;
                 traverse_with_callbacks(
                     &state.resolve_paint(&layer_paint)?,
@@ -187,7 +190,7 @@ pub(crate) fn traverse_with_callbacks<'a, P: ColorPainter>(
         }
         ResolvedPaint::ColrGlyph { glyph_id } => {
             let glyph_id = (*glyph_id).into();
-            match state.instance.v1_base_glyph(glyph_id)? {
+            match state.instance.v1_base_glyph(glyph_id) {
                 Some((base_glyph, base_glyph_paint_id)) => {
                     let mut cycle_guard = decycler.enter(base_glyph_paint_id)?;
                     let draw_result = state.painter.paint_cached_color_glyph(glyph_id)?;
@@ -230,12 +233,9 @@ pub(crate) fn traverse_with_callbacks<'a, P: ColorPainter>(
         | ResolvedPaint::Skew {
             paint: next_paint, ..
         } => {
-            state.painter.push_transform(
-                paint
-                    .as_transform()
-                    .ok_or(ReadError::MalformedData("expected a transform paint"))?
-                    .0,
-            );
+            state
+                .painter
+                .push_transform(paint.as_transform().ok_or(PaintError::Malformed)?.0);
             let result = traverse_unresolved_paint(next_paint, state, decycler, recurse_depth + 1);
             state.painter.pop_transform();
             result
@@ -277,7 +277,9 @@ pub(crate) fn traverse_v0_range(
     painter: &mut impl ColorPainter,
 ) -> Result<(), PaintError> {
     for layer_index in range.clone() {
-        let (layer_glyph, palette_index) = (*instance).v0_layer(layer_index)?;
+        let (layer_glyph, palette_index) = (*instance)
+            .v0_layer(layer_index)
+            .ok_or(PaintError::Malformed)?;
         painter.fill_glyph(
             layer_glyph.into(),
             None,
@@ -447,7 +449,7 @@ mod tests {
         let glyph_id = font.charmap().map(CLIPBOX[0]).unwrap();
         let mut painter = StackTrackingPainter::default();
         let instance = ColrInstance::new(font.colr().unwrap(), &[]);
-        let inner_paint = instance.v1_base_glyph(glyph_id).unwrap().unwrap().0;
+        let inner_paint = instance.v1_base_glyph(glyph_id).unwrap().0;
         let mut state = TraversalState::new(instance, &mut painter);
         let mut decycler = PaintDecycler::new();
         state.nodes_left = 0;
@@ -473,7 +475,7 @@ mod tests {
         let glyph_id = font.charmap().map(CLIPBOX[0]).unwrap();
         let mut painter = StackTrackingPainter::default();
         let instance = ColrInstance::new(font.colr().unwrap(), &[]);
-        let inner_paint = instance.v1_base_glyph(glyph_id).unwrap().unwrap().0;
+        let inner_paint = instance.v1_base_glyph(glyph_id).unwrap().0;
         let mut state = TraversalState::new(instance, &mut painter);
         let mut decycler = PaintDecycler::new();
         state.nodes_left = 0;
@@ -555,7 +557,7 @@ mod tests {
             let mut decycler = PaintDecycler::new();
             state.nodes_left = limit;
             let paint = state
-                .resolve_paint(&state.instance.v1_base_glyph(gid).unwrap().unwrap().0)
+                .resolve_paint(&state.instance.v1_base_glyph(gid).unwrap().0)
                 .unwrap();
             traverse_with_callbacks(&paint, &mut state, &mut decycler, 0)
                 .map(|_| limit - state.nodes_left)
