@@ -854,8 +854,8 @@ pub fn resolve_paint<'a>(
         Paint::VarTranslate(transform) => {
             let deltas = instance.var_deltas::<2>(transform.var_index_base());
             ResolvedPaint::Translate {
-                dx: transform.dx().apply_float_delta(deltas[0]),
-                dy: transform.dy().apply_float_delta(deltas[1]),
+                dx: transform.dx().apply_delta(deltas[0]),
+                dy: transform.dy().apply_delta(deltas[1]),
                 paint: transform.paint().map_err(|_| PaintError::Malformed)?,
             }
         }
