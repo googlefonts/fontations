@@ -28,6 +28,11 @@ spec_next = []
 # Enables support for a new font API, as proposed at
 # https://github.com/googlefonts/oxidize/pull/77
 experimental_font_api = []
+# Does nothing. Traversal was removed in #2087, but consumers still ask for
+# this feature -- fontconfig's fc-fontations does, without using any of it --
+# and cargo fails to resolve a feature that does not exist. Keeping it empty
+# lets them upgrade before they edit their manifests.
+experimental_traverse = []
 default = ["std"]
 serde = ["dep:serde", "font-types/serde"]
 libm = ["dep:core_maths"]
