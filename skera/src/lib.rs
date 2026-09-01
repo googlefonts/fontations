@@ -954,7 +954,7 @@ fn glyf_closure_glyphs(
         return operation_count;
     }
 
-    if let Some(Glyph::Composite(glyph)) = loca.get_glyf(gid, glyf).ok().flatten() {
+    if let Some(Glyph::Composite(glyph)) = loca.get(gid, glyf).and_then(|g| g.into_glyph()) {
         for child in glyph.components() {
             operation_count = glyf_closure_glyphs(
                 loca,

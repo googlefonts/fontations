@@ -355,7 +355,7 @@ impl<'a> GlyphMetrics<'a> {
             return self.bounds_from_outline(glyph_id);
         }
         let (loca, glyf) = self.loca_glyf.as_ref()?;
-        Some(match loca.get_glyf(glyph_id, glyf).ok()? {
+        Some(match loca.get(glyph_id, glyf)?.glyph() {
             Some(glyph) => BoundingBox {
                 x_min: self.fixed_scale.apply(glyph.x_min() as i32),
                 y_min: self.fixed_scale.apply(glyph.y_min() as i32),

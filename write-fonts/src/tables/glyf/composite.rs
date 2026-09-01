@@ -330,8 +330,10 @@ mod tests {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let read_glyf::Glyph::Composite(orig) =
-            loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap()
+        let read_glyf::Glyph::Composite(orig) = loca
+            .get(GlyphId::new(2), &glyf)
+            .and_then(|g| g.into_glyph())
+            .unwrap()
         else {
             panic!("not a composite glyph")
         };
