@@ -1,11 +1,17 @@
 # Compiles fontconfig's Rust font code against this branch.
 #
-# Run by hand, not on push or pull request: it builds a consumer that lives in
-# another repository, so a red result is information rather than a gate.
+# Runs like the rest of CI. It is the slowest of the three compatibility
+# checks, since it builds fontconfig itself before it can compile the Rust,
+# but that is a couple of minutes.
 #
 # fontconfig is the consumer that changes shape most — `script_records` and
 # `name_record` are the two accessors whose arrays stop being slices — and it
 # is worth checking against any change, not only the parsing rework.
+#
+# It compiles a consumer that lives in another repository and follows its main,
+# so it can go red without anything changing here. That is the trade for
+# hearing about a break when it happens rather than at the next roll; the
+# dispatch trigger takes a ref when a run needs pinning to investigate one.
 #
 # This does the full build. `fc-fontations` binds to fontconfig's C through two
 # crates that `include!` bindgen output, and meson generates that output, so
@@ -18,6 +24,12 @@
 name: fontconfig compatibility
 
 on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
   workflow_dispatch:
     inputs:
       fontconfig_ref:
@@ -61,10 +73,11 @@ jobs:
       # fontconfig is on freedesktop's GitLab, which actions/checkout cannot
       # reach, so this clones it directly. Shallow: no history is needed.
       # The ref reaches the shell through the environment rather than
-      # through template expansion, which would splice it into the script.
+      # through template expansion, which would splice it into the script;
+      # `inputs` is unset unless the run was dispatched by hand.
       - name: clone fontconfig
         env:
-          FONTCONFIG_REF: ${{ inputs.fontconfig_ref }}
+          FONTCONFIG_REF: ${{ inputs.fontconfig_ref || 'main' }}
         run: |
           git clone --depth 1 \
             --branch "$FONTCONFIG_REF" \
@@ -81,7 +94,7 @@ jobs:
 
       - name: report what is being compared
         env:
-          FONTCONFIG_REF: ${{ inputs.fontconfig_ref }}
+          FONTCONFIG_REF: ${{ inputs.fontconfig_ref || 'main' }}
         run: |
           echo "fontations $(git -C fontations rev-parse --short HEAD) ($(git -C fontations rev-parse --abbrev-ref HEAD))"
           echo "fontconfig $(git -C fontconfig rev-parse --short HEAD) ($FONTCONFIG_REF)"
