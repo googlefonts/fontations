@@ -1,12 +1,23 @@
 # Compiles Skia's Rust font bridge against this branch.
 #
-# Run by hand, not on push or pull request: it builds a consumer that lives in
-# another repository, so a red result here is information rather than a gate.
-# Nothing else in CI compiles a downstream consumer.
+# Runs like the rest of CI. It is cheap: a sparse checkout of a few thousand
+# lines and a `cargo check`, needing no C++ toolchain, because the bridge has
+# no build script and `cxx::bridge` is only a macro.
+#
+# It compiles a consumer that lives in another repository and follows its main,
+# so it can go red without anything changing here. That is the trade for
+# hearing about a break when it happens rather than at the next roll; the
+# dispatch trigger takes a ref when a run needs pinning to investigate one.
 
 name: Skia compatibility
 
 on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
   workflow_dispatch:
     inputs:
       skia_ref:
@@ -33,7 +44,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: google/skia
-          ref: ${{ inputs.skia_ref }}
+          # `inputs` is unset unless the run was dispatched by hand.
+          ref: ${{ inputs.skia_ref || 'main' }}
           path: skia
           fetch-depth: 1
           sparse-checkout: |
@@ -45,7 +57,7 @@ jobs:
       - name: report what is being compared
         run: |
           echo "fontations $(git -C fontations rev-parse --short HEAD) ($(git -C fontations rev-parse --abbrev-ref HEAD))"
-          echo "skia       $(git -C skia rev-parse --short HEAD) (${{ inputs.skia_ref }})"
+          echo "skia       $(git -C skia rev-parse --short HEAD) (${{ inputs.skia_ref || 'main' }})"
 
       - name: compile the bridge
         run: fontations/resources/scripts/check_skia_compat.sh skia
