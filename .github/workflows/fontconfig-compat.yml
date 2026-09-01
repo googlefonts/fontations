@@ -1,0 +1,76 @@
+# Compiles fontconfig's Rust font code against this branch.
+#
+# Run by hand, not on push or pull request: it builds a consumer that lives in
+# another repository, so a red result is information rather than a gate.
+#
+# fontconfig is the consumer that changes shape most — `script_records` and
+# `name_record` are the two accessors whose arrays stop being slices — and it
+# is worth checking against any change, not only the parsing rework.
+#
+# This does the full build. `fc-fontations` binds to fontconfig's C through two
+# crates that `include!` bindgen output, and meson generates that output, so
+# fontconfig has to be built once before cargo can see the whole crate. The
+# script falls back to the modules that bind to no C when it is not, which is
+# what makes it useful locally; here there is a toolchain, so it gets
+# everything — including `attributes.rs`, by far the heaviest reader of
+# read-fonts.
+
+name: fontconfig compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      fontconfig_ref:
+        description: "fontconfig ref to build against"
+        default: main
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  fontconfig-compat:
+    name: compile fc-fontations
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout fontations
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: fontations
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      # fontconfig's own build dependencies, plus bindgen, which meson calls
+      # through `rust.bindgen()` to generate the two binding crates.
+      - name: install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            meson ninja-build pkg-config gperf \
+            libfreetype-dev libexpat1-dev python3-setuptools
+          cargo install --locked bindgen-cli
+
+      # fontconfig is on freedesktop's GitLab, which actions/checkout cannot
+      # reach, so this clones it directly. Shallow: no history is needed.
+      - name: clone fontconfig
+        run: |
+          git clone --depth 1 \
+            --branch "${{ inputs.fontconfig_ref }}" \
+            https://gitlab.freedesktop.org/fontconfig/fontconfig.git \
+            fontconfig
+
+      # A static library is what fc-fontations' build scripts expect to link
+      # against, and `-Dfontations=enabled` is what generates the bindings.
+      - name: build fontconfig
+        working-directory: fontconfig
+        run: |
+          meson setup build -Dfontations=enabled -Ddefault_library=static
+          ninja -C build
+
+      - name: report what is being compared
+        run: |
+          echo "fontations $(git -C fontations rev-parse --short HEAD) ($(git -C fontations rev-parse --abbrev-ref HEAD))"
+          echo "fontconfig $(git -C fontconfig rev-parse --short HEAD) (${{ inputs.fontconfig_ref }})"
+
+      - name: compile fc-fontations against this branch
+        run: fontations/resources/scripts/check_fontconfig_compat.sh fontconfig
