@@ -44,13 +44,19 @@ jobs:
 
       # fontconfig's own build dependencies, plus bindgen, which meson calls
       # through `rust.bindgen()` to generate the two binding crates.
+      #
+      # meson comes from PyPI rather than apt: fontconfig asks for >= 1.11.0
+      # and the runner image ships 1.3.2. pipx because Ubuntu marks its
+      # Python externally managed, so a plain pip install is refused.
       - name: install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            meson ninja-build pkg-config gperf \
+            ninja-build pkg-config gperf \
             libfreetype-dev libexpat1-dev python3-setuptools
+          pipx install meson
           cargo install --locked bindgen-cli
+          meson --version
 
       # fontconfig is on freedesktop's GitLab, which actions/checkout cannot
       # reach, so this clones it directly. Shallow: no history is needed.
