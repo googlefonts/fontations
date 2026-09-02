@@ -961,7 +961,8 @@ fn copy_default_uvs(
 
             if start == INVALID_UNICODE_CHAR {
                 start = u;
-                end = start - 1;
+                end = u;
+                continue;
             }
 
             if end + 1 != u || end - start == 255 {
