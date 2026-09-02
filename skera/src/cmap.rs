@@ -1142,3 +1142,128 @@ impl CollectUnicodes for Cmap12<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use write_fonts::read::{FontData, FontRead};
+
+    fn make_default_uvs_data(ranges: &[(u32, u8)]) -> Vec<u8> {
+        let mut data = Vec::with_capacity(4 + ranges.len() * 4);
+        data.extend_from_slice(&(ranges.len() as u32).to_be_bytes());
+        for &(start, count) in ranges {
+            let be = start.to_be_bytes();
+            data.extend_from_slice(&be[1..4]);
+            data.push(count);
+        }
+        data
+    }
+
+    #[test]
+    fn test_copy_default_uvs_underflow() {
+        // Construct 10 ranges so that org_num_range > plan.unicodes.len() * num_bits:
+        // org_num_range = 10, num_bits = 4.
+        // plan.unicodes has 2 codepoints: 2 * 4 = 8 < 10.
+        // This exercises Branch 1 (binary search over ranges for each unicode).
+        let ranges = vec![
+            (0x1000, 0),
+            (0x2000, 0),
+            (0x3000, 0),
+            (0x4000, 0),
+            (0x5000, 0),
+            (0x6000, 0),
+            (0x7000, 0),
+            (0x8000, 0),
+            (0x9000, 0),
+            (0xA000, 0),
+        ];
+        let data = make_default_uvs_data(&ranges);
+        let default_uvs = DefaultUvs::read(FontData::new(&data)).unwrap();
+
+        let mut plan = Plan::default();
+        // 0x2000 matches start_unicode_value. Prior to the fix, the first matched unicode
+        // initialized `end = start - 1` and panicked on `end - start` with subtraction underflow.
+        plan.unicodes.insert(0x2000);
+        plan.unicodes.insert(0x5000);
+
+        let mut s = Serializer::new(1024);
+        s.start_serialize().unwrap();
+        let num_ranges = copy_default_uvs(&default_uvs, &mut s, &plan).unwrap();
+        assert_eq!(num_ranges, 2);
+
+        let bytes = s.copy_bytes();
+        let out_uvs = DefaultUvs::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(out_uvs.num_unicode_value_ranges(), 2);
+        let out_ranges = out_uvs.ranges();
+        assert_eq!(out_ranges[0].start_unicode_value().to_u32(), 0x2000);
+        assert_eq!(out_ranges[0].additional_count(), 0);
+        assert_eq!(out_ranges[1].start_unicode_value().to_u32(), 0x5000);
+        assert_eq!(out_ranges[1].additional_count(), 0);
+    }
+
+    #[test]
+    fn test_copy_default_uvs_range_merging() {
+        // 20 ranges so org_num_range (20) > plan.unicodes.len() (3) * num_bits (5):
+        let mut ranges = Vec::new();
+        ranges.push((0x1000, 0));
+        ranges.push((0x2001, 0));
+        ranges.push((0x2002, 0));
+        ranges.push((0x2003, 0));
+        for i in 4..21 {
+            ranges.push((i * 0x1000, 0));
+        }
+        let data = make_default_uvs_data(&ranges);
+        let default_uvs = DefaultUvs::read(FontData::new(&data)).unwrap();
+
+        let mut plan = Plan::default();
+        // Contiguous unicodes: 0x2001, 0x2002, 0x2003 should be merged into 1 range with count 2:
+        plan.unicodes.insert(0x2001);
+        plan.unicodes.insert(0x2002);
+        plan.unicodes.insert(0x2003);
+
+        let mut s = Serializer::new(1024);
+        s.start_serialize().unwrap();
+        let num_ranges = copy_default_uvs(&default_uvs, &mut s, &plan).unwrap();
+        assert_eq!(num_ranges, 1);
+
+        let bytes = s.copy_bytes();
+        let out_uvs = DefaultUvs::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(out_uvs.num_unicode_value_ranges(), 1);
+        let out_ranges = out_uvs.ranges();
+        assert_eq!(out_ranges[0].start_unicode_value().to_u32(), 0x2001);
+        assert_eq!(out_ranges[0].additional_count(), 2);
+    }
+
+    #[test]
+    fn test_copy_default_uvs_disjoint_unicodes() {
+        // 20 ranges to exercise Branch 1:
+        let mut ranges = Vec::new();
+        ranges.push((0x1000, 0));
+        ranges.push((0x2001, 0));
+        ranges.push((0x2003, 0));
+        for i in 4..22 {
+            ranges.push((i * 0x1000, 0));
+        }
+        let data = make_default_uvs_data(&ranges);
+        let default_uvs = DefaultUvs::read(FontData::new(&data)).unwrap();
+
+        let mut plan = Plan::default();
+        // Non-contiguous unicodes: 0x2001 and 0x2003 (gap at 0x2002) should result in 2 ranges:
+        plan.unicodes.insert(0x2001);
+        plan.unicodes.insert(0x2003);
+
+        let mut s = Serializer::new(1024);
+        s.start_serialize().unwrap();
+        let num_ranges = copy_default_uvs(&default_uvs, &mut s, &plan).unwrap();
+        assert_eq!(num_ranges, 2);
+
+        let bytes = s.copy_bytes();
+        let out_uvs = DefaultUvs::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(out_uvs.num_unicode_value_ranges(), 2);
+        let out_ranges = out_uvs.ranges();
+        assert_eq!(out_ranges[0].start_unicode_value().to_u32(), 0x2001);
+        assert_eq!(out_ranges[0].additional_count(), 0);
+        assert_eq!(out_ranges[1].start_unicode_value().to_u32(), 0x2003);
+        assert_eq!(out_ranges[1].additional_count(), 0);
+    }
+}
