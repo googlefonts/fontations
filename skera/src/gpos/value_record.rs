@@ -8,10 +8,22 @@ use crate::{
 use write_fonts::{
     read::{
         collections::IntSet,
-        tables::gpos::{ValueFormat, ValueRecord},
+        tables::{
+            gpos::{ValueFormat, ValueRecord},
+            layout::DeviceOrVariationIndex,
+        },
+        ReadError, ResolveOffset,
     },
     types::Offset16,
 };
+
+/// The device fields of a value record, in on-disk order.
+const NON_DEVICE_FIELDS: [ValueFormat; 4] = [
+    ValueFormat::X_PLACEMENT,
+    ValueFormat::Y_PLACEMENT,
+    ValueFormat::X_ADVANCE,
+    ValueFormat::Y_ADVANCE,
+];
 
 /// The device fields of a value record, in on-disk order.
 const DEVICE_FIELDS: [ValueFormat; 4] = [
@@ -21,11 +33,24 @@ const DEVICE_FIELDS: [ValueFormat; 4] = [
     ValueFormat::Y_ADVANCE_DEVICE,
 ];
 
+#[inline]
+fn popcount8(v: u8) -> u8 {
+    const POPCOUNT4: [u8; 16] = [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4];
+    POPCOUNT4[(v & 0xF) as usize] + POPCOUNT4[(v >> 4) as usize]
+}
+
+// use faster popcount8 that only processes the lowest 8 bits
+// Harfbuzz ref: <https://github.com/harfbuzz/harfbuzz/blob/f279195ce7e0a04c16576214d524d2629ea0aa79/src/OT/Layout/GPOS/ValueFormat.hh#L66>
+pub(super) fn compute_record_len(value_format: ValueFormat) -> usize {
+    let v = value_format.bits() as u8;
+    popcount8(v) as usize
+}
+
 pub(crate) fn compute_effective_format(
     value_record: &ValueRecord,
     strip_hints: bool,
     strip_empty: bool,
-) -> ValueFormat {
+) -> Result<ValueFormat, ReadError> {
     let mut effective = value_record.format();
 
     if strip_hints {
@@ -33,35 +58,25 @@ pub(crate) fn compute_effective_format(
     }
 
     if !strip_empty {
-        return effective;
+        return Ok(effective);
     }
 
-    // A field contributes nothing when its sixteen bits are zero, whether it
-    // holds a value or an offset to a device table. The two cases are treated
-    // alike: `strip_empty` governs both.
-    for (field, value) in [
-        (ValueFormat::X_PLACEMENT, value_record.x_placement()),
-        (ValueFormat::Y_PLACEMENT, value_record.y_placement()),
-        (ValueFormat::X_ADVANCE, value_record.x_advance()),
-        (ValueFormat::Y_ADVANCE, value_record.y_advance()),
-    ] {
-        if value == Some(0) {
+    let mut offset = value_record.offset();
+    let value_format = value_record.format();
+    let font_data = value_record.offset_data();
+    for &field in NON_DEVICE_FIELDS.iter().chain(DEVICE_FIELDS.iter()) {
+        if !value_format.contains(field) {
+            continue;
+        }
+
+        let value = font_data.read_at::<u16>(offset)?;
+        if value == 0 {
             effective -= field;
         }
+        offset += 2;
     }
 
-    if effective.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
-        for field in DEVICE_FIELDS {
-            if value_record
-                .device_offset(field)
-                .is_some_and(|offset| offset.is_null())
-            {
-                effective -= field;
-            }
-        }
-    }
-
-    effective
+    Ok(effective)
 }
 
 impl<'a> SubsetTable<'a> for ValueRecord<'_> {
@@ -78,40 +93,45 @@ impl<'a> SubsetTable<'a> for ValueRecord<'_> {
             return Ok(());
         }
 
-        if new_format.contains(ValueFormat::X_PLACEMENT) {
-            s.embed(self.x_placement().unwrap_or(0))?;
-        }
+        let mut offset = self.offset();
+        let font_data = self.offset_data();
+        let value_format = self.format();
 
-        if new_format.contains(ValueFormat::Y_PLACEMENT) {
-            s.embed(self.y_placement().unwrap_or(0))?;
-        }
-
-        if new_format.contains(ValueFormat::X_ADVANCE) {
-            s.embed(self.x_advance().unwrap_or(0))?;
-        }
-
-        if new_format.contains(ValueFormat::Y_ADVANCE) {
-            s.embed(self.y_advance().unwrap_or(0))?;
-        }
-
-        if !new_format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
-            return Ok(());
-        }
-
-        for (field, device) in [
-            (ValueFormat::X_PLACEMENT_DEVICE, self.x_placement_device()),
-            (ValueFormat::Y_PLACEMENT_DEVICE, self.y_placement_device()),
-            (ValueFormat::X_ADVANCE_DEVICE, self.x_advance_device()),
-            (ValueFormat::Y_ADVANCE_DEVICE, self.y_advance_device()),
-        ] {
-            if !new_format.contains(field) {
+        for field in NON_DEVICE_FIELDS {
+            if !value_format.contains(field) {
                 continue;
             }
+            if !new_format.contains(field) {
+                offset += 2;
+                continue;
+            }
+
+            let value_bytes = font_data
+                .slice(offset..offset + 2)
+                .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+            s.embed_bytes(value_bytes.as_bytes())?;
+            offset += 2;
+        }
+
+        for field in DEVICE_FIELDS {
+            if !value_format.contains(field) {
+                continue;
+            }
+            if !new_format.contains(field) {
+                offset += 2;
+                continue;
+            }
+
             let offset_pos = s.embed(0_u16)?;
-            if let Some(device) = device
-                .transpose()
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
-            {
+            let device_offset = font_data
+                .read_at::<Offset16>(offset)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
+            if !device_offset.is_null() {
+                let device = device_offset
+                    .resolve::<DeviceOrVariationIndex>(font_data)
+                    .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+
                 Offset16::serialize_subset(
                     &device,
                     s,
@@ -121,6 +141,7 @@ impl<'a> SubsetTable<'a> for ValueRecord<'_> {
                 )
                 .is_empty()?;
             }
+            offset += 2;
         }
         Ok(())
     }
@@ -132,17 +153,34 @@ impl CollectVariationIndices for ValueRecord<'_> {
             return;
         }
 
-        for device in [
-            self.x_placement_device(),
-            self.y_placement_device(),
-            self.x_advance_device(),
-            self.y_advance_device(),
-        ]
-        .into_iter()
-        .flatten()
-        .flatten()
-        {
+        let mut offset = self.offset();
+        let value_format = self.format();
+        for field in NON_DEVICE_FIELDS {
+            if value_format.contains(field) {
+                offset += 2;
+            }
+        }
+
+        let font_data = self.offset_data();
+        for field in DEVICE_FIELDS {
+            if !value_format.contains(field) {
+                continue;
+            }
+
+            let Ok(device_offset) = font_data.read_at::<Offset16>(offset) else {
+                return;
+            };
+
+            if device_offset.is_null() {
+                offset += 2;
+                continue;
+            }
+
+            let Ok(device) = device_offset.resolve::<DeviceOrVariationIndex>(font_data) else {
+                return;
+            };
             device.collect_variation_indices(plan, varidx_set);
+            offset += 2;
         }
     }
 }
@@ -169,10 +207,13 @@ mod test {
     fn keeps_everything_when_stripping_nothing() {
         // with neither flag set the format is reported as-is, even for fields
         // that are zero: the caller has not asked for anything to be dropped
-        assert_eq!(compute_effective_format(&record(&EMPTY), false, false), ALL);
+        assert_eq!(
+            compute_effective_format(&record(&EMPTY), false, false),
+            Ok(ALL)
+        );
         assert_eq!(
             compute_effective_format(&record(&PARTLY_SET), false, false),
-            ALL
+            Ok(ALL)
         );
     }
 
@@ -181,12 +222,12 @@ mod test {
         // an all-zero record keeps nothing
         assert_eq!(
             compute_effective_format(&record(&EMPTY), false, true),
-            ValueFormat::empty()
+            Ok(ValueFormat::empty())
         );
         // and only the two fields that are actually set survive
         assert_eq!(
             compute_effective_format(&record(&PARTLY_SET), false, true),
-            ValueFormat::X_PLACEMENT | ValueFormat::X_PLACEMENT_DEVICE
+            Ok(ValueFormat::X_PLACEMENT | ValueFormat::X_PLACEMENT_DEVICE)
         );
     }
 
@@ -196,11 +237,11 @@ mod test {
         // or not empty fields are being stripped
         assert_eq!(
             compute_effective_format(&record(&PARTLY_SET), true, false),
-            ALL - ValueFormat::ANY_DEVICE_OR_VARIDX
+            Ok(ALL - ValueFormat::ANY_DEVICE_OR_VARIDX)
         );
         assert_eq!(
             compute_effective_format(&record(&PARTLY_SET), true, true),
-            ValueFormat::X_PLACEMENT
+            Ok(ValueFormat::X_PLACEMENT)
         );
     }
 
@@ -211,10 +252,10 @@ mod test {
         let format = ValueFormat::Y_ADVANCE | ValueFormat::Y_ADVANCE_DEVICE;
         let bytes = [0u8, 7, 0, 12];
         let rec = ValueRecord::new(FontData::new(&bytes), 0, format);
-        assert_eq!(compute_effective_format(&rec, false, true), format);
+        assert_eq!(compute_effective_format(&rec, false, true), Ok(format));
         assert_eq!(
             compute_effective_format(&rec, true, true),
-            ValueFormat::Y_ADVANCE
+            Ok(ValueFormat::Y_ADVANCE)
         );
     }
 }
