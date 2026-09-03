@@ -1,0 +1,72 @@
+# Compiles Chromium's own Rust font code against this branch.
+#
+# Runs like the rest of CI. Chromium is enormous, but a treeless sparse clone
+# of the two directories that read fonts is about 90 MB and twenty seconds,
+# and the compile needs no C++ toolchain.
+#
+# Only Chromium's own code — a format check in Blink and a name-table lookup
+# in the browser process. The other consumers that link read-fonts from a
+# Chromium checkout are DEPS submodules whose sources are not in its git tree,
+# and Skia and fontconfig are checked against their own repositories here.
+#
+# It follows Chromium's main rather than a pinned commit, so it can go red
+# without anything changing here; the dispatch trigger takes a ref when a run
+# needs pinning to investigate one.
+
+name: Chromium compatibility
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  workflow_dispatch:
+    inputs:
+      chromium_ref:
+        description: "Chromium ref to build against"
+        default: main
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  chromium-compat:
+    name: compile Chromium's font code
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout fontations
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # nothing here pushes, so the token need not outlive the step
+          persist-credentials: false
+          path: fontations
+
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      # actions/checkout fetches the whole tree, which for Chromium is not
+      # viable. `--filter=tree:0` leaves trees on the server and fetches only
+      # the ones the sparse paths need.
+      - name: clone Chromium
+        env:
+          CHROMIUM_REF: ${{ inputs.chromium_ref || 'main' }}
+        run: |
+          git clone --depth 1 --filter=tree:0 --sparse \
+            --branch "$CHROMIUM_REF" \
+            https://github.com/chromium/chromium.git \
+            chromium
+          git -C chromium sparse-checkout set \
+            third_party/blink/renderer/platform/fonts/opentype \
+            content/browser/font_unique_name_lookup
+
+      - name: report what is being compared
+        env:
+          CHROMIUM_REF: ${{ inputs.chromium_ref || 'main' }}
+        run: |
+          echo "fontations $(git -C fontations rev-parse --short HEAD) ($(git -C fontations rev-parse --abbrev-ref HEAD))"
+          echo "chromium   $(git -C chromium rev-parse --short HEAD) ($CHROMIUM_REF)"
+
+      - name: compile Chromium's font code
+        run: fontations/resources/scripts/check_chromium_compat.sh chromium
