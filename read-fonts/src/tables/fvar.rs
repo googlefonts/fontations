@@ -195,7 +195,7 @@ impl<'a> Fvar<'a> {
                         inner: i as u16,
                     }
                 };
-                if let Ok(delta) = varstore.compute_float_delta(var_index, coords_2dot14) {
+                if let Ok(delta) = varstore.compute_delta(var_index, coords_2dot14) {
                     *coord =
                         apply_avar2_delta(*coord, delta.to_f64()).clamp(Fixed::NEG_ONE, Fixed::ONE);
                 }
