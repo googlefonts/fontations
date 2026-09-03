@@ -1,11 +1,8 @@
 //! impl subset() for PairPos subtable
 
 use crate::{
-    gpos::value_record::compute_effective_format,
-    layout::{
-        intersected_coverage_indices, intersected_glyphs_and_indices, map_gsub_glyph,
-        ClassDefSubsetStruct,
-    },
+    gpos::value_record::{compute_effective_format, compute_record_len},
+    layout::{map_gsub_glyph, ClassDefSubsetStruct},
     offset::{SerializeSerialize, SerializeSubset},
     offset_array::SubsetOffsetArray,
     serialize::{SerializeErrorFlags, SerializeResultEmpty, Serializer},
@@ -17,13 +14,11 @@ use write_fonts::{
     read::{
         collections::IntSet,
         tables::{
-            gpos::{
-                PairPos, PairPosFormat1, PairPosFormat2, PairSet, PairValueRecord, ValueFormat,
-            },
+            gpos::{PairPos, PairPosFormat1, PairPosFormat2, PairSet, ValueFormat, ValueRecord},
             layout::CoverageTable,
         },
         types::GlyphId,
-        FontRef, ReadError, TableProvider,
+        ArrayOfOffsets, FontData, FontRef, ReadError, TableProvider,
     },
     types::Offset16,
 };
@@ -45,48 +40,117 @@ impl<'a> SubsetTable<'a> for PairPos<'_> {
     }
 }
 
-fn compute_effective_pair_formats_1(
-    pair_pos: &PairPosFormat1,
+pub(crate) struct PairSetInfo<'a> {
+    coverage: &'a CoverageTable<'a>,
+    pair_sets: &'a ArrayOfOffsets<'a, PairSet<'a>>,
+    pair_set_count: u16,
+    value_format1: ValueFormat,
+    value_format2: ValueFormat,
+    record1_size: usize,
+    pair_record_size: usize,
+    new_format1: ValueFormat,
+    new_format2: ValueFormat,
+}
+
+fn compute_pair_set_effective_formats(
+    pair_set: &PairSet,
     glyph_set: &IntSet<GlyphId>,
+    pair_set_info: &mut PairSetInfo,
     strip_hints: bool,
     strip_empty: bool,
-) -> Result<(ValueFormat, ValueFormat), ReadError> {
-    let mut new_format1 = ValueFormat::empty();
-    let mut new_format2 = ValueFormat::empty();
-
-    let orig_format1 = pair_pos.value_format1();
-    let orig_format2 = pair_pos.value_format2();
-
-    let coverage = pair_pos.coverage()?;
-    let pair_sets = pair_pos.pair_sets();
-    let partset_idxes = intersected_coverage_indices(&coverage, glyph_set);
-    for i in partset_idxes.iter() {
-        let pair_set = match pair_sets.get(i as usize) {
-            Err(ReadError::NullOffset) => continue,
-            other => other,
-        }?;
-        for pair_value_rec in pair_set.pair_value_records().iter() {
-            let pair_value_rec = pair_value_rec?;
-            let second_glyph = pair_value_rec.second_glyph();
-            if !glyph_set.contains(GlyphId::from(second_glyph)) {
-                continue;
-            }
-
-            new_format1 |=
-                compute_effective_format(pair_value_rec.value_record1(), strip_hints, strip_empty);
-            new_format2 |=
-                compute_effective_format(pair_value_rec.value_record2(), strip_hints, strip_empty);
+) -> Result<(), ReadError> {
+    let (value_format1, value_format2, record1_size, pair_record_size, new_format1, new_format2) = (
+        pair_set_info.value_format1,
+        pair_set_info.value_format2,
+        pair_set_info.record1_size,
+        pair_set_info.pair_record_size,
+        &mut pair_set_info.new_format1,
+        &mut pair_set_info.new_format2,
+    );
+    for i in 0..pair_set.pair_value_count() as usize {
+        let offset = 2 + i * pair_record_size;
+        let font_data = pair_set.offset_data();
+        let second_glyph = font_data.read_at::<u16>(offset)?;
+        if !glyph_set.contains(GlyphId::from(second_glyph)) {
+            continue;
         }
-        if new_format1 == orig_format1 && new_format2 == orig_format2 {
-            break;
+
+        let value_record1 = ValueRecord::new(font_data, offset + 2, value_format1);
+        *new_format1 |= compute_effective_format(&value_record1, strip_hints, strip_empty)?;
+
+        let value_record2 = ValueRecord::new(font_data, offset + 2 + record1_size, value_format2);
+        *new_format2 |= compute_effective_format(&value_record2, strip_hints, strip_empty)?;
+    }
+    Ok(())
+}
+
+fn compute_effective_pair_formats_1(
+    glyph_set: &IntSet<GlyphId>,
+    pair_set_info: &mut PairSetInfo,
+    strip_hints: bool,
+    strip_empty: bool,
+) -> Result<(), ReadError> {
+    let (coverage, pair_sets, pair_set_count, value_format1, value_format2) = (
+        pair_set_info.coverage,
+        pair_set_info.pair_sets,
+        pair_set_info.pair_set_count,
+        pair_set_info.value_format1,
+        pair_set_info.value_format2,
+    );
+    let bit_storage = 16 - pair_set_count.leading_zeros() as u64;
+
+    if pair_set_count as u64 > glyph_set.len() * bit_storage {
+        for g in glyph_set.iter() {
+            if let Some(idx) = coverage.get(g) {
+                let pair_set = match pair_sets.get(idx as usize) {
+                    Err(ReadError::NullOffset) => continue,
+                    other => other,
+                }?;
+
+                compute_pair_set_effective_formats(
+                    &pair_set,
+                    glyph_set,
+                    pair_set_info,
+                    strip_hints,
+                    strip_empty,
+                )?;
+                if pair_set_info.new_format1 == value_format1
+                    && pair_set_info.new_format2 == value_format2
+                {
+                    break;
+                }
+            }
+        }
+    } else {
+        for idx in coverage
+            .iter()
+            .enumerate()
+            .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i))
+        {
+            let pair_set = match pair_sets.get(idx as usize) {
+                Err(ReadError::NullOffset) => continue,
+                other => other,
+            }?;
+            compute_pair_set_effective_formats(
+                &pair_set,
+                glyph_set,
+                pair_set_info,
+                strip_hints,
+                strip_empty,
+            )?;
+            if pair_set_info.new_format1 == value_format1
+                && pair_set_info.new_format2 == value_format2
+            {
+                break;
+            }
         }
     }
 
-    Ok((new_format1, new_format2))
+    Ok(())
 }
 
-impl SubsetTable<'_> for PairSet<'_> {
-    type ArgsForSubset = (ValueFormat, ValueFormat);
+impl<'a> SubsetTable<'a> for PairSet<'_> {
+    type ArgsForSubset = &'a PairSetInfo<'a>;
     type Output = ();
     fn subset(
         &self,
@@ -99,17 +163,88 @@ impl SubsetTable<'_> for PairSet<'_> {
         let mut count = 0_u16;
 
         let glyph_map = &plan.glyph_map_gsub;
-        let (new_format1, new_format2) = args;
+        let (
+            value_format1,
+            value_format2,
+            new_format1,
+            new_format2,
+            record1_size,
+            pair_record_size,
+        ) = (
+            args.value_format1,
+            args.value_format2,
+            args.new_format1,
+            args.new_format2,
+            args.record1_size,
+            args.pair_record_size,
+        );
 
-        for pairvalue_rec in self.pair_value_records().iter() {
-            let pairvalue_rec = pairvalue_rec
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-            let Some(gid) = map_gsub_glyph(glyph_map, GlyphId::from(pairvalue_rec.second_glyph()))
-            else {
-                continue;
-            };
-            pairvalue_rec.subset(plan, s, (&gid, new_format1, new_format2))?;
-            count += 1;
+        let pair_value_count = self.pair_value_count();
+        let bit_storage = 16 - pair_value_count.leading_zeros() as u16;
+        let font_data = self.offset_data();
+        if pair_value_count as u64 > plan.glyphset_gsub.len() * bit_storage as u64 {
+            for g in plan.glyphset_gsub.iter() {
+                let mut hi = pair_value_count as usize;
+                let mut lo = 0;
+                while lo < hi {
+                    // This recommends using usize::midpoint which expands to u128.
+                    // We definitely do not want to do that here since the input values
+                    // are 16-bit.
+                    #[allow(clippy::manual_midpoint)]
+                    let mid = (lo + hi) / 2;
+                    let pair_record_offset = 2 + mid * pair_record_size;
+                    let glyph_id = GlyphId::from(
+                        font_data
+                            .read_at::<u16>(pair_record_offset)
+                            .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?,
+                    );
+                    if glyph_id < g {
+                        lo = mid + 1;
+                    } else if glyph_id > g {
+                        hi = mid;
+                    } else {
+                        let new_gid = map_gsub_glyph(glyph_map, glyph_id)
+                            .ok_or_else(|| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+                        s.embed(new_gid.to_u32() as u16)?;
+
+                        let offset = pair_record_offset + 2;
+                        let value_record1 = ValueRecord::new(font_data, offset, value_format1);
+                        value_record1.subset(plan, s, new_format1)?;
+
+                        let value_record2 =
+                            ValueRecord::new(font_data, offset + record1_size, value_format2);
+                        value_record2.subset(plan, s, new_format2)?;
+
+                        count += 1;
+                        break;
+                    }
+                }
+            }
+        } else {
+            for i in 0..pair_value_count as usize {
+                let pair_record_offset = 2 + i * pair_record_size;
+                let glyph_id = GlyphId::from(
+                    font_data
+                        .read_at::<u16>(pair_record_offset)
+                        .map_err(|_| SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR)?,
+                );
+
+                let Some(new_gid) = map_gsub_glyph(glyph_map, glyph_id) else {
+                    continue;
+                };
+
+                s.embed(new_gid.to_u32() as u16)?;
+
+                let offset = pair_record_offset + 2;
+                let value_record1 = ValueRecord::new(font_data, offset, value_format1);
+                value_record1.subset(plan, s, new_format1)?;
+
+                let value_record2 =
+                    ValueRecord::new(font_data, offset + record1_size, value_format2);
+                value_record2.subset(plan, s, new_format2)?;
+
+                count += 1;
+            }
         }
 
         if count == 0 {
@@ -117,25 +252,6 @@ impl SubsetTable<'_> for PairSet<'_> {
         }
         s.copy_assign(pairvalue_count_pos, count);
         Ok(())
-    }
-}
-
-impl<'a> SubsetTable<'a> for PairValueRecord<'_> {
-    type ArgsForSubset = (&'a GlyphId, ValueFormat, ValueFormat);
-    type Output = ();
-    fn subset(
-        &self,
-        plan: &Plan,
-        s: &mut Serializer,
-        args: Self::ArgsForSubset,
-    ) -> Result<(), SerializeErrorFlags> {
-        let (new_gid, new_format1, new_format2) = args;
-        // second glyph
-        s.embed(new_gid.to_u32() as u16)?;
-
-        //value records
-        self.value_record1().subset(plan, s, new_format1)?;
-        self.value_record2().subset(plan, s, new_format2)
     }
 }
 
@@ -157,11 +273,33 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
         // format
         s.embed(self.pos_format())?;
 
+        let coverage = self
+            .coverage()
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
+        let pair_sets = self.pair_sets();
+        let pair_set_count = self.pair_set_count();
+
         // coverage offset
         let cov_offset_pos = s.embed(0_u16)?;
 
         // value_formats
-        let (new_format1, new_format2) = if plan
+        let value_format1 = self.value_format1();
+        let value_format2 = self.value_format2();
+        let record1_size = 2 * compute_record_len(value_format1);
+        let pair_record_size = 2 + record1_size + 2 * compute_record_len(value_format2);
+        let mut pair_set_info = PairSetInfo {
+            coverage: &coverage,
+            pair_sets: &pair_sets,
+            pair_set_count,
+            value_format1,
+            value_format2,
+            record1_size,
+            pair_record_size,
+            new_format1: ValueFormat::empty(),
+            new_format2: ValueFormat::empty(),
+        };
+
+        if plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
         {
@@ -172,71 +310,120 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
                 true
             };
 
-            compute_effective_pair_formats_1(self, glyph_set, strip_hints, true)
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            compute_effective_pair_formats_1(glyph_set, &mut pair_set_info, strip_hints, true)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         } else {
-            (self.value_format1(), self.value_format2())
+            pair_set_info.new_format1 = value_format1;
+            pair_set_info.new_format2 = value_format2;
         };
-        s.embed(new_format1)?;
-        s.embed(new_format2)?;
+
+        s.embed(pair_set_info.new_format1)?;
+        s.embed(pair_set_info.new_format2)?;
 
         // pairset count
         let pairset_count_pos = s.embed(0_u16)?;
         let mut pairset_count = 0_u16;
 
-        let coverage = self
-            .coverage()
-            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-        let pair_sets = self.pair_sets();
+        let mut retained_glyphs =
+            Vec::with_capacity((pair_set_count as usize).min(glyph_set.len() as usize));
 
-        let (glyphs, pairset_idxes) =
-            intersected_glyphs_and_indices(&coverage, glyph_set, glyph_map);
-        if glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
+        let bit_storage = 16 - pair_set_count.leading_zeros() as u64;
+        if pair_set_count as u64 > glyph_set.len() * bit_storage as u64 {
+            for g in glyph_set.iter() {
+                let Some(pair_set_idx) = coverage.get(g) else {
+                    continue;
+                };
 
-        let mut retained_glyphs = Vec::with_capacity(glyphs.len());
-        for (i, g) in pairset_idxes.iter().zip(glyphs) {
-            if !pair_sets
-                .subset_offset(i as usize, s, plan, (new_format1, new_format2))
-                .is_empty()?
-            {
-                pairset_count += 1;
-                retained_glyphs.push(g);
+                if !pair_sets
+                    .subset_offset(pair_set_idx as usize, s, plan, &pair_set_info)
+                    .is_empty()?
+                {
+                    pairset_count += 1;
+                    let new_g = map_gsub_glyph(glyph_map, g)
+                        .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
+                    retained_glyphs.push(new_g);
+                }
+            }
+        } else {
+            for (i, g) in coverage.iter().enumerate().filter_map(|(i, g)| {
+                map_gsub_glyph(glyph_map, GlyphId::from(g)).map(|new_g| (i, new_g))
+            }) {
+                if !pair_sets
+                    .subset_offset(i as usize, s, plan, &pair_set_info)
+                    .is_empty()?
+                {
+                    pairset_count += 1;
+                    retained_glyphs.push(g);
+                }
             }
         }
 
+        if retained_glyphs.is_empty() {
+            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
+        }
         s.copy_assign(pairset_count_pos, pairset_count);
         Offset16::serialize_serialize::<CoverageTable>(s, &retained_glyphs, cov_offset_pos)
     }
 }
 
+struct PairPosFormat2Info<'a> {
+    font_data: FontData<'a>,
+    value_format1: ValueFormat,
+    value_format2: ValueFormat,
+    class1_count: u16,
+    class2_count: usize,
+    records_offset: usize,
+    record1_size: usize,
+    record_size: usize,
+    new_format1: ValueFormat,
+    new_format2: ValueFormat,
+}
+
 fn compute_effective_pair_formats_2(
-    pair_pos: &PairPosFormat2,
-    class1_idxes: &[u16],
+    pairpos2_info: &mut PairPosFormat2Info,
+    class1_map: &FnvHashMap<u16, u16>,
     class2_idxes: &[u16],
     strip_hints: bool,
     strip_empty: bool,
-) -> Result<(ValueFormat, ValueFormat), ReadError> {
-    let mut new_format1 = ValueFormat::empty();
-    let mut new_format2 = ValueFormat::empty();
+) -> Result<(), ReadError> {
+    let (
+        font_data,
+        value_format1,
+        value_format2,
+        class1_count,
+        class2_count,
+        records_offset,
+        record1_size,
+        record_size,
+        new_format1,
+        new_format2,
+    ) = (
+        pairpos2_info.font_data,
+        pairpos2_info.value_format1,
+        pairpos2_info.value_format2,
+        pairpos2_info.class1_count,
+        pairpos2_info.class2_count,
+        pairpos2_info.records_offset,
+        pairpos2_info.record1_size,
+        pairpos2_info.record_size,
+        &mut pairpos2_info.new_format1,
+        &mut pairpos2_info.new_format2,
+    );
 
-    let orig_format1 = pair_pos.value_format1();
-    let orig_format2 = pair_pos.value_format2();
-
-    let class_records = pair_pos.class_value_records();
-    for i in class1_idxes {
+    for i in (0..class1_count).filter(|i| class1_map.contains_key(i)) {
         for j in class2_idxes {
-            let [rec1, rec2] = class_records.get(*i, *j).ok_or(ReadError::OutOfBounds)?;
+            let offset = records_offset + (i as usize * class2_count + *j as usize) * record_size;
+            let record1 = ValueRecord::new(font_data, offset, value_format1);
+            let record2 = ValueRecord::new(font_data, offset + record1_size, value_format2);
 
-            new_format1 |= compute_effective_format(&rec1, strip_hints, strip_empty);
-            new_format2 |= compute_effective_format(&rec2, strip_hints, strip_empty);
+            *new_format1 |= compute_effective_format(&record1, strip_hints, strip_empty)?;
+            *new_format2 |= compute_effective_format(&record2, strip_hints, strip_empty)?;
         }
-        if new_format1 == orig_format1 && new_format2 == orig_format2 {
+        if *new_format1 == value_format1 && *new_format2 == value_format2 {
             break;
         }
     }
-    Ok((new_format1, new_format2))
+    Ok(())
 }
 
 impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
@@ -257,15 +444,6 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
         let Ok(coverage) = self.coverage() else {
             return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
         };
-
-        let glyphs: Vec<GlyphId> = coverage
-            .intersect_set(&plan.glyphset_gsub)
-            .iter()
-            .filter_map(|g| map_gsub_glyph(&plan.glyph_map_gsub, g))
-            .collect();
-        if glyphs.is_empty() {
-            return Err(SerializeErrorFlags::SERIALIZE_ERROR_EMPTY);
-        }
 
         // format
         s.embed(self.pos_format())?;
@@ -338,14 +516,32 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
 
         // value formats
         let (subset_state, font) = args;
-        let class1_idxes: Vec<u16> = (0..self.class1_count())
-            .filter(|i| class1_map.contains_key(i))
-            .collect();
         let class2_idxes: Vec<u16> = (0..self.class2_count())
             .filter(|i| class2_map.contains_key(i))
             .collect();
 
-        let (new_format1, new_format2) = if plan
+        let value_format1 = self.value_format1();
+        let value_format2 = self.value_format2();
+        let class2_count = self.class2_count() as usize;
+        let records_offset = self.class2_count_byte_range().end;
+        let record1_size = 2 * compute_record_len(value_format1);
+        let record_size = record1_size + 2 * compute_record_len(value_format2);
+        let font_data = self.offset_data();
+        let class1_count = self.class1_count();
+        let mut pairpos2_info = PairPosFormat2Info {
+            font_data,
+            value_format1,
+            value_format2,
+            class1_count,
+            class2_count,
+            records_offset,
+            record1_size,
+            record_size,
+            new_format1: ValueFormat::empty(),
+            new_format2: ValueFormat::empty(),
+        };
+
+        if plan
             .subset_flags
             .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
         {
@@ -356,50 +552,106 @@ impl<'a> SubsetTable<'a> for PairPosFormat2<'_> {
                 true
             };
 
-            compute_effective_pair_formats_2(self, &class1_idxes, &class2_idxes, strip_hints, true)
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
+            compute_effective_pair_formats_2(
+                &mut pairpos2_info,
+                &class1_map,
+                &class2_idxes,
+                strip_hints,
+                true,
+            )
+            .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
         } else {
-            (self.value_format1(), self.value_format2())
+            pairpos2_info.new_format1 = value_format1;
+            pairpos2_info.new_format2 = value_format2;
         };
 
-        s.copy_assign(value_format1_pos, new_format1);
-        s.copy_assign(value_format2_pos, new_format2);
+        s.copy_assign(value_format1_pos, pairpos2_info.new_format1);
+        s.copy_assign(value_format2_pos, pairpos2_info.new_format2);
 
         // serialize value records
-        let class_records = self.class_value_records();
-        for i in class1_idxes {
+        for i in (0..self.class1_count()).filter(|i| class1_map.contains_key(i)) {
             for j in &class2_idxes {
-                let Some([rec1, rec2]) = class_records.get(i, *j) else {
-                    return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-                };
+                let offset =
+                    records_offset + (i as usize * class2_count + *j as usize) * record_size;
+                let record1 = ValueRecord::new(self.offset_data(), offset, value_format1);
+                let record2 =
+                    ValueRecord::new(self.offset_data(), offset + record1_size, value_format2);
 
-                rec1.subset(plan, s, new_format1)?;
-                rec2.subset(plan, s, new_format2)?;
+                record1.subset(plan, s, pairpos2_info.new_format1)?;
+                record2.subset(plan, s, pairpos2_info.new_format2)?;
             }
         }
 
         // this can be moved, put it at last so we have the same binary data with Harfbuzz subsetter
-        Offset16::serialize_serialize::<CoverageTable>(s, &glyphs, cov_offset_pos)
+        Offset16::serialize_subset(&coverage, s, plan, (), cov_offset_pos)
     }
 }
 
-impl CollectVariationIndices for PairSet<'_> {
-    fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
+fn collect_pairset_variation_indices(
+    pair_set: &PairSet,
+    pair_set_info: &PairSetInfo,
+    plan: &Plan,
+    varidx_set: &mut IntSet<u32>,
+) {
+    let (value_format1, value_format2, record1_size, pair_record_size) = (
+        pair_set_info.value_format1,
+        pair_set_info.value_format2,
+        pair_set_info.record1_size,
+        pair_set_info.pair_record_size,
+    );
+
+    let pair_value_count = pair_set.pair_value_count();
+    let bit_storage = 16 - pair_value_count.leading_zeros() as u16;
+    let font_data = pair_set.offset_data();
+    if pair_value_count as u64 > plan.glyphset_gsub.len() * bit_storage as u64 {
+        for g in plan.glyphset_gsub.iter() {
+            let mut hi = pair_value_count as usize;
+            let mut lo = 0;
+            while lo < hi {
+                // This recommends using usize::midpoint which expands to u128.
+                // We definitely do not want to do that here since the input values
+                // are 16-bit.
+                #[allow(clippy::manual_midpoint)]
+                let mid = (lo + hi) / 2;
+                let pair_record_offset = 2 + mid * pair_record_size;
+                let Ok(glyph_id) = font_data.read_at::<u16>(pair_record_offset) else {
+                    return;
+                };
+                let glyph_id = GlyphId::from(glyph_id);
+                if glyph_id < g {
+                    lo = mid + 1;
+                } else if glyph_id > g {
+                    hi = mid;
+                } else {
+                    let offset = pair_record_offset + 2;
+                    let value_record1 = ValueRecord::new(font_data, offset, value_format1);
+                    value_record1.collect_variation_indices(plan, varidx_set);
+
+                    let value_record2 =
+                        ValueRecord::new(font_data, offset + record1_size, value_format2);
+                    value_record2.collect_variation_indices(plan, varidx_set);
+                    break;
+                }
+            }
+        }
+    } else {
         let glyph_set = &plan.glyphset_gsub;
-        for pairvalue_record in self.pair_value_records().iter() {
-            let Ok(pairvalue_record) = pairvalue_record else {
+        for i in 0..pair_value_count as usize {
+            let pair_record_offset = 2 + i * pair_record_size;
+            let Ok(glyph_id) = font_data.read_at::<u16>(pair_record_offset) else {
                 return;
             };
-            if !glyph_set.contains(GlyphId::from(pairvalue_record.second_glyph())) {
+
+            if !glyph_set.contains(GlyphId::from(glyph_id)) {
                 continue;
             }
 
-            pairvalue_record
-                .value_record1()
-                .collect_variation_indices(plan, varidx_set);
-            pairvalue_record
-                .value_record2()
-                .collect_variation_indices(plan, varidx_set);
+            let offset = pair_record_offset + 2;
+            let value_record1 = ValueRecord::new(font_data, offset, value_format1);
+            value_record1.collect_variation_indices(plan, varidx_set);
+
+            let value_record2 = ValueRecord::new(font_data, offset + record1_size, value_format2);
+            value_record2.collect_variation_indices(plan, varidx_set);
         }
     }
 }
@@ -430,10 +682,46 @@ impl CollectVariationIndices for PairPosFormat1<'_> {
 
         let glyph_set = &plan.glyphset_gsub;
         let pair_sets = self.pair_sets();
-        let pairset_idxes = intersected_coverage_indices(&coverage, glyph_set);
-        for i in pairset_idxes.iter() {
-            if let Ok(pair_set) = pair_sets.get(i as usize) {
-                pair_set.collect_variation_indices(plan, varidx_set);
+        let pair_set_count = self.pair_set_count();
+
+        let record1_size = 2 * compute_record_len(value_format1);
+        let pair_record_size = 2 + record1_size + 2 * compute_record_len(value_format2);
+        let pair_set_info = PairSetInfo {
+            coverage: &coverage,
+            pair_sets: &pair_sets,
+            pair_set_count,
+            value_format1,
+            value_format2,
+            record1_size,
+            pair_record_size,
+            new_format1: ValueFormat::empty(),
+            new_format2: ValueFormat::empty(),
+        };
+
+        let bit_storage = 16 - pair_set_count.leading_zeros() as u64;
+        if pair_set_count as u64 > glyph_set.len() * bit_storage {
+            for g in glyph_set.iter() {
+                if let Some(idx) = coverage.get(g) {
+                    let pair_set = match pair_sets.get(idx as usize) {
+                        Ok(pair_set) => pair_set,
+                        Err(ReadError::NullOffset) => continue,
+                        Err(_) => return,
+                    };
+                    collect_pairset_variation_indices(&pair_set, &pair_set_info, plan, varidx_set);
+                }
+            }
+        } else {
+            for idx in coverage
+                .iter()
+                .enumerate()
+                .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i))
+            {
+                let pair_set = match pair_sets.get(idx as usize) {
+                    Ok(pair_set) => pair_set,
+                    Err(ReadError::NullOffset) => continue,
+                    Err(_) => return,
+                };
+                collect_pairset_variation_indices(&pair_set, &pair_set_info, plan, varidx_set);
             }
         }
     }
@@ -477,14 +765,26 @@ impl CollectVariationIndices for PairPosFormat2<'_> {
         }
         class2_set.insert(0);
 
-        let class_records = self.class_value_records();
-        for class1 in class1_set.iter() {
-            for class2 in class2_set.iter() {
-                let Some([rec1, rec2]) = class_records.get(class1, class2) else {
-                    return;
-                };
-                rec1.collect_variation_indices(plan, varidx_set);
-                rec2.collect_variation_indices(plan, varidx_set);
+        let class2_count = self.class2_count() as usize;
+        let records_offset = self.class2_count_byte_range().end;
+        let record1_size = 2 * compute_record_len(value_format1);
+        let record_size = record1_size + 2 * compute_record_len(value_format2);
+        let font_data = self.offset_data();
+
+        for i in class1_set.iter() {
+            for j in class2_set.iter() {
+                let offset =
+                    records_offset + (i as usize * class2_count + j as usize) * record_size;
+
+                if value_format1.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+                    let record1 = ValueRecord::new(font_data, offset, value_format1);
+                    record1.collect_variation_indices(plan, varidx_set);
+                }
+
+                if value_format2.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
+                    let record2 = ValueRecord::new(font_data, offset + record1_size, value_format2);
+                    record2.collect_variation_indices(plan, varidx_set);
+                }
             }
         }
     }
@@ -555,6 +855,7 @@ mod test {
         let subset_state = SubsetState::default();
         let mut plan = Plan {
             glyph_map_gsub: vec![crate::INVALID_GID; 6737],
+            font_num_glyphs: 6782,
             ..Default::default()
         };
 
