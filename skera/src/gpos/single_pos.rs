@@ -111,7 +111,7 @@ pub(crate) struct SinglePosInfo<'a> {
     new_format: ValueFormat,
 }
 
-fn compute_new_value_format<'a>(
+fn compute_new_value_format(
     singlepos_info: &mut SinglePosInfo,
     plan: &Plan,
     has_gdef_varstore: bool,

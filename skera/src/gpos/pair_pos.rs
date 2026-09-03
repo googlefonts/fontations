@@ -127,7 +127,7 @@ fn compute_effective_pair_formats_1(
             .enumerate()
             .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i))
         {
-            let pair_set = match pair_sets.get(idx as usize) {
+            let pair_set = match pair_sets.get(idx) {
                 Err(ReadError::NullOffset) => continue,
                 other => other,
             }?;
@@ -204,7 +204,7 @@ impl<'a> SubsetTable<'a> for PairSet<'_> {
                         hi = mid;
                     } else {
                         let new_gid = map_gsub_glyph(glyph_map, glyph_id)
-                            .ok_or_else(|| SerializeErrorFlags::SERIALIZE_ERROR_OTHER)?;
+                            .ok_or_else(|| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER))?;
                         s.embed(new_gid.to_u32() as u16)?;
 
                         let offset = pair_record_offset + 2;
@@ -328,7 +328,7 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
             Vec::with_capacity((pair_set_count as usize).min(glyph_set.len() as usize));
 
         let bit_storage = 16 - pair_set_count.leading_zeros() as u64;
-        if pair_set_count as u64 > glyph_set.len() * bit_storage as u64 {
+        if pair_set_count as u64 > glyph_set.len() * bit_storage {
             for g in glyph_set.iter() {
                 let Some(pair_set_idx) = coverage.get(g) else {
                     continue;
@@ -349,7 +349,7 @@ impl<'a> SubsetTable<'a> for PairPosFormat1<'_> {
                 map_gsub_glyph(glyph_map, GlyphId::from(g)).map(|new_g| (i, new_g))
             }) {
                 if !pair_sets
-                    .subset_offset(i as usize, s, plan, &pair_set_info)
+                    .subset_offset(i, s, plan, &pair_set_info)
                     .is_empty()?
                 {
                     pairset_count += 1;
@@ -716,7 +716,7 @@ impl CollectVariationIndices for PairPosFormat1<'_> {
                 .enumerate()
                 .filter_map(|(i, g)| glyph_set.contains(GlyphId::from(g)).then_some(i))
             {
-                let pair_set = match pair_sets.get(idx as usize) {
+                let pair_set = match pair_sets.get(idx) {
                     Ok(pair_set) => pair_set,
                     Err(ReadError::NullOffset) => continue,
                     Err(_) => return,
