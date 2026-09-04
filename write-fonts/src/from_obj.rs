@@ -130,6 +130,16 @@ impl<T: FromObjRef<U> + Default, U, const N: usize> FromObjRef<Result<U, ReadErr
     }
 }
 
+// as above, for an accessor that answers with Option
+impl<T: FromObjRef<U> + Default, U, const N: usize> FromObjRef<Option<U>> for OffsetMarker<T, N> {
+    fn from_obj_ref(from: &Option<U>, data: FontData) -> Self {
+        match from {
+            None => OffsetMarker::default(),
+            Some(table) => OffsetMarker::new(table.to_owned_obj(data)),
+        }
+    }
+}
+
 impl<T: FromObjRef<U>, U, const N: usize> FromObjRef<Option<Result<U, ReadError>>>
     for NullableOffsetMarker<T, N>
 {
@@ -149,6 +159,18 @@ impl<T: FromTableRef<U> + Default, U, const N: usize> FromTableRef<Result<U, Rea
         match from {
             Err(_) => OffsetMarker::default(),
             Ok(table) => OffsetMarker::new(table.to_owned_table()),
+        }
+    }
+}
+
+// as above, for an accessor that answers with Option
+impl<T: FromTableRef<U> + Default, U, const N: usize> FromTableRef<Option<U>>
+    for OffsetMarker<T, N>
+{
+    fn from_table_ref(from: &Option<U>) -> Self {
+        match from {
+            None => OffsetMarker::default(),
+            Some(table) => OffsetMarker::new(table.to_owned_table()),
         }
     }
 }

@@ -6,8 +6,8 @@ include!("../../generated/generated_svg.rs");
 
 impl<'a> Svg<'a> {
     /// Get the raw data of the SVG document. Is not guaranteed to be valid and might be compressed.
-    pub fn glyph_data(&self, glyph_id: GlyphId) -> Result<Option<&'a [u8]>, ReadError> {
-        let document_list = self.svg_document_list()?;
+    pub fn glyph_data(&self, glyph_id: GlyphId) -> Option<&'a [u8]> {
+        let document_list = self.svg_document_list().ok()?;
         let svg_document = document_list
             .document_records()
             .binary_search_by(|r| {
@@ -27,7 +27,7 @@ impl<'a> Svg<'a> {
                 let end = start.checked_add(r.svg_doc_length())?;
                 all_data.get(start as usize..end as usize)
             });
-        Ok(svg_document)
+        svg_document
     }
 }
 
@@ -75,35 +75,17 @@ mod tests {
         let first_document = &[0, 1, 0, 0, 0, 0, 0, 0, 0, 1][..];
         let second_document = &[0, 2, 0, 0, 0, 0][..];
 
-        assert_eq!(table.glyph_data(GlyphId::new(0)).unwrap(), None);
-        assert_eq!(
-            table.glyph_data(GlyphId::new(1)).unwrap(),
-            Some(first_document)
-        );
-        assert_eq!(
-            table.glyph_data(GlyphId::new(2)).unwrap(),
-            Some(first_document)
-        );
-        assert_eq!(
-            table.glyph_data(GlyphId::new(3)).unwrap(),
-            Some(first_document)
-        );
-        assert_eq!(table.glyph_data(GlyphId::new(4)).unwrap(), None);
-        assert_eq!(table.glyph_data(GlyphId::new(5)).unwrap(), None);
-        assert_eq!(
-            table.glyph_data(GlyphId::new(6)).unwrap(),
-            Some(second_document)
-        );
-        assert_eq!(
-            table.glyph_data(GlyphId::new(7)).unwrap(),
-            Some(second_document)
-        );
-        assert_eq!(table.glyph_data(GlyphId::new(8)).unwrap(), None);
-        assert_eq!(
-            table.glyph_data(GlyphId::new(9)).unwrap(),
-            Some(first_document)
-        );
-        assert_eq!(table.glyph_data(GlyphId::new(10)).unwrap(), None);
+        assert_eq!(table.glyph_data(GlyphId::new(0)), None);
+        assert_eq!(table.glyph_data(GlyphId::new(1)), Some(first_document));
+        assert_eq!(table.glyph_data(GlyphId::new(2)), Some(first_document));
+        assert_eq!(table.glyph_data(GlyphId::new(3)), Some(first_document));
+        assert_eq!(table.glyph_data(GlyphId::new(4)), None);
+        assert_eq!(table.glyph_data(GlyphId::new(5)), None);
+        assert_eq!(table.glyph_data(GlyphId::new(6)), Some(second_document));
+        assert_eq!(table.glyph_data(GlyphId::new(7)), Some(second_document));
+        assert_eq!(table.glyph_data(GlyphId::new(8)), None);
+        assert_eq!(table.glyph_data(GlyphId::new(9)), Some(first_document));
+        assert_eq!(table.glyph_data(GlyphId::new(10)), None);
     }
 
     #[test]
