@@ -849,6 +849,21 @@ impl ClassDef<'_> {
 }
 
 impl<'a> Device<'a> {
+    /// The adjustment this table makes at a size, in pixels.
+    ///
+    /// A device table gives a whole pixel correction for each size in the
+    /// range it covers. Sizes outside that range, and a `ppem` of zero, are
+    /// adjusted by nothing.
+    pub fn delta_for_ppem(&self, ppem: u16) -> i32 {
+        let start = self.start_size();
+        if ppem == 0 || ppem < start || ppem > self.end_size() {
+            return 0;
+        }
+        self.iter()
+            .nth((ppem - start) as usize)
+            .map_or(0, |delta| delta as i32)
+    }
+
     /// Iterate over the decoded values for this device
     pub fn iter(&self) -> impl Iterator<Item = i8> + 'a {
         let format = self.delta_format();
