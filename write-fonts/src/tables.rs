@@ -23,6 +23,7 @@ pub mod hmtx;
 pub mod hvar;
 pub mod layout;
 pub mod loca;
+pub mod math;
 pub mod maxp;
 pub mod meta;
 pub mod mvar;
