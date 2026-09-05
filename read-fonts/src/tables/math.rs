@@ -1,6 +1,6 @@
 //! The [MATH](https://learn.microsoft.com/en-us/typography/opentype/spec/math) table
 
-use super::layout::{CoverageTable, Device, DeviceOrVariationIndex};
+use super::layout::{CoverageTable, DeviceOrVariationIndex};
 
 include!("../../generated/generated_math.rs");
 
@@ -92,30 +92,16 @@ impl Math<'_> {
     }
 }
 
-/// The adjustment a `Device` table makes at a size, in pixels.
-///
-/// Zero outside the range of sizes the table covers, which is also what a
-/// `VariationIndex` yields here: the deltas one names live in an item
-/// variation store, and the `MATH` table has none.
-fn device_delta(device: &Device, ppem: u16) -> i32 {
-    let start = device.start_size();
-    if ppem == 0 || ppem < start || ppem > device.end_size() {
-        return 0;
-    }
-    device
-        .iter()
-        .nth((ppem - start) as usize)
-        .map_or(0, |delta| delta as i32)
-}
-
 impl MathValueRecord {
     /// The value as read at a size.
     ///
     /// `data` is the data of the table this record was read from, since its
     /// device offset is measured from there rather than from the record.
     pub fn value_for_ppem(&self, data: FontData<'_>, ppem: u16) -> MathValue {
+        // A `VariationIndex` yields nothing: the deltas one names live in an
+        // item variation store, and the `MATH` table has none.
         let delta_px = match self.device(data) {
-            Some(Ok(DeviceOrVariationIndex::Device(device))) => device_delta(&device, ppem),
+            Some(Ok(DeviceOrVariationIndex::Device(device))) => device.delta_for_ppem(ppem),
             _ => 0,
         };
         MathValue {
