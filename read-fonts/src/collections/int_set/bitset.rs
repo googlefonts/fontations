@@ -258,23 +258,25 @@ impl U32Set {
     }
 
     pub fn intersects_set(&self, other: &U32Set) -> bool {
-        let mut it_a = self.page_map.iter().peekable();
-        let mut it_b = other.page_map.iter().peekable();
+        let mut a_index = 0;
+        let mut b_index = 0;
 
-        while let (Some(a), Some(b)) = (it_a.peek(), it_b.peek()) {
+        while a_index < self.page_map.len() && b_index < other.page_map.len() {
+            let a = &self.page_map[a_index];
+            let b = &other.page_map[b_index];
             match a.major_value.cmp(&b.major_value) {
                 Ordering::Equal => {
                     if self.pages[a.index as usize].intersects_set(&other.pages[b.index as usize]) {
                         return true;
                     }
-                    it_a.next();
-                    it_b.next();
+                    a_index += 1;
+                    b_index += 1;
                 }
                 Ordering::Less => {
-                    it_a.next();
+                    a_index += 1;
                 }
                 Ordering::Greater => {
-                    it_b.next();
+                    b_index += 1;
                 }
             }
         }
