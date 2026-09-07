@@ -1,6 +1,7 @@
 //! The [MVAR (Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
 
 use super::variations::{DeltaSetIndex, ItemVariationStore};
+use types::F48Dot16;
 
 /// Four-byte tags used to represent particular metric or other values.
 pub mod tags {
@@ -96,6 +97,58 @@ pub mod tags {
 
 include!("../../generated/generated_mvar.rs");
 
+/// `MVAR` at one location, with the variation store resolved once.
+///
+/// Prefer this over [`Mvar::metric_delta`] when reading more than one metric;
+/// that resolves the store on every lookup.
+pub struct MvarInstance<'a> {
+    records: &'a [ValueRecord],
+    ivs: ItemVariationStore<'a>,
+    coords: &'a [F2Dot14],
+}
+
+impl<'a> Mvar<'a> {
+    /// Returns the table at a location.
+    ///
+    /// `None` at the default location, where every delta is zero, and for a
+    /// font whose variation store cannot be read.
+    pub fn at(&self, coords: &'a [F2Dot14]) -> Option<MvarInstance<'a>> {
+        if coords.is_empty() {
+            return None;
+        }
+        Some(MvarInstance {
+            records: self.value_records(),
+            ivs: self.item_variation_store()?.ok()?,
+            coords,
+        })
+    }
+}
+
+impl MvarInstance<'_> {
+    /// Returns the delta for a metric, or `None` for one the font does not
+    /// vary.
+    ///
+    /// Tags are in the [`tags`] module. The delta is in design units, added
+    /// to the value the metric's own table holds, and left unrounded so a
+    /// caller can round it its own way.
+    pub fn get(&self, tag: Tag) -> Option<F48Dot16> {
+        let index = self
+            .records
+            .binary_search_by(|record| record.value_tag().cmp(&tag))
+            .ok()?;
+        let record = &self.records[index];
+        self.ivs
+            .compute_delta(
+                DeltaSetIndex {
+                    outer: record.delta_set_outer_index(),
+                    inner: record.delta_set_inner_index(),
+                },
+                self.coords,
+            )
+            .ok()
+    }
+}
+
 impl Mvar<'_> {
     /// Returns the metric delta for the specified tag and normalized
     /// variation coordinates. Possible tags are found in the [tags]
@@ -131,5 +184,68 @@ impl Mvar<'_> {
             }
         }
         Err(ReadError::MetricIsMissing(tag))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{FontRef, TableProvider};
+    use types::F2Dot14;
+
+    /// Twelve axes, and an `MVAR` varying several metrics.
+    const VAR: &[u8] = font_test_data::AMSTELVAR_AVAR2_A;
+
+    fn far() -> [F2Dot14; 12] {
+        [F2Dot14::from_f32(1.0); 12]
+    }
+
+    #[test]
+    fn the_default_location_has_no_instance() {
+        // Every delta is zero there, so there is nothing to resolve.
+        let font = FontRef::new(VAR).unwrap();
+        assert!(font.mvar().unwrap().at(&[]).is_none());
+    }
+
+    #[test]
+    fn an_instance_agrees_with_the_single_metric_accessor() {
+        let font = FontRef::new(VAR).unwrap();
+        let mvar = font.mvar().unwrap();
+        let coords = far();
+        let instance = mvar.at(&coords).expect("a location away from the default");
+        let mut varied = 0;
+        for record in mvar.value_records() {
+            let tag = record.value_tag();
+            let exact = instance.get(tag).expect("a tag the table states");
+            let rounded = mvar.metric_delta(tag, &coords).unwrap();
+            assert_eq!(exact.to_i32(), rounded.to_i32(), "{tag}");
+            varied += (exact != F48Dot16::ZERO) as u32;
+        }
+        assert!(varied > 0, "no metric moved at the far end of every axis");
+    }
+
+    #[test]
+    fn a_tag_the_font_does_not_state_is_absent() {
+        let font = FontRef::new(VAR).unwrap();
+        let mvar = font.mvar().unwrap();
+        let coords = far();
+        let instance = mvar.at(&coords).unwrap();
+        assert!(instance.get(Tag::new(b"zzzz")).is_none());
+    }
+
+    #[test]
+    fn an_instance_keeps_a_fraction_the_single_accessor_drops() {
+        // `metric_delta` reports whole design units; the instance reports
+        // what the variation store computed.
+        let font = FontRef::new(VAR).unwrap();
+        let mvar = font.mvar().unwrap();
+        let coords = [F2Dot14::from_f32(0.37); 12];
+        let instance = mvar.at(&coords).unwrap();
+        let fractional = mvar
+            .value_records()
+            .iter()
+            .filter_map(|record| instance.get(record.value_tag()))
+            .any(|delta| delta.to_bits() & 0xFFFF != 0);
+        assert!(fractional, "no metric delta carried a fraction");
     }
 }

@@ -28,7 +28,7 @@ impl<'a> GlyphHMetrics<'a> {
         let mut advance = self.hmtx.advance(gid).unwrap_or_default() as i32;
         if let (false, Some(hvar)) = (coords.is_empty(), &self.hvar) {
             advance += hvar
-                .advance_width_delta(gid, coords)
+                .advance_delta(gid, coords)
                 .map(|delta| delta.to_i32())
                 .unwrap_or(0);
         }

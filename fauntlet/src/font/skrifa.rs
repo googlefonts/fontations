@@ -143,7 +143,7 @@ impl<'a> SkrifaSfntInstance<'a> {
     pub fn hvar_and_gvar_advance_deltas(&self, glyph_id: GlyphId) -> Option<(i32, i32)> {
         let hvar = self.font.hvar().ok()?;
         let gvar = self.font.gvar().ok()?;
-        let hvar_delta = hvar.advance_width_delta(glyph_id, &self.coords).ok()?;
+        let hvar_delta = hvar.advance_delta(glyph_id, &self.coords)?;
         let gvar_delta = gvar
             .phantom_point_deltas(
                 &self.font.glyf().ok()?,
