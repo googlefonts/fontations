@@ -557,6 +557,10 @@ impl Graph {
     pub(crate) fn from_serializer(s: &Serializer) -> Result<Self, RepackError> {
         let packed_obj_idxs = s.packed_idxs();
         let count = packed_obj_idxs.len();
+        if count > MAX_VERTICES {
+            return Err(RepackError::ErrorMaxOperationsExceeded);
+        }
+
         let mut this = Graph {
             vertices: Vec::with_capacity(count),
             ordering: Vec::with_capacity(count),
@@ -934,7 +938,7 @@ impl Graph {
                 &mut roots,
                 &mut visited,
                 &mut connected_roots,
-            );
+            )?;
 
             self.isolate_subgraph(&mut connected_roots)?;
             let next_space = self.next_space();
@@ -959,28 +963,73 @@ impl Graph {
     // For this search the graph is treated as being undirected.
     // Connected targets will be added to connected and removed from targets. All visited nodes will be added to visited.
     fn find_connected_nodes(
-        &self,
+        &mut self,
         start_idx: ObjIdx,
         targets: &mut IntSet<u32>,
         visited: &mut IntSet<u32>,
         connected: &mut IntSet<u32>,
-    ) {
+    ) -> Result<(), RepackError> {
+        if start_idx >= self.vertices.len() {
+            return Err(RepackError::GraphErrorInvalidObjIndex);
+        }
         if !visited.insert(start_idx as u32) {
-            return;
+            return Ok(());
         }
 
         if targets.remove(start_idx as u32) {
             connected.insert(start_idx as u32);
         }
 
-        let v = &self.vertices[start_idx];
-        for l in v.all_links() {
-            self.find_connected_nodes(l.obj_idx(), targets, visited, connected);
+        if self.vertices.is_empty() {
+            return Ok(());
         }
+        self.ordering_scratch.resize(self.vertices.len(), 0);
+        let stack = &mut self.ordering_scratch;
+        stack[0] = start_idx;
+        let mut stack_len = 1_usize;
 
-        for p in v.iter_parents() {
-            self.find_connected_nodes(*p, targets, visited, connected);
+        while stack_len > 0 {
+            stack_len -= 1;
+            let node_idx = stack[stack_len];
+            let v = self
+                .vertices
+                .get(node_idx)
+                .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
+
+            // Graph is treated as undirected so search children and parents of node_idx
+            for l in v.all_links() {
+                let child_idx = l.obj_idx();
+                if !visited.insert(child_idx as u32) {
+                    continue;
+                }
+                if targets.remove(child_idx as u32) {
+                    connected.insert(child_idx as u32);
+                }
+
+                let idx = stack
+                    .get_mut(stack_len)
+                    .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
+                *idx = child_idx;
+                stack_len += 1;
+            }
+
+            for p in v.iter_parents() {
+                let parent_idx = *p;
+                if !visited.insert(parent_idx as u32) {
+                    continue;
+                }
+                if targets.remove(parent_idx as u32) {
+                    connected.insert(parent_idx as u32);
+                }
+
+                let idx = stack
+                    .get_mut(stack_len)
+                    .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
+                *idx = parent_idx;
+                stack_len += 1;
+            }
         }
+        Ok(())
     }
 
     fn find_space_roots(&self) -> Result<(IntSet<u32>, IntSet<u32>), RepackError> {
@@ -988,6 +1037,7 @@ impl Graph {
         let mut visited = IntSet::empty();
         let mut roots = IntSet::empty();
         let vertices = &self.vertices;
+        let mut queue = vec![0_usize; vertices.len()];
         for i in &self.ordering {
             if visited.contains(*i as u32) {
                 continue;
@@ -1007,21 +1057,21 @@ impl Graph {
                         }
                         let mut sub_roots = IntSet::empty();
                         let obj_idx = l.obj_idx();
-                        self.find_32bit_roots(obj_idx, &mut sub_roots);
+                        self.find_32bit_roots(obj_idx, &mut sub_roots, &mut queue)?;
                         if sub_roots.is_empty() {
                             roots.insert(obj_idx as u32);
-                            self.find_subgraph_nodes(obj_idx, &mut visited);
+                            self.find_subgraph_nodes(obj_idx, &mut visited, &mut queue)?;
                         } else {
                             for idx in sub_roots.iter() {
                                 roots.insert(idx);
-                                self.find_subgraph_nodes(idx as usize, &mut visited);
+                                self.find_subgraph_nodes(idx as usize, &mut visited, &mut queue)?;
                             }
                         }
                     }
                     LinkWidth::Four => {
                         let obj_idx = l.obj_idx();
                         roots.insert(obj_idx as u32);
-                        self.find_subgraph_nodes(obj_idx, &mut visited);
+                        self.find_subgraph_nodes(obj_idx, &mut visited, &mut queue)?;
                     }
                     _ => continue,
                 }
@@ -1030,74 +1080,100 @@ impl Graph {
         Ok((roots, visited))
     }
 
-    fn find_subgraph_nodes(&self, obj_idx: ObjIdx, subgraph: &mut IntSet<u32>) {
-        if !subgraph.insert(obj_idx as u32) {
-            return;
-        }
-
-        let v = &self.vertices[obj_idx];
-        for l in v.all_links() {
-            self.find_subgraph_nodes(l.obj_idx(), subgraph);
-        }
+    #[inline]
+    fn find_subgraph_nodes(
+        &self,
+        obj_idx: ObjIdx,
+        subgraph: &mut IntSet<u32>,
+        queue: &mut Vec<usize>,
+    ) -> Result<(), RepackError> {
+        traverse_directed_bfs(
+            queue,
+            &self.vertices,
+            obj_idx,
+            |_parent, _link, child, _depth| subgraph.insert(child as u32),
+        )
     }
 
     fn find_subgraph_nodes_incoming_edges(
-        &self,
+        &mut self,
         start_idx: ObjIdx,
         subgraph_map: &mut FnvHashMap<u32, usize>,
-    ) {
-        let v = &self.vertices[start_idx];
-        for l in v.all_links() {
-            let obj_idx = l.obj_idx();
-            let v = subgraph_map
-                .entry(obj_idx as u32)
-                .and_modify(|c| *c += 1)
-                .or_insert(1);
-
-            if *v > 1 {
-                continue;
-            }
-            self.find_subgraph_nodes_incoming_edges(obj_idx, subgraph_map);
-        }
+    ) -> Result<(), RepackError> {
+        traverse_directed_bfs(
+            &mut self.ordering_scratch,
+            &self.vertices,
+            start_idx,
+            |_parent, _link, child, depth| {
+                if depth == 0 {
+                    return true;
+                }
+                let mut is_new = false;
+                subgraph_map
+                    .entry(child as u32)
+                    .and_modify(|c| *c += 1)
+                    .or_insert_with(|| {
+                        is_new = true;
+                        1
+                    });
+                is_new
+            },
+        )
     }
 
     pub(crate) fn find_subgraph_size(
         &self,
         obj_idx: ObjIdx,
         visited: &mut IntSet<u32>,
+        queue: &mut Vec<usize>,
         max_depth: u16,
     ) -> Result<usize, RepackError> {
-        if !visited.insert(obj_idx as u32) {
-            return Ok(0);
-        }
+        let mut size = 0;
+        traverse_directed_bfs(
+            queue,
+            &self.vertices,
+            obj_idx,
+            |_parent, _link, child, depth| {
+                if !visited.insert(child as u32) {
+                    return false;
+                }
 
-        assert!(obj_idx < self.vertices.len());
-        let v = self
-            .vertex(obj_idx)
-            .ok_or(RepackError::GraphErrorInvalidObjIndex)?;
-        let mut size = v.table_size();
-        if max_depth == 0 {
-            return Ok(size);
-        }
-
-        for l in v.all_links() {
-            size += self.find_subgraph_size(l.obj_idx(), visited, max_depth - 1)?;
-        }
-
+                if let Some(v) = self.vertices.get(child) {
+                    size += v.table_size();
+                };
+                depth < max_depth as usize
+            },
+        )?;
         Ok(size)
     }
 
     // Finds the topmost children of 32bit offsets in the subgraph starting at obj_idx
-    fn find_32bit_roots(&self, obj_idx: ObjIdx, roots: &mut IntSet<u32>) {
-        let v = &self.vertices[obj_idx];
-        for l in v.real_links() {
-            let child_idx = l.obj_idx();
-            if !l.is_signed() && l.link_width() == LinkWidth::Four {
-                roots.insert(child_idx as u32);
-                continue;
+    fn find_32bit_roots(
+        &self,
+        obj_idx: ObjIdx,
+        roots: &mut IntSet<u32>,
+        queue: &mut Vec<usize>,
+    ) -> Result<(), RepackError> {
+        // Note: this specifically requires a BFS based traversal to ensure we don't recurse through
+        // a node that is accessible via both 32bit and non-32 bit links.
+        let mut visited = IntSet::empty();
+        traverse_directed_bfs(queue, &self.vertices, obj_idx, |parent, link, child, _| {
+            if let (Some(parent), Some(_link)) = (parent, link) {
+                if roots.contains(parent as u32) {
+                    // Don't traverse from something that's already marked as a root.
+                    return false;
+                }
             }
-            self.find_32bit_roots(child_idx, roots);
-        }
+
+            if let Some(link) = link {
+                if !link.is_signed() && link.link_width() == LinkWidth::Four {
+                    roots.insert(child as u32);
+                    visited.insert(child as u32);
+                    return false;
+                }
+            }
+            visited.insert(child as u32)
+        })
     }
 
     // Isolates the subgraph of nodes reachable from root. Any links to nodes in the subgraph
@@ -1111,7 +1187,7 @@ impl Graph {
         let mut subgraph_map = FnvHashMap::default();
         for root_idx in roots.iter() {
             subgraph_map.insert(root_idx, self.wide_parents(root_idx as usize, &mut parents));
-            self.find_subgraph_nodes_incoming_edges(root_idx as usize, &mut subgraph_map);
+            self.find_subgraph_nodes_incoming_edges(root_idx as usize, &mut subgraph_map)?;
         }
 
         let len = self.vertices.len();
@@ -1232,18 +1308,24 @@ impl Graph {
             return Ok(());
         }
 
-        let clone_idx = self.duplicate_vertex(start_idx, false)?;
-        index_map.insert(start_idx, clone_idx);
+        let mut to_duplicate = Vec::new();
 
-        let start_v = &self.vertices[start_idx];
-        let child_idxes: Vec<ObjIdx> = start_v
-            .real_links
-            .iter()
-            .chain(start_v.virtual_links.iter())
-            .map(|l| l.obj_idx())
-            .collect();
-        for idx in child_idxes {
-            self.duplicate_subgraph(idx, index_map)?;
+        traverse_directed_bfs(
+            &mut self.ordering_scratch,
+            &self.vertices,
+            start_idx,
+            |_parent, _link, child, _depth| {
+                if index_map.contains_key(&child) {
+                    return false;
+                }
+                to_duplicate.push(child);
+                true
+            },
+        )?;
+
+        for node_idx in to_duplicate {
+            let clone_idx = self.duplicate_vertex(node_idx, false)?;
+            index_map.insert(node_idx, clone_idx);
         }
         Ok(())
     }
@@ -1759,6 +1841,70 @@ impl Graph {
     }
 }
 
+// BFS graph traversal starting at start_idx.
+//
+// The visit_edge function will be called once for the root node and then for each traversed edge
+// with the following signature:
+//
+// visit_edge(parent: Option<ObjIdx>, link: Option<&Link>, child: ObjIdx, depth: usize) -> bool
+//
+// Where a return value of false signals that traversal should not continue into child's outgoing
+// edges. parent/child are the vertex indices. depth starts at 0 for the root node.
+// parent and link will be None when called for entering the root node at the start of the traversal.
+//
+// This traversal does not use a visited set internally, it is the responsibility of visit_edge
+// to track and filter visited nodes if required for the particular traversal.
+fn traverse_directed_bfs<VisitEdgeFunc>(
+    queue: &mut Vec<usize>,
+    vertices: &[Vertex],
+    start_idx: ObjIdx,
+    mut visit_edge: VisitEdgeFunc,
+) -> Result<(), RepackError>
+where
+    VisitEdgeFunc: FnMut(Option<ObjIdx>, Option<&Link>, ObjIdx, usize) -> bool,
+{
+    let num_v = vertices.len();
+    if num_v == 0 {
+        return Ok(());
+    }
+    if start_idx >= num_v {
+        return Err(RepackError::GraphErrorInvalidObjIndex);
+    }
+
+    if !visit_edge(None, None, start_idx, 0) {
+        return Ok(());
+    }
+
+    queue.resize(vertices.len(), 0);
+    let mut head = 0;
+    queue[0] = start_idx;
+    let mut tail = 1;
+
+    let mut depth = 0;
+    while head < tail {
+        let level_end = tail;
+        while head < level_end {
+            let node_idx = queue[head];
+            head += 1;
+
+            let v = &vertices[node_idx];
+            for l in v.all_links() {
+                let child_idx = l.obj_idx();
+                if !visit_edge(Some(node_idx), Some(l), child_idx, depth + 1) {
+                    continue;
+                }
+                if tail >= num_v {
+                    return Err(RepackError::GraphErrorInvalidObjIndex);
+                }
+                queue[tail] = child_idx;
+                tail += 1;
+            }
+        }
+        depth += 1;
+    }
+    Ok(())
+}
+
 fn serialize_link(
     s: &mut Serializer,
     link: &Link,
@@ -2211,5 +2357,120 @@ pub(crate) mod test {
         assert_eq!(d_1.virtual_links.len(), 2);
         assert_eq!(d_1.virtual_links[0].obj_idx(), obj_b);
         assert_eq!(d_1.virtual_links[1].obj_idx(), obj_c);
+    }
+
+    #[test]
+    fn test_deep_graph_traversal() {
+        let buf_size = 1_000_000;
+        let mut s = Serializer::new(buf_size);
+        s.start_serialize().unwrap();
+        let mut prev = add_object(&mut s, b"leaf", 4, false);
+        for _ in 0..2000 {
+            start_object(&mut s, b"node", 4);
+            add_offset(&mut s, prev);
+            prev = s.pop_pack(false).unwrap();
+        }
+        s.end_serialize();
+
+        let mut graph = Graph::from_serializer(&s).unwrap();
+
+        // Test find_subgraph_nodes (set)
+        let mut visited_set = IntSet::empty();
+        let mut queue = Vec::new();
+        graph
+            .find_subgraph_nodes(graph.root_idx(), &mut visited_set, &mut queue)
+            .unwrap();
+        assert_eq!(visited_set.len(), 2001);
+
+        // Test find_subgraph_size
+        let mut size_set = IntSet::empty();
+        let mut queue = Vec::new();
+        let sz = graph
+            .find_subgraph_size(graph.root_idx(), &mut size_set, &mut queue, u16::MAX)
+            .unwrap();
+        assert_eq!(sz, 4 + 2000 * 6);
+
+        // Test find_subgraph_nodes_incoming_edges (map)
+        let mut map = FnvHashMap::default();
+        map.insert(graph.root_idx() as u32, 1);
+        graph
+            .find_subgraph_nodes_incoming_edges(graph.root_idx(), &mut map)
+            .unwrap();
+        assert_eq!(map.len(), 2001);
+
+        // Test assign_spaces (which exercises find_connected_nodes and find_space_roots)
+        assert!(graph.assign_spaces().is_ok());
+
+        // Test duplicate_subgraph
+        let mut index_map = FnvHashMap::default();
+        assert!(graph
+            .duplicate_subgraph(graph.root_idx(), &mut index_map)
+            .is_ok());
+        assert_eq!(index_map.len(), 2001);
+    }
+
+    #[test]
+    fn test_32bit_roots_traversal() {
+        let buf_size = 1000;
+        let mut s = Serializer::new(buf_size);
+        s.start_serialize().unwrap();
+        let leaf1 = add_object(&mut s, b"l1  ", 4, false);
+        let leaf2 = add_object(&mut s, b"l2  ", 4, false);
+
+        start_object(&mut s, b"mid ", 4);
+        add_wide_offset(&mut s, leaf1);
+        let mid = s.pop_pack(false).unwrap();
+
+        start_object(&mut s, b"root", 4);
+        add_offset(&mut s, mid);
+        add_wide_offset(&mut s, leaf2);
+        s.pop_pack(false).unwrap();
+        s.end_serialize();
+
+        let graph = Graph::from_serializer(&s).unwrap();
+
+        let mut roots = IntSet::empty();
+        let mut queue = Vec::new();
+        graph
+            .find_32bit_roots(graph.root_idx(), &mut roots, &mut queue)
+            .unwrap();
+        assert!(roots.contains(leaf1 as u32));
+        assert!(roots.contains(leaf2 as u32));
+        assert!(!roots.contains(mid as u32));
+        assert_eq!(roots.len(), 2);
+
+        // Test case where DFS fails but BFS succeeds:
+        // root -16-> a
+        // root -32-> a
+        // a -32-> b
+        //
+        // DFS will first explore the 16 bit link to a and then recurse the 32 bit link from a to b
+        // and consider b a root. However, b should not be a root since it's not a top level 32 bit link.
+        // BFS will handle this correctly by discovering a as a top level root and then avoiding further
+        // exploring it.
+        let mut s2 = Serializer::new(buf_size);
+        s2.start_serialize().unwrap();
+        let b = add_object(&mut s2, b"b", 1, false);
+
+        start_object(&mut s2, b"a", 1);
+        add_wide_offset(&mut s2, b);
+        let a = s2.pop_pack(false).unwrap();
+
+        start_object(&mut s2, b"r", 1);
+        add_offset(&mut s2, a);
+        add_wide_offset(&mut s2, a);
+        s2.pop_pack(false).unwrap();
+        s2.end_serialize();
+
+        let graph2 = Graph::from_serializer(&s2).unwrap();
+
+        let mut roots2 = IntSet::empty();
+        let mut queue = Vec::new();
+        graph2
+            .find_32bit_roots(graph2.root_idx(), &mut roots2, &mut queue)
+            .unwrap();
+        assert_eq!(roots2.len(), 1);
+        assert!(roots2.contains(a as u32));
+        assert!(!roots2.contains(b as u32));
     }
 }

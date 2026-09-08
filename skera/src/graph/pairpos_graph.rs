@@ -135,6 +135,7 @@ fn compute_format1_split_points(
     // Since we are splitting by PairSet, each new subtable's coverage will have (end - start) glyphs
     let mut partial_coverage_size = 4;
 
+    let mut queue = vec![0; graph.vertices.len()];
     for i in 0..num_pair_sets {
         let pos =
             PairPosFormat1::PAIR_SET_OFFSETS_START + (i as u32 * Offset16::RAW_BYTE_LEN as u32);
@@ -145,7 +146,8 @@ fn compute_format1_split_points(
         // Each PairSet adds an offset in the main table (2 bytes) and a glyph in the coverage table (2 bytes)
         partial_coverage_size += Offset16::RAW_BYTE_LEN;
 
-        let pairset_size = graph.find_subgraph_size(pairset_idx, &mut visited, u16::MAX)?;
+        let pairset_size =
+            graph.find_subgraph_size(pairset_idx, &mut visited, &mut queue, u16::MAX)?;
         accumulated += pairset_size + Offset16::RAW_BYTE_LEN;
 
         if accumulated + partial_coverage_size.min(coverage_table_size) > u16::MAX as usize {
@@ -315,6 +317,7 @@ fn compute_format2_split_points(
     let mut visited = IntSet::empty();
 
     let class2_count = table_info.class2_count as u32;
+    let mut queue = vec![0; graph.vertices.len()];
     for i in 0..table_info.class1_count {
         let mut accumulated_delta = table_info.class1_record_size;
         let class_def_1_size = estimator.add_class_def_size(i);
@@ -331,6 +334,7 @@ fn compute_format2_split_points(
                     format1_device_indices,
                     value1_index,
                     &mut visited,
+                    &mut queue,
                 )?;
                 accumulated_delta += size_of_value_record_children(
                     graph,
@@ -338,6 +342,7 @@ fn compute_format2_split_points(
                     format2_device_indices,
                     value2_index,
                     &mut visited,
+                    &mut queue,
                 )?;
             }
         }
@@ -622,13 +627,14 @@ fn size_of_value_record_children(
     device_table_indices: &[u8],
     value_record_index: u32,
     visited: &mut IntSet<u32>,
+    queue: &mut Vec<usize>,
 ) -> Result<usize, RepackError> {
     let mut size = 0;
     let record_start_pos = PairPosFormat2::MIN_SIZE as u32 + value_record_index * 2;
     for &i in device_table_indices {
         let pos = record_start_pos + i as u32 * 2;
         if let Some(obj_idx) = links.link_index_at_position(pos) {
-            size += graph.find_subgraph_size(obj_idx, visited, u16::MAX)?;
+            size += graph.find_subgraph_size(obj_idx, visited, queue, u16::MAX)?;
         }
     }
     Ok(size)
