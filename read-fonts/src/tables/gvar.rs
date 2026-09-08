@@ -9,7 +9,7 @@ pub use deltas::DeltaBuffers;
 
 use super::{
     glyf::{CompositeGlyphFlags, Glyf, Glyph, PointCoord},
-    loca::Loca,
+    loca::{Loca, LocaGlyph},
     variations::{
         PackedPointNumbers, Tuple, TupleDelta, TupleVariationCount, TupleVariationData,
         TupleVariationHeader,
@@ -253,11 +253,12 @@ fn find_glyph_and_point_count(
             "nesting too deep in composite glyph",
         ));
     }
-    let glyph = loca.get_glyf(glyph_id, glyf)?;
-    let Some(glyph) = glyph else {
+    let glyph = match loca.get(glyph_id, glyf) {
         // Empty glyphs might still contain gvar data that
         // only affects phantom points
-        return Ok((glyph_id, 0));
+        Some(LocaGlyph::Empty) => return Ok((glyph_id, 0)),
+        Some(LocaGlyph::Glyph(glyph)) => glyph,
+        None => return Err(ReadError::OutOfBounds),
     };
     match glyph {
         Glyph::Simple(simple) => {

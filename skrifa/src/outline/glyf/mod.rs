@@ -155,9 +155,9 @@ impl<'a> Outlines<'a> {
         };
         let glyph = self
             .loca
-            .get_glyf(glyph_id, &self.glyf)
-            .map_err(|_| DrawError::Malformed)?;
-        if let Some(glyph) = glyph.as_ref() {
+            .get(glyph_id, &self.glyf)
+            .ok_or(DrawError::Malformed)?;
+        if let Some(glyph) = glyph.glyph() {
             self.outline_rec(glyph, &mut outline, 0, 0, &mut 0)?;
         }
         outline.points += PHANTOM_POINT_COUNT;
@@ -165,7 +165,7 @@ impl<'a> Outlines<'a> {
         outline.cvt_count = self.cvt_len as usize;
         outline.storage_count = self.max_storage as usize;
         outline.max_twilight_points = self.max_twilight_points as usize;
-        outline.glyph = glyph;
+        outline.glyph = glyph.into_glyph();
         Ok(outline)
     }
 
@@ -221,9 +221,9 @@ impl Outlines<'_> {
                     outline.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
                     let component_glyph = self
                         .loca
-                        .get_glyf(component.into(), &self.glyf)
-                        .map_err(|_| DrawError::Malformed)?;
-                    let Some(component_glyph) = component_glyph else {
+                        .get(component.into(), &self.glyf)
+                        .ok_or(DrawError::Malformed)?;
+                    let Some(component_glyph) = component_glyph.glyph() else {
                         continue;
                     };
                     *total_components += 1;
@@ -231,7 +231,7 @@ impl Outlines<'_> {
                         return Err(DrawError::RecursionLimitExceeded(outline.glyph_id));
                     }
                     self.outline_rec(
-                        &component_glyph,
+                        component_glyph,
                         outline,
                         component_depth + count,
                         recurse_depth + 1,
@@ -863,8 +863,9 @@ impl Scaler for FreeTypeScaler<'_> {
             let component_glyph = self
                 .outlines
                 .loca
-                .get_glyf(component.glyph.into(), &self.outlines.glyf)
-                .map_err(|_| DrawError::Malformed)?;
+                .get(component.glyph.into(), &self.outlines.glyf)
+                .ok_or(DrawError::Malformed)?
+                .into_glyph();
             self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component
@@ -1273,8 +1274,9 @@ impl Scaler for HarfBuzzScaler<'_> {
             let component_glyph = self
                 .outlines
                 .loca
-                .get_glyf(component.glyph.into(), &self.outlines.glyf)
-                .map_err(|_| DrawError::Malformed)?;
+                .get(component.glyph.into(), &self.outlines.glyf)
+                .ok_or(DrawError::Malformed)?
+                .into_glyph();
             self.load(&component_glyph, component.glyph.into(), recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component

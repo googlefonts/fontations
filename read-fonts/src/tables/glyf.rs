@@ -861,7 +861,10 @@ mod tests {
         let font = FontRef::new(font_test_data::COLR_GRADIENT_RECT).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let glyph = loca.get_glyf(GlyphId::new(0), &glyf).unwrap().unwrap();
+        let glyph = loca
+            .get(GlyphId::new(0), &glyf)
+            .and_then(|g| g.into_glyph())
+            .unwrap();
         assert_eq!(glyph.number_of_contours(), 2);
         let simple_glyph = if let Glyph::Simple(simple) = glyph {
             simple
@@ -900,7 +903,10 @@ mod tests {
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
         let glyph_count = font.maxp().unwrap().num_glyphs() as u32;
-        (0..glyph_count).map(move |gid| loca.get_glyf(GlyphId::new(gid), &glyf).unwrap())
+        (0..glyph_count).map(move |gid| {
+            loca.get(GlyphId::new(gid), &glyf)
+                .and_then(|g| g.into_glyph())
+        })
     }
 
     #[test]
@@ -1030,7 +1036,10 @@ mod tests {
         let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let glyph = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap();
+        let glyph = loca
+            .get(GlyphId::new(2), &glyf)
+            .and_then(|g| g.into_glyph())
+            .unwrap();
         assert_eq!(glyph.number_of_contours(), 1);
         let simple_glyph = if let Glyph::Simple(simple) = glyph {
             simple

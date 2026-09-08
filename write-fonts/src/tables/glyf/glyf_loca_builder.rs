@@ -168,10 +168,24 @@ mod tests {
         )
         .unwrap();
 
-        let rglyph1 = Glyph::from_table_ref(&rloca.get_glyf(gid1, &rglyf).unwrap().unwrap());
-        let rglyph2 = Glyph::from_table_ref(&rloca.get_glyf(gid2, &rglyf).unwrap().unwrap());
-        let rglyph3 =
-            Glyph::from_table_ref(&rloca.get_glyf(GlyphId::new(3), &rglyf).unwrap().unwrap());
+        let rglyph1 = Glyph::from_table_ref(
+            &rloca
+                .get(gid1, &rglyf)
+                .and_then(|g| g.into_glyph())
+                .unwrap(),
+        );
+        let rglyph2 = Glyph::from_table_ref(
+            &rloca
+                .get(gid2, &rglyf)
+                .and_then(|g| g.into_glyph())
+                .unwrap(),
+        );
+        let rglyph3 = Glyph::from_table_ref(
+            &rloca
+                .get(GlyphId::new(3), &rglyf)
+                .and_then(|g| g.into_glyph())
+                .unwrap(),
+        );
         assert_eq!(rglyph1, glyph1.into());
         assert_eq!(rglyph2, glyph2.into());
         assert_eq!(rglyph3, glyph3.into());

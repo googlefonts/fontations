@@ -611,7 +611,8 @@ mod tests {
         fn new(font: &FontRef<'a>, gid: GlyphId) -> Self {
             let glyf: Glyf<'a> = font.glyf().unwrap();
             let loca: Loca<'a> = font.loca(None).unwrap();
-            let Some(Glyph::Simple(simple)) = loca.get_glyf(gid, &glyf).unwrap() else {
+            let Some(Glyph::Simple(simple)) = loca.get(gid, &glyf).and_then(|g| g.into_glyph())
+            else {
                 panic!("expected a simple glyph");
             };
             let n = simple.num_points();
@@ -811,7 +812,9 @@ mod tests {
         let coords = [F2Dot14::from_f32(0.5)];
         for gid in 0..font.maxp().unwrap().num_glyphs() {
             let glyph_id = GlyphId::from(gid);
-            let Some(Glyph::Simple(simple)) = loca.get_glyf(glyph_id, &glyf).unwrap() else {
+            let Some(Glyph::Simple(simple)) =
+                loca.get(glyph_id, &glyf).and_then(|g| g.into_glyph())
+            else {
                 continue;
             };
             let count = simple.num_points() + PHANTOM_POINT_COUNT;
