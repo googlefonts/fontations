@@ -85,7 +85,7 @@ impl<'a> GlyphMetrics<'a> {
     /// The Type 1 half of [`h_advance_batched`](Self::h_advance_batched).
     ///
     /// A Type 1 charstring states its own width, so reading one means
-    /// running it. Out of line because that has nothing in common with
+    /// running it. `#[inline(never)]` because that has nothing in common with
     /// reading a table, and no `sfnt` should pay for its presence.
     #[inline(never)]
     fn h_advance_batched_type1<'o, V: 'o>(
