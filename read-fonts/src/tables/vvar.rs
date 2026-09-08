@@ -6,6 +6,19 @@ use types::F48Dot16;
 include!("../../generated/generated_vvar.rs");
 
 impl Vvar<'_> {
+    /// Computes the scalar for each variation region at `coords`, in the
+    /// order the table lists them, and returns how many were written.
+    ///
+    /// See [`ItemVariationStore::compute_scalars`] for what `out` receives.
+    ///
+    /// [`ItemVariationStore::compute_scalars`]: crate::tables::variations::ItemVariationStore::compute_scalars
+    pub fn compute_scalars(&self, coords: &[F2Dot14], out: &mut [Fixed]) -> usize {
+        match self.item_variation_store() {
+            Ok(store) => store.compute_scalars(coords, out),
+            Err(_) => 0,
+        }
+    }
+
     /// Returns the change a location makes to the advance height of a glyph.
     ///
     /// The value carries every bit the item variation store computed. It is
@@ -14,16 +27,30 @@ impl Vvar<'_> {
     ///
     /// Returns `None` where the table says nothing readable about the glyph.
     pub fn advance_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<F48Dot16> {
-        variations::advance_delta(
+        self.advance_delta_with_scalars(glyph_id, coords, &[])
+    }
+
+    /// Returns the change a location makes to the advance height of a glyph, taking
+    /// any scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by variation region, as
+    /// [`compute_scalars`](Self::compute_scalars) fills it.
+    pub fn advance_delta_with_scalars(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+    ) -> Option<F48Dot16> {
+        variations::advance_delta_with_scalars(
             self.advance_height_mapping(),
             self.item_variation_store(),
             glyph_id,
             coords,
+            scalars,
         )
     }
 
-    /// Returns the change a location makes to the top side bearing of a
-    /// glyph.
+    /// Returns the change a location makes to the top side bearing of a glyph.
     ///
     /// The value carries every bit the item variation store computed. It is
     /// a caller that decides how to round it into a whole design unit, and
@@ -31,16 +58,30 @@ impl Vvar<'_> {
     ///
     /// Returns `None` where the table says nothing readable about the glyph.
     pub fn tsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<F48Dot16> {
-        variations::item_delta(
+        self.tsb_delta_with_scalars(glyph_id, coords, &[])
+    }
+
+    /// Returns the change a location makes to the top side bearing of a glyph, taking
+    /// any scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by variation region, as
+    /// [`compute_scalars`](Self::compute_scalars) fills it.
+    pub fn tsb_delta_with_scalars(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+    ) -> Option<F48Dot16> {
+        variations::item_delta_with_scalars(
             self.tsb_mapping(),
             self.item_variation_store(),
             glyph_id,
             coords,
+            scalars,
         )
     }
 
-    /// Returns the change a location makes to the bottom side bearing of a
-    /// glyph.
+    /// Returns the change a location makes to the bottom side bearing of a glyph.
     ///
     /// The value carries every bit the item variation store computed. It is
     /// a caller that decides how to round it into a whole design unit, and
@@ -48,19 +89,30 @@ impl Vvar<'_> {
     ///
     /// Returns `None` where the table says nothing readable about the glyph.
     pub fn bsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<F48Dot16> {
-        variations::item_delta(
+        self.bsb_delta_with_scalars(glyph_id, coords, &[])
+    }
+
+    /// Returns the change a location makes to the bottom side bearing of a glyph, taking
+    /// any scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by variation region, as
+    /// [`compute_scalars`](Self::compute_scalars) fills it.
+    pub fn bsb_delta_with_scalars(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+    ) -> Option<F48Dot16> {
+        variations::item_delta_with_scalars(
             self.bsb_mapping(),
             self.item_variation_store(),
             glyph_id,
             coords,
+            scalars,
         )
     }
 
-    /// Returns the change a location makes to the y coordinate of a glyph's
-    /// vertical origin.
-    ///
-    /// The x coordinate is not stated by any table: it is half the advance
-    /// width, and does not vary here.
+    /// Returns the change a location makes to the y coordinate of the vertical origin of a glyph.
     ///
     /// The value carries every bit the item variation store computed. It is
     /// a caller that decides how to round it into a whole design unit, and
@@ -68,11 +120,26 @@ impl Vvar<'_> {
     ///
     /// Returns `None` where the table says nothing readable about the glyph.
     pub fn v_origin_y_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<F48Dot16> {
-        variations::item_delta(
+        self.v_origin_y_delta_with_scalars(glyph_id, coords, &[])
+    }
+
+    /// Returns the change a location makes to the y coordinate of the vertical origin of a glyph, taking
+    /// any scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by variation region, as
+    /// [`compute_scalars`](Self::compute_scalars) fills it.
+    pub fn v_origin_y_delta_with_scalars(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+    ) -> Option<F48Dot16> {
+        variations::item_delta_with_scalars(
             self.v_org_mapping(),
             self.item_variation_store(),
             glyph_id,
             coords,
+            scalars,
         )
     }
 }

@@ -11,8 +11,8 @@ use super::{
     glyf::{CompositeGlyphFlags, Glyf, Glyph, PointCoord},
     loca::{Loca, LocaGlyph},
     variations::{
-        PackedPointNumbers, Tuple, TupleDelta, TupleVariationCount, TupleVariationData,
-        TupleVariationHeader,
+        scalar_for, PackedPointNumbers, Tuple, TupleDelta, TupleVariationCount, TupleVariationData,
+        TupleVariationHeader, NOT_COMPUTED,
     },
 };
 
@@ -128,11 +128,65 @@ impl<'a> Gvar<'a> {
     ///
     /// The resulting array will contain four deltas:
     /// `[left, right, top, bottom]`.
+    /// Computes the scalar for each shared tuple at `coords`, in the order
+    /// the table lists them, and returns how many were written.
+    ///
+    /// A tuple that does not apply at `coords` is written as zero, which is
+    /// also what it contributes, so no separate mark is needed for one. A
+    /// table that cannot be read yields nothing. Only
+    /// the peak is taken into account: a glyph naming a shared tuple states
+    /// any range of its own alongside it, and that range is not shared.
+    ///
+    /// `out` may be shorter than the table has shared tuples. Only what fits
+    /// is written, and whatever reads the scalars computes the rest as it
+    /// meets them.
+    pub fn compute_scalars(&self, coords: &[F2Dot14], out: &mut [Fixed]) -> usize {
+        let Ok(shared) = self.shared_tuples() else {
+            out.fill(NOT_COMPUTED);
+            return 0;
+        };
+        let shared = shared.tuples();
+        let axis_count = self.axis_count() as usize;
+        let count = out.len().min(self.shared_tuple_count() as usize);
+        for (i, out) in out[..count].iter_mut().enumerate() {
+            // A tuple that cannot be read ends the run. What was written
+            // before it still stands, and the rest is computed on demand.
+            let Ok(tuple) = shared.get(i) else {
+                return i;
+            };
+            *out = (tuple.len() == axis_count)
+                .then(|| scalar_for(&tuple, None, coords))
+                .flatten()
+                .unwrap_or(Fixed::ZERO);
+        }
+        // Anything past the shared tuples is marked as never computed, so
+        // that a slice longer than the table needs is still safe to read.
+        out[count..].fill(NOT_COMPUTED);
+        count
+    }
+
     pub fn phantom_point_deltas(
         &self,
         glyf: &Glyf,
         loca: &Loca,
         coords: &[F2Dot14],
+        glyph_id: GlyphId,
+    ) -> Option<[Point<Fixed>; 4]> {
+        self.phantom_point_deltas_with_scalars(glyf, loca, coords, &[], glyph_id)
+    }
+
+    /// Returns the phantom point deltas for the given variation coordinates
+    /// and glyph identifier, taking any scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by shared tuple, as
+    /// [`compute_scalars`](Self::compute_scalars) fills it, and may cover any
+    /// number of them including none.
+    pub fn phantom_point_deltas_with_scalars(
+        &self,
+        glyf: &Glyf,
+        loca: &Loca,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
         glyph_id: GlyphId,
     ) -> Option<[Point<Fixed>; 4]> {
         // For any given glyph, there's only one outline that contributes to
@@ -153,7 +207,7 @@ impl<'a> Gvar<'a> {
         };
         // Note that phantom points can never belong to a contour so we don't have
         // to handle the IUP case here.
-        for (tuple, scalar) in var_data.active_tuples_at(coords) {
+        for (tuple, scalar) in var_data.active_tuples_at_with_scalars(coords, scalars) {
             for tuple_delta in tuple.deltas() {
                 let ix = tuple_delta.position as usize;
                 if phantom_range.contains(&ix) {

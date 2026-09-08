@@ -144,13 +144,12 @@ impl<'a> SkrifaSfntInstance<'a> {
         let hvar = self.font.hvar().ok()?;
         let gvar = self.font.gvar().ok()?;
         let hvar_delta = hvar.advance_delta(glyph_id, &self.coords)?;
-        let gvar_delta = gvar
-            .phantom_point_deltas(
-                &self.font.glyf().ok()?,
-                &self.font.loca(None).ok()?,
-                &self.coords,
-                glyph_id,
-            )?[1]
+        let gvar_delta = gvar.phantom_point_deltas(
+            &self.font.glyf().ok()?,
+            &self.font.loca(None).ok()?,
+            &self.coords,
+            glyph_id,
+        )?[1]
             .x;
         Some((hvar_delta.to_i32(), gvar_delta.to_i32()))
     }

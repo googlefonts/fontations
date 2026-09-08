@@ -1,10 +1,24 @@
 //! The [HVAR (Horizontal Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
 
 use super::variations::{self, DeltaSetIndexMap, ItemVariationStore};
+use types::F48Dot16;
 
 include!("../../generated/generated_hvar.rs");
 
 impl Hvar<'_> {
+    /// Computes the scalar for each variation region at `coords`, in the
+    /// order the table lists them, and returns how many were written.
+    ///
+    /// See [`ItemVariationStore::compute_scalars`] for what `out` receives.
+    ///
+    /// [`ItemVariationStore::compute_scalars`]: crate::tables::variations::ItemVariationStore::compute_scalars
+    pub fn compute_scalars(&self, coords: &[F2Dot14], out: &mut [Fixed]) -> usize {
+        match self.item_variation_store() {
+            Ok(store) => store.compute_scalars(coords, out),
+            Err(_) => 0,
+        }
+    }
+
     /// Returns the change a location makes to the advance width of a glyph.
     ///
     /// The value carries every bit the item variation store computed. It is
@@ -13,16 +27,30 @@ impl Hvar<'_> {
     ///
     /// Returns `None` where the table says nothing readable about the glyph.
     pub fn advance_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<F48Dot16> {
-        variations::advance_delta(
+        self.advance_delta_with_scalars(glyph_id, coords, &[])
+    }
+
+    /// Returns the change a location makes to the advance width of a glyph, taking
+    /// any scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by variation region, as
+    /// [`compute_scalars`](Self::compute_scalars) fills it.
+    pub fn advance_delta_with_scalars(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+    ) -> Option<F48Dot16> {
+        variations::advance_delta_with_scalars(
             self.advance_width_mapping(),
             self.item_variation_store(),
             glyph_id,
             coords,
+            scalars,
         )
     }
 
-    /// Returns the change a location makes to the left side bearing of a
-    /// glyph.
+    /// Returns the change a location makes to the left side bearing of a glyph.
     ///
     /// The value carries every bit the item variation store computed. It is
     /// a caller that decides how to round it into a whole design unit, and
@@ -30,16 +58,30 @@ impl Hvar<'_> {
     ///
     /// Returns `None` where the table says nothing readable about the glyph.
     pub fn lsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<F48Dot16> {
-        variations::item_delta(
+        self.lsb_delta_with_scalars(glyph_id, coords, &[])
+    }
+
+    /// Returns the change a location makes to the left side bearing of a glyph, taking
+    /// any scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by variation region, as
+    /// [`compute_scalars`](Self::compute_scalars) fills it.
+    pub fn lsb_delta_with_scalars(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+    ) -> Option<F48Dot16> {
+        variations::item_delta_with_scalars(
             self.lsb_mapping(),
             self.item_variation_store(),
             glyph_id,
             coords,
+            scalars,
         )
     }
 
-    /// Returns the change a location makes to the right side bearing of a
-    /// glyph.
+    /// Returns the change a location makes to the right side bearing of a glyph.
     ///
     /// The value carries every bit the item variation store computed. It is
     /// a caller that decides how to round it into a whole design unit, and
@@ -47,11 +89,26 @@ impl Hvar<'_> {
     ///
     /// Returns `None` where the table says nothing readable about the glyph.
     pub fn rsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Option<F48Dot16> {
-        variations::item_delta(
+        self.rsb_delta_with_scalars(glyph_id, coords, &[])
+    }
+
+    /// Returns the change a location makes to the right side bearing of a glyph, taking
+    /// any scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by variation region, as
+    /// [`compute_scalars`](Self::compute_scalars) fills it.
+    pub fn rsb_delta_with_scalars(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+    ) -> Option<F48Dot16> {
+        variations::item_delta_with_scalars(
             self.rsb_mapping(),
             self.item_variation_store(),
             glyph_id,
             coords,
+            scalars,
         )
     }
 }

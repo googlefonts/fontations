@@ -811,8 +811,29 @@ where
     where
         'a: 'b,
     {
+        self.active_tuples_at_with_scalars(coords, &[])
+    }
+
+    /// Returns an iterator over the tuples that apply at `coords`, taking any
+    /// scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by shared tuple, as [`Gvar::compute_scalars`]
+    /// fills it. A tuple naming a shared peak and no range of its own has the
+    /// same scalar wherever it appears, so it is read from there; one with a
+    /// range, or an entry `scalars` does not reach, is computed here instead.
+    ///
+    /// [`Gvar::compute_scalars`]: crate::tables::gvar::Gvar::compute_scalars
+    pub fn active_tuples_at_with_scalars<'b>(
+        &self,
+        coords: &'b [F2Dot14],
+        scalars: &'b [Fixed],
+    ) -> impl Iterator<Item = (TupleVariation<'a, T>, Fixed)> + 'b
+    where
+        'a: 'b,
+    {
         ActiveTupleVariationIter {
             coords,
+            scalars,
             parent: self.clone(),
             header_iter: TupleVariationHeaderIter::new(
                 self.header_data,
@@ -882,6 +903,7 @@ where
 /// for a given set of coordinates.
 struct ActiveTupleVariationIter<'a, 'b, T> {
     coords: &'b [F2Dot14],
+    scalars: &'b [Fixed],
     parent: TupleVariationData<'a, T>,
     header_iter: TupleVariationHeaderIter<'a>,
     serialized_data: FontData<'a>,
@@ -908,6 +930,7 @@ where
                 self.parent.axis_count as usize,
                 &self.parent.shared_tuples,
                 self.coords,
+                self.scalars,
             ) {
                 let var_data = self.serialized_data.slice(data_start..data_end)?;
                 return Some((
@@ -925,6 +948,14 @@ where
         }
     }
 }
+
+/// Marks a shared tuple scalar that was never computed.
+///
+/// Unlike a variation store's regions, a glyph names shared tuples by index
+/// and need not name them all, so a slice of scalars can carry gaps. A scalar
+/// is a product of ratios that the range guards keep within zero and one, so
+/// no computed value can collide with this.
+pub const NOT_COMPUTED: Fixed = Fixed::MAX;
 
 /// A single set of tuple variation data
 #[derive(Clone)]
@@ -994,6 +1025,7 @@ where
             self.axis_count as usize,
             &self.shared_tuples,
             coords,
+            &[],
         )
     }
 
@@ -1285,10 +1317,21 @@ fn compute_scalar<'a>(
     axis_count: usize,
     shared_tuples: &Option<ComputedArray<'a, Tuple<'a>>>,
     coords: &[F2Dot14],
+    scalars: &[Fixed],
 ) -> Option<Fixed> {
-    let mut scalar = Fixed::ONE;
     let tuple_idx = header.tuple_index();
+    let intermediate = header.intermediate_tuples();
     let peak = if let Some(shared_index) = tuple_idx.tuple_records_index() {
+        // A shared peak with no range of its own scales the same way
+        // wherever it is named, so it is worth remembering.
+        if intermediate.is_none() {
+            match scalars.get(shared_index as usize) {
+                Some(scalar) if *scalar != NOT_COMPUTED => {
+                    return (*scalar != Fixed::ZERO).then_some(*scalar);
+                }
+                _ => {}
+            }
+        }
         shared_tuples.as_ref()?.get(shared_index as usize).ok()?
     } else {
         header.peak_tuple()?
@@ -1296,7 +1339,20 @@ fn compute_scalar<'a>(
     if peak.len() != axis_count {
         return None;
     }
-    let intermediate = header.intermediate_tuples();
+    scalar_for(&peak, intermediate, coords)
+}
+
+/// Computes the scalar for a peak, and the range it interpolates over if it
+/// states one, at `coords`.
+///
+/// `None` where the tuple does not apply, which is also what a scalar of zero
+/// means.
+pub(crate) fn scalar_for(
+    peak: &Tuple,
+    intermediate: Option<(Tuple, Tuple)>,
+    coords: &[F2Dot14],
+) -> Option<Fixed> {
+    let mut scalar = Fixed::ONE;
     for (i, peak) in peak
         .values
         .iter()
@@ -1486,6 +1542,22 @@ impl ItemVariationStore<'_> {
     /// classic integer delta, or apply the value unrounded to targets that
     /// take fractional deltas.
     pub fn compute_delta(&self, index: DeltaSetIndex, coords: &[F2Dot14]) -> Option<F48Dot16> {
+        self.compute_delta_with_scalars(index, coords, &[])
+    }
+
+    /// Computes the delta value for the specified index and set of normalized
+    /// variation coordinates, taking any scalar `scalars` already holds.
+    ///
+    /// `scalars` is indexed by variation region, as
+    /// [`compute_scalars`](Self::compute_scalars) fills it. It may cover any
+    /// number of regions, including none: a region it does not reach is
+    /// computed here instead.
+    pub fn compute_delta_with_scalars(
+        &self,
+        index: DeltaSetIndex,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+    ) -> Option<F48Dot16> {
         if coords.is_empty() || index == DeltaSetIndex::NO_VARIATION_INDEX {
             return Some(F48Dot16::ZERO);
         }
@@ -1493,16 +1565,29 @@ impl ItemVariationStore<'_> {
             Some(data) => data.ok()?,
             None => return Some(F48Dot16::ZERO),
         };
-        let regions = self.variation_region_list().ok()?.variation_regions();
         let region_indices = data.region_indexes();
+        // Only read where a scalar has to be computed. A run that finds every
+        // one of them in `scalars` never touches the region list at all.
+        let mut regions = None;
         // Compute deltas with 64-bit precision.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/7ab541a2/src/truetype/ttgxvar.c#L1094>
         let mut accum = F48Dot16::ZERO;
         // The deltas and the region indices are parallel arrays sized by the
         // same header field, so they are walked together.
         for (region_index, region_delta) in region_indices.iter().zip(data.delta_set(index.inner)) {
-            let region = regions.get(region_index.get() as usize).ok()?;
-            let scalar = region.compute_scalar(coords);
+            let region_index = region_index.get() as usize;
+            let scalar = match scalars.get(region_index) {
+                Some(scalar) => *scalar,
+                None => {
+                    let regions = match &regions {
+                        Some(regions) => regions,
+                        None => {
+                            regions.insert(self.variation_region_list().ok()?.variation_regions())
+                        }
+                    };
+                    regions.get(region_index).ok()?.compute_scalar(coords)
+                }
+            };
             // The sum cannot overflow, even for hostile data: a scalar is a
             // product of ratios that the range guards keep at most one, so
             // each term is under 2^47, and at most 2^16 - 1 regions bounds
@@ -1510,6 +1595,38 @@ impl ItemVariationStore<'_> {
             accum += scalar.mul_i32(region_delta);
         }
         Some(accum)
+    }
+
+    /// Computes the scalar for each variation region at `coords`, in the
+    /// order the store lists them, and returns how many were written.
+    ///
+    /// A region that does not apply at `coords` is written as zero, which is
+    /// also what it contributes, so no separate mark is needed for one.
+    ///
+    /// A table that cannot be read yields nothing, which leaves every scalar
+    /// to be computed on demand.
+    ///
+    /// `out` may be shorter than the store has regions. Only what fits is
+    /// written, and [`compute_delta_with_scalars`](Self::compute_delta_with_scalars)
+    /// computes the rest as it meets them.
+    ///
+    /// Pass only what was written. Regions are dense, so the length of the
+    /// slice is what says which of them it answers for.
+    pub fn compute_scalars(&self, coords: &[F2Dot14], out: &mut [Fixed]) -> usize {
+        let Ok(list) = self.variation_region_list() else {
+            return 0;
+        };
+        let regions = list.variation_regions();
+        let count = out.len().min(regions.len());
+        for (i, out) in out[..count].iter_mut().enumerate() {
+            // A region that cannot be read ends the run. What was written
+            // before it still stands, and the rest is computed on demand.
+            let Ok(region) = regions.get(i) else {
+                return i;
+            };
+            *out = region.compute_scalar(coords);
+        }
+        count
     }
 }
 
@@ -1640,15 +1757,16 @@ impl Iterator for ItemDeltas<'_> {
     }
 }
 
-/// The delta for a glyph's advance.
+/// The delta for a glyph's advance, taking any scalar `scalars` already holds.
 ///
 /// Keeps every bit the variation store computed. Rounding it to a whole
 /// design unit is left to a caller, and implementations differ on how.
-pub(crate) fn advance_delta(
+pub(crate) fn advance_delta_with_scalars(
     dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
     ivs: Result<ItemVariationStore, ReadError>,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
+    scalars: &[Fixed],
 ) -> Option<F48Dot16> {
     if coords.is_empty() {
         return Some(F48Dot16::ZERO);
@@ -1661,18 +1779,19 @@ pub(crate) fn advance_delta(
             inner: gid as _,
         },
     };
-    ivs.ok()?.compute_delta(ix, coords)
+    ivs.ok()?.compute_delta_with_scalars(ix, coords, scalars)
 }
 
-/// The delta for an item.
+/// The delta for an item, taking any scalar `scalars` already holds.
 ///
-/// See [`advance_delta`]; this is the same for the mappings that require an
-/// index map rather than falling back to the glyph id.
-pub(crate) fn item_delta(
+/// See [`advance_delta_with_scalars`]; this is the same for the mappings that
+/// require an index map rather than falling back to the glyph id.
+pub(crate) fn item_delta_with_scalars(
     dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
     ivs: Result<ItemVariationStore, ReadError>,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
+    scalars: &[Fixed],
 ) -> Option<F48Dot16> {
     if coords.is_empty() {
         return Some(F48Dot16::ZERO);
@@ -1682,7 +1801,7 @@ pub(crate) fn item_delta(
         Some(Ok(dsim)) => dsim.get(gid).ok()?,
         _ => return None,
     };
-    ivs.ok()?.compute_delta(ix, coords)
+    ivs.ok()?.compute_delta_with_scalars(ix, coords, scalars)
 }
 
 #[cfg(test)]
