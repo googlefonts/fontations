@@ -425,6 +425,10 @@ impl<'a> TableProvider<'a> for &'a FontTables {
     fn dsig(&self) -> Result<tables::dsig::Dsig<'a>, ReadError> {
         self.load_table(self.dsig_state())
     }
+
+    fn math(&self) -> Result<tables::math::Math<'a>, ReadError> {
+        self.load_table(self.math_state())
+    }
 }
 
 #[cfg(test)]

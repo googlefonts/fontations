@@ -34,6 +34,7 @@ pub mod kerx;
 pub mod layout;
 pub mod loca;
 pub mod ltag;
+pub mod math;
 pub mod maxp;
 pub mod meta;
 pub mod mort;
