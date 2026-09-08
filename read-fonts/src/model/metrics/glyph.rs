@@ -220,13 +220,13 @@ impl<'a> GlyphMetrics<'a> {
         if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
             return raw.run_varied(
                 self.num_glyphs,
-                |gid| match gvar.phantom_point_deltas(glyf, loca, coords, gid) {
-                    Ok(Some(deltas)) => (deltas[1].x - deltas[0].x).to_f48dot16(),
-                    // A glyph the table says nothing about does not move,
-                    // and neither does one it says something unreadable
-                    // about. They are different states, not different
-                    // answers.
-                    _ => F48Dot16::ZERO,
+                |gid| {
+                    // A glyph the table says nothing readable about does
+                    // not move.
+                    gvar.phantom_point_deltas(glyf, loca, coords, gid)
+                        .map_or(F48Dot16::ZERO, |deltas| {
+                            (deltas[1].x - deltas[0].x).to_f48dot16()
+                        })
                 },
                 convert,
                 glyphs,

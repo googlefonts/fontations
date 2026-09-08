@@ -150,8 +150,7 @@ impl<'a> SkrifaSfntInstance<'a> {
                 &self.font.loca(None).ok()?,
                 &self.coords,
                 glyph_id,
-            )
-            .ok()??[1]
+            )?[1]
             .x;
         Some((hvar_delta.to_i32(), gvar_delta.to_i32()))
     }

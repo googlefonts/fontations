@@ -1485,19 +1485,15 @@ impl ItemVariationStore<'_> {
     /// possible sum with room to spare. Use [`F48Dot16::to_i32`] for the
     /// classic integer delta, or apply the value unrounded to targets that
     /// take fractional deltas.
-    pub fn compute_delta(
-        &self,
-        index: DeltaSetIndex,
-        coords: &[F2Dot14],
-    ) -> Result<F48Dot16, ReadError> {
+    pub fn compute_delta(&self, index: DeltaSetIndex, coords: &[F2Dot14]) -> Option<F48Dot16> {
         if coords.is_empty() || index == DeltaSetIndex::NO_VARIATION_INDEX {
-            return Ok(F48Dot16::ZERO);
+            return Some(F48Dot16::ZERO);
         }
         let data = match self.item_variation_data().get(index.outer as usize) {
-            Some(data) => data?,
-            None => return Ok(F48Dot16::ZERO),
+            Some(data) => data.ok()?,
+            None => return Some(F48Dot16::ZERO),
         };
-        let regions = self.variation_region_list()?.variation_regions();
+        let regions = self.variation_region_list().ok()?.variation_regions();
         let region_indices = data.region_indexes();
         // Compute deltas with 64-bit precision.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/7ab541a2/src/truetype/ttgxvar.c#L1094>
@@ -1505,7 +1501,7 @@ impl ItemVariationStore<'_> {
         // The deltas and the region indices are parallel arrays sized by the
         // same header field, so they are walked together.
         for (region_index, region_delta) in region_indices.iter().zip(data.delta_set(index.inner)) {
-            let region = regions.get(region_index.get() as usize)?;
+            let region = regions.get(region_index.get() as usize).ok()?;
             let scalar = region.compute_scalar(coords);
             // The sum cannot overflow, even for hostile data: a scalar is a
             // product of ratios that the range guards keep at most one, so
@@ -1513,7 +1509,7 @@ impl ItemVariationStore<'_> {
             // the total below 2^63.
             accum += scalar.mul_i32(region_delta);
         }
-        Ok(accum)
+        Some(accum)
     }
 }
 
@@ -1665,7 +1661,7 @@ pub(crate) fn advance_delta(
             inner: gid as _,
         },
     };
-    ivs.ok()?.compute_delta(ix, coords).ok()
+    ivs.ok()?.compute_delta(ix, coords)
 }
 
 /// The delta for an item.
@@ -1686,7 +1682,7 @@ pub(crate) fn item_delta(
         Some(Ok(dsim)) => dsim.get(gid).ok()?,
         _ => return None,
     };
-    ivs.ok()?.compute_delta(ix, coords).ok()
+    ivs.ok()?.compute_delta(ix, coords)
 }
 
 #[cfg(test)]

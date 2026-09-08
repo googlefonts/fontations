@@ -134,7 +134,7 @@ impl<'a> Gvar<'a> {
         loca: &Loca,
         coords: &[F2Dot14],
         glyph_id: GlyphId,
-    ) -> Result<Option<[Point<Fixed>; 4]>, ReadError> {
+    ) -> Option<[Point<Fixed>; 4]> {
         // For any given glyph, there's only one outline that contributes to
         // metrics deltas (via "phantom points"). For simple glyphs, that is
         // the glyph itself. For composite glyphs, it is the last component
@@ -145,11 +145,11 @@ impl<'a> Gvar<'a> {
         // returns the point count (for composites, this is the component
         // count), so that we know where the deltas for phantom points start
         // in the variation data.
-        let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0)?;
+        let (glyph_id, point_count) = find_glyph_and_point_count(glyf, loca, glyph_id, 0).ok()?;
         let mut phantom_deltas = [Point::default(); 4];
         let phantom_range = point_count..point_count + 4;
-        let Some(var_data) = self.glyph_variation_data(glyph_id)? else {
-            return Ok(None);
+        let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
+            return None;
         };
         // Note that phantom points can never belong to a contour so we don't have
         // to handle the IUP case here.
@@ -161,7 +161,7 @@ impl<'a> Gvar<'a> {
                 }
             }
         }
-        Ok(Some(phantom_deltas))
+        Some(phantom_deltas)
     }
 }
 
@@ -550,7 +550,6 @@ mod tests {
             .map(|coord| F2Dot14::from_f32(*coord))
             .collect::<Vec<_>>();
         gvar.phantom_point_deltas(&glyf, &loca, &coords, glyph_id)
-            .unwrap()
             .unwrap()
             .map(|delta| delta.map(Fixed::to_f32))
             .map(|p| (p.x, p.y))

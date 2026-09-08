@@ -137,15 +137,13 @@ impl MvarInstance<'_> {
             .binary_search_by(|record| record.value_tag().cmp(&tag))
             .ok()?;
         let record = &self.records[index];
-        self.ivs
-            .compute_delta(
-                DeltaSetIndex {
-                    outer: record.delta_set_outer_index(),
-                    inner: record.delta_set_inner_index(),
-                },
-                self.coords,
-            )
-            .ok()
+        self.ivs.compute_delta(
+            DeltaSetIndex {
+                outer: record.delta_set_outer_index(),
+                inner: record.delta_set_inner_index(),
+            },
+            self.coords,
+        )
     }
 }
 
@@ -177,7 +175,8 @@ impl Mvar<'_> {
                                 inner: record.delta_set_inner_index(),
                             },
                             coords,
-                        )?
+                        )
+                        .ok_or(ReadError::MalformedData("bad variation delta"))?
                         .to_i32(),
                     ));
                 }
