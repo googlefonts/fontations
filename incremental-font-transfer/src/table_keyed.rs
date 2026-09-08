@@ -442,4 +442,40 @@ mod tests {
             apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder)
         );
     }
+
+    #[test]
+    fn table_keyed_patch_unconsumed_brotli_data() {
+        let patch_data = table_keyed_patch();
+        let off1 = patch_data.offset_for("patch[1]");
+        let off2 = patch_data.offset_for("patch[2]");
+        let off3 = patch_data.offset_for("end") + 4;
+
+        let patch_off1 = patch_data.offset_for("patch_off[1]");
+        let patch_off2 = patch_data.offset_for("patch_off[2]");
+        let patch_off3 = patch_data.offset_for("patch_off[3]");
+
+        let junk = [0xde, 0xad, 0xbe, 0xef];
+        let mut data = patch_data.as_slice().to_vec();
+        // Insert junk right before patch[1], which is at the end of patch[0]'s brotli stream.
+        data.splice(off1..off1, junk);
+
+        // Update patch_off[1], patch_off[2], and patch_off[3] to account for the inserted junk bytes.
+        data[patch_off1..patch_off1 + 4]
+            .copy_from_slice(&((off1 + junk.len()) as u32).to_be_bytes());
+        data[patch_off2..patch_off2 + 4]
+            .copy_from_slice(&((off2 + junk.len()) as u32).to_be_bytes());
+        data[patch_off3..patch_off3 + 4]
+            .copy_from_slice(&((off3 + junk.len()) as u32).to_be_bytes());
+
+        let patch = TableKeyedPatch::read(FontData::new(&data)).unwrap();
+        let font = test_font();
+        let font = FontRef::new(font.as_slice()).unwrap();
+
+        assert_eq!(
+            Err(PatchingError::InvalidPatch(
+                "Input brotli stream has excess bytes."
+            )),
+            apply_table_keyed_patch(&patch, &font, &BuiltInBrotliDecoder)
+        );
+    }
 }
