@@ -2,8 +2,8 @@
 
 use crate::fnv::FnvHashMap;
 use crate::{
-    gpos::value_record::compute_effective_format,
-    layout::{intersected_coverage_indices, intersected_glyphs_and_indices, map_gsub_glyph},
+    gpos::value_record::{compute_effective_format, compute_record_len},
+    layout::{intersected_glyphs_and_indices, map_gsub_glyph},
     offset::SerializeSerialize,
     serialize::{SerializeErrorFlags, Serializer},
     CollectVariationIndices, Plan, Serialize, SubsetFlags, SubsetState, SubsetTable,
@@ -16,7 +16,7 @@ use write_fonts::{
             layout::CoverageTable,
         },
         types::GlyphId,
-        FontRef, TableProvider,
+        FontData, FontRef, ReadError, TableProvider,
     },
     types::Offset16,
 };
@@ -75,6 +75,7 @@ impl<'a> SubsetTable<'a> for SinglePosFormat1<'_> {
                 true
             };
             compute_effective_format(&value_record, strip_hints, true)
+                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?
         } else {
             self.value_format()
         };
@@ -102,14 +103,29 @@ impl<'a> Serialize<'a> for SinglePosFormat1<'_> {
     }
 }
 
-fn compute_new_value_format<'a>(
+pub(crate) struct SinglePosInfo<'a> {
+    value_format: ValueFormat,
+    records_offset: usize,
+    record_size: usize,
+    font_data: FontData<'a>,
+    new_format: ValueFormat,
+}
+
+fn compute_new_value_format(
+    singlepos_info: &mut SinglePosInfo,
     plan: &Plan,
     has_gdef_varstore: bool,
     font: &FontRef,
-    value_records: impl IntoIterator<Item = ValueRecord<'a>>,
-) -> ValueFormat {
+    retained_rec_idxes: &IntSet<u16>,
+) -> Result<(), ReadError> {
     // TODO: support instancing
-    let mut new_format = ValueFormat::empty();
+    let (value_format, records_offset, record_size, font_data, new_format) = (
+        singlepos_info.value_format,
+        singlepos_info.records_offset,
+        singlepos_info.record_size,
+        singlepos_info.font_data,
+        &mut singlepos_info.new_format,
+    );
     if plan
         .subset_flags
         .contains(SubsetFlags::SUBSET_FLAGS_NO_HINTING)
@@ -121,14 +137,16 @@ fn compute_new_value_format<'a>(
             true
         };
 
-        for record in value_records {
-            new_format |= compute_effective_format(&record, strip_hints, true);
+        for i in retained_rec_idxes.iter() {
+            let offset = records_offset + i as usize * record_size;
+            let value_record = ValueRecord::new(font_data, offset, value_format);
+            *new_format |= compute_effective_format(&value_record, strip_hints, true)?;
         }
-    } else if let Some(rec) = value_records.into_iter().next() {
-        new_format = rec.format();
+    } else {
+        *new_format = value_format;
     }
 
-    new_format
+    Ok(())
 }
 
 impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
@@ -155,42 +173,67 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
         }
 
         let (state, font) = args;
-        let value_records = self.value_records();
-        let it = retained_rec_idxes
-            .iter()
-            .filter_map(|i| value_records.get(i as usize).ok());
-        let new_format = compute_new_value_format(plan, state.has_gdef_varstore, font, it);
-
-        let Ok(first_retained_rec) =
-            value_records.get(retained_rec_idxes.first().unwrap() as usize)
-        else {
-            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
+        let value_format = self.value_format();
+        let records_offset = self.value_count_byte_range().end;
+        let record_size = 2 * compute_record_len(value_format);
+        let font_data = self.offset_data();
+        let mut singlepos_info = SinglePosInfo {
+            value_format,
+            records_offset,
+            record_size,
+            font_data,
+            new_format: ValueFormat::empty(),
         };
 
-        let mut table_format = 1;
-        for i in retained_rec_idxes.iter().skip(1) {
-            let Ok(rec) = value_records.get(i as usize) else {
-                return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR));
-            };
+        compute_new_value_format(
+            &mut singlepos_info,
+            plan,
+            state.has_gdef_varstore,
+            font,
+            &retained_rec_idxes,
+        )
+        .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
 
-            if rec != first_retained_rec {
-                table_format = 2;
-                break;
-            }
-        }
+        let Some(first_rec_idx) = retained_rec_idxes.first() else {
+            return Err(s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_OTHER));
+        };
+        let first_retained_rec = ValueRecord::new(
+            font_data,
+            records_offset + first_rec_idx as usize * record_size,
+            value_format,
+        );
+
+        let table_format = if retained_rec_idxes
+            .iter()
+            .skip(1)
+            .map(|i| {
+                ValueRecord::new(
+                    font_data,
+                    records_offset + i as usize * record_size,
+                    value_format,
+                )
+            })
+            .all(|rec| rec == first_retained_rec)
+        {
+            1
+        } else {
+            2
+        };
 
         if table_format == 1 {
-            SinglePosFormat1::serialize(s, (&retained_glyphs, first_retained_rec, new_format, plan))
-        } else {
-            SinglePosFormat2::serialize(
+            SinglePosFormat1::serialize(
                 s,
                 (
                     &retained_glyphs,
-                    new_format,
-                    self,
-                    &retained_rec_idxes,
+                    first_retained_rec,
+                    singlepos_info.new_format,
                     plan,
                 ),
+            )
+        } else {
+            SinglePosFormat2::serialize(
+                s,
+                (&retained_glyphs, &singlepos_info, &retained_rec_idxes, plan),
             )
         }
     }
@@ -199,8 +242,7 @@ impl<'a> SubsetTable<'a> for SinglePosFormat2<'_> {
 impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
     type Args = (
         &'a [GlyphId],
-        ValueFormat,
-        &'a SinglePosFormat2<'a>,
+        &'a SinglePosInfo<'a>,
         &'a IntSet<u16>,
         &'a Plan,
     );
@@ -211,7 +253,14 @@ impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
         // coverage offset
         let cov_offset_pos = s.embed(0_u16)?;
 
-        let (glyphs, value_format, table, retained_rec_idxes, plan) = args;
+        let (glyphs, singlepos_info, retained_rec_idxes, plan) = args;
+        let (value_format, records_offset, record_size, font_data, new_format) = (
+            singlepos_info.value_format,
+            singlepos_info.records_offset,
+            singlepos_info.record_size,
+            singlepos_info.font_data,
+            singlepos_info.new_format,
+        );
         //value format
         s.embed(value_format)?;
 
@@ -220,11 +269,9 @@ impl<'a> Serialize<'a> for SinglePosFormat2<'_> {
         s.embed(value_count as u16)?;
 
         for i in retained_rec_idxes.iter() {
-            let value_record = table
-                .value_records()
-                .get(i as usize)
-                .map_err(|_| s.set_err(SerializeErrorFlags::SERIALIZE_ERROR_READ_ERROR))?;
-            value_record.subset(plan, s, value_format)?;
+            let offset = records_offset + i as usize * record_size;
+            let value_record = ValueRecord::new(font_data, offset, value_format);
+            value_record.subset(plan, s, new_format)?;
         }
 
         Offset16::serialize_serialize::<CoverageTable>(s, glyphs, cov_offset_pos)
@@ -255,10 +302,8 @@ impl CollectVariationIndices for SinglePosFormat1<'_> {
 
 impl CollectVariationIndices for SinglePosFormat2<'_> {
     fn collect_variation_indices(&self, plan: &Plan, varidx_set: &mut IntSet<u32>) {
-        if !self
-            .value_format()
-            .intersects(ValueFormat::ANY_DEVICE_OR_VARIDX)
-        {
+        let value_format = self.value_format();
+        if value_format.intersects(ValueFormat::ANY_DEVICE_OR_VARIDX) {
             return;
         }
 
@@ -266,13 +311,28 @@ impl CollectVariationIndices for SinglePosFormat2<'_> {
             return;
         };
         let glyph_set = &plan.glyphset_gsub;
-        let value_record_idxes = intersected_coverage_indices(&coverage, glyph_set);
-        let value_records = self.value_records();
-        for i in value_record_idxes.iter() {
-            let Ok(value_record) = value_records.get(i as usize) else {
-                return;
-            };
-            value_record.collect_variation_indices(plan, varidx_set);
+        let value_count = self.value_count();
+        let record_size = compute_record_len(value_format);
+        let records_offset = self.value_count_byte_range().end;
+        let font_data = self.offset_data();
+
+        let bit_storage = 16 - value_count.leading_zeros() as u64;
+        if value_count as u64 > glyph_set.len() * bit_storage {
+            for idx in glyph_set.iter().filter_map(|g| coverage.get(g)) {
+                let offset = records_offset + idx as usize * record_size;
+                let value_record = ValueRecord::new(font_data, offset, value_format);
+                value_record.collect_variation_indices(plan, varidx_set);
+            }
+        } else {
+            for i in coverage
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, g)| glyph_set.contains(GlyphId::from(g)).then_some(idx))
+            {
+                let offset = records_offset + i * record_size;
+                let value_record = ValueRecord::new(font_data, offset, value_format);
+                value_record.collect_variation_indices(plan, varidx_set);
+            }
         }
     }
 }
