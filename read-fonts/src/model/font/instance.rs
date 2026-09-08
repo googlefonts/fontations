@@ -1,6 +1,7 @@
 //! Font instance representation.
 
 use super::Font;
+use crate::model::{metrics::GlobalMetrics, once::Once};
 use crate::{
     tables::{
         avar::Avar,
@@ -9,55 +10,124 @@ use crate::{
     },
     TableProvider,
 };
-use alloc::vec::Vec;
+use alloc::{sync::Arc, vec::Vec};
 use core::{
     str::FromStr,
     sync::atomic::{self, AtomicU32},
 };
 use types::{Fixed, Tag};
 
-/// A specific instance of a font, with a size and variation settings.
-pub struct FontInstance {
+/// A font at one location in its design space.
+///
+/// Cloning is cheap: clones share one instance rather than copying it.
+#[derive(Clone)]
+pub struct FontInstance(Repr);
+
+#[derive(Clone)]
+enum Repr {
+    Default(Font),
+    Varied(Arc<VariedInstance>),
+}
+
+/// What a location away from the default carries.
+struct VariedInstance {
     font: Font,
-    size: Option<f32>,
+    /// Never empty: an all-default location is [`Repr::Default`].
     coords: CoordStorage,
     feature_vars: FeatureVarsStorage,
+    global_metrics: Once<GlobalMetrics>,
 }
 
 impl FontInstance {
     /// Returns a builder for configuring a font instance from the given font.
     pub fn builder(font: &Font) -> FontInstanceBuilder {
         FontInstanceBuilder {
-            instance: Self {
+            instance: VariedInstance {
                 font: font.clone(),
-                size: None,
                 coords: CoordStorage::default(),
                 feature_vars: FeatureVarsStorage::new(),
+                global_metrics: Once::new(),
             },
         }
     }
 
     /// Returns the font for this instance.
     pub fn font(&self) -> &Font {
-        &self.font
-    }
-
-    /// Returns the size of the font instance, in pixels per em.
-    pub fn size(&self) -> Option<f32> {
-        self.size
+        match &self.0 {
+            Repr::Default(font) => font,
+            Repr::Varied(varied) => &varied.font,
+        }
     }
 
     /// Returns the normalized variation coordinates for this font instance.
     pub fn normalized_coords(&self) -> &[NormalizedCoord] {
-        self.coords.as_slice()
+        match &self.0 {
+            Repr::Default(_) => &[],
+            Repr::Varied(varied) => varied.coords.as_slice(),
+        }
     }
 
-    /// Returns the selected feature variations for this font instance.
+    /// Returns the feature variations this instance selects.
+    ///
+    /// The default location selects none. A variable font is meant to keep
+    /// working for a client that knows nothing of variations, and such a
+    /// client reaches the default instance without ever consulting this
+    /// table. Selecting here would render that font one way for it and
+    /// another for everyone else.
     pub fn feature_variations(&self) -> FontFeatureVariations {
-        self.feature_vars.load(&self.font, self.coords.as_slice())
+        match &self.0 {
+            Repr::Default(_) => FontFeatureVariations::default(),
+            Repr::Varied(varied) => varied
+                .feature_vars
+                .load(&varied.font, varied.coords.as_slice()),
+        }
+    }
+
+    /// Returns the metrics describing the font as a whole, at this
+    /// instance's location.
+    pub fn global_metrics(&self) -> &GlobalMetrics {
+        match &self.0 {
+            // Nothing varies there, so the font already holds the answer.
+            Repr::Default(font) => font.global_metrics(),
+            Repr::Varied(varied) => varied.global_metrics.get_or_init(|| {
+                debug_assert!(!varied.coords.as_slice().is_empty());
+                GlobalMetrics::from_sfnt(&varied.font.tables(), varied.coords.as_slice())
+            }),
+        }
     }
 }
 
+impl From<Font> for FontInstance {
+    /// A font is an instance of itself, at the default location.
+    fn from(font: Font) -> Self {
+        Self(Repr::Default(font))
+    }
+}
+
+impl From<&Font> for FontInstance {
+    /// A font is an instance of itself, at the default location.
+    fn from(font: &Font) -> Self {
+        Self(Repr::Default(font.clone()))
+    }
+}
+
+#[cfg(test)]
+impl FontInstance {
+    /// The storage behind a varied instance, for the cache tests.
+    fn feature_vars(&self) -> &FeatureVarsStorage {
+        match &self.0 {
+            Repr::Varied(varied) => &varied.feature_vars,
+            Repr::Default(_) => panic!("the default instance keeps no storage of its own"),
+        }
+    }
+}
+
+/// An instance answers for its font wherever a location makes no difference,
+/// so everything a [`Font`] offers is reachable through one.
+///
+/// Where a location does make a difference the inherent method wins:
+/// [`global_metrics`](FontInstance::global_metrics) reports this instance,
+/// while the font's own stays reachable through [`font`](FontInstance::font).
 impl core::ops::Deref for FontInstance {
     type Target = Font;
     fn deref(&self) -> &Font {
@@ -67,18 +137,10 @@ impl core::ops::Deref for FontInstance {
 
 /// Builder for configuring a font instance.
 pub struct FontInstanceBuilder {
-    instance: FontInstance,
+    instance: VariedInstance,
 }
 
 impl FontInstanceBuilder {
-    /// Sets the size for the font instance, in pixels per em.
-    ///
-    /// Setting this to `None` disables scaling.
-    pub fn size(mut self, size: Option<f32>) -> Self {
-        self.instance.size = size;
-        self
-    }
-
     /// Sets the variations for the font instance from an unordered sequence of
     /// variations in user space.
     ///
@@ -138,7 +200,13 @@ impl FontInstanceBuilder {
 
     /// Builds the font instance.
     pub fn build(self) -> FontInstance {
-        self.instance
+        // An all-default location is just the font, so nothing needs owning.
+        // This is what keeps `VariedInstance::coords` non-empty.
+        if self.instance.coords.as_slice().is_empty() {
+            FontInstance(Repr::Default(self.instance.font))
+        } else {
+            FontInstance(Repr::Varied(Arc::new(self.instance)))
+        }
     }
 }
 
@@ -413,7 +481,7 @@ impl FontFeatureVariations {
 /// Lazy atomic storage for feature variation selections.
 ///
 /// We don't want to load the GSUB and GPOS tables unless explicitly requested.
-struct FeatureVarsStorage {
+pub(crate) struct FeatureVarsStorage {
     status: AtomicU32,
     gsub: AtomicU32,
     gpos: AtomicU32,
@@ -438,7 +506,7 @@ impl FeatureVarsStorage {
     /// low 16 bits.
     const GPOS_SHIFT: u32 = 16;
 
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             status: AtomicU32::new(Self::UNCHECKED),
             gsub: AtomicU32::new(0),
@@ -446,7 +514,7 @@ impl FeatureVarsStorage {
         }
     }
 
-    fn load(&self, font: &Font, coords: &[NormalizedCoord]) -> FontFeatureVariations {
+    pub(crate) fn load(&self, font: &Font, coords: &[NormalizedCoord]) -> FontFeatureVariations {
         let mut status = self.status.load(atomic::Ordering::Acquire);
         if status == Self::UNCHECKED {
             let tables = font.tables();
@@ -638,13 +706,13 @@ mod tests {
         let instance = FontInstance::builder(&font)
             .variations([("FILL", 0.5)])
             .build();
-        assert_eq!(instance.feature_vars.status.load(Ordering::Acquire), 0);
+        assert_eq!(instance.feature_vars().status.load(Ordering::Acquire), 0);
         assert_eq!(
             instance.feature_variations(),
             FontFeatureVariations::default()
         );
         assert_eq!(
-            instance.feature_vars.status.load(Ordering::Acquire),
+            instance.feature_vars().status.load(Ordering::Acquire),
             FeatureVarsStorage::BOTH_ABSENT
         );
     }
@@ -671,13 +739,13 @@ mod tests {
                 });
             }
         });
-        let status = instance.feature_vars.status.load(Ordering::Acquire);
+        let status = instance.feature_vars().status.load(Ordering::Acquire);
         assert_eq!(status & 0xFFFF, FeatureVarsStorage::PRESENT);
         assert_eq!(
             (status >> FeatureVarsStorage::GPOS_SHIFT) & 0xFFFF,
             FeatureVarsStorage::ABSENT
         );
-        assert_eq!(instance.feature_vars.gsub.load(Ordering::Acquire), 0);
+        assert_eq!(instance.feature_vars().gsub.load(Ordering::Acquire), 0);
     }
 
     #[test]
@@ -740,5 +808,132 @@ mod tests {
         assert!(coords[copied..]
             .iter()
             .all(|&coord| coord == NormalizedCoord::ZERO));
+    }
+
+    /// Twelve axes, and an `MVAR` that varies its heights.
+    const MVAR_FONT: &[u8] = font_test_data::AMSTELVAR_AVAR2_A;
+
+    #[test]
+    fn an_instance_varies_its_global_metrics() {
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        let far = FontInstance::builder(&font)
+            .normalized_coords([NormalizedCoord::from_f32(1.0); 12])
+            .build();
+        assert!(!far.normalized_coords().is_empty());
+        assert_ne!(far.global_metrics(), font.global_metrics());
+    }
+
+    #[test]
+    fn an_instance_at_the_default_location_shares_the_font_metrics() {
+        // Nothing varies there, so there is no second copy to compute.
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        let default = FontInstance::builder(&font).build();
+        assert!(core::ptr::eq(
+            default.global_metrics(),
+            font.global_metrics()
+        ));
+    }
+
+    #[test]
+    fn clones_of_an_instance_share_one_set_of_metrics() {
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        let far = FontInstance::builder(&font)
+            .normalized_coords([NormalizedCoord::from_f32(1.0); 12])
+            .build();
+        let shared = far.clone();
+        // The location is resolved once, not once per holder.
+        assert!(core::ptr::eq(far.global_metrics(), shared.global_metrics()));
+    }
+
+    #[test]
+    fn the_fixed_numbers_do_not_resolve_a_location() {
+        // Both are properties of the font, so reaching them through an
+        // instance must not read `MVAR` the way its whole-font metrics do.
+        let asked = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let logged = asked.clone();
+        let source: Arc<dyn Fn(Tag) -> Option<crate::model::FontBlob> + Send + Sync> =
+            Arc::new(move |tag: Tag| {
+                logged.lock().unwrap().push(tag);
+                let font = crate::FontRef::new(MVAR_FONT).ok()?;
+                Some(crate::model::FontBlob::from(
+                    font.table_data(tag)?.as_bytes().to_vec(),
+                ))
+            });
+        let font = Font::new(source, 0).unwrap();
+        let far = FontInstance::builder(&font)
+            .normalized_coords([NormalizedCoord::from_f32(1.0); 12])
+            .build();
+        asked.lock().unwrap().clear();
+
+        assert_eq!(far.num_glyphs(), font.num_glyphs());
+        assert_eq!(far.units_per_em(), font.units_per_em());
+        assert!(
+            !asked.lock().unwrap().contains(&Tag::new(b"MVAR")),
+            "reading a fixed number resolved the location"
+        );
+
+        // And the varied metrics still do.
+        let _ = far.global_metrics();
+        assert!(asked.lock().unwrap().contains(&Tag::new(b"MVAR")));
+    }
+
+    #[test]
+    fn a_font_converts_into_an_instance_of_itself() {
+        // By value where the caller is done with the font, by reference
+        // where it is not.
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        let borrowed = FontInstance::from(&font);
+        let owned = FontInstance::from(font.clone());
+        for instance in [borrowed, owned, font.default_instance()] {
+            assert!(matches!(instance.0, Repr::Default(_)));
+            assert!(core::ptr::eq(
+                instance.global_metrics(),
+                font.global_metrics()
+            ));
+        }
+    }
+
+    #[test]
+    fn a_default_instance_is_only_its_font() {
+        // Nothing about the default location needs owning, so building one
+        // shares the font rather than allocating beside it.
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        for instance in [
+            font.default_instance(),
+            FontInstance::builder(&font).build(),
+            // An all-default location collapses to no coordinates, so this
+            // reaches the same place.
+            FontInstance::builder(&font)
+                .normalized_coords([NormalizedCoord::from_f32(0.0); 12])
+                .build(),
+        ] {
+            assert!(matches!(instance.0, Repr::Default(_)));
+            assert!(instance.normalized_coords().is_empty());
+            assert!(core::ptr::eq(
+                instance.global_metrics(),
+                font.global_metrics()
+            ));
+        }
+    }
+
+    #[test]
+    fn a_location_away_from_the_default_is_owned() {
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        let far = FontInstance::builder(&font)
+            .normalized_coords([NormalizedCoord::from_f32(1.0); 12])
+            .build();
+        assert!(matches!(far.0, Repr::Varied(_)));
+        assert_eq!(far.normalized_coords().len(), 12);
+    }
+
+    #[test]
+    fn a_default_instance_reports_the_font_it_came_from() {
+        let font = Font::new(MVAR_FONT, 0).unwrap();
+        let instance = font.default_instance();
+        assert_eq!(instance.num_glyphs(), font.num_glyphs());
+        assert_eq!(
+            instance.feature_variations(),
+            FontFeatureVariations::default()
+        );
     }
 }

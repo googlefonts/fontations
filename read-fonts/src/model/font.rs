@@ -19,6 +19,7 @@ pub use tables::{FontTableFunction, FontTables};
 #[rust_analyzer::completions(hidden_from_completion)]
 pub mod interop;
 
+use super::metrics::GlobalMetrics;
 use super::once::Once;
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
@@ -42,10 +43,12 @@ impl Font {
     pub fn new(source: impl Into<FontSource>, index: u32) -> Result<Self, ReadError> {
         let source = source.into();
         let kind = if let Ok(tables) = FontTables::new(source.clone(), index) {
-            Some(FontKindRepr::Sfnt(tables, index))
+            Some(FontKindRepr::Sfnt(Arc::new(tables), index))
         } else if let FontSource::Blob(blob) = &source {
             match FontFormat::new(blob) {
-                Some(FontFormat::Type1) => Type1Font::new(blob).ok().map(FontKindRepr::Type1),
+                Some(FontFormat::Type1) => Type1Font::new(blob)
+                    .ok()
+                    .map(|font| FontKindRepr::Type1(Box::new(font))),
                 // TODO: pure CFF fonts
                 _ => None,
             }
@@ -57,6 +60,7 @@ impl Font {
             source,
             kind,
             shaping_data: Once::new(),
+            global_metrics: Once::new(),
         };
         Ok(Self(Arc::new(repr)))
     }
@@ -72,6 +76,38 @@ impl Font {
             FontKindRepr::Sfnt(tables, index) => FontKind::Sfnt(tables, *index),
             FontKindRepr::Type1(font) => FontKind::Type1(font),
         }
+    }
+
+    /// Returns the metrics describing the font as a whole, at its default
+    /// location.
+    #[inline]
+    pub fn global_metrics(&self) -> &GlobalMetrics {
+        self.0.global_metrics.get_or_init(|| match self.kind() {
+            FontKind::Type1(font) => GlobalMetrics::from_type1(font),
+            _ => GlobalMetrics::from_sfnt(&self.tables(), &[]),
+        })
+    }
+
+    /// Returns the number of glyphs in the font.
+    ///
+    /// Fixed for the font: no location varies it.
+    #[inline]
+    pub fn num_glyphs(&self) -> u32 {
+        self.global_metrics().num_glyphs
+    }
+
+    /// Returns the size of the em square, in design units.
+    ///
+    /// Fixed for the font: no location varies it.
+    #[inline]
+    pub fn units_per_em(&self) -> u16 {
+        self.global_metrics().units_per_em
+    }
+
+    /// Returns this font as an instance at its default location.
+    #[inline]
+    pub fn default_instance(&self) -> FontInstance {
+        FontInstance::from(self)
     }
 
     /// Returns an object that provides access to individual font tables.
@@ -91,6 +127,10 @@ struct FontRepr {
     kind: FontKindRepr,
     // Storage cell for lazily loaded HarfRust shaping data.
     shaping_data: Once<Box<dyn Any + Send + Sync>>,
+    // Metrics that describe the font as a whole, at the default location,
+    // read once rather than per query. Kept apart from `shaping_data`, which
+    // holds one thing for one owner.
+    global_metrics: Once<GlobalMetrics>,
 }
 
 /// The underlying type of a font.
@@ -105,8 +145,9 @@ pub enum FontKind<'a> {
 }
 
 /// The underlying type of a font.
-#[expect(clippy::large_enum_variant)]
 enum FontKindRepr {
-    Sfnt(FontTables, u32),
-    Type1(Type1Font),
+    Sfnt(Arc<FontTables>, u32),
+    // Boxed: a `Type1Font` is an order of magnitude larger than the sfnt
+    // variant, and inline it would be paid by every font that is not one.
+    Type1(Box<Type1Font>),
 }
