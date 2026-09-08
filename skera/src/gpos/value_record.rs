@@ -33,6 +33,7 @@ const DEVICE_FIELDS: [ValueFormat; 4] = [
     ValueFormat::Y_ADVANCE_DEVICE,
 ];
 
+// Returns the number of 1 bits in a u8
 #[inline]
 fn popcount8(v: u8) -> u8 {
     const POPCOUNT4: [u8; 16] = [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4];
