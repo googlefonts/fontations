@@ -398,7 +398,7 @@ impl<'a, 's, 'buf, S: Scale> Pass<'a, 's, 'buf, '_, S> {
                 .buffers
                 .composite_deltas
                 .try_mut(delta_base..delta_base + count)?;
-            if var_data.composite_deltas(self.coords, deltas).is_ok() {
+            if var_data.composite_deltas(self.coords, deltas).is_some() {
                 for (phantom, delta) in self
                     .phantom
                     .iter_mut()
@@ -578,7 +578,7 @@ mod tests {
                         &[F2Dot14::from_f32(1.0)],
                         &mut [Point::<Fixed>::default(); 8]
                     )
-                    .is_err(),
+                    .is_none(),
                 "gid {gid} parsed when it should not"
             );
         }
