@@ -1,7 +1,10 @@
 //! Font instance representation.
 
 use super::Font;
-use crate::model::{metrics::GlobalMetrics, once::Once};
+use crate::model::{
+    metrics::{GlobalMetrics, GlyphMetrics},
+    once::Once,
+};
 use crate::{
     tables::{
         avar::Avar,
@@ -81,6 +84,13 @@ impl FontInstance {
                 .feature_vars
                 .load(&varied.font, varied.coords.as_slice()),
         }
+    }
+
+    /// Returns measurements of individual glyphs, at this instance's
+    /// location.
+    #[inline]
+    pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
+        GlyphMetrics::new(self.font(), self.normalized_coords())
     }
 
     /// Returns the metrics describing the font as a whole, at this

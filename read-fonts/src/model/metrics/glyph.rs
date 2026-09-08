@@ -6,27 +6,29 @@ use crate::{
     tables::hmtx::LongMetric,
     TableProvider,
 };
-use types::{F48Dot16, Fixed, GlyphId};
+use types::{F2Dot14, F48Dot16, Fixed, GlyphId};
 
-/// Measurements of individual glyphs.
+/// Measurements of individual glyphs at one location.
 ///
 /// Cheap to obtain, so it can be taken per query rather than held.
 #[derive(Clone, Copy)]
 pub struct GlyphMetrics<'a> {
     h_metrics: &'a RawGlyphMetrics<'a>,
     font: &'a Font,
+    coords: &'a [F2Dot14],
     num_glyphs: u32,
     units_per_em: u16,
 }
 
 impl<'a> GlyphMetrics<'a> {
-    /// Reads what a font states about its glyphs.
+    /// Binds a font to the location its glyphs are measured at.
     #[inline]
-    pub(crate) fn new(font: &'a Font) -> Self {
+    pub(crate) fn new(font: &'a Font, coords: &'a [F2Dot14]) -> Self {
         let global = font.global_metrics();
         Self {
             h_metrics: font.h_metrics(),
             font,
+            coords,
             num_glyphs: global.num_glyphs,
             units_per_em: global.units_per_em,
         }
@@ -43,8 +45,9 @@ impl<'a> GlyphMetrics<'a> {
 
     /// Returns the exact advance width of `glyph`, in design units.
     ///
-    /// `hmtx` states a whole number of units, so at the default location
-    /// this is exact and whole.
+    /// `hmtx` states a whole number of units and a location adds a fraction,
+    /// so the sum carries one. How to round it is the caller's to decide, as
+    /// is what to do with a location that carries an advance below zero.
     #[inline]
     pub fn h_advance_exact(&self, glyph: GlyphId) -> F48Dot16 {
         let mut width = F48Dot16::ZERO;
@@ -79,6 +82,53 @@ impl<'a> GlyphMetrics<'a> {
             }
             return;
         }
+        let coords = self.coords;
+        if coords.is_empty() {
+            return raw.run(self.num_glyphs, convert, glyphs);
+        }
+        self.h_advance_batched_varied(raw, coords, convert, glyphs)
+    }
+
+    /// The varied half of [`h_advance_batched`](Self::h_advance_batched).
+    ///
+    /// Out of line because reading `gvar` pulls in a large amount of code,
+    /// whose size would otherwise be charged to every unvaried measurement.
+    #[inline(never)]
+    fn h_advance_batched_varied<'o, V: 'o>(
+        &self,
+        raw: &RawGlyphMetrics<'_>,
+        coords: &[F2Dot14],
+        convert: impl Fn(F48Dot16) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        // Ask the table that answers directly, and stop there if it does.
+        if let Some(hvar) = self.font.hvar() {
+            return raw.run_varied(
+                self.num_glyphs,
+                |gid| hvar.advance_delta(gid, coords).unwrap_or(F48Dot16::ZERO),
+                convert,
+                glyphs,
+            );
+        }
+        // Without `HVAR`, the answer comes from the phantom points on the
+        // outline: an advance spans the two horizontal ones, so a change in
+        // it is a change in that span.
+        if let (Some(gvar), Some((glyf, loca))) = (self.font.gvar(), self.font.glyf_loca()) {
+            return raw.run_varied(
+                self.num_glyphs,
+                |gid| match gvar.phantom_point_deltas(glyf, loca, coords, gid) {
+                    Ok(Some(deltas)) => (deltas[1].x - deltas[0].x).to_f48dot16(),
+                    // A glyph the table says nothing about does not move,
+                    // and neither does one it says something unreadable
+                    // about. They are different states, not different
+                    // answers.
+                    _ => F48Dot16::ZERO,
+                },
+                convert,
+                glyphs,
+            );
+        }
+        // A location, but nothing stating what it changes.
         raw.run(self.num_glyphs, convert, glyphs)
     }
 
@@ -162,8 +212,9 @@ impl<'a> RawGlyphMetrics<'a> {
 
     /// Writes what the table states for each glyph.
     ///
-    /// A stored advance is a `u16`, so it can neither overflow the sum nor
-    /// fall below zero.
+    /// A stored advance is a `u16`, so unlike
+    /// [`run_varied`](Self::run_varied) this can neither overflow the sum nor
+    /// report anything below zero.
     #[inline]
     fn run<'o, V: 'o>(
         &self,
@@ -173,6 +224,38 @@ impl<'a> RawGlyphMetrics<'a> {
     ) {
         for (gid, out) in glyphs {
             *out = convert(self.stored_advance(num_glyphs, gid));
+        }
+    }
+
+    /// Writes each glyph's advance with `delta` applied.
+    ///
+    /// `delta` is settled before the run, leaving only the branches that turn
+    /// on the glyph. The sum saturates rather than wrapping, but is not
+    /// otherwise bounded: a font whose deltas say so can carry an advance
+    /// below zero, and what to do about that is the caller's to decide.
+    ///
+    /// Glyphs beyond the end of the font measure zero here, as they do
+    /// unvaried.
+    #[inline]
+    fn run_varied<'o, V: 'o>(
+        &self,
+        num_glyphs: u32,
+        delta: impl Fn(GlyphId) -> F48Dot16,
+        convert: impl Fn(F48Dot16) -> V,
+        glyphs: impl Iterator<Item = (GlyphId, &'o mut V)>,
+    ) {
+        for (gid, out) in glyphs {
+            // Glyphs beyond the end of the font measure zero, and no
+            // delta applies to them. The index map clamps an out of range
+            // glyph onto its last entry, so asking would answer with some
+            // other glyph's delta.
+            let advance = if gid.to_u32() < num_glyphs {
+                self.stored_advance(num_glyphs, gid)
+                    .saturating_add(delta(gid))
+            } else {
+                F48Dot16::ZERO
+            };
+            *out = convert(advance);
         }
     }
 
@@ -208,10 +291,12 @@ pub(crate) fn empty() -> &'static RawGlyphMetrics<'static> {
 mod tests {
     use super::*;
     use crate::{
-        model::{pen::NullPen, Font},
+        model::{pen::NullPen, Font, FontBlob, FontInstance, NormalizedCoord},
         FontRef,
     };
-    use alloc::{vec, vec::Vec};
+    use alloc::{sync::Arc, vec, vec::Vec};
+    use std::sync::Mutex;
+    use types::Tag;
 
     const STATIC: &[u8] = font_test_data::TINOS_SUBSET;
     /// Has both `HVAR` and `gvar`, so it can answer either way.
@@ -295,6 +380,34 @@ mod tests {
                 .h_advance_exact(GlyphId::new(num_glyphs)),
             F48Dot16::ZERO
         );
+    }
+
+    #[test]
+    fn glyphs_beyond_the_font_measure_zero_at_any_location() {
+        // The delta set index map clamps an out of range glyph onto its
+        // last entry, so without a check these would take the last real
+        // glyph's delta and report an advance, and a negative one at that.
+        let font = Font::new(VAR, 0).unwrap();
+        let num_glyphs = font.num_glyphs();
+        let instance = at(&font, -1.0);
+        assert!(
+            instance
+                .glyph_metrics()
+                .h_advance_exact(GlyphId::new(num_glyphs - 1))
+                != font
+                    .glyph_metrics()
+                    .h_advance_exact(GlyphId::new(num_glyphs - 1)),
+            "the last real glyph should move, or this proves nothing"
+        );
+        for gid in [num_glyphs, num_glyphs + 1, u32::MAX] {
+            let gid = GlyphId::new(gid);
+            assert_eq!(
+                instance.glyph_metrics().h_advance_exact(gid),
+                F48Dot16::ZERO,
+                "glyph {gid} is beyond the font"
+            );
+            assert_eq!(font.glyph_metrics().h_advance_exact(gid), F48Dot16::ZERO);
+        }
     }
 
     #[test]
@@ -432,5 +545,160 @@ mod tests {
         for i in 0..2 {
             assert_eq!(floats[i], exact[i].to_f32());
         }
+    }
+
+    fn at(font: &Font, coord: f32) -> FontInstance {
+        FontInstance::builder(font)
+            .normalized_coords([NormalizedCoord::from_f32(coord)])
+            .build()
+    }
+
+    /// A font whose tables arrive one at a time, recording what was asked
+    /// for and withholding any tag in `hide`.
+    fn callback_font(
+        data: &'static [u8],
+        asked: Arc<Mutex<Vec<Tag>>>,
+        hide: &'static [&[u8; 4]],
+    ) -> Font {
+        let source: Arc<dyn Fn(Tag) -> Option<FontBlob> + Send + Sync> =
+            Arc::new(move |tag: Tag| {
+                asked.lock().unwrap().push(tag);
+                if hide.iter().any(|hidden| Tag::new(hidden) == tag) {
+                    return None;
+                }
+                let font = FontRef::new(data).ok()?;
+                Some(FontBlob::from(font.table_data(tag)?.as_bytes().to_vec()))
+            });
+        Font::new(source, 0).unwrap()
+    }
+
+    fn asked_for(asked: &Arc<Mutex<Vec<Tag>>>, tag: &[u8; 4]) -> bool {
+        asked.lock().unwrap().contains(&Tag::new(tag))
+    }
+
+    #[test]
+    fn an_instance_varies_what_the_font_does_not() {
+        let font = Font::new(VAR, 0).unwrap();
+        let instance = at(&font, -1.0);
+        let (varied, plain) = (instance.glyph_metrics(), font.glyph_metrics());
+        let moved = (0..font.num_glyphs())
+            .map(GlyphId::new)
+            .any(|gid| varied.h_advance_exact(gid) != plain.h_advance_exact(gid));
+        assert!(moved, "no glyph moved at the far end of the axis");
+    }
+
+    #[test]
+    fn an_advance_keeps_the_fraction_a_location_adds() {
+        // The stored width is whole and the delta is not, so a varied advance
+        // should carry a fraction that rounding would have thrown away. If
+        // nothing here is fractional the exactness is untested.
+        let font = Font::new(VAR, 0).unwrap();
+        let metrics = at(&font, -0.4);
+        let metrics = metrics.glyph_metrics();
+        let fractional = (0..font.num_glyphs())
+            .map(GlyphId::new)
+            .any(|gid| metrics.h_advance_exact(gid).to_bits() & 0xFFFF != 0);
+        assert!(fractional, "no advance carried a fraction");
+    }
+
+    #[test]
+    fn a_batch_agrees_with_one_at_a_time_at_a_location() {
+        let font = Font::new(VAR, 0).unwrap();
+        let instance = at(&font, -0.6);
+        let metrics = instance.glyph_metrics();
+        let gids: Vec<_> = (0..16u32).map(GlyphId::new).collect();
+        let mut batch = vec![F48Dot16::ZERO; 16];
+        metrics.h_advance_batched(|v| v, gids.iter().copied().zip(batch.iter_mut()));
+        for (gid, expected) in gids.iter().zip(&batch) {
+            assert_eq!(metrics.h_advance_exact(*gid), *expected);
+        }
+    }
+
+    #[test]
+    fn gvar_answers_the_same_as_hvar() {
+        // The two rungs of the ladder describe the same font, so a font that
+        // has both must measure the same either way. Withholding `HVAR`
+        // forces the second rung, which exercises the real fallback rather
+        // than a reimplementation of it.
+        let font = Font::new(VAR, 0).unwrap();
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let no_hvar = callback_font(VAR, asked.clone(), &[b"HVAR"]);
+        for coord in [-1.0, -0.8, -0.25, 0.75, 1.0] {
+            let (with, without) = (at(&font, coord), at(&no_hvar, coord));
+            let (with, without) = (with.glyph_metrics(), without.glyph_metrics());
+            for gid in (0..font.num_glyphs()).map(GlyphId::new) {
+                assert_eq!(
+                    with.h_advance_exact(gid),
+                    without.h_advance_exact(gid),
+                    "glyph {gid} disagrees at {coord}"
+                );
+            }
+        }
+        // And it really did take the other path.
+        assert!(asked_for(&asked, b"gvar"));
+    }
+
+    #[test]
+    fn a_default_location_reads_no_variation_table() {
+        // The point of the whole arrangement: `gvar` is typically about half
+        // a variable font, and on a platform that hands tables over one at a
+        // time, asking for it means copying it. Static text must not.
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let font = callback_font(VAR, asked.clone(), &[]);
+        let metrics = font.glyph_metrics();
+        for gid in (0..8).map(GlyphId::new) {
+            let _ = metrics.h_advance_exact(gid);
+        }
+        assert!(!asked_for(&asked, b"gvar"));
+        assert!(!asked_for(&asked, b"HVAR"));
+        assert!(asked_for(&asked, b"hmtx"), "but it should read hmtx");
+    }
+
+    #[test]
+    fn an_instance_at_the_default_location_reads_no_variation_table() {
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let font = callback_font(VAR, asked.clone(), &[]);
+        // All-zero coordinates are the default location, and an instance
+        // collapses them to none.
+        let instance = at(&font, 0.0);
+        assert!(instance.normalized_coords().is_empty());
+        let _ = instance.glyph_metrics().h_advance_exact(GlyphId::new(1));
+        assert!(!asked_for(&asked, b"gvar"));
+        assert!(!asked_for(&asked, b"HVAR"));
+    }
+
+    #[test]
+    fn hvar_answering_keeps_gvar_and_the_outlines_unread() {
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let font = callback_font(VAR, asked.clone(), &[]);
+        let _ = at(&font, -0.75)
+            .glyph_metrics()
+            .h_advance_exact(GlyphId::new(1));
+        assert!(asked_for(&asked, b"HVAR"));
+        for cold in [b"gvar", b"glyf", b"loca"] {
+            assert!(
+                !asked_for(&asked, cold),
+                "HVAR answered, so {} should never have been copied",
+                Tag::new(cold)
+            );
+        }
+    }
+
+    #[test]
+    fn taking_the_metrics_reads_hmtx_but_nothing_that_varies() {
+        // Every measurement needs `hmtx`, so it is read up front. What a
+        // location changes is not: that waits until something asks.
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let font = callback_font(VAR, asked.clone(), &[]);
+        let instance = at(&font, -0.75);
+        let metrics = instance.glyph_metrics();
+        assert!(asked_for(&asked, b"hmtx"));
+        for cold in [b"HVAR", b"gvar", b"glyf", b"loca"] {
+            assert!(!asked_for(&asked, cold), "read {}", Tag::new(cold));
+        }
+        // And measuring one glyph then reads only what answers.
+        let _ = metrics.h_advance_exact(GlyphId::new(1));
+        assert!(asked_for(&asked, b"HVAR"));
+        assert!(!asked_for(&asked, b"gvar"));
     }
 }
