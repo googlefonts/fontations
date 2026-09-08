@@ -28,6 +28,12 @@ rust-version = "1.85"
 # Chrome: https://chromium.googlesource.com/chromium/src/third_party/rust/+/refs/heads/main/bytemuck/v1/BUILD.gn
 # Android: https://android.googlesource.com/platform/external/rust/crates/bytemuck/+/refs/heads/main/Cargo.toml
 bytemuck = "1.14.0"
+# note: yoke version must be available in all deployment environments,
+# specifically the floor of the versions supported by google3, Chrome and
+# Android. Note that Android's main branch is stale; check a release branch.
+# Chrome: https://chromium.googlesource.com/chromium/src/third_party/rust/+/refs/heads/main/yoke/v0_8/BUILD.gn
+# Android: https://android.googlesource.com/platform/external/rust/android-crates-io/+/refs/heads/android17-release/crates/yoke/METADATA
+yoke = { version = "0.8.0", features = ["derive"] }
 # dev dependencies
 env_logger = "0.11"
 pretty_assertions = "1.3.0"

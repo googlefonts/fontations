@@ -1,6 +1,7 @@
 //! Font representation.
 
 mod blob;
+mod cache;
 mod format;
 mod instance;
 mod source;
@@ -19,13 +20,14 @@ pub use tables::{FontTableFunction, FontTables};
 #[rust_analyzer::completions(hidden_from_completion)]
 pub mod interop;
 
-use super::metrics::GlobalMetrics;
+use super::metrics::{empty_glyph_metrics, GlobalMetrics, GlyphMetrics, RawGlyphMetrics};
 use super::once::Once;
 use crate::{
     ps::{cff::CffFontRef, type1::Type1Font},
     ReadError,
 };
 use alloc::{boxed::Box, sync::Arc};
+use cache::TableCache;
 use core::any::Any;
 
 /// An OpenType or PostScript font.
@@ -61,6 +63,7 @@ impl Font {
             kind,
             shaping_data: Once::new(),
             global_metrics: Once::new(),
+            h_metrics: Once::new(),
         };
         Ok(Self(Arc::new(repr)))
     }
@@ -104,6 +107,34 @@ impl Font {
         self.global_metrics().units_per_em
     }
 
+    /// Returns measurements of individual glyphs.
+    #[inline]
+    pub fn glyph_metrics(&self) -> GlyphMetrics<'_> {
+        GlyphMetrics::new(self)
+    }
+
+    /// Returns the tables behind this font, for a cache that holds them.
+    pub(crate) fn tables_arc(&self) -> Option<&Arc<FontTables>> {
+        match &self.0.kind {
+            FontKindRepr::Sfnt(tables, _) => Some(tables),
+            _ => None,
+        }
+    }
+
+    /// Returns what `hmtx` states, parsed once for the font.
+    #[inline]
+    pub(crate) fn h_metrics(&self) -> &RawGlyphMetrics<'_> {
+        let Some(tables) = self.tables_arc() else {
+            return empty_glyph_metrics();
+        };
+        self.0
+            .h_metrics
+            .get_or_init(|| {
+                TableCache::read(tables.clone(), |tables| RawGlyphMetrics::from_hmtx(&tables))
+            })
+            .get()
+    }
+
     /// Returns this font as an instance at its default location.
     #[inline]
     pub fn default_instance(&self) -> FontInstance {
@@ -131,6 +162,9 @@ struct FontRepr {
     // read once rather than per query. Kept apart from `shaping_data`, which
     // holds one thing for one owner.
     global_metrics: Once<GlobalMetrics>,
+    // What `hmtx` states, parsed once for the font. Held beside the tables
+    // it borrows, which is what lets it live here at all.
+    h_metrics: Once<TableCache<RawGlyphMetrics<'static>>>,
 }
 
 /// The underlying type of a font.
