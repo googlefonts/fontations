@@ -176,6 +176,7 @@ fn compute_split_points(
     let mut accumulated = base_size;
     let mut visited = IntSet::empty();
     let mut out = Vec::new();
+    let mut queue = vec![0; graph.vertices.len()];
     for (class, mark_indices) in class_mark_indices.iter().enumerate() {
         let num_marks_for_class = mark_indices.len() as usize;
         partial_coverage_size += 2 * num_marks_for_class;
@@ -187,7 +188,8 @@ fn compute_split_points(
             let Some(base_anchor_idx) = graph.index_for_position(base_array_idx, pos as u32) else {
                 continue;
             };
-            delta += graph.find_subgraph_size(base_anchor_idx, &mut visited, u16::MAX)?;
+            delta +=
+                graph.find_subgraph_size(base_anchor_idx, &mut visited, &mut queue, u16::MAX)?;
         }
 
         // mark record size for this class
@@ -198,7 +200,8 @@ fn compute_split_points(
             else {
                 continue;
             };
-            delta += graph.find_subgraph_size(mark_anchor_idx, &mut visited, u16::MAX)?;
+            delta +=
+                graph.find_subgraph_size(mark_anchor_idx, &mut visited, &mut queue, u16::MAX)?;
         }
 
         accumulated += delta;

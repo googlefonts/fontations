@@ -236,6 +236,7 @@ fn promote_extensions_if_needed(
     let mut total_lookup_table_sizes = 0;
     let mut lookup_sizes = Vec::with_capacity(lookups.len());
     let mut visited = IntSet::empty();
+    let mut queue = Vec::new();
     for (lookup_idx, &lookup_pos) in lookups {
         let lookup_v = graph
             .vertex(*lookup_idx)
@@ -249,7 +250,8 @@ fn promote_extensions_if_needed(
         let subtable_count = lookup.num_subtables();
 
         visited.clear();
-        let subgraph_size = graph.find_subgraph_size(*lookup_idx, &mut visited, u16::MAX)?;
+        let subgraph_size =
+            graph.find_subgraph_size(*lookup_idx, &mut visited, &mut queue, u16::MAX)?;
         lookup_sizes.push(LookupSize {
             obj_idx: *lookup_idx,
             lookup_pos,
@@ -290,7 +292,7 @@ fn promote_extensions_if_needed(
             let lookup_size = l.lookup_size;
             visited.clear();
             let subtables_size =
-                graph.find_subgraph_size(l.obj_idx, &mut visited, 1)? - lookup_size;
+                graph.find_subgraph_size(l.obj_idx, &mut visited, &mut queue, 1)? - lookup_size;
             let remaining_size = l.subgraph_size - subtables_size - lookup_size;
 
             l3_l4_size += subtables_size;
