@@ -70,7 +70,11 @@ impl SharedBrotliDecoder for BuiltInBrotliDecoder {
                     max_uncompressed_length,
                 );
             } else if #[cfg(feature = "rust-brotli")] {
-                return rust_brotli::shared_brotli_decode_rust(encoded, shared_dictionary, max_uncompressed_length);
+                rust_brotli::shared_brotli_decode_rust(
+                    encoded,
+                    shared_dictionary,
+                    max_uncompressed_length,
+                )
             } else {
                 compile_error!("At least one of 'c-brotli' or 'rust-brotli' must be enabled.");
             }
@@ -202,11 +206,6 @@ mod tests {
         );
     }
 
-    // TODO(garretrieger): there doesn't seem to be an easy way to detect this condition with
-    // the rust brotli implementation. So disable for now. However, we need to make this behaviour
-    // consistent between the two possible implementations. Either don't check for this in the c
-    // version, or figure out how to have a similar check in rust.
-    #[cfg(feature = "c-brotli")]
     #[test]
     fn brotli_decode_too_much_input() {
         let mut patch: Vec<u8> = NO_DICT_PATCH.to_vec();
