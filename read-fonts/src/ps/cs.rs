@@ -146,6 +146,25 @@ pub trait CommandSink {
     fn finish(&mut self) {}
 }
 
+/// Sink that drops all drawing output into the ether.
+pub struct NullSink;
+
+impl CommandSink for NullSink {
+    fn move_to(&mut self, _x: Fixed, _y: Fixed) {}
+    fn line_to(&mut self, _x: Fixed, _y: Fixed) {}
+    fn curve_to(
+        &mut self,
+        _cx0: Fixed,
+        _cy0: Fixed,
+        _cx1: Fixed,
+        _cy1: Fixed,
+        _x: Fixed,
+        _y: Fixed,
+    ) {
+    }
+    fn close(&mut self) {}
+}
+
 /// Evaluates the given charstring and emits the resulting commands to the
 /// specified sink.
 ///
@@ -169,6 +188,31 @@ pub fn evaluate<'a>(
     let width = evaluator.have_read_width.then_some(evaluator.wx);
     sink.finish();
     Ok(width)
+}
+
+/// Returns the advance width the charstring states, without drawing it.
+///
+/// A charstring states its width before it draws anything: Type 1 in the
+/// `hsbw` or `sbw` that must open it, Type 2 as an optional extra argument
+/// on the first operator that clears the stack. Evaluation therefore stops
+/// as soon as that operator has been seen, which for most glyphs is a
+/// handful of bytes out of hundreds.
+///
+/// `None` where the charstring states no width of its own. For Type 2 that
+/// is the common case and means the font's default width applies; the
+/// caller supplies it, since the charstring does not know it.
+pub fn evaluate_width<'a>(
+    context: &'a impl CharstringContext,
+    blend_state: Option<BlendState<'a>>,
+    charstring_data: &[u8],
+) -> Result<Option<Fixed>, Error> {
+    let mut sink = NullSink;
+    let mut evaluator = Evaluator::new(context, blend_state, &mut sink);
+    evaluator.width_only = true;
+    // A charstring that ends before saying anything is not an error; it
+    // simply states no width.
+    evaluator.evaluate(charstring_data)?;
+    Ok(evaluator.have_read_width.then_some(evaluator.wx))
 }
 
 /// Specifies how the seac operation was invoked.
@@ -195,6 +239,8 @@ struct Evaluator<'a, S> {
     is_flexing: bool,
     /// True if we've seen a command that might read width
     seen_width_command: bool,
+    /// Stop as soon as the width is settled, rather than drawing the glyph.
+    width_only: bool,
     /// True if we've actually read a width
     have_read_width: bool,
     stem_count: usize,
@@ -229,6 +275,7 @@ where
             is_open: false,
             is_flexing: false,
             seen_width_command: false,
+            width_only: false,
             have_read_width: false,
             stem_count: 0,
             stack: Stack::new(),
@@ -297,6 +344,12 @@ where
                     if let Some(operator) = Operator::read(&mut cursor, b0) {
                         seen_endchar |= operator == Operator::EndChar;
                         if !self.evaluate_operator(operator, &mut cursor, nesting_depth)? {
+                            break;
+                        }
+                        // The first stack-clearing operator settles the
+                        // width, whether or not it carried one, so there is
+                        // nothing further to learn from the rest.
+                        if self.width_only && self.seen_width_command {
                             break;
                         }
                     } else {
@@ -380,7 +433,7 @@ where
                     self.read_width()?;
                 }
                 self.seen_width_command = true;
-                if stack_len > 1 {
+                if stack_len > 1 && !self.width_only {
                     self.handle_seac(SeacMode::Implicit, nesting_depth)?;
                 }
                 return Ok(false);
@@ -662,7 +715,9 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/T1_SPEC.pdf#page=56>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L1294>
             Seac => {
-                self.handle_seac(SeacMode::Explicit, nesting_depth)?;
+                if !self.width_only {
+                    self.handle_seac(SeacMode::Explicit, nesting_depth)?;
+                }
             }
             // Sets the left sidebearing point to (sbx, sby) and the character
             // width vector to (wx, wy) in character space. Also sets current
