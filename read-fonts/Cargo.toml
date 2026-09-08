@@ -27,7 +27,7 @@ ift = []
 spec_next = []
 # Enables support for a new font API, as proposed at
 # https://github.com/googlefonts/oxidize/pull/77
-experimental_font_api = []
+experimental_font_api = ["dep:yoke"]
 # Does nothing. Traversal was removed in #2087, but consumers still ask for
 # this feature -- fontconfig's fc-fontations does, without using any of it --
 # and cargo fails to resolve a feature that does not exist. Keeping it empty
@@ -41,6 +41,7 @@ agl = []
 
 [dependencies]
 font-types = { workspace = true, features = ["bytemuck"] }
+yoke = { workspace = true, optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
