@@ -56,13 +56,37 @@ impl Gvar<'_> {
         C: PointCoord,
         D: PointCoord + From<C>,
     {
+        self.simple_deltas_with_scalars(glyph_id, coords, &[], points, flags, contours, buffers)
+    }
+
+    /// Computes the deltas for the points of a simple glyph, reusing
+    /// `scalars`.
+    ///
+    /// `scalars` holds one entry per shared tuple, from
+    /// [`Gvar::compute_scalars`]. It may be empty or cover only some of them;
+    /// the rest are computed here.
+    #[allow(clippy::too_many_arguments)]
+    pub fn simple_deltas_with_scalars<C, D>(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+        points: &[Point<C>],
+        flags: &mut [PointFlags],
+        contours: &[u16],
+        buffers: &mut DeltaBuffers<'_, D>,
+    ) -> Option<bool>
+    where
+        C: PointCoord,
+        D: PointCoord + From<C>,
+    {
         check_simple_buffers(points, flags, buffers).ok()?;
         let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
             // Missing or malformed variation data for a glyph is not an error.
             zero(buffers.deltas);
             return Some(false);
         };
-        var_data.simple_deltas(coords, points, flags, contours, buffers)?;
+        var_data.simple_deltas_with_scalars(coords, scalars, points, flags, contours, buffers)?;
         Some(true)
     }
 
@@ -83,11 +107,27 @@ impl Gvar<'_> {
         coords: &[F2Dot14],
         deltas: &mut [Point<D>],
     ) -> Option<bool> {
+        self.composite_deltas_with_scalars(glyph_id, coords, &[], deltas)
+    }
+
+    /// Computes the deltas for a composite glyph's component offsets,
+    /// reusing `scalars`.
+    ///
+    /// `scalars` holds one entry per shared tuple, from
+    /// [`Gvar::compute_scalars`]. It may be empty or cover only some of them;
+    /// the rest are computed here.
+    pub fn composite_deltas_with_scalars<D: PointCoord>(
+        &self,
+        glyph_id: GlyphId,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+        deltas: &mut [Point<D>],
+    ) -> Option<bool> {
         let Ok(Some(var_data)) = self.glyph_variation_data(glyph_id) else {
             zero(deltas);
             return Some(false);
         };
-        var_data.composite_deltas(coords, deltas)?;
+        var_data.composite_deltas_with_scalars(coords, scalars, deltas)?;
         Some(true)
     }
 }
@@ -125,9 +165,32 @@ impl GlyphVariationData<'_> {
         C: PointCoord,
         D: PointCoord + From<C>,
     {
+        self.simple_deltas_with_scalars(coords, &[], points, flags, contours, buffers)
+    }
+
+    /// Computes the deltas for the points of a simple glyph, reusing
+    /// `scalars`.
+    ///
+    /// `scalars` holds one entry per shared tuple, from
+    /// [`Gvar::compute_scalars`]. It may be empty or cover only some of them;
+    /// the rest are computed here.
+    #[allow(clippy::too_many_arguments)]
+    pub fn simple_deltas_with_scalars<C, D>(
+        &self,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+        points: &[Point<C>],
+        flags: &mut [PointFlags],
+        contours: &[u16],
+        buffers: &mut DeltaBuffers<'_, D>,
+    ) -> Option<()>
+    where
+        C: PointCoord,
+        D: PointCoord + From<C>,
+    {
         check_simple_buffers(points, flags, buffers).ok()?;
         let DeltaBuffers { deltas, iup } = buffers;
-        self.accumulate_deltas(coords, deltas, |scalar, tuple, deltas| {
+        self.accumulate_deltas(coords, scalars, deltas, |scalar, tuple, deltas| {
             // Prepare the working buffer by converting the points to 16.16,
             // then drop the markers left by the previous tuple. Kept as two
             // passes: fused, the read-modify-write on the flags blocks the
@@ -164,7 +227,22 @@ impl GlyphVariationData<'_> {
         coords: &[F2Dot14],
         deltas: &mut [Point<D>],
     ) -> Option<()> {
-        self.accumulate_deltas(coords, deltas, |scalar, tuple, deltas| {
+        self.composite_deltas_with_scalars(coords, &[], deltas)
+    }
+
+    /// Computes the deltas for a composite glyph's component offsets,
+    /// reusing `scalars`.
+    ///
+    /// `scalars` holds one entry per shared tuple, from
+    /// [`Gvar::compute_scalars`]. It may be empty or cover only some of them;
+    /// the rest are computed here.
+    pub fn composite_deltas_with_scalars<D: PointCoord>(
+        &self,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
+        deltas: &mut [Point<D>],
+    ) -> Option<()> {
+        self.accumulate_deltas(coords, scalars, deltas, |scalar, tuple, deltas| {
             for tuple_delta in tuple.deltas() {
                 let ix = tuple_delta.position as usize;
                 if let Some(delta) = deltas.get_mut(ix) {
@@ -184,6 +262,7 @@ impl GlyphVariationData<'_> {
     fn accumulate_deltas<D: PointCoord>(
         &self,
         coords: &[F2Dot14],
+        scalars: &[Fixed],
         deltas: &mut [Point<D>],
         mut apply_sparse_tuple: impl FnMut(
             Fixed,
@@ -193,7 +272,7 @@ impl GlyphVariationData<'_> {
     ) -> Result<(), ReadError> {
         // Callers must never observe values left over from a previous glyph.
         zero(deltas);
-        for (tuple, scalar) in self.active_tuples_at(coords) {
+        for (tuple, scalar) in self.active_tuples_at_with_scalars(coords, scalars) {
             if tuple.has_deltas_for_all_points() {
                 // Fast path: the tuple covers every point, so the deltas can be
                 // accumulated directly with no interpolation.

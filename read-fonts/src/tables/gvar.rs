@@ -11,8 +11,8 @@ use super::{
     glyf::{CompositeGlyphFlags, Glyf, Glyph, PointCoord},
     loca::{Loca, LocaGlyph},
     variations::{
-        PackedPointNumbers, Tuple, TupleDelta, TupleVariationCount, TupleVariationData,
-        TupleVariationHeader,
+        scalar_for, PackedPointNumbers, Tuple, TupleDelta, TupleVariationCount, TupleVariationData,
+        TupleVariationHeader, NOT_COMPUTED,
     },
 };
 
@@ -128,11 +128,63 @@ impl<'a> Gvar<'a> {
     ///
     /// The resulting array will contain four deltas:
     /// `[left, right, top, bottom]`.
+    /// Computes the scalar for each shared tuple at `coords`, in table order,
+    /// and returns how many were written.
+    ///
+    /// A tuple that does not apply at `coords` is written as zero, which is
+    /// the value it contributes. Only the peak is used: a glyph naming a
+    /// shared tuple may state its own range alongside it, and that range is
+    /// not shared.
+    ///
+    /// `out` may be shorter than the table has shared tuples, and an
+    /// unreadable table writes nothing. A reader computes whatever is
+    /// missing.
+    pub fn compute_scalars(&self, coords: &[F2Dot14], out: &mut [Fixed]) -> usize {
+        let Ok(shared) = self.shared_tuples() else {
+            out.fill(NOT_COMPUTED);
+            return 0;
+        };
+        let shared = shared.tuples();
+        let axis_count = self.axis_count() as usize;
+        let count = out.len().min(self.shared_tuple_count() as usize);
+        for (i, out) in out[..count].iter_mut().enumerate() {
+            // An unreadable tuple ends the run. Entries already written
+            // stay valid; the caller computes the rest.
+            let Ok(tuple) = shared.get(i) else {
+                return i;
+            };
+            *out = (tuple.len() == axis_count)
+                .then(|| scalar_for(&tuple, None, coords))
+                .flatten()
+                .unwrap_or(Fixed::ZERO);
+        }
+        // Mark the tail so a slice longer than the table is safe to read.
+        out[count..].fill(NOT_COMPUTED);
+        count
+    }
+
     pub fn phantom_point_deltas(
         &self,
         glyf: &Glyf,
         loca: &Loca,
         coords: &[F2Dot14],
+        glyph_id: GlyphId,
+    ) -> Option<[Point<Fixed>; 4]> {
+        self.phantom_point_deltas_with_scalars(glyf, loca, coords, &[], glyph_id)
+    }
+
+    /// Returns the phantom point deltas for `glyph_id` at `coords`, reusing
+    /// `scalars`.
+    ///
+    /// `scalars` holds one entry per shared tuple, from
+    /// [`compute_scalars`](Self::compute_scalars). It may be empty or cover
+    /// only some of them; the rest are computed here.
+    pub fn phantom_point_deltas_with_scalars(
+        &self,
+        glyf: &Glyf,
+        loca: &Loca,
+        coords: &[F2Dot14],
+        scalars: &[Fixed],
         glyph_id: GlyphId,
     ) -> Option<[Point<Fixed>; 4]> {
         // For any given glyph, there's only one outline that contributes to
@@ -153,7 +205,7 @@ impl<'a> Gvar<'a> {
         };
         // Note that phantom points can never belong to a contour so we don't have
         // to handle the IUP case here.
-        for (tuple, scalar) in var_data.active_tuples_at(coords) {
+        for (tuple, scalar) in var_data.active_tuples_at_with_scalars(coords, scalars) {
             for tuple_delta in tuple.deltas() {
                 let ix = tuple_delta.position as usize;
                 if phantom_range.contains(&ix) {
@@ -296,6 +348,52 @@ mod tests {
 
     use super::*;
     use crate::{FontRef, TableProvider};
+
+    /// A cached shared tuple scalar has to give the same deltas as computing
+    /// one.
+    ///
+    /// Unlike a variation store's regions, shared tuples are named by index
+    /// and a slice can carry gaps, so an entry marked [`NOT_COMPUTED`] has to
+    /// be recomputed rather than believed.
+    #[test]
+    fn a_cached_scalar_changes_nothing() {
+        use crate::tables::variations::NOT_COMPUTED;
+
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let gvar = font.gvar().unwrap();
+        let glyf = font.glyf().unwrap();
+        let loca = font.loca(None).unwrap();
+        let coords = [F2Dot14::from_f32(-0.75)];
+
+        let mut buf = [Fixed::ZERO; 32];
+        let written = gvar.compute_scalars(&coords, &mut buf);
+        // Past the shared tuples every entry is marked, so a slice longer
+        // than the table is still safe to hand back.
+        assert!(buf[written..].iter().all(|s| *s == NOT_COMPUTED));
+
+        // A gap in the middle has to be recomputed, not read as a scalar.
+        let mut gapped = buf;
+        if written > 0 {
+            gapped[0] = NOT_COMPUTED;
+        }
+
+        for gid in (0..font.maxp().unwrap().num_glyphs()).map(GlyphId::from) {
+            let plain = gvar.phantom_point_deltas(&glyf, &loca, &coords, gid);
+            for (name, scalars) in [
+                ("full", &buf[..written]),
+                ("padded", &buf[..]),
+                ("gapped", &gapped[..]),
+                ("partial", &buf[..written / 2]),
+                ("empty", &[][..]),
+            ] {
+                assert_eq!(
+                    gvar.phantom_point_deltas_with_scalars(&glyf, &loca, &coords, scalars, gid),
+                    plain,
+                    "{name} cache disagreed at {gid}"
+                );
+            }
+        }
+    }
 
     // Shared tuples in the 'gvar' table of the Skia font, as printed
     // in Apple's TrueType specification.
