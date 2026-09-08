@@ -1644,41 +1644,49 @@ impl Iterator for ItemDeltas<'_> {
     }
 }
 
+/// The delta for a glyph's advance.
+///
+/// Keeps every bit the variation store computed. Rounding it to a whole
+/// design unit is left to a caller, and implementations differ on how.
 pub(crate) fn advance_delta(
     dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
     ivs: Result<ItemVariationStore, ReadError>,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
-) -> Result<Fixed, ReadError> {
+) -> Option<F48Dot16> {
     if coords.is_empty() {
-        return Ok(Fixed::ZERO);
+        return Some(F48Dot16::ZERO);
     }
     let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid)?,
+        Some(Ok(dsim)) => dsim.get(gid).ok()?,
         _ => DeltaSetIndex {
             outer: 0,
             inner: gid as _,
         },
     };
-    Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?.to_i32()))
+    ivs.ok()?.compute_delta(ix, coords).ok()
 }
 
+/// The delta for an item.
+///
+/// See [`advance_delta`]; this is the same for the mappings that require an
+/// index map rather than falling back to the glyph id.
 pub(crate) fn item_delta(
     dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
     ivs: Result<ItemVariationStore, ReadError>,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
-) -> Result<Fixed, ReadError> {
+) -> Option<F48Dot16> {
     if coords.is_empty() {
-        return Ok(Fixed::ZERO);
+        return Some(F48Dot16::ZERO);
     }
     let gid = glyph_id.to_u32();
     let ix = match dsim {
-        Some(Ok(dsim)) => dsim.get(gid)?,
-        _ => return Err(ReadError::NullOffset),
+        Some(Ok(dsim)) => dsim.get(gid).ok()?,
+        _ => return None,
     };
-    Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?.to_i32()))
+    ivs.ok()?.compute_delta(ix, coords).ok()
 }
 
 #[cfg(test)]

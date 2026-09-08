@@ -299,10 +299,11 @@ impl<'a> GlyphMetrics<'a> {
             .unwrap_or(self.default_advance_width) as i32;
         if let Some(hvar) = &self.hvar {
             advance += hvar
-                .advance_width_delta(glyph_id, self.coords)
-                // FreeType truncates metric deltas...
+                .advance_delta(glyph_id, self.coords)
+                // The delta is exact, and this rounds it to a whole design
+                // unit before it is added.
                 // https://github.com/freetype/freetype/blob/7838c78f53f206ac5b8e9cefde548aa81cb00cf4/src/truetype/ttgxvar.c#L1027
-                .map(|delta| delta.to_f64() as i32)
+                .map(|delta| delta.to_i32())
                 .unwrap_or(0);
         } else if self.gvar.is_some() {
             advance += self.metric_deltas_from_gvar(glyph_id).unwrap_or_default()[1];
@@ -335,9 +336,10 @@ impl<'a> GlyphMetrics<'a> {
         if let Some(hvar) = &self.hvar {
             lsb += hvar
                 .lsb_delta(glyph_id, self.coords)
-                // FreeType truncates metric deltas...
+                // The delta is exact, and this rounds it to a whole design
+                // unit before it is added.
                 // https://github.com/freetype/freetype/blob/7838c78f53f206ac5b8e9cefde548aa81cb00cf4/src/truetype/ttgxvar.c#L1027
-                .map(|delta| delta.to_f64() as i32)
+                .map(|delta| delta.to_i32())
                 .unwrap_or(0);
         } else if self.gvar.is_some() {
             lsb += self.metric_deltas_from_gvar(glyph_id).unwrap_or_default()[0];
