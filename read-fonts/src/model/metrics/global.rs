@@ -29,6 +29,16 @@ pub struct LineBox {
     pub line_gap: F48Dot16,
 }
 
+impl LineBox {
+    /// Returns `true` if either end of the line is away from the baseline.
+    ///
+    /// A font that leaves both at zero has filled the field in without
+    /// saying anything with it, which the choice of line has to account for.
+    pub(crate) fn has_nonzero_extent(&self) -> bool {
+        self.ascender != F48Dot16::ZERO || self.descender != F48Dot16::ZERO
+    }
+}
+
 /// Metrics that describe a font rather than any glyph in it.
 ///
 /// Read from `head`, `maxp`, `hhea`, `vhea` and `OS/2`, which together are a
@@ -178,31 +188,19 @@ impl GlobalMetrics {
     ///
     /// Returns `None` if the font states no line at all.
     pub fn h_line(&self) -> Option<LineBox> {
-        if self.use_typo_metrics {
-            if let Some(typo) = self.typo_line {
-                return Some(typo);
-            }
-        }
-        match self.hhea_line {
-            Some(hhea) if hhea.ascender != F48Dot16::ZERO || hhea.descender != F48Dot16::ZERO => {
-                Some(hhea)
-            }
-            hhea => match self.typo_line {
-                Some(typo)
-                    if typo.ascender != F48Dot16::ZERO || typo.descender != F48Dot16::ZERO =>
-                {
-                    Some(typo)
-                }
-                // The clipping line states no gap between one line and the
-                // next, so there is none to report.
-                _ => match (self.win_ascent, self.win_descent) {
-                    (Some(ascent), Some(descent)) => Some(LineBox {
-                        ascender: ascent,
-                        descender: -descent,
-                        line_gap: F48Dot16::ZERO,
-                    }),
-                    _ => hhea,
-                },
+        match (self.hhea_line, self.typo_line) {
+            (_, Some(typo)) if self.use_typo_metrics => Some(typo),
+            (Some(hhea), _) if hhea.has_nonzero_extent() => Some(hhea),
+            (_, Some(typo)) if typo.has_nonzero_extent() => Some(typo),
+            // The clipping line has no gap between one line and the next, so
+            // there is none to report.
+            (hhea, _) => match (self.win_ascent, self.win_descent) {
+                (Some(ascent), Some(descent)) => Some(LineBox {
+                    ascender: ascent,
+                    descender: -descent,
+                    line_gap: F48Dot16::ZERO,
+                }),
+                _ => hhea,
             },
         }
     }
