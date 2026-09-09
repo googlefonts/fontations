@@ -20,6 +20,7 @@ const CFF2: Tag = Tag::new(b"CFF2");
 #[derive(Debug, Clone, Default)]
 pub struct FontBuilder<'a> {
     tables: BTreeMap<Tag, Cow<'a, [u8]>>,
+    checksums: BTreeMap<Tag, u32>,
 }
 
 impl TableDirectory {
@@ -105,6 +106,22 @@ impl<'a> FontBuilder<'a> {
     /// A builder method to add raw data for the provided tag
     pub fn add_raw(&mut self, tag: Tag, data: impl Into<Cow<'a, [u8]>>) -> &mut Self {
         self.tables.insert(tag, data.into());
+        self.checksums.remove(&tag);
+        self
+    }
+
+    /// Add raw table data with its precomputed OpenType checksum.
+    ///
+    /// The checksum must include the table's implicit zero padding to a multiple of four bytes.
+    /// Supplying it avoids rescanning table data that was copied unchanged from another font.
+    pub fn add_raw_with_checksum(
+        &mut self,
+        tag: Tag,
+        data: impl Into<Cow<'a, [u8]>>,
+        checksum: u32,
+    ) -> &mut Self {
+        self.tables.insert(tag, data.into());
+        self.checksums.insert(tag, checksum);
         self
     }
 
@@ -200,9 +217,18 @@ impl<'a> FontBuilder<'a> {
                 let head = data.to_mut();
                 head[HEAD_CHECKSUM_START..HEAD_CHECKSUM_END].copy_from_slice(&[0, 0, 0, 0]);
             }
-            let (checksum, padding) = checksum_and_padding(data);
+            // The head table is mutated above, so any supplied checksum for it is stale.
+            let padding = round4(data.len()) - data.len();
+            let checksum = if *tag == head_tag {
+                read_fonts::tables::compute_checksum(data)
+            } else {
+                self.checksums
+                    .get(tag)
+                    .copied()
+                    .unwrap_or_else(|| read_fonts::tables::compute_checksum(data))
+            };
             checksums.push(checksum);
-            position += padding;
+            position += padding as u32;
             table_records.push(TableRecord::new(*tag, checksum, offset, length));
         }
         table_records.sort_unstable_by_key(|record| record.tag);
@@ -225,6 +251,7 @@ impl<'a> FontBuilder<'a> {
 
         for tag in table_order {
             let table = self.tables.remove(&tag).unwrap();
+            self.checksums.remove(&tag);
             if tag == head_tag && table.len() >= HEAD_CHECKSUM_END {
                 // store the checksum_adjustment in the head table
                 data.extend_from_slice(&table[..HEAD_CHECKSUM_START]);
@@ -252,6 +279,7 @@ fn round4(sz: usize) -> usize {
     (sz + 3) & !3
 }
 
+#[cfg(test)]
 fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
     let checksum = read_fonts::tables::compute_checksum(table);
     let padding = round4(table.len()) - table.len();
@@ -304,6 +332,34 @@ mod tests {
             assert!(pad < 4);
             assert!((i + pad as usize) % 4 == 0, "pad {i} +{pad} bytes");
         }
+    }
+
+    #[test]
+    fn uses_and_invalidates_precomputed_checksums() {
+        let tag = Tag::new(b"TEST");
+        let mut builder = FontBuilder::default();
+        builder.add_raw_with_checksum(tag, [1, 2, 3].as_slice(), 0xDEAD_BEEF);
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let record = font
+            .table_directory()
+            .table_records()
+            .iter()
+            .find(|record| record.tag() == tag)
+            .unwrap();
+        assert_eq!(record.checksum(), 0xDEAD_BEEF);
+
+        builder.add_raw_with_checksum(tag, [0; 4].as_slice(), 0xDEAD_BEEF);
+        builder.add_raw(tag, [1, 2, 3].as_slice());
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let record = font
+            .table_directory()
+            .table_records()
+            .iter()
+            .find(|record| record.tag() == tag)
+            .unwrap();
+        assert_eq!(record.checksum(), 0x0102_0300);
     }
 
     #[test]
